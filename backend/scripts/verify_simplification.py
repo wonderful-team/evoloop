@@ -12,7 +12,7 @@ backend_dir = script_dir.parent
 sys.path.insert(0, str(backend_dir))
 
 from sqlalchemy import inspect, text
-from app.infrastructure.database.sql.database import async_session_factory, engine
+from app.infrastructure.database.sql.database import session_scope, engine
 
 
 async def verify_repository_schema():
@@ -83,7 +83,7 @@ async def verify_data_migration():
     """验证数据迁移"""
     print("\n🔍 验证数据迁移...")
     
-    async with async_session_factory() as session:
+    async with session_scope() as session:
         # Check if repositories table exists
         result = await session.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='repositories'"))
         if not result.fetchone():

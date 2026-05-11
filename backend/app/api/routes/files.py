@@ -15,6 +15,7 @@ from app.core.evocloud import evocloud_manager
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects/{project_id}/files", tags=["files"])
 
+
 @router.get("", response_model=list[FileNode])
 async def list_files(project_id: int, path: str | None = None):
     """
@@ -98,6 +99,7 @@ async def list_files(project_id: int, path: str | None = None):
 
     return build_tree(target_dir, path or "")
 
+
 @router.get("/content", response_model=FileContent)
 async def get_file_content(project_id: int, path: str = Query(..., min_length=1)):
     """
@@ -132,6 +134,7 @@ async def get_file_content(project_id: int, path: str = Query(..., min_length=1)
         logger.error(f"Error reading file {target_file}: {e}")
         raise HTTPException(500, "Error reading file")
 
+
 @router.get("/raw")
 async def get_raw_file(project_id: int, path: str = Query(..., min_length=1)):
     """
@@ -156,6 +159,7 @@ async def get_raw_file(project_id: int, path: str = Query(..., min_length=1)):
         raise HTTPException(404, "File not found")
 
     return FileResponse(target_file)
+
 
 @router.post("/open")
 async def open_file(project_id: int, req: OpenFileRequest):
@@ -191,6 +195,7 @@ async def open_file(project_id: int, req: OpenFileRequest):
         logger.error(f"Failed to open file {target_file}: {e}")
         raise HTTPException(500, f"Failed to open file: {str(e)}")
 
+
 @router.post("", response_model=FileNode)
 async def create_file(project_id: int, req: CreateFileRequest):
     """
@@ -219,6 +224,7 @@ async def create_file(project_id: int, req: CreateFileRequest):
     except Exception as e:
         logger.error(f"Failed to write file {target_file}: {e}")
         raise HTTPException(500, f"Failed to write file: {str(e)}")
+
 
 @router.post("/upload")
 async def upload_file(project_id: int, file: UploadFile = File(...)):
@@ -275,6 +281,7 @@ async def upload_file(project_id: int, file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"Failed to upload file {target_path}: {e}")
         raise HTTPException(500, f"Failed to upload file: {str(e)}")
+
 
 @router.get("/search", response_model=list[FileSearchResult])
 async def search_files(project_id: int, q: str):
@@ -350,6 +357,7 @@ async def search_files(project_id: int, q: str):
         logger.error(f"Search failed: {e}")
 
     return results
+
 
 @router.get("/search_name", response_model=list[FileNameSearchResult])
 async def search_files_by_name(project_id: int, q: str):

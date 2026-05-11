@@ -726,7 +726,6 @@ class TestPhase12EventDrivenExtraction:
                     is_visible=True,
                 )
                 session.add(msg)
-            await session.commit()
 
         # 2. Mock LLM extraction to avoid real LLM calls
         from app.core.memory.auto_extraction import AutoMemoryExtractor
@@ -806,7 +805,6 @@ class TestPhase12EventDrivenExtraction:
                     is_visible=True,
                 )
                 session.add(msg)
-            await session.commit()
 
         # Mock extraction
         from app.core.memory.auto_extraction import AutoMemoryExtractor

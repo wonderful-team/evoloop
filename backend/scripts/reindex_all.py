@@ -2,7 +2,7 @@ import asyncio
 import logging
 from sqlalchemy import select
 
-from app.infrastructure.database.sql.database import AsyncSessionLocal
+from app.infrastructure.database.sql.database import session_scope
 from app.models import Repository
 from app.domain.codebase.indexing.service import IndexingService
 
@@ -14,7 +14,7 @@ async def reindex_all():
     
     service = IndexingService()
     
-    async with AsyncSessionLocal() as session:
+    async with session_scope() as session:
         # Get all repos
         stmt = select(Repository)
         result = await session.execute(stmt)

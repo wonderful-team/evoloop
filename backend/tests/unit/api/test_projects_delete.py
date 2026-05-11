@@ -101,20 +101,22 @@ class TestDeleteProject:
             yield vs
 
     @pytest.fixture
-    def mock_async_session_local(self, mock_session):
-        """Mock AsyncSessionLocal context manager."""
+    def mock_session_scope(self, mock_session):
+        """Mock session_scope context manager."""
         import app.api.routes.projects as projects_module
 
-        original = getattr(projects_module, "AsyncSessionLocal", None)
-        mock_cls = MagicMock()
-        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+        original = getattr(projects_module, "session_scope", None)
+        mock_ctx = MagicMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        # session_scope is a function that returns an async context manager
+        mock_scope = MagicMock(return_value=mock_ctx)
 
-        projects_module.AsyncSessionLocal = mock_cls
-        yield mock_cls
+        projects_module.session_scope = mock_scope
+        yield mock_scope
 
         if original is not None:
-            projects_module.AsyncSessionLocal = original
+            projects_module.session_scope = original
 
     # ==========================================================================
     # Success scenarios
@@ -124,7 +126,7 @@ class TestDeleteProject:
     async def test_delete_project_success_full_cleanup(
         self,
         mock_cloud_success,
-        mock_async_session_local,
+        mock_session_scope,
         mock_session,
         mock_repo,
         mock_indexing_manager,
@@ -169,7 +171,7 @@ class TestDeleteProject:
     async def test_delete_project_no_local_repo(
         self,
         mock_cloud_success,
-        mock_async_session_local,
+        mock_session_scope,
         mock_session,
         mock_indexing_manager,
         mock_cache,
@@ -200,7 +202,7 @@ class TestDeleteProject:
     async def test_delete_project_cloud_failure(
         self,
         mock_cloud_failure,
-        mock_async_session_local,
+        mock_session_scope,
     ):
         """Cloud delete fails → 500 error, no local cleanup attempted."""
         from app.api.routes.projects import delete_project
@@ -216,7 +218,7 @@ class TestDeleteProject:
     @pytest.mark.asyncio
     async def test_delete_project_cloud_exception(
         self,
-        mock_async_session_local,
+        mock_session_scope,
     ):
         """Cloud delete raises exception → 500 error."""
         from app.api.routes.projects import delete_project
@@ -240,7 +242,7 @@ class TestDeleteProject:
     async def test_delete_project_cache_cleanup_failure_ignored(
         self,
         mock_cloud_success,
-        mock_async_session_local,
+        mock_session_scope,
         mock_session,
         mock_repo,
         mock_indexing_manager,
@@ -262,7 +264,7 @@ class TestDeleteProject:
     async def test_delete_project_graph_cleanup_failure_ignored(
         self,
         mock_cloud_success,
-        mock_async_session_local,
+        mock_session_scope,
         mock_session,
         mock_repo,
         mock_indexing_manager,
@@ -287,7 +289,7 @@ class TestDeleteProject:
     async def test_delete_project_vector_cleanup_failure_ignored(
         self,
         mock_cloud_success,
-        mock_async_session_local,
+        mock_session_scope,
         mock_session,
         mock_repo,
         mock_indexing_manager,
@@ -310,7 +312,7 @@ class TestDeleteProject:
     async def test_delete_project_graph_disabled(
         self,
         mock_cloud_success,
-        mock_async_session_local,
+        mock_session_scope,
         mock_session,
         mock_repo,
         mock_indexing_manager,

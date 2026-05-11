@@ -10,6 +10,7 @@ import json
 import logging
 
 from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.message.utils import get_message_text
 from app.core.engine.routers import RoutingTarget
@@ -23,12 +24,13 @@ from app.core.tools.registry import get_tool_metadata
 logger = logging.getLogger(__name__)
 
 
-def process_worker_result(
+async def process_worker_result(
     node_name: str,
     state: AgentState,
     engine_result: EngineResult,
     execution_ticket: ExecutionTicket,
     role_name: str,
+    config: RunnableConfig = None,
 ) -> StateUpdate:
     """
     Universal post-processing pipeline for Worker node execution.

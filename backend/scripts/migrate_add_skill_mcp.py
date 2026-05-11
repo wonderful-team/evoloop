@@ -12,7 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlalchemy import text
-from app.infrastructure.database.sql.database import engine, AsyncSessionLocal
+from app.infrastructure.database.sql.database import engine, session_scope
 from app.core.config import settings
 
 

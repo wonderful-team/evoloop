@@ -437,9 +437,9 @@ class CleanupManager:
         try:
             from sqlalchemy import text
 
-            from app.infrastructure.database.sql.database import AsyncSessionLocal
+            from app.infrastructure.database.sql.database import session_scope
 
-            async with AsyncSessionLocal() as session:
+            async with session_scope() as session:
                 total_rows = 0
 
                 for table in tables:
@@ -455,7 +455,6 @@ class CleanupManager:
                         logger.warning(f"  清理 {table} 失败：{e}")
 
                 if not self.dry_run:
-                    await session.commit()
 
                 self.stats.postgres_rows_deleted += total_rows
 
@@ -551,9 +550,9 @@ class CleanupManager:
         try:
             from sqlalchemy import text
 
-            from app.infrastructure.database.sql.database import AsyncSessionLocal
+            from app.infrastructure.database.sql.database import session_scope
 
-            async with AsyncSessionLocal() as session:
+            async with session_scope() as session:
                 total_rows = 0
 
                 for table in tables:
@@ -569,7 +568,6 @@ class CleanupManager:
                         logger.warning(f"  清理 {table} 失败：{e}")
 
                 if not self.dry_run:
-                    await session.commit()
 
                 self.stats.postgres_rows_deleted += total_rows
 
@@ -601,9 +599,9 @@ class CleanupManager:
         try:
             from sqlalchemy import text
 
-            from app.infrastructure.database.sql.database import AsyncSessionLocal
+            from app.infrastructure.database.sql.database import session_scope
 
-            async with AsyncSessionLocal() as session:
+            async with session_scope() as session:
                 total_rows = 0
 
                 for table in tables:
@@ -619,7 +617,6 @@ class CleanupManager:
                         logger.warning(f"  清理 {table} 失败：{e}")
 
                 if not self.dry_run:
-                    await session.commit()
 
                 self.stats.postgres_rows_deleted += total_rows
 
@@ -648,16 +645,15 @@ class CleanupManager:
         try:
             from sqlalchemy import text
 
-            from app.infrastructure.database.sql.database import AsyncSessionLocal
+            from app.infrastructure.database.sql.database import session_scope
 
-            async with AsyncSessionLocal() as session:
+            async with session_scope() as session:
                 result = await session.execute(text("SELECT COUNT(*) FROM jobs"))
                 count = result.scalar() or 0
                 logger.info(f"  jobs: {count} 行")
 
                 if not self.dry_run and count > 0:
                     await session.execute(text("TRUNCATE TABLE jobs CASCADE"))
-                    await session.commit()
 
                 self.stats.postgres_rows_deleted += count
 
@@ -690,14 +686,14 @@ class CleanupManager:
 
         try:
             from sqlalchemy import text
-            from app.infrastructure.database.sql.database import AsyncSessionLocal
+            from app.infrastructure.database.sql.database import session_scope
             from app.core.config import settings
 
             if not settings.EMBEDDED_MODE:
                 print("  ℹ️  当前不是 Embedded Mode，跳过 SQLite 清理")
                 return True
 
-            async with AsyncSessionLocal() as session:
+            async with session_scope() as session:
                 # 要清理的表列表
                 tables = [
                     ("messages", "消息"),
@@ -731,7 +727,6 @@ class CleanupManager:
                         logger.debug(f"  表 {table_name} 不存在或无法访问: {e}")
 
                 if not self.dry_run:
-                    await session.commit()
 
                 self.stats.sqlite_rows_deleted += total_rows
 
@@ -1092,9 +1087,9 @@ class CleanupManager:
 
         try:
             from sqlalchemy import text
-            from app.infrastructure.database.sql.database import AsyncSessionLocal
+            from app.infrastructure.database.sql.database import session_scope
 
-            async with AsyncSessionLocal() as session:
+            async with session_scope() as session:
                 # 统计各表数据（注意：trace_events 在技能清理中，todos 需单独清理，checkpoint_migrations 保留）
                 tables_info = [
                     ("conversations", "id IS NOT NULL"),
@@ -1295,7 +1290,6 @@ class CleanupManager:
                     logger.error(f"  清理 conversations 失败：{e}")
                     self.stats.errors.append(f"conversations: {e}")
 
-                await session.commit()
 
                 self.stats.postgres_rows_deleted += deleted_rows
                 action = "将删除" if self.dry_run else "已删除"
@@ -1322,9 +1316,9 @@ class CleanupManager:
 
         try:
             from sqlalchemy import text
-            from app.infrastructure.database.sql.database import AsyncSessionLocal
+            from app.infrastructure.database.sql.database import session_scope
 
-            async with AsyncSessionLocal() as session:
+            async with session_scope() as session:
                 # 统计待办事项
                 result = await session.execute(text("SELECT COUNT(*) FROM todos"))
                 count = result.scalar() or 0
@@ -1342,7 +1336,6 @@ class CleanupManager:
                     return False
 
                 result = await session.execute(text("TRUNCATE TABLE todos CASCADE"))
-                await session.commit()
 
                 self.stats.postgres_rows_deleted += count
                 print(f"  ✅ 已删除 {count} 条待办事项")

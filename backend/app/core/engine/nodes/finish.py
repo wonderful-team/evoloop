@@ -97,7 +97,7 @@ class FinishNode(BaseNode):
         except Exception as e:
             logger.warning(f"[Finish] Failed to sync plan_progress from DB: {e}")
 
-    def _prepare_audit_input(self, state: "AgentState", blackboard) -> None:
+    async def _prepare_audit_input(self, state: "AgentState", blackboard) -> None:
         """Build structured AuditInputData from blackboard state for efficient comprehensive audit.
 
         This replaces the need for AuditService to scan the full message history (~18K tokens)
@@ -119,7 +119,7 @@ class FinishNode(BaseNode):
             tool_name = sig.split(":")[0] if ":" in sig else sig
             tool_stats[tool_name] = tool_stats.get(tool_name, 0) + 1
 
-        # Build plan summary
+        # Build plan summary from blackboard
         plan_progress = metadata.plan_progress
         plan_summary = {}
         if plan_progress:
@@ -272,10 +272,9 @@ class FinishNode(BaseNode):
         is_shadow_mode = blackboard.metadata.shadow_audit or False
         tool_history = blackboard.metadata.tool_history
 
-        # Phase 1: Prepare structured audit input before calling AuditService
-        # Also sync plan_progress from DB if blackboard doesn't have it
+        # Phase 1: Sync plan progress + prepare audit input before calling AuditService
         await self._sync_plan_progress_from_db(state, blackboard, config)
-        self._prepare_audit_input(state, blackboard)
+        await self._prepare_audit_input(state, blackboard)
 
         # --------------------------------------------------------------
         # 1. Audit
@@ -408,13 +407,9 @@ class FinishNode(BaseNode):
         )
 
         from app.core.events.publishers import publish_session_completed
-        # Skip for headless batch tasks (e.g. wiki generation) to avoid triggering
-        # memory extraction, learning loops, and monitoring finalization.
         if not metadata.get("skip_persistence"):
             logger.info(f"[Finish] 📡 Publishing SessionCompletedEvent for thread {effective_thread_id}...")
             await publish_session_completed(data=event_data)
-        else:
-            logger.info(f"[Finish] ⏭️ Skipping SessionCompletedEvent for thread {effective_thread_id} (skip_persistence=True)")
 
         # --------------------------------------------------------------
         # 4. Cleanup pollution (defensive: do NOT mutate original state.messages)

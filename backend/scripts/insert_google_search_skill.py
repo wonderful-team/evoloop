@@ -7,7 +7,7 @@ from datetime import datetime
 # Add project root to path
 sys.path.append(os.getcwd())
 
-from app.infrastructure.database.sql.database import AsyncSessionLocal
+from app.infrastructure.database.sql.database import session_scope
 from app.models.learning import LearnedSkill
 from app.utils.time import utcnow
 
@@ -58,7 +58,7 @@ async def insert_skill():
         "confidence_score": 0.95
     }
 
-    async with AsyncSessionLocal() as session:
+    async with session_scope() as session:
         try:
             # Check if exists
             from sqlalchemy import select
@@ -76,7 +76,6 @@ async def insert_skill():
                 session.add(new_skill)
                 print(f"✅ Created new skill: {skill_data['name']}")
             
-            await session.commit()
             print("=== Done ===")
             
         except Exception as e:

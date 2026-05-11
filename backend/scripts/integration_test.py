@@ -16,7 +16,7 @@ backend_dir = script_dir.parent
 sys.path.insert(0, str(backend_dir))
 
 from sqlalchemy import select, func
-from app.infrastructure.database.sql.database import async_session_factory, engine
+from app.infrastructure.database.sql.database import session_scope, engine
 from app.models.codebase import Repository
 
 
@@ -63,7 +63,7 @@ async def test_data_migration():
     print("Test 2: Data Migration Verification")
     print("=" * 60)
     
-    async with async_session_factory() as session:
+    async with session_scope() as session:
         # Count repositories
         result = await session.execute(select(func.count()).select_from(Repository))
         total = result.scalar()
@@ -116,7 +116,7 @@ async def test_repository_crud():
     print("Test 3: Repository CRUD Operations")
     print("=" * 60)
     
-    async with async_session_factory() as session:
+    async with session_scope() as session:
         # Create test repository
         test_repo = Repository(
             name="Test Repository",

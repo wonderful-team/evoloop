@@ -31,7 +31,7 @@ from sqlalchemy import select, text
 
 from app.domain.codebase.indexing.service import IndexingService
 from app.infrastructure.database.graph.driver import get_graph_db
-from app.infrastructure.database.sql.database import AsyncSessionLocal, get_db_session
+from app.infrastructure.database.sql.database import session_scope, get_db_session
 from app.models import Repository
 
 logging.basicConfig(
@@ -143,7 +143,7 @@ async def rebuild_indexes():
 
     service = IndexingService()
 
-    async with AsyncSessionLocal() as session:
+    async with session_scope() as session:
         # 获取所有 repository
         stmt = select(Repository)
         result = await session.execute(stmt)

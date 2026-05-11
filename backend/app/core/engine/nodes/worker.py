@@ -160,7 +160,7 @@ class WorkerNode(BaseAgentNode):
         """Worker-specific post-processing when no signal is present."""
         execution_ticket = original_state.blackboard.ticket
         role_name = execution_ticket.agent_config.role_name if execution_ticket and execution_ticket.agent_config else "Worker"
-        result = process_worker_result(self.node_name, original_state, engine_result, execution_ticket, role_name)
+        result = await process_worker_result(self.node_name, original_state, engine_result, execution_ticket, role_name, config=config)
         return result
 
     async def __call__(self, state: AgentState, config: RunnableConfig) -> StateUpdate:

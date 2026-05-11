@@ -110,6 +110,7 @@ async def _ensure_project_discovery_skill() -> LearnedSkill | None:
         logger.warning(f"[ProjectProfiles] Failed to import Project Discovery skill: {e}")
         return None
 
+
 @router.post("/{project_id}/profile/discover", response_model=DiscoverResponse)
 async def discover_profile(
     project_id: int,

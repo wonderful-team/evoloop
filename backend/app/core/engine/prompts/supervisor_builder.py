@@ -123,7 +123,7 @@ class SupervisorPromptBuilder:
                 "subtask_results": blackboard.subtask_results,
                 "visited_nodes": blackboard.visited_nodes,
                 "verification": blackboard.verification,
-                "metadata": blackboard.metadata.model_dump(),
+                "metadata": blackboard.metadata.model_dump(mode='json'),
             },
             "plan": active_plan_data,
             "plan_approved": blackboard.plan_approved,

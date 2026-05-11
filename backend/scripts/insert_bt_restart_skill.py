@@ -3,7 +3,7 @@ import os
 import sys
 import json
 
-from app.infrastructure.database.sql.database import AsyncSessionLocal
+from app.infrastructure.database.sql.database import session_scope
 from app.models.learning import LearnedSkill
 from app.utils.time import utcnow
 from sqlalchemy import select
@@ -55,7 +55,7 @@ async def insert_skill():
         "confidence_score": 0.98
     }
 
-    async with AsyncSessionLocal() as session:
+    async with session_scope() as session:
         try:
             stmt = select(LearnedSkill).where(LearnedSkill.id == skill_data["id"])
             result = await session.execute(stmt)
@@ -71,7 +71,6 @@ async def insert_skill():
                 session.add(new_skill)
                 print(f"Created new skill ID {skill_data['id']}")
             
-            await session.commit()
             print("=== Done ===")
             
         except Exception as e:

@@ -28,9 +28,6 @@ pipeline = IngestionPipeline()
 store = KnowledgeStoreService()
 bulk_import = BulkImportService(pipeline)
 
-# ============ Schemas ============
-
-# ============ Routes ============
 
 @router.post("/upload", response_model=DocumentResponse)
 async def upload_document(
@@ -66,6 +63,8 @@ async def upload_document(
         path=result.path,
         document=result.metadata.model_dump(mode="json") if result.metadata else None
     )
+
+
 @router.get("/documents", response_model=DocumentListResponse)
 async def list_documents(
     collection: Optional[str] = Query(None, description="Filter by collection"),
@@ -95,6 +94,8 @@ async def list_documents(
         documents=documents,
         collections=collections
     )
+
+
 @router.get("/documents/{path:path}", response_model=DocumentContentResponse)
 async def read_document(
     path: str,
@@ -123,6 +124,7 @@ async def read_document(
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"Document not found: {path}")
 
+
 @router.delete("/documents/{path:path}", response_model=DocumentResponse)
 async def delete_document(path: str):
     """
@@ -144,6 +146,8 @@ async def delete_document(path: str):
     except (OSError, RuntimeError, TypeError, ValueError) as e:
         logger.warning(f"Failed to remove document from vector index: {e}")
     return DocumentResponse(success=True, message=f"Document deleted: {path}")
+
+
 @router.get("/collections", response_model=CollectionResponse)
 async def list_collections():
     """List all knowledge base collections."""
@@ -153,11 +157,15 @@ async def list_collections():
         collections=collections,
         stats=stats
     )
+
+
 @router.post("/collections/{name}", response_model=DocumentResponse)
 async def create_collection(name: str):
     """Create a new knowledge base collection."""
     store.create_collections(name)
     return DocumentResponse(success=True, message=f"Collection created: {name}")
+
+
 @router.get("/tags", response_model=TagResponse)
 async def list_tags(
     collection: Optional[str] = Query(None, description="Filter by collection"),
@@ -174,6 +182,8 @@ async def list_tags(
         tags=[TagItem(name=t["name"], count=t["count"]) for t in tags],
         total=total
     )
+
+
 @router.get("/search", response_model=DocumentSearchResponse)
 async def search_documents(
     q: str = Query(..., description="Search query"),
@@ -191,6 +201,8 @@ async def search_documents(
         results=results,
         total=sum(r.get("match_count", 0) for r in results)
     )
+
+
 @router.post("/bulk-upload", response_model=BaseAPIResponse)
 async def bulk_upload(
     files: list[UploadFile] = File(..., description="Multiple files to upload"),
@@ -218,6 +230,8 @@ async def bulk_upload(
         success=result.failed == 0,
         message=f"Imported {result.successful}/{result.total_files} files"
     )
+
+
 @router.post("/import-zip", response_model=BaseAPIResponse)
 async def import_zip(
     file: UploadFile = File(..., description="ZIP archive containing documents"),
@@ -246,6 +260,8 @@ async def import_zip(
         success=result.failed == 0,
         message=f"Imported {result.successful}/{result.total_files} files from ZIP"
     )
+
+
 @router.post("/validate-zip")
 async def validate_zip(
     file: UploadFile = File(..., description="ZIP archive to validate")
@@ -259,7 +275,7 @@ async def validate_zip(
     validation = bulk_import.validate_archive(file.file)
     await file.seek(0)
     return validation
-# ============ FTS Search ============
+
 
 @router.get("/fts/search", response_model=FTSSearchResponse)
 async def fts_search(
@@ -305,6 +321,8 @@ async def fts_search(
         ],
         facets=results.facets
     )
+
+
 @router.get("/fts/suggest", response_model=FTSSuggestResponse)
 async def fts_suggest(
     prefix: str = Query(..., description="Search prefix"),
@@ -315,7 +333,7 @@ async def fts_suggest(
     fts = get_fts_service()
     suggestions = await fts.suggest(prefix, collection, limit)
     return FTSSuggestResponse(suggestions=suggestions)
-# ============ Deduplication ============
+
 
 @router.get("/analytics/duplicates")
 async def analyze_duplicates(
@@ -329,6 +347,8 @@ async def analyze_duplicates(
     dedup = DeduplicationService(store)
     report = await dedup.analyze_collection(collection)
     return report.to_dict()
+
+
 @router.post("/merge")
 async def merge_documents(
     source_paths: list[str],
@@ -339,7 +359,7 @@ async def merge_documents(
     dedup = DeduplicationService(store)
     result = await dedup.merge_documents(source_paths, target_path, strategy)
     return result
-# ============ Citation Analytics ============
+
 
 @router.get("/analytics/popular")
 async def get_popular_documents(
@@ -365,6 +385,8 @@ async def get_popular_documents(
             for d in docs
         ]
     }
+
+
 @router.get("/analytics/usage")
 async def get_usage_analytics(
     days: int = Query(30, ge=1, le=365)
@@ -373,6 +395,8 @@ async def get_usage_analytics(
     tracker = get_citation_tracker()
     analytics = await tracker.get_usage_analytics(days)
     return analytics
+
+
 @router.get("/recommendations")
 async def get_recommendations(
     path: str = Query(..., description="Reference document path")
@@ -381,6 +405,8 @@ async def get_recommendations(
     tracker = get_citation_tracker()
     recommendations = await tracker.get_recommendations(path)
     return {"recommendations": recommendations}
+
+
 @router.get("/{path:path}/stats")
 async def get_document_stats(path: str):
     """Get citation statistics for a specific document."""
@@ -397,7 +423,7 @@ async def get_document_stats(path: str):
         "tools_used": stats.tools_used,
         "related_documents": stats.related_docs
     }
-# ============ Auto Maintenance ============
+
 
 @router.post("/maintenance/run")
 async def run_maintenance(
@@ -425,6 +451,8 @@ async def run_maintenance(
         "level": level,
         "report": report
     }
+
+
 @router.get("/maintenance/duplicates")
 async def analyze_maintenance_duplicates(
     collection: Optional[str] = Query(None, description="Target collection")
@@ -434,6 +462,8 @@ async def analyze_maintenance_duplicates(
     service = DeduplicationService()
     report = await service.analyze_project(collection)
     return report.to_dict()
+
+
 @router.post("/maintenance/merge")
 async def merge_maintenance_documents(
     paths: list[str] = Body(..., description="Document paths to merge"),
@@ -447,6 +477,8 @@ async def merge_maintenance_documents(
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result.get("error", "Merge failed"))
     return result
+
+
 @router.get("/maintenance/quality")
 async def check_quality(
     collection: Optional[str] = Query(None, description="Target collection"),
@@ -471,6 +503,8 @@ async def check_quality(
             for r in results
         ]
     }
+
+
 @router.get("/maintenance/reports")
 async def list_maintenance_reports(
     limit: int = Query(10, description="Number of recent reports")

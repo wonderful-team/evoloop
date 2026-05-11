@@ -1,7 +1,7 @@
 """Blackboard state models and merge reducer."""
 import logging
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 

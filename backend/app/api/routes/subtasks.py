@@ -20,9 +20,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/projects/{project_id}/subtasks", tags=["subtasks"])
 
-# --- Pydantic Models ---
-
-# --- API Routes ---
 
 @router.post("/", response_model=TaskCreateResponse)
 async def create_task_with_subtasks(
@@ -76,6 +73,7 @@ async def create_task_with_subtasks(
         logger.error(f"[SubtasksAPI] Failed to create task: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.get("/tree/{task_id}", response_model=TaskTreeWrapperResponse)
 async def get_task_tree(
     project_id: int,
@@ -93,6 +91,7 @@ async def get_task_tree(
         success=True,
         task=tree
     )
+
 
 @router.put("/progress/{task_id}", response_model=BaseAPIResponse)
 async def update_task_progress(
@@ -121,6 +120,7 @@ async def update_task_progress(
         success=True,
         message="Progress updated"
     )
+
 
 @router.get("/next", response_model=NextTaskResponse)
 async def get_next_executable_task(
@@ -163,6 +163,7 @@ async def flatten_task_tree(
         count=len(flat_list),
         tasks=flat_list
     )
+
 
 @router.get("/list", response_model=TaskListResponse)
 async def list_root_tasks(
