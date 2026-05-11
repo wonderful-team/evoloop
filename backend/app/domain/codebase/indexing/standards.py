@@ -3,7 +3,7 @@ import os
 import random
 
 from app.utils import render_template
-from app.utils.file import read_file_content
+from app.core.file import read_file
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,8 @@ class ProjectStandardsAnalyst:
         files_info = []
         for fpath in sample_files:
             try:
-                content, _ = read_file_content(fpath)
+                result = read_file(fpath)
+                content = result.content
                 if content:
                     files_info.append({"path": os.path.basename(fpath), "content": content})
             except Exception:
@@ -82,13 +83,10 @@ class ProjectStandardsAnalyst:
         valid_exts = (".py", ".js", ".ts", ".go", ".java", ".rs")
         candidates = []
 
-        for root, _dirs, files in os.walk(root_path):
-            if any(p in root for p in [".git", "__pycache__", "node_modules", "venv", ".venv"]):
-                continue
-
-            for f in files:
-                if f.endswith(valid_exts):
-                    candidates.append(os.path.join(root, f))
+        from app.core.file import walk_tree
+        for full_path in walk_tree(root_path):
+            if full_path.endswith(valid_exts):
+                candidates.append(full_path)
 
         # Prioritize core directories
         core_candidates = [

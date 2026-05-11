@@ -7,7 +7,7 @@ from sqlalchemy import select
 from app.domain.codebase.indexing.service import IndexingService
 from app.domain.watchers import RepoWatcher
 from app.infrastructure.config.service import SystemConfigService
-from app.infrastructure.database.sql.database import AsyncSessionLocal
+from app.infrastructure.database.sql.database import session_scope
 from app.models import Repository
 from app.utils.async_utils import LoopBoundResource
 
@@ -93,7 +93,7 @@ class IndexingManager:
         self._active_jobs[project_id] = "indexing"
 
         try:
-            async with AsyncSessionLocal() as session:
+            async with session_scope() as session:
                 # 1. Fetch Repositories for Project
                 stmt = select(Repository).where(Repository.project_id == project_id)
                 result = await session.execute(stmt)
@@ -191,7 +191,7 @@ class IndexingManager:
 
     async def _update_indexing_status(self, repo_id: int, status: str):
         """Update indexing_status and last_indexed_at for a repository."""
-        async with AsyncSessionLocal() as session:
+        async with session_scope() as session:
             from app.models import Repository
             repo = await session.get(Repository, repo_id)
             if repo:
@@ -199,12 +199,11 @@ class IndexingManager:
                 if status in ("completed", "failed"):
                     from app.utils.time import utcnow
                     repo.last_indexed_at = utcnow()
-                await session.commit()
                 logger.debug(f"[IndexingManager] Updated repo {repo_id} indexing_status to {status}")
 
     async def _update_indexing_status_by_project(self, project_id: int, status: str):
         """Update indexing_status for all repositories of a project."""
-        async with AsyncSessionLocal() as session:
+        async with session_scope() as session:
             from app.models import Repository
             stmt = select(Repository).where(Repository.project_id == project_id)
             result = await session.execute(stmt)
@@ -214,7 +213,6 @@ class IndexingManager:
                 if status in ("completed", "failed"):
                     from app.utils.time import utcnow
                     repo.last_indexed_at = utcnow()
-            await session.commit()
             logger.debug(f"[IndexingManager] Updated project {project_id} repos indexing_status to {status}")
 
     async def _run_semantic_extraction(self, repo_path: str, project_id: int):
@@ -260,7 +258,7 @@ class IndexingManager:
         """
         # Note: This method is per-repo. To map to project status, we need project_id.
         # Ideally, we should fetch project_id and update status too.
-        async with AsyncSessionLocal() as session:
+        async with session_scope() as session:
             repo = await session.get(Repository, repo_id)
             if not repo or not repo.local_path:
                 logger.warning(f"Repository {repo_id} not found or has no path")
@@ -294,7 +292,7 @@ class IndexingManager:
     async def _resolve_and_dispatch(self, repo_id: int):
         """Async helper to resolve repo and dispatch indexing."""
         try:
-            async with AsyncSessionLocal() as session:
+            async with session_scope() as session:
                 repo = await session.get(Repository, repo_id)
                 if repo and repo.project_id:
                     self.dispatch_full_index(repo.project_id)

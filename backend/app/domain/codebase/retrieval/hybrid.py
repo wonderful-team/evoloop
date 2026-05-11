@@ -4,7 +4,7 @@ from typing import Any, Literal
 from sqlalchemy import select
 
 from app.domain.codebase.retrieval.rewriter import query_rewriter
-from app.infrastructure.database.sql.database import AsyncSessionLocal
+from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.vector import get_vector_store
 from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.models import CodeChunk, Repository, SourceFile
@@ -16,7 +16,7 @@ class HybridSearcher:
     """
 
     def __init__(self, embedder=None):
-        self.session_factory = AsyncSessionLocal
+        self.session_factory = session_scope
         self.embedder = embedder or EmbedderFactory.get_embedder()
 
     async def search(

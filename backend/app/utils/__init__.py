@@ -52,20 +52,6 @@ from app.utils.extract import (
     safe_parse_json,
     strip_markdown_code_markers,
 )
-from app.utils.file_type import (
-    get_file_category,
-    get_file_extension,
-    guess_mime_type,
-    is_archive_file,
-    is_audio_file,
-    is_binary_file,
-    is_code_file,
-    is_document_file,
-    is_image_file,
-    is_test_file,
-    is_text_file,
-    is_video_file,
-)
 from app.utils.geometry import (
     Bounds,
     calculate_iou,
@@ -76,14 +62,6 @@ from app.utils.geometry import (
     is_point_in_bounds,
     normalize_coordinates,
     parse_bounds,
-)
-from app.utils.hash import (
-    compute_file_hash,
-    compute_hash,
-    compute_md5,
-    compute_sha256,
-    compute_state_id,
-    compute_version_hash,
 )
 from app.utils.id import gen_short_id, gen_uuid
 from app.utils.image import (
@@ -106,22 +84,6 @@ from app.utils.logging_helpers import (
     normalize_log_content,
     sanitize_sensitive_data,
     truncate_for_log,
-)
-from app.utils.path import (
-    cleanup_file,
-    ensure_dir,
-    find_files,
-    get_absolute_path,
-    get_file_extension,
-    get_filename_without_ext,
-    get_relative_path,
-    get_unique_filename,
-    is_path_readable,
-    is_path_writable,
-    is_safe_path,
-    normalize_path,
-    safe_join,
-    sanitize_filename,
 )
 from app.utils.random import (
     ProbabilisticExecutor,
@@ -159,6 +121,7 @@ from app.utils.security import (
     validate_bundle_id,
     validate_package_name,
 )
+from app.core.file.path_utils import cleanup_file
 from app.utils.serialization import (
     MessageSerializer,
     deserialize_messages,
@@ -182,7 +145,6 @@ from app.utils.template import (
     render_template_file,
     render_template_from_dir,
 )
-from app.utils.template import render_template
 from app.utils.text import (
     clean_text,
     extract_code_blocks,
@@ -255,13 +217,6 @@ __all__ = [
     # ID
     "gen_uuid",
     "gen_short_id",
-    # Hash
-    "compute_hash",
-    "compute_md5",
-    "compute_sha256",
-    "compute_file_hash",
-    "compute_version_hash",
-    "compute_state_id",
     # JSON
     "dumps",
     "loads",
@@ -303,33 +258,6 @@ __all__ = [
     # XML
     "clean_xml_content",
     "safe_parse_xml",
-    # File Type
-    "is_binary_file",
-    "is_text_file",
-    "is_image_file",
-    "is_video_file",
-    "is_audio_file",
-    "is_archive_file",
-    "is_document_file",
-    "is_code_file",
-    "is_test_file",
-    "get_file_category",
-    "get_file_extension",
-    "guess_mime_type",
-    # Path
-    "normalize_path",
-    "safe_join",
-    "ensure_dir",
-    "get_filename_without_ext",
-    "get_relative_path",
-    "get_absolute_path",
-    "find_files",
-    "get_unique_filename",
-    "is_path_readable",
-    "is_path_writable",
-    "is_safe_path",
-    "sanitize_filename",
-    "cleanup_file",
     # Cache
     "TTLCache",
     "LRUCache",
@@ -381,6 +309,7 @@ __all__ = [
     "safe_json_loads",
     "safe_serialize",
     "to_json_string",
+    "cleanup_file",
     # Logging
     "normalize_log_content",
     "format_tool_call",

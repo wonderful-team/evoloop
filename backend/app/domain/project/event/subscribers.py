@@ -354,7 +354,7 @@ class ProjectContextHydrator:
         """Resolve project details and enrich EvoContext."""
         logger.info(f"[ProjectHydrator] Received SESSION_STARTED event for project_id: {event.data.get('project_id')}")
         from app.core.context import ContextManager
-        from app.core.evocloud import evocloud_manager
+        from app.domain.project.utils import get_project_path
         
         ctx = ContextManager.current()
         if not ctx:
@@ -368,9 +368,8 @@ class ProjectContextHydrator:
         # since ctx.working_directory might just be the default fallback root.
 
         try:
-            project = await evocloud_manager.get_project_by_id(project_id)
-            if project and project.get("path"):
-                working_dir = project["path"]
+            working_dir = await get_project_path(project_id)
+            if working_dir:
                 logger.info(f"[ProjectHydrator] Resolved project {project_id} path: {working_dir}")
                 
                 # Update Context

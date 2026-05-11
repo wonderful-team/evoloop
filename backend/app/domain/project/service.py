@@ -91,8 +91,8 @@ class ProjectContextManager:
             full_path = os.path.join(project_path, c)
             if os.path.exists(full_path) and os.path.isfile(full_path):
                 try:
-                    from app.utils.file import read_file
-                    return read_file(full_path)
+                    from app.core.file import read_file
+                    return read_file(full_path).content
                 except Exception as e:
                     logger.warning(f"Failed to read README at {full_path}: {e}")
                     continue

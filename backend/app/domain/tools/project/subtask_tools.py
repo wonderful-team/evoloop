@@ -128,9 +128,9 @@ async def get_task_tree_summary(task_id: str) -> str:
             # Try to find by prefix
             from sqlalchemy import select
             from app.models.project import ProjectTask
-            from app.infrastructure.database.sql.database import AsyncSessionLocal
+            from app.infrastructure.database.sql.database import session_scope
             
-            async with AsyncSessionLocal() as session:
+            async with session_scope() as session:
                 result = await session.execute(
                     select(ProjectTask).where(
                         ProjectTask.id.like(f"{task_id}%")
@@ -223,9 +223,9 @@ async def update_task_completion(
         if len(task_id) < 36:
             from sqlalchemy import select
             from app.models.project import ProjectTask
-            from app.infrastructure.database.sql.database import AsyncSessionLocal
+            from app.infrastructure.database.sql.database import session_scope
             
-            async with AsyncSessionLocal() as session:
+            async with session_scope() as session:
                 result = await session.execute(
                     select(ProjectTask).where(
                         ProjectTask.id.like(f"{task_id}%")
@@ -323,12 +323,12 @@ async def list_project_tasks(
     try:
         from sqlalchemy import select
         from app.models.project import ProjectTask
-        from app.infrastructure.database.sql.database import AsyncSessionLocal
+        from app.infrastructure.database.sql.database import session_scope
         
         ctx = ContextManager.current()
         project_id = ctx.project_id or 1
         
-        async with AsyncSessionLocal() as session:
+        async with session_scope() as session:
             query = select(ProjectTask).where(
                 ProjectTask.project_id == project_id,
                 ProjectTask.parent_id.is_(None)

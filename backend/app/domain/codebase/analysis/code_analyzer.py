@@ -14,7 +14,7 @@ from typing import Any
 
 from app.domain.codebase.indexing.extractors.treesitter_extractor import TreeSitterExtractor
 from app.domain.codebase.indexing.parsers import parser_registry
-from app.utils.file import get_file_ext
+from app.core.file import get_file_ext
 
 logger = logging.getLogger(__name__)
 

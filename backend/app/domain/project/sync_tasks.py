@@ -56,7 +56,6 @@ def sync_project_to_cloud_task(_self, repo_id: int):
                     repo.project_id = new_pid
                     repo.sync_status = "SYNCED"
                     session.add(repo)
-                    await session.commit()
                 else:
                     raise Exception(f"Cloud API Failed: {res.get('message')}")
 
@@ -90,12 +89,12 @@ def sync_tasks_to_evocloud_task(_self, task_ids: list[str], analysis_id: str | N
     import asyncio
 
     from app.models.project import ProjectTask
-    from app.infrastructure.database.sql.database import async_session_factory
+    from app.infrastructure.database.sql.database import session_scope
 
     async def _sync():
         logger.info(f"[ReqSync] Starting sync for analysis {analysis_id}, {len(task_ids)} tasks")
 
-        async with async_session_factory() as session:
+        async with session_scope() as session:
             from sqlalchemy import select
 
             # Get all tasks to sync
@@ -146,8 +145,6 @@ def sync_tasks_to_evocloud_task(_self, task_ids: list[str], analysis_id: str | N
                     task.sync_error = str(e)
                     failed_count += 1
                     logger.exception(f"[ReqSync] Task {task.id} exception: {e}")
-
-            await session.commit()
 
     async def _run_with_flush():
         try:

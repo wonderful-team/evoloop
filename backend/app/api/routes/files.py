@@ -4,13 +4,15 @@ import shutil
 import subprocess
 import sys
 import time
+from typing import Optional
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 
 from app.api.schemas.files import FileNode, FileContent, OpenFileRequest, OpenFileResponse, FileUploadResponse, \
     FileSearchResult, FileNameSearchResult, CreateFileRequest
-from app.core.evocloud import evocloud_manager
+from app.domain.project.utils import get_project_path
+from app.core.file import TreeService, FileSearcher, FileTraverser, read_file, is_ignored_path
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects/{project_id}/files", tags=["files"])
@@ -23,81 +25,21 @@ async def list_files(project_id: int, path: str | None = None):
     If project_id is 0, returns workspace root files (Global Mode).
     If path is None, returns root.
     """
-    # Global mode: project_id = 0 means workspace root
     if project_id == 0:
         from app.infrastructure.config.service import SystemConfigService
         root_path = SystemConfigService.get_value("WORKSPACE_ROOT")
         if not root_path:
             raise HTTPException(status_code=404, detail="WORKSPACE_ROOT not configured")
     else:
-        project = await evocloud_manager.get_project_by_id(project_id)
-        if not project:
-            raise HTTPException(status_code=404, detail="Project not found")
-        root_path = project.get("path")
-    if not root_path or not os.path.exists(root_path):
-        raise HTTPException(
-            status_code=404, detail=f"Project path not found locally: {root_path}"
-        )
+        root_path = await get_project_path(project_id)
+        
+    if not root_path:
+        raise HTTPException(status_code=404, detail="Project path not found")
 
-    # Simple recursive walker ignoring heavy dirs
-    from app.constants import DEFAULT_EXCLUDED_DIRS, DEFAULT_EXCLUDED_FILES
-
-    # Combine with local ignores if needed, or just use global
-    # IGNORE_DIRS is now effectively DEFAULT_EXCLUDED_DIRS from constant
-
-    def build_tree(current_path: str, rel_path: str = "") -> list[FileNode]:
-        nodes = []
-        try:
-            with os.scandir(current_path) as it:
-                entries = sorted(it, key=lambda e: (not e.is_dir(), e.name.lower()))
-                for entry in entries:
-                    # Use central exclude list
-                    if entry.name in DEFAULT_EXCLUDED_DIRS:
-                        continue
-                    if entry.name in DEFAULT_EXCLUDED_FILES:
-                        continue
-                    if entry.name.startswith("."):  # Skip hidden files heavily? Maybe make optional.
-                        pass
-
-                    node_rel_path = os.path.join(rel_path, entry.name)
-
-                    node = FileNode(
-                        name=entry.name,
-                        path=node_rel_path,
-                        type="directory" if entry.is_dir() else "file",
-                    )
-
-                    if entry.is_dir():
-                        # Determine recursion. For now, let's just go deep?
-                        # Or maybe just shallow?
-                        # Since user asked for "File Tree", frontend might want lazy loading.
-                        # But simpler start is just 2-3 levels or flat list.
-                        # Let's do lazy loading if 'path' param is supported?
-                        # Actually, let's try to return full structure or limit depth.
-                        # For simple usage, full tree is dangerous if huge.
-                        # COMPROMISE: If 'path' arg is provided, return children of that path.
-                        # If 'path' is empty/root, return root items.
-                        # BUT the user also wants "Recursive file tree".
-                        # Let's implement full recursion but cap depth or file count if needed.
-                        pass
-
-                    nodes.append(node)
-        except PermissionError:
-            pass
-        return nodes
-
-    # Revised approach:
-    # If client asks for root, we give root.
-    # Client will recursively call us for subdirs (Lazy Loading).
-    # This is safer.
-
-    target_dir = os.path.join(root_path, path) if path else root_path
-
-    # Defense against traversal
-    if not os.path.commonpath([root_path, target_dir]) == root_path:
-        raise HTTPException(403, "Access denied")
-
-    return build_tree(target_dir, path or "")
+    # Use unified TreeService for JSON tree generation
+    nodes_data = TreeService.get_json_tree(root_path, rel_path=path or "", max_depth=1)
+    
+    return [FileNode(**node) for node in nodes_data]
 
 
 @router.get("/content", response_model=FileContent)
@@ -105,34 +47,23 @@ async def get_file_content(project_id: int, path: str = Query(..., min_length=1)
     """
     Read file content.
     """
-    project = await evocloud_manager.get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    root_path = await get_project_path(project_id)
+    if not root_path:
+        raise HTTPException(status_code=404, detail="Project path not found")
 
-    root_path = project.get("path")
-    if not root_path or not os.path.exists(root_path):
-        raise HTTPException(
-            status_code=404, detail=f"Project path not found locally: {root_path}"
-        )
+    full_path = os.path.join(root_path, path)
+    if not os.path.isfile(full_path):
+        raise HTTPException(status_code=404, detail=f"File not found: {path}")
 
-    target_file = os.path.join(root_path, path.lstrip("/"))
-
-    if not os.path.commonpath([root_path, target_file]) == root_path:
-        raise HTTPException(403, "Access denied")
-
-    if not os.path.exists(target_file) or not os.path.isfile(target_file):
-        raise HTTPException(404, "File not found")
-
-    # Simple extension detection
-    ext = os.path.splitext(target_file)[1].lower()
-
+    # Extension detection
+    ext = os.path.splitext(full_path)[1].lower()
+    
     try:
-        with open(target_file, encoding="utf-8") as f:
-            content = f.read()
-            return FileContent(content=content, language=ext.lstrip("."))
+        result = read_file(full_path)
+        return FileContent(content=result.content, language=ext.lstrip("."))
     except Exception as e:
-        logger.error(f"Error reading file {target_file}: {e}")
-        raise HTTPException(500, "Error reading file")
+        logger.error(f"Error reading file {full_path}: {e}")
+        raise HTTPException(status_code=500, detail="Error reading file")
 
 
 @router.get("/raw")
@@ -140,18 +71,13 @@ async def get_raw_file(project_id: int, path: str = Query(..., min_length=1)):
     """
     Get raw file content (for previewing images, PDFs, etc).
     """
-    project = await evocloud_manager.get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    root_path = project.get("path")
-    if not root_path or not os.path.exists(root_path):
-        raise HTTPException(
-            status_code=404, detail=f"Project path not found locally: {root_path}"
-        )
+    root_path = await get_project_path(project_id)
+    if not root_path:
+        raise HTTPException(status_code=404, detail="Project path not found")
 
     target_file = os.path.join(root_path, path.lstrip("/"))
 
+    # Security check
     if not os.path.commonpath([root_path, target_file]) == root_path:
         raise HTTPException(403, "Access denied")
 
@@ -166,12 +92,8 @@ async def open_file(project_id: int, req: OpenFileRequest):
     """
     Open file in system default application.
     """
-    project = await evocloud_manager.get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    root_path = project.get("path")
-    if not root_path or not os.path.exists(root_path):
+    root_path = await get_project_path(project_id)
+    if not root_path:
         raise HTTPException(status_code=404, detail="Project path invalid")
 
     target_file = os.path.join(root_path, req.path.lstrip("/"))
@@ -201,12 +123,8 @@ async def create_file(project_id: int, req: CreateFileRequest):
     """
     Create or overwrite a file.
     """
-    project = await evocloud_manager.get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    root_path = project.get("path")
-    if not root_path or not os.path.exists(root_path):
+    root_path = await get_project_path(project_id)
+    if not root_path:
         raise HTTPException(status_code=404, detail="Project path invalid")
 
     target_file = os.path.join(root_path, req.path.lstrip("/"))
@@ -217,8 +135,8 @@ async def create_file(project_id: int, req: CreateFileRequest):
 
     try:
         os.makedirs(os.path.dirname(target_file), exist_ok=True)
-        with open(target_file, "w", encoding="utf-8") as f:
-            f.write(req.content)
+        from app.core.file import write_file
+        write_file(target_file, req.content)
 
         return FileNode(name=os.path.basename(target_file), path=req.path, type="file")
     except Exception as e:
@@ -230,27 +148,17 @@ async def create_file(project_id: int, req: CreateFileRequest):
 async def upload_file(project_id: int, file: UploadFile = File(...)):
     """
     Upload a file to project's 'uploads' directory.
-    Returns the URL to access it via /raw endpoint.
     """
-    project = await evocloud_manager.get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    root_path = project.get("path")
-    if not root_path or not os.path.exists(root_path):
+    root_path = await get_project_path(project_id)
+    if not root_path:
         raise HTTPException(status_code=404, detail="Project path invalid")
 
     upload_dir = os.path.join(root_path, "uploads")
     os.makedirs(upload_dir, exist_ok=True)
 
-    # Generate unique name if needed, or secure filename
-    # For chat attachments, usually want to keep original name if possible or uuid
-    # Let's use original name but prepend timestamp/uuid if conflict?
-    # For now, simple override or unique.
     filename = os.path.basename(file.filename or "uploaded_file")
     target_path = os.path.join(upload_dir, filename)
 
-    # Simple dedupe
     if os.path.exists(target_path):
         base, ext = os.path.splitext(filename)
         filename = f"{base}_{int(time.time())}{ext}"
@@ -259,20 +167,6 @@ async def upload_file(project_id: int, file: UploadFile = File(...)):
     try:
         with open(target_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-
-        # Return URL.
-        # API URL structure: /api/projects/{id}/files/raw?path=uploads/{filename}
-        # We return absolute path or relative?
-        # ChatInput expects a URL it can put in [File: URL].
-        # The URL should be accessible by the Agent (who reads file?) or by the User (who clicks link?).
-        # If Agent reads it, it might need local path.
-        # If User clicks, they need http url.
-        # Let's return the API URL.
-        # Assuming format: /api/projects/{project_id}/files/raw?path=uploads/{filename}
-        # We don't know the full domain here easily without request context, but we can return relative API path.
-        # Frontend usually prepends base or handles it?
-        # Actually `sdk.gen.ts` uses relative paths.
-        # So we return `/api/projects/{project_id}/files/raw?path=uploads/{filename}`
 
         rel_path = f"uploads/{filename}"
         url = f"/api/projects/{project_id}/files/raw?path={rel_path}"
@@ -286,149 +180,51 @@ async def upload_file(project_id: int, file: UploadFile = File(...)):
 @router.get("/search", response_model=list[FileSearchResult])
 async def search_files(project_id: int, q: str):
     """
-    Search for text content within project files (simple grep).
+    Search for text content within project files (standardized search).
     """
     if not q or len(q.strip()) < 2:
         return []
 
-    project = await evocloud_manager.get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    root_path = project.get("path")
-    if not root_path or not os.path.exists(root_path):
+    root_path = await get_project_path(project_id)
+    if not root_path:
         return []
 
-    results = []
-    try:
-        # Use grep to find matches
-        # -r: recursive
-        # -i: case insensitive
-        # -n: show line number
-        # -I: ignore binary files
-        # --exclude-dir: ignore common junk
-        from app.constants import DEFAULT_EXCLUDED_DIRS
-        from app.utils.process import run_async_command
-
-        excludes = [f"--exclude-dir={d}" for d in DEFAULT_EXCLUDED_DIRS]
-
-        cmd = [
-            "grep", "-r", "-i", "-n", "-I",
-            *excludes,
-            q,
-            root_path,
-        ]
-
-        # run_async_command
-        result = await run_async_command(cmd)
-        stdout, _stderr = result.stdout, result.stderr
-
-        if stdout:
-            lines = stdout.splitlines()
-            for line in lines[:50]:  # Limit to 50 hits
-                try:
-                    # Grep output format: filename:line:content
-                    # But filepath is absolute or relative depending on grep.
-                    # Usually grep -r path outputs path/filename:line:content
-                    parts = line.split(":", 2)
-                    if len(parts) >= 3:
-                        file_path_part = parts[0]
-                        line_num = parts[1]
-                        content = parts[2]
-
-                        # Fix path if it is absolute
-                        if os.path.isabs(file_path_part):
-                            rel_path = os.path.relpath(file_path_part, root_path)
-                        else:
-                            # If grep was run on directory, it outputs dir/file
-                            # We passed root_path as argument.
-                            # If root_path is absolute, output is absolute.
-                            rel_path = os.path.relpath(file_path_part, root_path)
-
-                        results.append(FileSearchResult(
-                            file=rel_path,
-                            line=int(line_num),
-                            content=content.strip()[:200]
-                        ))
-                except Exception:
-                    continue
-
-    except Exception as e:
-        logger.error(f"Search failed: {e}")
-
-    return results
+    # Use unified FileSearcher
+    results_data = await FileSearcher.search_content(q, root_path, limit=50)
+    
+    return [
+        FileSearchResult(
+            file=os.path.relpath(r["file"], root_path),
+            line=r["line"],
+            content=r["content"]
+        ) for r in results_data
+    ]
 
 
 @router.get("/search_name", response_model=list[FileNameSearchResult])
 async def search_files_by_name(project_id: int, q: str):
     """
-    Search for file NAMES (not content).
-    Much faster for "Quick Open" or "Reference" features.
+    Search for files by name (standardized traversal).
     """
     if not q or len(q.strip()) < 1:
         return []
 
-    project = await evocloud_manager.get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    root_path = project.get("path")
-    if not root_path or not os.path.exists(root_path):
+    root_path = await get_project_path(project_id)
+    if not root_path:
         return []
 
+    # Use unified FileTraverser
+    q_lower = q.lower()
     results = []
-    try:
-        # Use find or fd to search filenames
-
-        # Using 'find' for portability, though 'fd' is better if installed.
-        # Let's stick to standard find or simple python walk if not too big.
-        # Python walk is safer for no-dependency.
-
-        # Simple Python walk for now (safer than shell injection risks with find if not careful)
-        # But for large repos, walk is slow?
-        # Actually for 10k files python walk is instant (ms).
-        # 100k files might take 1s.
-
-        from app.constants import DEFAULT_EXCLUDED_DIRS
-
-        q_lower = q.lower()
-        count = 0
-        # Use standard excludes
-        IGNORE_DIRS = set(DEFAULT_EXCLUDED_DIRS).union({
-            ".idea",
-            ".vscode",
-            ".DS_Store",
-            # Add any other specific files not in default if necessary
-        })
-
-        for root, dirs, files in os.walk(root_path):
-            # Prune ignored dirs
-            dirs[:] = [
-                d for d in dirs if d not in IGNORE_DIRS and not d.startswith(".")
-            ]
-
-            for file in files:
-                if q_lower in file.lower():
-                    # Match!
-                    full_path = os.path.join(root, file)
-                    rel_path = os.path.relpath(full_path, root_path)
-
-                    results.append(FileNameSearchResult(name=file, path=rel_path, type="file"))
-                    count += 1
-                    if count >= 20:  # Limit results
-                        return results
-
-            # Also match directories?
-            for d in dirs:
-                if q_lower in d.lower():
-                    full_path = os.path.join(root, d)
-                    rel_path = os.path.relpath(full_path, root_path)
-                    results.append(FileNameSearchResult(name=d, path=rel_path, type="directory"))
-                    count += 1
-                    if count >= 20:
-                        return results
-
-    except Exception as e:
-        logger.error(f"File name search failed: {e}")
+    count = 0
+    
+    for full_path in FileTraverser.walk(root_path):
+        file_name = os.path.basename(full_path)
+        if q_lower in file_name.lower():
+            rel_path = os.path.relpath(full_path, root_path)
+            results.append(FileNameSearchResult(name=file_name, path=rel_path, type="file"))
+            count += 1
+            if count >= 20:
+                break
 
     return results

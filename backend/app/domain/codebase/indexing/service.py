@@ -12,14 +12,14 @@ from app.domain.codebase.indexing.components.graph_syncer import GraphSyncer
 from app.domain.codebase.indexing.components.sql_persister import SQLPersister
 from app.domain.codebase.indexing.extractors.treesitter_extractor import TreeSitterExtractor
 from app.infrastructure.database.graph.driver import get_graph_db, is_graph_enabled
-from app.infrastructure.database.sql.database import AsyncSessionLocal
+from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.embeddings.base import BaseEmbedder
 from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.models import (
     Repository,
     SourceFile,
 )
-from app.utils.file import get_file_ext
+from app.core.file import get_file_ext
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class IndexingService:
     """
 
     def __init__(self, session: AsyncSession = None):
-        self.session_factory = AsyncSessionLocal
+        self.session_factory = session_scope
 
         # Legacy references (for backward compatibility)
         self.extractor = TreeSitterExtractor()
@@ -135,7 +135,6 @@ class IndexingService:
                 source_file = await self.file_preparer.create_or_update_source_file(prepared, session)
                 await self.sql_persister.clear_old_data(source_file, session)
                 name_to_id = await self.sql_persister.persist(indexed, source_file, session)
-                await session.commit()
 
                 # 3.5 Persist vectors to unified vector store (skip if no embeddings generated)
                 if indexed.embeddings:
@@ -201,7 +200,6 @@ class IndexingService:
                 if source_file:
                     await self.sql_persister.clear_old_data(source_file, session)
                     await session.delete(source_file)
-                    await session.commit()
                     logger.info(f"Removed {rel_path} from SQL Index")
 
                 # 2. Graph Cleanup (only if enabled)

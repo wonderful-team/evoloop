@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 from typing import Generic, TypeVar
 
 from app.constants import SEMANTIC_LANGUAGE_MAP
-from app.utils.file import read_file_content
+from app.core.file import read_file
 
 T = TypeVar('T')
 
@@ -50,8 +50,8 @@ class SemanticExtractorBase(ABC, Generic[T]):
     def _read_file(self, file_path: str) -> str | None:
         """Read file content, return None if failed."""
         try:
-            content, _ = read_file_content(file_path)
-            return content
+            result = read_file(file_path)
+            return result.content
         except Exception:
             return None
 

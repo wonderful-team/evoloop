@@ -59,7 +59,6 @@ async def wipe_knowledge_base():
                 except Exception as e:
                     logger.warning(f"SQL: Error truncating {t}: {e}")
 
-            await session.commit()
             logger.info(f"✅ SQL: Truncated tables: {tables_to_truncate}")
 
         # Vector store (unified vector_embeddings table or LanceDB)

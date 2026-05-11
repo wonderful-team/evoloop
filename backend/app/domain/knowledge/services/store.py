@@ -11,10 +11,7 @@ from typing import Iterator, Optional
 
 from app.domain.knowledge.models import DocumentMetadata, MarkdownDocument
 from app.domain.knowledge.schemas import DocumentSaveResult, DocumentReadResult, DocumentListItem
-from app.utils.file import (
-    read_file_content,
-    write_file_contents,
-)
+from app.core import file as file_utils
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +108,7 @@ class KnowledgeStoreService:
 
         # Save document with frontmatter
         content_with_frontmatter = document.to_frontmatter()
-        write_file_contents(content_with_frontmatter, str(raw_path))
+        file_utils.write_file(str(raw_path), content_with_frontmatter)
         
         # Save metadata
         if metadata:
@@ -128,8 +125,7 @@ class KnowledgeStoreService:
         if source_project_id:
             meta_dict["source_project_id"] = source_project_id
         
-        with open(meta_path, 'w', encoding='utf-8') as f:
-            json.dump(meta_dict, f, indent=2, ensure_ascii=False)
+        file_utils.write_file(str(meta_path), json.dumps(meta_dict, indent=2, ensure_ascii=False))
         
         relative_path = f"{collection}/{path}"
         logger.info(f"Saved document to {relative_path}")
@@ -186,12 +182,16 @@ class KnowledgeStoreService:
         if not full_path.exists():
             raise FileNotFoundError(f"Document not found: {path}")
         
-        # Read content with pagination
-        content, encoding, meta = read_file_content(
-            str(full_path),
-            start_line=offset + 1,  # read_file_content uses 1-based
-            limit=limit
-        )
+        # Read content with pagination via core File Center
+        end_line = (offset + limit) if limit else None
+        result = file_utils.read_file(str(full_path), start_line=offset + 1, end_line=end_line)
+        content = result.content
+        encoding = result.encoding
+        meta = {
+            "total_lines": result.metadata.total_lines,
+            "has_more": result.metadata.total_lines > ((offset + 1) + (limit or result.metadata.total_lines) - 1),
+            "content_hash": result.metadata.content_hash,
+        }
         
         # Parse frontmatter
         doc = MarkdownDocument.from_frontmatter(content)
@@ -199,10 +199,10 @@ class KnowledgeStoreService:
         # Load metadata
         meta_path = self.base_path / "meta" / f"{path}.json"
         metadata = None
-        if meta_path.exists():
+        if file_utils.file_exists(str(meta_path)):
             try:
-                with open(meta_path, 'r', encoding='utf-8') as f:
-                    metadata = json.load(f)
+                res = file_utils.read_file(str(meta_path))
+                metadata = json.loads(res.content)
             except Exception as e:
                 logger.warning(f"Failed to load metadata for {path}: {e}")
         
@@ -234,13 +234,13 @@ class KnowledgeStoreService:
         
         deleted = False
         
-        if raw_path.exists():
-            raw_path.unlink()
+        if file_utils.file_exists(str(raw_path)):
+            file_utils.delete_file(str(raw_path))
             deleted = True
             logger.info(f"Deleted document: {path}")
         
-        if meta_path.exists():
-            meta_path.unlink()
+        if file_utils.file_exists(str(meta_path)):
+            file_utils.delete_file(str(meta_path))
         
         return deleted
     
@@ -311,9 +311,10 @@ class KnowledgeStoreService:
         
         documents = []
         
-        # First pass: collect all documents and doc_ids
-        for file_path in search_path.rglob(pattern):
-            if not file_path.is_file():
+        # First pass: collect all documents and doc_ids via core traverser
+        for doc_path in file_utils.walk_tree(str(search_path)):
+            file_path = Path(search_path) / doc_path
+            if not file_path.is_file() or not doc_path.endswith('.md'):
                 continue
             
             rel_path = file_path.relative_to(self.base_path / "raw")
@@ -409,7 +410,7 @@ class KnowledgeStoreService:
                 continue
             
             try:
-                content = file_path.read_text(encoding='utf-8')
+                content = file_utils.read_file(str(file_path)).content
                 lines = content.split('\n')
                 
                 matches = []
@@ -471,12 +472,12 @@ class KnowledgeStoreService:
         
         deleted = False
         
-        if project_raw.exists():
-            shutil.rmtree(project_raw)
+        if file_utils.file_exists(str(project_raw)):
+            file_utils.delete_directory(str(project_raw))
             deleted = True
         
-        if project_meta.exists():
-            shutil.rmtree(project_meta)
+        if file_utils.file_exists(str(project_meta)):
+            file_utils.delete_directory(str(project_meta))
         
         if deleted:
             logger.info(f"Deleted collection: {name}")

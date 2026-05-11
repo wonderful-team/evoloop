@@ -2,7 +2,7 @@ import time
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.model_helpers import LegacyDictMixin
 
 
 class DynamicBaseModel(BaseModel, LegacyDictMixin):

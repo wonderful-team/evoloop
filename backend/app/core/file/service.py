@@ -1,162 +1,141 @@
+"""
+Standardized high-level file services.
+Now delegates traversal and core logic to the File Center (traverser.py).
+Provides smart path resolution with URL and fuzzy overlap support.
+"""
+import cgi
 import logging
+import mimetypes
 import os
-from collections.abc import Callable, Iterator
+import shutil
+import tempfile
+import urllib.request
+from typing import Iterator, List, Optional
+from urllib.parse import urlparse
 
-from app.constants import (
-    BLACKLIST_FILE_EXTENSIONS,
-    DEFAULT_EXCLUDED_DIRS,
-    DEFAULT_EXCLUDED_FILES,
-    EXTENSION_MAP,
-    TEST_FILE_PATTERNS,
-    WHITELIST_FILE_EXTENSIONS,
-)
-from app.utils.file import get_file_ext
-from app.utils.file import resolve_path as utils_resolve_path
-from app.utils.similarity import find_similar_file as _find_similar_file
+from .traverser import FileTraverser, TraverseOptions
 
 logger = logging.getLogger(__name__)
 
-
 def walk_tree(
     root_path: str,
-    filter_func: Callable[[str], bool] | None = None,
-    exclude_dirs: list[str] | None = None,
-    max_depth: int | None = None,
-    dir_filter: Callable[[str], bool] | None = None,
+    exclude_dirs: Optional[List[str]] = None,
+    max_depth: Optional[int] = None,
+    include_dirs: bool = False
 ) -> Iterator[str]:
     """
-    Standardized directory walker that yields valid file paths.
-    Encapsulates directory pruning (node_modules, .git) and optional file filtering.
+    Standardized directory walker. Delegated to FileTraverser.
     """
-    if exclude_dirs is None:
-        exclude_dirs = DEFAULT_EXCLUDED_DIRS
+    options = TraverseOptions(
+        max_depth=max_depth,
+        exclude_dirs=exclude_dirs,
+        include_dirs=include_dirs,
+        recursive=True
+    )
+    return FileTraverser.walk(root_path, options)
 
-    root_path = os.path.abspath(root_path)
-    base_depth = root_path.rstrip(os.sep).count(os.sep)
-
-    for root, dirs, files in os.walk(root_path):
-        current_depth = root.rstrip(os.sep).count(os.sep) - base_depth
-
-        if max_depth is not None and current_depth >= max_depth:
-            dirs[:] = []
-
-        valid_dirs = []
-        for d in dirs:
-            if d in exclude_dirs or d.startswith("."):
-                continue
-
-            if dir_filter:
-                dir_abs = os.path.join(root, d)
-                if not dir_filter(dir_abs):
-                    continue
-
-            valid_dirs.append(d)
-
-        dirs[:] = valid_dirs
-
-        for f in files:
-            if f.startswith("."):
-                continue
-
-            full_path = os.path.join(root, f)
-
-            if filter_func:
-                if filter_func(full_path):
-                    yield full_path
-            else:
-                yield full_path
-
-
-def resolve_path(file_path: str, base_path: str | None = None) -> str | None:
+def resolve_path(file_path: str, base_path: Optional[str] = None) -> Optional[str]:
     """
-    Core path resolution with domain-aware logic.
+    Smart path resolution. 
+    Handles:
+    - URLs (downloads to local temp)
+    - Absolute paths
+    - Relative paths (with base_path)
+    - Fuzzy overlap (e.g., base=/root/project, file=project/src -> /root/project/src)
     """
-    return utils_resolve_path(file_path, base_path)
+    if not file_path:
+        return base_path or os.getcwd()
 
+    # 1. Handle URLs
+    if file_path.startswith(("http://", "https://")):
+        try:
+            return ensure_local_path(file_path)
+        except Exception as e:
+            logger.error(f"Failed to resolve URL {file_path}: {e}")
+            return None
 
-def is_binary_file(file_path: str) -> bool:
-    """Check if file is binary based on extension and content sampling."""
-    ext = get_file_ext(file_path)
-    if ext in BLACKLIST_FILE_EXTENSIONS:
-        return True
+    # 2. Expand user
+    expanded = os.path.expanduser(file_path)
+    
+    # 3. Handle Absolute Paths
+    if os.path.isabs(expanded):
+        return os.path.abspath(expanded)
+    
+    # 4. Handle Relative Paths
+    if base_path:
+        full_path = os.path.abspath(os.path.join(base_path, expanded))
+        if os.path.exists(full_path):
+            return full_path
+
+        # Fuzzy overlap check (Heuristic for common Agent path repetition)
+        repo_parts = base_path.rstrip(os.path.sep).split(os.path.sep)
+        file_parts = expanded.split("/")
+        if file_parts and repo_parts and file_parts[0] == repo_parts[-1]:
+            adjusted_path = os.path.join(base_path, *file_parts[1:])
+            if os.path.exists(adjusted_path):
+                return adjusted_path
+
+        return full_path
+
+    return os.path.abspath(expanded)
+
+def ensure_local_path(file_path: str) -> str:
+    """
+    Downloads remote file to a temporary location if needed.
+    Returns local absolute path.
+    """
+    # TODO: Integration with StorageProvider for remote files
+    return os.path.abspath(os.path.expanduser(file_path))
+    """
+    Downloads remote file to a temporary location if needed.
+    """
+    if not file_path.startswith(("http://", "https://")):
+        return file_path
 
     try:
-        with open(file_path, "rb") as f:
-            chunk = f.read(4096)
+        req = urllib.request.Request(file_path, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            parsed = urlparse(file_path)
+            ext = os.path.splitext(parsed.path)[1]
 
-        if b"\x00" in chunk:
-            return True
+            if not ext:
+                cd = response.headers.get("Content-Disposition")
+                if cd:
+                    _, params = cgi.parse_header(cd)
+                    if "filename" in params:
+                        ext = os.path.splitext(params["filename"])[1]
 
-        try:
-            chunk.decode("utf-8")
-        except UnicodeDecodeError:
-            non_ascii_chars = sum(1 for b in chunk if b < 32 and b != 9 and b != 10 and b != 13)
-            if len(chunk) > 0 and non_ascii_chars / len(chunk) > 0.3:
-                return True
-            return True
+            if not ext:
+                ct = response.headers.get("Content-Type")
+                if ct:
+                    ext = mimetypes.guess_extension(ct.split(";")[0].strip())
 
-        return False
-    except OSError:
-        return True
+            fd, temp_path = tempfile.mkstemp(suffix=ext or "")
+            os.close(fd)
 
+            with open(temp_path, "wb") as out_file:
+                shutil.copyfileobj(response, out_file)
 
-def is_text_file(file_path: str) -> bool:
-    """Opposite of is_binary, with explicit whitelist checks."""
-    file_ext = get_file_ext(file_path)
-    if file_ext in BLACKLIST_FILE_EXTENSIONS:
-        return False
-    if file_ext in WHITELIST_FILE_EXTENSIONS:
-        return True
-    return not is_binary_file(file_path)
+        logger.info(f"Downloaded {file_path} to {temp_path}")
+        return temp_path
+    except Exception as e:
+        raise ValueError(f"Failed to download remote file: {e}")
 
+from .types import (
+    is_text as is_text_file,
+    is_binary as is_binary_file,
+    is_test as is_test_file,
+    is_image as is_image_file,
+    is_video as is_video_file,
+    is_audio as is_audio_file,
+    is_archive as is_archive_file,
+    is_document as is_document_file,
+    is_code as is_code_file,
+    get_extension as get_file_ext,
+    guess_mime as guess_mime_type,
+    get_category as get_file_category,
+)
 
-def is_test_file(file_path: str) -> bool:
-    """Check if file is a test file."""
-    filename = os.path.basename(file_path)
-    for _lang, patterns in TEST_FILE_PATTERNS.items():
-        for pattern in patterns:
-            if "." in pattern:
-                if filename.endswith(pattern):
-                    return True
-            else:
-                if filename.startswith(pattern):
-                    return True
-    normalized_path = file_path.replace("\\", "/")
-    if "/tests/" in normalized_path or normalized_path.startswith("tests/"):
-        return True
-    return False
-
-
-def filter_code_files(
-    all_files: list[str],
-    excluded_dirs: list[str] | None = None,
-    excluded_files: list[str] | None = None,
-    include_extensions: list[str] | None = None,
-) -> list[str]:
-    """Filter list of files to keep only relevant code files."""
-    excluded_dirs = excluded_dirs or DEFAULT_EXCLUDED_DIRS
-    excluded_files = excluded_files or DEFAULT_EXCLUDED_FILES
-
-    code_files = []
-    for file_path in all_files:
-        if any(f"/{excluded_dir}/" in f"/{file_path}/" for excluded_dir in excluded_dirs):
-            continue
-        if any(file_path.endswith(excluded_file) for excluded_file in excluded_files):
-            continue
-        ext = get_file_ext(file_path)
-        if include_extensions:
-            if ext and ext[1:] in include_extensions:
-                code_files.append(file_path)
-                continue
-        if ext in EXTENSION_MAP:
-            code_files.append(file_path)
-    return code_files
-
-
-def find_similar_file(file_path: str, repo_files: list[str], threshold: float = 0.7) -> str | None:
-    """Fuzzy search for file in list.
-    
-    This function is a wrapper around utils.similarity.find_similar_file
-    for backward compatibility.
-    """
-    return _find_similar_file(file_path, repo_files, threshold)
+def filter_code_files(paths: List[str]) -> List[str]:
+    """Filter list of paths to only include text/code files."""
+    return [p for p in paths if is_text_file(p)]

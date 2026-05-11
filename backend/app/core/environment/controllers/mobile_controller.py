@@ -29,10 +29,10 @@ from app.infrastructure.drivers.adb import ADBError, adb_driver
 from app.utils import (
     ControllerResponse,
     PerceptionsFormatter,
-    cleanup_file,
     normalize_text,
     render_template,
 )
+from app.core.file import cleanup_file
 
 logger = logging.getLogger(__name__)
 

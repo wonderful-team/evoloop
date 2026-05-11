@@ -119,9 +119,22 @@ async def write_wiki_page(
 
     # 1. Generate slug if needed
     if not slug:
+        import hashlib
         import re
-        slug = title.lower().replace(" ", "-").replace("_", "-")
-        slug = re.sub(r'[^a-z0-9-]', '', slug)[:50]
+        import unicodedata
+
+        # Try to transliterate to ASCII (handles accents, etc.)
+        normalized = unicodedata.normalize('NFKD', title)
+        slug = ''.join(
+            c for c in normalized
+            if unicodedata.category(c).startswith('L') or c.isdigit() or c == ' '
+        )
+        slug = slug.lower().replace(' ', '-').replace('_', '-')[:50]
+        slug = re.sub(r'-+', '-', slug).strip('-')
+
+        # Fallback for pure CJK / non-Latin titles (e.g., Chinese)
+        if not slug:
+            slug = hashlib.md5(title.encode('utf-8')).hexdigest()[:12]
 
     # 2. Find parent_id if parent_slug provided
     parent_id = None

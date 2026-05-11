@@ -21,7 +21,7 @@ from app.constants import (
     SUSPICIOUS_JS_PATTERNS,
 )
 from app.core.file.service import is_text_file
-from app.utils.file import get_file_ext, is_encrypted_path
+from app.core.file import get_file_ext, is_encrypted_path, is_ignored_path
 
 
 class FileFilter:
@@ -86,20 +86,8 @@ class FileFilter:
             self._file_inclusion_cache[cache_key] = False
             return False
 
-        # Exclude hidden files and directories
-        path_parts = file_path.split(os.path.sep)
-        if any(part.startswith(".") for part in path_parts):
-            self._file_inclusion_cache[cache_key] = False
-            return False
-
-        # Exclude blacklisted directories
-        if any(d in path_parts for d in DEFAULT_EXCLUDED_DIRS):
-            self._file_inclusion_cache[cache_key] = False
-            return False
-
-        # Exclude blacklisted files
-        file_name = os.path.basename(file_path)
-        if any(file_name.endswith(ef) for ef in DEFAULT_EXCLUDED_FILES):
+        # Unified Path Check (Hidden patterns, Blacklisted directories/files)
+        if is_ignored_path(file_path):
             self._file_inclusion_cache[cache_key] = False
             return False
 

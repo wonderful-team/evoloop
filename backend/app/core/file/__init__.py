@@ -33,6 +33,7 @@ from .directory import (
     list_directory,
     move_path,
 )
+from .filter import is_ignored_path, is_encrypted_path, get_grep_exclude_args, get_ripgrep_exclude_args
 # I/O Operations
 from .io import (
     DEFAULT_PAGE_SIZE,
@@ -71,15 +72,28 @@ from .schemas import (
     FileChunk,
     PaginationInfo,
 )
+from .searcher import FileSearcher
 # Legacy service (kept for backward compatibility)
 from .service import (
+    ensure_local_path,
     filter_code_files,
+    get_file_category,
+    get_file_ext,
+    guess_mime_type,
+    is_archive_file,
+    is_audio_file,
     is_binary_file,
+    is_code_file,
+    is_document_file,
+    is_image_file,
     is_test_file,
     is_text_file,
+    is_video_file,
     resolve_path,
     walk_tree,
 )
+from .traverser import FileTraverser, TraverseOptions
+from .tree import TreeService
 # Verification utilities (safe read/write with hash)
 from .verification import (
     apply_edit_with_verification,
@@ -93,6 +107,30 @@ from .watcher import (
     FileWatcher,
     FileWatcherManager,
 )
+# Hashing Utilities
+from .hash import (
+    compute_content_hash,
+    compute_file_hash,
+    compute_hash,
+    compute_md5,
+    compute_sha256,
+    compute_state_id,
+    compute_version_hash,
+)
+# Path Utilities
+from .path_utils import (
+    cleanup_file,
+    get_absolute_path,
+    get_relative_path,
+    get_unique_filename,
+    is_path_readable,
+    is_path_writable,
+    is_safe_path,
+    normalize_path,
+    safe_join,
+    sanitize_filename,
+)
+# No more service level cleanup_file
 
 __all__ = [
     # Models
@@ -110,15 +148,30 @@ __all__ = [
     "write_file",
     "append_to_file",
 
-    # File Info
-    "get_file_info",
-    "detect_encoding",
+    # Hashing Operations
+    "compute_md5",
+    "compute_sha256",
+    "compute_hash",
     "compute_file_hash",
-    "get_pagination_info",
+    "compute_version_hash",
+    "compute_state_id",
+    "compute_content_hash",
 
     # File Utility
     "file_exists",
     "ensure_dir",
+    "cleanup_file",
+
+    # Path Utilities
+    "safe_join",
+    "is_safe_path",
+    "normalize_path",
+    "sanitize_filename",
+    "get_unique_filename",
+    "get_relative_path",
+    "get_absolute_path",
+    "is_path_readable",
+    "is_path_writable",
 
     # Directory Operations
     "list_directory",
@@ -154,7 +207,6 @@ __all__ = [
     # Watcher (event system)
     "FileWatcher",
     "FileWatcherManager",
-    "FileWatcherEvent",
 
     # Constants
     "LARGE_FILE_THRESHOLD",
@@ -163,8 +215,30 @@ __all__ = [
     # Legacy service
     "walk_tree",
     "resolve_path",
+    "ensure_local_path",
+    "get_file_ext",
+    "guess_mime_type",
+    "get_file_category",
+    "is_archive_file",
+    "is_audio_file",
     "is_binary_file",
-    "is_text_file",
+    "is_code_file",
+    "is_document_file",
+    "is_image_file",
     "is_test_file",
+    "is_text_file",
+    "is_video_file",
     "filter_code_files",
+
+    # Unified File Center (NEW)
+    "FileTraverser",
+    "TraverseOptions",
+    "TreeService",
+    "FileSearcher",
+
+    # Filtering (NEW)
+    "is_ignored_path",
+    "is_encrypted_path",
+    "get_grep_exclude_args",
+    "get_ripgrep_exclude_args",
 ]

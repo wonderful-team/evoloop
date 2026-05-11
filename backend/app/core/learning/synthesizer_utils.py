@@ -17,7 +17,7 @@ from app.core.learning.schemas import MacroVerificationResult
 from app.utils.extract import extract_section as _extract_section
 from app.utils.extract import extract_yaml_block as _extract_yaml_block
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.utils.path import ensure_dir
+from app.core.file import ensure_dir
 from app.utils.time import normalize_timestamp_ms_to_sec as _normalize_timestamp
 
 logger = logging.getLogger(__name__)

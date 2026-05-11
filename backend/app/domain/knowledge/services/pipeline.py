@@ -7,6 +7,7 @@ import logging
 from datetime import datetime, timezone
 from typing import BinaryIO, Optional
 
+from app.core import file as file_utils
 from app.domain.knowledge.extractors import ExtractorRegistry
 from app.domain.knowledge.models import (
     DocumentMetadata,
@@ -58,7 +59,7 @@ class IngestionPipeline:
     
     async def initialize(self) -> None:
         """Initialize extractors. Call this before first use."""
-        await ExtractorRegistry.initialize_defaults()
+        ExtractorRegistry.initialize_defaults()
     
     async def process(
         self,
@@ -94,7 +95,7 @@ class IngestionPipeline:
         try:
             # Step 1: Detect MIME type if not provided
             if not mime_type:
-                mime_type = self._detect_mime_type(file, filename)
+                mime_type = file_utils.guess_mime_type(filename)
                 logger.debug(f"Detected MIME type: {mime_type}")
             
             # Step 2: Find appropriate extractor
@@ -126,7 +127,7 @@ class IngestionPipeline:
             metadata = DocumentMetadata(
                 source_file=filename,
                 source_mime_type=mime_type,
-                file_size_bytes=self._get_file_size(file),
+                file_size_bytes=self._get_file_size_from_obj(file),
                 extracted_at=start_time,
                 extractor=ExtractorInfo(
                     name=extractor.name,
@@ -322,49 +323,16 @@ class IngestionPipeline:
     # Helpers
     # ==========================================================================
     
-    def _detect_mime_type(self, file: BinaryIO, filename: str) -> str:
-        """Detect MIME type from file content and filename."""
-        from app.utils.file_type import guess_mime_type
-        
-        # Try by filename first
-        mime = guess_mime_type(filename)
-        if mime and mime != 'application/octet-stream':
-            return mime
-        
-        # Try by content (magic bytes)
-        current_pos = file.tell()
-        file.seek(0)
-        header = file.read(8192)
-        file.seek(current_pos)
-        
-        # Check for common signatures
-        if header.startswith(b'%PDF'):
-            return 'application/pdf'
-        elif header.startswith(b'\x89PNG'):
-            return 'image/png'
-        elif header.startswith(b'\xff\xd8'):
-            return 'image/jpeg'
-        elif header.startswith(b'PK'):
-            return 'application/zip'
-        elif b'<?xml' in header[:100]:
-            return 'application/xml'
-        elif b'<!DOCTYPE html' in header[:200].lower():
-            return 'text/html'
-        
-        # Default to text if looks like text
+    def _get_file_size_from_obj(self, file: BinaryIO) -> int:
+        """Get file size from file-like object."""
         try:
-            header.decode('utf-8')
-            return 'text/plain'
-        except UnicodeDecodeError:
-            return 'application/octet-stream'
-    
-    def _get_file_size(self, file: BinaryIO) -> int:
-        """Get file size in bytes."""
-        current_pos = file.tell()
-        file.seek(0, 2)  # Seek to end
-        size = file.tell()
-        file.seek(current_pos)
-        return size
+            current_pos = file.tell()
+            file.seek(0, 2)
+            size = file.tell()
+            file.seek(current_pos)
+            return size
+        except Exception:
+            return 0
 
 
 class IngestionResult:

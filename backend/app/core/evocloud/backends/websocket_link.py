@@ -21,7 +21,7 @@ from app.core.evocloud.schemas import (
     WebSocketPing,
 )
 from app.core.identity import identity_service
-from app.utils import file as file_utils
+from app.core import file as file_utils
 from app.utils.async_utils import run_in_thread
 from app.utils.id import gen_uuid
 
@@ -91,7 +91,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
             key_file = legacy_file
 
         if os.path.exists(key_file):
-            dk = file_utils.read_file(key_file).strip()
+            dk = file_utils.read_file(key_file).content.strip()
             # Migrate to cache
             await identity_service.store.save_device_key(dk)
             try:

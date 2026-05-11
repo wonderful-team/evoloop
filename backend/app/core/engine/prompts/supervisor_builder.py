@@ -6,7 +6,6 @@ Allows for dynamic context injection and potential LLM-specific adaptations.
 """
 import json
 import logging
-import os
 from typing import Any
 
 from langchain_core.runnables import RunnableConfig
@@ -31,14 +30,14 @@ class SupervisorPromptBuilder:
 
     async def build(self, config: RunnableConfig) -> str:
         """Constructs the STATIC system prompt using Jinja2 templating.
-        
+
         Dynamic per-turn state (Blackboard, Memory, Environment, Active Plan)
         is now separated into build_context_ticket() which is injected as a
         User Message prefix — this makes the System Prompt cacheable.
         """
         from app.core.context import ContextManager, plugin_registry
 
-        from .utils import get_mapped_cwd, get_sandbox_mode
+        from .utils import get_mapped_cwd, get_sandbox_mode, read_project_profile
 
         # 1. Prepare Environment
         ctx = ContextManager.current()
@@ -52,15 +51,8 @@ class SupervisorPromptBuilder:
 
         # Read PROJECT.md if exists (static for the session)
         project_profile = ""
-        if not is_global_mode and ctx.working_directory:
-            from app.utils import file as file_utils
-            profile_path = os.path.join(ctx.working_directory, "PROJECT.md")
-            if os.path.isfile(profile_path):
-                try:
-                    content = file_utils.read_file(profile_path)
-                    project_profile = content
-                except Exception as e:
-                    logger.debug(f"[SupervisorPrompt] Failed to read PROJECT.md: {e}")
+        if not is_global_mode:
+            project_profile = read_project_profile(ctx.working_directory, "[SupervisorPrompt]")
 
         # 3. Prepare Template Variables (STATIC only — no blackboard/memory/telemetry)
         template_vars = {
@@ -82,7 +74,7 @@ class SupervisorPromptBuilder:
 
     async def build_context_ticket(self, config: RunnableConfig, session_goal: str | None = None) -> str:
         """Constructs the dynamic CONTEXT TICKET for injection as a User Message.
-        
+
         This contains all per-turn state: Blackboard, Memory, Environment Block,
         Active Plan, and iteration metadata. By keeping this in a User Message
         (not System Prompt), the static System Prompt remains cacheable.

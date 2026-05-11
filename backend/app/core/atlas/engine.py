@@ -8,7 +8,7 @@ from app.core.atlas.strategy import AppStrategy, AtlasStrategyStore, Interaction
 from app.core.config import settings
 from app.core.environment.explorers.dynamic_apps import DynamicAppTriage
 from app.utils import render_template
-from app.utils.hash import compute_state_id
+from app.core.file import compute_state_id
 
 logger = logging.getLogger(__name__)
 

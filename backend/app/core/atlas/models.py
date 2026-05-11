@@ -115,7 +115,7 @@ class AtlasApp(DynamicBaseModel):
         """
         Compute a hash representing the current state of the app map.
         """
-        from app.utils.hash import compute_version_hash as _compute_version_hash
+        from app.core.file import compute_version_hash as _compute_version_hash
         content = f"{self.bundle_id}:{version_name or ''}:{update_time or ''}:{len(self.states)}:{len(self.transitions)}"
         return _compute_version_hash(content)
 

@@ -26,7 +26,7 @@ from app.api.schemas.projects import (
 from app.core.evocloud import evocloud_manager
 from app.domain.codebase.indexing.manager import indexing_manager
 from app.infrastructure.config.service import SystemConfigService
-from app.infrastructure.database.sql.database import AsyncSessionLocal
+from app.infrastructure.database.sql.database import session_scope
 from app.models import Repository
 from app.utils.time import utcnow
 
@@ -52,31 +52,27 @@ def _extract_projects(response: dict | list) -> tuple[list, dict | None]:
 
 def _scan_workspace_projects() -> dict[str, str]:
     """
-    Scan WORKSPACE_ROOT directory to find actual local projects.
-    Returns a map of project_name -> full_path
-    Scans 2 levels deep to handle nested projects like testProjects/software-ecommerce
+    Scan WORKSPACE_ROOT directory to find actual local projects using unified traverser.
+    Scans 2 levels deep to handle nested projects.
     """
-    # Priority: Database > Settings
     workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
     if not workspace_root or not os.path.isdir(workspace_root):
         return {}
 
     local_projects = {}
+    from app.core.file import FileTraverser
     try:
         # Level 1: Direct children of WORKSPACE_ROOT
-        for entry in os.scandir(workspace_root):
-            if entry.is_dir() and not entry.name.startswith('.'):
+        for entry in FileTraverser.list_entries(workspace_root):
+            if entry.is_dir():
                 local_projects[entry.name] = entry.path
 
                 # Level 2: Scan one level deeper for nested projects
                 try:
-                    for subentry in os.scandir(entry.path):
-                        if subentry.is_dir() and not subentry.name.startswith('.'):
-                            # Store nested project with its name as key
-                            # This handles cases like testProjects/software-ecommerce
+                    for subentry in FileTraverser.list_entries(entry.path):
+                        if subentry.is_dir():
                             local_projects[subentry.name] = subentry.path
-                except PermissionError:
-                    # Skip directories we can't read
+                except Exception:
                     pass
     except Exception as e:
         logger.warning(f"[ProjectsAPI] Failed to scan workspace: {e}")
@@ -114,7 +110,7 @@ async def get_projects(
         fallback_to_db = True
 
     try:
-        async with AsyncSessionLocal() as session:
+        async with session_scope() as session:
             # Get all repositories (including those without project_id for matching)
             stmt = select(Repository).where(Repository.sync_status != "IGNORED")
             result = await session.execute(stmt)
@@ -150,7 +146,6 @@ async def get_projects(
                         repo.project_id = project_id
                         repo.sync_status = "SYNCED"
                         repo.imported_at = utcnow()
-                        await session.commit()
                         logger.info(f"[ProjectsAPI] Auto-linked project '{project_name}' to cloud ID {project_id}")
                         local_status_map[project_id] = {
                             "status": "SYNCED",
@@ -165,7 +160,6 @@ async def get_projects(
                         repo.project_id = project_id
                         repo.sync_status = "SYNCED"
                         repo.imported_at = utcnow()
-                        await session.commit()
                         local_status_map[project_id] = {
                             "status": "SYNCED",
                             "exists_locally": True,
@@ -186,7 +180,6 @@ async def get_projects(
                             project_id=project_id,
                         )
                         session.add(new_repo)
-                        await session.commit()
                         logger.info(f"[ProjectsAPI] Created and linked new repo for '{project_name}'")
                         local_status_map[project_id] = {
                             "status": "SYNCED",
@@ -509,7 +502,7 @@ async def delete_project(project_id: int):
 
     # 2. Clean up local data (best effort - don't fail the API if cleanup fails)
     try:
-        async with AsyncSessionLocal() as session:
+        async with session_scope() as session:
             stmt = select(Repository).where(Repository.project_id == project_id)
             result = await session.execute(stmt)
             repo = result.scalars().first()
@@ -559,7 +552,6 @@ async def delete_project(project_id: int):
 
                 # Delete Repository (cascade deletes SourceFile, CodeChunk, CodeEntity, CodeRelation)
                 await session.delete(repo)
-                await session.commit()
                 logger.info(f"[ProjectsAPI] Deleted local repository and all associated data for project {project_id}")
             else:
                 logger.info(f"[ProjectsAPI] No local repository found for project {project_id}")

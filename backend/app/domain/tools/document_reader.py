@@ -10,7 +10,7 @@ from app.domain.tools.schemas import DocxHeading, ExcelSheetInfo, ExcelInspectio
 from app.utils import ContentFormatter, ControllerResponse, render_template
 from app.utils import json as json_utils
 from app.utils.detect import detect_language
-from app.utils.file import ensure_local_path, read_file_content, resolve_path
+from app.core.file import ensure_local_path, read_file, resolve_path
 
 try:
     import docx
@@ -23,7 +23,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-# Helper logic moved to app.utils.file
+# Helper logic moved to app.core.file
 # _ensure_local_path -> ensure_local_path
 # _resolve_project_path -> resolve_path (with context awareness handled below or in util if passed)
 
@@ -212,18 +212,19 @@ def _resolve_and_validate(file_path: str) -> tuple[str | None, str | None]:
 
     if os.path.exists(dir_name) and os.path.isdir(dir_name):
         try:
-            candidates = sorted(os.listdir(dir_name))
-            visible_candidates = [c for c in candidates if not c.startswith(".")]
+            from app.core.file import FileTraverser
+            entries = FileTraverser.list_entries(dir_name)
+            visible_entries = [e for e in entries if not e.name.startswith(".")]
 
             # 1. Exact case-insensitive match
-            for c in candidates:
-                if c.lower() == base_name.lower():
-                    suggestion = f" (Did you mean '{c}'?)"
+            for e in entries:
+                if e.name.lower() == base_name.lower():
+                    suggestion = f" (Did you mean '{e.name}'?)"
                     break
 
             # 2. Provide context (Parent Listing)
-            list_str = ", ".join(visible_candidates[:20])
-            if len(visible_candidates) > 20:
+            list_str = ", ".join([e.name for e in visible_entries[:20]])
+            if len(visible_entries) > 20:
                 list_str += ", ..."
 
             parent_listing_info = (
@@ -238,16 +239,18 @@ def _resolve_and_validate(file_path: str) -> tuple[str | None, str | None]:
 
 
 def _list_directory(real_path: str) -> str:
-    """Returns a formatted listing of the directory."""
+    """Returns a standardized formatted listing of the directory using unified traverser."""
     try:
-        items = sorted(os.listdir(real_path))
-        visible_items = [i for i in items if not i.startswith(".")]
+        from app.core.file import FileTraverser
+        entries = FileTraverser.list_entries(real_path)
+        visible_entries = [e for e in entries if not e.name.startswith(".")]
+        
         formatted_items = []
-        for item in visible_items:
-            if os.path.isdir(os.path.join(real_path, item)):
-                formatted_items.append(f"{item}/")
+        for e in visible_entries:
+            if e.is_dir():
+                formatted_items.append(f"{e.name}/")
             else:
-                formatted_items.append(item)
+                formatted_items.append(e.name)
 
         listing_str = "\n".join(formatted_items[:50]) + ("\n... (truncated)" if len(formatted_items) > 50 else "")
         return (
@@ -274,7 +277,8 @@ def _read_file_content(real_path: str, start: int | None, end: int | None) -> st
         return _read_html(real_path)
     else:
         # Code/Text Fallback. Using utils reading.
-        content, _, _ = read_file_content(real_path)
+        result = read_file(real_path)
+        content = result.content
         lang = detect_language(real_path)
         return _wrap_code_block(real_path, content, lang)
 
@@ -374,6 +378,8 @@ def _read_pdf(path: str, start: int | None, end: int | None) -> str:
 
 
 def _read_docx(path: str) -> str:
+    """Standardized DOCX reading using unified IO (indirectly via mammoth)."""
+    # mammoth requires a file-like object in binary mode
     with open(path, "rb") as docx_file:
         result = mammoth.convert_to_markdown(docx_file)
         return ContentFormatter.file_content(os.path.basename(path), result.value, lang="markdown")
@@ -425,6 +431,7 @@ def _read_excel(path: str) -> str:
 
 
 def _read_html(path: str) -> str:
-    with open(path, encoding="utf-8") as f:
-        html_content = f.read()
-    return ContentFormatter.file_content(os.path.basename(path), md(html_content), lang="markdown")
+    """Standardized HTML reading using unified core IO."""
+    from app.core.file import read_file
+    result = read_file(path)
+    return ContentFormatter.file_content(os.path.basename(path), md(result.content), lang="markdown")

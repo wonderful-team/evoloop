@@ -31,8 +31,9 @@ class ProjectClassifier:
             return ProjectType.UNKNOWN
 
         try:
-            # 1. Check for Strong Indicators (Config files) in Root
-            entries = set(os.listdir(root_path))
+            # 1. Check for Strong Indicators (Config files) in Root using unified traverser
+            from app.core.file import FileTraverser
+            entries = {entry.name for entry in FileTraverser.list_entries(root_path)}
             intersection = self.SOFTWARE_MARKERS.intersection(entries)
 
             if intersection:
@@ -40,23 +41,18 @@ class ProjectClassifier:
                 return ProjectType.SOFTWARE
 
             # 2. Check for Code Files (Deep Scan but shallow depth)
-            # Scan top 2 levels for code files.
+            # Scan top 2 levels for code files using unified traverser.
             code_file_count = 0
-            for root, dirs, files in os.walk(root_path):
-                # Depth check
-                depth = root[len(root_path):].count(os.sep)
-                if depth > 2:
-                    # Don't go deep
-                    del dirs[:]
-                    continue
-
-                for f in files:
-                    _, ext = os.path.splitext(f)
-                    if ext in self.CODE_EXTENSIONS:
-                        code_file_count += 1
-                        if code_file_count >= 3:  # Threshold
-                            logger.info(f"[Classifier] Classified {root_path} as SOFTWARE (Found code files)")
-                            return ProjectType.SOFTWARE
+            from app.core.file import FileTraverser, TraverseOptions
+            
+            options = TraverseOptions(max_depth=2)
+            for full_path in FileTraverser.walk(root_path, options):
+                _, ext = os.path.splitext(full_path)
+                if ext in self.CODE_EXTENSIONS:
+                    code_file_count += 1
+                    if code_file_count >= 3:  # Threshold
+                        logger.info(f"[Classifier] Classified {root_path} as SOFTWARE (Found code files)")
+                        return ProjectType.SOFTWARE
 
             logger.info(f"[Classifier] Classified {root_path} as CONTENT")
             return ProjectType.CONTENT

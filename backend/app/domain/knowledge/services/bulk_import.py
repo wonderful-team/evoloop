@@ -12,9 +12,8 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import BinaryIO, Optional
-
 from pydantic import Field
-
+from app.core import file as file_utils
 from app.domain.knowledge.schemas import BulkImportError, ArchiveValidationResult
 from app.domain.knowledge.services.pipeline import IngestionPipeline
 from app.infrastructure.pydantic_base import DynamicBaseModel
@@ -65,17 +64,6 @@ class BulkImportService:
         files = [(file1, "doc1.pdf"), (file2, "doc2.md")]
         result = await service.import_files(files, project="my-project")
     """
-    
-    # Supported archive formats
-    ARCHIVE_EXTENSIONS = {'.zip', '.tar', '.tar.gz', '.tgz'}
-    
-    # Files to skip
-    SKIP_PATTERNS = {
-        '__pycache__', '.git', '.svn', '.hg',  # Version control
-        'node_modules', 'vendor',  # Dependencies
-        '.DS_Store', 'Thumbs.db',  # OS files
-        '*.tmp', '*.temp', '*.log',  # Temp files
-    }
     
     def __init__(self, pipeline: Optional[IngestionPipeline] = None):
         """
@@ -140,12 +128,12 @@ class BulkImportService:
                 MAX_FILE_SIZE = 50 * 1024 * 1024    # 50MB per file
                 MAX_COMPRESSION_RATIO = 100
 
-                # Filter valid files
                 files_to_process = []
                 total_compressed = 0
                 total_uncompressed = 0
                 for info in zf.infolist():
-                    if self._should_process_file(info.filename):
+                    # Check if file should be processed (use core logic where possible)
+                    if not info.is_dir() and not file_utils.is_ignored_path(info.filename):
                         files_to_process.append(info)
                         total_compressed += info.compress_size
                         total_uncompressed += info.file_size
@@ -196,7 +184,7 @@ class BulkImportService:
                                 ingest_result = await self.pipeline.process(
                                     file=tmp_file,
                                     filename=info.filename,
-                                    project=project,
+                                    collection=project,
                                     custom_metadata={
                                         "imported_from": "zip",
                                         "original_path": info.filename
@@ -256,7 +244,7 @@ class BulkImportService:
         Returns:
             BulkImportResult with statistics
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         result = BulkImportResult(total_files=len(files))
         
         for file_obj, filename in files:
@@ -268,7 +256,7 @@ class BulkImportService:
                 ingest_result = await self.pipeline.process(
                     file=file_obj,
                     filename=filename,
-                    project=project,
+                    collection=project,
                     custom_metadata={
                         "doc_type": doc_type,
                         "imported_from": "bulk_upload"
@@ -311,32 +299,27 @@ class BulkImportService:
         Returns:
             BulkImportResult with statistics
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         result = BulkImportResult()
         
-        # Collect files
-        files_to_process = []
-        pattern = "**/*" if recursive else "*"
-        
-        for file_path in directory_path.glob(pattern):
-            if file_path.is_file() and self._should_process_file(str(file_path)):
-                files_to_process.append(file_path)
+        # Collect files using core traverser
+        files_to_process = list(file_utils.walk_tree(str(directory_path), max_depth=None if recursive else 1))
         
         result.total_files = len(files_to_process)
         
         # Process files
-        for file_path in files_to_process:
+        for full_path in files_to_process:
+            file_path = Path(full_path)
+            
             try:
-                relative_path = file_path.relative_to(directory_path)
-                
                 with open(file_path, 'rb') as f:
                     ingest_result = await self.pipeline.process(
                         file=f,
                         filename=file_path.name,
-                        project=project,
+                        collection=project,
                         custom_metadata={
                             "imported_from": "directory",
-                            "original_path": str(relative_path)
+                            "original_path": str(full_path)
                         }
                     )
                 
@@ -347,7 +330,7 @@ class BulkImportService:
                     result.failed += 1
                     result.errors.append(
                         BulkImportError(
-                            file=str(relative_path),
+                            file=str(full_path),
                             error=ingest_result.error or "Unknown ingestion error"
                         )
                     )
@@ -358,24 +341,6 @@ class BulkImportService:
         
         result.duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         return result
-    
-    def _should_process_file(self, filename: str) -> bool:
-        """Check if file should be processed based on name/pattern."""
-        # Skip hidden files
-        if filename.startswith('.') or '/.' in filename:
-            return False
-        
-        # Skip known directories/patterns
-        for pattern in self.SKIP_PATTERNS:
-            if pattern in filename:
-                return False
-        
-        # Skip unsupported extensions
-        skip_exts = {'.exe', '.dll', '.so', '.dylib', '.bin'}
-        if any(filename.lower().endswith(ext) for ext in skip_exts):
-            return False
-        
-        return True
     
     def validate_archive(self, file: BinaryIO) -> ArchiveValidationResult:
         """
@@ -395,7 +360,7 @@ class BulkImportService:
                 compressed_size = sum(info.compress_size for info in zf.infolist())
 
                 # Count processable files
-                processable = [f for f in files if self._should_process_file(f)]
+                processable = [f for f in files if not file_utils.is_ignored_path(f)]
 
                 return ArchiveValidationResult(
                     valid=True,

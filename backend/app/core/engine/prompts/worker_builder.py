@@ -1,13 +1,17 @@
 import logging
-import os
 from typing import Any
 
 from app.core.context import ContextManager, plugin_registry
 from app.core.engine.state.blackboard import BlackboardState
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
-from app.utils import file as file_utils
 from app.utils import render_template
-from .utils import to_template_context, get_sandbox_mode, get_mapped_cwd
+
+from .utils import (
+    get_mapped_cwd,
+    get_sandbox_mode,
+    read_project_profile,
+    to_template_context,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +42,7 @@ class WorkerPromptBuilder:
 
     async def build(self, config: Any = None) -> str:
         """Constructs the STATIC system prompt using Jinja2 templating.
-        
+
         This part MUST be static for the duration of a session to trigger caching.
         Dynamic context (blackboard, telemetry, memory) is now moved to build_mission_message().
         """
@@ -48,15 +52,7 @@ class WorkerPromptBuilder:
         mode = get_sandbox_mode()
 
         # Read PROJECT.md if exists (static for the session)
-        project_profile = ""
-        if ctx.working_directory:
-            profile_path = os.path.join(ctx.working_directory, "PROJECT.md")
-            if os.path.isfile(profile_path):
-                try:
-                    content = file_utils.read_file(profile_path)
-                    project_profile = content
-                except Exception as e:
-                    logger.debug(f"[WorkerPrompt] Failed to read PROJECT.md: {e}")
+        project_profile = read_project_profile(ctx.working_directory, "[WorkerPrompt]")
 
         # Static Sys Info (Project identity only)
         sys_info = {
@@ -118,9 +114,9 @@ class WorkerPromptBuilder:
         previous_output: str = "",
     ) -> str:
         """Constructs the USER message (Mission Ticket) for the Worker.
-        
+
         DYNAMIC CONTEXT:
-        All items that change every turn are injected here to ensure 
+        All items that change every turn are injected here to ensure
         the System Prompt remains stable and cacheable.
         """
         ctx = ContextManager.current()
@@ -153,10 +149,10 @@ class WorkerPromptBuilder:
     def _prepare_knowledge_blocks(self) -> list[str]:
         """
         Prepare knowledge blocks for all skills.
-        
+
         Uses a single template render with the knowledge_blocks_wrapper.j2
         template for efficiency, then splits the result into individual blocks.
-        
+
         Returns:
             List of rendered knowledge block strings
         """

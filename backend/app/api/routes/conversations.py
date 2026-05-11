@@ -207,7 +207,6 @@ async def rename_conversation(thread_id: str, req: RenameRequest):
             raise HTTPException(404, "Conversation not found")
 
         conversation.title = req.title
-        await session.commit()
 
     return ConversationRenameResponse(status="updated", thread_id=thread_id, title=req.title)
 
@@ -240,7 +239,6 @@ async def delete_conversation(thread_id: str):
 
             # Delete Logs (Bulk delete)
             await session.execute(delete(Message).where(Message.thread_id == thread_id))
-            await session.commit()
 
         return ConversationDeleteResponse(status="deleted", thread_id=thread_id)
     except Exception as e:

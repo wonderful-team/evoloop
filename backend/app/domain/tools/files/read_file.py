@@ -53,14 +53,14 @@ async def handle_read(
         parent_dir = os.path.dirname(target_path)
         if os.path.exists(parent_dir):
             try:
-                siblings = os.listdir(parent_dir)
+                from app.core.file import FileTraverser
+                entries = FileTraverser.list_entries(parent_dir)
                 siblings_info = []
-                for s in siblings[:20]:
-                    full_s = os.path.join(parent_dir, s)
-                    if os.path.isdir(full_s):
-                        siblings_info.append(f"{s}/")
+                for entry in entries[:20]:
+                    if entry.is_dir():
+                        siblings_info.append(f"{entry.name}/")
                     else:
-                        siblings_info.append(s)
+                        siblings_info.append(entry.name)
                 siblings_str = ", ".join(siblings_info)
                 return i18n.get(
                     "domain_tools.files.read_not_found_suggest",

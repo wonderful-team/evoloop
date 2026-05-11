@@ -21,8 +21,8 @@ from enum import Enum
 from typing import Literal
 
 from app.core.config import settings
-from app.utils.hash import compute_file_hash
-from app.utils.path import ensure_dir
+from app.core.file import compute_file_hash
+from app.core.file import ensure_dir
 
 logger = logging.getLogger(__name__)
 
@@ -508,16 +508,29 @@ class ScreenRecordingStorage:
         return stats
 
     def _remove_empty_dirs(self, base_dir: str):
-        """Remove empty directories recursively."""
-        for root, dirs, files in os.walk(base_dir, topdown=False):
-            for dir_name in dirs:
-                dir_path = os.path.join(root, dir_name)
-                try:
-                    if os.path.exists(dir_path) and not os.listdir(dir_path):
-                        os.rmdir(dir_path)
-                        logger.debug(f"[ScreenRecordingStorage] Removed empty dir: {dir_path}")
-                except Exception:
-                    pass
+        """Remove empty directories recursively using unified traverser."""
+        from app.core.file import FileTraverser, TraverseOptions
+        options = TraverseOptions(include_dirs=True, follow_ignore=False)
+        
+        # We need bottom-up but walk is top-down. 
+        # Actually, we can just get all dirs and sort by depth descending.
+        dirs = []
+        for path in FileTraverser.walk(base_dir, options):
+            if os.path.isdir(path):
+                dirs.append(path)
+        
+        # Sort by depth descending (longest paths first)
+        dirs.sort(key=lambda x: x.count(os.sep), reverse=True)
+        
+        for dir_path in dirs:
+            try:
+                # Check if empty using standardized list_entries
+                entries = list(FileTraverser.list_entries(dir_path, follow_ignore=False))
+                if not entries:
+                    os.rmdir(dir_path)
+                    logger.debug(f"[ScreenRecordingStorage] Removed empty dir: {dir_path}")
+            except Exception:
+                pass
 
     def get_stats(self) -> dict[str, dict]:
         """Get storage statistics for recordings."""
@@ -526,29 +539,28 @@ class ScreenRecordingStorage:
             "frames": {"directory": settings.SCREEN_RECORDING_FRAMES_DIR, "file_count": 0, "total_size_mb": 0},
         }
 
+        from app.core.file import FileTraverser, TraverseOptions
+        no_ignore_options = TraverseOptions(follow_ignore=False)
+
         # Count videos
         if os.path.exists(settings.SCREEN_RECORDINGS_DIR):
-            for root, dirs, files in os.walk(settings.SCREEN_RECORDINGS_DIR):
-                for file in files:
-                    if file.endswith(('.mp4', '.mov', '.avi', '.mkv')):
-                        filepath = os.path.join(root, file)
-                        try:
-                            stats["videos"]["total_size_mb"] += os.path.getsize(filepath) / (1024 * 1024)
-                            stats["videos"]["file_count"] += 1
-                        except Exception:
-                            pass
+            for filepath in FileTraverser.walk(settings.SCREEN_RECORDINGS_DIR, no_ignore_options):
+                if filepath.lower().endswith(('.mp4', '.mov', '.avi', '.mkv')):
+                    try:
+                        stats["videos"]["total_size_mb"] += os.path.getsize(filepath) / (1024 * 1024)
+                        stats["videos"]["file_count"] += 1
+                    except Exception:
+                        pass
 
         # Count frames
         if os.path.exists(settings.SCREEN_RECORDING_FRAMES_DIR):
-            for root, dirs, files in os.walk(settings.SCREEN_RECORDING_FRAMES_DIR):
-                for file in files:
-                    if file.endswith(('.png', '.jpg', '.jpeg')):
-                        filepath = os.path.join(root, file)
-                        try:
-                            stats["frames"]["total_size_mb"] += os.path.getsize(filepath) / (1024 * 1024)
-                            stats["frames"]["file_count"] += 1
-                        except Exception:
-                            pass
+            for filepath in FileTraverser.walk(settings.SCREEN_RECORDING_FRAMES_DIR, no_ignore_options):
+                if filepath.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    try:
+                        stats["frames"]["total_size_mb"] += os.path.getsize(filepath) / (1024 * 1024)
+                        stats["frames"]["file_count"] += 1
+                    except Exception:
+                        pass
 
         # Round sizes
         for key in stats:

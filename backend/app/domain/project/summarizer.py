@@ -10,7 +10,7 @@ from app.domain.codebase.filter import FileFilter
 from app.domain.project.service import project_context_manager
 from app.infrastructure.database.graph.driver import get_graph_db
 from app.infrastructure.queue.factory import get_scheduler, shared_task
-from app.utils import file as file_utils
+from app.core import file as file_utils
 from app.utils import json as json_utils
 from app.utils.async_utils import flush_loop_bound_resources
 
@@ -84,16 +84,12 @@ async def _summarize_project_logic(name: str, path: str):
         )
 
         # 1. Gather Context (Files)
-        f_filter = FileFilter()
-
+        from app.core.file import FileTraverser
         files = []
         try:
-            for f in os.listdir(path):
-                if f.startswith("."):
-                    continue
-                full_p = os.path.join(path, f)
-                if f_filter.should_include(full_p):
-                    files.append(f)
+            for entry in FileTraverser.list_entries(path):
+                if entry.is_file():
+                    files.append(entry.name)
         except Exception as e:
             logger.debug(f"[ProjectSummarizer] Directory scan failed for {path}: {e}")
 

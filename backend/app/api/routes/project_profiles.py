@@ -15,64 +15,21 @@ import time
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 from app.api.deps import TokenDepOptional
-from app.api.schemas.project_profiles import DiscoverRequest, DiscoverResponse, ProfileContentResponse
+from app.api.schemas.project_profiles import DiscoverRequest, DiscoverResponse, ProfileContentResponse, UpdateProfileRequest
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.engine.state.blackboard import BlackboardState
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
-from app.core.evocloud import evocloud_manager
+from app.domain.project.utils import get_project_path
+from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.database.sql.database import session_scope
 from app.models.learning import LearnedSkill
-from app.utils import file as file_utils
+from app.core import file as file_utils
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["project-profiles"])
 
-# ------------------------------------------------------------------
-# Schemas
-# ------------------------------------------------------------------
-
-# ------------------------------------------------------------------
-# Helpers
-# ------------------------------------------------------------------
-
-async def _resolve_project_path(project_id: int) -> str:
-    """
-    Resolve local project path from project_id.
-
-    Resolution order:
-    1. Cloud API (evocloud_manager.get_project_by_id) → project.path
-    2. Local DB (Repository table) → repo.local_path
-    """
-    # 1. Try Cloud API
-    try:
-        project = await evocloud_manager.get_project_by_id(project_id)
-        if project and project.path and os.path.isdir(project.path):
-            return project.path
-    except Exception as e:
-        logger.debug(f"[ProjectProfiles] Cloud lookup failed for {project_id}: {e}")
-
-    # 2. Try local DB
-    try:
-        from sqlalchemy import select
-        from app.infrastructure.database.sql.database import AsyncSessionLocal
-        from app.models.codebase import Repository
-
-        async with AsyncSessionLocal() as session:
-            stmt = select(Repository).where(Repository.project_id == project_id)
-            result = await session.execute(stmt)
-            repo = result.scalar_one_or_none()
-            if repo and repo.local_path and os.path.isdir(repo.local_path):
-                return repo.local_path
-    except Exception as e:
-        logger.debug(f"[ProjectProfiles] DB lookup failed for {project_id}: {e}")
-
-    return ""
-
-# ------------------------------------------------------------------
-# Endpoints
-# ------------------------------------------------------------------
 
 async def _ensure_project_discovery_skill() -> LearnedSkill | None:
     """Fetch or import the 'Project Discovery' learned skill."""
@@ -125,7 +82,7 @@ async def discover_profile(
     and lets the Skill SOP guide the Worker. No template-level step-by-step
     instructions are needed — the SKILL.md owns the execution flow.
     """
-    path = await _resolve_project_path(project_id)
+    path = await get_project_path(project_id)
     if not path:
         raise HTTPException(404, "Project not found or has no local path")
     if not os.path.isdir(path):
@@ -163,13 +120,13 @@ async def discover_profile(
         message_content=message,
         project_id=project_id,
         goal_prefix="[Project Discovery] ",
+        skip_message_persistence=True,
     )
 
     if result.status == "failed":
         raise HTTPException(500, detail=result.error)
 
     # Inject the ExecutionTicket into the initial state so SkillHydrator can load the SOP.
-    # API layer only specifies the skill — tool authorization is Supervisor's decision.
     blackboard = BlackboardState(
         ticket=ExecutionTicket(
             ticket_type="task",
@@ -179,6 +136,11 @@ async def discover_profile(
         )
     )
     result.inputs["blackboard"] = blackboard.model_dump(mode="json")
+
+    # Skip persisting Agent conversation transcript to DB
+    if "metadata" not in result.inputs:
+        result.inputs["metadata"] = {}
+    result.inputs["metadata"]["skip_persistence"] = True
 
     bg_tasks.add_task(run_agent_background, thread_id, result.inputs)
 
@@ -193,13 +155,14 @@ async def discover_profile(
         thread_id=thread_id,
     )
 
+
 @router.get("/{project_id}/profile", response_model=ProfileContentResponse)
 async def get_profile(
     project_id: int,
     _token: TokenDepOptional = None,
 ):
     """Get the current PROJECT.md content for a project."""
-    path = await _resolve_project_path(project_id)
+    path = await get_project_path(project_id)
     if not path:
         raise HTTPException(404, "Project not found or has no local path")
 
@@ -207,7 +170,7 @@ async def get_profile(
     content = None
     if os.path.isfile(file_path):
         try:
-            content = file_utils.read_file(file_path)
+            content = file_utils.read_file(file_path).content
         except Exception as e:
             logger.warning(f"Failed to read PROJECT.md: {e}")
 
@@ -224,7 +187,7 @@ async def update_profile(
     _token: TokenDepOptional = None,
 ):
     """Manually update the PROJECT.md content."""
-    path = await _resolve_project_path(project_id)
+    path = await get_project_path(project_id)
     if not path:
         raise HTTPException(404, "Project not found or has no local path")
 

@@ -19,39 +19,13 @@ from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.engine.state.blackboard import BlackboardState
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
-from app.core.evocloud import evocloud_manager
+from app.domain.project.utils import get_project_path
 from app.i18n.service import i18n
 from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["wiki"])
-
-
-async def _resolve_project_path(project_id: int) -> str:
-    """Resolve local project path from project_id."""
-    try:
-        project = await evocloud_manager.get_project_by_id(project_id)
-        if project and project.path and os.path.isdir(project.path):
-            return project.path
-    except Exception as e:
-        logger.debug(f"[Wiki] Cloud lookup failed for {project_id}: {e}")
-
-    try:
-        from sqlalchemy import select
-        from app.infrastructure.database.sql.database import AsyncSessionLocal
-        from app.models import Repository
-
-        async with AsyncSessionLocal() as session:
-            stmt = select(Repository).where(Repository.project_id == project_id)
-            result = await session.execute(stmt)
-            repo = result.scalar_one_or_none()
-            if repo and repo.local_path and os.path.isdir(repo.local_path):
-                return repo.local_path
-    except Exception as e:
-        logger.debug(f"[Wiki] DB lookup failed for {project_id}: {e}")
-
-    return ""
 
 
 async def _ensure_wiki_generation_skill():
@@ -108,7 +82,7 @@ async def generate_wiki(
     The Agent follows the Wiki Generation SKILL.md SOP to autonomously
     survey the project, plan the structure, and write pages via tools.
     """
-    path = await _resolve_project_path(req.project_id)
+    path = await get_project_path(req.project_id)
     if not path:
         raise HTTPException(404, "Project not found or has no local path")
     if not os.path.isdir(path):

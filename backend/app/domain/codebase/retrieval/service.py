@@ -3,7 +3,7 @@ from typing import Any
 from sqlalchemy import select
 
 from app.core.context.manager import ContextManager
-from app.infrastructure.database.sql.database import AsyncSessionLocal
+from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.models import (
     CodeEntity,
@@ -15,7 +15,7 @@ from app.models import (
 
 class RetrievalService:
     def __init__(self, embedder=None):
-        self.session_factory = AsyncSessionLocal
+        self.session_factory = session_scope
         self.embedder = embedder or EmbedderFactory.get_embedder()
 
     async def search(

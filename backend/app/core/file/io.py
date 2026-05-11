@@ -311,11 +311,16 @@ def write_file(
 
         # Write atomically using temp file
         temp_path = file_path + ".tmp"
-        with open(temp_path, "w", encoding=encoding) as f:
-            f.write(content)
+        try:
+            with open(temp_path, "w", encoding=encoding) as f:
+                f.write(content)
 
-        # Atomic rename
-        os.replace(temp_path, file_path)
+            # Atomic rename
+            os.replace(temp_path, file_path)
+        except Exception as e:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            raise e
 
         # Compute new hash
         new_hash = compute_file_hash(file_path)

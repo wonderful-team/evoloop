@@ -11,6 +11,7 @@ from typing import Optional
 from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile
 
 from app.api.responses import BaseAPIResponse
+from app.infrastructure.database.sql.database import get_db_session
 from app.api.schemas.knowledge import DocumentResponse, DocumentListResponse, DocumentMetadataResponse, \
     DocumentContentResponse, CollectionResponse, TagItem, TagResponse, DocumentSearchResponse, FTSSearchResult, \
     FTSSearchResponse, FTSSuggestResponse
@@ -516,7 +517,7 @@ async def list_maintenance_reports(
         from app.infrastructure.database.resource_manager import db_resource_manager
         from app.models.maintenance import MaintenanceReport
         from sqlalchemy import desc, select
-        async with db_resource_manager.session_factory() as session:
+        async with get_db_session() as session:
             result = await session.execute(
                 select(MaintenanceReport)
                 .order_by(desc(MaintenanceReport.timestamp))

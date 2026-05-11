@@ -94,7 +94,6 @@ async def delete_resource(project_id: int, resource_id: int):
                 raise HTTPException(403, "Resource access denied")
 
             await session.delete(resource)
-            await session.commit()
             return OperationResponse(status="success", id=resource_id)
     except HTTPException:
         raise

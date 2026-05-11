@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.models.project import ProjectTask
-from app.infrastructure.database.sql.database import AsyncSessionLocal
+from app.infrastructure.database.sql.database import session_scope
 from app.utils.id import gen_uuid
 from app.utils.time import utcnow
 
@@ -52,7 +52,7 @@ class SubtaskService:
         Returns:
             Created parent task with subtasks loaded
         """
-        async with AsyncSessionLocal() as session:
+        async with session_scope() as session:
             # Create parent task
             parent_task = ProjectTask(
                 id=gen_uuid(),
@@ -96,8 +96,6 @@ class SubtaskService:
                     )
                     session.add(subtask)
 
-            await session.commit()
-            
             # Reload with subtasks
             result = await session.execute(
                 select(ProjectTask)
@@ -121,7 +119,7 @@ class SubtaskService:
         Returns:
             Tree structure dict or None
         """
-        async with AsyncSessionLocal() as session:
+        async with session_scope() as session:
             result = await session.execute(
                 select(ProjectTask)
                 .where(ProjectTask.id == task_id)
@@ -186,7 +184,7 @@ class SubtaskService:
         Returns:
             True if updated successfully
         """
-        async with AsyncSessionLocal() as session:
+        async with session_scope() as session:
             task = await session.get(ProjectTask, task_id)
             if not task:
                 logger.error(f"[SubtaskService] Task {task_id} not found")
@@ -213,7 +211,6 @@ class SubtaskService:
             if task.parent_id:
                 await SubtaskService._update_parent_progress(task.parent_id, session)
                 
-            await session.commit()
             return True
 
     @staticmethod
@@ -274,7 +271,7 @@ class SubtaskService:
         Returns:
             Task dict or None
         """
-        async with AsyncSessionLocal() as session:
+        async with session_scope() as session:
             # Get all root tasks for project
             result = await session.execute(
                 select(ProjectTask)

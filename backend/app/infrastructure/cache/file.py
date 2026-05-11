@@ -573,6 +573,14 @@ class FileCachePipelineAdapter(CachePipeline):
         self._commands.append(("srem", (name,) + values, {}))
         return self
 
+    def lpush(self, name: str, *values: Any) -> "FileCachePipelineAdapter":
+        self._commands.append(("lpush", (name,) + values, {}))
+        return self
+
+    def ltrim(self, name: str, start: int, end: int) -> "FileCachePipelineAdapter":
+        self._commands.append(("ltrim", (name, start, end), {}))
+        return self
+
     async def execute(self) -> list[Any]:
         results = []
         for method_name, args, kwargs in self._commands:

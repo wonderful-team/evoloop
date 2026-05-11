@@ -807,8 +807,12 @@ class MacOSDriver:
         List applications installed in the standard /Applications folder.
         """
         try:
-            apps = os.listdir("/Applications")
-            return sorted([a.replace(".app", "") for a in apps if a.endswith(".app")])
+            from app.core.file import FileTraverser
+            entries = FileTraverser.list_entries("/Applications", follow_ignore=False)
+            apps = [entry.name for entry in entries]
+            # Filter for .app directories
+            apps = [a.replace(".app", "") for a in apps if a.endswith(".app")]
+            return sorted(apps)
         except Exception:
             return []
 

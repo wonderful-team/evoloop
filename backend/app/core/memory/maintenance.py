@@ -87,7 +87,6 @@ class MemoryMaintenanceAgent:
                 result = await session.execute(
                     delete(Message).where(Message.thread_id == self.thread_id)
                 )
-                await session.commit()
 
                 deleted = result.rowcount
                 logger.debug(f"[Maintenance] Cleaned {deleted} messages from {self.thread_id}")

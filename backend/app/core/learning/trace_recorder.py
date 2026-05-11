@@ -12,7 +12,7 @@ from app.core.config import settings
 from app.core.context.manager import ContextManager
 from app.core.learning.schemas import ActionTrace
 from app.infrastructure.database.sql.database import session_scope
-from app.utils.path import ensure_dir
+from app.core.file import ensure_dir
 
 logger = logging.getLogger(__name__)
 

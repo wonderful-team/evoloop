@@ -198,7 +198,6 @@ async def prune_checkpoints_task(keep_days: int = 7):
             await session.execute(text("DELETE FROM checkpoints WHERE thread_id NOT IN (SELECT thread_id FROM checkpoint_writes)"))
             await session.execute(text("DELETE FROM checkpoint_blobs WHERE thread_id NOT IN (SELECT thread_id FROM checkpoints)"))
 
-        await session.commit()
     logger.info(f"[Celery] Pruned LangGraph checkpoints/writes (Keep: {keep_days} days).")
 
 
@@ -216,17 +215,17 @@ def cleanup_artifacts_task(max_age_days: int = 3):
             continue
 
         logger.info(f"[Celery] Cleaning up old artifacts in {directory}...")
-        for filename in os.listdir(directory):
-            file_path = os.path.join(directory, filename)
+        from app.core.file import FileTraverser
+        for entry in FileTraverser.list_entries(directory):
             try:
                 # File-level try-except is justified for cleanup tasks
-                if os.path.getmtime(file_path) < cutoff:
-                    if os.path.isfile(file_path):
-                        os.remove(file_path)
-                    elif os.path.isdir(file_path):
-                        shutil.rmtree(file_path)
+                if os.path.getmtime(entry.path) < cutoff:
+                    if entry.is_file():
+                        os.remove(entry.path)
+                    elif entry.is_dir():
+                        shutil.rmtree(entry.path)
             except Exception as e:
-                logger.warning(f"Failed to delete artifact {file_path}: {e}")
+                logger.warning(f"Failed to delete artifact {entry.path}: {e}")
 
 
 @shared_task(name="engine_git_harvest")

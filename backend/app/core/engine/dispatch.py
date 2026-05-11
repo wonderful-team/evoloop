@@ -26,8 +26,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.core.context.manager import ContextManager, EvoContext
-from app.core.evocloud import evocloud_manager
 from app.core.engine.message.reference import reference_service
+from app.domain.project.utils import get_project_path
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Conversation, MessageReference
 
@@ -113,11 +113,7 @@ async def dispatch_agent_run(
     # ------------------------------------------------------------------
     # 2. Process references (images, files, skills)
     # ------------------------------------------------------------------
-    root_path = None
-    if project_id:
-        project = await evocloud_manager.get_project_by_id(project_id)
-        if project:
-            root_path = project.get("path")
+    root_path = await get_project_path(project_id) if project_id else None
 
     async with session_scope() as session:
         ref_context = await reference_service.process_references(

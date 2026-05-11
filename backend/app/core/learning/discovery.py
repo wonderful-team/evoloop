@@ -69,26 +69,24 @@ class SkillDiscovery:
         Copy built-in skills to user skills directory.
         Only copies new or updated skills (based on modification time).
         """
-        from app.utils.path import ensure_dir
+        from app.core.file import ensure_dir
         ensure_dir(user_path)
 
-        for root, dirs, files in os.walk(builtin_path):
+        from app.core.file import FileTraverser, TraverseOptions
+        options = TraverseOptions(include_dirs=False)
+        
+        for source_file in FileTraverser.walk(builtin_path, options):
             # Calculate relative path from builtin skills root
-            rel_path = os.path.relpath(root, builtin_path)
-            target_dir = os.path.join(user_path, rel_path)
+            rel_file_path = os.path.relpath(source_file, builtin_path)
+            target_file = os.path.join(user_path, rel_file_path)
 
-            # Create target directory
-            ensure_dir(target_dir)
+            # Ensure target directory exists
+            os.makedirs(os.path.dirname(target_file), exist_ok=True)
 
-            # Copy files
-            for file in files:
-                source_file = os.path.join(root, file)
-                target_file = os.path.join(target_dir, file)
-
-                # Copy if target doesn't exist or source is newer
-                if not os.path.exists(target_file) or os.path.getmtime(source_file) > os.path.getmtime(target_file):
-                    shutil.copy2(source_file, target_file)
-                    logger.debug(f"[Discovery] Copied skill file: {rel_path}/{file}")
+            # Copy if target doesn't exist or source is newer
+            if not os.path.exists(target_file) or os.path.getmtime(source_file) > os.path.getmtime(target_file):
+                shutil.copy2(source_file, target_file)
+                logger.debug(f"[Discovery] Copied skill file: {rel_file_path}")
 
     async def _get_active_skills(self, force_reload: bool = False) -> list[LearnedSkill]:
         """

@@ -27,6 +27,7 @@ from app.core.environment.controllers.utils import (
     truncate_output,
 )
 from app.core.environment.schemas import ElementResolutionResult
+from app.core.file import cleanup_file
 from app.core.learning.trace_recorder import get_recorder
 from app.core.shortcuts import get_shortcut
 from app.core.vision import VisionTask, get_vision_router, vision_engine
@@ -34,7 +35,6 @@ from app.infrastructure.drivers.macos import macos_driver
 from app.utils import (
     ControllerResponse,
     PerceptionsFormatter,
-    cleanup_file,
     normalize_text,
     render_template,
 )

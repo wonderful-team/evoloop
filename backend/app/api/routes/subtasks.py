@@ -175,9 +175,9 @@ async def list_root_tasks(
     """List root tasks (parent tasks) for a project."""
     from sqlalchemy import select
     from app.models.project import ProjectTask
-    from app.infrastructure.database.sql.database import AsyncSessionLocal
+    from app.infrastructure.database.sql.database import session_scope
     
-    async with AsyncSessionLocal() as session:
+    async with session_scope() as session:
         query = select(ProjectTask).where(
             ProjectTask.project_id == project_id,
             ProjectTask.parent_id.is_(None)

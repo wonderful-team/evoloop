@@ -13,11 +13,11 @@ from typing import Any
 
 from app.core.environment.schemas import BatchStepResult
 from app.utils import (
-    cleanup_file,
     normalize_coordinates,
     normalize_text,
     render_template,
 )
+from app.core.file import cleanup_file
 from app.utils.text import truncate_output
 
 logger = logging.getLogger(__name__)

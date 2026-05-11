@@ -5,10 +5,12 @@ import os
 from sqlalchemy import select
 
 from app.core.evocloud import evocloud_manager
+from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.codebase.indexing.service import IndexingService
 from app.domain.project import cache as project_cache
-from app.infrastructure.database.sql.database import AsyncSessionLocal
+from app.infrastructure.database.sql.database import session_scope
 from app.models.codebase import Repository
+from app.core.file import is_ignored_path
 from app.utils.time import utcnow
 
 logger = logging.getLogger(__name__)
@@ -94,9 +96,9 @@ class ProjectSyncService:
         abs_path = os.path.abspath(path)
         logger.info(f"[ProjectSync] Detected new project at: {path}")
 
-        # Check if should auto-ignore (system directories)
-        if self._should_auto_ignore(path):
-            logger.info(f"[ProjectSync] Auto-ignoring system directory: {path}")
+        # Check if should auto-ignore (system directories, hidden files, etc.)
+        if is_ignored_path(path):
+            logger.info(f"[ProjectSync] Auto-ignoring system directory or hidden path: {path}")
             return
 
         # Check for existing record
@@ -113,7 +115,7 @@ class ProjectSyncService:
 
         # Check if there's an ignored project with the same name (recreated project)
         # This handles the case where user deleted and recreated the project folder
-        if await self._check_if_previously_ignored(repo_name):
+        if await self._is_repo_name_ignored_in_db(repo_name):
             logger.info(f"[ProjectSync] Project '{repo_name}' was previously ignored. Creating as IGNORED.")
             await self._create_ignored_project(path)
             return
@@ -123,7 +125,7 @@ class ProjectSyncService:
 
         try:
             # Create Repository with DETECTED status (awaiting user confirmation)
-            async with AsyncSessionLocal() as session:
+            async with session_scope() as session:
                 if cloud_project:
                     # Case 2: Cloud exists + Local exists -> Auto-link
                     cloud_project_id = cloud_project.get("project_id") or cloud_project.get("id")
@@ -248,7 +250,7 @@ class ProjectSyncService:
         Raises:
             ValueError: If repository not found or already imported
         """
-        async with AsyncSessionLocal() as session:
+        async with session_scope() as session:
             repo = await session.get(Repository, repo_id)
             if not repo:
                 raise ValueError(f"Repository {repo_id} not found")
@@ -261,7 +263,6 @@ class ProjectSyncService:
             repo.sync_status = "PENDING_CREATION"
             repo.indexing_status = "pending"
             repo.imported_at = utcnow()
-            await session.commit()
 
             logger.info(f"[ProjectSync] Project '{repo.name}' imported by user (ID: {repo_id})")
 
@@ -276,7 +277,6 @@ class ProjectSyncService:
                     new_pid = res["data"]["project_id"]
                     repo.project_id = new_pid
                     repo.sync_status = "SYNCED"
-                    await session.commit()
                     evocloud_manager.invalidate_projects_cache()
                     logger.info(f"[ProjectSync] Project '{repo.name}' synced to cloud (ID: {new_pid})")
                 else:
@@ -307,7 +307,7 @@ class ProjectSyncService:
         Marks the repository as IGNORED. Can be re-imported later via unignore_project.
         Also updates the ignored projects cache to exclude from tree views.
         """
-        async with AsyncSessionLocal() as session:
+        async with session_scope() as session:
             repo = await session.get(Repository, repo_id)
             if not repo:
                 raise ValueError(f"Repository {repo_id} not found")
@@ -318,7 +318,6 @@ class ProjectSyncService:
 
             repo.sync_status = "IGNORED"
             repo.indexing_status = "not_needed"  # Ignored projects don't need indexing
-            await session.commit()
 
             logger.info(f"[ProjectSync] Project '{repo.name}' ignored by user (ID: {repo_id})")
 
@@ -331,7 +330,7 @@ class ProjectSyncService:
         Restore an ignored project to detected status (can be imported).
         Also removes from the ignored projects cache.
         """
-        async with AsyncSessionLocal() as session:
+        async with session_scope() as session:
             repo = await session.get(Repository, repo_id)
             if not repo:
                 raise ValueError(f"Repository {repo_id} not found")
@@ -342,7 +341,6 @@ class ProjectSyncService:
 
             repo.sync_status = "DETECTED"
             repo.indexing_status = "not_needed"  # Reset to not needed until imported
-            await session.commit()
 
             logger.info(f"[ProjectSync] Project '{repo.name}' restored to DETECTED (ID: {repo_id})")
 
@@ -354,7 +352,7 @@ class ProjectSyncService:
 
     async def get_detected_projects(self) -> list[Repository]:
         """Get all projects with DETECTED status (awaiting user confirmation)."""
-        async with AsyncSessionLocal() as session:
+        async with session_scope() as session:
             stmt = select(Repository).where(
                 Repository.sync_status == "DETECTED"
             ).order_by(Repository.detected_at.desc())
@@ -364,7 +362,7 @@ class ProjectSyncService:
 
     async def get_ignored_projects(self) -> list[Repository]:
         """Get all projects with IGNORED status."""
-        async with AsyncSessionLocal() as session:
+        async with session_scope() as session:
             stmt = select(Repository).where(
                 Repository.sync_status == "IGNORED"
             ).order_by(Repository.detected_at.desc())
@@ -372,75 +370,51 @@ class ProjectSyncService:
             result = await session.execute(stmt)
             return list(result.scalars().all())
 
-    def _should_auto_ignore(self, path: str) -> bool:
-        """Check if a directory should be automatically ignored."""
-        name = os.path.basename(path)
-
-        # Hidden directories
-        if name.startswith("."):
-            return True
-
-        # System/build directories to ignore
-        ignored_names = {
-            "node_modules",
-            "__pycache__",
-            ".git",
-            ".svn",
-            ".hg",
-            "dist",
-            "build",
-            "target",
-            "vendor",
-            "tmp",
-            "temp",
-            "out",
-            "bin",
-            "obj",
-            ".next",
-            ".nuxt",
-            ".venv",
-            "venv",
-            "env",
-            ".idea",
-            ".vscode",
-        }
-
-        if name in ignored_names:
-            return True
-
-        # Check for common non-project prefixes
-        ignored_prefixes = ("~", "_", ".")
-        if name.startswith(ignored_prefixes):
-            return True
-
-        return False
-
     async def handle_project_deleted(self, path: str):
         """
         Handle deletion of a local project directory.
+        Includes an idempotency guard to prevent infinite event loops.
         """
         repo_name = os.path.basename(path)
-        repo_id = None
-        project_id = None
-
-        # 1. Update Local State (Disconnect)
-        # We don't delete the Cloud project.
+        
+        # 1. Fetch ALL records for this path (handling duplicates)
         try:
-            repo = await self._indexing_service.get_repo_by_path(path)
-            if repo:
-                repo_id = repo.id
-                project_id = repo.project_id
-                async with self._indexing_service.session_factory() as session:
-                    r = await session.get(type(repo), repo.id)
-                    if r:
-                        r.sync_status = "DISCONNECTED"
-                        session.add(r)
-                        await session.commit()
-                logger.info(f"[ProjectSync] Project {repo_name} marked as DISCONNECTED.")
-        except Exception as e:
-            logger.error(f"[ProjectSync] Error updating disconnect status: {e}")
+            async with session_scope() as session:
+                stmt = select(Repository).where(Repository.local_path == path)
+                result = await session.execute(stmt)
+                all_repos = result.scalars().all()
+                
+                if not all_repos:
+                    logger.debug(f"[ProjectSync] No repository records found for path: {path}")
+                    return
 
-        # 2. Publish ProjectDeletedEvent (decoupled)
+                # 2. Filter records that are NOT yet marked as DISCONNECTED
+                to_disconnect = [r for r in all_repos if r.sync_status != "DISCONNECTED"]
+                
+                # 3. Guard: If all are already DISCONNECTED, stop here to prevent infinite event loop
+                if not to_disconnect:
+                    logger.debug(f"[ProjectSync] Project {repo_name} already marked as DISCONNECTED. Skipping.")
+                    return
+
+                # 4. Perform batch update in a single transaction
+                # Fetch fresh objects in the current session to update
+                for r in to_disconnect:
+                    db_repo = await session.get(Repository, r.id)
+                    if db_repo:
+                        db_repo.sync_status = "DISCONNECTED"
+                
+                
+                # Metadata for event (use the first updated record)
+                repo_id = to_disconnect[0].id
+                project_id = to_disconnect[0].project_id
+                
+                logger.info(f"[ProjectSync] Project {repo_name} marked as DISCONNECTED ({len(to_disconnect)} records updated).")
+                
+        except Exception as e:
+            logger.error(f"[ProjectSync] Error updating disconnect status for {path}: {e}")
+            return
+
+        # 5. Publish ProjectDeletedEvent (only once after successful DB update)
         # IndexingManager will subscribe and stop watching
         try:
             from app.domain.project.event.publishers import publish_project_deleted
@@ -451,7 +425,7 @@ class ProjectSyncService:
                 project_id=project_id
             )
         except Exception as e:
-            logger.error(f"[ProjectSync] Failed to publish ProjectDeletedEvent: {e}")
+            logger.error(f"[ProjectSync] Failed to publish ProjectDeletedEvent for {path}: {e}")
 
     async def handle_project_moved(self, src_path: str, dest_path: str):
         """
@@ -475,7 +449,6 @@ class ProjectSyncService:
                     r.local_path = dest_path
                     r.name = new_name
                     session.add(r)
-                    await session.commit()
             logger.info(f"[ProjectSync] Updated path for {repo.sync_status} project: {dest_path}")
             return
 
@@ -507,7 +480,6 @@ class ProjectSyncService:
                 if r.sync_status == "DISCONNECTED":
                     r.sync_status = "SYNCED"
                 session.add(r)
-                await session.commit()
 
         # 6. Start New Watch
         await indexing_manager.start_watching(dest_path, repo.id)
@@ -550,11 +522,12 @@ class ProjectSyncService:
         
         logger.info(f"[ProjectSync] Starting Reconciliation on {root_path}...")
 
-        # 1. Scan Filesystem (Direct subdirectories only)
+        # 1. Scan Filesystem (Direct subdirectories only using unified traverser)
         fs_projects = set()
+        from app.core.file import FileTraverser
         try:
-            for entry in os.scandir(root_path):
-                if entry.is_dir() and not entry.name.startswith("."):
+            for entry in FileTraverser.list_entries(root_path):
+                if entry.is_dir():
                     # Use absolute path for consistency
                     fs_projects.add(os.path.abspath(entry.path))
         except Exception as e:
@@ -590,7 +563,7 @@ class ProjectSyncService:
             for p in new_paths:
                 # Check if this path matches an ignored project (by name match)
                 # This handles the case where user deleted and re-created a project
-                if self._is_ignored_path(p, ignored_paths):
+                if self._matches_previously_ignored_project(p, ignored_paths):
                     logger.info(f"[ProjectSync] Skipping previously ignored project: {p}")
                     # Create as IGNORED to maintain user choice
                     await self._create_ignored_project(p)
@@ -609,7 +582,7 @@ class ProjectSyncService:
             if repo.sync_status == "DISCONNECTED":
                 logger.info(f"[ProjectSync] Restoring disconnected project: {p}")
                 try:
-                    async with AsyncSessionLocal() as session:
+                    async with session_scope() as session:
                         r = await session.get(Repository, repo.id)
                         if r:
                             # If it has project_id, it was likely SYNCED. 
@@ -619,7 +592,6 @@ class ProjectSyncService:
                             else:
                                 r.sync_status = "DETECTED"
                             session.add(r)
-                            await session.commit()
                             # Update map for subsequent steps
                             repo.sync_status = r.sync_status
                 except Exception as e:
@@ -687,7 +659,7 @@ class ProjectSyncService:
             f"Missing: {len(missing_paths)}"
         )
 
-    def _is_ignored_path(self, path: str, ignored_paths: set) -> bool:
+    def _matches_previously_ignored_project(self, path: str, ignored_paths: set) -> bool:
         """
         Check if a path matches any previously ignored project.
         Matches by exact path or by directory name.
@@ -716,7 +688,7 @@ class ProjectSyncService:
 
         return False
 
-    async def _check_if_previously_ignored(self, repo_name: str) -> bool:
+    async def _is_repo_name_ignored_in_db(self, repo_name: str) -> bool:
         """
         Check if a project with this name was previously ignored.
         This handles the case where user deleted and recreated the project.
@@ -728,8 +700,7 @@ class ProjectSyncService:
             True if a project with this name was previously ignored
         """
         try:
-            async with AsyncSessionLocal() as session:
-                from sqlalchemy import select
+            async with session_scope() as session:
                 stmt = select(Repository).where(
                     Repository.name == repo_name,
                     Repository.sync_status == "IGNORED"
@@ -750,7 +721,7 @@ class ProjectSyncService:
         abs_path = os.path.abspath(path)
 
         try:
-            async with AsyncSessionLocal() as session:
+            async with session_scope() as session:
                 repo = Repository(
                     name=repo_name,
                     url="local",

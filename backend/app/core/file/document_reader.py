@@ -7,7 +7,7 @@ from markdownify import markdownify as md
 from pypdf import PdfReader
 
 from app.core.vision import VisionTask, vision_engine
-from app.utils.file import read_file_content
+from .io import read_file
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +40,10 @@ class DocumentReaderService:
                 return await self._read_media(file_path)
             else:
                 # Text/Code fallback with paging support
-                content, _, _ = read_file_content(file_path, start_page, end_page)
-                return content
+                result = read_file(file_path, start_line=start_page, end_line=end_page)
+                if not result.success:
+                    raise IOError(result.error_message or "Failed to read file")
+                return result.content
         except Exception as e:
             logger.error(f"Failed to read document {file_path}: {e}")
             raise

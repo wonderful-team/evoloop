@@ -12,7 +12,7 @@ from app.domain.codebase.schemas import (
     ExtractedRelation,
     ExtractionResult,
 )
-from app.utils.file import get_file_ext
+from app.core.file import get_file_ext
 
 logger = logging.getLogger(__name__)
 
