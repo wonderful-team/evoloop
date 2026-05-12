@@ -208,8 +208,7 @@
       "multiedit_file": "批量编辑 '{path}'[[ ({count} 处变更) ]]",
       "query_command_status": "查询命令状态 '{task_id}'",
       "read_mcp_resource": "读取 MCP 资源 '{uri}'[[ (元数据: {metadata}) ]]",
-      "default": "正在运行 {tool}",
-      "survey_project": "调查项目规模 (survey_project)"
+      "default": "正在运行 {tool}"
     }
   },
   "database_logger": {

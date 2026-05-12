@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 @event_register()
-class ToolsLifecycleHandler:
+class ToolsLifecycleSubscriber:
     """
     Handles lifecycle events for the Tool system.
 

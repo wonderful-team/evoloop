@@ -8,7 +8,7 @@ Event subscribers for the Awakening/Environment domain.
 import logging
 
 from app.core.environment.bus import event_bus
-from app.core.environment.event.schemas import (
+from .schemas import (
     AwakenEvent,
     DeviceConnectedEvent,
     DeviceDisconnectedEvent,
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @event_register()
-class EnvironmentLifecycleHandler:
+class EnvironmentLifecycleSubscriber:
     """
     Handles application-level lifecycle events for the Environment domain.
 
@@ -74,7 +74,7 @@ class EnvironmentLifecycleHandler:
 
 
 @event_register_with_bus(event_bus)
-class DeviceEventHandler:
+class DeviceEventSubscriber:
     """Handles device connection/disconnection events"""
 
     @event_subscribe(EventType.DEVICE_CONNECTED)
@@ -124,7 +124,7 @@ class DeviceEventHandler:
 
 
 @event_register_with_bus(event_bus)
-class SkillEventHandler:
+class SkillEventSubscriber:
     """Handles skill execution events for skill evolution"""
 
     @event_subscribe(EventType.SKILL_EXECUTED)
@@ -164,7 +164,7 @@ class SkillEventHandler:
 
 
 @event_register_with_bus(event_bus)
-class SystemEventHandler:
+class SystemEventSubscriber:
     """Handles system-level awakening events"""
 
     @event_subscribe(SystemEventType.AWAKENING_COMPLETE)

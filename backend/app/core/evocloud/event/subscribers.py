@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 @event_register()
-class EvoCloudLifecycleHandler:
+class EvoCloudLifecycleSubscriber:
     """
     Handles EvoCloud-related system events.
 
@@ -103,7 +103,7 @@ class EvoCloudLifecycleHandler:
 # =============================================================================
 
 @event_register()
-class EvoCloudSyncHandler:
+class EvoCloudSyncSubscriber:
     """
     Handles real-time conversation sync triggers.
 
@@ -146,7 +146,7 @@ class EvoCloudSyncHandler:
 # =============================================================================
 
 @event_register()
-class QueryWebSocketHandler:
+class QueryWebSocketSubscriber:
     """
     Handles ``query`` messages from Gateway.
 
@@ -201,7 +201,7 @@ class QueryWebSocketHandler:
 
 
 @event_register()
-class InitWebSocketHandler:
+class InitWebSocketSubscriber:
     """
     Handles ``init`` messages from Gateway.
 

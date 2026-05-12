@@ -36,10 +36,36 @@ class BaseEvent(DynamicBaseModel):
     source: str = "system"
     data: EventData = Field(default_factory=EventData)
 
+    # --- Governance & Bridging Metadata ---
+    # Set to True to automatically synchronize this event to frontend via EventBus
+    is_public: bool = False
+    # Target channel: "chat" (specific thread), "system" (global notifications), or "none"
+    broadcast_channel: str = "none"
+    # Optional thread context for routing (required if broadcast_channel == "chat")
+    thread_id: str | None = None
+
     @property
     def type_name(self) -> str:
         """Human-readable event type name."""
         return self.event_type or self.__class__.__name__
+
+    def to_frontend_payload(self) -> dict:
+        """
+        Convert internal event to a standardized frontend-ready dictionary.
+        This provides a unified format for SSE/WebSocket delivery.
+        """
+        # Extract the core event string
+        event_str = self.event_type.value if hasattr(self.event_type, "value") else str(self.event_type)
+
+        return {
+            "type": "system_event",
+            "event": event_str,
+            "thread_id": self.thread_id,
+            "timestamp": self.timestamp.isoformat(),
+            "source": self.source,
+            "data": self.data.model_dump() if hasattr(self.data, "model_dump") else self.data
+        }
+
 
 
 # Type alias for event handlers

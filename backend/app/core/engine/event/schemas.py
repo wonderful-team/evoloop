@@ -23,11 +23,24 @@ class AgentSessionStartedEvent(AgentEvent):
     thread_id: str = ""
     project_id: int | None = None
     
+    # Governance: Map to frontend RunStartEvent
+    is_public: bool = True
+    broadcast_channel: str = "chat"
+
     def model_post_init(self, __context: Any) -> None:
         self.data = EventData.model_validate({
             "thread_id": self.thread_id,
             "project_id": self.project_id
         })
+
+    def to_frontend_payload(self) -> dict:
+        """Map to legacy RunStartEvent format."""
+        return {
+            "type": "run_start",
+            "thread_id": self.thread_id,
+            "run_id": None, # Session start doesn't have a run_id yet
+            "goal": "Initializing session..."
+        }
 
 
 class AgentRunCompletedEvent(AgentEvent):
@@ -39,6 +52,10 @@ class AgentRunCompletedEvent(AgentEvent):
     status: str = "done"
     payload: dict[str, Any] = Field(default_factory=dict)
 
+    # Governance: Map to frontend RunEndEvent
+    is_public: bool = True
+    broadcast_channel: str = "chat"
+
     @model_validator(mode="after")
     def _build_data(self):
         self.data = EventData.model_validate({
@@ -49,12 +66,22 @@ class AgentRunCompletedEvent(AgentEvent):
         })
         return self
 
+    def to_frontend_payload(self) -> dict:
+        """Map to legacy RunEndEvent format."""
+        return {
+            "type": "run_end",
+            "thread_id": self.thread_id,
+            "run_id": self.payload.get("run_id"),
+            "status": self.status,
+            "final_outcome": self.payload.get("outcome") or self.payload.get("summary")
+        }
+
 
 class WebSocketCommandEvent(AgentEvent):
     """
     Published when EvoCloudWebSocketLink receives a 'new_command' message from Gateway.
 
-    Subscribers (e.g. EngineCommandHandler) receive the raw command payload and
+    Subscribers (e.g. EngineCommandSubscriber) receive the raw command payload and
     are responsible for dispatching agent runs or HITL responses.
 
     .. deprecated::

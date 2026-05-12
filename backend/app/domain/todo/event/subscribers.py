@@ -42,7 +42,7 @@ class TodoHarvestingResult(BaseModel):
 
 
 @event_register()
-class TodoLifecycleHandler:
+class TodoLifecycleSubscriber:
     """
     Handles automatic Todo extraction from session history.
     """

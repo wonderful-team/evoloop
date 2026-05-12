@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 @event_register()
-class AtlasLifecycleHandler:
+class AtlasLifecycleSubscriber:
     """
     Handles synchronization of Atlas configuration on application events.
     """

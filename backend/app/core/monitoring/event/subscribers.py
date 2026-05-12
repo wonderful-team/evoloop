@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 @event_register()
-class MonitoringLifecycleHandler:
+class MonitoringLifecycleSubscriber:
     """
     Handles monitoring-related system events.
 

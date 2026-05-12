@@ -9,13 +9,13 @@ preventing infrastructure/domain layers from directly accessing the event bus.
 """
 
 from app.core.events import BaseEvent, SystemEventType, system_bus
+from app.core.events.schemas import AppStartedEvent, AppStoppingEvent, UserLoggedInEvent, UserLoggedOutEvent
 
 
 async def publish_app_started(startup_time: float) -> None:
     """Publish the application started event."""
     await system_bus.publish(
-        BaseEvent(
-            event_type=SystemEventType.APP_STARTED,
+        AppStartedEvent(
             source="main",
             data={"startup_time": startup_time},
         )
@@ -25,8 +25,7 @@ async def publish_app_started(startup_time: float) -> None:
 async def publish_app_stopping() -> None:
     """Publish the application stopping event."""
     await system_bus.publish(
-        BaseEvent(
-            event_type=SystemEventType.APP_STOPPING,
+        AppStoppingEvent(
             source="main",
             data={},
         )
@@ -75,7 +74,7 @@ async def publish_embedding_updated(repo_id: int, project_id: int) -> None:
     """Publish a system event when embeddings are updated for a project."""
     await system_bus.publish(
         BaseEvent(
-            event_type="system.embedding_updated",
+            event_type=SystemEventType.EMBEDDING_UPDATED,
             source="embedding_config",
             data={"repo_id": repo_id, "project_id": project_id},
         )
@@ -85,8 +84,7 @@ async def publish_embedding_updated(repo_id: int, project_id: int) -> None:
 async def publish_user_logged_in(token: str, member_id: int | None = None) -> None:
     """Publish the user logged in event. Subscribers should start user-specific services."""
     await system_bus.publish(
-        BaseEvent(
-            event_type=SystemEventType.USER_LOGGED_IN,
+        UserLoggedInEvent(
             source="auth",
             data={"token": token, "member_id": member_id},
         )
@@ -96,8 +94,7 @@ async def publish_user_logged_in(token: str, member_id: int | None = None) -> No
 async def publish_user_logged_out() -> None:
     """Publish the user logged out event. Subscribers should clean up user-specific services."""
     await system_bus.publish(
-        BaseEvent(
-            event_type=SystemEventType.USER_LOGGED_OUT,
+        UserLoggedOutEvent(
             source="auth",
             data={},
         )

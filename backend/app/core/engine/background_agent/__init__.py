@@ -126,18 +126,14 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
             # Initialize Handlers
             callback = TransparentCallbackHandler(thread_id=thread_id)
             
-            # Skip DB persistence for background tasks that don't need conversation history
-            # (e.g. wiki generation, project_profile discovery). This keeps the messages
-            # table clean and avoids accumulating large batch-task transcripts.
-            skip_persistence = inputs.metadata.get("skip_persistence", False)
-            db_callback = None
-            if not skip_persistence:
-                db_callback = DatabaseCallbackHandler(
-                    thread_id=thread_id,
-                    project_id=project_id,
-                    run_id=run_id,
-                )
-                config["configurable"]["message_handler"] = db_callback._handler
+            # Message management handler (handles persistence and streaming)
+            # We always initialize it to ensure UI streaming works even if DB persistence is skipped.
+            db_callback = DatabaseCallbackHandler(
+                thread_id=thread_id,
+                project_id=project_id,
+                run_id=run_id,
+            )
+            config["configurable"]["message_handler"] = db_callback._handler
 
             # 4. Prepare Workflow Inputs
             inputs_dict = inputs.model_dump()
@@ -199,19 +195,6 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
 
             # 7. Finalize Run
             await ContextManager.save(thread_id)
-
-            # Publish AgentRunCompletedEvent for automated learning (Subscribers handle memory)
-            # Skip for headless batch tasks (e.g. wiki generation) to avoid triggering
-            # memory extraction, cloud sync, learning loops, and monitoring finalization.
-            if not skip_persistence:
-                from app.core.engine.event.publishers import publish_agent_run_completed
-                await publish_agent_run_completed(
-                    thread_id=thread_id,
-                    project_id=project_id,
-                    goal=inputs.goal,
-                    status="done",
-                    payload={"run_id": run_id}
-                )
 
         except AgentCancelledException:
             # Expected control flow: user stopped the run.

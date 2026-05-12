@@ -43,6 +43,8 @@ from typing import Any, Optional
 
 from app.core.tools.schemas import CreateBackgroundTaskRequest, BackgroundTaskManagerStats
 from .models import BackgroundTask, TaskStatus
+from ..event import BackgroundTaskEvent, BackgroundTaskOutputEvent
+from ...events import system_bus
 
 logger = logging.getLogger(__name__)
 
@@ -450,21 +452,15 @@ class BackgroundTaskManager:
         """
         Publish task event to notification systems.
         
-        This integrates with existing EvoLoop infrastructure:
-        - Cache Pub/Sub (for SSE streaming to frontend)
-        - Activity Monitor (for logging/auditing)
+        Governance: Uses internal system_bus with automated bridging to UI.
         """
-        event_data = {
-            "type": f"task_{event_type}",
-            "task": task.to_dict(include_output=False),
-            "timestamp": datetime.now().isoformat(),
-        }
-
-        # Publish to EventBus for SSE
-        from app.core.engine.message.event_bus import get_event_bus
-        await get_event_bus().publish(
-            f"task:{task.thread_id}:events",
-            json.dumps(event_data)
+        await system_bus.publish(
+            BackgroundTaskEvent(
+                thread_id=task.thread_id,
+                task_id=task.task_id,
+                action=event_type,
+                task_data=task.to_dict(include_output=False)
+            )
         )
 
         # Log to activity monitor
@@ -477,17 +473,14 @@ class BackgroundTaskManager:
     async def _publish_output_event(self, task: BackgroundTask, output: str) -> None:
         """Publish output event (throttled)."""
         # Only publish output events for streaming tasks
-        # to avoid flooding the event bus
         if task.metadata.get("enable_streaming_output"):
             try:
-                from app.core.engine.message.event_bus import get_event_bus
-                await get_event_bus().publish(
-                    f"task:{task.thread_id}:output",
-                    json.dumps({
-                        "task_id": task.task_id,
-                        "output": output[-500:],  # Last 500 chars
-                        "timestamp": datetime.now().isoformat(),
-                    })
+                await system_bus.publish(
+                    BackgroundTaskOutputEvent(
+                        thread_id=task.thread_id,
+                        task_id=task.task_id,
+                        output=output[-500:]  # Last 500 chars
+                    )
                 )
             except (TypeError, ValueError, RuntimeError, OSError):
                 pass  # Output events are best-effort

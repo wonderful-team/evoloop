@@ -88,7 +88,7 @@ class SupervisorNode(BaseAgentNode):
                 if progress and not progress.is_complete():
                     logger.info(
                         f"[Supervisor] ⚠️ Worker reports success but plan incomplete "
-                        f"({progress.completed_steps}/{progress.total_steps}). Routing to WORKER."
+                        f"({progress.completed_steps}/{progress.total_steps}). Routing back to WORKER."
                     )
                     return StateUpdate(
                         next_node=RoutingTarget.WORKER,
@@ -98,7 +98,7 @@ class SupervisorNode(BaseAgentNode):
                 # Fallback: check structured_plan for pending steps
                 plan = state.structured_plan or state.current_plan
                 if plan and _plan_has_pending_steps(plan):
-                    logger.info("[Supervisor] ⚠️ Worker reports success but structured_plan has pending steps. Routing to WORKER.")
+                    logger.info("[Supervisor] ⚠️ Worker reports success but structured_plan has pending steps. Routing back to WORKER.")
                     return StateUpdate(
                         next_node=RoutingTarget.WORKER,
                         blackboard=blackboard,
@@ -123,9 +123,7 @@ class SupervisorNode(BaseAgentNode):
                                 result_steps = await session.execute(stmt_steps)
                                 pending_db_steps = result_steps.scalars().all()
                                 if pending_db_steps:
-                                    logger.info(
-                                        f"[Supervisor] ⚠️ Worker reports success but DB plan has {len(pending_db_steps)} pending steps. Routing to WORKER."
-                                    )
+                                    logger.info(f"[Supervisor] ⚠️ Worker reports success but DB plan has {len(pending_db_steps)} pending steps. Routing back to WORKER.")
                                     return StateUpdate(
                                         next_node=RoutingTarget.WORKER,
                                         blackboard=blackboard,

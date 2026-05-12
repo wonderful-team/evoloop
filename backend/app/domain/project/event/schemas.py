@@ -4,29 +4,37 @@ Project Domain Event Schemas
 
 Pydantic data classes for project lifecycle events.
 """
-
 from datetime import datetime
 from typing import Any
-
 from pydantic import Field
 
 from app.core.events.base import BaseEvent
-from .types import ProjectEventType
+
+try:
+    from app.domain.project.event.types import ProjectEventType
+except ImportError:
+    class ProjectEventType:
+        PROJECT_CREATED = "project.created"
+        PROJECT_DELETED = "project.deleted"
+        PROJECT_MOVED = "project.moved"
+        PROJECT_SWITCHED = "project.switched"
+        NEW_PROJECT_DETECTED = "project.new_detected"
 
 
 class ProjectEvent(BaseEvent):
     """Base class for project domain events."""
-    event_type: ProjectEventType = ProjectEventType.PROJECT_CREATED
-    timestamp: datetime = Field(default_factory=datetime.now)
+    event_type: str = ProjectEventType.PROJECT_CREATED
     source: str = "project"
     data: dict[str, Any] = Field(default_factory=dict)
+    
+    # Enable automatic bridging to UI
+    is_public: bool = True
+    broadcast_channel: str = "system"
 
 
 class ProjectCreatedEvent(ProjectEvent):
     """
     Published when a new project directory is detected.
-
-    Subscribers (e.g., IndexingManager) can react to start indexing.
     """
     path: str = ""
     repo_id: int = 0
@@ -46,8 +54,6 @@ class ProjectCreatedEvent(ProjectEvent):
 class ProjectDeletedEvent(ProjectEvent):
     """
     Published when a project directory is deleted.
-
-    Subscribers can react to stop watching and cleanup resources.
     """
     path: str = ""
     repo_id: int = 0
@@ -101,9 +107,6 @@ class ProjectSwitchedEvent(ProjectEvent):
 class NewProjectDetectedEvent(ProjectEvent):
     """
     Published when a new project directory is detected but not yet imported.
-
-    This event is used to notify the frontend to show a confirmation dialog.
-    Importing/indexing should NOT start until user confirms.
     """
     repo_id: int = 0
     path: str = ""

@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 @event_register()
-class McpLifecycleHandler:
+class McpLifecycleSubscriber:
     """
     Handles initialization and graceful shutdown of MCP clients.
     """

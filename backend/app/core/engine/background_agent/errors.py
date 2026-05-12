@@ -4,16 +4,19 @@ Background agent error handling utilities.
 
 import json
 import logging
+import uuid
 
+from langgraph.errors import GraphInterrupt
+
+from app.core.events import system_bus
 from app.core.engine.message.category import MessageCategory
 from app.core.engine.message.classifier import MessageClassifier
-from app.core.engine.message.event_bus import get_event_bus
 from app.core.engine.message.sequence import SequenceService
 from app.core.monitoring.activity import activity_monitor
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Message
-from app.models.schemas.events import QuotaExhaustedEvent
+from app.models.schemas.events import QuotaExhaustedEvent, AuthExpiredEvent, LLMAuthErrorEvent
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +33,7 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
     # Check for human-interrupt or graph-interrupt using class checks
     # NOTE: langgraph.errors.GraphInterrupt may not be imported at module level
     # to avoid circular deps; we check by dotted name via getattr fallback.
-    from langgraph.errors import GraphInterrupt as _GraphInterrupt
-    if isinstance(e, (AgentHumanInterruptException, _GraphInterrupt)):
+    if isinstance(e, (AgentHumanInterruptException, GraphInterrupt)):
         logger.info(f"Task {thread_id} interrupted for human input: {e}")
         return
 
@@ -54,15 +56,13 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
     if error_type == "auth_expired":
         logger.warning(f"[EvoLoopAuth] Thread {thread_id} platform auth expired")
         await activity_monitor.end_run(thread_id, "failed")
-        await get_event_bus().publish(
-            f"chat:{thread_id}:events",
-            json.dumps({
-                "type": "auth_expired",
-                "status": "auth_expired",
-                "title": classification.title,
-                "message": classification.message,
-                "hint": classification.hint,
-            })
+        await system_bus.publish(
+            AuthExpiredEvent(
+                thread_id=thread_id,
+                title=classification.title,
+                message=classification.message,
+                hint=classification.hint,
+            )
         )
         await _push_to_mobile_if_handler(classification)
         return
@@ -70,15 +70,13 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
     if error_type == "llm_auth":
         logger.warning(f"[LLMAuthError] Thread {thread_id} hit LLM API authentication error")
         await activity_monitor.end_run(thread_id, "failed")
-        await get_event_bus().publish(
-            f"chat:{thread_id}:events",
-            json.dumps({
-                "type": "llm_auth_error",
-                "status": "failed",
-                "title": classification.title,
-                "message": classification.message,
-                "hint": classification.hint,
-            })
+        await system_bus.publish(
+            LLMAuthErrorEvent(
+                thread_id=thread_id,
+                title=classification.title,
+                message=classification.message,
+                hint=classification.hint,
+            )
         )
         await _push_to_mobile_if_handler(classification)
         return
@@ -86,14 +84,13 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
     if error_type == "quota_exhausted":
         logger.warning(f"[QuotaExhausted] Thread {thread_id} hit quota limit")
         await activity_monitor.end_run(thread_id, "quota_exhausted")
-        await get_event_bus().publish(
-            f"chat:{thread_id}:events",
+        await system_bus.publish(
             QuotaExhaustedEvent(
-                type="quota_exhausted",
+                thread_id=thread_id,
                 title=classification.title,
                 message=classification.message,
                 hint=classification.hint,
-            ).model_dump_json()
+            )
         )
         await _push_to_mobile_if_handler(classification)
         return
@@ -160,7 +157,6 @@ async def persist_system_error(
         return
 
     try:
-        import uuid
         async with session_scope() as session:
             # Get next sequence (atomic)
             seq = await SequenceService.next_sequence(thread_id)

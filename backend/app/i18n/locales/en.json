@@ -206,8 +206,7 @@
       "multiedit_file": "Multi-editing '{path}'",
       "query_command_status": "Querying command status '{task_id}'",
       "read_mcp_resource": "Reading MCP resource '{uri}'",
-      "default": "Running {tool}",
-      "survey_project": "Survey project scale (survey_project)"
+      "default": "Running {tool}"
     }
   },
   "database_logger": {

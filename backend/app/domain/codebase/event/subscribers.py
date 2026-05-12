@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 @event_register()
-class IndexingLifecycleHandler:
+class IndexingLifecycleSubscriber:
     """
     Handles application-level lifecycle events for the Codebase domain.
 
@@ -74,7 +74,7 @@ class IndexingLifecycleHandler:
 
 
 @event_register()
-class CodebaseSystemEventHandler:
+class CodebaseSystemEventSubscriber:
     """
     Handles system-level events that affect the codebase domain.
 
@@ -120,7 +120,7 @@ class CodebaseSystemEventHandler:
 
 
 @event_register()
-class IndexingEventHandler:
+class IndexingEventSubscriber:
     """
     Handles project events to trigger indexing operations.
 

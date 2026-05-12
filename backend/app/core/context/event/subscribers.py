@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 @event_register()
-class ContextLifecycleHandler:
+class ContextLifecycleSubscriber:
     """
     Handles initialization and updates of the context management system.
     """

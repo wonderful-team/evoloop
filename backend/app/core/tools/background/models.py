@@ -55,6 +55,7 @@ class BackgroundTask(DynamicBaseModel):
 
     def to_dict(self, include_output: bool = True, output_lines: int = 50) -> dict:
         """Convert to dictionary for API responses."""
+        from app.core.tools.registry import get_tool_metadata
 
         data = self.model_dump()
         # Convert deque to list for JSON serialization
@@ -73,6 +74,27 @@ class BackgroundTask(DynamicBaseModel):
         data["can_cancel"] = self.can_cancel
         data["task_type"] = self.task_type.value
         data["status"] = self.status.value
+
+        # Resolve Display Title (Summary)
+        display_title = self.title
+        if self.tool_name:
+            try:
+                metadata = get_tool_metadata(self.tool_name)
+                # Use metadata from the task as context for the template
+                summary_args = {**self.metadata.model_dump(), "title": self.title}
+                # If result is available and is a dict, merge it
+                if isinstance(self.result, dict):
+                    summary_args.update({k.lower(): v for k, v in self.result.items()})
+                
+                display_title = metadata.get_display_name(self.tool_name, summary_args)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).debug(f"Failed to resolve display title for {self.tool_name}: {e}")
+        
+        data["display_title"] = display_title
+        # Keep title as-is but also provide the rendered one for UI
+        if self.title.startswith("evoloop.tool_summary."):
+            data["title"] = display_title
 
         if include_output:
             data["output"] = self.get_recent_output(output_lines)

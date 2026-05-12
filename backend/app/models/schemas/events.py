@@ -12,18 +12,33 @@ SSE 流式事件 Schema —— 全系统通用事件定义。
 
 from enum import Enum
 from typing import Any, Dict, Literal, Optional, Union
+from pydantic import model_validator
 
-from app.infrastructure.pydantic_base import EventBase
+from app.core.events.base import BaseEvent
 
 
 # --- Base Class for all SSE/Stream Events ---
-class BaseStreamEvent(EventBase):
+class BaseStreamEvent(BaseEvent):
     """全系统流式协议基类：统一字段、平铺结构、高性能序列化"""
     type: str
     thread_id: Optional[str] = None
     
-    def to_json(self) -> str:
+    # Governance: Stream events are always public to the chat channel by default
+    is_public: bool = True
+    broadcast_channel: str = "chat"
+
+    @model_validator(mode="after")
+    def sync_stream_metadata(self) -> "BaseStreamEvent":
+        """Link internal event_type for routing."""
+        self.event_type = f"stream.{self.type}"
+        return self
+
+    def to_frontend_payload(self) -> dict:
         """高性能序列化入口"""
+        return self.model_dump(exclude_none=True)
+    
+    def to_json(self) -> str:
+        """Backward compatibility for legacy bus calls"""
         return self.model_dump_json(exclude_none=True)
 
 
@@ -105,13 +120,16 @@ class QuotaExhaustedEvent(BaseStreamEvent):
 
 class AuthExpiredEvent(BaseStreamEvent):
     type: Literal["auth_expired"] = "auth_expired"
+    title: str = "Auth Expired"
     message: str = "Session expired, please login again."
+    hint: Optional[str] = None
 
 
 class LLMAuthErrorEvent(BaseStreamEvent):
     type: Literal["llm_auth_error"] = "llm_auth_error"
     title: str = "LLM Auth Failed"
     message: str = "Invalid API Key or expired."
+    hint: Optional[str] = None
 
 
 # --- 10. 运行生命周期流 ---

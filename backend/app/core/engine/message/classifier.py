@@ -11,6 +11,7 @@ import re
 from typing import Any
 
 from app.core.engine.message.category import MessageCategory
+from app.core.tools.registry import get_tool_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -67,9 +68,9 @@ class MessageClassifier:
             source = metadata.get("source", "")
             error_type = metadata.get("error_type", "")
 
-            # Terminal safety flag (highest priority)
-            if metadata.get("skip_persistence"):
-                return MessageCategory.ERROR_SYSTEM
+            # Skip flags (Don't save to DB, but keep streaming if needed)
+            if metadata.get("skip_persistence") or metadata.get("skip_message_persistence"):
+                return MessageCategory.TRANSIENT_MESSAGE
 
             # source 标记优先于 is_error 推断
             if source == "error_system":
@@ -141,6 +142,7 @@ class MessageClassifier:
         cls,
         tool_name: str,
         output: Any,
+        metadata: dict | None = None,
     ) -> MessageCategory:
         """
         分类工具输出消息
@@ -152,12 +154,13 @@ class MessageClassifier:
         Returns:
             MessageCategory.TOOL_OUTPUT 或 MessageCategory.INTERNAL_TOOL_CALL
         """
-        # 延迟导入，避免循环依赖
-        from app.core.tools.registry import get_tool_metadata
+        # Check metadata from tool result
+        if metadata and (metadata.get("skip_persistence") or metadata.get("skip_message_persistence")):
+            return MessageCategory.TRANSIENT_MESSAGE
 
-        metadata = get_tool_metadata(tool_name)
+        tool_metadata = get_tool_metadata(tool_name)
 
-        if metadata.is_hidden:
+        if tool_metadata.is_hidden:
             return MessageCategory.INTERNAL_TOOL_CALL
 
         return MessageCategory.TOOL_OUTPUT

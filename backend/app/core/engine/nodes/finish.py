@@ -103,8 +103,6 @@ class FinishNode(BaseNode):
         This replaces the need for AuditService to scan the full message history (~18K tokens)
         with a compact structured summary (~500 tokens).
         """
-        from app.core.engine.message.reasoning import extract_tool_calls
-
         metadata = blackboard.metadata
         if not metadata:
             return
@@ -129,15 +127,13 @@ class FinishNode(BaseNode):
                 "remaining": max(0, plan_progress.total_steps - plan_progress.completed_steps),
             }
 
-        # Build progress metrics
-        progress = ProgressMetrics(
-            total_steps=plan_progress.total_steps if plan_progress else 0,
-            completed_steps=plan_progress.completed_steps if plan_progress else 0,
-            total_deliverables=0,
-            completed_deliverables=0,
-            key_findings=[],
-            issues_encountered=[],
+        # Deliverables: use whatever upstream nodes have already recorded.
+        # We do NOT query WikiPage, file system, or any other business table here.
+        deliverables: list[TaskDeliverable] = (
+            list(metadata.audit_input_data.deliverables)
+            if metadata.audit_input_data else []
         )
+        write_calls = sum(c for t, c in tool_stats.items() if t.startswith("write_"))
 
         # Detect anomalies from state
         anomalies: list[AuditAnomaly] = list(metadata.audit_anomalies or [])
@@ -150,9 +146,6 @@ class FinishNode(BaseNode):
                 suggested_action="Consider truncating history or using semantic summarization",
             ))
 
-        # Check if Worker used all steps in single turn (detect via message count vs max_steps)
-        # NOTE: Worker truncation metadata may be stored in blackboard in future phases
-        msg_count = len(state.messages or [])
         if msg_count > 80:
             anomalies.append(AuditAnomaly(
                 anomaly_type="single_turn_saturation",
@@ -161,11 +154,59 @@ class FinishNode(BaseNode):
                 suggested_action="Consider multi-turn execution with heartbeat protocol",
             ))
 
+        # Generic plan-completion anomalies (no business-table queries)
+        issues_encountered: list[str] = []
+        
+        effective_completed = plan_progress.completed_steps if plan_progress else 0
+        effective_total = plan_progress.total_steps if plan_progress else 0
+        
+        # Phase 2: If no DB plan steps, use subtask results as progress proxy
+        subtask_results = blackboard.subtask_results
+        pending_agg = blackboard.pending_aggregation
+        if effective_total == 0 and pending_agg and pending_agg.expected_count:
+            effective_total = pending_agg.expected_count
+            effective_completed = len(subtask_results)
+            logger.info(f"[Finish] Using subtask progress as proxy: {effective_completed}/{effective_total}")
+
+        if effective_total > 0:
+            remaining = effective_total - effective_completed
+            if remaining > 0:
+                issues_encountered.append(
+                    f"Plan incomplete: {remaining}/{effective_total} steps pending"
+                )
+                anomalies.append(AuditAnomaly(
+                    anomaly_type="incomplete_plan",
+                    severity="warn",
+                    description=f"Plan has {remaining} of {effective_total} steps still pending",
+                    suggested_action="Route back to Supervisor to continue execution",
+                ))
+            if effective_completed == 0:
+                anomalies.append(AuditAnomaly(
+                    anomaly_type="zero_progress",
+                    severity="warn",
+                    description="No plan steps or subtasks were completed during this session",
+                    suggested_action="Investigate why Worker made no progress",
+                ))
+
+        # Build progress metrics
+        progress = ProgressMetrics(
+            total_steps=effective_total,
+            completed_steps=effective_completed,
+            total_deliverables=len(deliverables),
+            completed_deliverables=len(deliverables),
+            key_findings=[
+                f"Plan/Subtasks: {effective_completed}/{effective_total} steps",
+                f"Write tool calls: {write_calls}",
+                f"Deliverables recorded by upstream: {len(deliverables)}",
+            ],
+            issues_encountered=issues_encountered,
+        )
+
         audit_input = AuditInputData(
             original_goal=state.session_goal or "",
             plan_summary=plan_summary,
             progress=progress,
-            deliverables=[],  # To be populated by Worker in future phases
+            deliverables=deliverables,
             tool_stats=tool_stats,
             anomalies=anomalies,
             key_messages_digest="",
@@ -173,7 +214,12 @@ class FinishNode(BaseNode):
 
         metadata.audit_input_data = audit_input
         metadata.audit_anomalies = anomalies
-        logger.info(f"[Finish] 📊 Prepared structured audit input: {plan_summary.get('completed', 0)}/{plan_summary.get('total', 0)} steps, {len(anomalies)} anomalies")
+        logger.info(
+            f"[Finish] 📊 Prepared structured audit input: "
+            f"{plan_summary.get('completed', 0)}/{plan_summary.get('total', 0)} steps, "
+            f"{len(deliverables)} deliverables, "
+            f"{len(anomalies)} anomalies"
+        )
 
     async def handle_error(self, state: "AgentState", error: Exception, config: "RunnableConfig" = None) -> "StateUpdate":
         """Finish-specific error handling: route to END, not SUPERVISOR."""

@@ -312,6 +312,13 @@ class InferenceEngine:
             new_messages.append(response)
 
             if not response.tool_calls:
+                finish_reason = response.response_metadata.get('finish_reason')
+                if finish_reason == 'pause_turn':
+                    # kimi-k2-thinking-turbo may return pause_turn when it pauses during
+                    # reasoning without emitting tool_calls yet. Continue the loop so
+                    # the model can complete its thought and emit tools on the next turn.
+                    logger.info(f"[{name}] ⏸️ Model paused (pause_turn), continuing loop...")
+                    continue
                 logger.info(f"[{name}] Finished with text response (no tool calls).")
                 break
 

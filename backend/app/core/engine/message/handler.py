@@ -219,7 +219,7 @@ class MessageHandler:
         if metadata_registry.is_hidden:
             category = MessageCategory.INTERNAL_TOOL_CALL
         else:
-            category = MessageClassifier.classify_tool_output(tool_name, output)
+            category = MessageClassifier.classify_tool_output(tool_name, output, metadata=result_meta)
             
         content = str(output) if output else ""
         persist_data = MessagePersistencePolicy.apply_policy(

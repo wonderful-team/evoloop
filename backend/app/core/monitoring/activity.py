@@ -12,6 +12,8 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator
 
 from app.core.engine.message.event_bus import get_event_bus
+from app.core.events import system_bus
+from app.core.events.schemas import SystemStatusEvent, SystemLogEvent
 from app.core.monitoring.schemas import AgentActivityState, HumanRequestData, SystemLogPayload
 from app.infrastructure.cache import cache
 from app.models.schemas.events import (
@@ -105,32 +107,24 @@ class ActivityMonitor:
         """Initialize activity state for a new run."""
         await self._state_service.start_run(thread_id, main_goal)
         
-        # Publish RunStartEvent
-        await get_event_bus().publish(
-            f"chat:{thread_id}:events",
-            RunStartEvent(thread_id=thread_id, run_id=run_id, goal=main_goal).to_json()
-        )
+        # Publish internal AgentSessionStartedEvent (automated bridge will handle UI RunStartEvent)
+        from app.core.engine.event.publishers import publish_agent_session_started
+        await publish_agent_session_started(thread_id=thread_id)
 
     async def end_run(self, thread_id: str, status="done", final_outcome: str = None, run_id: str = None):
         """Mark run as ended and publish status change."""
         result = await self._state_service.end_run(thread_id, status, final_outcome)
 
-        # Publish RunEndEvent
-        await get_event_bus().publish(
-            f"chat:{thread_id}:events",
-            RunEndEvent(
-                thread_id=thread_id, 
-                run_id=run_id, 
-                status=status, 
-                final_outcome=final_outcome
-            ).to_json()
+        # 1. Publish internal AgentRunCompletedEvent (automated bridge handles UI RunEndEvent)
+        from app.core.engine.event.publishers import publish_agent_run_completed
+        await publish_agent_run_completed(
+            thread_id=thread_id,
+            status=status,
+            payload={"run_id": run_id, "outcome": final_outcome}
         )
 
-        # Also publish legacy StatusEvent for backward compatibility
-        await get_event_bus().publish(
-            f"chat:{thread_id}:events",
-            StatusEvent(status=result.get("status", status)).model_dump_json()
-        )
+        # 2. Publish internal SystemStatusEvent (automated bridge handles UI StatusEvent)
+        await system_bus.publish(SystemStatusEvent(thread_id=thread_id, status=result.get("status", status)))
 
         return result
 
@@ -160,38 +154,29 @@ class ActivityMonitor:
         success = await self._state_service.set_human_request(thread_id, request_dict)
 
         if success:
-            # Publish Event
-            await get_event_bus().publish(
-                f"chat:{thread_id}:events",
+            # Publish internal Event (automated bridge will handle UI)
+            await system_bus.publish(
                 HumanRequestEvent(
+                    thread_id=thread_id,
                     action="create", 
                     prompt=request_dict.get("prompt"),
                     request_type=request_dict.get("type"),
                     allow_cancel=request_dict.get("allow_cancel", True),
                     payload=request_dict.get("payload", {})
-                ).model_dump_json(exclude_none=True),
+                )
             )
 
-            # [HITL FIX] Also publish StatusEvent so UI knows we are interrupted
-            await get_event_bus().publish(
-                f"chat:{thread_id}:events",
-                StatusEvent(thread_id=thread_id, status="interrupted").to_json()
-            )
+            # [HITL FIX] Also publish internal SystemStatusEvent
+            await system_bus.publish(SystemStatusEvent(thread_id=thread_id, status="interrupted"))
 
     async def clear_human_request(self, thread_id: str):
         """Clear human request upon resumption."""
         success = await self._state_service.clear_human_request(thread_id)
 
         if success:
-            # Publish Event
-            await get_event_bus().publish(
-                f"chat:{thread_id}:events",
-                HumanRequestEvent(thread_id=thread_id, action="clear").model_dump_json(exclude_none=True),
-            )
-            await get_event_bus().publish(
-                f"chat:{thread_id}:events",
-                StatusEvent(thread_id=thread_id, status="idle").to_json()
-            )
+            # Publish internal Events
+            await system_bus.publish(HumanRequestEvent(thread_id=thread_id, action="clear"))
+            await system_bus.publish(SystemStatusEvent(thread_id=thread_id, status="idle"))
 
     async def request_human_interaction(
         self,
@@ -232,9 +217,8 @@ class ActivityMonitor:
         success = await self._state_service.set_human_request(thread_id, request_data.model_dump())
 
         if success:
-            # Publish Event
-            await get_event_bus().publish(
-                f"chat:{thread_id}:events",
+            # Publish internal Events (automated bridge will handle UI)
+            await system_bus.publish(
                 HumanRequestEvent(
                     thread_id=thread_id,
                     action="create", 
@@ -242,14 +226,11 @@ class ActivityMonitor:
                     request_type=request_data.type,
                     allow_cancel=request_data.allow_cancel,
                     payload=request_data.payload
-                ).model_dump_json(exclude_none=True),
+                )
             )
 
-            # [HITL FIX] Also publish StatusEvent
-            await get_event_bus().publish(
-                f"chat:{thread_id}:events",
-                StatusEvent(thread_id=thread_id, status="interrupted").to_json()
-            )
+            # [HITL FIX] Also publish internal SystemStatusEvent
+            await system_bus.publish(SystemStatusEvent(thread_id=thread_id, status="interrupted"))
 
             logger.info(f"[ActivityMonitor] Requested '{request_type}' interaction for thread {thread_id}")
 
@@ -292,15 +273,14 @@ class ActivityMonitor:
 
         await self._state_service.update_agent_state(thread_id, state.model_dump())
 
-        # Publish Event
-        await get_event_bus().publish(
-            f"chat:{thread_id}:events",
+        # Publish internal Event
+        await system_bus.publish(
             AgentStateEvent(
                 thread_id=thread_id,
                 mode=mode,
                 task_name=task_name,
                 task_status=task_status
-            ).to_json()
+            )
         )
 
     async def log_event(self, event_type: str, data: dict[str, Any], thread_id: str = "system"):
@@ -321,9 +301,12 @@ class ActivityMonitor:
 
         # Publish to the chat stream if it's a session event
         if thread_id != "system":
-            await get_event_bus().publish(
-                f"chat:{thread_id}:events",
-                json.dumps({"event": "system_log", "data": payload.model_dump()})
+            await system_bus.publish(
+                SystemLogEvent(
+                    thread_id=thread_id,
+                    log_type=event_type,
+                    log_data=data
+                )
             )
 
         logger.info(f"[ActivityMonitor] Event logged: {event_type} (Thread: {thread_id})")
@@ -345,8 +328,7 @@ class ActivityMonitor:
         target_art = next((a for a in artifacts if a["name"] == name), None)
 
         if target_art:
-            await get_event_bus().publish(
-                f"chat:{thread_id}:events",
+            await system_bus.publish(
                 ArtifactEvent(
                     thread_id=thread_id,
                     id=target_art.get("id", ""),
@@ -354,7 +336,7 @@ class ActivityMonitor:
                     kind=target_art.get("kind", ""),
                     status=target_art.get("status", "pending"),
                     path=target_art.get("path")
-                ).to_json()
+                )
             )
 
     async def get_activity(self, thread_id: str):

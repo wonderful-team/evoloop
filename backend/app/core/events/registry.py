@@ -38,6 +38,9 @@ class SystemEventType(str, Enum):
     USER_LOGGED_IN = "system.user_logged_in"
     USER_LOGGED_OUT = "system.user_logged_out"
 
+    # External Service / Infrastructure Events
+    EMBEDDING_UPDATED = "system.embedding_updated"
+
 
 # Note: Module-specific event types are defined in their respective modules:
 # - AgentEventType -> app.core.engine.event.types

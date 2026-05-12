@@ -121,7 +121,6 @@ from app.utils.security import (
     validate_bundle_id,
     validate_package_name,
 )
-from app.core.file.path_utils import cleanup_file
 from app.utils.serialization import (
     MessageSerializer,
     deserialize_messages,
@@ -309,7 +308,6 @@ __all__ = [
     "safe_json_loads",
     "safe_serialize",
     "to_json_string",
-    "cleanup_file",
     # Logging
     "normalize_log_content",
     "format_tool_call",

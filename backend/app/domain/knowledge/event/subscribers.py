@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 @event_register()
-class KnowledgeInitHandler:
+class KnowledgeInitSubscriber:
     """
     Handles knowledge-related system events on application startup.
 
@@ -61,7 +61,7 @@ class KnowledgeInitHandler:
 
 
 @event_register()
-class KnowledgeHarvestingHandler:
+class KnowledgeHarvestingSubscriber:
     """
     Handles automatic Knowledge harvesting from session history.
     """

@@ -5,9 +5,9 @@ Knowledge Event Package
 Public exports for knowledge event subscribers.
 """
 
-from .subscribers import KnowledgeHarvestingHandler, KnowledgeInitHandler
+from .subscribers import KnowledgeHarvestingSubscriber, KnowledgeInitSubscriber
 
 __all__ = [
-    "KnowledgeHarvestingHandler",
-    "KnowledgeInitHandler",
+    "KnowledgeHarvestingSubscriber",
+    "KnowledgeInitSubscriber",
 ]

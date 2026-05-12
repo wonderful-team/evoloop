@@ -22,6 +22,7 @@ from app.core.tools.registry import (
     get_tool_metadata,
     is_state_mutating_tool,
 )
+from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
 
@@ -249,7 +250,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if self.thread_id and not is_hidden:
             await MessageHandler.stream_progress(
                 self.thread_id,
-                message=f"Executing {tool_name}...",
+                message=i18n.get("evoloop.tool_summary.running_tool", tool=tool_name, input=input_str[:100]),
                 metadata={"tool_name": tool_name}
             )
 
@@ -315,7 +316,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if self.thread_id:
             await MessageHandler.stream_progress(
                 self.thread_id,
-                message=f"Completed {tool_name}",
+                message=i18n.get("evoloop.tool_summary.file_op_result"),
                 status="success"
             )
 
@@ -336,7 +337,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if self.thread_id:
             await MessageHandler.stream_progress(
                 self.thread_id,
-                message=f"Failed {tool_name}: {str(error)}",
+                message=i18n.get("common.tool_execution_error", name=tool_name, error=str(error)),
                 status="failed"
             )
 

@@ -113,7 +113,7 @@ observer_manager = GlobalObserverManager()
 # --- Reuse Handlers ---
 
 
-class IndexingEventHandler(FileSystemEventHandler):
+class IndexingEventSubscriber(FileSystemEventHandler):
     """
     File system event handler that publishes to the unified event bus.
     
@@ -235,21 +235,21 @@ class RepoWatcher:
     def start(self):
         logger.info(f"Starting RepoWatcher on {self.path} (Repo ID: {self.repo_id})")
         loop = asyncio.get_running_loop()
-        event_handler = IndexingEventHandler(self.repo_id, loop)
+        event_handler = IndexingEventSubscriber(self.repo_id, loop)
         observer_manager.schedule(event_handler, self.path, recursive=True)
 
     def stop(self):
         observer_manager.unschedule(self.path)
 
 
-class ProjectDiscoveryEventHandler(FileSystemEventHandler):
+class ProjectDiscoverySubscriber(FileSystemEventHandler):
     """
     File system event handler that publishes project events to the unified event bus.
     
     Instead of directly calling ProjectSyncService, this handler publishes
     events (ProjectCreatedEvent, ProjectDeletedEvent, ProjectMovedEvent) to the
-    system event bus. ProjectSyncHandler subscribes to these events
-    and performs the actual synchronization operations.
+    system event bus. ProjectSyncSubscriber (via ProjectDomainSubscriber) 
+    subscribes to these events and performs the actual synchronization operations.
     """
     
     def __init__(self, root_path: str, loop: asyncio.AbstractEventLoop):
@@ -347,7 +347,7 @@ class ProjectDiscoveryWatcher:
             # If explicit loop needed or not running (should be running in server)
             loop = asyncio.new_event_loop()
 
-        event_handler = ProjectDiscoveryEventHandler(self.root_path, loop)
+        event_handler = ProjectDiscoverySubscriber(self.root_path, loop)
         observer_manager.schedule(event_handler, self.root_path, recursive=True)
 
     def stop(self):

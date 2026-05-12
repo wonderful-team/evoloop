@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 @event_register()
-class LearningLifecycleHandler:
+class LearningLifecycleSubscriber:
     """
     Handles application-level lifecycle events for the Learning domain.
     

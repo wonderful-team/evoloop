@@ -62,6 +62,7 @@ nodes:
       - "save_concepts"
       # Wiki (Project documentation authoring)
       - "write_wiki_page"
+      - "edit_wiki_page"
       - "list_wiki_pages"
       - "read_wiki_page"
       # Project Management & Task Breakdown

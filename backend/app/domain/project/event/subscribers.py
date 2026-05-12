@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 @event_register()
-class ProjectSwitchWebSocketHandler:
+class ProjectSwitchWebSocketSubscriber:
     """
     Handles ``project_switch`` messages from the WebSocket transport layer.
 
@@ -86,7 +86,7 @@ class ProjectSwitchWebSocketHandler:
 
 
 @event_register()
-class ProjectDomainHandler:
+class ProjectDomainSubscriber:
     """
     Handles domain-specific project events (Created, Deleted, Moved, Switched).
     """
@@ -166,7 +166,7 @@ class ProjectDomainHandler:
 
 
 @event_register()
-class ProjectLifecycleHandler:
+class ProjectLifecycleSubscriber:
     """
     Handles initialization and cleanup of project management infrastructure.
     """
@@ -247,7 +247,7 @@ class ProjectLifecycleHandler:
 
 
 @event_register()
-class ProjectMemoryContextProvider:
+class ProjectMemoryContextSubscriber:
     """
     Provides project context (README, structure, norms) for memory extraction.
 
@@ -344,7 +344,7 @@ class ProjectMemoryContextProvider:
 
 
 @event_register()
-class ProjectContextHydrator:
+class ProjectContextHydratorSubscriber:
     """
     Subscribes to session start events to resolve project paths and hydrate EvoContext.
     """

@@ -66,6 +66,9 @@ class MessageCategory(str, Enum):
     HITL_REQUEST = "hitl_request"
     """人机交互请求（如确认、选择等）"""
 
+    TRANSIENT_MESSAGE = "transient_message"
+    """瞬态消息（只推送到前端，不存数据库，也不入消息列表，仅用于实时通知）"""
+
     @property
     def is_visible_to_user(self) -> bool:
         """是否对用户可见
@@ -80,7 +83,7 @@ class MessageCategory(str, Enum):
             MessageCategory.TOOL_OUTPUT,
             MessageCategory.INTERNAL_REASONING,  # 思考过程对用户可见
             MessageCategory.HITL_REQUEST,        # 交互请求必须可见
-            # ERROR_SYSTEM 和 ERROR_BUSINESS 不入消息列表
+            # ERROR_SYSTEM, ERROR_BUSINESS, TRANSIENT_MESSAGE 不入消息列表
         }
 
     @property
@@ -94,6 +97,8 @@ class MessageCategory(str, Enum):
             MessageCategory.ERROR_SYSTEM,
             MessageCategory.AUTH_EXPIRED,
             MessageCategory.INTERNAL_LLM_JSON,
+            MessageCategory.TRANSIENT_MESSAGE,   # 瞬态消息不入库
+            MessageCategory.INTERNAL_TOOL_CALL,  # 内部隐藏工具调用默认不入库 (除非特殊需求)
         }
 
     @property
@@ -109,6 +114,7 @@ class MessageCategory(str, Enum):
             MessageCategory.ERROR_BUSINESS,
             MessageCategory.AUTH_EXPIRED,
             MessageCategory.HITL_REQUEST,        # 实时推送交互请求
+            MessageCategory.TRANSIENT_MESSAGE,   # 瞬态消息需要实时推送
         }
 
     @property
@@ -124,6 +130,7 @@ class MessageCategory(str, Enum):
             MessageCategory.ERROR_BUSINESS: "error",
             MessageCategory.AUTH_EXPIRED: "auth_expired",
             MessageCategory.HITL_REQUEST: "hitl",
+            MessageCategory.TRANSIENT_MESSAGE: "transient",
         }
         return mapping.get(self)
 
@@ -148,8 +155,8 @@ class MessageCategory(str, Enum):
             MessageCategory.ERROR_SYSTEM: None,
             MessageCategory.INTERNAL_TOOL_CALL: None,
             MessageCategory.INTERNAL_SYSTEM: None,
-            MessageCategory.INTERNAL_LLM_JSON: None,
             MessageCategory.AUTH_EXPIRED: None,
+            MessageCategory.TRANSIENT_MESSAGE: None,
         }
         return mapping.get(self)
 

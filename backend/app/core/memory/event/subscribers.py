@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 @event_register()
-class MemoryLifecycleHandler:
+class MemoryLifecycleSubscriber:
     """
     Handles application-level lifecycle events for the Memory domain.
     

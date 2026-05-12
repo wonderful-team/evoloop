@@ -13,10 +13,10 @@ from .schemas import (
     UiTreeObservedEvent,
 )
 from .subscribers import (
-    DeviceEventHandler,
-    EnvironmentLifecycleHandler,
-    SkillEventHandler,
-    SystemEventHandler,
+    DeviceEventSubscriber,
+    EnvironmentLifecycleSubscriber,
+    SkillEventSubscriber,
+    SystemEventSubscriber,
 )
 from .types import EventType
 
@@ -25,10 +25,10 @@ __all__ = [
     "BoundaryLearnedEvent",
     "DeviceConnectedEvent",
     "DeviceDisconnectedEvent",
-    "DeviceEventHandler",
-    "EnvironmentLifecycleHandler",
+    "DeviceEventSubscriber",
+    "EnvironmentLifecycleSubscriber",
     "EventType",
-    "SkillEventHandler",
-    "SystemEventHandler",
+    "SkillEventSubscriber",
+    "SystemEventSubscriber",
     "UiTreeObservedEvent",
 ]
