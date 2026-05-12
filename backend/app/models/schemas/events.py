@@ -81,6 +81,7 @@ class ArtifactEvent(BaseStreamEvent):
     path: Optional[str] = None
     content: Optional[str] = None
 
+
 # --- 6. 智能体全局状态流 ---
 class AgentStateEvent(BaseStreamEvent):
     type: Literal["agent_state"] = "agent_state"

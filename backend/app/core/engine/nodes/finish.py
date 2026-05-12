@@ -17,7 +17,7 @@ from app.core.engine.nodes.base import BaseNode
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.services.audit_service import AuditService, AuditResult
 from app.core.engine.state import AgentState, StateUpdate
-from app.core.engine.state.blackboard import AuditMeta, AuditInputData, ProgressMetrics, TaskDeliverable, AuditAnomaly
+from app.core.engine.state.blackboard import AuditMeta, AuditInputData, ProgressMetrics, TaskDeliverable, AuditAnomaly, BlackboardState
 from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
 from app.core.events.schemas import SessionCompletedData
 
@@ -43,183 +43,53 @@ class FinishNode(BaseNode):
             logger.exception(f"[Finish] Audit or finalization failed: {e}")
             return await self.handle_error(state, e, config=config)
 
-    async def _sync_plan_progress_from_db(self, state: "AgentState", blackboard, config: "RunnableConfig" = None) -> None:
-        """Sync plan_progress from database to blackboard. Always re-sync to get latest state."""
-        metadata = blackboard.metadata
-        if not metadata:
-            logger.info("[Finish] metadata is None, skipping plan_progress sync")
-            return
-
-        thread_id = state.thread_id
-        if not thread_id and config:
-            thread_id = config.get("configurable", {}).get("thread_id")
-        if not thread_id:
-            logger.info("[Finish] thread_id is None, skipping plan_progress sync")
-            return
-
-        logger.info(f"[Finish] Starting plan_progress sync for thread={thread_id}")
-        try:
-            from sqlalchemy import select
-            from sqlalchemy.orm import Session
-            from app.infrastructure.database.resource_manager import db_resource_manager
-            from app.models.planning import Plan as DBPlan
-            from app.core.engine.state.blackboard import PlanProgress
-
-            def _sync_query(tid: str):
-                engine = db_resource_manager.sync_engine
-                logger.info(f"[Finish] sync_engine={engine is not None}")
-                if not engine:
-                    return None
-                with Session(engine) as session:
-                    stmt = select(DBPlan).where(DBPlan.thread_id == tid)
-                    plan = session.execute(stmt).scalar_one_or_none()
-                    steps_count = len(plan.steps) if plan and plan.steps else 0
-                    logger.info(f"[Finish] DB plan found={plan is not None}, steps={steps_count}")
-                    if plan and plan.steps:
-                        total_steps = len(plan.steps)
-                        completed_steps = sum(1 for s in plan.steps if s.status == "completed")
-                        return {"total": total_steps, "completed": completed_steps, "plan_id": plan.id}
-                    return None
-
-            result = await asyncio.to_thread(_sync_query, thread_id)
-            logger.info(f"[Finish] _sync_query result={result is not None}")
-            if result:
-                metadata.plan_progress = PlanProgress(
-                    total_steps=result["total"],
-                    completed_steps=result["completed"],
-                    plan_id=result["plan_id"],
-                )
-                logger.info(
-                    f"[Finish] Synced plan_progress from DB: {result['completed']}/{result['total']} steps"
-                )
-            else:
-                logger.info("[Finish] No plan found in DB for sync")
-        except Exception as e:
-            logger.warning(f"[Finish] Failed to sync plan_progress from DB: {e}")
-
-    async def _prepare_audit_input(self, state: "AgentState", blackboard) -> None:
-        """Build structured AuditInputData from blackboard state for efficient comprehensive audit.
-
-        This replaces the need for AuditService to scan the full message history (~18K tokens)
-        with a compact structured summary (~500 tokens).
-        """
-        metadata = blackboard.metadata
-        if not metadata:
-            return
-
-        # If audit_input_data already exists and is fresh, skip rebuild
-        if metadata.audit_input_data and metadata.audit_input_data.deliverables:
-            return
-
-        # Build tool stats from tool_history
-        tool_stats: dict[str, int] = {}
-        for sig in metadata.tool_history or []:
-            tool_name = sig.split(":")[0] if ":" in sig else sig
-            tool_stats[tool_name] = tool_stats.get(tool_name, 0) + 1
-
-        # Build plan summary from blackboard
-        plan_progress = metadata.plan_progress
-        plan_summary = {}
-        if plan_progress:
-            plan_summary = {
-                "total": plan_progress.total_steps,
-                "completed": plan_progress.completed_steps,
-                "remaining": max(0, plan_progress.total_steps - plan_progress.completed_steps),
-            }
-
-        # Deliverables: use whatever upstream nodes have already recorded.
-        # We do NOT query WikiPage, file system, or any other business table here.
-        deliverables: list[TaskDeliverable] = (
-            list(metadata.audit_input_data.deliverables)
-            if metadata.audit_input_data else []
-        )
-        write_calls = sum(c for t, c in tool_stats.items() if t.startswith("write_"))
-
-        # Detect anomalies from state
-        anomalies: list[AuditAnomaly] = list(metadata.audit_anomalies or [])
-        msg_count = len(state.messages or [])
-        if msg_count > 100:
-            anomalies.append(AuditAnomaly(
-                anomaly_type="context_overload",
-                severity="warn",
-                description=f"Message count ({msg_count}) exceeds 100 — possible context saturation",
-                suggested_action="Consider truncating history or using semantic summarization",
-            ))
-
-        if msg_count > 80:
-            anomalies.append(AuditAnomaly(
-                anomaly_type="single_turn_saturation",
-                severity="info",
-                description=f"High message count ({msg_count}) — may indicate single-turn saturation",
-                suggested_action="Consider multi-turn execution with heartbeat protocol",
-            ))
-
-        # Generic plan-completion anomalies (no business-table queries)
-        issues_encountered: list[str] = []
+    async def _prepare_audit_input(self, state: "AgentState", blackboard: "BlackboardState") -> None:
+        # Build structured progress from memory (no DB required)
+        plan_progress = blackboard.metadata.plan_progress
         
         effective_completed = plan_progress.completed_steps if plan_progress else 0
         effective_total = plan_progress.total_steps if plan_progress else 0
         
-        # Phase 2: If no DB plan steps, use subtask results as progress proxy
+        # Fallback to subtasks if no formal plan
         subtask_results = blackboard.subtask_results
         pending_agg = blackboard.pending_aggregation
         if effective_total == 0 and pending_agg and pending_agg.expected_count:
             effective_total = pending_agg.expected_count
             effective_completed = len(subtask_results)
-            logger.info(f"[Finish] Using subtask progress as proxy: {effective_completed}/{effective_total}")
 
-        if effective_total > 0:
-            remaining = effective_total - effective_completed
-            if remaining > 0:
-                issues_encountered.append(
-                    f"Plan incomplete: {remaining}/{effective_total} steps pending"
-                )
-                anomalies.append(AuditAnomaly(
-                    anomaly_type="incomplete_plan",
-                    severity="warn",
-                    description=f"Plan has {remaining} of {effective_total} steps still pending",
-                    suggested_action="Route back to Supervisor to continue execution",
-                ))
-            if effective_completed == 0:
-                anomalies.append(AuditAnomaly(
-                    anomaly_type="zero_progress",
-                    severity="warn",
-                    description="No plan steps or subtasks were completed during this session",
-                    suggested_action="Investigate why Worker made no progress",
-                ))
+        # Estimate deliverables from tool history (avoids DB hit)
+        tool_history = blackboard.metadata.tool_history or []
+        created_count = sum(1 for t in tool_history if "write_" in t or "edit_" in t or "create_" in t)
 
-        # Build progress metrics
         progress = ProgressMetrics(
             total_steps=effective_total,
             completed_steps=effective_completed,
-            total_deliverables=len(deliverables),
-            completed_deliverables=len(deliverables),
-            key_findings=[
-                f"Plan/Subtasks: {effective_completed}/{effective_total} steps",
-                f"Write tool calls: {write_calls}",
-                f"Deliverables recorded by upstream: {len(deliverables)}",
-            ],
-            issues_encountered=issues_encountered,
+            total_deliverables=created_count,
+            completed_deliverables=created_count,
+            key_findings=[f"Cognitive Progress: {effective_completed}/{effective_total} steps"],
+            issues_encountered=[],
         )
+
+        anomalies = []
+        if effective_total > 0 and effective_completed < effective_total:
+            anomalies.append(AuditAnomaly(
+                anomaly_type="incomplete_plan",
+                severity="warn",
+                description=f"Plan incomplete: {effective_completed}/{effective_total}",
+                suggested_action="Route back to Supervisor",
+            ))
 
         audit_input = AuditInputData(
             original_goal=state.session_goal or "",
-            plan_summary=plan_summary,
+            plan_summary={"total": effective_total, "completed": effective_completed},
             progress=progress,
-            deliverables=deliverables,
-            tool_stats=tool_stats,
+            deliverables=[],
+            tool_stats={},
             anomalies=anomalies,
             key_messages_digest="",
         )
-
-        metadata.audit_input_data = audit_input
-        metadata.audit_anomalies = anomalies
-        logger.info(
-            f"[Finish] 📊 Prepared structured audit input: "
-            f"{plan_summary.get('completed', 0)}/{plan_summary.get('total', 0)} steps, "
-            f"{len(deliverables)} deliverables, "
-            f"{len(anomalies)} anomalies"
-        )
+        blackboard.metadata.audit_input_data = audit_input
+        blackboard.metadata.audit_anomalies = anomalies
 
     async def handle_error(self, state: "AgentState", error: Exception, config: "RunnableConfig" = None) -> "StateUpdate":
         """Finish-specific error handling: route to END, not SUPERVISOR."""
@@ -319,7 +189,6 @@ class FinishNode(BaseNode):
         tool_history = blackboard.metadata.tool_history
 
         # Phase 1: Sync plan progress + prepare audit input before calling AuditService
-        await self._sync_plan_progress_from_db(state, blackboard, config)
         await self._prepare_audit_input(state, blackboard)
 
         # --------------------------------------------------------------

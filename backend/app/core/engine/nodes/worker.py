@@ -1,8 +1,11 @@
+import asyncio
 import logging
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.context import ContextManager
@@ -17,7 +20,9 @@ from app.core.engine.routers import RoutingTarget
 from app.core.engine.schemas import EngineResult
 from app.core.engine.skill_hydrator import SkillHydrator
 from app.core.engine.state import AgentState, StateUpdate
+from app.core.events import system_bus
 from app.core.tools.manager import tool_manager
+from app.models.schemas.events import AgentStateEvent
 
 logger = logging.getLogger(__name__)
 
@@ -53,9 +58,6 @@ class WorkerNode(BaseAgentNode):
             thread_id = config.get("configurable", {}).get("thread_id")
             if thread_id:
                 try:
-                    import asyncio
-                    from sqlalchemy import select
-                    from sqlalchemy.orm import Session
                     from app.infrastructure.database.resource_manager import db_resource_manager
                     from app.models.planning import Plan as DBPlan
 
@@ -92,7 +94,7 @@ class WorkerNode(BaseAgentNode):
                 except Exception as e:
                     logger.warning(f"[Worker] Failed to load plan from DB: {e}")
 
-        return None
+        # Phase 2: Perform Scale Assessment if missing
 
     async def build_prompt_pair(self, state: AgentState, config: RunnableConfig) -> tuple[str, str]:
         """Construct (Static System Prompt, Dynamic Mission Message)."""
@@ -190,6 +192,22 @@ class WorkerNode(BaseAgentNode):
 
         relevant_sops = await SkillResolver.inject_fallback_sops(relevant_sops, config)
         state.relevant_sops = relevant_sops
+
+        # Status Emission
+        thread_id = config.get("configurable", {}).get("thread_id", "unknown")
+        role_name = execution_ticket.agent_config.role_name if execution_ticket and execution_ticket.agent_config else "Worker"
+        task_label = role_name
+        if execution_ticket and execution_ticket.topic:
+            task_label = f"{role_name}: {execution_ticket.topic}"
+
+        await system_bus.publish(
+            AgentStateEvent(
+                thread_id=thread_id,
+                mode="EXECUTING",
+                task_name=task_label,
+                task_status="Initializing...",
+            )
+        )
 
         if is_multi_skill_workflow:
             logger.info(f"[Worker] 🔄 Delegating to sequential workflow with {len(skill_ids)} skills...")

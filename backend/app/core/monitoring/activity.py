@@ -8,21 +8,22 @@ Uses ActivityStateService for state persistence and Cache for Pub/Sub.
 import json
 import logging
 import time
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator
+from typing import Any
 
-from app.core.engine.message.event_bus import get_event_bus
 from app.core.events import system_bus
-from app.core.events.schemas import SystemStatusEvent, SystemLogEvent
-from app.core.monitoring.schemas import AgentActivityState, HumanRequestData, SystemLogPayload
+from app.core.events.schemas import SystemLogEvent, SystemStatusEvent
+from app.core.monitoring.schemas import (
+    AgentActivityState,
+    HumanRequestData,
+    SystemLogPayload,
+)
 from app.infrastructure.cache import cache
 from app.models.schemas.events import (
     AgentStateEvent,
     ArtifactEvent,
     HumanRequestEvent,
-    StatusEvent,
-    RunStartEvent,
-    RunEndEvent,
 )
 from app.services.cache_services import ActivityStateService
 
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 class ActivityMonitor:
     """
     Monitors and manages agent activity state.
-    
+
     Provides high-level operations for tracking run state, steps, artifacts,
     and human interaction requests. Events are published via Pub/Sub for
     real-time UI updates.
@@ -53,51 +54,54 @@ class ActivityMonitor:
     async def run_scope(self, thread_id: str, main_goal: str = "处理用户请求") -> AsyncGenerator[str, None]:
         """
         Unified Agent Lifecycle Context Manager.
-        
+
         Handles:
         - start_run / end_run
         - run_id generation and context injection
         - Early cancellation check
         - Global exception handling and status reporting
-        
+
         Yields:
             run_id (str): The unique ID for this execution attempt.
         """
-        from app.utils.id import gen_uuid
         from app.core.context.manager import ContextManager
-        from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
+        from app.core.exceptions import (
+            AgentCancelledException,
+            AgentHumanInterruptException,
+        )
+        from app.utils.id import gen_uuid
 
         run_id = f"run-{gen_uuid()[:8]}"
-        
+
         # 1. Start Run
         await self.start_run(thread_id, main_goal, run_id=run_id)
         logger.info(f"[ActivityMonitor] 🚀 Starting lifecycle for thread {thread_id} (Run: {run_id})")
-        
+
         # 2. Sync Metadata to Context
         ctx = ContextManager.current()
         if ctx and ctx.thread_id == thread_id:
             ctx.run_id = run_id
-            
+
         try:
             # 3. Pre-run cancellation check
             await self.check_cancellation(thread_id)
-            
+
             yield run_id
-            
+
             # 4. Success End
             await self.end_run(thread_id, status="done", run_id=run_id)
-            
+
         except AgentCancelledException:
             logger.info(f"[ActivityMonitor] 🛑 Run {run_id} cancelled by user")
             await self.end_run(thread_id, status="cancelled", run_id=run_id)
             raise  # Re-raise for upper layers if needed (BackgroundAgent handles it)
-            
+
         except AgentHumanInterruptException:
             logger.info(f"[ActivityMonitor] ⏸️ Run {run_id} interrupted for human input")
-            # status "interrupted" is handled by set_human_request usually, 
+            # status "interrupted" is handled by set_human_request usually,
             # but we keep end_run call if appropriate
             raise
-            
+
         except Exception as e:
             logger.error(f"[ActivityMonitor] ❌ Run {run_id} failed with error: {e}", exc_info=True)
             await self.end_run(thread_id, status="failed", run_id=run_id)
@@ -106,7 +110,7 @@ class ActivityMonitor:
     async def start_run(self, thread_id: str, main_goal: str = "处理用户请求", run_id: str = None):
         """Initialize activity state for a new run."""
         await self._state_service.start_run(thread_id, main_goal)
-        
+
         # Publish internal AgentSessionStartedEvent (automated bridge will handle UI RunStartEvent)
         from app.core.engine.event.publishers import publish_agent_session_started
         await publish_agent_session_started(thread_id=thread_id)
@@ -158,7 +162,7 @@ class ActivityMonitor:
             await system_bus.publish(
                 HumanRequestEvent(
                     thread_id=thread_id,
-                    action="create", 
+                    action="create",
                     prompt=request_dict.get("prompt"),
                     request_type=request_dict.get("type"),
                     allow_cancel=request_dict.get("allow_cancel", True),
@@ -221,7 +225,7 @@ class ActivityMonitor:
             await system_bus.publish(
                 HumanRequestEvent(
                     thread_id=thread_id,
-                    action="create", 
+                    action="create",
                     prompt=request_data.prompt,
                     request_type=request_data.type,
                     allow_cancel=request_data.allow_cancel,

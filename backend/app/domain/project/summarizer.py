@@ -48,9 +48,7 @@ async def _summarize_project_logic(name: str, path: str):
     # Start Activity
     sys_tid = f"sys:{project_id}:summarization"
     await activity_monitor.start_run(sys_tid, f"Summarize Project: {name}")
-    await activity_monitor.update_agent_state(
-        sys_tid, "Summarizing", "Project Analysis", "Gathering Context..."
-    )
+    await activity_monitor.update_agent_state(sys_tid, "Summarizing", "Project Analysis", "Gathering Context...")
 
     container = None
     try:
@@ -79,9 +77,7 @@ async def _summarize_project_logic(name: str, path: str):
             logger.warning(f"[ProjectSummarizer] Failed to fetch graph summary: {e}")
 
         # Update Status
-        await activity_monitor.update_agent_state(
-            sys_tid, "Summarizing", "Project Analysis", "Reading Files & Context..."
-        )
+        await activity_monitor.update_agent_state(sys_tid, "Summarizing", "Project Analysis", "Reading Files & Context...")
 
         # 1. Gather Context (Files)
         from app.core.file import FileTraverser
@@ -96,9 +92,7 @@ async def _summarize_project_logic(name: str, path: str):
         readme_content = project_context_manager.extract_description_from_readme(path)
 
         # Update Status
-        await activity_monitor.update_agent_state(
-            sys_tid, "Summarizing", "Project Analysis", "Generating Summary with LLM..."
-        )
+        await activity_monitor.update_agent_state(sys_tid, "Summarizing", "Project Analysis", "Generating Summary with LLM...")
 
         # 2. Call LLM
         from app.utils import render_template

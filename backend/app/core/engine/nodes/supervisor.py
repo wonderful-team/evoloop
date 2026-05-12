@@ -4,6 +4,7 @@ from typing import Any
 
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
+from sqlalchemy import select
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
@@ -13,8 +14,11 @@ from app.core.engine.prompts import SupervisorContext, SupervisorPromptBuilder
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.schemas import EngineResult
 from app.core.engine.state import AgentState, StateUpdate
+from app.core.events import system_bus
 from app.core.tools.manager import tool_manager
 from app.i18n.service import i18n
+from app.infrastructure.database.sql.database import session_scope
+from app.models.schemas.events import AgentStateEvent
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +99,7 @@ class SupervisorNode(BaseAgentNode):
                         blackboard=blackboard,
                         iteration_count=(state.iteration_count or 0) + 1
                     )
+
                 # Fallback: check structured_plan for pending steps
                 plan = state.structured_plan or state.current_plan
                 if plan and _plan_has_pending_steps(plan):
@@ -104,10 +109,9 @@ class SupervisorNode(BaseAgentNode):
                         blackboard=blackboard,
                         iteration_count=(state.iteration_count or 0) + 1
                     )
+
                 # Fallback 2: query DB for plan steps not completed
                 try:
-                    from app.infrastructure.database.sql.database import session_scope
-                    from sqlalchemy import select
                     from app.models.planning import Plan as DBPlan, PlanStep as DBPlanStep
                     thread_id = state.thread_id or config.get("configurable", {}).get("thread_id")
                     if thread_id:
@@ -209,7 +213,7 @@ class SupervisorNode(BaseAgentNode):
         # Handle "Silent" Protocol Violation - fallback to CHAT if there is content
         ai_content = ""
         last_msg = new_messages[-1] if new_messages else None
-        
+
         if isinstance(last_msg, AIMessage):
             ai_content = str(last_msg.content).strip()
 
@@ -230,7 +234,7 @@ class SupervisorNode(BaseAgentNode):
             f"Has tool_calls: {bool(getattr(last_msg, 'tool_calls', []))}. "
             f"Additional Kwargs Keys: {list(last_msg.additional_kwargs.keys()) if hasattr(last_msg, 'additional_kwargs') else 'N/A'}"
         )
-        
+
         return StateUpdate(
             messages=new_messages,
             next_node=RoutingTarget.FINISH,
@@ -239,15 +243,16 @@ class SupervisorNode(BaseAgentNode):
         )
 
     async def _emit_status(self, config: RunnableConfig, status: str):
-        """Emit status update via activity_monitor."""
+        """Emit status update via Event Bus."""
         try:
-            from app.core.monitoring.activity import activity_monitor
             thread_id = config.get("configurable", {}).get("thread_id", "unknown")
-            await activity_monitor.update_agent_state(
-                thread_id=thread_id,
-                mode="PLANNING",
-                task_name="Supervisor Decision",
-                task_status=status,
+            await system_bus.publish(
+                AgentStateEvent(
+                    thread_id=thread_id,
+                    mode="PLANNING",
+                    task_name="Supervisor Decision",
+                    task_status=status,
+                )
             )
         except Exception as e:
             logger.warning(f"[Supervisor] Failed to emit status update: {e}")

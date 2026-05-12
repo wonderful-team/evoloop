@@ -14,7 +14,6 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
-from app.core.context import ContextManager
 from app.core.engine import get_default_engine
 from app.core.engine.message.utils import get_message_text
 from app.core.engine.nodes.base import BaseAgentNode
@@ -23,7 +22,9 @@ from app.core.engine.prompts import WorkerPromptBuilder
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.blackboard import WorkflowStepResult
+from app.core.events import system_bus
 from app.core.tools.manager import tool_manager
+from app.models.schemas.events import AgentStateEvent
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +96,6 @@ class SequentialWorkflowNode(BaseAgentNode):
         step_ticket.topic = f"Step {step_index + 1}: {skill_name}"
 
         # Build prompt
-        ctx = ContextManager.current()
         prompt_builder = WorkerPromptBuilder(
             agent_config=agent_config,
             blackboard=blackboard,
@@ -113,6 +113,17 @@ class SequentialWorkflowNode(BaseAgentNode):
             previous_output=prev_output,
         )
         messages = [HumanMessage(content=mission_msg)]
+
+        # Status Emission (Heartbeat)
+        thread_id = config.get("configurable", {}).get("thread_id", "unknown")
+        await system_bus.publish(
+            AgentStateEvent(
+                thread_id=thread_id,
+                mode="EXECUTING",
+                task_name=f"Workflow Step {step_index + 1}/{len(plan)}",
+                task_status=f"Executing skill: {skill_name}",
+            )
+        )
 
         # Execute single step
         worker_state = state.model_copy(update={"messages": messages})

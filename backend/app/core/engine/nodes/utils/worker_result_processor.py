@@ -16,16 +16,18 @@ from app.core.engine.message.utils import get_message_text
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.schemas import EngineResult
 from app.core.engine.state import AgentState, StateUpdate
-from app.core.engine.state.workspace import WorkspaceContext
 from app.core.engine.state.blackboard import SubtaskResult, VerificationStatus
 from app.core.engine.state.config import ExecutionTicket
+from app.core.engine.state.workspace import WorkspaceContext
+from app.core.events import system_bus
 from app.core.tools.registry import get_tool_metadata
+from app.models.schemas.events import AgentStateEvent
 
 logger = logging.getLogger(__name__)
 
 
 async def process_worker_result(
-    node_name: str,
+    _node_name: str,
     state: AgentState,
     engine_result: EngineResult,
     execution_ticket: ExecutionTicket,
@@ -103,6 +105,19 @@ async def process_worker_result(
             expected_count = pending_agg.expected_count or 0
             current_count = len(blackboard.subtask_results)
             logger.debug(f"[Worker] 📊 Subtask completion progress: {current_count}/{expected_count}")
+
+            # Emit incremental heartbeat to main thread
+            if config:
+                main_thread_id = execution_ticket.parent_task_id or "unknown"
+                if main_thread_id != "unknown":
+                    await system_bus.publish(
+                        AgentStateEvent(
+                            thread_id=main_thread_id,
+                            mode="EXECUTING",
+                            task_name=f"Parallel Execution ({current_count}/{expected_count})",
+                            task_status=f"Subtask '{subtask_id}' completed.",
+                        )
+                    )
 
     # 5a. Cache Invalidation (Universal via Metadata)
     has_changes = False

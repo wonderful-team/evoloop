@@ -161,6 +161,7 @@
       "list_wiki_pages": "List wiki pages",
       "read_wiki_page": "Read wiki page '{slug}'",
       "write_wiki_page": "Write wiki page '{title}'",
+      "edit_wiki_page": "Edit wiki page '{title}'",
       "create_python_tool": "Creating Python tool '{name}'",
       "create_project_task": "Creating project task",
       "stash_to_clipboard": "Stashing to clipboard",

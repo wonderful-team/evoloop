@@ -17,12 +17,14 @@ from langchain_core.outputs import LLMResult
 from app.core.engine.callbacks.token_filter import TokenFilter
 from app.core.engine.message import MessageHandler, MessagePublisher
 from app.core.engine.message.reasoning import extract_reasoning_from_kwargs
+from app.core.events import system_bus
 from app.core.tools.registry import (
     get_tool_affected_paths,
     get_tool_metadata,
     is_state_mutating_tool,
 )
 from app.i18n.service import i18n
+from app.models.schemas.events import AgentStateEvent
 
 logger = logging.getLogger(__name__)
 
@@ -263,7 +265,14 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                     tstatus = data.get("TaskStatus")
                     if mode and tname:
                         try:
-                            await self.monitor.update_agent_state(self.thread_id, mode, tname, tstatus)
+                            await system_bus.publish(
+                                AgentStateEvent(
+                                    thread_id=self.thread_id,
+                                    mode=mode,
+                                    task_name=tname,
+                                    task_status=tstatus,
+                                )
+                            )
                         except Exception:
                             pass
 
@@ -312,7 +321,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         # Phase 2-3: Step tracking and StreamEvent removed — StepEvent now driven by MessageHandler
         logger.info(f"[Tool End] {tool_name}")
-        
+
         if self.thread_id:
             await MessageHandler.stream_progress(
                 self.thread_id,
@@ -343,7 +352,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
     async def on_chain_start(self, serialized: dict[str, Any], inputs: dict[str, Any], **kwargs: Any) -> None:
         """Run when chain (node) starts running.
-        
+
         Note: We no longer record Phase headers ("► Supervisor Phase", etc.) to reduce noise.
         Only actual tool executions are tracked.
         """
@@ -352,7 +361,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
     async def on_chain_end(self, outputs: dict[str, Any], **kwargs: Any) -> None:
         """Run when chain ends running.
-        
+
         Note: Phase headers tracking removed, this is now a no-op.
         """
         run_id = str(kwargs.get("run_id", ""))
@@ -360,7 +369,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
     async def on_chain_error(self, error: BaseException, **kwargs: Any) -> None:
         """Run when chain errors.
-        
+
         Note: Phase headers tracking removed, this is now a no-op.
         """
         run_id = str(kwargs.get("run_id", ""))

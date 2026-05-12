@@ -59,12 +59,14 @@ Execute using available tools. One turn only.
 - **IMPORTANT**: This plan has ALREADY been created by the Supervisor. DO NOT call `create_plan` again. Use the existing plan_id when calling `update_step_status`.
   {% for s in plan.get('steps', []) -%}
   {{ loop.index }}. [{{ s.get('status', 'pending') }}] {{ s.get('title', 'Untitled') }} (step_id: {{ s.get('id', 'N/A') }})
+  {%- if s.get('result') %} → Result: {{ s.get('result') }}{% endif %}
   {% endfor %}
 {%- else %}
 - **Title**: {{ plan.title }}
 - **Status**: {{ 'APPROVED' if plan.approved else 'PENDING' }}
   {% for s in plan.steps -%}
   {{ s.index }}. [{{ s.status }}] {{ s.title }}
+  {%- if s.result %} → Result: {{ s.result }}{% endif %}
   {% endfor %}
 {%- endif %}
 {%- endif %}
