@@ -17,14 +17,12 @@ from langchain_core.outputs import LLMResult
 from app.core.engine.callbacks.token_filter import TokenFilter
 from app.core.engine.message import MessageHandler, MessagePublisher
 from app.core.engine.message.reasoning import extract_reasoning_from_kwargs
-from app.core.events import system_bus
 from app.core.tools.registry import (
     get_tool_affected_paths,
     get_tool_metadata,
     is_state_mutating_tool,
 )
 from app.i18n.service import i18n
-from app.models.schemas.events import AgentStateEvent
 
 logger = logging.getLogger(__name__)
 
@@ -264,43 +262,27 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                     tname = data.get("TaskName")
                     tstatus = data.get("TaskStatus")
                     if mode and tname:
-                        try:
-                            await system_bus.publish(
-                                AgentStateEvent(
-                                    thread_id=self.thread_id,
-                                    mode=mode,
-                                    task_name=tname,
-                                    task_status=tstatus,
-                                )
-                            )
-                        except Exception:
-                            pass
+                        await self.monitor.update_agent_state(self.thread_id, mode, tname, tstatus)
 
             if is_state_mutating_tool(tool_name):
                 if isinstance(data, dict):
                     affected_paths = get_tool_affected_paths(tool_name, data)
                     if affected_paths:
                         fname = affected_paths[0]
-                        try:
-                            await self.monitor.add_artifact(
-                                self.thread_id,
-                                fname.split("/")[-1],
-                                "file",
-                                "pending",
-                                fname,
-                            )
-                        except Exception:
-                            pass
+                        await self.monitor.add_artifact(
+                            self.thread_id,
+                            fname.split("/")[-1],
+                            "file",
+                            "pending",
+                            fname,
+                        )
 
             if metadata.get("is_memory_tool"):
                 args = data if isinstance(data, dict) else {}
                 action = args.get("action", "")
                 key = args.get("key") or args.get("query") or args.get("name") or "Unknown"
                 memory_name = f"{action or tool_name}: {key[:30]}"
-                try:
-                    await self.monitor.set_active_memory(self.thread_id, f"tool-{tool_name}", memory_name)
-                except Exception:
-                    pass
+                await self.monitor.set_active_memory(self.thread_id, f"tool-{tool_name}", memory_name)
 
     async def on_tool_end(self, output: str, **kwargs: Any) -> None:
         """Run when tool ends running."""

@@ -19,9 +19,7 @@ from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.blackboard import SubtaskResult, VerificationStatus
 from app.core.engine.state.config import ExecutionTicket
 from app.core.engine.state.workspace import WorkspaceContext
-from app.core.events import system_bus
 from app.core.tools.registry import get_tool_metadata
-from app.models.schemas.events import AgentStateEvent
 
 logger = logging.getLogger(__name__)
 
@@ -108,15 +106,14 @@ async def process_worker_result(
 
             # Emit incremental heartbeat to main thread
             if config:
+                from app.core.monitoring.activity import activity_monitor
                 main_thread_id = execution_ticket.parent_task_id or "unknown"
                 if main_thread_id != "unknown":
-                    await system_bus.publish(
-                        AgentStateEvent(
-                            thread_id=main_thread_id,
-                            mode="EXECUTING",
-                            task_name=f"Parallel Execution ({current_count}/{expected_count})",
-                            task_status=f"Subtask '{subtask_id}' completed.",
-                        )
+                    await activity_monitor.update_agent_state(
+                        thread_id=main_thread_id,
+                        mode="EXECUTING",
+                        task_name=f"Parallel Execution ({current_count}/{expected_count})",
+                        task_status=f"Subtask '{subtask_id}' completed."
                     )
 
     # 5a. Cache Invalidation (Universal via Metadata)

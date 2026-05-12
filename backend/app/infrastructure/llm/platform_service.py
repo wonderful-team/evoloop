@@ -8,16 +8,10 @@ import logging
 import time
 from typing import Dict, List, Any, Optional
 
+from app.constants import DEFAULT_MAX_CONTEXT_TOKENS
 from app.infrastructure.schemas import PlatformModel
 
 logger = logging.getLogger(__name__)
-
-
-def _get_custom_model_context_window(model_name: str) -> int:
-    """Get context window for a custom model using the model profile registry."""
-    from app.infrastructure.llm.model_profile import get_profile
-    profile = get_profile(model_name)
-    return profile.max_context_tokens
 
 
 class LLMPlatformService:
@@ -188,9 +182,9 @@ async def get_available_llm_models(config_type: str = None) -> List[Dict[str, An
             "available": True,
             "quota_required": False,
             "supports_streaming": True,
-            "supports_vision": custom_provider_type in ["openai", "anthropic"],
-            "supports_functions": custom_provider_type in ["openai", "anthropic"],
-            "context_window": _get_custom_model_context_window(custom_model),
+            "supports_vision": profile.supports_vision,
+            "supports_functions": profile.supports_functions,
+            "context_window": profile.context_window,
         })
     
     return result

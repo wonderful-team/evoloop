@@ -17,7 +17,7 @@ from langchain_core.messages import (
 from app.constants import DEFAULT_MAX_CONTEXT_TOKENS
 from app.core.engine.message.utils import estimate_message_tokens
 from app.core.engine.schemas import ToolCallInfo, ContextStats
-from app.infrastructure.llm.model_profile import get_profile
+from app.infrastructure.llm.platform_service import llm_platform_service
 
 # Context usage thresholds (pure ratios, unit-agnostic)
 CONTEXT_WARNING_THRESHOLD = 0.80
@@ -44,7 +44,7 @@ class ContextMonitor:
         if not model:
             max_tokens = DEFAULT_MAX_CONTEXT_TOKENS
         else:
-            profile = get_profile(model)
+            profile = llm_platform_service.get_profile(model)
             max_tokens = profile.max_context_tokens
 
         total_tokens = 0

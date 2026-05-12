@@ -2,17 +2,15 @@ import asyncio
 import logging
 from typing import Any
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.context import ContextManager
-from app.core.engine.context_monitor import ContextMonitor
 from app.core.engine.nodes.base import BaseAgentNode
 from app.core.engine.nodes.utils.focus_file_hydrator import FocusFileHydrator
-from app.core.engine.nodes.utils.node_utils import resolve_is_subtask
 from app.core.engine.nodes.utils.skill_resolver import SkillResolver
 from app.core.engine.nodes.utils.worker_result_processor import process_worker_result
 from app.core.engine.prompts import WorkerPromptBuilder
@@ -20,9 +18,7 @@ from app.core.engine.routers import RoutingTarget
 from app.core.engine.schemas import EngineResult
 from app.core.engine.skill_hydrator import SkillHydrator
 from app.core.engine.state import AgentState, StateUpdate
-from app.core.events import system_bus
 from app.core.tools.manager import tool_manager
-from app.models.schemas.events import AgentStateEvent
 
 logger = logging.getLogger(__name__)
 
@@ -121,10 +117,6 @@ class WorkerNode(BaseAgentNode):
         static_system_prompt = await prompt_builder.build(config)
 
         # 2. Dynamic Mission (Turn-based context)
-        all_messages = list(state.messages)
-        model = config.get("configurable", {}).get("model")
-        context_stats = ContextMonitor.calculate(all_messages, model=model).to_prompt()
-
         from app.core.engine.prompts.utils import get_mapped_cwd
         actual_cwd = get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", ""))
 
@@ -137,7 +129,6 @@ class WorkerNode(BaseAgentNode):
                 telemetry = telemetry_snapshot.model_dump()
 
         mission_msg = prompt_builder.build_mission_message(
-            context_stats=context_stats,
             environment_block=ctx.environment_block or "",
             cwd=actual_cwd,
             telemetry=telemetry,
@@ -200,13 +191,12 @@ class WorkerNode(BaseAgentNode):
         if execution_ticket and execution_ticket.topic:
             task_label = f"{role_name}: {execution_ticket.topic}"
 
-        await system_bus.publish(
-            AgentStateEvent(
-                thread_id=thread_id,
-                mode="EXECUTING",
-                task_name=task_label,
-                task_status="Initializing...",
-            )
+        from app.core.monitoring.activity import activity_monitor
+        await activity_monitor.update_agent_state(
+            thread_id=thread_id,
+            mode="EXECUTING",
+            task_name=task_label,
+            task_status="Initializing..."
         )
 
         if is_multi_skill_workflow:

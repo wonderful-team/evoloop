@@ -19,7 +19,7 @@ import logging
 import time
 from typing import Any, Callable
 
-from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
@@ -108,8 +108,8 @@ class InferenceEngine:
         thread_id: str | None,
         run_id: str | None,
         config: RunnableConfig
-    ) -> list[BaseMessage]:
-        """Trims context and logs context window size."""
+    ) -> tuple[list[BaseMessage], dict[str, Any] | None]:
+        """Trims context and calculates usage metrics."""
         if model:
             trim_result = self._context_trimmer.trim(
                 messages=loop_messages,
@@ -286,7 +286,7 @@ class InferenceEngine:
             if thread_id:
                 await activity_monitor.check_cancellation(thread_id)
 
-            loop_messages = await self._prepare_turn_context(
+            loop_messages, _ = await self._prepare_turn_context(
                 loop_messages=loop_messages,
                 model=model,
                 name=name,

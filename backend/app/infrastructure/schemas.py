@@ -102,7 +102,7 @@ class PlatformModel(DynamicBaseModel):
     provider_type: str = "openai"  # openai | anthropic
     model_type: str = "llm"  # llm, embedding, vision
     config_type: str = "evoloop"  # evoloop, custom
-    context_window: int = 8192
+    context_window: int = 128000 # Default to 128k as requested
     max_tokens: int = 4096
     supports_streaming: bool = True
     supports_vision: bool = False
@@ -111,6 +111,32 @@ class PlatformModel(DynamicBaseModel):
     icon: str = "default"
     available: bool = True
     quota_required: bool = True
+
+    # --- Engine Tuning Parameters (formerly in ModelProfile) ---
+    context_window_ratio: float = 0.6  # Use 60% of context for history
+    prune_threshold_ratio: float = 0.7  # Start pruning at 70% capacity
+    truncate_limit_tokens: int = 5000  # Max tokens per single tool output
+
+    @property
+    def max_context_tokens(self) -> int:
+        """Alias for context_window (compatibility with ModelProfile interface)."""
+        from app.constants import DEFAULT_MAX_CONTEXT_TOKENS
+        return self.context_window or DEFAULT_MAX_CONTEXT_TOKENS
+
+    @property
+    def effective_history_tokens(self) -> int:
+        """Max tokens available for message history."""
+        return int(self.context_window * self.context_window_ratio)
+
+    @property
+    def prune_threshold_tokens(self) -> int:
+        """Token count at which pruning should trigger."""
+        return int(self.effective_history_tokens * self.prune_threshold_ratio)
+
+    @property
+    def truncate_limit_chars(self) -> int:
+        """Character-based truncate limit (for backward compatibility)."""
+        return self.truncate_limit_tokens * 4
 
 
 class LLMConfig(DynamicBaseModel):

@@ -18,12 +18,13 @@ from typing import Literal
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
+from app.constants import DEFAULT_MAX_CONTEXT_TOKENS
 from app.core.engine.message.converter import EvoMessageConverter
 from app.core.engine.message.forgetting import apply_forgotten_status
 from app.core.engine.message.utils import count_total_tokens, estimate_message_tokens
 from app.core.engine.message.utils import get_message_text
 from app.core.memory.tool_output_memory import ToolOutputMemory
-from app.infrastructure.llm.model_profile import get_profile
+from app.infrastructure.llm.platform_service import llm_platform_service
 
 logger = logging.getLogger(__name__)
 
@@ -77,8 +78,8 @@ def _compute_budget(model: str, node_source: str) -> tuple[int, int]:
     Returns:
         (effective_budget, hard_limit) in tokens
     """
-    profile = get_profile(model)
-    model_max = profile.max_context_tokens
+    profile = llm_platform_service.get_profile(model)
+    model_max = profile.max_context_tokens or DEFAULT_MAX_CONTEXT_TOKENS
     node_ratio = NODE_BUDGET_RATIOS.get(node_source, NODE_BUDGET_RATIOS["default"])
     effective_budget = int(model_max * node_ratio)
     hard_limit = int(model_max * HARD_LIMIT_RATIO)
@@ -504,7 +505,7 @@ class ContextTrimmer:
         if not content:
             return content
 
-        profile = get_profile(model)
+        profile = llm_platform_service.get_profile(model)
         limit_tokens = profile.truncate_limit_tokens
         limit_chars = limit_tokens * 4  # chars per token fallback ratio
 

@@ -2,7 +2,7 @@ import json
 import logging
 from typing import Any
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from sqlalchemy import select
 
@@ -14,11 +14,9 @@ from app.core.engine.prompts import SupervisorContext, SupervisorPromptBuilder
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.schemas import EngineResult
 from app.core.engine.state import AgentState, StateUpdate
-from app.core.events import system_bus
 from app.core.tools.manager import tool_manager
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
-from app.models.schemas.events import AgentStateEvent
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +57,13 @@ class SupervisorNode(BaseAgentNode):
 
     async def prepare_state(self, state: AgentState, config: RunnableConfig) -> StateUpdate | None:
         """Pre-computation: Check for subtask completion and worker outcome."""
-        # NOTE: Message cleanup (including trailing error pruning) is now handled
-        # uniformly by ContextTrimmer in engine.run_node(). SupervisorNode should
-        # not perform ad-hoc message manipulation here.
+        # NOTE: Token-driven trimming is handled by ContextTrimmer in engine.run_node().
+        # Here we apply semantic filtering: Supervisor doesn't need to see Worker's
+        # detailed tool-call chains, only high-level mission context and summaries.
+
+        # Filter messages before Supervisor reasoning — this is a "view" operation
+        # that does not mutate the global checkpoint state.
+        state.messages = self._filter_messages_for_supervisor(list(state.messages))
 
         # Consume stale routing and plans from previous turns
         from app.core.engine.state.lifecycle import StateLifecycleManager
@@ -243,16 +245,15 @@ class SupervisorNode(BaseAgentNode):
         )
 
     async def _emit_status(self, config: RunnableConfig, status: str):
-        """Emit status update via Event Bus."""
+        """Emit status update via activity_monitor."""
         try:
+            from app.core.monitoring.activity import activity_monitor
             thread_id = config.get("configurable", {}).get("thread_id", "unknown")
-            await system_bus.publish(
-                AgentStateEvent(
-                    thread_id=thread_id,
-                    mode="PLANNING",
-                    task_name="Supervisor Decision",
-                    task_status=status,
-                )
+            await activity_monitor.update_agent_state(
+                thread_id=thread_id,
+                mode="PLANNING",
+                task_name="Supervisor Decision",
+                task_status=status,
             )
         except Exception as e:
             logger.warning(f"[Supervisor] Failed to emit status update: {e}")

@@ -104,7 +104,6 @@ class WorkerPromptBuilder:
 
     def build_mission_message(
         self,
-        context_stats: str = "",
         environment_block: str = "",
         cwd: str = "",
         telemetry: dict = None,
@@ -129,7 +128,6 @@ class WorkerPromptBuilder:
             "parameters": self.ticket.parameters if self.ticket else {},
             "is_subtask": self.agent_config.is_subtask if self.agent_config else False,
             "focus_files": self.focus_files,
-            "context_stats": context_stats,
             "workflow_context": self.ticket.workflow_context if self.ticket else None,
             "cwd": cwd,
             "environment_block": environment_block,

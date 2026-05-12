@@ -22,9 +22,7 @@ from app.core.engine.prompts import WorkerPromptBuilder
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.blackboard import WorkflowStepResult
-from app.core.events import system_bus
 from app.core.tools.manager import tool_manager
-from app.models.schemas.events import AgentStateEvent
 
 logger = logging.getLogger(__name__)
 
@@ -115,14 +113,13 @@ class SequentialWorkflowNode(BaseAgentNode):
         messages = [HumanMessage(content=mission_msg)]
 
         # Status Emission (Heartbeat)
+        from app.core.monitoring.activity import activity_monitor
         thread_id = config.get("configurable", {}).get("thread_id", "unknown")
-        await system_bus.publish(
-            AgentStateEvent(
-                thread_id=thread_id,
-                mode="EXECUTING",
-                task_name=f"Workflow Step {step_index + 1}/{len(plan)}",
-                task_status=f"Executing skill: {skill_name}",
-            )
+        await activity_monitor.update_agent_state(
+            thread_id=thread_id,
+            mode="EXECUTING",
+            task_name=f"Workflow Step {step_index + 1}/{len(plan)}",
+            task_status=f"Executing skill: {skill_name}"
         )
 
         # Execute single step
