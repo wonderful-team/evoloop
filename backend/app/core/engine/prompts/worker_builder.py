@@ -128,6 +128,7 @@ class WorkerPromptBuilder:
             "parameters": self.ticket.parameters if self.ticket else {},
             "is_subtask": self.agent_config.is_subtask if self.agent_config else False,
             "focus_files": self.focus_files,
+            "knowledge_blocks": self._prepare_knowledge_blocks(),
             "workflow_context": self.ticket.workflow_context if self.ticket else None,
             "cwd": cwd,
             "environment_block": environment_block,

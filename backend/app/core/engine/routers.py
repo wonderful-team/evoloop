@@ -125,6 +125,10 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
 def route_finish(state: AgentState) -> str:
     """Decides the next node after Finish."""
     blackboard = state.blackboard
+    # Respect explicit supervisor routing (e.g. from Worker truncation recovery)
+    if state.next_node == RoutingTarget.SUPERVISOR:
+        logger.info("[Router] Finish routing back to Supervisor (truncation recovery or explicit signal).")
+        return RoutingTarget.SUPERVISOR
     # If FinishNode explicitly set next_node to END, respect its decision even if
     # blocked_by_hook is still True from a previous turn (prevents infinite loops
     # when Supervisor -> Chat -> Finish re-enters Finish after a historic block).

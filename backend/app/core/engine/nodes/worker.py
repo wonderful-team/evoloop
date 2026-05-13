@@ -145,6 +145,47 @@ class WorkerNode(BaseAgentNode):
         logger.info(f"[Worker] Loaded {len(tools)} tools: {tool_names}")
         return tools
 
+    @staticmethod
+    def _build_worker_view(messages: list[BaseMessage], is_resuming: bool = False) -> list[BaseMessage]:
+        """
+        Build an isolated message view for Worker.
+
+        Worker is an ephemeral executor — it only needs the starting context:
+        - SystemMessage (protocol instructions)
+        - User's original HumanMessage(s) (the initial request)
+
+        All historical conversation turns (prior AIMessage, ToolMessage, old
+        mission_message/context_ticket) are discarded.  The current plan state,
+        task goal, focus files, and telemetry are injected fresh by
+        BaseAgentNode via the latest mission_message.
+
+        This prevents message-history bloat from prior Worker turns from
+        poisoning the current ReAct loop.
+        """
+        result: list[BaseMessage] = []
+        # Find the starting point for history if resuming (soft prune)
+        # We keep SystemMessages and nameless HumanMessages regardless, 
+        # but if resuming, we also keep the tail end of the conversation.
+        tail_messages = []
+        if is_resuming:
+            # Retain the last 10 messages to preserve context during truncation recovery
+            tail_messages = messages[-10:] if len(messages) >= 10 else messages
+
+        for msg in messages:
+            if isinstance(msg, SystemMessage):
+                result.append(msg)
+            elif isinstance(msg, HumanMessage) and not msg.name:
+                # Keep only raw user inputs (no name = not a injected ticket).
+                # Named HumanMessages (context_ticket, mission_message) will be
+                # freshly injected by BaseAgentNode with the latest state.
+                result.append(msg)
+            elif is_resuming and msg in tail_messages:
+                # Do not duplicate if already added
+                if msg not in result:
+                    result.append(msg)
+            # Discard: AIMessage, ToolMessage, named HumanMessage (unless resuming and in tail)
+        return result
+
     async def _build_fallback_outcome(
         self,
         original_state: AgentState,
@@ -163,6 +204,14 @@ class WorkerNode(BaseAgentNode):
         state = ensure_state(state)
 
         execution_ticket = state.blackboard.ticket
+        if execution_ticket:
+            logger.info(
+                f"[Worker] ExecutionTicket received | "
+                f"topic='{execution_ticket.topic}' | "
+                f"skills={execution_ticket.skill_ids or execution_ticket.skill_id} | "
+                f"acceptance={execution_ticket.acceptance_criteria} | "
+                f"role={(execution_ticket.agent_config.role_name if execution_ticket.agent_config else 'Worker')}"
+            )
 
         # Check for multi-skill workflow
         skill_ids = execution_ticket.skill_ids or [] if execution_ticket else []
@@ -212,5 +261,16 @@ class WorkerNode(BaseAgentNode):
                 blackboard=blackboard,
             )
 
-        # Standard ReAct loop (Delegated to BaseAgentNode)
+        # Build isolated worker view: discard all historical conversation turns.
+        # The mission_message (injected by BaseAgentNode) carries the full plan
+        # state, task goal, and focus files — no need to inherit prior tool chains.
+        is_resuming = execution_ticket.is_resuming if execution_ticket else False
+        filtered_messages = self._build_worker_view(list(state.messages), is_resuming=is_resuming)
+        if len(filtered_messages) < len(state.messages):
+            logger.info(
+                f"[Worker] Message view built: {len(state.messages)} -> {len(filtered_messages)} msgs "
+                f"(dropped={len(state.messages) - len(filtered_messages)} historical)"
+            )
+            state = state.model_copy(update={"messages": filtered_messages})
+
         return await super().__call__(state, config)

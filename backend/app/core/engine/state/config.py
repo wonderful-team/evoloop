@@ -101,6 +101,7 @@ class ExecutionTicket(DynamicBaseModel):
     reason: str | None = None
     complexity: str | None = None
     workflow_context: WorkflowContext | None = None
+    is_resuming: bool = Field(default=False)
 
     @field_validator("topic", mode="before")
     @classmethod

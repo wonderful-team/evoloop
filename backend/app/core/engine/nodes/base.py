@@ -95,6 +95,11 @@ class BaseAgentNode(BaseNode, ABC):
             static_system_prompt, dynamic_ticket_text = await self.build_prompt_pair(state, config)
             # print("static_system_prompt=", static_system_prompt)
             # print("dynamic_ticket_text=", dynamic_ticket_text)
+            if dynamic_ticket_text:
+                logger.info(
+                    f"[{self.node_name}] Dynamic ticket injected ({len(dynamic_ticket_text)} chars) | "
+                    f"preview: {dynamic_ticket_text[:200].replace(chr(10), ' ')}..."
+                )
             tools = await self.get_tools(state)
 
             # Insert Context Ticket just before the LAST HumanMessage so that

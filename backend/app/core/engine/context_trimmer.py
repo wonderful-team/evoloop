@@ -220,7 +220,6 @@ class ContextTrimmer:
                 "node_source": node_source,
                 "trigger": trigger.name,
                 "model": model,
-                "model_max_tokens": get_profile(model).max_context_tokens,
                 "token_budget": effective_budget,
                 "hard_limit": hard_limit,
                 "before_tokens": before_tokens,

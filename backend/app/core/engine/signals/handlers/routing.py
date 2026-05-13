@@ -91,6 +91,14 @@ class RouteToHandler(SignalHandler[RouteToSignal]):
             parameters=TicketParameters(**parameters) if parameters else None,
         )
         blackboard.ticket = execution_ticket
+        target_name = target.value if hasattr(target, 'value') else str(target)
+        logger.info(
+            f"[Routing] ExecutionTicket dispatched to {target_name} | "
+            f"topic='{execution_ticket.topic}' | "
+            f"skills={execution_ticket.skill_ids or execution_ticket.skill_id} | "
+            f"tools={agent_config.tools if agent_config else []} | "
+            f"acceptance={execution_ticket.acceptance_criteria}"
+        )
 
         # 3. Handle Blackboard/Loop Detection
         visited_nodes = list(blackboard.visited_nodes or [])

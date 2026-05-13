@@ -13,6 +13,7 @@ import time
 from langchain_core.messages import AIMessage, RemoveMessage
 from langchain_core.runnables import RunnableConfig
 
+from app.core.config import settings
 from app.core.engine.nodes.base import BaseNode
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.services.audit_service import AuditService, AuditResult
@@ -170,20 +171,26 @@ class FinishNode(BaseNode):
         # If a Worker hit max_steps and requested replanning, bypass
         # auditing and route straight back to Supervisor.
         # ------------------------------------------------------------
-        for msg in reversed(messages):
-            if isinstance(msg, AIMessage):
-                meta = msg.additional_kwargs
-                if meta.get("is_truncated") and meta.get("requires_replan"):
-                    logger.warning(
-                        f"[Finish] 🔄 Worker was truncated (max_steps={meta.get('max_steps')}). "
-                        "Routing back to Supervisor for replanning."
-                    )
-                    blackboard.worker_outcome = "failed"
-                    return StateUpdate(
-                        messages=messages,
-                        next_node=RoutingTarget.SUPERVISOR,
-                        blackboard=blackboard,
-                    )
+        iteration_count = (state.iteration_count or 0)
+        max_steps = settings.SUPERVISOR_AGENT_MAX_STEPS
+        if blackboard and blackboard.metadata and blackboard.metadata.max_supervisor_steps:
+            max_steps = blackboard.metadata.max_supervisor_steps
+
+        if iteration_count < max_steps:
+            for msg in reversed(messages):
+                if isinstance(msg, AIMessage):
+                    meta = msg.additional_kwargs
+                    if meta.get("is_truncated") and meta.get("requires_replan"):
+                        logger.warning(
+                            f"[Finish] 🔄 Worker was truncated (max_steps={meta.get('max_steps')}). "
+                            "Routing back to Supervisor for replanning."
+                        )
+                        blackboard.worker_outcome = "truncated"
+                        return StateUpdate(
+                            messages=messages,
+                            next_node=RoutingTarget.SUPERVISOR,
+                            blackboard=blackboard,
+                        )
 
         is_shadow_mode = blackboard.metadata.shadow_audit or False
         tool_history = blackboard.metadata.tool_history
@@ -233,13 +240,16 @@ class FinishNode(BaseNode):
 
         # NEW: Enforce audit verdict — INCOMPLETE routes back to Supervisor
         if final_outcome.upper() == "INCOMPLETE":
-            logger.warning(f"[Finish] 🔄 Audit verdict: INCOMPLETE. Routing back to Supervisor.")
-            blackboard.worker_outcome = "incomplete"
-            return StateUpdate(
-                messages=messages,
-                next_node=RoutingTarget.SUPERVISOR,
-                blackboard=blackboard,
-            )
+            if iteration_count < max_steps:
+                logger.warning(f"[Finish] 🔄 Audit verdict: INCOMPLETE. Routing back to Supervisor.")
+                blackboard.worker_outcome = "incomplete"
+                return StateUpdate(
+                    messages=messages,
+                    next_node=RoutingTarget.SUPERVISOR,
+                    blackboard=blackboard,
+                )
+            else:
+                logger.warning(f"[Finish] ⚠️ Audit verdict: INCOMPLETE, but iteration limit ({max_steps}) reached. Forcing completion.")
 
         # Apply summary ONLY for comprehensive tiers to avoid technical log pollution
         if audit_tier == "comprehensive":

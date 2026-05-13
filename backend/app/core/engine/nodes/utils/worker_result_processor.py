@@ -60,12 +60,24 @@ async def process_worker_result(
 
     # Determine structured outcome using EngineResult.outcome if available
     outcome = engine_result.outcome
-    if outcome and outcome.status in ("failed", "error", "truncated"):
+    if outcome and outcome.status == "truncated":
+        # Preserve truncation signal so Supervisor can route back to Worker
+        # without running LLM re-planning (which often hits max_tokens).
+        worker_outcome = "truncated"
+        if execution_ticket:
+            execution_ticket.is_resuming = True
+    elif outcome and outcome.status in ("failed", "error"):
         worker_outcome = "failed"
+        if execution_ticket:
+            execution_ticket.is_resuming = False
     elif "[ERROR:" in content or content.strip().startswith("Error:"):
         worker_outcome = "failed"
+        if execution_ticket:
+            execution_ticket.is_resuming = False
     else:
         worker_outcome = "success"
+        if execution_ticket:
+            execution_ticket.is_resuming = False
 
     parameters = execution_ticket.parameters
     verbose_output = parameters.verbose_output if parameters else True

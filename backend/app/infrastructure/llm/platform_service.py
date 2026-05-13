@@ -30,6 +30,41 @@ class LLMPlatformService:
             cls._instance = super().__new__(cls)
             cls._fetch_lock = asyncio.Lock()
         return cls._instance
+
+    # --- Profile & Feature Detection ---
+    def get_profile(self, model_name: str) -> PlatformModel:
+        """Get the profile (PlatformModel) for a given model name."""
+        if not model_name:
+            return PlatformModel(model_id="unknown", display_name="Unknown", provider_name="unknown")
+
+        # --- Phase 1: Try Live Config (The source of truth) ---
+        live_model = self.get_model_by_id(model_name)
+        if live_model:
+            return live_model
+
+        # --- Phase 2: Static Fallback ---
+        effective_name = model_name
+        if model_name.startswith("custom-"):
+            parts = model_name.split("-", 2)
+            if len(parts) >= 3:
+                effective_name = parts[2]
+        
+        from app.infrastructure.config.service import SystemConfigService
+        configured_vision_model = SystemConfigService.get_value("VISION_MODEL")
+        if not configured_vision_model:
+            configured_vision_model = SystemConfigService.get_value("CUSTOM_LLM_MODEL") or SystemConfigService.get_value("LLM_MODEL")
+            
+        supports_vision = (effective_name == configured_vision_model) if configured_vision_model else False
+
+        provider_type = "anthropic" if "claude" in effective_name.lower() else "openai"
+        return PlatformModel(
+            model_id=model_name,
+            display_name=model_name,
+            provider_name=provider_type,
+            context_window=DEFAULT_MAX_CONTEXT_TOKENS,
+            supports_vision=supports_vision,
+            provider_type=provider_type
+        )
     
     async def fetch_platform_models(self) -> List[PlatformModel]:
         """
@@ -168,6 +203,9 @@ async def get_available_llm_models(config_type: str = None) -> List[Dict[str, An
         
         # 从配置获取 vision model
         vision_model = SystemConfigService.get_value("VISION_MODEL", custom_model)
+        
+        # Get profile for custom model to determine context window
+        profile = llm_platform_service.get_profile(custom_model)
         
         result.append({
             "id": custom_id,

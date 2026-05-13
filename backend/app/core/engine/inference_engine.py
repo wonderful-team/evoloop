@@ -138,12 +138,53 @@ class InferenceEngine:
                     f"{trim_result.before_tokens} -> {trim_result.after_tokens} tokens"
                 )
 
+            # --- Cognitive Enhancement: Inject Context Dashboard into the message stream ---
+            # We inject this into the last HumanMessage (usually the context_ticket) 
+            # so the Agent sees it as part of its current 'world state'.
+            if loop_messages:
+                # Find the last HumanMessage to append the dashboard
+                for i in range(len(loop_messages) - 1, -1, -1):
+                    if isinstance(loop_messages[i], HumanMessage):
+                        from app.core.engine.context_monitor import ContextMonitor
+                        dashboard = "\n\n" + ContextMonitor.calculate(loop_messages, model=model).to_prompt()
+
+                        # Create a new message with appended dashboard to avoid side effects on the original history
+                        original_msg = loop_messages[i]
+                        original_content = original_msg.content
+                        if not isinstance(original_content, str):
+                            # Skip dashboard injection for non-string content (e.g., Anthropic-style blocks)
+                            # to avoid corrupting message format expected by the LLM provider
+                            logger.debug(
+                                f"[{name}] Skipping dashboard injection: "
+                                f"HumanMessage content is {type(original_content).__name__}, not str"
+                            )
+                            break
+                        new_content = original_content + dashboard
+                        loop_messages[i] = HumanMessage(
+                            content=new_content,
+                            name=original_msg.name,
+                            additional_kwargs=original_msg.additional_kwargs
+                        )
+                        break
+
+        # DEBUG: Check loop_messages before returning
+        for idx, msg in enumerate(loop_messages):
+            if not isinstance(msg, BaseMessage):
+                logger.error(
+                    f"[{name}] 🚨 _prepare_turn_context returning non-BaseMessage at index {idx}: "
+                    f"type={type(msg).__name__}, repr={repr(msg)[:200]}"
+                )
+
         # Log context window size before each LLM call
         msg_count = len(loop_messages)
-        from app.core.engine.message.utils import count_total_tokens
-        token_count = count_total_tokens(loop_messages)
-        logger.info(f"--- {name} Context: {msg_count} msgs, ~{token_count} tokens ---")
-        return loop_messages
+        if model:
+            from app.core.engine.context_monitor import ContextMonitor
+            stats = ContextMonitor.calculate(loop_messages, model=model)
+            logger.info(f"--- {name} Context: {msg_count} msgs, ~{stats.total_tokens} tokens ({stats.usage_ratio*100:.1f}%) ---")
+        else:
+            logger.info(f"--- {name} Context: {msg_count} msgs ---")
+
+        return loop_messages, None
 
     async def _execute_llm_call(
         self,
@@ -349,10 +390,12 @@ class InferenceEngine:
         is_truncated = False
         if last_response and last_response.tool_calls:
             logger.error(f"[{name}] Hit max_steps ({max_steps}) with open tool calls.")
+            tools_summary = ", ".join(local_tool_history) if local_tool_history else "None"
             truncation_msg = AIMessage(
                 content=(
                     f"[TRUNCATION] Agent reached the maximum step limit ({max_steps}) "
                     f"with pending tool calls. The task may be incomplete or stuck in a loop. "
+                    f"Tools executed in this batch: {tools_summary}. "
                     f"Supervisor review and replanning is required."
                 ),
                 additional_kwargs={"is_truncated": True, "max_steps": max_steps, "requires_replan": True}

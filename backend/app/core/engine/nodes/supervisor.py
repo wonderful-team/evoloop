@@ -55,6 +55,56 @@ class SupervisorNode(BaseAgentNode):
     def __init__(self):
         super().__init__(node_name="Supervisor", max_steps=settings.SUPERVISOR_AGENT_MAX_STEPS, temperature=0.2)
 
+    @staticmethod
+    def _filter_messages_for_supervisor(messages: list[BaseMessage]) -> list[BaseMessage]:
+        """
+        Supervisor 是决策者，只需要语义层消息：
+        - System Prompt
+        - 用户原始需求（HumanMessage）
+        - 最新的 context_ticket（动态状态注入）
+        - 不带 tool_calls 的 AIMessage（Supervisor 自己的思考、Worker 的最终总结）
+
+        完全丢弃所有 tool 调用链（AIMessage with tool_calls + ToolMessage）。
+        进度信息、工具统计、Worker 结果摘要已通过 context_ticket / blackboard 传递，
+        不需要从消息历史中推断。
+        """
+        result: list[BaseMessage] = []
+        latest_ticket_idx = -1
+
+        # 找到最新的 context_ticket 索引
+        for i, msg in enumerate(messages):
+            if isinstance(msg, HumanMessage) and msg.name == "context_ticket":
+                latest_ticket_idx = i
+
+        for i, msg in enumerate(messages):
+            if not isinstance(msg, BaseMessage):
+                logger.warning(f"[Supervisor] Skipping non-BaseMessage at index {i}: {type(msg).__name__}")
+                continue
+            if isinstance(msg, SystemMessage):
+                result.append(msg)
+            elif isinstance(msg, HumanMessage):
+                if msg.name == "context_ticket":
+                    if i == latest_ticket_idx:
+                        result.append(msg)
+                else:
+                    result.append(msg)
+            elif isinstance(msg, AIMessage):
+                if not msg.tool_calls:
+                    # 保留总结性 AIMessage（Supervisor 自己的思考、Worker 的最终报告）
+                    result.append(msg)
+                # 丢弃所有带 tool_calls 的 AIMessage（Worker 的工具调用请求）
+            elif isinstance(msg, ToolMessage):
+                # 丢弃所有 ToolMessage（Worker 的工具执行结果）
+                pass
+
+        dropped = len(messages) - len(result)
+        if dropped > 0:
+            logger.info(
+                f"[Supervisor] Messages filtered: {len(messages)} → {len(result)} "
+                f"(dropped={dropped} tool/exec messages)"
+            )
+        return result
+
     async def prepare_state(self, state: AgentState, config: RunnableConfig) -> StateUpdate | None:
         """Pre-computation: Check for subtask completion and worker outcome."""
         # NOTE: Token-driven trimming is handled by ContextTrimmer in engine.run_node().
@@ -143,8 +193,41 @@ class SupervisorNode(BaseAgentNode):
                     blackboard=blackboard,
                     iteration_count=(state.iteration_count or 0) + 1
                 )
+            elif worker_outcome == "truncated":
+                # Worker hit max_steps and was truncated. Bypass Supervisor LLM entirely
+                # and route directly back to Worker to continue execution.
+                # The Worker retains blackboard state and will pick up where it left off.
+                logger.info(
+                    "[Supervisor] Worker was truncated by max_steps. "
+                    "Routing back to WORKER to continue execution."
+                )
+                return StateUpdate(
+                    next_node=RoutingTarget.WORKER,
+                    blackboard=blackboard,
+                    iteration_count=(state.iteration_count or 0) + 1
+                )
             else:
                 logger.warning(f"[Supervisor] 🔄 Worker outcome: {worker_outcome}. Re-planning required.")
+                # If plan has pending steps, route back to Worker directly
+                progress = blackboard.metadata.plan_progress
+                if progress and not progress.is_complete():
+                    logger.info(
+                        f"[Supervisor] ⚠️ Worker failed/truncated but plan incomplete "
+                        f"({progress.completed_steps}/{progress.total_steps}). Routing back to WORKER."
+                    )
+                    return StateUpdate(
+                        next_node=RoutingTarget.WORKER,
+                        blackboard=blackboard,
+                        iteration_count=(state.iteration_count or 0) + 1
+                    )
+                plan = state.structured_plan or state.current_plan
+                if plan and _plan_has_pending_steps(plan):
+                    logger.info("[Supervisor] ⚠️ Worker failed/truncated but structured_plan has pending steps. Routing back to WORKER.")
+                    return StateUpdate(
+                        next_node=RoutingTarget.WORKER,
+                        blackboard=blackboard,
+                        iteration_count=(state.iteration_count or 0) + 1
+                    )
                 blackboard.ticket = None
 
         return None
@@ -220,6 +303,22 @@ class SupervisorNode(BaseAgentNode):
             ai_content = str(last_msg.content).strip()
 
         if ai_content:
+            # Safety: If Supervisor itself was truncated while trying to recover from
+            # Worker truncation, route back to WORKER instead of FINISH.
+            if (
+                last_msg.additional_kwargs.get("is_truncated")
+                and getattr(blackboard, "worker_outcome", None) == "truncated"
+            ):
+                logger.warning(
+                    "[Supervisor] LLM output truncated during truncation recovery. "
+                    "Routing back to WORKER."
+                )
+                return StateUpdate(
+                    messages=new_messages,
+                    next_node=RoutingTarget.WORKER,
+                    blackboard=blackboard,
+                    iteration_count=new_iter_count,
+                )
             # P1 Improvement: Direct response is now allowed. Route to FINISH.
             return StateUpdate(
                 messages=new_messages,
