@@ -5,10 +5,11 @@ Todo Module Event Subscribers
 Handles todo lifecycle (harvesting), memory context provision, and rewind cleanup.
 """
 
+import asyncio
 import logging
 from typing import List
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 from sqlalchemy import delete, select
 
 from app.core.engine.rewind.event import RewindEventType, RewindRequestedEvent
@@ -23,22 +24,12 @@ from app.core.memory.event import (
 from app.domain.todo.event.schemas import TodoCleanupEvent
 from app.infrastructure.database.sql.database import session_scope
 from app.utils import render_template
+from app.domain.todo.service import TodoService
+from app.domain.todo.schemas import TodoHarvestingResult, TodoCreate
+from app.infrastructure.config.service import SystemConfigService
+from app.core.llm import InternalLLMService
 
 logger = logging.getLogger(__name__)
-
-
-class ExtractedTodo(BaseModel):
-    """Schema for a single extracted todo item."""
-    title: str = Field(..., description="Short, actionable title")
-    description: str = Field(..., description="Detailed context of the task")
-    priority: str = Field("medium", description="low|medium|high")
-    category: str = Field("general", description="coordination|task|feature|bug")
-    reasoning: str = Field(..., description="Why this item was extracted from the history")
-
-
-class TodoHarvestingResult(BaseModel):
-    """Container for multiple extracted todos."""
-    todos: List[ExtractedTodo] = Field(default_factory=list)
 
 
 @event_register()
@@ -66,23 +57,84 @@ class TodoLifecycleSubscriber:
         token = ContextManager.set(ctx)
 
         try:
-            # TODO: Implement harvesting logic
-            # 1. Check feature flags / settings for auto-todo-extraction
-            # 2. Prepare the harvesting prompt using 'core/todo/extraction.prompt.j2'
-            # 3. Call InternalLLMService.invoke_structured with TodoHarvestingResult schema
-            # 4. Filter results based on confidence/relevance
-            # 5. Iteratively call TodoService.create for each valid extraction
-            
-            # NOTE: This should run in a background task to avoid blocking the engine
-            # asyncio.create_task(self._harvest_todos(data))
-            pass
+            # Trigger background harvesting task
+            asyncio.create_task(self._harvest_todos(data))
         finally:
             ContextManager.reset(token)
 
     async def _harvest_todos(self, data):
         """Internal background method for deep analysis and storage."""
-        # TODO: Real implementation involving LLM and TodoService
-        pass
+        thread_id = data.thread_id
+        project_id = data.project_id
+        model = data.model
+
+        # 1. Check feature flags / settings
+        auto_extract = SystemConfigService.get_value("AUTO_TODO_EXTRACTION", "true").lower() == "true"
+        if not auto_extract:
+            logger.debug(f"[Todo] Auto-extraction disabled for thread {thread_id}")
+            return
+
+        logger.info(f"[Todo] 🧠 Harvesting todos for thread {thread_id}...")
+
+        try:
+            # 2. Prepare context and history
+            from app.core.engine.message.repository import MessageRepository
+            repo = MessageRepository(thread_id=thread_id, project_id=project_id)
+            db_messages, _, _ = await repo.get_full_history()
+            
+            if not db_messages:
+                logger.debug(f"[Todo] No messages found for thread {thread_id}, skipping")
+                return
+
+            user_lang = SystemConfigService.get_language_preference()
+            
+            # 3. Render prompt
+            prompt_text = render_template(
+                "core/todo/extraction.prompt.j2",
+                thread_id=thread_id,
+                user_language=user_lang,
+                messages=[{"role": m.role, "content": m.content} for m in db_messages],
+                summary_needed=True
+            )
+
+            # 4. Call InternalLLMService
+            model_name = SystemConfigService.get_value("LLM_MODEL")
+            result = await InternalLLMService.invoke_structured(
+                messages=[{"role": "system", "content": prompt_text}],
+                purpose="todo_extraction",
+                output_schema=TodoHarvestingResult,
+                temperature=0.0,
+                model_name=model_name
+            )
+
+            if not result.todos:
+                logger.info(f"[Todo] No pending tasks identified for thread {thread_id}")
+                return
+
+            # 5. Persist valid extractions
+            async with session_scope() as session:
+                service = TodoService(session)
+                count = 0
+                for ext in result.todos:
+                    if ext.confidence < 0.7:
+                        continue
+                    
+                    await service.create(
+                        TodoCreate(
+                            title=ext.title,
+                            description=ext.description,
+                            priority=ext.priority,
+                            category=ext.category,
+                            project_id=project_id
+                        ),
+                        source_conversation_id=thread_id
+                    )
+                    count += 1
+                
+                logger.info(f"[Todo] ✅ Successfully harvested {count} todos for thread {thread_id}")
+
+        except Exception as e:
+            logger.error(f"[Todo] Harvesting failed for thread {thread_id}: {e}")
 
 
 @event_register()

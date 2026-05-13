@@ -107,3 +107,21 @@ class TodoListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+# ============== Harvesting Schemas ==============
+
+class ExtractedTodo(BaseModel):
+    """A single todo item extracted from conversation."""
+    title: str = Field(..., description="Short descriptive title of the task")
+    description: str | None = Field(None, description="Detailed explanation or context of the task")
+    priority: Literal["low", "medium", "high"] = Field("medium", description="Importance level")
+    category: str | None = Field(None, description="Broad category, e.g., 'bug', 'feature', 'chore'")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="How certain we are that this is a real pending task")
+    reasoning: str | None = Field(None, description="Why this was identified as a task")
+
+
+class TodoHarvestingResult(BaseModel):
+    """The full result of a todo extraction run."""
+    todos: list[ExtractedTodo] = Field(default_factory=list)
+    summary: str = Field(..., description="Brief summary of the extraction process")

@@ -237,3 +237,21 @@ class KBReadInput(BaseModel):
         default="",
         description="Collection name (if not included in path)"
     )
+
+
+# ============== Harvesting Schemas ==============
+
+class ExtractedKnowledge(BaseModel):
+    """A single piece of knowledge extracted from conversation."""
+    title: str = Field(..., description="Short descriptive title of the knowledge")
+    content: str = Field(..., description="The actual knowledge content, formatted as Markdown")
+    category: str = Field(..., description="Category, e.g., 'technical_rule', 'business_logic', 'workflow', 'environment'")
+    tags: list[str] = Field(default_factory=list, description="Relevant tags")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="How certain we are that this is valuable knowledge")
+    source_context: str | None = Field(None, description="Excerpt from conversation for tracing")
+
+
+class KnowledgeHarvestingResult(BaseModel):
+    """The full result of a knowledge extraction run."""
+    items: list[ExtractedKnowledge] = Field(default_factory=list)
+    summary: str = Field(..., description="Brief summary of the knowledge discovered")
