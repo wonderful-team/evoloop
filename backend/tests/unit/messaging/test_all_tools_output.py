@@ -212,7 +212,8 @@ async def main():
         from app.infrastructure.database.resource_manager import db_resource_manager
         from app.infrastructure.database.sql.database import Base
         from app.models import conversation, checkpoint, codebase, learning, planning, scheduler, todo, memory, maintenance, wiki, citation, file_operation, system  # noqa: F401
-        from app.domain.project.requirements.models import ProjectRequirementDocument, ProjectRequirementAnalysis  # noqa: F401
+        # Requirements module has been decommissioned
+        # from app.domain.project.requirements.models import ProjectRequirementDocument, ProjectRequirementAnalysis  # noqa: F401
         
         engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False, future=True)
         db_resource_manager._engine = engine
