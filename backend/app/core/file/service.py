@@ -13,9 +13,24 @@ import urllib.request
 from typing import Iterator, List, Optional
 from urllib.parse import urlparse
 
+from .types import (
+    is_text as is_text_file,
+    is_binary as is_binary_file,
+    is_test as is_test_file,
+    is_image as is_image_file,
+    is_video as is_video_file,
+    is_audio as is_audio_file,
+    is_archive as is_archive_file,
+    is_document as is_document_file,
+    is_code as is_code_file,
+    get_extension as get_file_ext,
+    guess_mime as guess_mime_type,
+    get_category as get_file_category,
+)
 from .traverser import FileTraverser, TraverseOptions
 
 logger = logging.getLogger(__name__)
+
 
 def walk_tree(
     root_path: str,
@@ -33,6 +48,7 @@ def walk_tree(
         recursive=True
     )
     return FileTraverser.walk(root_path, options)
+
 
 def resolve_path(file_path: str, base_path: Optional[str] = None) -> Optional[str]:
     """
@@ -79,13 +95,8 @@ def resolve_path(file_path: str, base_path: Optional[str] = None) -> Optional[st
 
     return os.path.abspath(expanded)
 
+
 def ensure_local_path(file_path: str) -> str:
-    """
-    Downloads remote file to a temporary location if needed.
-    Returns local absolute path.
-    """
-    # TODO: Integration with StorageProvider for remote files
-    return os.path.abspath(os.path.expanduser(file_path))
     """
     Downloads remote file to a temporary location if needed.
     """
@@ -121,20 +132,6 @@ def ensure_local_path(file_path: str) -> str:
     except Exception as e:
         raise ValueError(f"Failed to download remote file: {e}")
 
-from .types import (
-    is_text as is_text_file,
-    is_binary as is_binary_file,
-    is_test as is_test_file,
-    is_image as is_image_file,
-    is_video as is_video_file,
-    is_audio as is_audio_file,
-    is_archive as is_archive_file,
-    is_document as is_document_file,
-    is_code as is_code_file,
-    get_extension as get_file_ext,
-    guess_mime as guess_mime_type,
-    get_category as get_file_category,
-)
 
 def filter_code_files(paths: List[str]) -> List[str]:
     """Filter list of paths to only include text/code files."""
