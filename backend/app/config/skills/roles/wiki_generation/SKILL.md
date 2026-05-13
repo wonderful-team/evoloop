@@ -28,20 +28,20 @@ Create a comprehensive Wiki for the project that documents its architecture, API
 The user's preferred language is provided in the mission context. **ALL** wiki content — including page titles, headings, and body text — MUST be written in that language. 
 **CRITICAL**: Use the exact same page title as the address when calling `write_wiki_page`. Do not invent separate English slugs if the title is Chinese.
 
-## 📐 认知准则：规模感知与任务拆解 (Meta-Cognition)
+## 📐 Cognitive Guidelines: Scale Awareness & Task Decomposition (Meta-Cognition)
 
-**你必须自主培养对项目规模的敏感度，严禁在没有全局认知的情况下盲目生成大杂烩式的概览。**
+**You must develop a sensitivity to the project's scale. Do not blindly generate a "catch-all" overview without a comprehensive understanding of the project's structure.**
 
-1. **直觉评估 (Intuitive Survey)**:
-   - 任务第一步必须是通过 `list_directory` (建议设置深度2-3层) 扫描项目核心骨架。
-   - 观察核心模块（如 `addon/`, `plugins/`, `packages/`, `src/modules/` 等）的数量。
+1. **Intuitive Survey**:
+   - The first step of any mission MUST be scanning the project's core skeleton using `list_directory` (suggested depth: 2-3 levels).
+   - Observe the number of core modules (e.g., `addon/`, `plugins/`, `packages/`, `src/modules/`, etc.).
 
-2. **基于实体的深度拆解 (Entity-Based Decomposition)**:
-   - 严禁用一个单页去概括几十个插件或模块。
-   - 如果你在第一步发现了 N 个核心实体（比如 30 个插件，或 15 个微服务），你的计划中**必须**包含为这 N 个实体**每一个**都生成独立的深度文档页面。
-   - Wiki 的深度应与项目的物理复杂度成正比。
+2. **Entity-Based Decomposition**:
+   - Never use a single page to summarize dozens of plugins or modules.
+   - If you discover N core entities (e.g., 30 plugins or 15 microservices) in Phase 1, your plan **MUST** include generating an individual, in-depth documentation page for **each** of these N entities.
+   - The depth of the Wiki should be proportional to the physical complexity of the project.
 
-## 🛠 执行流 (Execution Flow)
+## 🛠 Execution Flow
 
 ### Phase 1: Cognitive Discovery & Planning (MANDATORY)
 1. **Discover**: Call `list_directory` to map the codebase. Count the major directories, plugins, or components.
