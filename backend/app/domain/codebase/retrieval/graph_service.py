@@ -15,7 +15,7 @@ from typing import Any
 from langchain_core.prompts.prompt import PromptTemplate
 
 from app.core.config import settings
-from app.infrastructure.database.graph.driver import get_graph_db
+from app.infrastructure.database.graph.driver import GraphManager, get_graph_db
 from app.infrastructure.llm.factory import get_default_llm
 
 logger = logging.getLogger(__name__)
@@ -30,27 +30,30 @@ class GraphService:
     """
 
     def __init__(self):
-        # Skip initialization in Embedded Mode (no Neo4j)
-        self._graph = None
+        # Always initialize driver through GraphManager
+        self._driver = GraphManager.get_driver()
+        self._graph = None # For QAChain (Neo4j only)
         self._embedded_mode = settings.EMBEDDED_MODE
         
         if self._embedded_mode:
-            logger.debug("GraphService: Disabled in Embedded Mode (Neo4j not available)")
-            return
+            logger.info("GraphService: Running in Embedded Mode (FileGraph)")
+        else:
+            logger.info("GraphService: Running in Neo4j Mode")
 
-        # Initialize LangChain Neo4jGraph for NL queries
-        try:
-            from langchain_neo4j import Neo4jGraph
-            
-            self._graph = Neo4jGraph(
-                url=settings.NEO4J_URI,
-                username=settings.NEO4J_USER,
-                password=settings.NEO4J_PASSWORD,
-                refresh_schema=False,
-            )
-            
-            # Define schema explicitly (bypassing APOC)
-            self._graph.schema = """
+        # Initialize LangChain Neo4jGraph for NL queries (Production Mode only)
+        if not self._embedded_mode:
+            try:
+                from langchain_neo4j import Neo4jGraph
+                
+                self._graph = Neo4jGraph(
+                    url=settings.NEO4J_URI,
+                    username=settings.NEO4J_USER,
+                    password=settings.NEO4J_PASSWORD,
+                    refresh_schema=False,
+                )
+                
+                # Define schema explicitly (bypassing APOC)
+                self._graph.schema = """
 Node properties:
 - **File**
   - path: STRING (The relative file path, e.g. 'app/main.py')
@@ -70,73 +73,110 @@ Relationships:
 (:File)-[:CONTAINS]->(:CodeEntity)
 (:CodeEntity)-[:RELATION]->(:CodeEntity)
 """
-            logger.info("GraphService initialized with manual schema")
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize Neo4jGraph: {e}")
-            self._graph = None
+                logger.info("GraphService initialized with manual schema")
+                
+            except Exception as e:
+                logger.error(f"Failed to initialize Neo4jGraph: {e}")
+                self._graph = None
 
     # =================================================================================
     # Structured Queries (from former GraphRetrievalService)
     # =================================================================================
 
     async def find_symbol_definition(self, symbol_name: str, project_id: int) -> list[dict[str, Any]]:
-        """Find a symbol definition using Graph."""
-        driver = await get_graph_db()
-        query = """
-        MATCH (e:CodeEntity {name: $name, project_id: $pid})
-        MATCH (f:File)-[:CONTAINS]->(e)
-        RETURN e.full_name as full_name, e.type as type, f.path as file_path, e.score as score
-        LIMIT 10
-        """
-        async with driver.session() as session:
-            result = await session.run(query, name=symbol_name, pid=project_id)
-            return await result.data()
+        """Find a symbol definition using high-level API."""
+        # MATCH (e:CodeEntity {name: $name, project_id: $pid})
+        # MATCH (f:File)-[:CONTAINS]->(e)
+        entities = await self._driver.find_nodes("CodeEntity", {"name": symbol_name, "project_id": project_id})
+        
+        results = []
+        for e in entities:
+            # Reverse traverse: Entity -> File (who CONTAINS me)
+            files = await self._driver.traverse(
+                "CodeEntity", {"full_name": e["full_name"]},
+                rel_type="CONTAINS",
+                direction="in",
+                target_label="File"
+            )
+            file_path = files[0]["path"] if files else "unknown"
+            results.append({
+                "full_name": e["full_name"],
+                "type": e.get("type"),
+                "file_path": file_path,
+                "score": e.get("score")
+            })
+        return results
 
     async def find_usages(self, symbol_name: str, project_id: int) -> list[dict[str, Any]]:
         """Find who uses (calls/references) this symbol."""
-        driver = await get_graph_db()
-        query = """
-        MATCH (target:CodeEntity {name: $name, project_id: $pid})
-        MATCH (source:CodeEntity)-[r]->(target)
-        MATCH (f:File)-[:CONTAINS]->(source)
-        RETURN source.full_name as source, r.type as relation, f.path as file_path, target.full_name as target
-        LIMIT 50
-        """
-        async with driver.session() as session:
-            result = await session.run(query, name=symbol_name, pid=project_id)
-            return await result.data()
+        # Find the target entity first
+        targets = await self._driver.find_nodes("CodeEntity", {"name": symbol_name, "project_id": project_id})
+        
+        results = []
+        for target in targets:
+            # Traverse any relationship incoming to this target
+            # Note: rel_type="RELATION" is used for generic links
+            sources = await self._driver.traverse(
+                "CodeEntity", {"full_name": target["full_name"]},
+                rel_type="RELATION",
+                direction="in",
+                target_label="CodeEntity"
+            )
+            
+            for src in sources:
+                # Find file for source
+                files = await self._driver.traverse(
+                    "CodeEntity", {"full_name": src["full_name"]},
+                    rel_type="CONTAINS",
+                    direction="in",
+                    target_label="File"
+                )
+                results.append({
+                    "source": src["full_name"],
+                    "relation": "references", # Simplified
+                    "file_path": files[0]["path"] if files else "unknown",
+                    "target": target["full_name"]
+                })
+        return results
 
     async def get_call_hierarchy(self, symbol_name: str, project_id: int, depth: int = 2) -> dict[str, Any]:
-        """Get recursive call hierarchy (Who calls me, who do I call)."""
-        driver = await get_graph_db()
+        """Get recursive call hierarchy (Who calls me, who do I call) using high-level API."""
+        # Find starting nodes
+        nodes = await self._driver.find_nodes("CodeEntity", {"name": symbol_name, "project_id": project_id})
+        if not nodes:
+            return {"incoming": 0, "outgoing": 0, "details": "Symbol not found"}
 
-        incoming_query = f"""
-        MATCH (target:CodeEntity {{name: $name, project_id: $pid}})
-        MATCH path = (source)-[:RELATION*1..{depth}]->(target)
-        RETURN path
-        LIMIT 20
-        """
+        incoming_total = 0
+        outgoing_total = 0
+        
+        for node in nodes:
+            full_name = node["full_name"]
+            
+            # Incoming (Who calls me)
+            in_nodes = await self._driver.traverse(
+                "CodeEntity", {"full_name": full_name},
+                rel_type="RELATION",
+                direction="in",
+                target_label="CodeEntity",
+                limit=20
+            )
+            incoming_total += len(in_nodes)
+            
+            # Outgoing (Who do I call)
+            out_nodes = await self._driver.traverse(
+                "CodeEntity", {"full_name": full_name},
+                rel_type="RELATION",
+                direction="out",
+                target_label="CodeEntity",
+                limit=20
+            )
+            outgoing_total += len(out_nodes)
 
-        outgoing_query = f"""
-        MATCH (source:CodeEntity {{name: $name, project_id: $pid}})
-        MATCH path = (source)-[:RELATION*1..{depth}]->(target)
-        RETURN path
-        LIMIT 20
-        """
-
-        async with driver.session() as session:
-            in_res = await session.run(incoming_query, name=symbol_name, pid=project_id)
-            in_paths = await in_res.data()
-
-            out_res = await session.run(outgoing_query, name=symbol_name, pid=project_id)
-            out_paths = await out_res.data()
-
-            return {
-                "incoming": len(in_paths),
-                "outgoing": len(out_paths),
-                "details": "Graph paths fetched (summarized for now)",
-            }
+        return {
+            "incoming": incoming_total,
+            "outgoing": outgoing_total,
+            "details": f"Analyzed {len(nodes)} entities for {symbol_name}",
+        }
 
     # =================================================================================
     # Natural Language Queries (from former GraphExplorer)
@@ -185,21 +225,11 @@ Relationships:
             logger.error(f"Graph NL Query Failed: {e}")
             return f"I couldn't query the graph: {e}"
 
-    async def query_cypher(self, cypher_query: str, params: dict | None = None) -> list[dict]:
+    async def query_cypher(self, cypher_query: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         """
-        Execute raw Cypher query directly.
-
-        Args:
-            cypher_query: Raw Cypher query string
-            params: Query parameters
-
-        Returns:
-            List of result records as dictionaries
+        Execute raw Cypher query directly using the driver.
         """
-        driver = await get_graph_db()
-        async with driver.session() as session:
-            result = await session.run(cypher_query, params or {})
-            return await result.data()
+        return await self._driver.execute_query(cypher_query, parameters=params)
 
     async def multi_entity_query(
         self,
@@ -209,114 +239,69 @@ Relationships:
         project_id: int | None = None,
     ) -> str:
         """
-        Query relationships involving multiple entities.
-
-        Args:
-            entities: List of entity names to search for
-            operator: "and" = find relations between all entities,
-                     "or" = find relations for any entity
-            question: Optional natural language context for the query
-            project_id: Project ID to restrict search
-
-        Returns:
-            Formatted string describing the relationships found
+        Query relationships involving multiple entities using high-level API.
         """
-        if self._embedded_mode:
-            return "Graph Service is not available (Neo4j not connected or in Embedded Mode)."
+        # If Neo4j is available, we can still use Cypher for performance if preferred,
+        # but for full unification, we'll implement a driver-agnostic logic here.
+        # Actually, let's keep it simple: Find who relates to ANY or ALL targets.
+        
+        results = []
+        
+        # 1. Find all target nodes
+        all_targets = []
+        for name in entities:
+            nodes = await self._driver.find_nodes("CodeEntity", {"name": name, "project_id": project_id})
+            all_targets.extend(nodes)
+            
+        if not all_targets:
+            return f"No entities found for: {', '.join(entities)}"
 
-        driver = await get_graph_db()
+        # 2. For each target, find its incoming relations
+        caller_map = {} # full_name -> {type, matched_targets: set}
+        
+        for target in all_targets:
+            sources = await self._driver.traverse(
+                "CodeEntity", {"full_name": target["full_name"]},
+                rel_type="RELATION",
+                direction="in",
+                target_label="CodeEntity"
+            )
+            
+            for src in sources:
+                s_name = src["full_name"]
+                if s_name not in caller_map:
+                    caller_map[s_name] = {"type": src.get("type", "unknown"), "matched_targets": set()}
+                caller_map[s_name]["matched_targets"].add(target["name"])
 
+        # 3. Filter based on operator
+        filtered_callers = []
         if operator == "and":
-            # AND logic: Find entities that relate to ALL specified entities
-            # Example: Find functions that call BOTH pay() AND notify()
-            query = """
-            MATCH (target:CodeEntity)
-            WHERE target.name IN $entity_names
-              AND target.project_id = $pid
-            WITH target
-            MATCH (caller:CodeEntity)-[r:RELATION]->(target)
-            WITH caller, collect(DISTINCT target.name) as matched_targets
-            WHERE size(matched_targets) = $entity_count
-            RETURN caller.full_name as caller,
-                   caller.type as caller_type,
-                   matched_targets as targets
-            LIMIT 50
-            """
+            target_set = set(entities)
+            for s_name, data in caller_map.items():
+                if target_set.issubset(data["matched_targets"]):
+                    filtered_callers.append((s_name, data))
         else:
-            # OR logic: Find all relations to ANY of the specified entities
-            query = """
-            MATCH (target:CodeEntity)
-            WHERE target.name IN $entity_names
-              AND target.project_id = $pid
-            WITH target
-            MATCH (caller:CodeEntity)-[r:RELATION]->(target)
-            RETURN DISTINCT
-                caller.full_name as caller,
-                caller.type as caller_type,
-                target.name as target_name,
-                target.type as target_type,
-                r.type as relation_type
-            LIMIT 100
-            """
+            for s_name, data in caller_map.items():
+                filtered_callers.append((s_name, data))
 
-        try:
-            async with driver.session() as session:
-                result = await session.run(
-                    query,
-                    entity_names=entities,
-                    entity_count=len(entities),
-                    pid=project_id,
-                )
-                records = await result.data()
+        if not filtered_callers:
+            return f"No shared relationships found for entities: {', '.join(entities)}"
 
-                if not records:
-                    return f"No relationships found for entities: {', '.join(entities)}"
-
-                # Format results
-                lines = [f"Graph Query Results for entities: {', '.join(entities)}",
-                         f"Operator: {operator.upper()} (project_id: {project_id})",
-                         ""]
-
-                if operator == "and":
-                    lines.append(f"Found {len(records)} entities that relate to ALL specified entities:")
-                    lines.append("")
-                    for record in records:
-                        lines.append(f"  • {record['caller']} ({record['caller_type']})")
-                        lines.append(f"    Targets: {', '.join(record['targets'])}")
-                else:
-                    lines.append(f"Found {len(records)} relationships:")
-                    lines.append("")
-                    # Group by caller for cleaner output
-                    by_caller = {}
-                    for record in records:
-                        caller = record['caller']
-                        if caller not in by_caller:
-                            by_caller[caller] = {
-                                'type': record['caller_type'],
-                                'relations': []
-                            }
-                        by_caller[caller]['relations'].append(
-                            f"{record['relation_type']} -> {record['target_name']}"
-                        )
-
-                    for caller, info in by_caller.items():
-                        lines.append(f"  • {caller} ({info['type']})")
-                        for rel in info['relations'][:5]:  # Limit relations per caller
-                            lines.append(f"    - {rel}")
-                        if len(info['relations']) > 5:
-                            lines.append(f"    ... and {len(info['relations']) - 5} more")
-
-                return "\n".join(lines)
-
-        except Exception as e:
-            logger.error(f"Multi-entity query failed: {e}")
-            return f"Query failed: {str(e)}"
+        # 4. Format Output
+        lines = [f"Graph Query Results for entities: {', '.join(entities)}",
+                 f"Operator: {operator.upper()} (project_id: {project_id})",
+                 ""]
+        
+        lines.append(f"Found {len(filtered_callers)} entities that match the criteria:")
+        for name, data in filtered_callers[:50]:
+            lines.append(f"  • {name} ({data['type']})")
+            lines.append(f"    Relates to: {', '.join(data['matched_targets'])}")
+            
+        if len(filtered_callers) > 50:
+            lines.append(f"\n... and {len(filtered_callers) - 50} more")
+            
+        return "\n".join(lines)
 
 
 # Global Instance
 graph_service = GraphService()
-
-# Backward compatibility aliases
-# TODO: Migrate callers to use graph_service directly
-graph_retrieval_service = graph_service
-graph_explorer = graph_service

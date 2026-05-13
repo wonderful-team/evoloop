@@ -56,9 +56,7 @@ class OntologyBuilder:
         """
 
         # We will do aggregation in Python to determine Directory nodes involved.
-        async with driver.session() as session:
-            result = await session.run(optimized_query, pid=project_id)
-            records = await result.data()
+        records = await driver.execute_query(optimized_query, pid=project_id)
 
         # Map: (src_dir, tgt_dir) -> count
         dependency_map = {}
@@ -68,7 +66,6 @@ class OntologyBuilder:
             tgt_p = r["tgt_path"]
 
             # Simple Heuristic: First level directory is the Module.
-            # e.g. app/domain/x.py -> app/domain
             src_dir = self._get_module_dir(src_p)
             tgt_dir = self._get_module_dir(tgt_p)
 
@@ -77,25 +74,18 @@ class OntologyBuilder:
                 dependency_map[key] = dependency_map.get(key, 0) + 1
 
         # Write back significant dependencies
-        async with driver.session() as session:
-            for (src, tgt), count in dependency_map.items():
-                if count >= 3:
-                    # Link Directory Nodes
-                    await session.run(
-                        """
-                        MATCH (d1:Directory {path: $src, project_id: $pid})
-                        MATCH (d2:Directory {path: $tgt, project_id: $pid})
-                        MERGE (d1)-[r:DEPENDS_ON]->(d2)
-                        SET r.weight = $w
-                     """,
-                        src=src,
-                        tgt=tgt,
-                        pid=project_id,
-                        w=count,
-                    )
-                    logger.info(
-                        f"Inferred Architecture: {src} DEPENDS_ON {tgt} (Weight: {count})"
-                    )
+        for (src, tgt), count in dependency_map.items():
+            if count >= 3:
+                # Link Directory Nodes via high-level API
+                await driver.link_nodes(
+                    "Directory", {"path": src, "project_id": project_id},
+                    "Directory", {"path": tgt, "project_id": project_id},
+                    "DEPENDS_ON",
+                    rel_props={"weight": count}
+                )
+                logger.info(
+                    f"Inferred Architecture: {src} DEPENDS_ON {tgt} (Weight: {count})"
+                )
 
     def _get_module_dir(self, file_path: str) -> str:
         # Returns parent dir.

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Any
 
 from app.core.atlas.models import AtlasApp
 from app.core.atlas.schemas import AtlasAppSummary, AtlasStateDetail, AtlasAppInfo
@@ -29,6 +30,13 @@ class IAtlasStore(ABC):
     async def get_state_detail(self, bundle_id: str, state_id: str, platform: str = "macos") -> AtlasStateDetail | None:
         """
         Retrieve detailed information about a specific UI state, including its elements.
+        """
+        pass
+
+    @abstractmethod
+    async def get_transitions_summary(self, bundle_id: str, platform: str = "macos") -> list[dict[str, Any]]:
+        """
+        Retrieve a summary of all transitions for an application.
         """
         pass
 

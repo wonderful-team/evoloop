@@ -534,8 +534,8 @@ class MemoryStorageFactory:
             
         if backend_type == "file":
             return FileMemoryStorage()
-        elif backend_type == "neo4j":
-            from app.core.memory.backends.neo4j_backend import Neo4jMemoryStorage
-            return Neo4jMemoryStorage()
+        elif backend_type == "graph":
+            from app.core.memory.backends.graph_backend import GraphMemoryStorage
+            return GraphMemoryStorage()
         else:
             raise ValueError(f"Unknown storage type: {backend_type}")

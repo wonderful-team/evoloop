@@ -1,189 +1,178 @@
 """
-Graph database driver for EvoLoop Backend.
+Unified Graph Database Management for EvoLoop.
 
-Supports two modes:
-- Full mode: Neo4j graph database
-- Embedded mode: No-op (graph features disabled)
+This module provides a consistent interface (GraphManager) to access either
+a full Neo4j graph database or a local file-based graph (FileGraph).
 """
 
 import asyncio
 import logging
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from app.core.config import settings
-from app.infrastructure.database.graph.file_graph import FileGraphDriver
 
 logger = logging.getLogger(__name__)
 
 
-# =============================================================================
-# NoOp Graph Driver (for Embedded Mode)
-# =============================================================================
+@runtime_checkable
+class IGraphDriver(Protocol):
+    """Protocol defining the interface for all graph drivers."""
 
-class NoOpGraphDriver:
-    """No-op graph driver for embedded mode."""
+    async def verify_connectivity(self) -> bool: ...
 
-    async def execute_query(self, query: str, parameters: dict = None, **kwargs):
-        """Execute query (no-op)."""
-        logger.debug(f"[NoOpGraph] Query ignored: {query[:50]}...")
-        return []
+    async def close(self) -> None: ...
 
-    async def verify_connectivity(self):
-        """Verify connectivity (no-op)."""
-        return True
+    def session(self) -> Any: ...
 
-    async def close(self):
-        """Close driver (no-op)."""
-        pass
+    async def execute_query(self, query: str, parameters: dict | None = None, **kwargs) -> list[dict]: ...
 
-    def session(self):
-        """Return a no-op session context manager."""
-        return NoOpGraphSessionContext()
+    # --- High Level Agnostic API ---
+
+    async def upsert_node(self, label: str, id_field: str, properties: dict[str, Any]) -> dict[str, Any]:
+        """Create or update a node. id_field specifies the uniqueness property."""
+        ...
+
+    async def find_nodes(self, label: str, filters: dict[str, Any] | None = None, limit: int = 100) -> list[dict[str, Any]]:
+        """Find nodes matching the given property filters."""
+        ...
+
+    async def delete_nodes(self, label: str, filters: dict[str, Any] | None = None, detach: bool = True) -> int:
+        """Delete nodes matching filters. Returns number of deleted nodes."""
+        ...
+
+    async def link_nodes(
+        self,
+        src_label: str,
+        src_filters: dict,
+        tgt_label: str,
+        tgt_filters: dict,
+        rel_type: str,
+        rel_props: dict[str, Any] | None = None,
+    ) -> bool:
+        """Create a relationship between two sets of nodes."""
+        ...
+
+    async def traverse(
+        self,
+        start_label: str,
+        start_filters: dict,
+        rel_type: str,
+        target_label: str | None = None,
+        direction: str = "out",
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Traverse the graph from starting nodes following a relationship type."""
+        ...
+
+    async def search_similar(
+        self,
+        label: str,
+        query_embedding: list[float],
+        top_k: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Perform a vector similarity search on nodes with the given label."""
+        ...
 
 
-class NoOpGraphSessionContext:
-    """Async context manager for no-op sessions."""
-
-    async def __aenter__(self):
-        return NoOpGraphSession()
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        pass
-
-
-class NoOpGraphSession:
-    """No-op graph session for embedded mode."""
-
-    async def run(self, query: str, parameters: dict = None, **kwargs):
-        """Run query (no-op)."""
-        return NoOpGraphResult()
-
-    async def close(self):
-        """Close session (no-op)."""
-        pass
-
-
-class NoOpGraphResult:
-    """No-op graph result for embedded mode."""
-
-    def __aiter__(self):
-        return iter([])
-
-    async def data(self):
-        return []
-
-    async def single(self):
-        return None
-
-
-# =============================================================================
-# Neo4j Manager (with embedded mode support)
-# =============================================================================
-
-class Neo4jManager:
-    _drivers: dict[asyncio.AbstractEventLoop, Any] = {}
-    _file_driver: Any = None
+class GraphManager:
+    """
+    Manages graph database drivers across multiple event loops.
+    Dispatches to Neo4j or FileGraph based on configuration.
+    """
+    _drivers: dict[asyncio.AbstractEventLoop, IGraphDriver] = {}
     _use_neo4j: bool = settings.USE_NEO4J and not settings.EMBEDDED_MODE
 
     @classmethod
-    def get_driver(cls):
-        # Check if Neo4j is disabled
-        if not cls._use_neo4j or settings.EMBEDDED_MODE:
-            # Use file-based graph in embedded mode
-            if cls._file_driver is None:
-                try:
-                    from app.infrastructure.database.graph.file_graph import FileGraphDriver
-                    cls._file_driver = FileGraphDriver()
-                    return cls._file_driver
-                except ImportError:
-                    logger.warning("[Neo4jManager] FileGraphDriver not available, using NoOp")
-                    return NoOpGraphDriver()
-            return cls._file_driver
+    def get_driver(cls) -> IGraphDriver:
+        """
+        Get the graph driver for the current event loop.
+        In Embedded Mode, returns FileGraphDriver.
+        In Full Mode, returns Neo4jDriver.
+        """
+        # 1. Handle Embedded Mode (File-based Graph)
+        if settings.EMBEDDED_MODE or not cls._use_neo4j:
+            from app.infrastructure.database.graph.file_graph import FileGraphDriver
 
+            # We don't cache FileGraphDriver per loop since it's typically used
+            # in single-threaded/embedded scenarios, but for consistency we can.
+            # However, FileGraphDriver handles its own state.
+            try:
+                loop = asyncio.get_running_loop()
+                if loop not in cls._drivers:
+                    cls._drivers[loop] = FileGraphDriver()
+                return cls._drivers[loop]
+            except RuntimeError:
+                # Fallback for non-async context if needed (though rare in backend)
+                return FileGraphDriver()
+
+        # 2. Handle Full Mode (Neo4j)
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
-            raise RuntimeError("Cannot get Neo4j driver without a running event loop")
+            raise RuntimeError("Cannot get Graph driver without a running event loop")
 
-        # Check existing driver for this loop
         if loop in cls._drivers:
-            driver = cls._drivers[loop]
-            return driver
+            return cls._drivers[loop]
 
-        # Create new driver bound to this loop
+        # Initialize Neo4j Driver
         try:
-            from neo4j import AsyncGraphDatabase
+            from app.infrastructure.database.graph.neo4j import Neo4jDriver
 
-            driver = AsyncGraphDatabase.driver(
-                settings.NEO4J_URI or "bolt://localhost:7687",
-                auth=(settings.NEO4J_USER or "neo4j", settings.NEO4J_PASSWORD)
+            driver = Neo4jDriver(
+                uri=settings.NEO4J_URI or "bolt://localhost:7687",
+                user=settings.NEO4J_USER or "neo4j",
+                password=settings.NEO4J_PASSWORD
             )
-
             cls._drivers[loop] = driver
             logger.info(f"Connected to Neo4j (Loop: {id(loop)})")
             return driver
-        except ImportError:
-            logger.warning("Neo4j driver not installed, using NoOp driver")
-            cls._use_neo4j = False
-            return NoOpGraphDriver()
         except Exception as e:
-            logger.error(f"Failed to connect to Neo4j: {e}")
-            logger.warning("Falling back to NoOp graph driver")
+            logger.error(f"Failed to connect to Neo4j: {e}. Falling back to FileGraph.")
             cls._use_neo4j = False
-            return NoOpGraphDriver()
+            # Recurse to get FileGraph fallback
+            return cls.get_driver()
 
     @classmethod
     async def close_driver(cls):
-        """Close driver for current loop"""
-        if not cls._use_neo4j:
-            return
-
+        """Close driver for the current loop."""
         try:
             loop = asyncio.get_running_loop()
             if loop in cls._drivers:
                 driver = cls._drivers.pop(loop)
                 await driver.close()
-                logger.info(f"Closed Neo4j connection (Loop: {id(loop)})")
+                logger.info(f"Closed Graph connection (Loop: {id(loop)})")
         except RuntimeError:
             pass
 
     @classmethod
     async def close_all(cls):
-        """Close drivers for all loops (e.g. shutdown)"""
-        if not cls._use_neo4j:
-            return
-
-        for loop, driver in cls._drivers.items():
+        """Close drivers for all loops (e.g. on shutdown)."""
+        for loop, driver in list(cls._drivers.items()):
             try:
                 await driver.close()
             except Exception as e:
-                logger.warning(f"Error closing Neo4j driver for loop {id(loop)}: {e}")
+                logger.warning(f"Error closing Graph driver for loop {id(loop)}: {e}")
         cls._drivers.clear()
 
     @classmethod
     def is_enabled(cls) -> bool:
-        """Check if graph features are enabled."""
-        # In embedded mode, file-based graph is used
-        if settings.EMBEDDED_MODE:
-            return cls._file_driver is not None
-        return cls._use_neo4j
+        """Check if graph features are enabled (always true if FileGraph exists)."""
+        return True
+
+
+# =============================================================================
+# Standard Helper Functions
+# =============================================================================
+
+async def get_graph_db() -> IGraphDriver:
+    """Convenience helper to get the active graph driver."""
+    return GraphManager.get_driver()
 
 
 def is_graph_enabled() -> bool:
-    """
-    Check if graph features are enabled (regardless of backend implementation).
-
-    Use this instead of Neo4jManager.is_enabled() in business logic to avoid
-    hard-coding dependency on a specific graph backend.
-    """
-    return Neo4jManager.is_enabled()
+    """Public check for graph feature availability."""
+    return GraphManager.is_enabled()
 
 
-async def get_graph_db():
-    """Get graph database driver (Neo4j or NoOp)."""
-    driver = Neo4jManager.get_driver()
-    return driver
-
-
-# Export for compatibility
-__all__ = ["Neo4jManager", "get_graph_db", "is_graph_enabled", "NoOpGraphDriver", "FileGraphDriver"]
+__all__ = ["GraphManager", "get_graph_db", "is_graph_enabled", "IGraphDriver"]

@@ -205,19 +205,27 @@ class IndexingService:
                 # 2. Graph Cleanup (only if enabled)
                 if is_graph_enabled():
                     driver = await get_graph_db()
-                    async with driver.session() as graph_session:
-                        project_id = repo.project_id
-                        await graph_session.run(
-                            """
-                            MATCH (f:File {path: $path, project_id: $pid})
-                            OPTIONAL MATCH (f)-[:CONTAINS]->(e)
-                            DETACH DELETE e
-                            DETACH DELETE f
+                    project_id = repo.project_id
+                    
+                    # 1. Delete associated Entities (CONTAINS)
+                    # Note: Our delete_nodes is simpler, it deletes nodes of a label matching filters.
+                    # To mimic the DETACH DELETE of entities contained in f, we find them or just delete by project_id/rel_path if they were tagged.
+                    # Actually, our CodeEntity nodes have full_name.
+                    # For simplicity and robustness, we can delete entities that might be orphaned.
+                    # But the current IGraphDriver.delete_nodes doesn't support complex joins.
+                    
+                    # Fallback: Use execute_query but route it through driver
+                    await driver.execute_query(
+                        """
+                        MATCH (f:File {path: $path, project_id: $pid})
+                        OPTIONAL MATCH (f)-[:CONTAINS]->(e)
+                        DETACH DELETE e
+                        DETACH DELETE f
                         """,
-                            path=rel_path,
-                            pid=project_id,
-                        )
-                        logger.info(f"Removed {rel_path} from Graph Index")
+                        path=rel_path,
+                        pid=project_id,
+                    )
+                    logger.info(f"Removed {rel_path} from Graph Index")
                 else:
                     logger.debug(f"[IndexingService] Graph cleanup skipped (graph disabled in embedded mode)")
 

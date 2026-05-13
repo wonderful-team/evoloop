@@ -1,6 +1,17 @@
 ---
 name: Requirement Analysis
 description: Conversational requirement analysis and task breakdown expert.
+namespace: roles
+trigger_patterns:
+  - "Requirement Analysis"
+  - "analyze requirement"
+parameters:
+  document_id:
+    type: string
+    description: The ID of the requirement document to analyze.
+  project_id:
+    type: integer
+    description: The ID of the project.
 ---
 
 # Requirement Analysis & Task Breakdown (Chat-Native)

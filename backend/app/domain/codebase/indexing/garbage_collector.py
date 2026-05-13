@@ -47,17 +47,16 @@ class GraphGarbageCollector:
         """
 
         total_deleted = 0
-        async with driver.session() as session:
-            while True:
-                result = await session.run(query, pid=project_id)
-                record = await result.single()
-                if not record:
-                    break
+        while True:
+            # Use execute_query (which FileGraph intercepting/handling)
+            records = await driver.execute_query(query, pid=project_id)
+            if not records:
+                break
 
-                count = record["deleted_count"]
-                total_deleted += count
-                if count == 0:
-                    break
+            count = records[0].get("deleted_count", 0)
+            total_deleted += count
+            if count == 0:
+                break
 
         if total_deleted > 0:
             logger.info(f"[Graph GC] Cleaned up {total_deleted} ghost nodes for Project {project_id}")

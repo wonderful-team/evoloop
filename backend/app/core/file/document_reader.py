@@ -33,7 +33,7 @@ class DocumentReaderService:
             elif ext == ".pdf":
                 return self._read_pdf(file_path, start_page, end_page)
             elif ext == ".html":
-                return self._read_html(file_path)
+                return await self._read_html(file_path)
             elif ext in [".png", ".jpg", ".jpeg", ".bmp", ".webp"]:
                 return await self._read_image(file_path)
             elif ext in [".mp3", ".wav", ".mp4", ".mov", ".avi"]:
@@ -87,10 +87,12 @@ class DocumentReaderService:
                 text.append("\n")
         return "\n".join(text)
 
-    def _read_html(self, path: str) -> str:
-        with open(path, encoding="utf-8") as f:
-            html_content = f.read()
-        return md(html_content)
+    async def _read_html(self, file_path: str) -> str:
+        """Read HTML file and convert to Markdown."""
+        result = read_file(file_path)
+        if not result.success:
+            return f"[Error reading HTML: {result.error_message}]"
+        return md(result.content)
 
     async def _read_image(self, path: str) -> str:
         """Extract text from image using OCR."""
@@ -109,10 +111,26 @@ class DocumentReaderService:
             return f"[OCR Error: {str(e)}]"
 
     async def _read_media(self, path: str) -> str:
-        """Transcribe audio/video to text."""
-        # TODO: Integrate with Whisper / OpenAI Speech-to-Text
-        # For now, return a placeholder as a signal.
-        return f"[Multimedia Asset: Transcription for {os.path.basename(path)} is pending integration]"
+        """Transcribe audio/video to text using the voice core module."""
+        try:
+            from app.core.voice import transcribe_file, list_stt_providers
+            
+            # Check if any STT provider is available
+            providers = list_stt_providers()
+            if not any(p.get("available") for p in providers):
+                return f"[Multimedia Asset: {os.path.basename(path)} - Transcription unavailable: No STT providers configured]"
+
+            logger.info(f"Transcribing media file: {path}")
+            result = await transcribe_file(path)
+            
+            if not result.text:
+                return f"[Multimedia Asset: {os.path.basename(path)} - Transcription returned empty content]"
+                
+            return f"### Multimedia Transcription ({os.path.basename(path)})\n\n{result.text}"
+            
+        except Exception as e:
+            logger.error(f"Media transcription failed for {path}: {e}")
+            return f"[Multimedia Asset: {os.path.basename(path)} - Transcription Error: {str(e)}]"
 
 
 document_reader_service = DocumentReaderService()

@@ -41,8 +41,8 @@ class CodeExplorationEngine:
         """
         # Try Knowledge Graph first
         try:
-            from app.domain.codebase.retrieval.graph_service import graph_retrieval_service
-            results = await graph_retrieval_service.find_symbol_definition(name, project_id)
+            from app.domain.codebase.retrieval.graph_service import graph_service
+            results = await graph_service.find_symbol_definition(name, project_id)
             if results:
                 logger.info(f"[Engine] Found '{name}' in Knowledge Graph")
                 return {
@@ -140,8 +140,8 @@ class CodeExplorationEngine:
     async def analyze_impact(self, symbol: str, project_id: int = DEFAULT_PROJECT_ID) -> List[Dict[str, Any]]:
         """Analyze symbol impact using Knowledge Graph."""
         try:
-            from app.domain.codebase.retrieval.graph_service import graph_retrieval_service
-            usages = await graph_retrieval_service.find_usages(symbol, project_id)
+            from app.domain.codebase.retrieval.graph_service import graph_service
+            usages = await graph_service.find_usages(symbol, project_id)
             return usages or []
         except Exception as e:
             logger.error(f"[Engine] Impact analysis failed: {e}")

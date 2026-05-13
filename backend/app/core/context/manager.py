@@ -53,6 +53,7 @@ class EvoContext(DynamicBaseModel):
     active_model: str | None = None  # Current model name (propagated from frontend)
     current_tool_call_id: str | None = None # Track the current tool execution ID
     last_ai_message_id: str | None = None   # Track the last AI message for parent linkage
+    current_task_id: str | None = None      # Track the current project task ID
 
     # Extra Metadata (Plugins, etc.)
     metadata: ContextMetadata = Field(default_factory=ContextMetadata)

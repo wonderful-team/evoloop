@@ -98,13 +98,9 @@ class MemoryContainer:
         if self.config.is_file_backend:
             self._storage = FileMemoryStorage(str(self.config.memory_root))
         elif self.config.is_neo4j_backend:
-            # Neo4j for full mode
-            from app.core.memory.backends.neo4j_backend import Neo4jMemoryStorage
-            self._storage = Neo4jMemoryStorage(
-                uri=self.config.neo4j_uri,
-                user=self.config.neo4j_user,
-                password=self.config.neo4j_password,
-            )
+            # Graph backend (Neo4j in production, FileGraph in embedded)
+            from app.core.memory.backends.graph_backend import GraphMemoryStorage
+            self._storage = GraphMemoryStorage()
         else:
             raise ValueError(f"Unsupported backend type: {self.config.backend_type}")
 

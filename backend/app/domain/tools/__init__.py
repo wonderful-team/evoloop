@@ -10,8 +10,6 @@ This module organizes tools by functionality:
 
 # Import submodules to ensure tools are registered
 
-# Todo tools are now part of the todo domain module
-
 # Import sub-packages
 from app.domain.tools import (
     coding,  # LSP internal classes (not tools)
@@ -19,11 +17,6 @@ from app.domain.tools import (
     files,
     learning,
 )
-
-# Import codebase exploration tools (replaces consult_lsp, explore_codebase)
-
-# Import search_code from files (search_code is an alias for search_files)
-from app.domain.tools.files import search_files as search_code
 
 __all__ = [
     # Sub-packages

@@ -259,7 +259,7 @@ to ensure they are interchangeable and can be used polymorphically.
         """
         pass
 
-    async def find_episodes_by_concept(self, concept_name: str, limit: int = 10) -> list[dict]:
+    async def find_episodes_by_concept(self, concept_name: str, limit: int = 10) -> list[dict[str, Any]]:
         """
         Find all episodes linked to a specific concept.
         """

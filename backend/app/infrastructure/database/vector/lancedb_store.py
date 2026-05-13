@@ -390,7 +390,12 @@ class LanceVectorStore(BaseVectorStore):
         self.symbol_table.compact_files()
         logger.info("[LanceVectorStore] Database compacted")
 
-
-# Deprecated: use app.infrastructure.database.vector.get_vector_store() instead.
-# Kept for backward compatibility during transition.
-# TODO: Remove after all call sites migrate to the unified factory.
+    def truncate_all(self) -> None:
+        """Wipe all data from all LanceDB tables."""
+        for table_name in ["code_chunks", "doc_chunks", "kb_chunks", "symbol_index"]:
+            try:
+                table = self.client.open_table(table_name)
+                table.delete("true")
+            except Exception as e:
+                logger.warning(f"[LanceVectorStore] Failed to truncate {table_name}: {e}")
+        logger.info("[LanceVectorStore] All tables truncated")

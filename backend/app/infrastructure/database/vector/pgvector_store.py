@@ -341,6 +341,13 @@ class PgVectorStore:
             conn.execute(text("VACUUM ANALYZE vector_embeddings"))
             logger.info("[PgVectorStore] VACUUM ANALYZE completed")
 
+    def truncate_all(self) -> None:
+        """Wipe all data from the unified vector table."""
+        with self._session() as session:
+            session.execute(text("TRUNCATE TABLE vector_embeddings CASCADE"))
+            session.commit()
+        logger.info("[PgVectorStore] All vectors truncated")
+
     def close(self) -> None:
         """Dispose the underlying SQLAlchemy engine."""
         self._engine.dispose()

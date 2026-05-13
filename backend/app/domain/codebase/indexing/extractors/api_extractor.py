@@ -59,47 +59,47 @@ class APIExtractor(SemanticExtractorBase[APIEndpoint]):
             cursor = tree_sitter.QueryCursor(query)
             matches = cursor.matches(tree.root_node)
 
-            endpoints = []
+            entities = []
             for _, captured_nodes in matches:
                 results = provider.parse_api_match(captured_nodes, file_path)
                 for ep in results:
                     if isinstance(ep, APIEndpoint):
                         if ep.method.lower() in self.HTTP_METHODS:
-                            endpoints.append(ep)
+                            entities.append(ep)
 
-            return endpoints
+            return entities
 
         except Exception as e:
             logger.error(f"API Extraction failed for {file_path}: {e}")
             return []
 
-    async def sync_to_graph(self, project_id: int, endpoints: list[APIEndpoint]):
-        """Sync API endpoints to Neo4j graph."""
-        if not endpoints:
+    async def sync_to_graph(self, project_id: int, entities: list[APIEndpoint]):
+        """Sync API endpoints to graph."""
+        if not entities:
             return
-
+    
         try:
-            from app.infrastructure.database.graph.driver import get_graph_db
-
-            driver = await get_graph_db()
-            async with driver.session() as session:
-                for ep in endpoints:
-                    full_name = f"{ep.method} {ep.path}"
-                    await session.run(
-                        """
-                        MERGE (e:APIEndpoint {full_name: $id, project_id: $pid})
-                        SET e.method = $method, e.path = $path, e.handler = $handler, e.file = $file
-                        WITH e
-                        MATCH (fn:CodeEntity {name: $handler, project_id: $pid})
-                        MERGE (e)-[:HANDLED_BY]->(fn)
-                    """,
-                        id=full_name,
-                        pid=project_id,
-                        method=ep.method,
-                        path=ep.path,
-                        handler=ep.handler_name,
-                        file=ep.file_path,
-                    )
+            from app.infrastructure.database.graph.driver import GraphManager
+    
+            driver = GraphManager.get_driver()
+            for ep in entities:
+                full_name = f"{ep.method} {ep.path}"
+                # 1. Upsert APIEndpoint node
+                await driver.upsert_node("APIEndpoint", "full_name", {
+                    "full_name": full_name,
+                    "project_id": project_id,
+                    "method": ep.method,
+                    "path": ep.path,
+                    "handler": ep.handler_name,
+                    "file": ep.file_path
+                })
+                
+                # 2. Link APIEndpoint -> HANDLED_BY -> CodeEntity
+                await driver.link_nodes(
+                    "APIEndpoint", {"full_name": full_name, "project_id": project_id},
+                    "CodeEntity", {"name": ep.handler_name, "project_id": project_id},
+                    "HANDLED_BY"
+                )
 
         except Exception as e:
             logger.error(f"Graph Sync for API failed: {e}")

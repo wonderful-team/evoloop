@@ -7,8 +7,10 @@ Suitable for small-to-medium projects.
 
 import json
 import logging
+import math
 from pathlib import Path
 
+from typing import Any
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -64,9 +66,152 @@ class FileGraphDriver:
         """Return a session context manager."""
         return FileGraphSession(self)
 
-    async def execute_query(self, query: str, parameters: dict = None, **kwargs):
-        """Execute Cypher-like query (limited support)."""
-        # For now, return empty - use session-based API instead
+    async def execute_query(self, query: str, parameters: dict | None = None, **kwargs):
+        """
+        Execute Cypher-like query (limited support for Atlas and Retrieval).
+        """
+        if self._graph is None:
+            return []
+            
+        params = parameters or {}
+        # Merge kwargs into params (for calls like execute_query(q, bundle_id=...))
+        params.update(kwargs)
+        
+        query_upper = query.upper()
+        
+        # 1. Atlas Transitions Pattern: MATCH (a:App)-[:HAS_STATE]->(s1)-[r:TRANSITION]->(s2)
+        if "TRANSITION" in query_upper and "APP" in query_upper:
+            bundle_id = params.get("bundle_id")
+            platform = params.get("platform", "macos")
+            
+            results = []
+            # Find App node
+            apps = await self.find_nodes("App", {"bundle_id": bundle_id, "platform": platform})
+            if not apps: return []
+            
+            # Since find_nodes returns attributes, we need the internal ID for traversal
+            app_id = f"App:{bundle_id}"
+            if app_id not in self._graph: return []
+            
+            # Traverse: App -> HAS_STATE -> State
+            for s1_id in self._graph.successors(app_id):
+                s1_attrs = self._graph.nodes[s1_id]
+                if s1_attrs.get("_label") != "State": continue
+                
+                # Traverse: State -> TRANSITION -> State
+                for s2_id in self._graph.successors(s1_id):
+                    edge_data = self._graph.get_edge_data(s1_id, s2_id)
+                    if edge_data and edge_data.get("type") == "TRANSITION":
+                        s2_attrs = self._graph.nodes[s2_id]
+                        results.append({
+                            "from_state": s1_attrs.get("state_id"),
+                            "label": edge_data.get("action_label"),
+                            "type": edge_data.get("action_type"),
+                            "to_state": s2_attrs.get("state_id")
+                        })
+            return results
+
+        # 2. Deletion Pattern: MATCH (f:File)-[:CONTAINS]->(e) DETACH DELETE e, f
+        if "DETACH DELETE" in query_upper and "FILE" in query_upper:
+            path = params.get("path")
+            pid = params.get("pid") or params.get("project_id")
+            
+            # Use internal ID pattern
+            file_id = f"File:{path}"
+            if file_id in self._graph:
+                # Find entities (CONTAINS)
+                to_delete = [file_id]
+                for n_id in list(self._graph.successors(file_id)):
+                    edge_data = self._graph.get_edge_data(file_id, n_id)
+                    if edge_data and edge_data.get("type") == "CONTAINS":
+                        to_delete.append(n_id)
+                
+                # Remove nodes
+                self._graph.remove_nodes_from(to_delete)
+                self._save_graph()
+                return len(to_delete)
+            return 0
+
+        # 3. Aggregation Pattern: MATCH (c)-[:LINKED_TO]->(e:Memory) RETURN c.title, count(e)
+        if "COUNT(" in query_upper and "LINKED_TO" in query_upper:
+            counts = {}
+            for n_id, a in self._graph.nodes(data=True):
+                if a.get("type") == "concept":
+                    title = a.get("title") or a.get("name")
+                    # Count outgoing LINKED_TO to Memory
+                    links = [v_id for v_id in self._graph.successors(n_id) 
+                             if self._graph.get_edge_data(n_id, v_id).get("type") == "LINKED_TO"]
+                    counts[title] = len(links)
+            return [{"name": k, "count": v} for k, v in counts.items()]
+
+        # 4. Cleanup Pattern: MATCH (n:LABEL) DETACH DELETE n
+        if "DETACH DELETE N" in query_upper:
+            import re
+            match = re.search(r"MATCH \(N:(\w+)\)", query_upper)
+            if match:
+                label = match.group(1).capitalize()
+                # Correct capitalization if needed (e.g., Codeentity -> CodeEntity)
+                if label == "Codeentity": label = "CodeEntity"
+                return await self.delete_nodes(label)
+
+        # 5. Ghost Node Cleanup Pattern: MATCH (n:CodeEntity) WHERE NOT (n)<-[:CONTAINS]-(:File)
+        if "CODEENTITY" in query_upper and "WHERE NOT" in query_upper and "CONTAINS" in query_upper:
+            pid = params.get("pid")
+            to_delete = []
+            for n_id, a in self._graph.nodes(data=True):
+                if a.get("_label") == "CodeEntity" and a.get("project_id") == pid:
+                    # Check incoming CONTAINS from File
+                    has_file = any(self._graph.nodes[u_id].get("_label") == "File" 
+                                 for u_id, v_id, d in self._graph.in_edges(n_id, data=True) 
+                                 if d.get("type") == "CONTAINS")
+                    # Check incoming REFERENCES from Concept
+                    has_concept = any(self._graph.nodes[u_id].get("_label") == "Concept" 
+                                    for u_id, v_id, d in self._graph.in_edges(n_id, data=True) 
+                                    if d.get("type") == "REFERENCES")
+                    
+                    if not has_file and not has_concept:
+                        to_delete.append(n_id)
+            
+            if to_delete:
+                self._graph.remove_nodes_from(to_delete)
+                self._save_graph()
+            return [{"deleted_count": len(to_delete)}]
+
+        # 6. Concept Retrieval Pattern: MATCH (c:Concept) RETURN c.name, c.description, c.id
+        if "CONCEPT" in query_upper and "RETURN" in query_upper and "DETACH" not in query_upper:
+            results = []
+            for n_id, a in self._graph.nodes(data=True):
+                if a.get("_label") == "Concept" or a.get("type") == "concept":
+                    results.append({
+                        "name": a.get("name") or a.get("title"),
+                        "desc": a.get("description") or a.get("content"),
+                        "id": a.get("id")
+                    })
+            return results
+
+        # 7. Basic Retrieval Fallback (CodeEntity search)
+        if "CODEENTITY" in query_upper:
+            name = params.get("name")
+            pid = params.get("pid") or params.get("project_id")
+            nodes = await self.find_nodes("CodeEntity", {"name": name, "project_id": pid})
+            return nodes
+
+        # 6. Concept Retrieval (for migration): MATCH (c:Concept)
+        if "MATCH (C:CONCEPT)" in query_upper:
+            nodes = await self.find_nodes("Concept")
+            return [{
+                "name": n.get("name") or n.get("title"),
+                "desc": n.get("desc") or n.get("description"),
+                "id": n.get("id")
+            } for n in nodes]
+
+        # 7. Index/Constraint/Maintenance (Silent handling)
+        MAINTENANCE_KEYWORDS = ["DROP INDEX", "CREATE INDEX", "DROP CONSTRAINT", "CREATE CONSTRAINT", "CALL DB.INDEX"]
+        if any(kw in query_upper for kw in MAINTENANCE_KEYWORDS):
+            logger.info(f"[FileGraph] Maintenance query handled silently: {query[:50]}...")
+            return []
+
+        logger.warning(f"[FileGraph] Unsupported query pattern: {query[:100]}")
         return []
 
     async def verify_connectivity(self):
@@ -76,6 +221,202 @@ class FileGraphDriver:
     async def close(self):
         """Save graph before closing."""
         self._save_graph()
+
+    # --- High Level Agnostic API Implementation ---
+
+    async def upsert_node(self, label: str, id_field: str, properties: dict[str, Any]) -> dict[str, Any]:
+        """Create or update a node in networkx."""
+        if self._graph is None:
+            return {}
+
+        node_id = properties.get(id_field)
+        if not node_id:
+            raise ValueError(f"Property '{id_field}' missing for upsert into {label}")
+
+        # In FileGraph, we use a global node ID (can be the same as id_field or prefixed)
+        # To avoid collisions between different labels with same ID, we prefix it.
+        internal_id = f"{label}:{node_id}"
+        
+        attrs = {**properties, "_label": label}
+        if internal_id not in self._graph:
+            self._graph.add_node(internal_id, **attrs)
+        else:
+            self._graph.nodes[internal_id].update(attrs)
+        
+        self._save_graph()
+        return self._graph.nodes[internal_id]
+
+    async def find_nodes(self, label: str, filters: dict[str, Any] | None = None, limit: int = 100) -> list[dict[str, Any]]:
+        """Find nodes matching filters using networkx."""
+        if self._graph is None:
+            return []
+
+        results = []
+        for _, attrs in self._graph.nodes(data=True):
+            if attrs.get("_label") != label:
+                continue
+            
+            match = True
+            if filters:
+                for k, v in filters.items():
+                    if attrs.get(k) != v:
+                        match = False
+                        break
+            
+            if match:
+                results.append(attrs)
+                if len(results) >= limit:
+                    break
+        return results
+
+    async def delete_nodes(self, label: str, filters: dict[str, Any] | None = None, detach: bool = True) -> int:
+        """Delete nodes matching filters."""
+        if self._graph is None:
+            return 0
+
+        to_delete = []
+        for node_id, attrs in self._graph.nodes(data=True):
+            if attrs.get("_label") != label:
+                continue
+            
+            match = True
+            if filters:
+                for k, v in filters.items():
+                    if attrs.get(k) != v:
+                        match = False
+                        break
+            if match:
+                to_delete.append(node_id)
+
+        count = len(to_delete)
+        if count > 0:
+            self._graph.remove_nodes_from(to_delete)
+            self._save_graph()
+        return count
+
+    async def link_nodes(
+        self,
+        src_label: str,
+        src_filters: dict,
+        tgt_label: str,
+        tgt_filters: dict,
+        rel_type: str,
+        rel_props: dict[str, Any] | None = None,
+    ) -> bool:
+        """Create a relationship between nodes in networkx."""
+        if self._graph is None:
+            return False
+
+        src_nodes = [nid for nid, attrs in self._graph.nodes(data=True) 
+                     if attrs.get("_label") == src_label and all(attrs.get(k) == v for k, v in src_filters.items())]
+        tgt_nodes = [nid for nid, attrs in self._graph.nodes(data=True) 
+                     if attrs.get("_label") == tgt_label and all(attrs.get(k) == v for k, v in tgt_filters.items())]
+
+        if not src_nodes or not tgt_nodes:
+            return False
+
+        linked = False
+        edge_attrs = {**(rel_props or {}), "type": rel_type}
+        for s in src_nodes:
+            for t in tgt_nodes:
+                self._graph.add_edge(s, t, **edge_attrs)
+                linked = True
+        
+        if linked:
+            self._save_graph()
+        return linked
+
+    async def traverse(
+        self,
+        start_label: str,
+        start_filters: dict,
+        rel_type: str,
+        target_label: str | None = None,
+        direction: str = "out",
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Traverse the networkx graph."""
+        if self._graph is None:
+            return []
+
+        start_nodes = [nid for nid, attrs in self._graph.nodes(data=True) 
+                       if attrs.get("_label") == start_label and all(attrs.get(k) == v for k, v in start_filters.items())]
+        
+        results = []
+        seen = set()
+        
+        for s in start_nodes:
+            if direction == "out":
+                neighbors = self._graph.successors(s)
+            else:
+                neighbors = self._graph.predecessors(s)
+                
+            for n in neighbors:
+                if n in seen:
+                    continue
+                
+                # Check edge type
+                edge_data = self._graph.get_edge_data(s, n) if direction == "out" else self._graph.get_edge_data(n, s)
+                if edge_data and edge_data.get("type") == rel_type:
+                    attrs = self._graph.nodes[n]
+                    if target_label and attrs.get("_label") != target_label:
+                        continue
+                    
+                    results.append(attrs)
+                    seen.add(n)
+                    if len(results) >= limit:
+                        return results
+        return results
+
+    async def search_similar(
+        self,
+        label: str,
+        query_embedding: list[float],
+        top_k: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Perform a vector similarity search on nodes in FileGraph."""
+        if self._graph is None:
+            return []
+
+        candidates = []
+        for n_id, attrs in self._graph.nodes(data=True):
+            if attrs.get("_label") != label:
+                continue
+            
+            # Apply filters
+            if filters:
+                match = True
+                for k, v in filters.items():
+                    if attrs.get(k) != v:
+                        match = False
+                        break
+                if not match:
+                    continue
+            
+            # Check for embedding
+            embedding = attrs.get("embedding")
+            if not embedding or not isinstance(embedding, list):
+                continue
+            
+            # Calculate similarity
+            sim = self._cosine_similarity(query_embedding, embedding)
+            candidates.append((sim, attrs))
+
+        # Sort by similarity descending
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        return [c[1] for c in candidates[:top_k]]
+
+    def _cosine_similarity(self, v1: list[float], v2: list[float]) -> float:
+        """Helper for cosine similarity."""
+        if not v1 or not v2 or len(v1) != len(v2):
+            return 0.0
+        dot_product = sum(a * b for a, b in zip(v1, v2))
+        mag1 = math.sqrt(sum(a * a for a in v1))
+        mag2 = math.sqrt(sum(a * a for a in v2))
+        if mag1 == 0 or mag2 == 0:
+            return 0.0
+        return dot_product / (mag1 * mag2)
 
 
 class FileGraphSession:
@@ -92,35 +433,15 @@ class FileGraphSession:
         if self._modified:
             self.driver._save_graph()
 
-    async def run(self, query: str, parameters: dict = None, **kwargs):
+    async def run(self, query: str, parameters: dict | None = None, **kwargs):
         """
-        Run a Cypher-like query.
-
-        Supported patterns:
-        - MERGE (n:Label {prop: $val}) - Create/update node
-        - MATCH (n)-[r]->(m) RETURN n, m - Find relationships
-        - MATCH (n) DETACH DELETE n - Delete node
+        Legacy Cypher-like query handler. 
+        Dispatches to the driver's unified execute_query pattern matcher.
         """
-        if self.driver._graph is None:
-            return FileGraphResult([])
-
-        parameters = parameters or {}
-        # Merge kwargs into parameters (Neo4j-style positional params)
-        if kwargs:
-            parameters = {**parameters, **kwargs}
-        query = query.strip()
-
-        try:
-            if query.upper().startswith("MERGE"):
-                return await self._handle_merge(query, parameters)
-            elif query.upper().startswith("MATCH"):
-                return await self._handle_match(query, parameters)
-            else:
-                logger.warning(f"[FileGraph] Unsupported query: {query[:50]}")
-                return FileGraphResult([])
-        except Exception as e:
-            logger.error(f"[FileGraph] Query error: {e}")
-            return FileGraphResult([])
+        results = await self.driver.execute_query(query, parameters=parameters, **kwargs)
+        # Some maintenance queries might modify the graph via find_nodes/delete_nodes/upsert_node
+        # but execute_query itself is typically read-only or handled silently.
+        return FileGraphResult(results)
 
     async def _handle_merge(self, query: str, parameters: dict):
         """Handle MERGE (create/update) operations."""

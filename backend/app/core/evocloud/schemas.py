@@ -1,5 +1,7 @@
 from typing import Any
 
+from pydantic import field_validator
+
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
@@ -104,17 +106,30 @@ class ThoughtLogState(DynamicBaseModel):
 
 class ConversationQueryItem(DynamicBaseModel):
     id: str
-    title: str
+    title: str = "新会话"
     project_id: int | None = None
     created_at: str | None = None
     updated_at: str | None = None
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def validate_title(cls, v):
+        if v is None:
+            return "新会话"
+        return str(v)
 
 
 class MessageQueryItem(DynamicBaseModel):
     id: str
     role: str
     content: str | None = None
+    thinking: str | None = None
     created_at: str | None = None
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def validate_id(cls, v):
+        return str(v) if v is not None else ""
 
 
 class McpServerInfo(DynamicBaseModel):
@@ -126,6 +141,18 @@ class McpServerInfo(DynamicBaseModel):
 class ModelInfo(DynamicBaseModel):
     id: str
     name: str
+
+    @field_validator("id", "name", mode="before")
+    @classmethod
+    def validate_str_fields(cls, v):
+        return str(v) if v is not None else ""
+
+
+class SkillQueryItem(DynamicBaseModel):
+    id: int
+    name: str
+    namespace: str
+    description: str
 
 
 class EvoCloudProjectSummary(DynamicBaseModel):

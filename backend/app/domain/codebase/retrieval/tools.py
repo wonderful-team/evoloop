@@ -63,24 +63,36 @@ async def search_codebase(
 
     # Run both searches in parallel
     graph_task = None
+    usages_task = None
     if len(query.split()) < 3:
-        graph_task = asyncio.create_task(retriever.get_entity_relations(query, project_id=pid))
+        # Use GraphService for richer relationship data if possible
+        graph_task = asyncio.create_task(graph_service.find_symbol_definition(query, project_id=pid))
+        # Also try to find usages
+        usages_task = asyncio.create_task(graph_service.find_usages(query, project_id=pid))
 
     vector_task = asyncio.create_task(retriever.search(query, project_id=pid, limit=5, operator=operator))
 
     graph_data = None
     if graph_task:
         try:
-            graph_result = await graph_task
-            if graph_result and "error" not in graph_result:
-                relations = graph_result.get("relations", {})
+            # 1. Check if we found a symbol definition
+            graph_results = await graph_task
+            if graph_results:
+                target = graph_results[0]
                 graph_data = {
-                    "symbol": graph_result.get("symbol", "Unknown"),
-                    "type": graph_result.get("type", "Unknown"),
-                    "file": graph_result.get("file", "Unknown"),
-                    "outgoing": relations.get("outgoing", []),
-                    "incoming": relations.get("incoming", [])
+                    "symbol": target.get("full_name", "Unknown"),
+                    "type": target.get("type", "Unknown"),
+                    "file": target.get("file_path", "Unknown"),
+                    "outgoing": [], # find_symbol_definition currently doesn't return outgoing in this view
+                    "incoming": []
                 }
+                
+                # 2. Get incoming relations (usages)
+                if usages_task:
+                    usages = await usages_task
+                    if usages:
+                        graph_data["incoming"] = [{"source": u["source"], "type": "references"} for u in usages]
+                    
         except Exception as e:
             logger.error(f"Graph lookup failed: {e}")
 

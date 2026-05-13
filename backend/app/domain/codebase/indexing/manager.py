@@ -237,9 +237,9 @@ class IndexingManager:
                     continue
 
                 # API Extraction
-                endpoints = await api_extractor.extract(full_path)
-                if endpoints:
-                    await api_extractor.sync_to_graph(project_id, endpoints)
+                entities = await api_extractor.extract(full_path)
+                if entities:
+                    await api_extractor.sync_to_graph(project_id, entities)
 
                 # DB Extraction (Currently limited to Python)
                 if ext in SEMANTIC_LANGUAGE_MAP["python"]:

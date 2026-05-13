@@ -6,6 +6,7 @@ projects to the knowledge base for Agent access.
 """
 
 import logging
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -40,51 +41,43 @@ class KnowledgeSyncService:
         collection: str = "project-docs"
     ) -> bool:
         """
-        Sync a project's README to knowledge base.
-
-        Args:
-            project_id: Workspace project ID
-            project_path: Local path to project directory
-            collection: Knowledge base collection name
-
-        Returns:
-            True if synced successfully
+        Sync a project's README to knowledge base using unified file service.
         """
-        readme_paths = [
-            Path(project_path) / "README.md",
-            Path(project_path) / "readme.md",
-            Path(project_path) / "README.rst",
-            Path(project_path) / "README.txt",
-        ]
-
-        for readme_path in readme_paths:
-            if readme_path.exists():
+        from app.core.file import read_file
+        
+        readme_names = ["README.md", "readme.md", "README.rst", "README.txt"]
+        
+        for name in readme_names:
+            full_path = os.path.join(project_path, name)
+            if os.path.isfile(full_path):
                 try:
-                    # Read and process README
-                    with open(readme_path, "rb") as f:
-                        content = f.read()
+                    # Read using unified service
+                    result = read_file(full_path)
+                    if not result.success:
+                        continue
+                        
+                    content = result.content.encode("utf-8")
 
                     # Create a file-like object for pipeline
                     from io import BytesIO
                     file_obj = BytesIO(content)
-                    file_obj.filename = f"project-{project_id}-README.md"
+                    file_obj.filename = f"project-{project_id}-{name}"
 
                     # Process through pipeline
-                    result = await self.pipeline.process_upload(
+                    res = await self.pipeline.process(
                         file=file_obj,
+                        filename=file_obj.filename,
                         collection=collection,
-                        doc_type="doc",
-                        extract_metadata=True
                     )
 
-                    if result.success:
-                        logger.info(f"Synced README for project {project_id}")
+                    if res.success:
+                        logger.info(f"Synced {name} for project {project_id}")
                         return True
                     else:
-                        logger.warning(f"Failed to sync README: {result.error}")
+                        logger.warning(f"Failed to sync {name}: {res.error}")
 
                 except Exception as e:
-                    logger.error(f"Error syncing README for project {project_id}: {e}")
+                    logger.error(f"Error syncing {name} for project {project_id}: {e}")
 
         return False
 
@@ -96,44 +89,54 @@ class KnowledgeSyncService:
     ) -> dict:
         """
         Sync all project documentation files to knowledge base.
-
-        Args:
-            project_id: Workspace project ID
-            project_path: Local path to project directory
-            patterns: List of glob patterns to match doc files
-
-        Returns:
-            Statistics about synced files
+        Uses unified FileTraverser to ensure ignore patterns are respected.
         """
+        from app.core.file import walk_tree, read_file
+        
         if patterns is None:
-            patterns = [
-                "**/*.md",
-                "**/docs/**/*.md",
-                "**/wiki/**/*.md",
-            ]
+            # Note: FileTraverser handles deep walking. 
+            # We filter by extensions or categories here if needed.
+            doc_extensions = {".md", ".txt", ".pdf", ".rst"}
+        else:
+            doc_extensions = {p.lower() if p.startswith(".") else f".{p.lower()}" for p in patterns}
 
         stats = {"synced": 0, "failed": 0, "skipped": 0}
-        project_dir = Path(project_path)
+        
+        # Use centralized traverser (respects .gitignore, node_modules, etc.)
+        for full_path in walk_tree(project_path):
+            ext = os.path.splitext(full_path)[1].lower()
+            if ext not in doc_extensions:
+                continue
 
-        for pattern in patterns:
-            for doc_path in project_dir.glob(pattern):
-                if not doc_path.is_file():
-                    continue
-
-                try:
-                    # Skip files in node_modules, .git, etc.
-                    if any(part.startswith(".") or part == "node_modules"
-                           for part in doc_path.parts):
-                        stats["skipped"] += 1
-                        continue
-
-                    # TODO: Process and sync document
-                    # This would need more logic to avoid duplicates
-                    # and handle updates properly
-
-                except Exception as e:
-                    logger.warning(f"Failed to sync {doc_path}: {e}")
+            try:
+                # Read using unified service
+                result = read_file(full_path)
+                if not result.success:
                     stats["failed"] += 1
+                    continue
+                
+                filename = os.path.basename(full_path)
+                content = result.content.encode("utf-8")
+                
+                from io import BytesIO
+                file_obj = BytesIO(content)
+                file_obj.filename = filename
+
+                # Process through pipeline (Pipeline handles internal deduplication/storage)
+                res = await self.pipeline.process(
+                    file=file_obj,
+                    filename=filename,
+                    collection="project-docs",
+                )
+
+                if res.success:
+                    stats["synced"] += 1
+                else:
+                    stats["failed"] += 1
+
+            except Exception as e:
+                logger.warning(f"Failed to sync {full_path}: {e}")
+                stats["failed"] += 1
 
         return stats
 

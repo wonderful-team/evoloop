@@ -15,29 +15,26 @@ async def wipe_knowledge_base():
     """
     logger.warning("🧹 [EvoLoop] Starting Knowledge Base Reset (Clean Slate)...")
 
-    # 1. Neo4j Cleanup
+    # 1. Graph Cleanup
     try:
         driver = await get_graph_db()
-        async with driver.session() as session:
-            # Delete Code-related nodes
-            await session.run("MATCH (n:File) DETACH DELETE n")
-            await session.run("MATCH (n:Directory) DETACH DELETE n")
-            await session.run("MATCH (n:CodeEntity) DETACH DELETE n")
-            # Delete Semantic Concepts
-            await session.run("MATCH (n:Concept) DETACH DELETE n")
-            # Delete Chunks
-            await session.run("MATCH (n:CodeChunk) DETACH DELETE n")
+        # Delete nodes via high-level API for cross-backend compatibility
+        labels_to_delete = ["File", "Directory", "CodeEntity", "Concept", "Memory", "CodeChunk"]
+        for label in labels_to_delete:
+            count = await driver.delete_nodes(label)
+            if count > 0:
+                logger.info(f"Graph: Deleted {count} nodes of type {label}")
 
-            # DROP Vector Indexes to allow recreation with correct dimensions
-            try:
-                await session.run("DROP INDEX concept_embeddings IF EXISTS")
-                logger.info("Neo4j: Dropped 'concept_embeddings' index.")
-            except Exception as e:
-                logger.warning(f"Neo4j: Failed to drop index: {e}")
+        # DROP Vector Indexes (Neo4j specific, we use execute_query which is intercepted/handled)
+        try:
+            await driver.execute_query("DROP INDEX concept_embeddings IF EXISTS")
+            logger.info("Graph: Dropped 'concept_embeddings' index (if applicable).")
+        except Exception as e:
+            logger.warning(f"Graph: Failed to drop index: {e}")
 
-        logger.info("✅ Neo4j: Wiped [File, Directory, CodeEntity, Concept, CodeChunk].")
+        logger.info("✅ Graph: Wiped core knowledge nodes.")
     except Exception as e:
-        logger.error(f"Failed to wipe Neo4j: {e}")
+        logger.error(f"Failed to wipe graph: {e}")
         raise e
 
     # 2. SQL / Vector Store Cleanup
@@ -61,21 +58,10 @@ async def wipe_knowledge_base():
 
             logger.info(f"✅ SQL: Truncated tables: {tables_to_truncate}")
 
-        # Vector store (unified vector_embeddings table or LanceDB)
+        # Vector store (unified interface)
         vector_store = get_vector_store()
-        if hasattr(vector_store, "_engine"):
-            # PgVectorStore
-            from sqlalchemy import text as sa_text
-            from sqlalchemy.orm import Session
-
-            with Session(vector_store._engine) as vec_session:
-                vec_session.execute(sa_text("TRUNCATE TABLE vector_embeddings CASCADE"))
-                vec_session.commit()
-                logger.info("✅ Vector Store: Truncated vector_embeddings")
-        else:
-            # LanceVectorStore — LanceDB doesn't have a global truncate,
-            # but compact + re-init is sufficient for a full reset.
-            logger.info("✅ Vector Store: LanceDB tables retained (embedded mode)")
+        vector_store.truncate_all()
+        logger.info("✅ Vector Store: All data truncated")
 
     except Exception as e:
         logger.error(f"Failed to wipe SQL/Vector store: {e}")

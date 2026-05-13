@@ -17,7 +17,7 @@ from typing import Any, Optional
 from langchain_core.messages import BaseMessage
 
 from app.core.config import settings
-from app.core.memory.backends import Neo4jMemoryStorage
+from app.core.memory.backends import GraphMemoryStorage
 from app.core.memory.backends.file_backend import FileMemoryStorage
 from app.core.memory.backends.sql_short_term import SqlShortTermMemory
 from app.core.memory.config import MemoryConfig
@@ -80,14 +80,14 @@ class MemoryManager:
             self._storage = FileMemoryStorage()
             logger.info("MemoryManager: Initialized with FileBackend (embedded mode)")
         else:
-            # Neo4j for full mode
+            # Graph backend for full mode
             try:
-                self._storage = Neo4jMemoryStorage()
-                logger.info("MemoryManager: Initialized with Neo4jBackend (full mode)")
-            except ImportError:
-                # Fallback to file if Neo4j not available
+                self._storage = GraphMemoryStorage()
+                logger.info("MemoryManager: Initialized with GraphBackend (full mode)")
+            except Exception as e:
+                # Fallback to file if Graph not available
                 self._storage = FileMemoryStorage()
-                logger.warning("MemoryManager: Neo4j not available, falling back to FileBackend")
+                logger.warning(f"MemoryManager: Graph storage failed, falling back to FileBackend: {e}")
 
         # Services (use storage directly)
         from app.core.memory.auto_extraction import AutoMemoryExtractor

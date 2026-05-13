@@ -26,6 +26,48 @@ class SubtaskService:
     """Service for managing hierarchical subtasks."""
 
     @staticmethod
+    async def get_task(task_id: str) -> Optional[ProjectTask]:
+        """
+        Get task by ID, supporting both full UUID and 8-character prefix.
+        """
+        async with session_scope() as session:
+            if len(task_id) < 36:
+                # Handle partial ID
+                result = await session.execute(
+                    select(ProjectTask).where(ProjectTask.id.like(f"{task_id}%"))
+                )
+                task = result.scalar_one_or_none()
+            else:
+                # Full ID
+                task = await session.get(ProjectTask, task_id)
+
+            if task:
+                # Ensure subtasks are loaded for tree view if needed
+                await session.refresh(task, ["subtasks"])
+            return task
+
+    @staticmethod
+    async def list_project_tasks(
+        project_id: int, 
+        status_filter: str = "all", 
+        limit: int = 20
+    ) -> list[ProjectTask]:
+        """
+        List root tasks for a project.
+        """
+        async with session_scope() as session:
+            query = select(ProjectTask).where(
+                ProjectTask.project_id == project_id,
+                ProjectTask.parent_id.is_(None)
+            ).order_by(ProjectTask.created_at.desc()).limit(limit)
+
+            if status_filter != "all":
+                query = query.where(ProjectTask.status == status_filter)
+
+            result = await session.execute(query)
+            return list(result.scalars().all())
+
+    @staticmethod
     async def create_task_with_subtasks(
         project_id: int,
         title: str,

@@ -1,5 +1,5 @@
 """
-GraphSyncer: Handles Neo4j graph database synchronization.
+GraphSyncer: Handles graph database synchronization.
 """
 import logging
 
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class GraphSyncer:
     """
-    Syncs indexed content to Neo4j graph database:
+    Syncs indexed content to graph database:
     - File nodes
     - CodeEntity nodes
     - Relation edges
@@ -28,62 +28,51 @@ class GraphSyncer:
         entity_pg_ids: dict[str, int]
     ):
         """
-        Sync file and its entities to Neo4j.
+        Sync file and its entities to graph.
         """
         try:
             driver = await get_graph_db()
-            async with driver.session() as n4j:
-                project_id = prepared.repo.project_id
+            project_id = prepared.repo.project_id
 
-                # Sync File node
-                await n4j.run(
-                    """
-                    MERGE (f:File {path: $path, project_id: $pid})
-                    SET f.lines = $lines, f.is_test = $is_test, f.updated_at = timestamp(), f.pg_id = $pg_id
-                """,
-                    path=prepared.rel_path,
-                    pid=project_id,
-                    lines=file_line_count,
-                    is_test=is_test_file(prepared.file_path),
-                    pg_id=source_file_pg_id,
+            # 1. Sync File node
+            await driver.upsert_node("File", "path", {
+                "path": prepared.rel_path,
+                "project_id": project_id,
+                "lines": file_line_count,
+                "is_test": is_test_file(prepared.file_path),
+                "pg_id": source_file_pg_id
+            })
+
+            # 2. Sync Entities and link to File
+            for ent in indexed.entities:
+                await driver.upsert_node("CodeEntity", "full_name", {
+                    "full_name": ent.full_name,
+                    "project_id": project_id,
+                    "name": ent.name,
+                    "type": ent.type,
+                    "start_line": ent.start_line,
+                    "end_line": ent.end_line,
+                    "pg_id": entity_pg_ids.get(ent.full_name)
+                })
+                
+                # Link File -> CONTAINS -> CodeEntity
+                await driver.link_nodes(
+                    "File", {"path": prepared.rel_path, "project_id": project_id},
+                    "CodeEntity", {"full_name": ent.full_name, "project_id": project_id},
+                    "CONTAINS"
                 )
 
-                # Sync Entities
-                for ent in indexed.entities:
-                    await n4j.run(
-                        """
-                        MERGE (e:CodeEntity {full_name: $fname, project_id: $pid})
-                        SET e.name = $name, e.type = $type, e.start_line = $start, e.end_line = $end, e.pg_id = $pg_id
-                        WITH e
-                        MATCH (f:File {path: $fpath, project_id: $pid})
-                        MERGE (f)-[:CONTAINS]->(e)
-                    """,
-                        fname=ent.full_name,
-                        pid=project_id,
-                        name=ent.name,
-                        type=ent.type,
-                        start=ent.start_line,
-                        end=ent.end_line,
-                        fpath=prepared.rel_path,
-                        pg_id=entity_pg_ids.get(ent.full_name),
-                    )
+            # 3. Sync Relations (Entity -> RELATION -> Entity)
+            for rel in indexed.relations:
+                if not rel.target_full_name:
+                    continue
 
-                # Sync Relations
-                for rel in indexed.relations:
-                    if not rel.target_full_name:
-                        continue
-
-                    await n4j.run(
-                        """
-                        MATCH (s:CodeEntity {full_name: $src_name, project_id: $pid})
-                        MERGE (t:CodeEntity {full_name: $tgt_name, project_id: $pid})
-                        MERGE (s)-[:RELATION {type: $rel_type}]->(t)
-                    """,
-                        src_name=rel.source_full_name,
-                        tgt_name=rel.target_full_name,
-                        pid=project_id,
-                        rel_type=rel.relation_type,
-                    )
+                await driver.link_nodes(
+                    "CodeEntity", {"full_name": rel.source_full_name, "project_id": project_id},
+                    "CodeEntity", {"full_name": rel.target_full_name, "project_id": project_id},
+                    "RELATION",
+                    rel_props={"type": rel.relation_type}
+                )
 
         except Exception as e:
-            logger.warning(f"Neo4j Sync Failed for {prepared.rel_path}: {e}")
+            logger.warning(f"Graph Sync Failed for {prepared.rel_path}: {e}")

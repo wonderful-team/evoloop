@@ -79,3 +79,7 @@ class BaseVectorStore(Protocol):
     def compact(self) -> None:
         """Compact / optimize underlying storage."""
         ...
+
+    def truncate_all(self) -> None:
+        """Wipe all data from all vector tables/collections."""
+        ...

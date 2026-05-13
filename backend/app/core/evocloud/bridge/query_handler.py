@@ -10,6 +10,7 @@ from app.core.evocloud.schemas import (
     McpServerInfo,
     MessageQueryItem,
     ModelInfo,
+    SkillQueryItem,
 )
 from app.infrastructure.database.sql.database import get_db_session
 from app.models import Conversation, Message
@@ -63,7 +64,7 @@ async def _query_conversations(params: dict[str, Any]) -> list[ConversationQuery
             return [
                 ConversationQueryItem(
                     id=str(c.id),
-                    title=c.title,
+                    title=str(c.title),
                     project_id=c.project_id,
                     created_at=c.created_at.isoformat() if c.created_at else None,
                     updated_at=c.updated_at.isoformat() if c.updated_at else None,
@@ -97,6 +98,7 @@ async def _query_history(thread_id: str, params: dict[str, Any]) -> list[Message
                     id=str(m.id),
                     role=m.role,
                     content=m.content,
+                    thinking=m.thinking,
                     created_at=m.created_at.isoformat() if m.created_at else None,
                 )
                 for m in messages
@@ -106,23 +108,42 @@ async def _query_history(thread_id: str, params: dict[str, Any]) -> list[Message
         return []
 
 
-async def _query_skills(params: dict[str, Any]) -> list[Any]:
+async def _query_skills(params: dict[str, Any]) -> list[SkillQueryItem]:
     """查询技能列表"""
-    # TODO: 从 SkillManager 获取
-    return []
+    try:
+        from app.core.learning.discovery import skill_discovery
+        
+        # 获取活跃技能列表
+        skills_list = await skill_discovery.get_active_skills_list()
+        
+        return [
+            SkillQueryItem(
+                id=s.id,
+                name=s.name,
+                namespace=s.namespace,
+                description=s.description
+            )
+            for s in skills_list
+        ]
+    except Exception as e:
+        logger.error(f"[QueryHandler] Failed to query skills: {e}")
+        return []
 
 
 async def _query_mcp_servers(params: dict[str, Any]) -> list[McpServerInfo]:
     """查询 MCP 服务器列表"""
     try:
         from app.core.mcp.client import mcp_client_manager
+        from app.core.mcp.config import TransportType, is_sse_url
 
+        server_summaries = await mcp_client_manager.list_servers()
         servers = []
-        for name, server in mcp_client_manager._servers.items():
+        for s in server_summaries:
+            mcp_type = TransportType.SSE if is_sse_url(s.command) else TransportType.STDIO
             servers.append(McpServerInfo(
-                name=name,
-                type=server.type.value,
-                connected=server.connected,
+                name=s.name,
+                type=mcp_type.value,
+                connected=s.status == "connected",
             ))
         return servers
     except Exception as e:
@@ -137,7 +158,7 @@ async def _query_models(params: dict[str, Any]) -> list[ModelInfo]:
     models = []
     raw_models = await get_available_llm_models()
     for m in raw_models:
-        model_id = m.get("model_id", "")
-        display_name = m.get("display_name", model_id)
+        model_id = str(m.get("model_id", ""))
+        display_name = str(m.get("display_name") or model_id)
         models.append(ModelInfo(id=model_id, name=display_name))
     return models

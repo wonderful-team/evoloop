@@ -34,12 +34,6 @@ class AtlasEngine:
     async def on_ui_tree_observed(self, event: Any) -> None:
         """
         Background mapping of observed UI trees into the App Atlas.
-        Listens to continuous observations from the event bus.
-
-        Phase 6: Dynamic App Handling
-        - Detects if the app is "coordinate-unstable" (scrolling lists, feeds)
-        - For dynamic apps: only stores infrastructure (static elements like toolbars)
-        - For static apps: stores full UI map with element classification
         """
         bundle_id = event.data.get("bundle_id")
         window_title = event.data.get("window_title")
@@ -138,10 +132,6 @@ class AtlasEngine:
     async def query_app_atlas(self, bundle_ids: str | list[str] = None, state_id: str = None, platform: str = "macos") -> str:
         """
         Formats a structural summary of the app map or details of a specific state.
-        Args:
-            bundle_ids: One or more application IDs to summarize.
-            state_id: If provided, returns the detailed element list for this specific state.
-            platform: Filter by platform.
         """
         if state_id:
             # Handle detailed state query
@@ -277,7 +267,6 @@ class AtlasEngine:
 
     def _generate_state_id(self, bundle_id: str, window_title: str) -> str:
         """Generates a stable semantic ID for a UI state."""
-        # Use utility function for hash computation
         h = compute_state_id(bundle_id, window_title, length=8)
         # Clean title for readability
         clean_title = "".join(c for c in window_title if c.isalnum()).lower()[:20]
