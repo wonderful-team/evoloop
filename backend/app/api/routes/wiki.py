@@ -109,22 +109,22 @@ async def generate_wiki(
     # Agent treats them as hard constraints rather than soft suggestions.
     system_instructions = (
         f"You are a technical documentation expert. "
-        f"ALL wiki content, page titles, and the table of contents MUST be written in {user_lang}. "
-        f"After writing all content pages, you MUST create a dedicated 'Table of Contents' page "
-        f"(title='目录' if Chinese, else 'Table of Contents') with slug='toc' and order=0. "
-        f"The TOC page must list all wiki pages in a hierarchical tree format."
+        f"ALL wiki content and page titles MUST be written in {user_lang}. "
+        "You must build a hierarchical documentation tree. "
+        "Always create parent pages before child pages, and link them using the parent_title parameter. "
+        "You do NOT need to specify slugs or file paths — use page titles as addresses."
     )
 
     message = (
-        f"**Mission Goal**: Generate a comprehensive Wiki documentation for the project at {path}.\n"
+        f"**Mission Goal**: Generate a comprehensive, hierarchical Wiki documentation for the project at {path}.\n"
         "You MUST:\n"
         "1. Survey the project structure (list_directory, read README and key config files).\n"
-        "2. Plan a logical Wiki structure (Overview, Architecture, Setup, API, etc.).\n"
-        "3. Generate content page by page using write_wiki_page tool.\n"
-        "4. Include Mermaid diagrams, code blocks, and tables where appropriate.\n"
-        "5. Extract key concepts and store them in Memory.\n"
-        "6. CRITICAL: Create a 'Table of Contents' page (slug='toc', order=0) listing all pages in a tree hierarchy. Do NOT skip this step.\n"
-        "7. Stop and report once the Wiki is complete.\n"
+        "2. Plan a logical tree-like structure (Overview -> Architecture, Setup, API, etc.).\n"
+        "3. Generate content page by page using write_wiki_page(title, content, parent_title=...). \n"
+        "   IMPORTANT: Create parent pages BEFORE child pages to ensure correct linking.\n"
+        "4. For incremental fixes to existing pages, use edit_wiki_page(title, old_string, new_string).\n"
+        "5. Include Mermaid diagrams, code blocks, and tables where appropriate.\n"
+        "6. Stop and report once the Wiki structure is complete.\n"
         f"Topic: {req.topic}"
     )
 
@@ -150,7 +150,11 @@ async def generate_wiki(
             agent_config=AgentRuntimeConfig(
                 role_name="Worker",
                 system_instructions=system_instructions,
-                tools=["write_wiki_page", "read_wiki_page", "list_wiki_pages"],
+                tools=[
+                    "write_wiki_page", "edit_wiki_page", "read_wiki_page", "list_wiki_pages",
+                    "create_plan", "update_step_status",
+                    "list_directory", "read_file", "search_files",
+                ],
             ),
         )
     )
@@ -168,12 +172,7 @@ async def generate_wiki(
     # Actually, let's look at project_profiles.py — it uses bg_tasks.add_task.
     # We should do the same.
 
-    async def _run_wiki_with_toc(thread_id: str, inputs: dict, project_id: int, lang: str):
-        """Wrapper that runs the agent and ensures TOC exists afterward."""
-        await run_agent_background(thread_id, inputs)
-        wiki_service.ensure_toc_page(project_id, lang)
-
-    bg_tasks.add_task(_run_wiki_with_toc, thread_id, result.inputs, req.project_id, user_lang)
+    bg_tasks.add_task(run_agent_background, thread_id, result.inputs)
 
     logger.info(
         f"[WikiAPI] Dispatched wiki generation mission for project {req.project_id} "
