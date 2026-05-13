@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { Text, IconButton, ActivityIndicator } from 'react-native-paper';
 import { useTheme } from '@/theme';
+import { useTranslation } from 'react-i18next';
 import { WebView } from 'react-native-webview';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
@@ -85,7 +86,9 @@ const generateEChartsHtml = (option: any, isDark: boolean) => {
 
 export const EChartsChart = memo(function EChartsChart({ data }: EChartsChartProps) {
   const { colors, isDark } = useTheme();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
+
   const [error, setError] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [height, setHeight] = useState(280);
@@ -120,7 +123,7 @@ export const EChartsChart = memo(function EChartsChart({ data }: EChartsChartPro
         <View style={styles.errorHeader}>
           <MaterialIcons name="error-outline" size={20} color={colors.error} />
           <Text style={[styles.errorTitle, { color: colors.error }]}>
-            图表渲染失败
+            {t('echartsChart.renderFailed')}
           </Text>
         </View>
         <View style={[styles.codeBlock, { backgroundColor: colors.background }]}>
@@ -132,7 +135,13 @@ export const EChartsChart = memo(function EChartsChart({ data }: EChartsChartPro
     );
   }
 
-  const htmlContent = generateEChartsHtml(data.option, isDark);
+  const finalOption = data.option || data;
+  const htmlContent = generateEChartsHtml(finalOption, isDark);
+
+  // 处理标题显示逻辑：支持字符串或 ECharts 标题对象
+  const rawTitle = data.title || (data.option ? data.option.title : undefined);
+  const displayTitle = typeof rawTitle === 'object' ? (rawTitle as any).text : rawTitle;
+
 
   return (
     <>
@@ -146,9 +155,10 @@ export const EChartsChart = memo(function EChartsChart({ data }: EChartsChartPro
           <View style={styles.headerLeft}>
             <MaterialIcons name="bar-chart" size={18} color={colors.primary} />
             <Text style={[styles.title, { color: colors.primary }]}>
-              {data.title || 'ECharts 图表'}
+              {displayTitle || t('chat.codeBlock.echartsChart')}
             </Text>
           </View>
+
           <MaterialIcons name="fullscreen" size={20} color={colors.onSurfaceVariant} />
         </View>
 
@@ -158,7 +168,7 @@ export const EChartsChart = memo(function EChartsChart({ data }: EChartsChartPro
             <View style={styles.loadingOverlay}>
               <ActivityIndicator size="large" color={colors.primary} />
               <Text style={[styles.loadingText, { color: colors.onSurfaceVariant }]}>
-                正在渲染图表...
+                {t('echartsChart.rendering')}
               </Text>
             </View>
           )}
@@ -176,7 +186,7 @@ export const EChartsChart = memo(function EChartsChart({ data }: EChartsChartPro
 
         {/* 提示文字 */}
         <Text style={[styles.hint, { color: colors.onSurfaceVariant }]}>
-          点击查看大图
+          {t('echartsChart.clickToEnlarge')}
         </Text>
       </TouchableOpacity>
 

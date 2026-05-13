@@ -27,13 +27,17 @@
   },
   "help": {
     "faq": {
-      "a3": "支持。在聊天输入框左侧点击麦克风图标即可开始说话。支持中文和英文指令。",
+      "a3": "支持。点击麦克风图标即可开始说话，支持中文和英文指令。",
       "q2": "云端与本地模式的区别？",
-      "a1": "需要在您的 Mac/Windows 电脑上下载并安装 EvoLoop 客户端，并登录相同的账号。连接成功后，它会自动出现在“Devices”列表中。",
-      "a2": "<bold>云端模式 (Cloud)</bold>：与运行在服务器上的 AI 交互，不依赖您的电脑。<br /><bold>本地模式 (Local)</bold>：通过 AI 直接操作您的电脑。可以读取本地文件、运行终端命令。",
+      "a1": "在您的 Mac/Windows 电脑上下载并安装 EvoLoop 客户端，登录相同账号后即可自动连接。",
+      "a2": "云端模式与运行在服务器上的 AI 交互，不依赖您的电脑。本地模式通过 AI 直接操作您的电脑，可以读取本地文件、运行终端命令。",
       "title": "常见问题",
       "q1": "如何连接我的电脑？",
-      "q3": "支持语音输入吗？"
+      "q3": "支持语音输入吗？",
+      "q4": "如何切换项目？",
+      "a4": "在首页点击项目名称，或进入项目列表页面选择要切换的项目。",
+      "q5": "语音对话如何使用？",
+      "a5": "进入语音页面后，点击麦克风按钮开始录音，说话后松开即可发送语音。AI 会自动识别并回复。"
     },
     "capabilities": {
       "cloud": {
@@ -57,21 +61,96 @@
       },
       "title": "高级技巧"
     },
-    "title": "用户手册",
+    "title": "帮助中心",
     "intro": {
       "desc": "EvoLoop 是您的随身通用智能体。通过简单的左右滑动，您可以在 <bold>云端智能</bold> 和 <bold>本地设备</bold> 之间无缝切换。",
       "title": "快速入门"
     },
-    "replayParams": "重播新手引导"
+    "replayParams": "重播新手引导",
+    "quickActions": {
+      "needHelp": "需要帮助？",
+      "email": "邮件联系",
+      "helpCenter": "帮助中心"
+    },
+    "feedback": {
+      "sectionTitle": "反馈建议",
+      "submit": "提交反馈",
+      "description": "告诉我们您的建议或遇到的问题",
+      "title": "提交反馈",
+      "label": "您的建议或问题",
+      "cancel": "取消",
+      "confirm": "提交"
+    }
   },
   "chat": {
+    "interrupted": "已打断，请说话",
+    "wakeWordDetected": "已唤醒: 「{{word}}」，请说话",
+    "filesReverted": "{{count}} 个文件已恢复",
+    "rewindSuccess": "已回退到指定位置",
+    "retrying": "正在重试",
+    "sendFailed": "发送失败：",
+    "messageSent": "消息已发送",
+    "forwardSuccess": "转发成功",
+    "forwardFailed": "转发失败",
+    "createThreadFailed": "创建会话失败",
+    "rewindFailed": "回退失败：",
+    "retryFailed": "重试失败：",
+    "globalModeNoMemory": "全局模式下无法添加记忆",
+    "learnFromConversation": "从对话学习",
+    "addedToMemory": "已添加到记忆",
+    "addMemoryFailed": "添加记忆失败：",
+    "fallbackMessage": "消息",
+    "selectDevice": "选择设备",
+    "guestMode": "游客模式 - 点击登录",
+    "connection": {
+      "connecting": "连接中...",
+      "reconnecting": "重连中...",
+      "error": "连接失败",
+      "disconnected": "已断开"
+    },
+    "micPermission": {
+      "title": "需要录音权限",
+      "message": "语音对话需要使用麦克风，请允许访问。",
+      "allow": "允许",
+      "deny": "拒绝"
+    },
+    "voiceLoginRequired": "语音功能需要登录",
+    "voicePermissionDenied": "没有录音权限，无法使用语音功能",
+    "voiceRecognitionError": "语音识别错误：",
+    "rewindDialog": {
+      "title": "确认操作",
+      "description": "此操作将回退后续的文件修改。是否同时恢复文件到之前的状态？",
+      "keepFiles": "保留文件",
+      "restoreFiles": "恢复文件"
+    },
+    "codeBlock": {
+      "copyCode": "复制代码",
+      "copyText": "复制纯文本",
+      "share": "分享",
+      "collapse": "收起",
+      "expandAll": "展开全部 {{count}} 行",
+      "echartsChart": "ECharts 图表",
+      "passed": "通过",
+      "failed": "失败",
+      "skipped": "跳过"
+    },
     "messageList": {
       "initializing": "初始化中...",
       "offline": "设备离线",
       "offlineDesc": "远程设备当前未连接。",
       "imageViewer": "图片查看器",
       "clickToOpen": "点击打开",
-      "copy": "复制"
+      "copy": "复制",
+      "me": "我",
+      "thinkingProcess": "思考过程",
+      "fileChanges": "{{count}} 个文件变更",
+      "agentChanges": "文件变更",
+      "more": "更多",
+
+      "sending": "发送中",
+
+      "sendFailedRetry": "发送失败，点击重试",
+      "aiThinking": "AI 思考中..."
     },
     "header": {
       "deviceFallback": "设备 #{{id}}",
@@ -144,7 +223,107 @@
         "continue": "继续"
       },
       "continuePrompt": "继续"
+    },
+    "attachments": {
+      "maxLimit": "最多只能添加 5 个附件"
+    },
+    "attachmentLabel": "附件: {{name}}",
+    "threadList": {
+      "newConversation": "新对话"
+    },
+    "toast": {
+      "loadConversationsFailed": "加载会话列表失败",
+      "getConversationDetailFailed": "获取会话详情失败",
+      "loadMessagesFailed": "加载消息失败",
+      "deleteConversationSuccess": "会话已删除",
+      "deleteConversationFailed": "删除会话失败",
+      "createConversationSuccess": "会话创建成功",
+      "createConversationFailed": "创建会话失败",
+      "sendMessageFailed": "发送消息失败",
+      "stopSuccess": "已停止生成",
+      "stopFailed": "停止失败"
+    },
+    "rewindConfirm": {
+      "rewindTitle": "确认撤回",
+      "retryTitle": "确认重试",
+      "rewindDesc": "将删除此消息及其后的所有内容。此操作不可撤销。",
+      "retryDesc": "将删除后续内容并重新尝试执行。",
+      "revertFiles": "同时恢复 Agent 修改过的文件内容",
+      "revertToPrevious": "恢复到修改前的状态",
+      "cancel": "取消",
+      "confirmRewind": "确认撤回",
+      "confirmRetry": "确认重试"
+    },
+    "messageActions": {
+      "copy": "复制",
+      "copied": "已复制",
+      "share": "分享",
+      "forward": "转发",
+      "favorite": "收藏",
+      "delete": "删除",
+      "retry": "重试",
+      "deleteConfirmTitle": "删除消息",
+      "deleteConfirmDesc": "确定要删除这条消息吗？此操作无法撤销。",
+      "rewind": "撤回",
+      "quote": "引用",
+      "addToMemory": "添加到记忆"
+    },
+    "quote": {
+      "message": "消息",
+      "file": "文件",
+      "skill": "技能",
+      "memory": "记忆",
+      "reference": "引用"
+    },
+    "tts": {
+      "cherryDesc": "★ 中文女声，对话感强",
+      "serenaDesc": "★ 英文女声，自然流畅",
+      "apiNoAudioUrl": "API 未返回音频 URL",
+      "downloadFailed": "下载音频失败: {{statusCode}}",
+      "playbackError": "播放失败",
+      "error": "语音合成失败"
     }
+  },
+  "messageContent": {
+    "clickToOpen": "点击打开"
+  },
+  "echartsChart": {
+    "renderFailed": "图表渲染失败",
+    "rendering": "正在渲染图表...",
+    "clickToEnlarge": "点击查看大图"
+  },
+  "mermaidChart": {
+    "renderFailed": "图表渲染失败",
+    "title": "Mermaid 图表",
+    "rendering": "正在渲染图表...",
+    "clickToEnlarge": "点击查看大图"
+  },
+  "artifactCard": {
+    "passRate": "通过率",
+    "clickForDetails": "点击查看详情",
+    "view": "查看",
+    "download": "下载"
+  },
+  "chatWelcome": {
+    "title": "你好！我是你的木头机器人助手",
+    "subtitle": "点击麦克风开始语音对话"
+  },
+  "stepsIndicator": {
+    "title": "执行步骤",
+    "input": "输入:"
+  },
+  "referencePicker": {
+    "noMemory": "暂无记忆",
+    "noResults": "未找到相关内容",
+    "quoteContent": "引用内容",
+    "searchPlaceholder": "搜索...",
+    "historyMessages": "历史消息",
+    "projectFiles": "项目文件",
+    "memory": "记忆"
+  },
+  "codeBlock": {
+    "lines": "行",
+    "copied": "已复制"
   },
   "conversation": {
     "new": "新建",
@@ -154,6 +333,9 @@
     "untitled": "未命名"
   },
   "auth": {
+    "countdownLabel": "{{seconds}}s后重试",
+    "wechatLogin": "微信一键登录",
+    "agree": "我已阅读并同意",
     "errors": {
       "loadConfigFailed": "加载配置失败",
       "captchaRequired": "请输入图形验证码",
@@ -166,7 +348,32 @@
       "sendCodeFirst": "请先获取验证码",
       "codeRequired": "请输入验证码",
       "errorSendingCode": "发送验证码失败",
-      "passwordMismatch": "两次输入的密码不一致"
+      "passwordMismatch": "两次输入的密码不一致",
+      "enterCorrectMobile": "请输入正确的手机号",
+      "enterUsername": "请输入账号",
+      "enterPassword": "请输入密码",
+      "captchaUnavailable": "验证码服务暂时不可用",
+      "sendCodeFailed": "发送验证码失败",
+      "platformRegistrationDisabled": "平台未启用注册!",
+      "enterCaptcha": "请输入图形验证码",
+      "captchaDataIncomplete": "验证码数据不完整",
+      "getCaptchaFailed": "获取验证码失败，请重试",
+      "usernameMinLength": "用户名至少3位",
+      "wechatSdkUnavailable": "微信 SDK 不可用，请使用 Development Build 运行",
+      "wechatSdkInitFailed": "微信 SDK 初始化失败",
+      "wechatNotInstalled": "请先安装微信",
+      "authCodeFailed": "获取授权码失败",
+      "wechatApiError": "微信接口错误: {{message}}",
+      "getTokenFailed": "获取微信 access_token 失败",
+      "appSecretNotConfigured": "微信 App Secret 未配置",
+      "wechatLoginFailed": "微信登录失败",
+      "getCaptchaConfigFailed": "获取验证码配置失败",
+      "captchaResponseEmpty": "验证码响应为空",
+      "getRegisterConfigFailed": "获取注册配置失败",
+      "bindMobileFailed": "绑定手机号失败",
+      "sessionExpired": "登录已过期，请重新登录",
+      "enterDynaCode": "请输入短信验证码",
+      "passwordMinLength": "密码长度至少6位"
     },
     "login": {
       "captchaNote": "注意：密码登录验证码尚未集成。",
@@ -180,7 +387,18 @@
       "captchaPlaceholder": "图形验证码",
       "tabMobile": "手机号",
       "submit": "登录",
-      "signUp": "注册账号"
+      "signUp": "注册账号",
+      "welcomeBack": "欢迎回来",
+      "mobileLogin": "手机号登录",
+      "accountLogin": "账号密码登录",
+      "captchaLabel": "图形验证码",
+      "smsCodeLabel": "短信验证码",
+      "passwordLabel": "密码",
+      "usernameLabel": "账号/手机号/邮箱",
+      "passwordPlaceholder": "请输入密码",
+      "forgotPassword": "忘记密码？",
+      "noAccount": "还没有账号？",
+      "registerNow": "立即注册"
     },
     "forgotPassword": {
       "next": "下一步",
@@ -194,7 +412,11 @@
       "step1": "输入验证码",
       "title": "找回密码",
       "step0": "验证手机号",
-      "resend": "重新发送"
+      "resend": "重新发送",
+      "noReceived": "没有收到验证码？",
+      "resetSuccess": "密码重置成功",
+      "resetSuccessDesc": "您的密码已成功重置，请使用新密码登录。",
+      "goLogin": "去登录"
     },
     "success": {
       "login": "登录成功",
@@ -211,7 +433,26 @@
       "mobilePlaceholder": "手机号",
       "policy": "《服务协议 & 隐私政策》",
       "usernamePlaceholder": "用户名 (字母/数字)",
-      "getCode": "获取验证码"
+      "getCode": "获取验证码",
+      "usernameMinLength": "用户名至少3位",
+      "hasAccount": "已有账号？",
+      "loginNow": "立即登录",
+      "submit": "注册",
+      "passwordMinLength": "密码长度至少6位",
+      "registerFailed": "注册失败"
+    },
+    "termsOfService": "《服务协议》",
+    "privacyPolicy": "《隐私政策》",
+    "and": "和",
+    "pleaseAgreeFirst": "请先阅读并同意",
+    "bindMobile": {
+      "title": "绑定手机号",
+      "greetingFallback": "欢迎",
+      "hint": "绑定手机号后可以使用更多功能",
+      "dynaCodeLabel": "短信验证码",
+      "save": "保存",
+      "skip": "跳过",
+      "bindFailed": "绑定失败"
     }
   },
   "search": {
@@ -274,7 +515,8 @@
     "chooseFromAlbum": "从相册选择",
     "avatarUpdated": "头像已更新",
     "avatarUpdateFailed": "头像更新失败，请重试",
-    "avatarImageError": "无法获取图片数据"
+    "avatarImageError": "无法获取图片数据",
+    "confirm": "确认"
   },
   "projects": {
     "guestTitle": "登录查看项目",
@@ -282,7 +524,25 @@
     "guestDesc": "管理您的云端项目并跨设备同步。",
     "failedToLoad": "加载项目失败",
     "noProjects": "暂无项目",
-    "title": "项目"
+    "title": "项目",
+    "managementTitle": "项目管理",
+    "currentGlobalMode": "当前为全局模式",
+    "currentProjectPrefix": "当前项目：",
+    "pleaseSelectProject": "请选择项目",
+    "current": "当前",
+    "globalMode": "全局模式",
+    "globalModeDesc": "跨项目对话与一般问答",
+    "loadFailed": "加载失败：",
+    "switchToGlobalConfirm": "切换到全局模式？在此模式下可进行跨项目对话与一般问答。",
+    "switchToProjectConfirm": "切换到此项目？该项目将在设备「{{deviceName}}」上激活。",
+    "selectDeviceFirst": "请先选择设备，再切换项目。",
+    "switch": "切换",
+    "backToHome": "返回首页",
+    "unnamedProject": "未命名项目",
+    "fetchFailed": "获取项目列表失败",
+    "notFound": "项目不存在",
+    "globalModeName": "全局模式",
+    "selectProject": "选择项目"
   },
   "projectSwitcher": {
     "noDesc": "暂无描述",
@@ -311,7 +571,29 @@
     "step2": "下载并安装 Windows/Mac 客户端",
     "loading": "加载中...",
     "step1": "在电脑访问 <1>develop-assistant.cn</1>",
-    "statusFormat": "{{online}} 在线 / {{total}} 总计"
+    "statusFormat": "{{online}} 在线 / {{total}} 总计",
+    "noDevices": "暂无设备",
+    "busy": "忙碌",
+    "lastActive": "上次活跃：",
+    "devicePrefix": "设备",
+    "total": "总计",
+    "managementTitle": "设备管理",
+    "myDevices": "我的设备",
+    "totalCount": "共 {{count}} 台设备",
+    "manageSubtitle": "管理您的 EvoLoop 设备",
+    "loadFailed": "加载失败：",
+    "deviceOffline": "设备离线，无法进入对话",
+    "backToHome": "返回首页",
+    "timeAgo": {
+      "justNow": "刚刚",
+      "minutes": "{{count}}分钟前",
+      "hours": "{{count}}小时前",
+      "days": "{{count}}天前"
+    },
+    "cloudModeTitle": "云端智能 (Cloud Mode)",
+    "cloudModeDesc": "不连接本地设备，直接使用云端 AI 进行对话",
+    "unnamedDevice": "未命名设备",
+    "fetchFailed": "获取设备列表失败"
   },
   "index": {
     "placeholder": "输入指令或问题...",
@@ -334,7 +616,8 @@
     "reject": "拒绝",
     "skip": "跳过",
     "cancelled": "输入已取消",
-    "timeout": "输入等待已超时"
+    "timeout": "输入等待已超时",
+    "defaultPrompt": "需要您的输入"
   },
   "chat_request": {
     "title": "需要输入",
@@ -367,12 +650,50 @@
       "cancel": "取消",
       "pending": "待确认",
       "device": "设备",
-      "action": "动作"
+      "action": "动作",
+      "unknownDevice": "未知设备",
+      "actionMap": {
+        "turnOn": "打开",
+        "turnOff": "关闭",
+        "setBrightness": "设置亮度",
+        "setColor": "设置颜色",
+        "setTemperature": "设置温度",
+        "lock": "上锁",
+        "unlock": "解锁",
+        "open": "打开",
+        "close": "关闭",
+        "start": "开始",
+        "stop": "停止",
+        "pause": "暂停"
+      },
+      "paramMap": {
+        "brightness": "亮度",
+        "color": "颜色",
+        "temperature": "温度",
+        "mode": "模式",
+        "speed": "速度",
+        "duration": "时长",
+        "delay": "延迟"
+      },
+      "second": "秒"
     },
     "input": {
       "placeholder": "输入消息...",
       "voiceMode": "按住说话",
-      "textMode": "键盘输入"
+      "textMode": "键盘输入",
+      "uploadFailed": "文件上传失败",
+      "uploadErrorTitle": "上传失败",
+      "quoteMessage": "引用消息/文件",
+      "quote": "引用",
+      "speaking": "朗读中",
+      "speakOn": "朗读开",
+      "speakOff": "朗读关",
+      "awakened": "已唤醒",
+      "listening": "我在听",
+      "standby": "待机",
+      "releaseToSend": "松开发送",
+      "holdToSpeak": "按住说话",
+      "listeningPanel": "正在聆听..."
     },
     "empty": "开始语音对话，或输入文字消息",
     "permission": {
@@ -383,6 +704,12 @@
   },
   "settings": {
     "title": "设置",
+    "featureSettings": "功能设置",
+    "general": "通用",
+    "helpFeedback": "帮助与反馈",
+    "helpFeedbackDesc": "查看帮助文档或联系我们",
+    "legalInfo": "法律信息",
+    "logout": "退出登录",
     "voice": {
       "title": "语音设置",
       "autoStart": "自动启动语音",
@@ -390,20 +717,139 @@
       "wakeWord": "唤醒词",
       "vadThreshold": "灵敏度",
       "silenceTimeout": "静音超时",
-      "language": "识别语言"
+      "language": "识别语言",
+      "micPermission": "麦克风权限",
+      "checking": "检查中...",
+      "authorized": "已授权",
+      "notAuthorized": "未授权",
+      "requestPermission": "请求权限",
+      "basicSettings": "基本设置",
+      "autoStartDesc": "进入语音页面时自动开始监听",
+      "continuousListeningDesc": "AI 回复后自动继续监听",
+      "wakeWordDesc": "说出「{{wakeWord}}」唤醒",
+      "wakeWordSettingsTitle": "唤醒词设置",
+      "wakeWordSettingsDesc": "修改唤醒词文本和灵敏度",
+      "speechRecognition": "语音识别",
+      "tts": "语音朗读",
+      "vad": "语音检测 (VAD)",
+      "sensitivityDesc": "较高的值会降低误触发，但可能漏掉轻声说话",
+      "silenceTimeoutDesc": "检测到静音后多久结束录音",
+      "reset": "恢复默认设置",
+      "wakeWordText": "唤醒词文本",
+      "wakeWordHint": "说出以下词语即可唤醒语音助手（2-4 个字效果最好）",
+      "wakeWordPlaceholder": "输入唤醒词",
+      "wakeWordTest": "测试唤醒词",
+      "startTest": "开始测试",
+      "listening": "监听中... (10秒)",
+      "stopTest": "停止测试",
+      "detected": "检测到: 「{{word}}」",
+      "errorPrefix": "错误:",
+      "startFailedPrefix": "启动失败:",
+      "langZhCN": "中文（普通话）",
+      "langZhHK": "中文（粤语）",
+      "langJaJP": "日本語",
+      "modelConfigTitle": "模型文件配置",
+      "modelConfigDesc": "唤醒词使用 Sherpa-ONNX 流式 ASR 引擎，模型文件需打包到 App 中：",
+      "downloadModel": "1. 下载模型",
+      "modelSize": "约 25MB（int8 量化）",
+      "putInProject": "2. 放入项目",
+      "androidPath": "Android: 放入 android/app/src/main/assets/sherpa-asr/",
+      "iosPath": "iOS: 拖入 Xcode → Build Phases → Copy Bundle Resources",
+      "quickScript": "3. 快捷脚本",
+      "backgroundListenTitle": "后台监听",
+      "backgroundListenDesc": "开启后，即使 App 退到后台也能监听唤醒词。",
+      "iosNote": "退到后台后自动继续监听。",
+      "androidNote": "退到后台后会显示通知栏提示。",
+      "batteryWarning": "注意：后台监听会增加电量消耗。如果不需要后台唤醒，建议关闭此功能。"
     },
     "account": {
       "title": "账号与安全",
       "changePassword": "修改密码",
       "bindPhone": "绑定手机",
-      "deleteAccount": "注销账号"
+      "deleteAccount": "注销账号",
+      "userName": "用户名",
+      "phoneNumber": "手机号",
+      "email": "邮箱",
+      "notSet": "未设置",
+      "notBound": "未绑定",
+      "bound": "已绑定",
+      "bind": "绑定",
+      "info": "账号信息",
+      "security": "安全",
+      "changePasswordDesc": "定期更换密码保护账号安全",
+      "deviceManagement": "登录设备管理",
+      "deviceManagementDesc": "查看和管理已登录的设备",
+      "dangerZone": "危险操作",
+      "deleteAccountDesc": "永久删除账号及所有数据",
+      "confirmDeleteAccount": "确认注销",
+      "deleteAccountWarning": "注销账号将永久删除您的所有数据，此操作无法撤销。是否继续？",
+      "confirmDelete": "确认注销",
+      "comingSoon": "功能开发中",
+      "tip": "提示",
+      "currentPassword": "当前密码",
+      "newPassword": "新密码",
+      "confirmNewPassword": "确认新密码",
+      "bindPhoneTitle": "绑定手机号",
+      "mobileLabel": "手机号",
+      "captchaLabel": "图形验证码",
+      "refreshCaptcha": "点击刷新",
+      "verificationCode": "验证码",
+      "getCode": "获取验证码",
+      "passwordChanged": "密码已修改",
+      "passwordChangeFailed": "密码修改失败，请检查当前密码",
+      "phoneBound": "手机号绑定成功",
+      "phoneBindFailed": "绑定失败，请检查验证码",
+      "passwordComplexityPrefix": "密码需包含",
+      "number": "数字",
+      "lowercase": "小写字母",
+      "uppercase": "大写字母",
+      "specialChar": "特殊字符",
+      "passwordLengthError": "密码长度至少为{{min}}位",
+      "enter6DigitCode": "请输入6位验证码",
+      "sendCodeFailed": "发送验证码失败"
     },
     "about": {
       "title": "关于",
       "version": "版本",
       "privacyPolicy": "隐私政策",
-      "termsOfService": "服务条款"
+      "termsOfService": "服务条款",
+      "versionPrefix": "版本",
+      "intro": "EvoLoop 是您的随身通用 AI 智能体。通过简单的语音对话，即可管理设备、获取答案、执行任务。支持云端智能和本地设备控制的无缝切换。",
+      "links": "链接",
+      "officialWebsite": "官方网站",
+      "websiteUrl": "www.evoloop.cn",
+      "viewSource": "查看开源代码",
+      "feedback": "反馈建议",
+      "techInfo": "技术信息",
+      "architecture": "架构",
+      "bareWorkflow": "Bare Workflow (Native)"
     }
+  },
+  "plans": {
+    "free": "免费",
+    "unlimited": "无限",
+    "aiQuota": "AI 调用: {{quota}}",
+    "timesPerMonth": "次/月",
+    "projectCount": "项目数量: {{limit}}",
+    "projectUnit": "个",
+    "advancedModels": "高级模型 (GPT-4, Claude等)",
+    "voiceChat": "语音对话",
+    "ganttChart": "甘特图",
+    "timesheet": "工时表",
+    "currentPlan": "当前方案",
+    "downgradeInfo": "当前等级更高",
+    "downgradeSub": "到期后可购买此方案",
+    "subscribeNow": "立即订阅",
+    "recommended": "推荐",
+    "cannotDowngrade": "无法降级",
+    "day": "天",
+    "period": "/{{days}}天",
+    "loading": "加载中...",
+    "title": "选择会员方案",
+    "unlockMore": "解锁更多 AI 能力，提升开发效率",
+    "currentSubscription": "当前订阅: {{name}} (剩余 {{days}} 天)",
+    "noPlans": "暂无可用套餐",
+    "autoRenewal": "订阅会自动续费，可随时取消。购买后不支持退款。"
   },
   "common": {
     "back": "返回",
@@ -432,6 +878,290 @@
     },
     "tool": {
       "defaultName": "工具"
+    },
+    "retry": "重试",
+    "close": "关闭",
+    "cameraPermissionTitle": "相机权限",
+    "cameraPermissionMessage": "需要相机权限才能拍照",
+    "later": "稍后询问",
+    "permissionDenied": "权限不足",
+    "albumPermissionTitle": "相册权限",
+    "albumPermissionMessage": "需要访问相册权限才能选择图片",
+    "albumPermissionRequired": "需要访问相册权限才能选择媒体文件",
+    "cameraPermissionRequired": "需要相机权限才能拍照",
+    "mediaPickError": "选择媒体失败，请重试",
+    "cameraError": "拍照失败，请重试",
+    "maxAttachments": "最多只能选择 {{count}} 个媒体文件",
+    "videoPermissionRequired": "需要相机权限才能录制视频",
+    "videoError": "录制视频失败，请重试",
+    "endReached": "已经到底了",
+    "gotIt": "知道了",
+    "reload": "重新加载",
+    "tip": "提示"
+  },
+  "payConfirm": {
+    "payAmount": "支付金额",
+    "upgradePayAmount": "升级支付金额",
+    "planName": "EvoLoop {{name}} - {{days}}天",
+    "newAmount": "新购金额",
+    "refundAmount": "退还金额",
+    "actualAmount": "实付金额",
+    "downgradeWarning": "无法降级购买，当前等级更高",
+    "selectPayment": "选择支付方式",
+    "wechatPay": "微信支付",
+    "benefits": "包含权益",
+    "aiQuota": "AI 调用: {{quota}}",
+    "unlimited": "无限",
+    "timesPerMonth": " 次/月",
+    "projectCount": "项目数量: {{count}}",
+    "projectUnit": " 个",
+    "advancedModels": "高级模型 (GPT-4, Claude)",
+    "voiceChat": "语音对话",
+    "agreement": "点击支付即表示您同意《服务协议》和《隐私政策》",
+    "payNow": "立即支付",
+    "confirmUpgrade": "确认升级",
+    "cannotPurchase": "无法购买",
+    "cannotPurchaseDesc": "当前等级更高，到期后可购买此方案",
+    "invalidPlan": "无效的套餐",
+    "orderFailed": "创建订单失败",
+    "paymentParamError": "支付参数错误",
+    "paymentParamErrorDesc": "无法获取支付信息，请稍后重试",
+    "paymentCancelled": "支付取消",
+    "paymentCancelledDesc": "您已取消支付，可重新发起支付",
+    "paymentFailed": "支付失败",
+    "retryLater": "请稍后重试",
+    "loading": "加载中..."
+  },
+  "errorBoundary": {
+    "title": "出错了",
+    "description": "应用遇到了一些问题，请尝试重新加载"
+  },
+  "mapChart": {
+    "loadFailed": "地图加载失败",
+    "defaultTitle": "地图",
+    "loading": "正在加载地图...",
+    "clickToEnlarge": "点击查看大图"
+  },
+  "emptyState": {
+    "errorTitle": "出错了",
+    "errorDesc": "请检查网络连接后重试",
+    "networkErrorTitle": "网络连接失败",
+    "networkErrorDesc": "请检查您的网络连接后重试",
+    "noResultsFor": "未找到 \"{{keyword}}\" 相关结果",
+    "noResults": "暂无结果",
+    "tryOtherKeywords": "请尝试其他关键词或筛选条件",
+    "clearFilters": "清除筛选",
+    "loginRequiredTitle": "需要登录",
+    "loginRequiredDesc": "登录后可以查看更多内容",
+    "loginNow": "立即登录"
+  },
+  "mediaPicker": {
+    "camera": "拍照",
+    "video": "录视频",
+    "album": "相册",
+    "file": "文件",
+    "permissionDenied": "权限不足",
+    "cameraPermission": "需要相机权限才能拍照",
+    "videoPermission": "需要相机权限才能录制视频",
+    "albumPermission": "需要访问相册权限才能选择媒体",
+    "cameraError": "拍照失败，请重试",
+    "videoError": "录制视频失败，请重试",
+    "albumError": "选择媒体失败，请重试",
+    "fileUploadTitle": "文件上传",
+    "fileUploadMessage": "文件上传需要安装 react-native-document-picker 依赖。\n\n请运行:\nnpm install react-native-document-picker\n\n或:\nyarn add react-native-document-picker",
+    "fileError": "文件选择失败",
+    "selectMedia": "选择图片或视频",
+    "fromAlbum": "从相册选择",
+    "takePhoto": "拍照",
+    "recordVideo": "录制视频"
+  },
+  "payResult": {
+    "success": "支付成功",
+    "failed": "支付失败",
+    "subscribed": "您已成功订阅",
+    "subscribedPlan": "您已成功订阅 {{planName}}",
+    "errorMessage": "支付遇到问题，请重试或联系客服",
+    "viewBenefits": "查看权益",
+    "backToHome": "返回首页"
+  },
+  "threadList": {
+    "messageCount": "{{count}} 条消息",
+    "title": "会话历史",
+    "empty": "暂无会话记录",
+    "startNew": "开始新对话"
+  },
+  "debug": {
+    "nlsRealtimeTitle": "NLS 实时语音识别",
+    "currentStatus": "当前状态: {{state}}",
+    "volume": "音量: {{volume}}%",
+    "waitingForVoice": "等待语音输入...",
+    "stop": "停止",
+    "startRecording": "开始录音",
+    "tokenTest": "Token 测试",
+    "tokenTestSubtitle": "测试 NLS Token 获取",
+    "clickToTestToken": "点击按钮测试 Token 获取",
+    "getToken": "获取 Token",
+    "checkPermission": "检查权限",
+    "envConfig": "环境配置",
+    "envConfigSubtitle": "当前 NLS 配置",
+    "configured": "已配置",
+    "notConfigured": "未配置",
+    "useDefaultAddress": "使用默认地址",
+    "startTestToken": "开始测试 Token 获取...",
+    "tokenSuccess": "Token 获取成功，过期时间: {{expireDate}}",
+    "tokenFailed": "Token 获取失败: {{message}}",
+    "checkMicPermission": "检查录音权限...",
+    "permissionCheckDone": "权限检查完成（请确保已授予麦克风权限）",
+    "stopRecording": "停止录音...",
+    "recordingStopped": "录音已停止",
+    "startRecordingLog": "开始录音...",
+    "stateChange": "状态变更: {{state}}",
+    "errorPrefix": "错误:",
+    "tokenExpireTime": "过期时间: {{expireDate}}",
+    "recordingStarted": "录音已开始",
+    "startFailed": "启动失败: {{message}}",
+    "logsCleared": "日志已清空",
+    "devMode": "开发模式",
+    "yes": "是",
+    "no": "否",
+    "runtimeLogs": "运行日志",
+    "logCount": "共 {{count}} 条日志",
+    "noLogs": "暂无日志"
+  },
+  "validation": {
+    "mobile": "请输入正确的手机号",
+    "captcha": "验证码格式不正确",
+    "password": "密码长度至少6位",
+    "username": "用户名需为3-20位字母或数字",
+    "email": "邮箱格式不正确",
+    "required": "此项为必填项"
+  },
+  "error": {
+    "unknown": "未知错误"
+  },
+  "share": {
+    "defaultTitle": "分享",
+    "messageTitle": "分享消息",
+    "codeTitle": "分享代码",
+    "codeTitleWithLang": "分享 {{language}} 代码"
+  },
+  "subscription": {
+    "benefits": {
+      "aiQuota": "AI 调用额度",
+      "aiAdvanced": "高级模型",
+      "voice": "语音交互",
+      "projectLimit": "项目数量",
+      "gantt": "甘特图",
+      "timesheet": "工时表",
+      "desktopControl": "桌面控制",
+      "browserControl": "浏览器控制",
+      "mobileControl": "手机控制",
+      "skillLearning": "技能学习",
+      "wikiGeneration": "Wiki 生成",
+      "knowledgeBase": "知识库"
+    },
+    "plans": {
+      "creator": "创作者版",
+      "geek": "极客版",
+      "expert": "专家版",
+      "enterprise": "企业版",
+      "free": "免费版",
+      "explorer": "探索者版"
+    },
+    "errors": {
+      "downgradeNotAllowed": "无法购买",
+      "downgradeMessage": "当前等级更高，到期后可购买此方案",
+      "upgradeRequired": "需要{{planName}}订阅",
+      "upgradeMessage": "「{{benefitName}}」功能需要升级订阅才能使用",
+      "upgradeNow": "立即升级",
+      "genericTitle": "错误",
+      "genericMessage": "操作失败",
+      "thisFeature": "此功能",
+      "higherLevel": "更高等级",
+      "subscribe": "订阅"
     }
+  },
+  "deviceControl": {
+    "notLoggedIn": "未登录",
+    "notSelectedDevice": "未登录或未选择设备",
+    "quotaExhaustedTitle": "配额已耗尽",
+    "quotaExhaustedHint": "请联系管理员添加配额，或升级您的订阅计划。",
+    "quotaExhaustedMessage": "您的 LLM 配额已耗尽。",
+    "httpErrors": {
+      "quotaInsufficient": "配额不足，请联系管理员或升级套餐",
+      "400": "请求参数错误，请检查后重试",
+      "401": "登录已过期，请重新登录",
+      "403": "没有权限执行此操作",
+      "404": "请求的资源不存在",
+      "408": "请求超时，请检查网络后重试",
+      "429": "请求过于频繁，请稍后再试",
+      "500": "服务器内部错误，请稍后再试",
+      "502": "网关错误，请稍后再试",
+      "503": "服务暂时不可用，请稍后再试",
+      "504": "网关超时，请稍后再试",
+      "default": "请求失败 ({{status}})",
+      "sendFailed": "发送失败"
+    },
+    "hitlCancelReason": "用户取消"
+  },
+  "notifications": {
+    "newMessageTitle": "EvoLoop AI",
+    "newMessageCount": "EvoLoop AI ({{count}}条新消息)",
+    "newMessageBody": "收到新消息",
+    "newMessageChannel": "新消息通知",
+    "wakeWordTitle": "唤醒词监听中",
+    "wakeWordBody": "说出「{{wakeWord}}」唤醒语音助手"
+  },
+  "api": {
+    "errors": {
+      "requestFailed": "请求失败",
+      "invalidResponse": "无效的响应数据",
+      "getConversationsFailed": "获取会话列表失败",
+      "createConversationFailed": "创建会话失败",
+      "getConversationDetailFailed": "获取会话详情失败",
+      "deleteConversationFailed": "删除会话失败",
+      "getMessagesFailed": "获取消息历史失败",
+      "stopFailed": "停止失败",
+      "rewindFailed": "回退失败",
+      "retryFailed": "重试失败",
+      "addMemoryFailed": "添加记忆失败",
+      "getMemoryFailed": "获取记忆失败",
+      "sendMessageFailed": "发送消息失败",
+      "syncMessagesFailed": "同步消息失败",
+      "markAsReadFailed": "标记已读失败",
+      "uploadFailed": "上传失败",
+      "uploadFileFailed": "上传文件失败",
+      "unsupportedFileType": "不支持的文件类型: {{ext}}。支持: {{supportedTypes}}",
+      "sseTimeout": "SSE 请求超时"
+    }
+  },
+  "payment": {
+    "errors": {
+      "sdkUnavailable": "微信 SDK 不可用",
+      "sdkInitFailed": "微信 SDK 初始化失败",
+      "wechatNotInstalled": "请先安装微信",
+      "payFailed": "支付失败，请稍后重试",
+      "userCancelled": "您已取消支付",
+      "payAbnormal": "支付异常，请稍后重试",
+      "payCallFailed": "支付调用失败"
+    }
+  },
+  "nls": {
+    "errors": {
+      "appKeyInvalid": "未获取到有效的 NLS AppKey，请检查 Gateway 配置",
+      "clientRunning": "NLS 客户端已在运行",
+      "wsError": "WebSocket 连接错误",
+      "recognitionError": "识别错误",
+      "recognitionFailed": "识别失败",
+      "tokenInvalid": "Gateway 返回的 Token 无效"
+    }
+  },
+  "audio": {
+    "errors": {
+      "noPermission": "没有录音权限"
+    }
+  },
+  "format": {
+    "currencyUnit": "元"
   }
 }

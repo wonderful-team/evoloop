@@ -35,26 +35,26 @@ function parseConfigValue(value: string | undefined): string[] {
 }
 
 // 根据 pwd_complexity 校验密码
-function validatePasswordComplexity(password: string, complexity: string): string | null {
+function validatePasswordComplexity(password: string, complexity: string, t: any): string | null {
   if (!complexity) return null;
   const requirements = parseConfigValue(complexity);
   const errors: string[] = [];
 
   if (requirements.includes('number') && !/\d/.test(password)) {
-    errors.push('数字');
+    errors.push(t('settings.account.number'));
   }
   if (requirements.includes('letter') && !/[a-z]/.test(password)) {
-    errors.push('小写字母');
+    errors.push(t('settings.account.lowercase'));
   }
   if (requirements.includes('upper_case') && !/[A-Z]/.test(password)) {
-    errors.push('大写字母');
+    errors.push(t('settings.account.uppercase'));
   }
   if (requirements.includes('symbol') && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
-    errors.push('特殊字符');
+    errors.push(t('settings.account.specialChar'));
   }
 
   if (errors.length > 0) {
-    return `密码需包含${errors.join('、')}`;
+    return `${t('settings.account.passwordComplexityPrefix')}${errors.join('、')}`;
   }
   return null;
 }
@@ -137,12 +137,12 @@ export default function ForgotPasswordScreen() {
 
       if (!captcha) {
         console.error('验证码响应为空');
-        throw new Error('获取验证码失败，请重试');
+        throw new Error(t('auth.errors.getCaptchaFailed'));
       }
 
       if (!captcha.img) {
         console.error('验证码数据不完整:', captcha);
-        throw new Error('验证码数据不完整');
+        throw new Error(t('auth.errors.captchaDataIncomplete'));
       }
 
       setCaptchaId(captcha.id);
@@ -150,27 +150,27 @@ export default function ForgotPasswordScreen() {
     } catch (error: any) {
       console.error('获取图形验证码失败:', error);
       setFormErrors({
-        captchaCode: error.message || '验证码服务暂时不可用'
+        captchaCode: error.message || t('auth.errors.captchaUnavailable')
       });
     }
   };
 
   // 步骤标题和描述
   const stepInfo = [
-    { title: '验证手机号', description: '请输入您注册时使用的手机号' },
-    { title: '输入验证码', description: `验证码已发送至 ${mobile}` },
-    { title: '设置新密码', description: '请设置您的新密码' },
+    { title: t('auth.forgotPassword.step0'), description: t('auth.forgotPassword.mobilePlaceholder') },
+    { title: t('auth.forgotPassword.step1'), description: `${t('auth.forgotPassword.sentTo')} ${mobile}` },
+    { title: t('auth.forgotPassword.step2'), description: t('auth.forgotPassword.step2') },
   ];
 
   // 发送验证码
   const handleSendCode = async () => {
     if (!validate.mobile(mobile)) {
-      setFormErrors({ mobile: '请输入正确的手机号' });
+      setFormErrors({ mobile: t('auth.errors.enterCorrectMobile') });
       return false;
     }
 
     if (!captchaCode) {
-      setFormErrors({ captchaCode: '请输入图形验证码' });
+      setFormErrors({ captchaCode: t('auth.errors.enterCaptcha') });
       return false;
     }
 
@@ -189,7 +189,7 @@ export default function ForgotPasswordScreen() {
       }
     } catch (error: any) {
       setFormErrors({
-        mobile: error.message || '发送验证码失败',
+        mobile: error.message || t('auth.errors.sendCodeFailed'),
       });
       refreshCaptcha();
     } finally {
@@ -201,7 +201,7 @@ export default function ForgotPasswordScreen() {
   // 验证验证码
   const handleVerifyCode = async () => {
     if (!code) {
-      setFormErrors({ code: '请输入验证码' });
+      setFormErrors({ code: t('auth.errors.codeRequired') });
       return;
     }
 
@@ -215,18 +215,18 @@ export default function ForgotPasswordScreen() {
 
     const minPwdLen = getMinPasswordLength();
     if (!newPassword || newPassword.length < minPwdLen) {
-      errors.newPassword = `密码至少${minPwdLen}位`;
+      errors.newPassword = t('auth.errors.passwordMinLength', { min: minPwdLen });
     }
 
     if (registerConfig?.pwd_complexity) {
-      const complexityError = validatePasswordComplexity(newPassword, registerConfig.pwd_complexity);
+      const complexityError = validatePasswordComplexity(newPassword, registerConfig.pwd_complexity, t);
       if (complexityError) {
         errors.newPassword = complexityError;
       }
     }
 
     if (newPassword !== confirmPassword) {
-      errors.confirmPassword = '两次密码不一致';
+      errors.confirmPassword = t('auth.errors.passwordMismatch');
     }
 
     if (Object.keys(errors).length > 0) {
@@ -248,7 +248,7 @@ export default function ForgotPasswordScreen() {
 
       setShowSuccessDialog(true);
     } catch (error: any) {
-      setErrorMessage(error.message || '重置密码失败，请重试');
+      setErrorMessage(error.message || t('auth.errors.resetFailed'));
     } finally {
       setIsLoading(false);
     }
@@ -303,7 +303,7 @@ export default function ForgotPasswordScreen() {
     <View style={styles.form}>
       <View>
         <TextInput
-          label="手机号"
+          label={t('auth.forgotPassword.mobilePlaceholder')}
           value={mobile}
           onChangeText={(text) => {
             setMobile(text);
@@ -326,7 +326,7 @@ export default function ForgotPasswordScreen() {
       <View>
         <View style={styles.captchaContainer}>
           <TextInput
-            label="图形验证码"
+            label={t('auth.login.captchaLabel')}
             value={captchaCode}
             onChangeText={setCaptchaCode}
             error={!!formErrors.captchaCode}
@@ -353,7 +353,7 @@ export default function ForgotPasswordScreen() {
         style={styles.actionButton}
         contentStyle={styles.actionButtonContent}
       >
-        获取验证码
+        {t('auth.login.getCode')}
       </Button>
     </View>
   );
@@ -364,7 +364,7 @@ export default function ForgotPasswordScreen() {
       <View style={styles.codeInfoContainer}>
         <MaterialIcons name="sms" size={48} color={colors.primary} />
         <Text variant="bodyLarge" style={styles.codeInfoText}>
-          验证码已发送至
+          {t('auth.forgotPassword.sentTo')}
         </Text>
         <Text variant="titleMedium" style={{ color: colors.primary }}>
           {mobile}
@@ -373,7 +373,7 @@ export default function ForgotPasswordScreen() {
 
       <View>
         <TextInput
-          label="验证码"
+          label={t('auth.login.smsCodeLabel')}
           value={code}
           onChangeText={(text) => {
             setCode(text);
@@ -394,11 +394,11 @@ export default function ForgotPasswordScreen() {
       </View>
 
       <View style={styles.resendContainer}>
-        <Text style={{ color: colors.text.secondary }}>没有收到?</Text>
+        <Text style={{ color: colors.text.secondary }}>{t('auth.forgotPassword.noReceived')}</Text>
         <CountdownButton
           onPress={handleSendCode}
           disabled={!validate.mobile(mobile)}
-          label="重新发送"
+          label={t('auth.forgotPassword.resend')}
         />
       </View>
 
@@ -408,7 +408,7 @@ export default function ForgotPasswordScreen() {
         style={styles.actionButton}
         contentStyle={styles.actionButtonContent}
       >
-        下一步
+        {t('auth.forgotPassword.next')}
       </Button>
     </View>
   );
@@ -418,7 +418,7 @@ export default function ForgotPasswordScreen() {
     <View style={styles.form}>
       <View>
         <TextInput
-          label="新密码"
+          label={t('auth.login.passwordLabel')}
           value={newPassword}
           onChangeText={(text) => {
             setNewPassword(text);
@@ -429,7 +429,7 @@ export default function ForgotPasswordScreen() {
           secureTextEntry={!showNewPassword}
           error={!!formErrors.newPassword}
           style={styles.input}
-          placeholder={`至少${getMinPasswordLength()}位`}
+          placeholder={t('auth.register.passwordPlaceholder')}
           right={
             <TextInput.Icon
               icon={showNewPassword ? 'eye-off' : 'eye'}
@@ -446,7 +446,7 @@ export default function ForgotPasswordScreen() {
 
       <View>
         <TextInput
-          label="确认密码"
+          label={t('auth.login.passwordLabel')}
           value={confirmPassword}
           onChangeText={(text) => {
             setConfirmPassword(text);
@@ -485,7 +485,7 @@ export default function ForgotPasswordScreen() {
         style={styles.actionButton}
         contentStyle={styles.actionButtonContent}
       >
-        重置密码
+        {t('auth.forgotPassword.submit')}
       </Button>
     </View>
   );
@@ -532,15 +532,15 @@ export default function ForgotPasswordScreen() {
       <Portal>
         <Dialog visible={showSuccessDialog} onDismiss={handleComplete}>
           <Dialog.Icon icon="check-circle" size={48} color={colors.primary} />
-          <Dialog.Title style={styles.dialogTitle}>重置成功</Dialog.Title>
+          <Dialog.Title style={styles.dialogTitle}>{t('auth.forgotPassword.resetSuccess')}</Dialog.Title>
           <Dialog.Content>
             <Text style={styles.dialogContent}>
-              您的密码已重置成功，请使用新密码登录。
+              {t('auth.forgotPassword.resetSuccessDesc')}
             </Text>
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={handleComplete} mode="contained">
-              去登录
+              {t('auth.forgotPassword.goLogin')}
             </Button>
           </Dialog.Actions>
         </Dialog>

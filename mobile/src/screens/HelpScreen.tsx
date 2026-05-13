@@ -1,41 +1,43 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, Linking } from 'react-native';
 import { List, Divider, Text, Card, Button, TextInput, Portal, Dialog } from 'react-native-paper';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Header } from '@/components/common/Header';
 import { BASE_URL } from '@/constants/config';
 
-const FAQ_ITEMS = [
-  {
-    question: '如何连接我的电脑？',
-    answer: '在您的 Mac/Windows 电脑上下载并安装 EvoLoop 客户端，登录相同账号后即可自动连接。',
-  },
-  {
-    question: '云端与本地模式的区别？',
-    answer: '云端模式与运行在服务器上的 AI 交互，不依赖您的电脑。本地模式通过 AI 直接操作您的电脑，可以读取本地文件、运行终端命令。',
-  },
-  {
-    question: '支持语音输入吗？',
-    answer: '支持。点击麦克风图标即可开始说话，支持中文和英文指令。',
-  },
-  {
-    question: '如何切换项目？',
-    answer: '在首页点击项目名称，或进入项目列表页面选择要切换的项目。',
-  },
-  {
-    question: '语音对话如何使用？',
-    answer: '进入语音页面后，点击麦克风按钮开始录音，说话后松开即可发送语音。AI 会自动识别并回复。',
-  },
-];
-
 export default function HelpScreen() {
   const { theme } = useTheme();
   const colors = theme.colors;
+  const { t } = useTranslation();
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const FAQ_ITEMS = [
+    {
+      question: t('help.faq.q1'),
+      answer: t('help.faq.a1'),
+    },
+    {
+      question: t('help.faq.q2'),
+      answer: t('help.faq.a2'),
+    },
+    {
+      question: t('help.faq.q3'),
+      answer: t('help.faq.a3'),
+    },
+    {
+      question: t('help.faq.q4'),
+      answer: t('help.faq.a4'),
+    },
+    {
+      question: t('help.faq.q5'),
+      answer: t('help.faq.a5'),
+    },
+  ];
 
   const toggleExpand = (index: number) => {
     setExpandedIndex(expandedIndex === index ? null : index);
@@ -62,13 +64,13 @@ export default function HelpScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header title="帮助中心" showBack />
+      <Header title={t('help.title')} showBack />
       <ScrollView>
-        {/* 快速操作 */}
+        {/* Quick Actions */}
         <Card style={styles.quickActionsCard}>
           <Card.Content>
             <Text variant="titleMedium" style={{ marginBottom: 16, color: colors.onSurface }}>
-              需要帮助？
+              {t('help.quickActions.needHelp')}
             </Text>
             <View style={styles.actionButtons}>
               <Button
@@ -77,7 +79,7 @@ export default function HelpScreen() {
                 onPress={openEmail}
                 style={styles.actionButton}
               >
-                邮件联系
+                {t('help.quickActions.email')}
               </Button>
               <Button
                 mode="outlined"
@@ -85,7 +87,7 @@ export default function HelpScreen() {
                 onPress={openWebsite}
                 style={styles.actionButton}
               >
-                帮助中心
+                {t('help.quickActions.helpCenter')}
               </Button>
             </View>
           </Card.Content>
@@ -93,7 +95,7 @@ export default function HelpScreen() {
 
         {/* FAQ */}
         <List.Section>
-          <List.Subheader>常见问题</List.Subheader>
+          <List.Subheader>{t('help.faq.title')}</List.Subheader>
           {FAQ_ITEMS.map((item, index) => (
             <React.Fragment key={index}>
               <List.Accordion
@@ -115,12 +117,12 @@ export default function HelpScreen() {
 
         <Divider />
 
-        {/* 反馈 */}
+        {/* Feedback */}
         <List.Section>
-          <List.Subheader>反馈建议</List.Subheader>
+          <List.Subheader>{t('help.feedback.sectionTitle')}</List.Subheader>
           <List.Item
-            title="提交反馈"
-            description="告诉我们您的建议或遇到的问题"
+            title={t('help.feedback.submit')}
+            description={t('help.feedback.description')}
             left={(props) => <List.Icon {...props} icon="message-text" />}
             right={(props) => <List.Icon {...props} icon="chevron-right" />}
             onPress={() => setShowFeedbackDialog(true)}
@@ -132,13 +134,13 @@ export default function HelpScreen() {
         <View style={styles.bottomPadding} />
       </ScrollView>
 
-      {/* 反馈对话框 */}
+      {/* Feedback Dialog */}
       <Portal>
         <Dialog visible={showFeedbackDialog} onDismiss={() => setShowFeedbackDialog(false)}>
-          <Dialog.Title>提交反馈</Dialog.Title>
+          <Dialog.Title>{t('help.feedback.title')}</Dialog.Title>
           <Dialog.Content>
             <TextInput
-              label="您的建议或问题"
+              label={t('help.feedback.label')}
               value={feedback}
               onChangeText={setFeedback}
               multiline
@@ -147,9 +149,9 @@ export default function HelpScreen() {
             />
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setShowFeedbackDialog(false)}>取消</Button>
+            <Button onPress={() => setShowFeedbackDialog(false)}>{t('help.feedback.cancel')}</Button>
             <Button onPress={submitFeedback} loading={isSubmitting} disabled={!feedback.trim()}>
-              提交
+              {t('help.feedback.confirm')}
             </Button>
           </Dialog.Actions>
         </Dialog>

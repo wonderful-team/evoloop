@@ -4,6 +4,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text } from 'react-native-paper';
 import { VoiceVisualizer } from '@/components/chat/VoiceVisualizer';
+import { useTranslation } from 'react-i18next';
 
 interface VoiceInputVoicePanelProps {
   isListening: boolean;
@@ -16,6 +17,7 @@ export function VoiceInputVoicePanel({
   nlsVolume,
   transcriptionText,
 }: VoiceInputVoicePanelProps) {
+  const { t } = useTranslation();
   if (!isListening) return null;
 
   return (
@@ -46,7 +48,7 @@ export function VoiceInputVoicePanel({
       ) : (
         <View style={styles.transcriptionContainer}>
           <Text variant="bodyMedium" style={styles.listeningHint}>
-            正在聆听...
+            {t('voice.input.listeningPanel')}
           </Text>
         </View>
       )}

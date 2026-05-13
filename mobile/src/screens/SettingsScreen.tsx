@@ -30,7 +30,7 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header title="设置" showBack />
+      <Header title={t('settings.title')} showBack />
       <ScrollView>
         {/* 用户信息卡片 */}
         <View style={styles.userCard}>
@@ -53,17 +53,17 @@ export default function SettingsScreen() {
 
         {/* 功能设置 */}
         <List.Section>
-          <List.Subheader>功能设置</List.Subheader>
+          <List.Subheader>{t('settings.featureSettings')}</List.Subheader>
           <List.Item
-            title="语音设置"
-            description="语音识别、对话偏好"
+            title={t('settings.voice.title')}
+            description={t('settings.voice.autoStart')}
             left={(props) => <List.Icon {...props} icon="microphone" />}
             right={(props) => <List.Icon {...props} icon="chevron-right" />}
             onPress={() => router.push('SettingsVoice')}
           />
           <List.Item
-            title="账号与安全"
-            description="修改密码、绑定手机"
+            title={t('settings.account.title')}
+            description={t('settings.account.bindPhone')}
             left={(props) => <List.Icon {...props} icon="shield-account" />}
             right={(props) => <List.Icon {...props} icon="chevron-right" />}
             onPress={() => router.push('SettingsAccount')}
@@ -74,18 +74,18 @@ export default function SettingsScreen() {
 
         {/* 通用设置 */}
         <List.Section>
-          <List.Subheader>通用</List.Subheader>
+          <List.Subheader>{t('settings.general')}</List.Subheader>
 
           <List.Item
-            title="帮助与反馈"
-            description="查看帮助文档或联系我们"
+            title={t('settings.helpFeedback')}
+            description={t('settings.helpFeedbackDesc')}
             left={(props) => <List.Icon {...props} icon="help-circle" />}
             right={(props) => <List.Icon {...props} icon="chevron-right" />}
             onPress={() => router.push('Help')}
           />
           <List.Item
-            title="关于"
-            description="版本信息、隐私政策"
+            title={t('settings.about.title')}
+            description={t('settings.about.termsOfService')}
             left={(props) => <List.Icon {...props} icon="information" />}
             right={(props) => <List.Icon {...props} icon="chevron-right" />}
             onPress={() => router.push('SettingsAbout')}
@@ -96,14 +96,14 @@ export default function SettingsScreen() {
 
         {/* 法律信息 */}
         <List.Section>
-          <List.Subheader>法律信息</List.Subheader>
+          <List.Subheader>{t('settings.legalInfo')}</List.Subheader>
           <List.Item
-            title="隐私政策"
+            title={t('settings.about.privacyPolicy')}
             left={(props) => <List.Icon {...props} icon="file-document-outline" />}
             onPress={openPrivacyPolicy}
           />
           <List.Item
-            title="服务条款"
+            title={t('settings.about.termsOfService')}
             left={(props) => <List.Icon {...props} icon="file-document-outline" />}
             onPress={openTermsOfService}
           />
@@ -115,7 +115,7 @@ export default function SettingsScreen() {
         {userInfo && (
           <List.Section>
             <List.Item
-              title="退出登录"
+              title={t('settings.logout')}
               titleStyle={{ color: colors.error }}
               left={(props) => (
                 <List.Icon {...props} icon="logout" color={colors.error} />

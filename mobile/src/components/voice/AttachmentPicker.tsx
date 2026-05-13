@@ -16,6 +16,7 @@ import { Text } from 'react-native-paper';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import ImagePicker from 'react-native-image-crop-picker';
 import { useTheme } from '@/theme';
+import { useTranslation } from 'react-i18next';
 import { uploadChatImage, ChatAttachment } from '@/services/api/upload';
 
 export { type ChatAttachment } from '@/services/api/upload';
@@ -46,6 +47,7 @@ export function AttachmentPicker({
   onUploadComplete,
 }: AttachmentPickerProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const [showOptions, setShowOptions] = useState(false);
   const [uploading, setUploading] = useState(false);
 
@@ -94,11 +96,11 @@ export function AttachmentPicker({
       const granted = await PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.CAMERA,
         {
-          title: '相机权限',
-          message: '需要相机权限才能拍照',
-          buttonNeutral: '稍后询问',
-          buttonNegative: '取消',
-          buttonPositive: '确定',
+          title: t('common.cameraPermissionTitle'),
+          message: t('common.cameraPermissionMessage'),
+          buttonNeutral: t('common.later'),
+          buttonNegative: t('common.cancel'),
+          buttonPositive: t('common.confirm'),
         }
       );
       return granted === PermissionsAndroid.RESULTS.GRANTED;
@@ -112,11 +114,11 @@ export function AttachmentPicker({
       const granted = await PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
         {
-          title: '相册权限',
-          message: '需要访问相册权限才能选择图片',
-          buttonNeutral: '稍后询问',
-          buttonNegative: '取消',
-          buttonPositive: '确定',
+          title: t('common.albumPermissionTitle'),
+          message: t('common.albumPermissionMessage'),
+          buttonNeutral: t('common.later'),
+          buttonNegative: t('common.cancel'),
+          buttonPositive: t('common.confirm'),
         }
       );
       return granted === PermissionsAndroid.RESULTS.GRANTED;
@@ -168,13 +170,13 @@ export function AttachmentPicker({
     setShowOptions(false);
 
     if (attachments.length >= maxAttachments) {
-      Alert.alert('提示', `最多只能选择 ${maxAttachments} 个媒体文件`);
+      Alert.alert(t('common.tip'), t('common.maxAttachments', { count: maxAttachments }));
       return;
     }
 
     const hasPermission = await requestMediaLibraryPermission();
     if (!hasPermission) {
-      Alert.alert('权限不足', '需要访问相册权限才能选择媒体文件');
+      Alert.alert(t('common.permissionDenied'), t('common.albumPermissionRequired'));
       return;
     }
 
@@ -211,7 +213,7 @@ export function AttachmentPicker({
         return;
       }
       console.error('选择媒体失败:', error);
-      Alert.alert('错误', '选择媒体失败，请重试');
+      Alert.alert(t('common.error.title'), t('common.mediaPickError'));
     }
   }, [attachments, maxAttachments, onAttachmentsChange, requestMediaLibraryPermission]);
 
@@ -220,13 +222,13 @@ export function AttachmentPicker({
     setShowOptions(false);
 
     if (attachments.length >= maxAttachments) {
-      Alert.alert('提示', `最多只能选择 ${maxAttachments} 个媒体文件`);
+      Alert.alert(t('common.tip'), t('common.maxAttachments', { count: maxAttachments }));
       return;
     }
 
     const hasPermission = await requestCameraPermission();
     if (!hasPermission) {
-      Alert.alert('权限不足', '需要相机权限才能拍照');
+      Alert.alert(t('common.permissionDenied'), t('common.cameraPermissionRequired'));
       return;
     }
 
@@ -255,7 +257,7 @@ export function AttachmentPicker({
         return;
       }
       console.error('拍照失败:', error);
-      Alert.alert('错误', '拍照失败，请重试');
+      Alert.alert(t('common.error.title'), t('common.cameraError'));
     }
   }, [attachments, maxAttachments, onAttachmentsChange, requestCameraPermission]);
 
@@ -264,13 +266,13 @@ export function AttachmentPicker({
     setShowOptions(false);
 
     if (attachments.length >= maxAttachments) {
-      Alert.alert('提示', `最多只能选择 ${maxAttachments} 个媒体文件`);
+      Alert.alert(t('common.tip'), t('common.maxAttachments', { count: maxAttachments }));
       return;
     }
 
     const hasPermission = await requestCameraPermission();
     if (!hasPermission) {
-      Alert.alert('权限不足', '需要相机权限才能录制视频');
+      Alert.alert(t('common.permissionDenied'), t('common.videoPermissionRequired'));
       return;
     }
 
@@ -298,7 +300,7 @@ export function AttachmentPicker({
         return;
       }
       console.error('录制视频失败:', error);
-      Alert.alert('错误', '录制视频失败，请重试');
+      Alert.alert(t('common.error.title'), t('common.videoError'));
     }
   }, [attachments, maxAttachments, onAttachmentsChange, requestCameraPermission]);
 
@@ -386,7 +388,7 @@ export function AttachmentPicker({
         >
           <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <Text variant="titleMedium" style={styles.modalTitle}>
-              选择图片或视频
+              {t('mediaPicker.selectMedia')}
             </Text>
             
             <TouchableOpacity
@@ -396,7 +398,7 @@ export function AttachmentPicker({
             >
               <MaterialIcons name="image" size={24} color={colors.primary} />
               <Text variant="bodyLarge" style={[styles.optionText, { color: colors.onSurface }]}>
-                从相册选择
+                {t('mediaPicker.fromAlbum')}
               </Text>
               {uploading && <ActivityIndicator size="small" style={{ marginLeft: 8 }} />}
             </TouchableOpacity>
@@ -408,7 +410,7 @@ export function AttachmentPicker({
             >
               <MaterialIcons name="camera-alt" size={24} color={colors.primary} />
               <Text variant="bodyLarge" style={[styles.optionText, { color: colors.onSurface }]}>
-                拍照
+                {t('mediaPicker.takePhoto')}
               </Text>
             </TouchableOpacity>
 
@@ -419,7 +421,7 @@ export function AttachmentPicker({
             >
               <MaterialIcons name="videocam" size={24} color={colors.primary} />
               <Text variant="bodyLarge" style={[styles.optionText, { color: colors.onSurface }]}>
-                录制视频
+                {t('mediaPicker.recordVideo')}
               </Text>
             </TouchableOpacity>
             
@@ -429,7 +431,7 @@ export function AttachmentPicker({
               disabled={uploading}
             >
               <Text variant="bodyLarge" style={{ color: colors.error }}>
-                取消
+                {t('common.cancel')}
               </Text>
             </TouchableOpacity>
           </View>

@@ -70,10 +70,10 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <View style={styles.container}>
           <Text variant="headlineMedium" style={styles.title}>
-            出错了
+            {i18n.t('errorBoundary.title')}
           </Text>
           <Text variant="bodyMedium" style={styles.message}>
-            应用遇到了一些问题，请尝试重新加载
+            {i18n.t('errorBoundary.description')}
           </Text>
           {__DEV__ && this.state.error && (
             <View style={styles.errorDetails}>
@@ -83,7 +83,7 @@ export class ErrorBoundary extends Component<Props, State> {
             </View>
           )}
           <Button mode="contained" onPress={this.handleReset} style={styles.button}>
-            重新加载
+            {i18n.t('common.reload')}
           </Button>
         </View>
       );

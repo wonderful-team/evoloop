@@ -3,6 +3,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../api/client';
+import i18n from '@/locales';
 
 interface TokenResponse {
   token: string;
@@ -37,7 +38,7 @@ class NLSTokenManager {
         return this.token;
       }
 
-      throw new Error('Gateway 返回的 Token 无效');
+      throw new Error(i18n.t('nls.errors.tokenInvalid'));
     } catch (error) {
       console.error('[NLS] 从 Gateway 获取 Token 失败:', error);
       throw error;

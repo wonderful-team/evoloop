@@ -3,6 +3,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import RNFS from 'react-native-fs';
 import { DASHSCOPE_CONFIG } from '@/constants/config';
 
@@ -23,10 +24,12 @@ export interface TTSVoice {
 }
 
 // Qwen3-TTS 预置音色（百炼控制台可查看完整列表）
-export const DEFAULT_VOICES: TTSVoice[] = [
-  { id: 'Cherry', name: 'Cherry', gender: 'female', description: '★ 中文女声，对话感强' },
-  { id: 'Serena', name: 'Serena', gender: 'female', description: '★ 英文女声，自然流畅' },
-];
+export function getDefaultVoices(t: TFunction): TTSVoice[] {
+  return [
+    { id: 'Cherry', name: 'Cherry', gender: 'female', description: t('chat.tts.cherryDesc') },
+    { id: 'Serena', name: 'Serena', gender: 'female', description: t('chat.tts.serenaDesc') },
+  ];
+}
 
 // Qwen3-TTS 文本长度限制（约 800 个汉字）
 const QWEN_TTS_MAX_TEXT_LENGTH = 800;
@@ -59,7 +62,7 @@ export function useTTS(): UseTTSReturn {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [voices, setVoices] = useState<TTSVoice[]>(DEFAULT_VOICES);
+  const [voices, setVoices] = useState<TTSVoice[]>(getDefaultVoices(t));
   const [currentVoice, setCurrentVoiceState] = useState('Cherry');
   const [queueLength, setQueueLength] = useState(0);
 
@@ -187,7 +190,7 @@ export function useTTS(): UseTTSReturn {
 
       const data = await apiResponse.json();
       const audioUrl = data?.output?.audio?.url;
-      if (!audioUrl) throw new Error('API 未返回音频 URL');
+      if (!audioUrl) throw new Error(t('chat.tts.apiNoAudioUrl'));
 
       const timestamp = Date.now();
       const localPath = `${RNFS.DocumentDirectoryPath}/qwen_tts_${timestamp}.wav`;
@@ -198,7 +201,7 @@ export function useTTS(): UseTTSReturn {
       }).promise;
 
       if (downloadRes.statusCode !== 200) {
-        throw new Error(`下载音频失败: ${downloadRes.statusCode}`);
+        throw new Error(t('chat.tts.downloadFailed', { statusCode: downloadRes.statusCode }));
       }
 
       if (abortControllerRef.current !== controller) {
@@ -222,7 +225,7 @@ export function useTTS(): UseTTSReturn {
             resolve();
           },
           (err) => {
-            setError(t('chat.tts.playbackError', '播放失败'));
+            setError(t('chat.tts.playbackError'));
             setIsSpeaking(false);
             const path = currentAudioUriRef.current;
             currentAudioUriRef.current = null;
@@ -234,7 +237,7 @@ export function useTTS(): UseTTSReturn {
 
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return;
-      const msg = err instanceof Error ? err.message : t('chat.tts.error', '语音合成失败');
+      const msg = err instanceof Error ? err.message : t('chat.tts.error');
       console.error('TTS 合成失败:', msg);
       setError(msg);
       setIsSpeaking(false);
@@ -293,7 +296,7 @@ export function useTTS(): UseTTSReturn {
 
   const fetchVoices = useCallback(async () => {
     // Qwen3-TTS 音色列表以百炼控制台为准，这里提供预置列表
-    setVoices(DEFAULT_VOICES);
+    setVoices(getDefaultVoices(t));
   }, []);
 
   return {
@@ -330,7 +333,7 @@ function truncateAtSentenceBoundary(text: string, maxLength: number): string {
     }
   }
 
-  return text.slice(0, truncateIndex).trimEnd() + '……';
+  return text.slice(0, truncateIndex).trimEnd() + '...';
 }
 
 // 自动朗读设置 Hook

@@ -1,6 +1,7 @@
 // 微信登录按钮组件
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet } from 'react-native';
 import { Button } from 'react-native-paper';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -16,6 +17,7 @@ export function WechatLoginButton({
   disabled = false,
   loading = false,
 }: WechatLoginButtonProps) {
+  const { t } = useTranslation();
   return (
     <Button
       mode="contained"
@@ -30,7 +32,7 @@ export function WechatLoginButton({
       buttonColor="#07C160"
       textColor="#FFFFFF"
     >
-      微信一键登录
+      {t('auth.wechatLogin')}
     </Button>
   );
 }

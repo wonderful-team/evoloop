@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Text, IconButton, ActivityIndicator } from 'react-native-paper';
 import { useTheme } from '@/theme';
+import { useTranslation } from 'react-i18next';
 import { WebView } from 'react-native-webview';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
@@ -59,7 +60,9 @@ ${chart}
 
 export const MermaidChart = memo(function MermaidChart({ chart }: MermaidChartProps) {
   const { colors, isDark } = useTheme();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
+
   const [error, setError] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [height, setHeight] = useState(200);
@@ -91,7 +94,7 @@ export const MermaidChart = memo(function MermaidChart({ chart }: MermaidChartPr
         <View style={styles.errorHeader}>
           <MaterialIcons name="error-outline" size={20} color={colors.error} />
           <Text style={[styles.errorTitle, { color: colors.error }]}>
-            图表渲染失败
+            {t('mermaidChart.renderFailed')}
           </Text>
         </View>
         <View style={[styles.codeBlock, { backgroundColor: colors.background }]}>
@@ -114,7 +117,7 @@ export const MermaidChart = memo(function MermaidChart({ chart }: MermaidChartPr
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <MaterialIcons name="account-tree" size={18} color={colors.primary} />
-            <Text style={[styles.title, { color: colors.primary }]}>Mermaid 图表</Text>
+            <Text style={[styles.title, { color: colors.primary }]}>{t('mermaidChart.title')}</Text>
           </View>
           <MaterialIcons name="fullscreen" size={20} color={colors.onSurfaceVariant} />
         </View>
@@ -125,7 +128,7 @@ export const MermaidChart = memo(function MermaidChart({ chart }: MermaidChartPr
             <View style={styles.loadingOverlay}>
               <ActivityIndicator size="large" color={colors.primary} />
               <Text style={[styles.loadingText, { color: colors.onSurfaceVariant }]}>
-                正在渲染图表...
+                {t('mermaidChart.rendering')}
               </Text>
             </View>
           )}
@@ -155,7 +158,7 @@ export const MermaidChart = memo(function MermaidChart({ chart }: MermaidChartPr
 
         {/* 提示文字 */}
         <Text style={[styles.hint, { color: colors.onSurfaceVariant }]}>
-          点击查看大图
+          {t('mermaidChart.clickToEnlarge')}
         </Text>
       </TouchableOpacity>
 

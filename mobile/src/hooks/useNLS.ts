@@ -1,11 +1,14 @@
 // 阿里云 NLS 语音识别 Hook
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { NLSClient } from '@/services/nls/NLSClient';
 import { AudioStreamRecorder } from '@/services/audio/AudioStreamRecorder';
 import { nlsTokenManager } from '@/services/nls/NLSTokenManager';
 import { NLSState } from '@/services/nls/types';
 import { useNLSStore } from '@/stores/nlsStore';
+import { useAuthStore } from '@/stores/authStore';
+
 
 export interface UseNLSOptions {
   onResult?: (text: string, isFinal: boolean) => void;
@@ -25,6 +28,7 @@ export interface UseNLSReturn {
 }
 
 export function useNLS(options: UseNLSOptions = {}): UseNLSReturn {
+  const { t } = useTranslation();
   const { onResult, onError, onStateChange } = options;
 
   const [state, setState] = useState<NLSState>('idle');
@@ -55,7 +59,7 @@ export function useNLS(options: UseNLSOptions = {}): UseNLSReturn {
       const appKey = nlsTokenManager.getAppKey();
 
       if (!appKey) {
-        throw new Error('未获取到有效的 NLS AppKey，请检查 Gateway 配置');
+        throw new Error(t('nls.errors.appKeyInvalid'));
       }
 
       // 创建 NLS 客户端
@@ -114,10 +118,17 @@ export function useNLS(options: UseNLSOptions = {}): UseNLSReturn {
 
   // 开始识别
   const start = useCallback(async () => {
+    const isLoggedIn = useAuthStore.getState().isLoggedIn;
+    if (!isLoggedIn) {
+      console.warn('用户未登录，无法启动 NLS');
+      return;
+    }
+
     if (state !== 'idle') {
       console.warn('NLS 已经在运行中');
       return;
     }
+
 
     try {
       updateState('connecting');

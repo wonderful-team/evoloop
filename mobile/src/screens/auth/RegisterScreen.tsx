@@ -39,26 +39,26 @@ function parseConfigValue(value: string | undefined): string[] {
 }
 
 // 根据 pwd_complexity 校验密码
-function validatePasswordComplexity(password: string, complexity: string): string | null {
+function validatePasswordComplexity(password: string, complexity: string, t: any): string | null {
   if (!complexity) return null;
   const requirements = parseConfigValue(complexity);
   const errors: string[] = [];
 
   if (requirements.includes('number') && !/\d/.test(password)) {
-    errors.push('数字');
+    errors.push(t('settings.account.number'));
   }
   if (requirements.includes('letter') && !/[a-z]/.test(password)) {
-    errors.push('小写字母');
+    errors.push(t('settings.account.lowercase'));
   }
   if (requirements.includes('upper_case') && !/[A-Z]/.test(password)) {
-    errors.push('大写字母');
+    errors.push(t('settings.account.uppercase'));
   }
   if (requirements.includes('symbol') && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
-    errors.push('特殊字符');
+    errors.push(t('settings.account.specialChar'));
   }
 
   if (errors.length > 0) {
-    return `密码需包含${errors.join('、')}`;
+    return `${t('settings.account.passwordComplexityPrefix')}${errors.join('、')}`;
   }
   return null;
 }
@@ -118,8 +118,8 @@ export default function RegisterScreen() {
       const registerMethods = parseConfigValue(config.register);
       if (registerMethods.length === 0) {
         // 平台未启用注册，跳转回首页
-        Alert.alert('提示', '平台未启用注册!', [
-          { text: '确定', onPress: () => router.back() },
+        Alert.alert(t('common.tip'), t('auth.errors.platformRegistrationDisabled'), [
+          { text: t('common.confirm'), onPress: () => router.back() },
         ]);
         return;
       }
@@ -193,12 +193,12 @@ export default function RegisterScreen() {
 
       if (!captcha) {
         console.error('验证码响应为空');
-        throw new Error('获取验证码失败，请重试');
+        throw new Error(t('auth.errors.getCaptchaFailed'));
       }
 
       if (!captcha.img) {
         console.error('验证码数据不完整:', captcha);
-        throw new Error('验证码数据不完整');
+        throw new Error(t('auth.errors.captchaDataIncomplete'));
       }
 
       setCaptchaId(captcha.id);
@@ -208,7 +208,7 @@ export default function RegisterScreen() {
       // 如果验证码服务不可用，禁用验证码功能
       setNeedCaptcha(false);
       setFormErrors({
-        captchaCode: error.message || '验证码服务暂时不可用'
+        captchaCode: error.message || t('auth.errors.captchaUnavailable')
       });
     }
   };
@@ -217,14 +217,14 @@ export default function RegisterScreen() {
   const handleSendMobileCode = async () => {
     // 验证手机号
     if (!validate.mobile(mobile)) {
-      setFormErrors({ mobile: '请输入正确的手机号' });
-      Alert.alert('提示', '请输入正确的手机号');
+      setFormErrors({ mobile: t('auth.errors.enterCorrectMobile') });
+      Alert.alert(t('common.tip'), t('auth.errors.enterCorrectMobile'));
       return false;
     }
 
     // 如果需要图形验证码
     if (needCaptcha && !captchaCode) {
-      setFormErrors({ captchaCode: '请输入图形验证码' });
+      setFormErrors({ captchaCode: t('auth.errors.enterCaptcha') });
       return false;
     }
 
@@ -237,7 +237,7 @@ export default function RegisterScreen() {
       }
     } catch (error: any) {
       setFormErrors({
-        mobile: error.message || '发送验证码失败',
+        mobile: error.message || t('auth.errors.sendCodeFailed'),
       });
       // 刷新验证码
       if (needCaptcha) {
@@ -253,27 +253,27 @@ export default function RegisterScreen() {
     const errors: Record<string, string> = {};
 
     if (!validate.mobile(mobile)) {
-      errors.mobile = '请输入正确的手机号';
+      errors.mobile = t('auth.errors.enterCorrectMobile');
     }
     if (!mobileCode) {
-      errors.mobileCode = '请输入验证码';
+      errors.mobileCode = t('auth.errors.codeRequired');
     }
 
     const minPwdLen = getMinPasswordLength();
     if (!mobilePassword || mobilePassword.length < minPwdLen) {
-      errors.mobilePassword = `密码至少${minPwdLen}位`;
+      errors.mobilePassword = t('auth.errors.passwordTooShort');
     }
 
     // 密码复杂度校验
     if (registerConfig?.pwd_complexity) {
-      const complexityError = validatePasswordComplexity(mobilePassword, registerConfig.pwd_complexity);
+      const complexityError = validatePasswordComplexity(mobilePassword, registerConfig.pwd_complexity, t);
       if (complexityError) {
         errors.mobilePassword = complexityError;
       }
     }
 
     if (needCaptcha && !captchaCode) {
-      errors.captchaCode = '请输入图形验证码';
+      errors.captchaCode = t('auth.errors.enterCaptcha');
     }
     if (showAgreement() && !agreedToTerms) {
       setShowTermsDialog(true);
@@ -299,7 +299,7 @@ export default function RegisterScreen() {
       // 注册成功，跳转到登录页
       router.replace('Login');
     } catch (error: any) {
-      setRegisterError(error.message || '注册失败，请重试');
+      setRegisterError(error.message || t('auth.errors.registerFailed'));
     }
   };
 
@@ -309,27 +309,27 @@ export default function RegisterScreen() {
     const errors: Record<string, string> = {};
 
     if (!username.trim() || username.length < 3) {
-      errors.username = '用户名至少3位';
+      errors.username = t('auth.errors.usernameMinLength');
     }
 
     const minPwdLen = getMinPasswordLength();
     if (!password || password.length < minPwdLen) {
-      errors.password = `密码至少${minPwdLen}位`;
+      errors.password = t('auth.errors.passwordMinLength', { min: minPwdLen });
     }
 
     // 密码复杂度校验
     if (registerConfig?.pwd_complexity) {
-      const complexityError = validatePasswordComplexity(password, registerConfig.pwd_complexity);
+      const complexityError = validatePasswordComplexity(password, registerConfig.pwd_complexity, t);
       if (complexityError) {
         errors.password = complexityError;
       }
     }
 
     if (password !== confirmPassword) {
-      errors.confirmPassword = '两次密码不一致';
+      errors.confirmPassword = t('auth.errors.passwordMismatch');
     }
     if (needCaptcha && !captchaCode) {
-      errors.captchaCode = '请输入图形验证码';
+      errors.captchaCode = t('auth.errors.enterCaptcha');
     }
     if (showAgreement() && !agreedToTerms) {
       setShowTermsDialog(true);
@@ -355,7 +355,7 @@ export default function RegisterScreen() {
       // 注册成功，跳转到登录页
       router.replace('Login');
     } catch (error: any) {
-      setRegisterError(error.message || '注册失败，请重试');
+      setRegisterError(error.message || t('auth.errors.registerFailed'));
     }
   };
 
@@ -386,7 +386,7 @@ export default function RegisterScreen() {
           <View style={styles.header}>
             <Logo variant="icon" asLink={false} size={72} style={styles.logo} />
             <Text variant="headlineLarge" style={[styles.title, { color: colors.onSurface }]}>
-              注册账号
+              {t('auth.register.title')}
             </Text>
           </View>
 
@@ -404,7 +404,7 @@ export default function RegisterScreen() {
                   variant="labelLarge"
                   style={{ color: registerType === 'mobile' ? colors.onSurface : colors.text.secondary }}
                 >
-                  手机注册
+                  {t('auth.register.tabMobile')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -418,7 +418,7 @@ export default function RegisterScreen() {
                   variant="labelLarge"
                   style={{ color: registerType === 'username' ? colors.onSurface : colors.text.secondary }}
                 >
-                  用户名注册
+                  {t('auth.register.tabAccount')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -428,7 +428,7 @@ export default function RegisterScreen() {
           {(!isRegisterMethodEnabled('mobile') || !isRegisterMethodEnabled('username')) && (
             <View style={styles.singleRegisterTitle}>
               <Text variant="titleMedium" style={{ color: colors.onSurface }}>
-                {isRegisterMethodEnabled('mobile') ? '手机注册' : '用户名注册'}
+                {isRegisterMethodEnabled('mobile') ? t('auth.register.tabMobile') : t('auth.register.tabAccount')}
               </Text>
             </View>
           )}
@@ -438,7 +438,7 @@ export default function RegisterScreen() {
             <View style={styles.form}>
               <View>
                 <TextInput
-                  label="手机号"
+                  label={t('auth.register.mobilePlaceholder')}
                   value={mobile}
                   onChangeText={(text) => {
                     setMobile(text);
@@ -446,7 +446,7 @@ export default function RegisterScreen() {
                       setFormErrors((prev) => ({ ...prev, mobile: '' }));
                     }
                   }}
-                  placeholder="请输入手机号"
+                  placeholder={t('auth.register.mobilePlaceholder')}
                   keyboardType="phone-pad"
                   maxLength={11}
                   error={!!formErrors.mobile}
@@ -464,7 +464,7 @@ export default function RegisterScreen() {
                 <View>
                   <View style={styles.captchaContainer}>
                     <TextInput
-                      label="图形验证码"
+                      label={t('auth.login.captchaLabel')}
                       value={captchaCode}
                       onChangeText={setCaptchaCode}
                       error={!!formErrors.captchaCode}
@@ -487,7 +487,7 @@ export default function RegisterScreen() {
               <View>
                 <View style={styles.codeContainer}>
                   <TextInput
-                    label="短信验证码"
+                    label={t('auth.login.smsCodeLabel')}
                     value={mobileCode}
                     onChangeText={(text) => {
                       setMobileCode(text);
@@ -514,7 +514,7 @@ export default function RegisterScreen() {
 
               <View>
                 <TextInput
-                  label="设置密码"
+                  label={t('auth.register.passwordPlaceholder')}
                   value={mobilePassword}
                   onChangeText={(text) => {
                     setMobilePassword(text);
@@ -525,7 +525,7 @@ export default function RegisterScreen() {
                   secureTextEntry={!showMobilePassword}
                   error={!!formErrors.mobilePassword}
                   style={styles.input}
-                  placeholder={`至少${getMinPasswordLength()}位`}
+                  placeholder={t('auth.register.passwordPlaceholder')}
                   right={
                     <TextInput.Icon
                       icon={showMobilePassword ? 'eye-off' : 'eye'}
@@ -547,7 +547,7 @@ export default function RegisterScreen() {
             <View style={styles.form}>
               <View>
                 <TextInput
-                  label="用户名"
+                  label={t('auth.register.usernamePlaceholder')}
                   value={username}
                   onChangeText={(text) => {
                     setUsername(text);
@@ -558,7 +558,7 @@ export default function RegisterScreen() {
                   error={!!formErrors.username}
                   style={styles.input}
                   autoCapitalize="none"
-                  placeholder="字母/数字，至少3位"
+                  placeholder={t('auth.register.usernamePlaceholder')}
                 />
                 {formErrors.username && (
                   <Text style={[styles.errorText, { color: colors.error }]}>
@@ -569,7 +569,7 @@ export default function RegisterScreen() {
 
               <View>
                 <TextInput
-                  label="密码"
+                  label={t('auth.login.passwordLabel')}
                   value={password}
                   onChangeText={(text) => {
                     setPassword(text);
@@ -580,7 +580,7 @@ export default function RegisterScreen() {
                   secureTextEntry={!showPassword}
                   error={!!formErrors.password}
                   style={styles.input}
-                  placeholder={`至少${getMinPasswordLength()}位`}
+                  placeholder={t('auth.register.passwordPlaceholder')}
                   right={
                     <TextInput.Icon
                       icon={showPassword ? 'eye-off' : 'eye'}
@@ -597,7 +597,7 @@ export default function RegisterScreen() {
 
               <View>
                 <TextInput
-                  label="确认密码"
+                  label={t('auth.register.passwordPlaceholder')}
                   value={confirmPassword}
                   onChangeText={(text) => {
                     setConfirmPassword(text);
@@ -627,7 +627,7 @@ export default function RegisterScreen() {
                 <View>
                   <View style={styles.captchaContainer}>
                     <TextInput
-                      label="图形验证码"
+                      label={t('auth.login.captchaLabel')}
                       value={captchaCode}
                       onChangeText={setCaptchaCode}
                       error={!!formErrors.captchaCode}
@@ -674,15 +674,15 @@ export default function RegisterScreen() {
             style={styles.registerButton}
             contentStyle={styles.registerButtonContent}
           >
-            注册
+            {t('auth.register.submit')}
           </Button>
 
           {/* 登录链接 */}
           <View style={styles.loginContainer}>
-            <Text style={[styles.loginText, { color: colors.text.secondary }]}>已有账号?</Text>
+            <Text style={[styles.loginText, { color: colors.text.secondary }]}>{t('auth.register.hasAccount')}</Text>
             <TouchableOpacity onPress={goToLogin}>
               <Text style={[styles.loginText, { color: colors.primary, fontWeight: '600' }]}>
-                立即登录
+                {t('auth.register.loginNow')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -692,12 +692,12 @@ export default function RegisterScreen() {
       {/* 协议提示弹窗 */}
       <Portal>
         <Dialog visible={showTermsDialog} onDismiss={() => setShowTermsDialog(false)}>
-          <Dialog.Title>提示</Dialog.Title>
+          <Dialog.Title>{t('common.tip')}</Dialog.Title>
           <Dialog.Content>
             <UserAgreementText />
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setShowTermsDialog(false)}>知道了</Button>
+            <Button onPress={() => setShowTermsDialog(false)}>{t('common.gotIt')}</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>

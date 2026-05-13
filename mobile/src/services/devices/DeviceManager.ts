@@ -3,6 +3,7 @@
 import { deviceApi } from '@/services/api/devices';
 import { Device, DeviceBindingRequest } from '@/types';
 import { useDeviceStore } from '@/stores/deviceStore';
+import i18n from '@/locales';
 
 export class DeviceManager {
   // 获取设备列表
@@ -21,7 +22,7 @@ export class DeviceManager {
       return safeDevices;
     } catch (error) {
       console.error('[DeviceManager] fetchDevices error:', error);
-      const err = error instanceof Error ? error : new Error('获取设备列表失败');
+      const err = error instanceof Error ? error : new Error(i18n.t('devices.fetchFailed'));
       store.setError(err);
       store.setDevices([]);
       throw err;

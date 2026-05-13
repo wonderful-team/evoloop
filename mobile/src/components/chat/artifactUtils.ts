@@ -156,3 +156,50 @@ export function extractArtifactBlocks(content: string): ExtractedPart[] {
 
   return parts.length > 0 ? parts : [{ type: 'text', content: trimmed }];
 }
+
+/**
+ * 统一的消息块提取器 - 识别所有特殊组件块
+ */
+export function extractAllSpecialBlocks(text: string): Array<{ type: 'text' | 'mermaid' | 'echarts' | 'map' | 'artifact'; content: string }> {
+  // 识别 ```mermaid, ```echarts, ```map, ```artifact 块
+  const blockRegex = /```(mermaid|echarts|map|artifact)\n([\s\S]*?)```/g;
+  const parts: Array<{ type: 'text' | 'mermaid' | 'echarts' | 'map' | 'artifact'; content: string }> = [];
+  
+  let lastIndex = 0;
+  let match;
+  
+  while ((match = blockRegex.exec(text)) !== null) {
+    // 添加前面的文本
+    if (match.index > lastIndex) {
+      const prevText = text.slice(lastIndex, match.index);
+      if (prevText.trim()) {
+        parts.push({
+          type: 'text',
+          content: prevText,
+        });
+      }
+    }
+    
+    // 添加特殊代码块
+    parts.push({
+      type: match[1] as any,
+      content: match[2].trim(),
+    });
+    
+    lastIndex = match.index + match[0].length;
+  }
+  
+  // 添加剩余的文本
+  if (lastIndex < text.length) {
+    const remainingText = text.slice(lastIndex);
+    if (remainingText.trim()) {
+      parts.push({
+        type: 'text',
+        content: remainingText,
+      });
+    }
+  }
+  
+  return parts.length > 0 ? parts : [{ type: 'text', content: text }];
+}
+

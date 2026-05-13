@@ -16,6 +16,7 @@ import { Conversation } from '@/types/conversation';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Swipeable } from 'react-native-gesture-handler';
 import { formatDate } from '@/utils/format';
+import { useTranslation } from 'react-i18next';
 
 interface ThreadListProps {
   projectId?: number;
@@ -101,11 +102,11 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
               ]}
               numberOfLines={1}
             >
-              {item.title || '新对话'}
+              {item.title || t('chat.threadList.newConversation')}
             </Text>
 
             <Text style={[styles.threadMeta, { color: colors.onSurfaceVariant }]}>
-              {formatDate.date(item.updated_at)} · {item.message_count} 条消息
+              {formatDate.date(item.updated_at)} · {t('threadList.messageCount', { count: item.message_count })}
             </Text>
           </View>
 
@@ -146,7 +147,7 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
       {/* 头部 */}
       <View style={[styles.header, { borderBottomColor: colors.outline + '30' }]}>
         <Text variant="titleMedium" style={{ color: colors.onSurface }}>
-          会话历史
+          {t('threadList.title')}
         </Text>
 
         <TouchableOpacity
@@ -155,7 +156,7 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
         >
           <MaterialIcons name="add" size={18} color={colors.onPrimary} />
           <Text style={{ color: colors.onPrimary, fontSize: 13, marginLeft: 4 }}>
-            新建对话
+            {t('chat.threadList.newConversation')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -182,13 +183,13 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
           <View style={styles.emptyContainer}>
             <MaterialIcons name="chat-bubble-outline" size={48} color={colors.onSurfaceVariant} />
             <Text style={[styles.emptyText, { color: colors.onSurfaceVariant }]}>
-              暂无会话记录
+              {t('threadList.empty')}
             </Text>
             <TouchableOpacity
               style={[styles.newThreadButton, { backgroundColor: colors.primaryContainer }]}
               onPress={onNewThread}
             >
-              <Text style={{ color: colors.primary }}>开始新对话</Text>
+              <Text style={{ color: colors.primary }}>{t('threadList.startNew')}</Text>
             </TouchableOpacity>
           </View>
         }

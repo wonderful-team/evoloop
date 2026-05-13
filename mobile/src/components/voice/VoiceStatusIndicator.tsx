@@ -5,6 +5,7 @@ import { View, StyleSheet, Animated } from 'react-native';
 import { Text } from 'react-native-paper';
 import { VoiceSessionState } from '@/types/voice';
 import { useTheme } from '@/theme';
+import { useTranslation } from 'react-i18next';
 
 interface VoiceStatusIndicatorProps {
   state: VoiceSessionState;
@@ -13,6 +14,7 @@ interface VoiceStatusIndicatorProps {
 
 export function VoiceStatusIndicator({ state, volume = 0 }: VoiceStatusIndicatorProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   // 动画值
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -77,17 +79,17 @@ export function VoiceStatusIndicator({ state, volume = 0 }: VoiceStatusIndicator
   const getStatusText = () => {
     switch (state) {
       case 'idle':
-        return '点击开始对话';
+        return t('voice.status.idle');
       case 'connecting':
-        return '连接中...';
+        return t('voice.status.connecting');
       case 'listening':
-        return '聆听中...';
+        return t('voice.status.listening');
       case 'recognizing':
-        return '识别中...';
+        return t('voice.status.recognizing');
       case 'thinking':
-        return '思考中...';
+        return t('voice.status.thinking');
       case 'speaking':
-        return '回答中...';
+        return t('voice.status.speaking');
       default:
         return '';
     }

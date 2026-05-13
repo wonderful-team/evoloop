@@ -20,15 +20,14 @@ export function HITLBanner({ message }: HITLBannerProps) {
   const currentRequest = useHITLStore((state) => state.currentRequest);
   const isWaiting = useHITLStore((state) => state.isWaiting);
 
-  // 只有等待状态才显示
-  if (!isWaiting || !currentRequest) {
-    return null;
-  }
-
   // 使用脉冲动画
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
 
   React.useEffect(() => {
+    if (!isWaiting || !currentRequest) {
+      return;
+    }
+
     const pulse = Animated.sequence([
       Animated.timing(pulseAnim, {
         toValue: 0.6,
@@ -48,7 +47,13 @@ export function HITLBanner({ message }: HITLBannerProps) {
     return () => {
       loop.stop();
     };
-  }, [pulseAnim]);
+  }, [pulseAnim, isWaiting, currentRequest]);
+
+  // 只有等待状态才显示
+  if (!isWaiting || !currentRequest) {
+    return null;
+  }
+
 
   // 默认提示消息
   const defaultMessage = t('hitl.waiting');

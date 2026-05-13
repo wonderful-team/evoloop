@@ -4,31 +4,36 @@
 import { AxiosError } from 'axios';
 import { AppError, ErrorCode } from './error';
 import { router } from '@/utils/navigation';
+import i18n from '@/locales';
 
 // 权益名称映射
-export const BENEFIT_NAMES: Record<string, string> = {
-  ai_quota: 'AI 调用额度',
-  ai_advanced: '高级模型',
-  voice: '语音交互',
-  project_limit: '项目数量',
-  gantt: '甘特图',
-  timesheet: '工时表',
-  desktop_control: '桌面控制',
-  browser_control: '浏览器控制',
-  mobile_control: '手机控制',
-  skill_learning: '技能学习',
-  wiki_generation: 'Wiki 生成',
-  knowledge_base: '知识库',
-};
+export function getBenefitNames(): Record<string, string> {
+  return {
+    ai_quota: i18n.t('subscription.benefits.aiQuota'),
+    ai_advanced: i18n.t('subscription.benefits.aiAdvanced'),
+    voice: i18n.t('subscription.benefits.voice'),
+    project_limit: i18n.t('subscription.benefits.projectLimit'),
+    gantt: i18n.t('subscription.benefits.gantt'),
+    timesheet: i18n.t('subscription.benefits.timesheet'),
+    desktop_control: i18n.t('subscription.benefits.desktopControl'),
+    browser_control: i18n.t('subscription.benefits.browserControl'),
+    mobile_control: i18n.t('subscription.benefits.mobileControl'),
+    skill_learning: i18n.t('subscription.benefits.skillLearning'),
+    wiki_generation: i18n.t('subscription.benefits.wikiGeneration'),
+    knowledge_base: i18n.t('subscription.benefits.knowledgeBase'),
+  };
+}
 
 // 订阅方案映射
-export const PLAN_NAMES: Record<string, string> = {
-  '创作者版': '创作者版',
-  '极客版': '极客版',
-  '专家版': '专家版',
-  '企业版': '企业版',
-  '免费版': '免费版',
-};
+export function getPlanNames(): Record<string, string> {
+  return {
+    '创作者版': i18n.t('subscription.plans.creator'),
+    '极客版': i18n.t('subscription.plans.geek'),
+    '专家版': i18n.t('subscription.plans.expert'),
+    '企业版': i18n.t('subscription.plans.enterprise'),
+    '免费版': i18n.t('subscription.plans.free'),
+  };
+}
 
 // 权益错误信息接口
 export interface BenefitErrorInfo {
@@ -45,8 +50,12 @@ export class BenefitRequiredError extends AppError {
   public info: BenefitErrorInfo;
   
   constructor(info: BenefitErrorInfo) {
+    const planNames = getPlanNames();
+    const benefitNames = getBenefitNames();
+    const planName = info.requiredPlan ? (planNames[info.requiredPlan] || info.requiredPlan) : i18n.t('subscription.errors.subscribe');
+    const featureName = info.featureName || benefitNames[info.feature || ''] || info.feature || i18n.t('subscription.errors.thisFeature');
     super(
-      info.message || `需要${info.requiredPlan || '订阅'}才能使用「${info.featureName || info.feature || '此功能'}」`,
+      info.message || i18n.t('subscription.errors.upgradeMessage', { benefitName: featureName }),
       ErrorCode.BENEFIT_REQUIRED,
       403
     );
@@ -84,12 +93,14 @@ export function isBenefitError(data: any): boolean {
  * 从错误数据中提取权益信息
  */
 export function extractBenefitInfo(data: any): BenefitErrorInfo {
+  const benefitNames = getBenefitNames();
+  
   // PHP 后端格式
   if (data?.code === 'BENEFIT_REQUIRED') {
     return {
       code: 'BENEFIT_REQUIRED',
       feature: data.feature || data.data?.feature,
-      featureName: data.feature_name || data.data?.feature_name || BENEFIT_NAMES[data.feature || data.data?.feature],
+      featureName: data.feature_name || data.data?.feature_name || benefitNames[data.feature || data.data?.feature],
       requiredPlan: data.required_plan || data.data?.required_plan,
       message: data.message,
     };
@@ -100,7 +111,7 @@ export function extractBenefitInfo(data: any): BenefitErrorInfo {
     return {
       code: 'BENEFIT_REQUIRED',
       feature: data.detail.feature,
-      featureName: data.detail.feature_name || BENEFIT_NAMES[data.detail.feature],
+      featureName: data.detail.feature_name || benefitNames[data.detail.feature],
       requiredPlan: data.detail.required_plan,
       message: data.detail.message,
     };
@@ -112,7 +123,7 @@ export function extractBenefitInfo(data: any): BenefitErrorInfo {
     return {
       code: 'SUBSCRIPTION_REQUIRED',
       feature: source.feature,
-      featureName: BENEFIT_NAMES[source.feature],
+      featureName: benefitNames[source.feature],
       requiredPlan: source.required_plan,
       message: source.message,
     };
@@ -145,8 +156,8 @@ export function handleBenefitError(data: any): {
   if (!isBenefitError(data)) {
     return {
       isBenefitError: false,
-      title: '错误',
-      message: data?.message || '操作失败',
+      title: i18n.t('subscription.errors.genericTitle'),
+      message: data?.message || i18n.t('subscription.errors.genericMessage'),
     };
   }
   
@@ -156,20 +167,22 @@ export function handleBenefitError(data: any): {
   if (info.code === 'DOWNGRADE_NOT_ALLOWED') {
     return {
       isBenefitError: true,
-      title: '无法购买',
-      message: info.message || '当前等级更高，到期后可购买此方案',
+      title: i18n.t('subscription.errors.downgradeNotAllowed'),
+      message: info.message || i18n.t('subscription.errors.downgradeMessage'),
     };
   }
   
-  const benefitName = info.featureName || BENEFIT_NAMES[info.feature || ''] || info.feature || '此功能';
-  const planName = PLAN_NAMES[info.requiredPlan || ''] || info.requiredPlan || '更高等级';
+  const benefitNames = getBenefitNames();
+  const planNames = getPlanNames();
+  const benefitName = info.featureName || benefitNames[info.feature || ''] || info.feature || i18n.t('subscription.errors.thisFeature');
+  const planName = planNames[info.requiredPlan || ''] || info.requiredPlan || i18n.t('subscription.errors.higherLevel');
   
   return {
     isBenefitError: true,
-    title: `需要${planName}订阅`,
-    message: `「${benefitName}」功能需要升级订阅才能使用`,
+    title: i18n.t('subscription.errors.upgradeRequired', { planName }),
+    message: i18n.t('subscription.errors.upgradeMessage', { benefitName }),
     action: {
-      label: '立即升级',
+      label: i18n.t('subscription.errors.upgradeNow'),
       onPress: () => {
         router.push('/(subscription)/plans');
       },
@@ -225,6 +238,6 @@ export const SubscriptionErrors = {
   handleBenefitError,
   checkIsBenefitError,
   convertToBenefitError,
-  BENEFIT_NAMES,
-  PLAN_NAMES,
+  getBenefitNames,
+  getPlanNames,
 };

@@ -15,7 +15,7 @@ export function AgentProcessingHandler({ isAgentProcessing, onClear }: AgentProc
   useEffect(() => {
     if (isAgentProcessing && messages.length > 0) {
       const lastMsg = messages[messages.length - 1];
-      if (lastMsg.role === 'assistant') {
+      if (lastMsg.role === 'ai') {
         onClear();
       }
     }

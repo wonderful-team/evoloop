@@ -2,6 +2,7 @@
 // 用于 Mobile 端查询 MC 存储的对话历史
 
 import { useState, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import * as conversationApi from '@/services/api/conversations';
 import { Conversation, ConversationHistoryResponse } from '@/types/conversation';
@@ -17,6 +18,7 @@ interface UseConversationsOptions {
 export function useConversations(options: UseConversationsOptions = {}) {
   const { projectId, deviceKey, pageSize = 20 } = options;
   const toast = useToast();
+  const { t } = useTranslation();
   
   // 会话列表状态
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -74,7 +76,7 @@ export function useConversations(options: UseConversationsOptions = {}) {
     } catch (error: any) {
       if (!isAuthError(error)) {
         console.error('加载会话列表失败:', error);
-        toast.show('加载会话列表失败', 'error');
+        toast.show(t('chat.toast.loadConversationsFailed'), 'error');
       }
     } finally {
       setIsLoadingConversations(false);
@@ -104,7 +106,7 @@ export function useConversations(options: UseConversationsOptions = {}) {
     } catch (error: any) {
       if (!isAuthError(error)) {
         console.error('获取会话详情失败:', error);
-        toast.show('获取会话详情失败', 'error');
+        toast.show(t('chat.toast.getConversationDetailFailed'), 'error');
       }
       return null;
     }
@@ -141,7 +143,7 @@ export function useConversations(options: UseConversationsOptions = {}) {
     } catch (error: any) {
       if (!isAuthError(error)) {
         console.error('加载消息失败:', error);
-        toast.show('加载消息失败', 'error');
+        toast.show(t('chat.toast.loadMessagesFailed'), 'error');
       }
     } finally {
       setIsLoadingMessages(false);
@@ -172,11 +174,11 @@ export function useConversations(options: UseConversationsOptions = {}) {
         setMessages([]);
       }
       
-      toast.show('会话已删除', 'success');
+      toast.show(t('chat.toast.deleteConversationSuccess'), 'success');
     } catch (error: any) {
       if (!isAuthError(error)) {
         console.error('删除会话失败:', error);
-        toast.show('删除会话失败', 'error');
+        toast.show(t('chat.toast.deleteConversationFailed'), 'error');
       }
     }
   }, [currentConversation, toast]);
@@ -194,12 +196,12 @@ export function useConversations(options: UseConversationsOptions = {}) {
       // 刷新列表
       await loadConversations(true);
       
-      toast.show('会话创建成功', 'success');
+      toast.show(t('chat.toast.createConversationSuccess'), 'success');
       return response.conversation_id;
     } catch (error: any) {
       if (!isAuthError(error)) {
         console.error('创建会话失败:', error);
-        toast.show('创建会话失败', 'error');
+        toast.show(t('chat.toast.createConversationFailed'), 'error');
       }
       return null;
     }
@@ -228,7 +230,7 @@ export function useConversations(options: UseConversationsOptions = {}) {
     } catch (error: any) {
       if (!isAuthError(error)) {
         console.error('发送消息失败:', error);
-        toast.show('发送消息失败', 'error');
+        toast.show(t('chat.toast.sendMessageFailed'), 'error');
       }
       return null;
     }
@@ -240,11 +242,11 @@ export function useConversations(options: UseConversationsOptions = {}) {
   const stopAgent = useCallback(async (conversationId: string) => {
     try {
       await conversationApi.stopAgent(conversationId, activeDeviceKeyRef.current);
-      toast.show('已停止生成', 'success');
+      toast.show(t('chat.toast.stopSuccess'), 'success');
     } catch (error: any) {
       if (!isAuthError(error)) {
         console.error('停止失败:', error);
-        toast.show('停止失败', 'error');
+        toast.show(t('chat.toast.stopFailed'), 'error');
       }
     }
   }, [toast]);

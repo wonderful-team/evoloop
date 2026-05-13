@@ -18,7 +18,7 @@ export function AutoSpeakHandler({ speak, enabled = true }: AutoSpeakHandlerProp
   useEffect(() => {
     if (!enabled || !autoSpeak || messages.length === 0) return;
     const lastMessage = messages[messages.length - 1];
-    if (lastMessage.role === 'assistant' && lastMessage.isComplete) {
+    if (lastMessage.role === 'ai' && lastMessage.isComplete) {
       speak(lastMessage.content);
     }
   }, [messages, autoSpeak, speak, enabled]);

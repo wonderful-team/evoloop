@@ -2,7 +2,7 @@
 
 import React, { useCallback } from 'react';
 import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
-import { Text, Button, Snackbar } from 'react-native-paper';
+import { Text, Button, Snackbar, Card, Chip } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { router } from '@/utils/navigation';
@@ -17,29 +17,30 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 // 游客模式下的登录提示组件
 function GuestLoginPrompt() {
+  const { t } = useTranslation();
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.guestContainer}>
         <MaterialIcons name="desktop-mac" size={64} color="#9CA3AF" />
         <Text variant="headlineMedium" style={styles.guestTitle}>
-          设备管理
+          {t('devices.managementTitle')}
         </Text>
         <Text variant="bodyMedium" style={styles.guestText}>
-          登录后可以查看和管理您的设备，进行云端对话等功能
+          {t('devices.guestDesc')}
         </Text>
         <Button
           mode="contained"
           style={styles.loginButton}
           onPress={() => router.push('Auth')}
         >
-          立即登录
+          {t('auth.login.submit')}
         </Button>
         <Button
           mode="text"
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          返回首页
+          {t('devices.backToHome')}
         </Button>
       </View>
     </SafeAreaView>
@@ -75,7 +76,7 @@ const DevicesContent = () => {
   const handleDevicePress = useCallback((device: typeof devices[0]) => {
     if (!isLoggedIn) return;
     if (device.status !== 'online') {
-      setSnackbarMessage('设备离线，无法进入对话');
+      setSnackbarMessage(t('devices.deviceOffline'));
       setSnackbarVisible(true);
       return;
     }
@@ -111,12 +112,12 @@ const DevicesContent = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header title="我的设备" showBack />
+      <Header title={t('devices.myDevices')} showBack />
 
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <Text variant="bodyMedium" style={styles.subtitle}>
-            {totalCount > 0 ? `共 ${totalCount} 台设备` : '管理您的 EvoLoop 设备'}
+            {totalCount > 0 ? t('devices.totalCount', { count: totalCount }) : t('devices.manageSubtitle')}
           </Text>
         </View>
         {totalCount > 0 && (
@@ -127,10 +128,10 @@ const DevicesContent = () => {
       {error ? (
         <View style={styles.centerContent}>
           <Text style={styles.errorText}>
-            加载失败: {error.message}
+            {t('devices.loadFailed')}{error.message}
           </Text>
           <Button onPress={refresh} mode="contained" style={styles.retryButton}>
-            重试
+            {t('common.retry')}
           </Button>
         </View>
       ) : devices.length === 0 ? (
@@ -145,6 +146,45 @@ const DevicesContent = () => {
           renderItem={renderItem}
           keyExtractor={(item) => item.deviceKey}
           contentContainerStyle={styles.list}
+          ListHeaderComponent={
+            <Card
+              style={[
+                styles.card,
+                styles.cloudCard,
+                !currentDevice && [styles.activeCard, { borderColor: colors.primary }]
+              ]}
+              onPress={() => {
+                setCurrentDevice(null);
+                router.back();
+              }}
+            >
+              <Card.Content>
+                <View style={styles.itemHeader}>
+                  <View style={[styles.iconContainer, { backgroundColor: '#E3F2FD' }]}>
+                    <MaterialIcons name="cloud" size={28} color="#1976D2" />
+                  </View>
+                  <View style={styles.info}>
+                    <Text variant="titleMedium" style={styles.name}>
+                      {t('devices.cloudModeTitle')}
+                    </Text>
+                    <Text variant="bodySmall" style={styles.path}>
+                      {t('devices.cloudModeDesc')}
+                    </Text>
+                  </View>
+                  {!currentDevice && (
+                    <Chip
+                      icon="check-circle"
+                      compact
+                      style={[styles.activeChip, { backgroundColor: colors.primaryContainer }]}
+                      textStyle={{ color: colors.primary }}
+                    >
+                      {t('projects.current')}
+                    </Chip>
+                  )}
+                </View>
+              </Card.Content>
+            </Card>
+          }
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
@@ -157,7 +197,7 @@ const DevicesContent = () => {
         onDismiss={() => setSnackbarVisible(false)}
         duration={3000}
         action={{
-          label: '关闭',
+          label: t('common.close'),
           onPress: () => setSnackbarVisible(false),
         }}
       >
@@ -202,7 +242,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   list: {
-    paddingVertical: 8,
+    padding: 8,
+  },
+  card: {
+    marginHorizontal: 8,
+    marginVertical: 6,
+  },
+  activeCard: {
+    borderWidth: 2,
+  },
+  cloudCard: {
+    marginBottom: 12,
+    backgroundColor: '#FAFBFC',
+  },
+  itemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  info: {
+    flex: 1,
+  },
+  name: {
+    fontWeight: '600',
+  },
+  path: {
+    opacity: 0.6,
+    marginTop: 2,
+  },
+  activeChip: {
+    backgroundColor: 'transparent',
   },
   centerContent: {
     flex: 1,

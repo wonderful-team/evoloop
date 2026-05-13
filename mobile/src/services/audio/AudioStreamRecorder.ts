@@ -2,6 +2,7 @@
 import LiveAudioStream from 'react-native-live-audio-stream';
 import { Buffer } from 'buffer';
 import { Platform, PermissionsAndroid } from 'react-native';
+import i18n from '@/locales';
 
 export interface AudioStreamConfig {
   sampleRate?: number;    // 16000 或 8000
@@ -95,7 +96,7 @@ export class AudioStreamRecorder {
     try {
       const hasPermission = await AudioStreamRecorder.requestPermissions();
       if (!hasPermission) {
-        throw new Error('没有录音权限');
+        throw new Error(i18n.t('audio.errors.noPermission'));
       }
 
       LiveAudioStream.start();

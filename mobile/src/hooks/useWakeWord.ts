@@ -4,6 +4,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { WakeWordService } from '@/services/voice/WakeWordService';
+import { useAuthStore } from '@/stores/authStore';
+
 
 export interface UseWakeWordOptions {
   onWake?: (detectedWord: string) => void;
@@ -30,15 +32,19 @@ export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn
   const serviceRef = useRef<WakeWordService | null>(null);
   const wakeWordDetectedTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
+
   // 从 settingsStore 读取配置
+
   const settings = useSettingsStore((state) => state.settings);
   const enabled = settings.wakeWordEnabled;
   const wakeWord = settings.wakeWord;
 
   const startListening = useCallback(async () => {
-    if (!enabled) {
+    if (!enabled || !isLoggedIn) {
       return;
     }
+
 
     // 如果已有服务在运行，先停止它（确保新配置生效）
     if (serviceRef.current) {
@@ -82,7 +88,8 @@ export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn
       console.error('[useWakeWord] 启动监听失败:', error);
       onError?.(error as Error);
     }
-  }, [enabled, wakeWord, onWake, onSpeechDetected, onError]);
+  }, [enabled, wakeWord, isLoggedIn, onWake, onSpeechDetected, onError]);
+
 
   const stopListening = useCallback(async () => {
     try {
@@ -96,9 +103,9 @@ export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn
     }
   }, []);
 
-  // 当 enabled 状态变化时自动启动/停止
+  // 当 enabled 状态或登录状态变化时自动启动/停止
   useEffect(() => {
-    if (enabled) {
+    if (enabled && isLoggedIn) {
       startListening();
     } else {
       stopListening();
@@ -111,7 +118,8 @@ export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, wakeWord]);
+  }, [enabled, wakeWord, isLoggedIn]);
+
 
   return {
     isListening,

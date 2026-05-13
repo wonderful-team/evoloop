@@ -5,7 +5,7 @@ export type VoiceSessionState = 'idle' | 'connecting' | 'listening' | 'recognizi
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant' | 'system';
+  role: 'human' | 'ai' | 'tool' | 'system';
   content: string;
   timestamp: number;
 }

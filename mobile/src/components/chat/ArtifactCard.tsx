@@ -6,6 +6,7 @@ import { Card, Text, IconButton, Button, Chip } from 'react-native-paper';
 import { useTheme } from '@/theme';
 import { Artifact, TestReportArtifact, CodeFileArtifact } from '@/types/artifact';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import { useTranslation } from 'react-i18next';
 import Markdown from 'react-native-markdown-display';
 
 interface ArtifactCardProps {
@@ -15,6 +16,7 @@ interface ArtifactCardProps {
 }
 
 export function ArtifactCard({ artifact, onView, onDownload }: ArtifactCardProps) {
+  const { t } = useTranslation();
   const { colors } = useTheme();
 
   // 获取 Artifact 图标
@@ -64,15 +66,15 @@ export function ArtifactCard({ artifact, onView, onDownload }: ArtifactCardProps
         <View style={styles.testStats}>
           <View style={[styles.statItem, { backgroundColor: '#dcfce7' }]}>
             <Text style={[styles.statValue, { color: '#16a34a' }]}>{data.passed}</Text>
-            <Text style={[styles.statLabel, { color: '#16a34a' }]}>通过</Text>
+            <Text style={[styles.statLabel, { color: '#16a34a' }]}>{t('chat.codeBlock.passed')}</Text>
           </View>
           <View style={[styles.statItem, { backgroundColor: '#fee2e2' }]}>
             <Text style={[styles.statValue, { color: '#dc2626' }]}>{data.failed}</Text>
-            <Text style={[styles.statLabel, { color: '#dc2626' }]}>失败</Text>
+            <Text style={[styles.statLabel, { color: '#dc2626' }]}>{t('chat.codeBlock.failed')}</Text>
           </View>
           <View style={[styles.statItem, { backgroundColor: '#f3f4f6' }]}>
             <Text style={[styles.statValue, { color: '#6b7280' }]}>{data.skipped}</Text>
-            <Text style={[styles.statLabel, { color: '#6b7280' }]}>跳过</Text>
+            <Text style={[styles.statLabel, { color: '#6b7280' }]}>{t('chat.codeBlock.skipped')}</Text>
           </View>
         </View>
         
@@ -88,7 +90,7 @@ export function ArtifactCard({ artifact, onView, onDownload }: ArtifactCardProps
               ]} 
             />
           </View>
-          <Text style={styles.passRateText}>{passRate}% 通过率</Text>
+          <Text style={styles.passRateText}>{passRate}% {t('artifactCard.passRate')}</Text>
         </View>
 
         {data.summary && (
@@ -144,7 +146,7 @@ ${data.content.slice(0, 500)}${data.content.length > 500 ? '...' : ''}
       default:
         return (
           <Text style={{ color: colors.onSurfaceVariant }}>
-            点击查看详情
+            {t('artifactCard.clickForDetails')}
           </Text>
         );
     }
@@ -186,7 +188,7 @@ ${data.content.slice(0, 500)}${data.content.length > 500 ? '...' : ''}
           icon="eye"
           compact
         >
-          查看
+          {t('artifactCard.view')}
         </Button>
         <Button
           mode="text"
@@ -194,7 +196,7 @@ ${data.content.slice(0, 500)}${data.content.length > 500 ? '...' : ''}
           icon="download"
           compact
         >
-          下载
+          {t('artifactCard.download')}
         </Button>
       </Card.Actions>
     </Card>

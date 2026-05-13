@@ -2,6 +2,7 @@
 // 管理用户的订阅状态、套餐列表、权益信息
 
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/stores/authStore';
 import { useLoading } from './useLoading';
 import {
@@ -38,6 +39,7 @@ const cache = {
  * 订阅状态管理
  */
 export function useSubscription() {
+  const { t } = useTranslation();
   const { isLoggedIn, userInfo } = useAuthStore();
   const [status, setStatus] = useState<any>(null);
   const [detail, setDetail] = useState<any>(null);
@@ -123,7 +125,7 @@ export function useSubscription() {
     hasActiveSubscription,
     isExpired,
     currentLevelId: detail?.level_id ?? 0,
-    currentLevelName: detail?.level_name || '免费版',
+    currentLevelName: detail?.level_name || t('subscription.plans.free'),
     remainingDays: detail?.remaining_days ?? 0,
     expireTime: detail?.expire_time ?? 0,
     

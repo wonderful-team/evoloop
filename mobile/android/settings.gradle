@@ -14,7 +14,7 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
     ex.autolinkLibrariesFromCommand()
 }
 
-rootProject.name = 'EvoLoopNative'
+rootProject.name = 'EvoLoopMobile'
 
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)

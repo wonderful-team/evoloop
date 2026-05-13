@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { Text, IconButton, ActivityIndicator } from 'react-native-paper';
 import { useTheme } from '@/theme';
+import { useTranslation } from 'react-i18next';
 import { WebView } from 'react-native-webview';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { AMAP_CONFIG } from '@/constants/config';
@@ -34,7 +35,8 @@ interface MapChartProps {
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const generateAMapHtml = (data: MapChartProps['data'], isDark: boolean) => {
-  const key = AMAP_CONFIG.key;
+  const key = AMAP_CONFIG.key || '74619d8469c894f09d84e55e8c9735d4'; // 兜底 Key 仅供调试
+  const securityCode = 'f6b215886617a26f63f350c3132694b8'; // 高德安全密钥（必填）
   const bgColor = isDark ? '#18181b' : '#ffffff';
   const textColor = isDark ? '#f4f4f5' : '#18181b';
 
@@ -44,12 +46,18 @@ const generateAMapHtml = (data: MapChartProps['data'], isDark: boolean) => {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <script type="text/javascript">
+    window._AMapSecurityConfig = {
+      securityJsCode: '${securityCode}',
+    }
+  </script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { margin: 0; padding: 0; background: ${bgColor}; overflow: hidden; }
     #map { width: 100vw; height: 100vh; }
   </style>
 </head>
+
 <body>
   <div id="map"></div>
   <script src="https://webapi.amap.com/maps?v=2.0&key=${key}"></script>
@@ -57,9 +65,17 @@ const generateAMapHtml = (data: MapChartProps['data'], isDark: boolean) => {
     (function() {
       try {
         const data = ${JSON.stringify(data)};
+        
+        // 辅助函数：解析坐标格式 [lng, lat] 或 {lng, lat}
+        const parsePos = (p) => {
+          if (!p) return undefined;
+          if (Array.isArray(p)) return p;
+          return [p.lng || p.longitude, p.lat || p.latitude];
+        };
+
         const map = new AMap.Map('map', {
           zoom: data.zoom || 12,
-          center: data.center ? [data.center.lng, data.center.lat] : undefined,
+          center: parsePos(data.center),
         });
 
         // Add markers
@@ -67,10 +83,10 @@ const generateAMapHtml = (data: MapChartProps['data'], isDark: boolean) => {
           const addMarkers = async () => {
             const markerList = [];
             for (const m of data.markers) {
-              let position;
-              if (m.position) {
-                position = [m.position.lng, m.position.lat];
-              } else if (m.address) {
+              let position = parsePos(m.position || m.pos);
+              
+              if (!position && m.address) {
+
                 try {
                   const geocoder = new AMap.Geocoder();
                   const res = await new Promise((resolve, reject) => {
@@ -169,16 +185,20 @@ const generateAMapHtml = (data: MapChartProps['data'], isDark: boolean) => {
 
 export const MapChart = memo(function MapChart({ data }: MapChartProps) {
   const { colors, isDark } = useTheme();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
+
   const [error, setError] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
 
   const handleLoadEnd = useCallback(() => {
-    setLoading(false);
+    // 仅在没有报错的情况下隐藏 Loading
   }, []);
 
   const handleError = useCallback(() => {
     setError(true);
+    setErrorMsg('WebView Load Error');
     setLoading(false);
   }, []);
 
@@ -187,9 +207,11 @@ export const MapChart = memo(function MapChart({ data }: MapChartProps) {
       const msg = JSON.parse(event.nativeEvent.data);
       if (msg.type === 'ready') {
         setLoading(false);
+        setError(false);
       }
       if (msg.type === 'error') {
         setError(true);
+        setErrorMsg(msg.message);
         setLoading(false);
       }
     } catch {
@@ -203,17 +225,21 @@ export const MapChart = memo(function MapChart({ data }: MapChartProps) {
         <View style={styles.errorHeader}>
           <MaterialIcons name="error-outline" size={20} color={colors.error} />
           <Text style={[styles.errorTitle, { color: colors.error }]}>
-            地图加载失败
+            {t('mapChart.loadFailed')}
           </Text>
         </View>
         <View style={[styles.codeBlock, { backgroundColor: colors.background }]}>
-          <Text style={[styles.codeText, { color: colors.onSurface }]}>
-            {data.title || 'Map'}
+          <Text style={[styles.codeText, { color: colors.onSurface, fontSize: 11 }]}>
+            Error: {errorMsg || 'Unknown Error'}
+          </Text>
+          <Text style={[styles.codeText, { color: colors.onSurfaceVariant, marginTop: 4 }]}>
+            Tip: 请确认 .env 中配置了有效的 AMAP_KEY 和安全密钥
           </Text>
         </View>
       </View>
     );
   }
+
 
   const htmlContent = generateAMapHtml(data, isDark);
   const height = data.height || 300;
@@ -230,7 +256,7 @@ export const MapChart = memo(function MapChart({ data }: MapChartProps) {
           <View style={styles.headerLeft}>
             <MaterialIcons name="map" size={18} color={colors.primary} />
             <Text style={[styles.title, { color: colors.primary }]}>
-              {data.title || '地图'}
+              {data.title || t('mapChart.defaultTitle')}
             </Text>
           </View>
           <MaterialIcons name="fullscreen" size={20} color={colors.onSurfaceVariant} />
@@ -242,7 +268,7 @@ export const MapChart = memo(function MapChart({ data }: MapChartProps) {
             <View style={styles.loadingOverlay}>
               <ActivityIndicator size="large" color={colors.primary} />
               <Text style={[styles.loadingText, { color: colors.onSurfaceVariant }]}>
-                正在加载地图...
+                {t('mapChart.loading')}
               </Text>
             </View>
           )}
@@ -260,7 +286,7 @@ export const MapChart = memo(function MapChart({ data }: MapChartProps) {
 
         {/* 提示文字 */}
         <Text style={[styles.hint, { color: colors.onSurfaceVariant }]}>
-          点击查看大图
+          {t('mapChart.clickToEnlarge')}
         </Text>
       </TouchableOpacity>
 

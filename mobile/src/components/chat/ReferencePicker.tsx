@@ -13,6 +13,7 @@ import {
 import { Text, IconButton, Divider, Chip } from 'react-native-paper';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '@/theme';
+import { useTranslation } from 'react-i18next';
 import { MessageReference, SearchReferenceResult, MemoryConcept } from '@/types/conversation';
 import * as conversationApi from '@/services/api/conversations';
 import * as projectApi from '@/services/api/projects';
@@ -35,6 +36,7 @@ export function ReferencePicker({
   conversationId,
 }: ReferencePickerProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabType>('history');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -157,7 +159,7 @@ export function ReferencePicker({
         return (
           <View style={styles.centerContent}>
             <MaterialIcons name="memory" size={48} color={colors.onSurfaceVariant} />
-            <Text style={{ color: colors.onSurfaceVariant, marginTop: 8 }}>暂无记忆</Text>
+            <Text style={{ color: colors.onSurfaceVariant, marginTop: 8 }}>{t('referencePicker.noMemory')}</Text>
           </View>
         );
       }
@@ -192,7 +194,7 @@ export function ReferencePicker({
       return (
         <View style={styles.centerContent}>
           <MaterialIcons name="search-off" size={48} color={colors.onSurfaceVariant} />
-          <Text style={{ color: colors.onSurfaceVariant, marginTop: 8 }}>未找到相关内容</Text>
+          <Text style={{ color: colors.onSurfaceVariant, marginTop: 8 }}>{t('referencePicker.noResults')}</Text>
         </View>
       );
     }
@@ -240,7 +242,7 @@ export function ReferencePicker({
         {/* 头部 */}
         <View style={styles.header}>
           <Text variant="titleLarge" style={{ color: colors.onSurface }}>
-            引用内容
+            {t('referencePicker.quoteContent')}
           </Text>
           <IconButton icon="close" size={24} onPress={onDismiss} />
         </View>
@@ -250,7 +252,7 @@ export function ReferencePicker({
           <MaterialIcons name="search" size={20} color={colors.onSurfaceVariant} />
           <TextInput
             style={[styles.searchInput, { color: colors.onSurface }]}
-            placeholder="搜索..."
+            placeholder={t('referencePicker.searchPlaceholder')}
             placeholderTextColor={colors.onSurfaceVariant}
             value={searchQuery}
             onChangeText={handleSearch}
@@ -277,7 +279,7 @@ export function ReferencePicker({
               variant="labelMedium"
               style={{ color: activeTab === 'history' ? colors.primary : colors.onSurfaceVariant }}
             >
-              历史消息
+              {t('referencePicker.historyMessages')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -293,7 +295,7 @@ export function ReferencePicker({
               variant="labelMedium"
               style={{ color: activeTab === 'files' ? colors.primary : colors.onSurfaceVariant }}
             >
-              项目文件
+              {t('referencePicker.projectFiles')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -309,7 +311,7 @@ export function ReferencePicker({
               variant="labelMedium"
               style={{ color: activeTab === 'memory' ? colors.primary : colors.onSurfaceVariant }}
             >
-              记忆
+              {t('referencePicker.memory')}
             </Text>
           </TouchableOpacity>
         </View>

@@ -1,12 +1,22 @@
 // 代码块组件 - 支持语法高亮和复制
 
 import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, LogBox } from 'react-native';
 import { Text, IconButton, Menu } from 'react-native-paper';
+
+// 屏蔽第三方库陈旧代码导致的警告
+LogBox.ignoreLogs(['NativeSyntaxHighlighter: Support for defaultProps']);
+
 import SyntaxHighlighter from 'react-native-syntax-highlighter';
+
+// 尝试使用更通用的兼容路径
+import { atomOneDark, github } from 'react-syntax-highlighter/dist/styles/hljs';
 import { useTheme } from '@/theme';
+
+
 import Clipboard from '@react-native-clipboard/clipboard';
 import { shareCodeBlock } from '@/utils/share';
+import { useTranslation } from 'react-i18next';
 
 interface CodeBlockProps {
   code: string;
@@ -65,10 +75,12 @@ const SUPPORTED_LANGUAGES = new Set([
 ]);
 
 export function CodeBlock({ code, language = 'text', showLineNumbers = false }: CodeBlockProps) {
+  const { t } = useTranslation();
   const { colors, isDark } = useTheme();
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+
   
   // 防御：language 可能为 undefined 或空字符串
   const safeLanguage = (language || '').toLowerCase();
@@ -117,14 +129,14 @@ export function CodeBlock({ code, language = 'text', showLineNumbers = false }: 
           </Text>
           {lineCount > 10 && (
             <Text style={[styles.lineCount, { color: colors.onSurfaceVariant }]}>
-              {lineCount} 行
+              {lineCount} {t('codeBlock.lines')}
             </Text>
           )}
         </View>
         
         <View style={styles.headerRight}>
           {copied ? (
-            <Text style={[styles.copiedText, { color: colors.primary }]}>已复制</Text>
+            <Text style={[styles.copiedText, { color: colors.primary }]}>{t('codeBlock.copied')}</Text>
           ) : (
             <Menu
               visible={menuVisible}
@@ -140,17 +152,17 @@ export function CodeBlock({ code, language = 'text', showLineNumbers = false }: 
             >
               <Menu.Item
                 onPress={handleCopy}
-                title="复制代码"
+                title={t('chat.codeBlock.copyCode')}
                 leadingIcon="content-copy"
               />
               <Menu.Item
                 onPress={handleCopyWithoutFormat}
-                title="复制纯文本"
+                title={t('chat.codeBlock.copyText')}
                 leadingIcon="format-clear"
               />
               <Menu.Item
                 onPress={handleShare}
-                title="分享"
+                title={t('chat.codeBlock.share')}
                 leadingIcon="share-variant"
               />
             </Menu>
@@ -169,9 +181,10 @@ export function CodeBlock({ code, language = 'text', showLineNumbers = false }: 
         {normalizedLang ? (
           <SyntaxHighlighter
             language={normalizedLang}
-            style={isDark ? 'atomOneDark' : 'github'}
-            highlighter="prism"
+            style={atomOneDark}
             customStyle={{
+
+
               backgroundColor: 'transparent',
               padding: 0,
               margin: 0,
@@ -206,7 +219,7 @@ export function CodeBlock({ code, language = 'text', showLineNumbers = false }: 
           onPress={() => setExpanded(!expanded)}
         >
           <Text style={[styles.expandText, { color: colors.primary }]}>
-            {expanded ? '收起' : `展开全部 ${lineCount} 行`}
+            {expanded ? t('chat.codeBlock.collapse') : t('chat.codeBlock.expandAll', { count: lineCount })}
           </Text>
         </TouchableOpacity>
       )}

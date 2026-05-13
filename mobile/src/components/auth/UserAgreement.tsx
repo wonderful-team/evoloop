@@ -4,6 +4,7 @@ import React from 'react';
 import { View, StyleSheet, Linking } from 'react-native';
 import { Text, Checkbox } from 'react-native-paper';
 import { useTheme } from '@/theme';
+import { useTranslation } from 'react-i18next';
 import { BASE_URL } from '@/constants/config';
 
 interface UserAgreementProps {
@@ -31,6 +32,7 @@ export function UserAgreement({
   style,
 }: UserAgreementProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   const handleOpenTerms = () => {
     Linking.openURL(termsUrl);
@@ -47,13 +49,13 @@ export function UserAgreement({
         onPress={onToggle}
       />
       <Text variant="bodySmall" style={styles.text}>
-        我已阅读并同意
+        {t('auth.agree')}
         <Text style={{ color: colors.primary }} onPress={handleOpenTerms}>
-          《服务协议》
+          {t('auth.termsOfService')}
         </Text>
-        和
+        {t('auth.and')}
         <Text style={{ color: colors.primary }} onPress={handleOpenPrivacy}>
-          《隐私政策》
+          {t('auth.privacyPolicy')}
         </Text>
       </Text>
     </View>
@@ -68,16 +70,17 @@ export function UserAgreementText({
   privacyUrl = `${BASE_URL}/member/agreement/privacy`,
 }: Omit<UserAgreementProps, 'agreed' | 'onToggle' | 'style'>) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   return (
     <Text>
-      请先阅读并同意
+      {t('auth.pleaseAgreeFirst')}
       <Text style={{ color: colors.primary }} onPress={() => Linking.openURL(termsUrl)}>
-        《服务协议》
+        {t('auth.termsOfService')}
       </Text>
-      和
+      {t('auth.and')}
       <Text style={{ color: colors.primary }} onPress={() => Linking.openURL(privacyUrl)}>
-        《隐私政策》
+        {t('auth.privacyPolicy')}
       </Text>
     </Text>
   );

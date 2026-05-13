@@ -134,10 +134,11 @@ export function VoiceControlButton({
           <IconButton
             icon={getIcon()}
             size={40}
-            iconColor={colors.onPrimary}
+            iconColor={isListening ? colors.onError : isProcessing ? colors.onWarning : colors.onPrimary}
             style={styles.icon}
           />
         </View>
+
       </Animated.View>
     </Pressable>
   );

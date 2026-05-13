@@ -5,9 +5,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/theme';
 import { Header } from '@/components/common/Header';
 import DeviceInfo from 'react-native-device-info';
+import { useTranslation } from 'react-i18next';
 import { BASE_URL } from '@/constants/config';
 
 export default function AboutScreen() {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const colors = theme.colors;
   const appVersion = DeviceInfo.getVersion();
@@ -27,7 +29,7 @@ export default function AboutScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header title="关于" showBack />
+      <Header title={t('settings.about.title')} showBack />
       <ScrollView>
         {/* 应用信息 */}
         <View style={styles.header}>
@@ -41,7 +43,7 @@ export default function AboutScreen() {
             EvoLoop
           </Text>
           <Text variant="bodyMedium" style={{ color: colors.onSurfaceVariant }}>
-            版本 {appVersion} ({buildNumber})
+            {t('settings.about.versionPrefix')} {appVersion} ({buildNumber})
           </Text>
         </View>
 
@@ -51,8 +53,7 @@ export default function AboutScreen() {
       <Card style={styles.introCard}>
         <Card.Content>
           <Text variant="bodyMedium" style={{ color: colors.onSurface }}>
-            EvoLoop 是您的随身通用 AI 智能体。通过简单的语音对话，即可管理设备、获取答案、执行任务。
-            支持云端智能和本地设备控制的无缝切换。
+            {t('settings.about.intro')}
           </Text>
         </Card.Content>
       </Card>
@@ -61,23 +62,23 @@ export default function AboutScreen() {
 
       {/* 链接 */}
       <List.Section>
-        <List.Subheader>链接</List.Subheader>
+        <List.Subheader>{t('settings.about.links')}</List.Subheader>
         <List.Item
-          title="官方网站"
-          description="www.evoloop.cn"
+          title={t('settings.about.officialWebsite')}
+          description={t('settings.about.websiteUrl')}
           left={(props) => <List.Icon {...props} icon="web" />}
           right={(props) => <List.Icon {...props} icon="open-in-new" />}
           onPress={openWebsite}
         />
         <List.Item
           title="GitHub"
-          description="查看开源代码"
+          description={t('settings.about.viewSource')}
           left={(props) => <List.Icon {...props} icon="github" />}
           right={(props) => <List.Icon {...props} icon="open-in-new" />}
           onPress={openGithub}
         />
         <List.Item
-          title="反馈建议"
+          title={t('settings.about.feedback')}
           description="support@develop-assistant.cn"
           left={(props) => <List.Icon {...props} icon="email" />}
           right={(props) => <List.Icon {...props} icon="open-in-new" />}
@@ -89,15 +90,15 @@ export default function AboutScreen() {
 
       {/* 技术信息 */}
       <List.Section>
-        <List.Subheader>技术信息</List.Subheader>
+        <List.Subheader>{t('settings.about.techInfo')}</List.Subheader>
         <List.Item
           title="React Native"
           description="0.76.9"
           left={(props) => <List.Icon {...props} icon="react" />}
         />
         <List.Item
-          title="架构"
-          description="Bare Workflow (Native)"
+          title={t('settings.about.architecture')}
+          description={t('settings.about.bareWorkflow')}
           left={(props) => <List.Icon {...props} icon="code-tags" />}
         />
       </List.Section>

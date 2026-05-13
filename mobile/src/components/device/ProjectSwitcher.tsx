@@ -7,6 +7,7 @@ import { useProjects } from '@/hooks/useProjects';
 import { Project } from '@/types';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useTheme } from '@/theme';
+import { useTranslation } from 'react-i18next';
 
 interface ProjectSwitcherProps {
   visible: boolean;
@@ -23,6 +24,7 @@ export function ProjectSwitcher({
 }: ProjectSwitcherProps) {
   const { projects, isLoading, switchProject } = useProjects({ autoFetch: true });
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = React.useState('');
   const [switching, setSwitching] = React.useState<number | null>(null);
 
@@ -58,7 +60,7 @@ export function ProjectSwitcher({
       >
         <View style={styles.header}>
           <Searchbar
-            placeholder="搜索项目..."
+            placeholder={t('projectSwitcher.searchPlaceholder')}
             onChangeText={setSearchQuery}
             value={searchQuery}
             style={styles.searchbar}
@@ -85,7 +87,7 @@ export function ProjectSwitcher({
               <List.Item
                 key={project.id}
                 title={project.name}
-                description={project.description || '暂无描述'}
+                description={project.description || t('projectSwitcher.noDesc')}
                 left={() => (
                   <RadioButton
                     value={project.id.toString()}
@@ -110,7 +112,7 @@ export function ProjectSwitcher({
 
         <View style={styles.footer}>
           <Button onPress={onDismiss} mode="outlined" style={styles.button}>
-            取消
+            {t('common.cancel')}
           </Button>
         </View>
       </Modal>

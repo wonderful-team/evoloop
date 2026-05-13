@@ -52,7 +52,7 @@ export interface MessageAttachment {
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant' | 'tool' | 'system';
+  role: 'human' | 'ai' | 'tool' | 'system';
   content: string;
   timestamp: number;
   isComplete?: boolean;
@@ -61,8 +61,8 @@ export interface ChatMessage {
   references?: Array<Record<string, any>>;
   has_file_operations?: boolean;
   steps?: any[];
-  /** 消息发送状态：sending=发送中/运行中, sent=已完成, failed=失败 */
-  status?: 'sending' | 'sent' | 'failed';
+  /** 消息状态，对齐后端原始值 */
+  status?: 'pending' | 'running' | 'streaming' | 'completed' | 'failed' | 'waiting_human';
 
   // === 对齐 Python MessageBlock 的扩展字段 ===
   /** AI 思考过程 (extended thinking) */
@@ -79,6 +79,13 @@ export interface ChatMessage {
   category?: string;
   /** 全局序列号，用于去重和排序 */
   sequence_number?: number;
+  /** 文件变更数量 */
+  changeset_count?: number;
+  /** 文件变更详情 */
+  changeset_files?: Array<{
+    path: string;
+    operation: 'added' | 'modified' | 'deleted' | 'renamed';
+  }>;
 }
 
 

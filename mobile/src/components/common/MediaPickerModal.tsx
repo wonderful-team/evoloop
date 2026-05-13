@@ -13,6 +13,7 @@ import {
 import { Text } from 'react-native-paper';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '@/theme';
+import { useTranslation } from 'react-i18next';
 import ImagePicker, { ImageOrVideo } from 'react-native-image-crop-picker';
 
 export type MediaOption = 'camera' | 'video' | 'album' | 'file';
@@ -53,10 +54,10 @@ interface OptionConfig {
 }
 
 const OPTION_CONFIGS: OptionConfig[] = [
-  { key: 'camera', icon: 'photo-camera', label: '拍照' },
-  { key: 'video', icon: 'videocam', label: '录视频' },
-  { key: 'album', icon: 'image', label: '相册' },
-  { key: 'file', icon: 'insert-drive-file', label: '文件' },
+  { key: 'camera', icon: 'photo-camera', label: 'camera' },
+  { key: 'video', icon: 'videocam', label: 'video' },
+  { key: 'album', icon: 'image', label: 'album' },
+  { key: 'file', icon: 'insert-drive-file', label: 'file' },
 ];
 
 export function MediaPickerModal({
@@ -76,6 +77,7 @@ export function MediaPickerModal({
   onSelectFile,
 }: MediaPickerModalProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   const requestCameraPermission = useCallback(async () => {
     if (Platform.OS === 'android') {
@@ -113,7 +115,7 @@ export function MediaPickerModal({
     onClose();
     const hasPermission = await requestCameraPermission();
     if (!hasPermission) {
-      Alert.alert('权限不足', '需要相机权限才能拍照');
+      Alert.alert(t('mediaPicker.permissionDenied'), t('mediaPicker.cameraPermission'));
       return;
     }
     try {
@@ -131,7 +133,7 @@ export function MediaPickerModal({
       onSelectImage?.([result]);
     } catch (error: any) {
       if (isUserCancelled(error)) return;
-      Alert.alert('错误', '拍照失败，请重试');
+      Alert.alert(t('common.error.title'), t('mediaPicker.cameraError'));
     }
   }, [
     onClose, requestCameraPermission, onSelectImage,
@@ -143,7 +145,7 @@ export function MediaPickerModal({
     onClose();
     const hasPermission = await requestCameraPermission();
     if (!hasPermission) {
-      Alert.alert('权限不足', '需要相机权限才能录制视频');
+      Alert.alert(t('mediaPicker.permissionDenied'), t('mediaPicker.videoPermission'));
       return;
     }
     try {
@@ -153,7 +155,7 @@ export function MediaPickerModal({
       onSelectImage?.([result]);
     } catch (error: any) {
       if (isUserCancelled(error)) return;
-      Alert.alert('错误', '录制视频失败，请重试');
+      Alert.alert(t('common.error.title'), t('mediaPicker.videoError'));
     }
   }, [onClose, requestCameraPermission, onSelectImage]);
 
@@ -161,7 +163,7 @@ export function MediaPickerModal({
     onClose();
     const hasPermission = await requestMediaLibraryPermission();
     if (!hasPermission) {
-      Alert.alert('权限不足', '需要访问相册权限才能选择媒体');
+      Alert.alert(t('mediaPicker.permissionDenied'), t('mediaPicker.albumPermission'));
       return;
     }
     try {
@@ -182,7 +184,7 @@ export function MediaPickerModal({
       onSelectImage?.(items);
     } catch (error: any) {
       if (isUserCancelled(error)) return;
-      Alert.alert('错误', '选择媒体失败，请重试');
+      Alert.alert(t('common.error.title'), t('mediaPicker.albumError'));
     }
   }, [
     onClose, requestMediaLibraryPermission, onSelectImage, maxFiles,
@@ -204,12 +206,12 @@ export function MediaPickerModal({
       if (isUserCancelled(error)) return;
       if (error.message?.includes('Native module')) {
         Alert.alert(
-          '文件上传',
-          '文件上传需要安装 react-native-document-picker 依赖。\n\n请运行:\nnpm install react-native-document-picker\n\n或:\nyarn add react-native-document-picker'
+          t('mediaPicker.fileUploadTitle'),
+          t('mediaPicker.fileUploadMessage')
         );
         return;
       }
-      Alert.alert('错误', error.message || '文件选择失败');
+      Alert.alert(t('common.error.title'), error.message || t('mediaPicker.fileError'));
     }
   }, [onClose, onSelectFile, maxFiles]);
 
@@ -260,7 +262,7 @@ export function MediaPickerModal({
                   variant="bodySmall"
                   style={{ color: colors.onSurface, marginTop: 8 }}
                 >
-                  {cfg.label}
+                  {t(`mediaPicker.${cfg.label}`)}
                 </Text>
               </TouchableOpacity>
             ))}

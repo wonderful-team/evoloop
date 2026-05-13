@@ -17,6 +17,7 @@ import {
   AddMemoryRequest,
   MemoryConcept,
 } from '@/types/conversation';
+import i18n from '@/locales';
 
 /**
  * 获取会话列表
@@ -40,7 +41,7 @@ export async function getConversations(
   
   // MC 返回格式处理
   if (response.code !== 0) {
-    throw new Error(response.message || '获取会话列表失败');
+    throw new Error(response.message || i18n.t('api.errors.getConversationsFailed'));
   }
   
   const data = response.data || {};
@@ -65,7 +66,7 @@ export async function createConversation(
   const response = await api.post(`/member/evolooplink/api/conversation/list`, data);
   
   if (response.code !== 0) {
-    throw new Error(response.message || '创建会话失败');
+    throw new Error(response.message || i18n.t('api.errors.createConversationFailed'));
   }
   
   return response.data;
@@ -81,7 +82,7 @@ export async function getConversation(conversationId: string): Promise<Conversat
   const response = await api.get(`/member/evolooplink/api/conversation/detail?conversation_id=${conversationId}`);
   
   if (response.code !== 0) {
-    throw new Error(response.message || '获取会话详情失败');
+    throw new Error(response.message || i18n.t('api.errors.getConversationDetailFailed'));
   }
   
   return response.data;
@@ -97,7 +98,7 @@ export async function deleteConversation(conversationId: string): Promise<void> 
   });
   
   if (response.code !== 0) {
-    throw new Error(response.message || '删除会话失败');
+    throw new Error(response.message || i18n.t('api.errors.deleteConversationFailed'));
   }
 }
 
@@ -122,7 +123,7 @@ export async function getConversationHistory(
   const response = await api.get(`/member/evolooplink/api/conversation/messages?${params.toString()}`);
   
   if (response.code !== 0) {
-    throw new Error(response.message || '获取消息历史失败');
+    throw new Error(response.message || i18n.t('api.errors.getMessagesFailed'));
   }
   
   const data = response.data || {};
@@ -144,7 +145,7 @@ export async function stopAgent(conversationId: string, deviceKey?: string): Pro
   });
   
   if (response.code !== 0) {
-    throw new Error(response.message || '停止失败');
+    throw new Error(response.message || i18n.t('api.errors.stopFailed'));
   }
 }
 
@@ -164,7 +165,7 @@ export async function rewindConversation(
   );
   
   if (response.code !== 0) {
-    throw new Error(response.message || '回退失败');
+    throw new Error(response.message || i18n.t('api.errors.rewindFailed'));
   }
   
   return response.data;
@@ -186,7 +187,7 @@ export async function retryConversation(
   );
   
   if (response.code !== 0) {
-    throw new Error(response.message || '重试失败');
+    throw new Error(response.message || i18n.t('api.errors.retryFailed'));
   }
   
   return response.data;
@@ -206,7 +207,7 @@ export async function addToMemory(
   );
   
   if (response.code !== 0) {
-    throw new Error(response.message || '添加记忆失败');
+    throw new Error(response.message || i18n.t('api.errors.addMemoryFailed'));
   }
   
   return response.data;
@@ -220,7 +221,7 @@ export async function getMemories(projectId: number): Promise<MemoryConcept[]> {
   const response = await api.get(`/member/api/projects/${projectId}/memory`);
   
   if (response.code !== 0) {
-    throw new Error(response.message || '获取记忆失败');
+    throw new Error(response.message || i18n.t('api.errors.getMemoryFailed'));
   }
   
   return response.data || [];
@@ -252,7 +253,7 @@ export async function sendMessage(
   );
   
   if (response.code !== 0) {
-    throw new Error(response.message || '发送消息失败');
+    throw new Error(response.message || i18n.t('api.errors.sendMessageFailed'));
   }
   
   return response.data;
@@ -266,7 +267,7 @@ export async function syncMessages(lastTime: number): Promise<{ messages: any[],
   const response = await api.get(`/member/evolooplink/api/conversation/sync?last_time=${lastTime}`);
   
   if (response.code !== 0) {
-    throw new Error(response.message || '同步消息失败');
+    throw new Error(response.message || i18n.t('api.errors.syncMessagesFailed'));
   }
   
   return {
@@ -285,6 +286,6 @@ export async function markAsRead(conversationId: string): Promise<void> {
   });
   
   if (response.code !== 0) {
-    throw new Error(response.message || '标记已读失败');
+    throw new Error(response.message || i18n.t('api.errors.markAsReadFailed'));
   }
 }

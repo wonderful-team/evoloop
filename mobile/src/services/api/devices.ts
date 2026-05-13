@@ -7,6 +7,7 @@ import {
   DeviceBindingRequest,
   DeviceCommandRequest,
 } from '@/types';
+import i18n from '@/locales';
 
 // 后端设备数据接口
 interface BackendDevice {
@@ -33,7 +34,7 @@ const mapBackendDevice = (backendDevice: BackendDevice): Device => {
 
   return {
     deviceKey: String(backendDevice.device_key),
-    name: backendDevice.device_name || '未命名设备',
+    name: backendDevice.device_name || i18n.t('devices.unnamedDevice'),
     status,
     type: backendDevice.device_type || 'desktop',
     lastSeen: backendDevice.last_heartbeat ? String(backendDevice.last_heartbeat) : undefined,

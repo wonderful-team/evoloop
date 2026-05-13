@@ -10,6 +10,7 @@ import {
   ProjectSwitchRequest,
   ProjectSwitchResponse,
 } from '@/types';
+import i18n from '@/locales';
 
 export interface ProjectFile {
   path: string;
@@ -30,7 +31,7 @@ export const projectApi = {
     const list = response.data?.list || [];
     return list.map((p: any) => ({
       id: p.project_id,
-      name: p.project_name || '未命名项目',
+      name: p.project_name || i18n.t('projects.unnamedProject'),
       description: p.project_desc || '',
       rootPath: p.external_path || '',
       isActive: false,

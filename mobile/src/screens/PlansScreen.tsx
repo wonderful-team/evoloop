@@ -23,9 +23,9 @@ const BENEFIT_ICONS: Record<string, string> = {
 };
 
 // 格式化价格显示
-function formatPrice(price: string | number): string {
+function formatPrice(price: string | number, freeLabel: string): string {
   const num = typeof price === 'string' ? parseFloat(price) : price;
-  if (isNaN(num) || num === 0) return '免费';
+  if (isNaN(num) || num === 0) return freeLabel;
   return `¥${num}`;
 }
 
@@ -49,6 +49,8 @@ interface PlanCardProps {
 }
 
 function PlanCard({ plan, isCurrentPlan, isDowngrade, currentSort, targetSort, onSubscribe, isDark }: PlanCardProps) {
+  const { t } = useTranslation();
+
   // 降级卡片样式
   const cardStyle = useMemo(() => {
     if (isDowngrade) {
@@ -67,34 +69,34 @@ function PlanCard({ plan, isCurrentPlan, isDowngrade, currentSort, targetSort, o
     
     // AI 额度
     if (benefits.ai_quota !== undefined) {
-      const quota = benefits.ai_quota === -1 ? '无限' : `${benefits.ai_quota} 次/月`;
-      items.push({ icon: 'chat', text: `AI 调用: ${quota}` });
+      const quota = benefits.ai_quota === -1 ? t('plans.unlimited') : `${benefits.ai_quota}${t('plans.timesPerMonth')}`;
+      items.push({ icon: 'chat', text: t('plans.aiQuota', { quota }) });
     }
     
     // 项目数量
     if (benefits.project_limit !== undefined) {
-      const limit = benefits.project_limit === -1 ? '无限' : `${benefits.project_limit} 个`;
-      items.push({ icon: 'folder', text: `项目数量: ${limit}` });
+      const limit = benefits.project_limit === -1 ? t('plans.unlimited') : `${benefits.project_limit}${t('plans.projectUnit')}`;
+      items.push({ icon: 'folder', text: t('plans.projectCount', { limit }) });
     }
     
     // 高级模型
     if (benefits.ai_advanced) {
-      items.push({ icon: 'auto-awesome', text: '高级模型 (GPT-4, Claude等)' });
+      items.push({ icon: 'auto-awesome', text: t('plans.advancedModels') });
     }
     
     // 语音
     if (benefits.voice) {
-      items.push({ icon: 'mic', text: '语音对话' });
+      items.push({ icon: 'mic', text: t('plans.voiceChat') });
     }
     
     // 甘特图
     if (benefits.gantt) {
-      items.push({ icon: 'insert-chart', text: '甘特图' });
+      items.push({ icon: 'insert-chart', text: t('plans.ganttChart') });
     }
     
     // 工时表
     if (benefits.timesheet) {
-      items.push({ icon: 'schedule', text: '工时表' });
+      items.push({ icon: 'schedule', text: t('plans.timesheet') });
     }
     
     return items.map((item, index) => (
@@ -118,7 +120,7 @@ function PlanCard({ plan, isCurrentPlan, isDowngrade, currentSort, targetSort, o
       return (
         <View style={styles.currentPlanBadge}>
           <MaterialIcons name="check-circle" size={20} color="#109C8F" />
-          <Text style={styles.currentPlanText}>当前方案</Text>
+          <Text style={styles.currentPlanText}>{t('plans.currentPlan')}</Text>
         </View>
       );
     }
@@ -127,8 +129,8 @@ function PlanCard({ plan, isCurrentPlan, isDowngrade, currentSort, targetSort, o
       return (
         <View style={styles.downgradeInfo}>
           <MaterialIcons name="info-outline" size={18} color="#9CA3AF" />
-          <Text style={styles.downgradeInfoText}>当前等级更高</Text>
-          <Text style={styles.downgradeSubText}>到期后可购买此方案</Text>
+          <Text style={styles.downgradeInfoText}>{t('plans.downgradeInfo')}</Text>
+          <Text style={styles.downgradeSubText}>{t('plans.downgradeSub')}</Text>
         </View>
       );
     }
@@ -140,7 +142,7 @@ function PlanCard({ plan, isCurrentPlan, isDowngrade, currentSort, targetSort, o
         style={styles.subscribeButton}
         buttonColor={plan.level_id === 20 ? '#109C8F' : undefined}
       >
-        立即订阅
+        {t('plans.subscribeNow')}
       </Button>
     );
   };
@@ -155,25 +157,25 @@ function PlanCard({ plan, isCurrentPlan, isDowngrade, currentSort, targetSort, o
             </Text>
             {plan.level_id === 20 && !isDowngrade && (
               <Chip icon="star" style={styles.recommendedChip} textStyle={{ color: '#109C8F' }}>
-                推荐
+                {t('plans.recommended')}
               </Chip>
             )}
           </View>
           {isDowngrade && (
-            <Chip style={styles.downgradeChip}>无法降级</Chip>
+            <Chip style={styles.downgradeChip}>{t('plans.cannotDowngrade')}</Chip>
           )}
         </View>
         
         <View style={styles.priceRow}>
           <Text variant="displaySmall" style={[styles.price, isDowngrade && styles.downgradePrice]}>
-            {formatPrice(plan.price)}
+            {formatPrice(plan.price, t('plans.free'))}
           </Text>
           {parseFloat(plan.market_price) > parseFloat(plan.price) && (
             <Text style={styles.marketPrice}>¥{plan.market_price}</Text>
           )}
         </View>
         <Text variant="bodyMedium" style={[styles.period, isDowngrade && styles.downgradeText]}>
-          /{plan.subscription_quota || 30}天
+          {t('plans.period', { days: plan.subscription_quota || 30 })}
         </Text>
         
         <Divider style={styles.divider} />
@@ -232,14 +234,14 @@ export default function PlansScreen() {
     return (
       <SafeAreaView style={[styles.container, styles.center]}>
         <ActivityIndicator size="large" color="#109C8F" />
-        <Text style={styles.loadingText}>加载中...</Text>
+        <Text style={styles.loadingText}>{t('plans.loading')}</Text>
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header title="选择会员方案" showBack />
+      <Header title={t('plans.title')} showBack />
       <ScrollView
         style={styles.content}
         refreshControl={
@@ -249,14 +251,14 @@ export default function PlansScreen() {
         {/* 头部信息 */}
         <View style={styles.header}>
           <Text variant="bodyMedium" style={styles.subtitle}>
-            解锁更多 AI 能力，提升开发效率
+            {t('plans.unlockMore')}
           </Text>
 
           {hasActiveSubscription && (
             <View style={styles.currentSubscription}>
               <MaterialIcons name="verified" size={20} color="#109C8F" />
               <Text style={styles.currentSubscriptionText}>
-                当前订阅: {detail?.level_name} (剩余 {detail?.remaining_days} 天)
+                {t('plans.currentSubscription', { name: detail?.level_name, days: detail?.remaining_days })}
               </Text>
             </View>
           )}
@@ -266,7 +268,7 @@ export default function PlansScreen() {
         {sortedPlans.length === 0 ? (
           <View style={styles.emptyState}>
             <MaterialIcons name="error-outline" size={48} color="#9CA3AF" />
-            <Text style={styles.emptyText}>暂无可用套餐</Text>
+            <Text style={styles.emptyText}>{t('plans.noPlans')}</Text>
           </View>
         ) : (
           sortedPlans.map((plan) => {
@@ -295,7 +297,7 @@ export default function PlansScreen() {
         {/* 底部说明 */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            订阅会自动续费，可随时取消。购买后不支持退款。
+            {t('plans.autoRenewal')}
           </Text>
         </View>
       </ScrollView>

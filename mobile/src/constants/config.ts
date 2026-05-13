@@ -71,7 +71,7 @@ export const DASHSCOPE_CONFIG = {
 
 // 高德地图配置
 export const AMAP_CONFIG = {
-  key: AMAP_KEY || '',
+  key: AMAP_KEY || 'b0c12770ebc298f44f4aaa28e9f59e02',
 };
 
 // 验证码配置

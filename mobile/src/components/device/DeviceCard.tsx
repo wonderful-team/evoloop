@@ -6,6 +6,7 @@ import { Text } from 'react-native-paper';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Device } from '@/types';
 import { useTheme } from '@/theme';
+import { useTranslation } from 'react-i18next';
 
 interface DeviceCardProps {
   device: Device;
@@ -20,6 +21,7 @@ export function DeviceCard({
   onPress,
   onCommandPress,
 }: DeviceCardProps) {
+  const { t } = useTranslation();
   const { colors } = useTheme();
 
   const getStatusColor = (status: Device['status']) => {
@@ -49,12 +51,12 @@ export function DeviceCard({
   const getStatusText = (status: Device['status']) => {
     switch (status) {
       case 'online':
-        return '在线';
+        return t('devices.online');
       case 'busy':
-        return '忙碌';
+        return t('devices.busy');
       case 'offline':
       default:
-        return '离线';
+        return t('devices.offline');
     }
   };
 
@@ -71,10 +73,10 @@ export function DeviceCard({
     const now = Date.now() / 1000;
     const diff = now - timestamp;
 
-    if (diff < 60) return '刚刚';
-    if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;
-    return `${Math.floor(diff / 86400)}天前`;
+    if (diff < 60) return t('devices.timeAgo.justNow');
+    if (diff < 3600) return t('devices.timeAgo.minutes', { count: Math.floor(diff / 60) });
+    if (diff < 86400) return t('devices.timeAgo.hours', { count: Math.floor(diff / 3600) });
+    return t('devices.timeAgo.days', { count: Math.floor(diff / 86400) });
   };
 
   return (
@@ -97,11 +99,11 @@ export function DeviceCard({
           {/* 设备信息 */}
           <View style={styles.info}>
             <Text variant="titleMedium" style={styles.name} numberOfLines={1}>
-              {device.name || `设备 ${(device.deviceKey || 'unknown').slice(0, 8)}`}
+              {device.name || `${t('devices.devicePrefix')} ${(device.deviceKey || 'unknown').slice(0, 8)}`}
             </Text>
             {device.lastSeen && (
               <Text variant="bodySmall" style={styles.lastSeen}>
-                上次活跃: {formatLastSeen(device.lastSeen)}
+                {t('devices.lastActive')}{formatLastSeen(device.lastSeen)}
               </Text>
             )}
           </View>
