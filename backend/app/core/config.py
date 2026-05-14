@@ -172,7 +172,22 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     # File Upload
-    UPLOAD_DIR: str | None = None  # Directory for uploaded files (defaults to /tmp/evoloop/uploads)
+    # 全局模式上传目录，可通过环境变量 UPLOAD_DIR 覆盖，默认存放在应用数据目录下
+    # 注意：不应放在 WORKSPACE_ROOT 下，避免被项目扫描器误识别为工程目录
+    UPLOAD_DIR: str | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def CHAT_UPLOAD_DIR(self) -> str:
+        """聊天附件统一存放目录。
+
+        所有通过聊天输入框上传的文件（无论全局模式还是项目模式）都存放在此处，
+        与项目代码目录完全隔离，不污染 WORKSPACE_ROOT。
+        物理位置：~/.evoloop/uploads/（可通过环境变量 UPLOAD_DIR 覆盖）
+        """
+        base = self.UPLOAD_DIR or os.path.join(self.APP_DATA_DIR, "uploads")
+        os.makedirs(base, exist_ok=True)
+        return base
 
     # Graph (Neo4j) - Optional, disabled in embedded mode
     NEO4J_URI: str | None = "bolt://localhost:7687"
@@ -497,6 +512,20 @@ class Settings(BaseSettings):
             self.USE_NEO4J = False
             self.NEO4J_URI = None
             self.REDIS_URL = None
+        return self
+
+    @model_validator(mode="after")
+    def _configure_allowed_paths(self) -> Self:
+        """将应用数据目录（~/.evoloop）动态注入安全访问白名单。
+
+        确保 Agent 工具链在全局模式下可以访问 ~/.evoloop/uploads 中的上传文件，
+        而不触发路径越界安全校验。
+        """
+        app_data = os.path.expanduser(self.APP_DATA_DIR)
+        current_prefixes = list(self.ALLOWED_PATH_PREFIXES)
+        if app_data not in current_prefixes:
+            current_prefixes.append(app_data)
+            self.ALLOWED_PATH_PREFIXES = current_prefixes
         return self
 
 

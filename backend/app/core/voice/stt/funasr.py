@@ -1,20 +1,9 @@
-"""
-FunASR Provider Implementation
-阿里巴巴 FunASR 本地语音识别（中文优化，支持离线）
-
-模型说明:
-- paraformer-zh: 基础模型，~220MB，适合通用场景
-- paraformer-zh-streaming: 流式模型，~220MB，支持实时识别
-- paraformer-zh-plus: 增强模型，~500MB，精度更高
-
-模型存储位置: ~/.evoloop/models (可通过 MODELS_DIR 配置)
-打包模式: 模型可从应用 bundle 的 resources/models 复制到用户目录
-"""
-
+import asyncio
 import logging
 import os
 import shutil
 import sys
+import tempfile
 from collections.abc import AsyncIterator
 from pathlib import Path
 

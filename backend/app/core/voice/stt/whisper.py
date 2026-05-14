@@ -4,6 +4,8 @@ OpenAI Whisper 语音识别（云端）
 """
 
 import logging
+import os
+from typing import Any
 from collections.abc import AsyncIterator
 
 try:
@@ -87,7 +89,7 @@ class WhisperProvider(BaseSTTProvider):
 
         try:
             # 准备参数
-            kwargs = {
+            kwargs: dict[str, Any] = {
                 "model": model,
                 "file": ("audio.webm", options.audio_data),
                 "response_format": "verbose_json",
@@ -118,12 +120,14 @@ class WhisperProvider(BaseSTTProvider):
             logger.error(f"Whisper transcription failed: {e}")
             raise RuntimeError(f"Transcription failed: {e}")
 
-    async def transcribe_stream(self, options: STTOptions) -> AsyncIterator[STTResult]:
+    def transcribe_stream(self, options: STTOptions) -> AsyncIterator[STTResult]:
         """
         流式识别（Whisper 不支持真正的流式，模拟返回）
         """
-        result = await self.transcribe(options)
-        yield result
+        async def _gen():
+            result = await self.transcribe(options)
+            yield result
+        return _gen()
 
     def _locale_to_code(self, locale: VoiceLocale) -> str | None:
         """将 VoiceLocale 转换为 Whisper 语言代码"""
@@ -170,5 +174,5 @@ class WhisperLocalProvider(BaseSTTProvider):
     async def transcribe(self, options: STTOptions) -> STTResult:
         raise NotImplementedError("Local Whisper not implemented yet")
 
-    async def transcribe_stream(self, options: STTOptions) -> AsyncIterator[STTResult]:
+    def transcribe_stream(self, options: STTOptions) -> AsyncIterator[STTResult]:
         raise NotImplementedError("Local Whisper not implemented yet")

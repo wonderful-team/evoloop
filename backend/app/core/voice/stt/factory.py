@@ -143,17 +143,8 @@ def get_stt_provider(prefer_local: bool = True) -> BaseSTTProvider:
 
 async def transcribe_audio(audio_data: bytes, language: str | None = None, **kwargs) -> STTResult:
     """
-    便捷函数：识别音频
-    
-    Args:
-        audio_data: 音频数据
-        language: 语言代码
-        **kwargs: 其他选项
-        
-    Returns:
-        STTResult: 识别结果
+    便捷函数：识别音频数据
     """
-
     provider = get_stt_provider()
 
     # 转换语言代码

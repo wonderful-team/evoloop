@@ -20,11 +20,14 @@ Callers are responsible for starting the background task:
 from __future__ import annotations
 
 import logging
+import os
+import shutil
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.engine.message.reference import reference_service
 from app.domain.project.utils import get_project_path
@@ -51,6 +54,7 @@ async def dispatch_agent_run(
     *,
     project_id: int = 1,
     attachments: list[dict[str, Any]] | None = None,
+    upload_session_id: str | None = None,
     command_id: int | None = None,
     checkpoint_id: str | None = None,
     model: str | None = None,
@@ -111,16 +115,41 @@ async def dispatch_agent_run(
     await ContextManager.save(thread_id)
 
     # ------------------------------------------------------------------
+    # 1.5 Handle Upload Session Promotion (Migration from tmp to thread)
+    # ------------------------------------------------------------------
+    if upload_session_id:
+        tmp_dir = os.path.join(settings.CHAT_UPLOAD_DIR, f"tmp_{upload_session_id}")
+        final_dir = os.path.join(settings.CHAT_UPLOAD_DIR, thread_id)
+        
+        if os.path.exists(tmp_dir) and os.path.isdir(tmp_dir):
+            try:
+                # If final_dir already exists (multi-upload), merge contents
+                if os.path.exists(final_dir):
+                    for item in os.listdir(tmp_dir):
+                        shutil.move(os.path.join(tmp_dir, item), os.path.join(final_dir, item))
+                    shutil.rmtree(tmp_dir)
+                else:
+                    os.rename(tmp_dir, final_dir)
+                logger.info(f"[Dispatch] Upload session {upload_session_id} promoted to thread {thread_id}")
+            except Exception as e:
+                logger.warning(f"[Dispatch] Failed to promote upload session: {e}")
+
+    # ------------------------------------------------------------------
     # 2. Process references (images, files, skills)
     # ------------------------------------------------------------------
-    root_path = await get_project_path(project_id) if project_id else None
+    # 【重要】确保在 process_references 之前已经完成了目录转正
+    # 这样 reference_service 看到的就是隔离后的最终路径
+    upload_root = os.path.join(settings.CHAT_UPLOAD_DIR, thread_id)
+    if not os.path.exists(upload_root):
+        upload_root = os.path.join(settings.CHAT_UPLOAD_DIR, "global")
 
     async with session_scope() as session:
         ref_context = await reference_service.process_references(
             message_text=message_content,
             attachments=attachments or [],
             session=session,
-            root_path=root_path,
+            root_path=upload_root, # 使用隔离后的目录作为根
+            thread_id=thread_id,   # 【新增】传入会话 ID 用于生成预览 URL
         )
     content_blocks = ref_context.content_blocks
 
@@ -181,6 +210,7 @@ async def dispatch_agent_run(
                 content=message_content,
                 category="user",
                 is_visible=True,
+                references=ref_context.references, # 【修正】传入引用信息以进行持久化
             )
             persisted_msg_id = msg_id
 

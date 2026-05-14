@@ -158,3 +158,4 @@ class ReferenceContext(DynamicBaseModel):
     content_blocks: list[dict[str, Any]]
     reference_notes: list[str]
     injected_message: str
+    references: list[dict[str, Any]] = []

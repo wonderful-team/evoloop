@@ -63,7 +63,8 @@ class TTSSResult(DynamicBaseModel):
 
 class STTOptions(DynamicBaseModel):
     """STT 识别选项"""
-    audio_data: bytes
+    audio_data: bytes | None = None
+    file_path: str | None = None
     audio_format: str = "webm"   # webm, mp3, wav, m4a
     language: VoiceLocale = VoiceLocale.AUTO
     model: str | None = None   # 模型选择
@@ -101,7 +102,7 @@ class BaseTTSProvider(ABC):
         pass
 
     @abstractmethod
-    async def synthesize_stream(self, options: TTSOptions) -> AsyncIterator[bytes]:
+    def synthesize_stream(self, options: TTSOptions) -> AsyncIterator[bytes]:
         """
         流式合成语音（如果支持）
         
@@ -173,7 +174,7 @@ class BaseSTTProvider(ABC):
         pass
 
     @abstractmethod
-    async def transcribe_stream(self, options: STTOptions) -> AsyncIterator[STTResult]:
+    def transcribe_stream(self, options: STTOptions) -> AsyncIterator[STTResult]:
         """
         流式识别语音（如果支持）
         

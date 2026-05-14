@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.engine.message.sequence import SequenceService
 from app.infrastructure.database.sql.database import session_scope
-from app.models import Message
+from app.models import Message, MessageReference
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,7 @@ class MessageRepository:
         content_type: str = "text",
         metadata: dict | None = None,
         parent_id: str | None = None,
+        references: list[dict] | None = None,
     ) -> tuple[str | None, int]:
         """
         Persist a message to the database.
@@ -88,6 +89,20 @@ class MessageRepository:
                     parent_id=effective_parent_id,
                 )
                 session.add(log)
+                
+                # Persistence of MessageReferences (attachments, skills, etc.)
+                if references:
+                    for ref_data in references:
+                        ref = MessageReference(
+                            id=ref_data.get("id", str(uuid.uuid4())),
+                            message_id=log.id,
+                            type=ref_data.get("type", "file"),
+                            target_id=ref_data.get("target_id"),
+                            target_name=ref_data.get("target_name"),
+                            meta_data=ref_data.get("metadata", {}),
+                        )
+                        session.add(ref)
+                
                 await session.flush()
 
             return log.id, seq
