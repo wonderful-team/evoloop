@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 class STTFactory:
     """STT 提供商工厂"""
 
-    _funasr_provider: FunASRProvider | None = None
     _whisper_provider = None  # 延迟导入
 
     @classmethod
@@ -35,7 +34,9 @@ class STTFactory:
         if prefer_local:
             # 尝试 FunASR
             try:
-                return cls.get_funasr_provider()
+                provider = cls.get_funasr_provider()
+                if provider.is_available():
+                    return provider
             except Exception as e:
                 logger.warning(f"FunASR not available: {e}, falling back to Whisper")
 
@@ -53,10 +54,7 @@ class STTFactory:
         Returns:
             FunASRProvider: FunASR 提供商
         """
-        if cls._funasr_provider is None:
-            cls._funasr_provider = FunASRProvider(model_name)
-            logger.info(f"FunASR provider initialized: {model_name}")
-        return cls._funasr_provider
+        return FunASRManager.get_provider(model_name)
 
     @classmethod
     def get_whisper_provider(cls):
@@ -146,19 +144,7 @@ async def transcribe_audio(audio_data: bytes, language: str | None = None, **kwa
     便捷函数：识别音频数据
     """
     provider = get_stt_provider()
-
-    # 转换语言代码
-    locale = VoiceLocale.AUTO
-    if language:
-        lang_map = {
-            "zh": VoiceLocale.ZH_CN,
-            "zh-CN": VoiceLocale.ZH_CN,
-            "en": VoiceLocale.EN_US,
-            "en-US": VoiceLocale.EN_US,
-            "ja": VoiceLocale.JA_JP,
-            "ko": VoiceLocale.KO_KR,
-        }
-        locale = lang_map.get(language, VoiceLocale.AUTO)
+    locale = _resolve_locale(language)
 
     options = STTOptions(
         audio_data=audio_data,
@@ -168,3 +154,41 @@ async def transcribe_audio(audio_data: bytes, language: str | None = None, **kwa
     )
 
     return await provider.transcribe(options)
+
+
+async def transcribe_file(file_path: str, language: str | None = None, **kwargs) -> STTResult:
+    """
+    便捷函数：识别音频文件
+    """
+    import os
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Audio file not found: {file_path}")
+        
+    locale = _resolve_locale(language)
+    ext = os.path.splitext(file_path)[1].lstrip(".").lower()
+    
+    options = STTOptions(
+        file_path=file_path,
+        audio_format=ext,
+        language=locale,
+        prompt=kwargs.get("prompt"),
+    )
+    
+    provider = get_stt_provider()
+    return await provider.transcribe(options)
+
+
+def _resolve_locale(language: str | None) -> VoiceLocale:
+    """转换语言代码为 VoiceLocale"""
+    if not language:
+        return VoiceLocale.AUTO
+        
+    lang_map = {
+        "zh": VoiceLocale.ZH_CN,
+        "zh-CN": VoiceLocale.ZH_CN,
+        "en": VoiceLocale.EN_US,
+        "en-US": VoiceLocale.EN_US,
+        "ja": VoiceLocale.JA_JP,
+        "ko": VoiceLocale.KO_KR,
+    }
+    return lang_map.get(language, VoiceLocale.AUTO)

@@ -91,7 +91,6 @@ class WhisperProvider(BaseSTTProvider):
             # 准备参数
             kwargs: dict[str, Any] = {
                 "model": model,
-                "file": ("audio.webm", options.audio_data),
                 "response_format": "verbose_json",
             }
 
@@ -101,8 +100,17 @@ class WhisperProvider(BaseSTTProvider):
             if options.prompt:
                 kwargs["prompt"] = options.prompt
 
-            # 调用 API
-            response = await client.audio.transcriptions.create(**kwargs)
+            # 如果提供了文件路径，使用文件流上传（内存友好）
+            if options.file_path and os.path.exists(options.file_path):
+                with open(options.file_path, "rb") as audio_file:
+                    kwargs["file"] = (os.path.basename(options.file_path), audio_file)
+                    response = await client.audio.transcriptions.create(**kwargs)
+            else:
+                # 否则使用内存数据
+                if not options.audio_data:
+                    raise ValueError("Either audio_data or file_path must be provided")
+                kwargs["file"] = ("audio.webm", options.audio_data)
+                response = await client.audio.transcriptions.create(**kwargs)
 
             # 解析结果
             detected_language = self._code_to_locale(
