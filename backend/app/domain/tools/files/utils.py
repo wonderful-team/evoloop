@@ -65,19 +65,6 @@ async def resolve_and_validate_path(path: str, config: RunnableConfig | None = N
             
         target_path = resolve_path(path, base_path=root)
 
-        # 【智能回退】尝试在所有可能的上传子目录中查找（跨会话搜索保护已在 resolve_path 外层处理）
-        if target_path and not os.path.exists(target_path):
-            # 同样遵循优先级
-            if thread_id:
-                fallback = os.path.join(settings.CHAT_UPLOAD_DIR, thread_id, normalized_path)
-                if os.path.exists(fallback): return fallback
-            
-            fallback_global = os.path.join(settings.CHAT_UPLOAD_DIR, "global", normalized_path)
-            if os.path.exists(fallback_global): return fallback_global
-            
-            fallback_legacy = os.path.join(settings.CHAT_UPLOAD_DIR, normalized_path)
-            if os.path.exists(fallback_legacy): return fallback_legacy
-
     if not target_path:
         raise ValueError(i18n.get("domain_tools.files.resolve_error", path=path))
 
