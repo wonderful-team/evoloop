@@ -16,7 +16,8 @@
         "width": 1200,
         "height": 800,
         "url": "packages/desktop/index.html",
-        "maximized": true
+        "maximized": true,
+        "dragDropEnabled": false
       }
     ],
     "macOSPrivateApi": true,

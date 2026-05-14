@@ -54,6 +54,7 @@ export const ChatInputArea = memo(
     const [inputValue, setInputValue] = useState("")
     const [isUploading, setIsUploading] = useState(false)
     const [attachments, setAttachments] = useState<Attachment[]>([])
+    const [isDragging, setIsDragging] = useState(false)
 
     const [showPicker, setShowPicker] = useState(false)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -148,32 +149,38 @@ export const ChatInputArea = memo(
       }
     }
 
-    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0]
-      if (!file) return
+    const processFiles = async (files: FileList | File[]) => {
+      if (files.length === 0) return
+
+      const projectId = isGlobalMode ? 0 : currentProject?.id
+      if (!isGlobalMode && !projectId) {
+        toast.error(t("chat.interface.selectProject"))
+        return
+      }
 
       setIsUploading(true)
       try {
-        if (!currentProject || !currentProject.id) {
-          throw new Error("No project context")
-        }
-        const res: any = await FilesService.uploadFile({
-          projectId: currentProject.id,
-          formData: { file },
+        const uploadPromises = Array.from(files).map(async (file) => {
+          const res: any = await FilesService.uploadFile({
+            projectId: projectId!,
+            formData: { file },
+          })
+          const url = res.url
+
+          // Infer type
+          const isImage = file.type.startsWith("image/")
+          const isAudio = file.type.startsWith("audio/")
+          const newAtt: Attachment = {
+            id: Math.random().toString(36).substring(2, 15),
+            url: url,
+            name: file.name,
+            type: isImage ? "image" : isAudio ? "audio" : "file",
+          }
+          return newAtt
         })
-        const url = res.url
 
-        // Infer type
-        const isImage = file.type.startsWith("image/")
-        const isAudio = file.type.startsWith("audio/")
-        const newAtt: Attachment = {
-          id: Math.random().toString(36).substring(2, 15),
-          url: url,
-          name: file.name,
-          type: isImage ? "image" : isAudio ? "audio" : "file",
-        }
-
-        setAttachments((prev) => [...prev, newAtt])
+        const newAttachments = await Promise.all(uploadPromises)
+        setAttachments((prev) => [...prev, ...newAttachments])
         toast.success(t("chat.interface.uploadSuccess"))
       } catch (error: any) {
         toast.error(
@@ -183,7 +190,39 @@ export const ChatInputArea = memo(
         console.error(error)
       } finally {
         setIsUploading(false)
+      }
+    }
+
+    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files) {
+        await processFiles(e.target.files)
         e.target.value = ""
+      }
+    }
+
+    const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (!disabled) {
+        setIsDragging(true)
+      }
+    }
+
+    const handleDragLeave = (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsDragging(false)
+    }
+
+    const handleDrop = async (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsDragging(false)
+
+      if (disabled || (!currentProject && !isGlobalMode)) return
+
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        await processFiles(e.dataTransfer.files)
       }
     }
 
@@ -289,10 +328,11 @@ export const ChatInputArea = memo(
         let audioUrl = ""
         let newAtt: Attachment | null = null
 
-        // If we have a project, upload the file as an attachment
-        if (currentProject?.id) {
+        // If we have a project OR are in global mode, upload the file as an attachment
+        if (currentProject?.id || isGlobalMode) {
+          const uploadProjectId = isGlobalMode ? 0 : currentProject!.id!
           const res: any = await FilesService.uploadFile({
-            projectId: currentProject.id!,
+            projectId: uploadProjectId,
             formData: { file },
           })
           audioUrl = res.url
@@ -383,7 +423,21 @@ export const ChatInputArea = memo(
             </div>
           )}
 
-          <div className="bg-background rounded-2xl border border-input focus-within:border-primary/50 transition-all focus-within:ring-4 focus-within:ring-primary/5 ring-offset-0 overflow-hidden relative z-50">
+          <div 
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={cn(
+              "bg-background rounded-2xl border transition-all ring-offset-0 overflow-hidden relative z-50",
+              isDragging ? "border-primary border-2 border-dashed bg-primary/5 scale-[1.01]" : "border-input focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/5"
+            )}
+          >
+            {isDragging && (
+              <div className="absolute inset-0 z-[60] bg-primary/10 flex flex-col items-center justify-center gap-2 pointer-events-none">
+                <Paperclip className="h-8 w-8 text-primary animate-bounce" />
+                <span className="text-sm font-medium text-primary">{t('chat.interface.dropToUpload', '松开上传文件')}</span>
+              </div>
+            )}
             {/* Top: Attachment Preview */}
             <AttachmentPreview
               attachments={attachments}
@@ -522,34 +576,32 @@ export const ChatInputArea = memo(
                   </TooltipProvider>
                 )}
 
-                {/* File upload hidden in global mode */}
-                {!isGlobalMode && (
-                  <>
-                    <input
-                      type="file"
-                      id="chat-file-upload"
-                      className="hidden"
-                      onChange={handleUpload}
-                      disabled={!currentProject || isUploading}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                      onClick={() =>
-                        document.getElementById("chat-file-upload")?.click()
-                      }
-                      disabled={isUploading || !currentProject}
-                      title={t("chat.interface.uploadFile")}
-                    >
-                      {isUploading ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <Paperclip size={16} />
-                      )}
-                    </Button>
-                  </>
-                )}
+                {/* File upload: 项目模式和全局模式均可上传 */}
+                <>
+                  <input
+                    type="file"
+                    id="chat-file-upload"
+                    className="hidden"
+                    onChange={handleUpload}
+                    disabled={isUploading}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                    onClick={() =>
+                      document.getElementById("chat-file-upload")?.click()
+                    }
+                    disabled={isUploading}
+                    title={t("chat.interface.uploadFile")}
+                  >
+                    {isUploading ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Paperclip size={16} />
+                    )}
+                  </Button>
+                </>
 
                 {/* Voice controls */}
                 <Separator orientation="vertical" className="h-4 mx-1" />
