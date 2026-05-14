@@ -149,7 +149,8 @@ async def dispatch_agent_run(
             attachments=attachments or [],
             session=session,
             root_path=upload_root, # 使用隔离后的目录作为根
-            thread_id=thread_id,   # 【新增】传入会话 ID 用于生成预览 URL
+            thread_id=thread_id,   # 传入会话 ID 用于生成预览 URL
+            project_id=project_id, # 【新增】传入项目 ID 以保持 URL 一致性
         )
     content_blocks = ref_context.content_blocks
 
