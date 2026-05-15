@@ -25,10 +25,10 @@ class AtlasEngine:
     NOTE: In embedded mode, Atlas persistence is available via FileGraphDriver.
     """
 
-    def __init__(self, store: IAtlasStore = None):
+    def __init__(self, store: IAtlasStore | None = None):
         if settings.EMBEDDED_MODE and store is None:
             logger.info("[AtlasEngine] Embedded mode enabled: Using FileGraph storage for Atlas.")
-        self.store = store or GraphAtlasStore()
+        self.store: IAtlasStore = store or GraphAtlasStore()
 
     async def on_ui_tree_observed(self, event: Any) -> None:
         """
@@ -232,24 +232,25 @@ class AtlasEngine:
                             "parameters": strat.parameters,
                             "source": "atlas_strategy"
                         }
-
-            # Standard Spatial Memory Fallback (static apps)
-            summary = await self.store.get_app_summary(bundle_id, platform=platform)
-            if summary and summary.states:
-                for state in summary.states[:3]:
-                    detail = await self.store.get_state_detail(
-                        bundle_id, state["id"], platform=platform
-                    )
-                    if detail:
-                        for el in detail.elements:
-                            el_name = str(el.get("label") or el.get("text") or el.get("name") or "").lower()
-                            if element_name.lower() in el_name:
-                                if el.get("x") is not None and el.get("y") is not None:
-                                    return {
-                                        "x": el["x"],
-                                        "y": el["y"],
-                                        "source": "atlas_memory"
-                                    }
+            # 3. Historical spatial memory (from mapped states)
+            try:
+                summary = await self.store.get_app_summary(bundle_id, platform=platform)
+                if summary and summary.states:
+                    # summary.states is a list of state IDs in AtlasAppSummary
+                    for state_id in summary.states:
+                        detail = await self.store.get_state_detail(bundle_id, state_id, platform=platform)
+                        if detail:
+                            for el in detail.elements:
+                                el_name = str(el.get("label") or el.get("text") or el.get("name") or "").lower()
+                                if element_name.lower() in el_name:
+                                    if el.get("x") is not None and el.get("y") is not None:
+                                        return {
+                                            "x": el["x"],
+                                            "y": el["y"],
+                                            "source": "atlas_memory"
+                                        }
+            except Exception as e:
+                logger.debug(f"[AtlasEngine] Historical memory check failed: {e}")
 
             # 4. Learned Skills Fallback (Task-specific memory)
             # This covers mappings like "SearchButton" -> (x, y) learned from past traces
@@ -502,6 +503,7 @@ class AtlasEngine:
             return "container_scrollable"
 
         # 2. Check for static navigation elements by position
+        # element.bounds is a Rect model, convert to dict for safe .get() access
         b = element.bounds.model_dump() if element.bounds else {}
         y = b.get("y", 0)
         height = b.get("height", 0)

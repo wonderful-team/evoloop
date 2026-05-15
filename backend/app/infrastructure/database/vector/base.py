@@ -103,9 +103,11 @@ class BaseVectorStore(Protocol):
     def search_skills(
         self,
         query_vector: list[float],
+        bundle_id: str | None = None,
+        platform: str | None = None,
         top_k: int = 10,
     ) -> list[dict[str, Any]]:
-        """Semantic search over learned skills."""
+        """Semantic search over learned skills with optional Atlas filtering."""
         ...
 
     # ------------------------------------------------------------------
