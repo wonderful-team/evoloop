@@ -1,10 +1,7 @@
 import logging
-import os
-from pathlib import Path
-from typing import Any, List, Optional
-import lancedb
-import pyarrow as pa
+from typing import Any, List
 
+from app.infrastructure.database.vector import get_vector_store
 from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.infrastructure.embeddings.base import BaseEmbedder
 
@@ -13,8 +10,8 @@ logger = logging.getLogger(__name__)
 
 class VectorMemoryIndex:
     """
-    Vector index for semantic memory search using LanceDB.
-    Uses the system's centralized EmbedderFactory for generating embeddings.
+    Adapter for semantic memory search using the unified VectorStore architecture.
+    Delegates storage to LanceVectorStore (embedded) or PgVectorStore (production).
     """
     
     def __init__(self, db_path: Path, model_name: str | None = None):
@@ -41,7 +38,7 @@ class VectorMemoryIndex:
         return self._embedder
 
     async def initialize(self):
-        """Initialize LanceDB and the memory table."""
+        """Initialize the unified vector store."""
         if self._initialized:
             return
             
