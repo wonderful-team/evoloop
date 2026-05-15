@@ -119,7 +119,8 @@ async def get_conversation_messages(
                 **f.model_dump(exclude={
                     "status", "run_id", "parent_id", "references",
                     "category", "content_type", "sequence_number",
-                    "checkpoint_id", "is_visible"
+                    "checkpoint_id", "is_visible", "has_file_operations",
+                    "changeset_count", "changeset_files", "thinking",
                 }),
                 run_id=db_m.run_id,
                 parent_id=db_m.parent_id,

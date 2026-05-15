@@ -13,6 +13,7 @@ from typing import Any
 from langchain_core.messages import ToolMessage
 from pydantic import BaseModel
 
+from app.core.config import settings
 from app.core.engine.hooks import HookContext, HookEvent, ToolResult, hook_system
 from app.core.engine.hooks.schemas import ToolInput
 from app.core.engine.signals.schemas import AgentSignal
@@ -136,11 +137,31 @@ class AgentToolExecutor:
 
             # Capture snapshots BEFORE tool execution (for diff tracking)
             # Only state-mutating tools can produce meaningful diffs
-            if self.enable_diff_tracking and tool.metadata.get("is_state_mutating"):
+            is_mutating = tool.metadata.get("is_state_mutating", False)
+            logger.debug(f"[{self.name}] Diff tracking check: enabled={self.enable_diff_tracking}, is_mutating={is_mutating}")
+            
+            if self.enable_diff_tracking and is_mutating:
                 from app.core.tools.registry import get_tool_affected_paths
+                from app.core.tools.base import get_working_directory
+                from app.core.file import resolve_path
+                from app.utils.diff import diff_tracker
+                
                 snapshot_paths = get_tool_affected_paths(tool_name, tool_args)
+                working_dir = get_working_directory(self.config)
+                logger.debug(f"[{self.name}] Snapshot paths: {snapshot_paths} | Working Dir: {working_dir}")
+                
+                resolved_paths = []
                 for path in snapshot_paths:
-                    diff_tracker.capture_snapshot(path, thread_id)
+                    try:
+                        abs_path = resolve_path(path, working_dir)
+                        diff_tracker.capture_snapshot(abs_path, thread_id)
+                        resolved_paths.append(abs_path)
+                        logger.info(f"[{self.name}] Captured snapshot for: {abs_path}")
+                    except Exception as e:
+                        logger.warning(f"[ToolExecutor] Failed to resolve path for snapshot: {path} | Error: {e}")
+                
+                # Store resolved paths in a local variable for post-execution diff tracking
+                self._current_resolved_paths = resolved_paths
 
             # Execute Tool
             # Pass real tool_call_id via RunnableConfig metadata so callbacks can correlate
@@ -169,16 +190,21 @@ class AgentToolExecutor:
 
             asyncio.create_task(_fire_hook())
 
+            # Generate message ID for the ToolMessage ahead of time 
+            # so that diff tracking can correctly link to it.
+            tool_message_id = gen_uuid()
+
             # Diff Tracking (if enabled)
             # Only state-mutating tools can produce meaningful diffs
             if self.enable_diff_tracking and tool.metadata.get("is_state_mutating"):
-                await self._track_diffs(tool_name, tool_args, thread_id, tool_id)
+                await self._track_diffs(tool_name, tool_args, thread_id, tool_message_id, tool_id)
 
             msg = self._create_tool_message(
                 content=str(content),
                 tool_id=tool_id,
                 tool_name=tool_name,
                 run_id=run_id,
+                message_id=tool_message_id,
             )
             return ToolExecutionResult(message=msg, raw_result=content)
 
@@ -219,7 +245,8 @@ class AgentToolExecutor:
         tool_name: str,
         tool_args: dict,
         thread_id: str,
-        tool_id: str,
+        message_id: str,
+        tool_call_id: str,
     ) -> None:
         """Track file diffs after tool execution."""
         from app.core.tools.registry import get_tool_map, get_tool_affected_paths
@@ -230,7 +257,10 @@ class AgentToolExecutor:
         if not tool_obj or not tool_obj.metadata.get("is_state_mutating"):
             return
 
-        snapshot_paths = get_tool_affected_paths(tool_name, tool_args)
+        # Use pre-resolved paths from the pre-execution phase
+        snapshot_paths = getattr(self, "_current_resolved_paths", [])
+        if not snapshot_paths:
+            return
 
         # Compute and persist diffs (snapshots were captured before tool execution)
         for path in snapshot_paths:
@@ -241,21 +271,38 @@ class AgentToolExecutor:
                     try:
                         from app.core.engine.state.config import RunnableConfigMetadata
                         meta = RunnableConfigMetadata.from_config(self.config)
-                        msg_id = meta.run_id or tool_id
-                        get_scheduler().send_task(
-                            "engine_persist_file_operation",
-                            kwargs={
-                                "thread_id": thread_id,
-                                "message_id": str(msg_id),
-                                "run_id": meta.run_id,
-                                "file_path": path,
-                                "operation": operation,
-                                "diff_content": diff,
-                                "original_content": original_content,
-                            }
-                        )
-                    except Exception:
-                        logger.warning("Failed to dispatch FileOperation to Celery.")
+                        # Use the provided message_id (ToolMessage ID)
+                        msg_id = message_id
+                        if settings.EMBEDDED_MODE:
+                            # In embedded mode, we don't have a background worker running.
+                            # We must persist the operation immediately to ensure changeset tracking works.
+                            from app.core.engine.tasks import persist_file_operation_task
+                            await persist_file_operation_task(
+                                thread_id=thread_id,
+                                message_id=str(msg_id),
+                                file_path=path,
+                                operation=operation,
+                                diff_content=diff,
+                                original_content=original_content,
+                                run_id=meta.run_id,
+                                tool_call_id=tool_call_id,
+                            )
+                        else:
+                            get_scheduler().send_task(
+                                "engine_persist_file_operation",
+                                kwargs={
+                                    "thread_id": thread_id,
+                                    "message_id": str(msg_id),
+                                    "file_path": path,
+                                    "operation": operation,
+                                    "diff_content": diff,
+                                    "original_content": original_content,
+                                    "run_id": meta.run_id,
+                                    "tool_call_id": tool_call_id,
+                                }
+                            )
+                    except Exception as e:
+                        logger.warning(f"Failed to dispatch FileOperation to Celery: {e}")
             except OSError as e:
                 logger.error(f"Failed to process diff for {path}: {e}")
 
@@ -312,6 +359,7 @@ class AgentToolExecutor:
         tool_id: str,
         tool_name: str,
         run_id: str | None,
+        message_id: str | None = None,
     ) -> ToolMessage:
         """Create a ToolMessage with run_id metadata."""
         metadata = {"run_id": run_id} if run_id else {}
@@ -320,7 +368,7 @@ class AgentToolExecutor:
             content=str(content),
             tool_call_id=tool_id,
             name=tool_name,
-            id=gen_uuid(),
+            id=message_id or gen_uuid(),
             metadata=metadata,
             additional_kwargs=metadata,
         )

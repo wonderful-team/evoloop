@@ -51,6 +51,8 @@ class HybridSearcher:
     async def _vector_search(
         self, query: str, project_id: int, limit: int
     ) -> list[dict]:
+        if self.embedder is None:
+            return []
         query_embedding = await self.embedder.embed_query(query)
         vector_store = get_vector_store()
         candidates = await asyncio.to_thread(

@@ -91,7 +91,7 @@ Relationships:
         
         results = []
         for e in entities:
-            # Reverse traverse: Entity -> File (who CONTAINS me)
+            # 1. Reverse traverse: Entity -> File (who CONTAINS me)
             files = await self._driver.traverse(
                 "CodeEntity", {"full_name": e["full_name"]},
                 rel_type="CONTAINS",
@@ -99,11 +99,21 @@ Relationships:
                 target_label="File"
             )
             file_path = files[0]["path"] if files else "unknown"
+
+            # 2. Forward traverse: Entity -> (what I call/reference)
+            outgoing = await self._driver.traverse(
+                "CodeEntity", {"full_name": e["full_name"]},
+                rel_type="RELATION",
+                direction="out",
+                target_label="CodeEntity"
+            )
+            
             results.append({
                 "full_name": e["full_name"],
                 "type": e.get("type"),
                 "file_path": file_path,
-                "score": e.get("score")
+                "score": e.get("score"),
+                "outgoing": [f"{o['full_name']} (references)" for o in outgoing]
             })
         return results
 

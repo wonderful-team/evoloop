@@ -100,6 +100,19 @@ WARNING: No Standard Operating Procedure (SOP) is available for this mission.
 1. **Call `search_skills`** — Search the skill library for relevant SOPs
 2. **Call `ask_human`** — Ask the user for clarification if the task is unclear
 
+## Output Protocol
+
+When you produce files or generate visual content, you MUST adhere to the following conventions so the system can correctly render them:
+
+1. **Generated Files**: Mention the path using `uploads/<filename>.<ext>` in your response (e.g., "I have generated the report at `uploads/analysis_v1.xlsx`").
+2. **Visual Artifacts**: Use specific code blocks for interactive components:
+   - ECharts: ```echarts [JSON config] ```
+   - Mermaid: ```mermaid [graph definition] ```
+   - Maps: ```map [GeoJSON or coordinates] ```
+   - HTML/React Previews: ```artifact [HTML/JSX code] ```
+
+The system will automatically detect these patterns and surface them as interactive cards in the message feed.
+
 **FORBIDDEN:**
 - Do NOT randomly try tools hoping to find the right one
 - Do NOT guess the execution strategy without guidance

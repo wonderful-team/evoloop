@@ -126,13 +126,26 @@ async def discover_profile(
     if result.status == "failed":
         raise HTTPException(500, detail=result.error)
 
+    user_lang = SystemConfigService.get_language_preference()
+
+    # Inject language requirements into system_instructions as hard constraints.
+    system_instructions = (
+        f"You are a Senior Project Architect. "
+        f"The generated PROJECT.md and all analysis reports MUST be written in {user_lang}. "
+        f"Your mission is to perform a deep discovery of the project at {path}, "
+        f"identify technical debt, tech stack, and ensure the project can be successfully initialized."
+    )
+
     # Inject the ExecutionTicket into the initial state so SkillHydrator can load the SOP.
     blackboard = BlackboardState(
         ticket=ExecutionTicket(
             ticket_type="task",
             topic="Project Discovery",
             skill_id=skill.id if skill else None,
-            agent_config=AgentRuntimeConfig(role_name="Worker"),
+            agent_config=AgentRuntimeConfig(
+                role_name="Worker",
+                system_instructions=system_instructions,
+            ),
         )
     )
     result.inputs["blackboard"] = blackboard.model_dump(mode="json")

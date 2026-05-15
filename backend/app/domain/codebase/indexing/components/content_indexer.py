@@ -78,7 +78,7 @@ class ContentIndexer:
         all_docs = [file_summary_doc] + docs
 
         # Generate embeddings
-        if all_docs:
+        if all_docs and self.embedder is not None:
             texts = []
             for d in all_docs:
                 skel = d.metadata.get("skeleton")

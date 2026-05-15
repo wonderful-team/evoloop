@@ -18,6 +18,7 @@ from app.core.file import (
 from app.core.tools import evoloop_tool
 from app.i18n.service import i18n
 from .utils import resolve_and_validate_path
+from app.core.engine.tasks import persist_file_operation_task
 
 
 async def handle_write(

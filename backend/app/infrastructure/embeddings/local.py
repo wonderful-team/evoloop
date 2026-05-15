@@ -41,3 +41,7 @@ class LocalEmbedder(BaseEmbedder):
         logger.debug(f"[LocalEmbedder] Embedding query: {query[:50]}...")
         embedding = await asyncio.to_thread(model.encode, query, convert_to_numpy=True)
         return embedding.tolist()
+
+    # LangChain-compatible aliases
+    aembed_documents = embed_documents
+    aembed_query = embed_query

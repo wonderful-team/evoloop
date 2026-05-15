@@ -14,6 +14,7 @@ from app.core.file.editor import (
 from app.core.tools import evoloop_tool, get_working_directory
 from app.i18n.service import i18n
 from .utils import resolve_and_validate_path
+from app.core.engine.tasks import persist_file_operation_task
 
 logger = logging.getLogger(__name__)
 

@@ -53,12 +53,28 @@ async def persist_file_operation_task(
     diff_content: str,
     original_content: str | None = None,
     run_id: str | None = None,
+    tool_call_id: str | None = None,
 ):
     """Background task to persist file movement/edit diffs to the database."""
     async with session_scope() as session:
+        # Determine final message ID (resolve tool_call_id if needed)
+        target_msg_id = message_id
+        if tool_call_id:
+            from app.models import Message
+            from sqlalchemy import desc
+            # Find the actual message ID associated with this tool_call_id
+            stmt_msg = select(Message.id).where(
+                Message.thread_id == thread_id,
+                Message.tool_call_id == tool_call_id
+            ).order_by(desc(Message.sequence_number))
+            res = await session.execute(stmt_msg)
+            found_id = res.scalar_one_or_none()
+            if found_id:
+                target_msg_id = found_id
+
         op = FileOperation(
             thread_id=thread_id,
-            message_id=message_id,
+            message_id=target_msg_id,
             run_id=run_id,
             file_path=file_path,
             operation=operation,
@@ -68,7 +84,37 @@ async def persist_file_operation_task(
         session.add(op)
     logger.debug(f"[Celery] Persisted file operation for {file_path}")
 
-    # Notify frontend via SSE
+    # --- [Phase 3] 同步到消息标准化引用并触发实时更新 ---
+    from app.core.engine.message.repository import MessageRepository
+    from app.core.engine.message.publisher import MessagePublisher
+    from app.core.engine.message.mapper import BlockMapper
+    from app.models import Message
+    
+    repo = MessageRepository(thread_id=thread_id)
+    # 1. 更新数据库中的 MessageReference (changeset 类型)
+    await repo.sync_changeset_reference(
+        message_id=message_id,
+        file_path=file_path,
+        operation=operation,
+        run_id=run_id,
+        tool_call_id=tool_call_id
+    )
+
+    # 2. 触发 SSE 增量更新：让前端气泡即时显示“变更徽章”
+    async with session_scope() as session:
+        # 获取最新的消息（带引用）
+        from sqlalchemy.orm import selectinload
+        stmt = select(Message).where(Message.id == message_id).options(selectinload(Message.references))
+        result = await session.execute(stmt)
+        db_msg = result.scalar_one_or_none()
+        
+        if db_msg:
+            block = BlockMapper.from_db(db_msg)
+            publisher = MessagePublisher(thread_id=thread_id)
+            # action="update" 会触发前端对应消息的局部刷新
+            await publisher.publish(block, action="update", channels={"sse"})
+
+    # 原有的细粒度通知逻辑保留
     await _notify_file_operation(thread_id, message_id, file_path, operation)
 
 

@@ -86,6 +86,14 @@ class MessageHandler:
         effective_parent_id = parent_id or await self._repository.get_last_message_id()
 
         if persist_data.should_persist:
+            # --- [Phase 2] 自动提取 AI 产出物引用 ---
+            from app.core.engine.message.extractor import attachment_extractor
+            extracted_refs = attachment_extractor.extract_from_ai_response(
+                content=persist_data.content,
+                thread_id=self.thread_id,
+                project_id=self.project_id or 0
+            )
+
             message_id, seq = await self._repository.persist(
                 role="ai",
                 content=persist_data.content,
@@ -96,6 +104,7 @@ class MessageHandler:
                 content_type="text",
                 metadata=metadata,
                 parent_id=effective_parent_id,
+                references=extracted_refs, # 挂载提取到的引用
             )
             
             # 只有用户可见且不是纯内部思考的消息才推送到 Mobile

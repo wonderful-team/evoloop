@@ -148,8 +148,86 @@ class MessageRepository:
                 return True
 
         except Exception as e:
-            logger.error(f"[MessageRepository] Failed to update message seq={sequence_number}: {e}")
+            logger.error(f"[MessageRepository] Failed to update message: {e}")
             raise
+
+    async def sync_changeset_reference(
+        self,
+        message_id: str,
+        file_path: str,
+        operation: str,
+        run_id: str | None = None,
+        tool_call_id: str | None = None,
+    ) -> bool:
+        """
+        同步或创建消息的 changeset 引用。
+        支持通过 message_id 或 tool_call_id 定位目标消息。
+        """
+        try:
+            async with session_scope() as session:
+                target_msg_id = message_id
+                
+                # 1. 如果提供了 tool_call_id，尝试找回准确的消息 ID (解决回调与执行器 ID 不一致问题)
+                if tool_call_id:
+                    stmt_msg = select(Message.id).where(
+                        Message.thread_id == self.thread_id,
+                        Message.tool_call_id == tool_call_id
+                    ).order_by(desc(Message.sequence_number))
+                    res = await session.execute(stmt_msg)
+                    found_id = res.scalar_one_or_none()
+                    if found_id:
+                        target_msg_id = found_id
+                        logger.debug(f"[MessageRepository] Resolved tool_call_id {tool_call_id} -> msg {target_msg_id}")
+
+                # 2. 查找是否已有 changeset 引用
+                stmt = select(MessageReference).where(
+                    MessageReference.message_id == target_msg_id,
+                    MessageReference.type == "changeset"
+                )
+                result = await session.execute(stmt)
+                ref = result.scalar_one_or_none()
+
+                new_file_entry = {"path": file_path, "operation": operation.lower()}
+
+                if ref:
+                    # 3. 更新现有引用
+                    meta = ref.meta_data or {}
+                    files = meta.get("files", [])
+                    
+                    # 去重检查
+                    if not any(f["path"] == file_path for f in files):
+                        files.append(new_file_entry)
+                        meta["files"] = files
+                        meta["count"] = len(files)
+                        ref.meta_data = meta
+                        logger.debug(f"[MessageRepository] Updated changeset for msg {target_msg_id}: added {file_path}")
+                else:
+                    # 4. 创建新引用 (注意：如果消息不存在，此处仍会触发 IntegrityError)
+                    # 我们增加一个存在性检查
+                    stmt_check = select(Message.id).where(Message.id == target_msg_id)
+                    if not (await session.execute(stmt_check)).scalar_one_or_none():
+                        logger.warning(f"[MessageRepository] Cannot sync changeset: Message {target_msg_id} not found in DB yet.")
+                        return False
+
+                    ref = MessageReference(
+                        id=str(uuid.uuid4()),
+                        message_id=target_msg_id,
+                        type="changeset",
+                        target_id=run_id or target_msg_id,
+                        target_name="代码变更集",
+                        meta_data={
+                            "files": [new_file_entry],
+                            "count": 1
+                        }
+                    )
+                    session.add(ref)
+                    logger.debug(f"[MessageRepository] Created new changeset for msg {target_msg_id} with {file_path}")
+
+                await session.flush()
+                return True
+        except Exception as e:
+            logger.error(f"[MessageRepository] Failed to sync changeset reference: {e}")
+            return False
 
     async def resolve_tool_input(self, tool_call_id: str | None, tool_name: str | None = None) -> dict:
         """

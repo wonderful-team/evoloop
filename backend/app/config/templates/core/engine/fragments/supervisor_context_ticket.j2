@@ -81,3 +81,16 @@
 ## Environment
 {{ environment_block }}
 {%- endif %}
+
+## Output Protocol
+
+When you produce files or generate visual content, you MUST adhere to the following conventions so the system can correctly render them:
+
+1. **Generated Files**: Mention the path using `uploads/<filename>.<ext>` in your response.
+2. **Visual Artifacts**: Use specific code blocks for interactive components:
+   - ECharts: ```echarts [JSON config] ```
+   - Mermaid: ```mermaid [graph definition] ```
+   - Maps: ```map [GeoJSON or coordinates] ```
+   - HTML/React Previews: ```artifact [HTML/JSX code] ```
+
+The system will automatically detect these patterns and surface them as interactive cards in the message feed.
