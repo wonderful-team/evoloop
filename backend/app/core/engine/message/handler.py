@@ -124,6 +124,7 @@ class MessageHandler:
                 thinking=thinking,
                 sequence_number=seq if persist_data.should_persist else 0,
                 status="streaming" if persist_data.should_persist else "completed",
+                references=extracted_refs if persist_data.should_persist else None,
                 channels={"sse"},
                 parent_id=effective_parent_id,
             )
@@ -490,6 +491,7 @@ class MessageHandler:
         metadata: dict | None = None,
         channels: set[str] | None = None,
         parent_id: str | None = None,
+        references: list | None = None,
     ) -> None:
         """统一构造 MessageBlock 并分发"""
         if sequence_number == 0:
@@ -516,6 +518,7 @@ class MessageHandler:
             metadata=metadata,
             parent_id=parent_id,
             run_id=self.run_id,
+            references=references,
         )
         
         if not self._publisher:

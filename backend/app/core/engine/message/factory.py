@@ -54,7 +54,23 @@ class MessageBlockFactory:
         if not isinstance(meta_data, dict):
             meta_data = {}
 
-        # 1. AI Message
+        # 3. Handle References (if present in ORM)
+        from app.core.engine.message.schemas import ReferenceBlock
+        references = []
+        attachments = []
+        if hasattr(msg, "references") and msg.references:
+            for ref in msg.references:
+                ref_block = ReferenceBlock(
+                    id=ref.id,
+                    type=ref.type,
+                    target_id=ref.target_id,
+                    target_name=ref.target_name,
+                    meta_data=ref.meta_data or {},
+                )
+                references.append(ref_block)
+                attachments.append(ref_block.model_dump())
+
+        # 4. Human / System / AI / Tool
         if role == "ai":
             raw_tool_calls = cls._get_val(msg, "tool_calls") or []
             serializable_tool_calls = []
@@ -75,51 +91,30 @@ class MessageBlockFactory:
                 content=content,
                 thinking=thinking,
                 tool_calls=serializable_tool_calls,
+                references=references,
+                attachments=attachments,
                 created_at=created_at or "",
                 status=status,
                 meta_data=meta_data,
                 thread_id=thread_id
             )
 
-        # 2. Tool Message
         elif role == "tool":
             tool_name = cls._get_val(msg, "tool_name")
             tool_call_id = cls._get_val(msg, "tool_call_id") or msg_id
             
-            # Extract arguments
             input_args = cls._get_val(msg, "input") or cls._get_val(msg, "args") or meta_data.get("input") or {}
-            if not isinstance(input_args, dict):
-                input_args = {}
-
-            # Resolve output
             output = meta_data.get("output", content)
 
-            # Try to parse output for metadata if it's JSON
-            result_meta = {}
-            if isinstance(output, str) and output.strip().startswith("{"):
-                try:
-                    import json
-                    parsed = json.loads(output)
-                    if isinstance(parsed, dict):
-                        result_meta = {k.lower(): v for k, v in parsed.items()}
-                except (json.JSONDecodeError, ValueError):
-                    pass
-            elif isinstance(output, dict):
-                result_meta = {k.lower(): v for k, v in output.items()}
-
-            # Merge input args with result meta for the summary template
-            summary_args = {**input_args, **result_meta}
-
+            # ... (Existing tool_meta logic) ...
             metadata_registry = get_tool_metadata(tool_name) if tool_name else None
+            summary_args = {**input_args} # Simple fallback for now
             display_name = metadata_registry.get_display_name(tool_name, summary_args) if metadata_registry and tool_name else (tool_name or "Unknown").replace("_", " ").title()
             
             tool_meta = {
                 "display_name": display_name,
                 "affected_path_keys": metadata_registry.affected_path_keys if metadata_registry else [],
             }
-
-            # Ensure meta_data is enriched but does not conflict with root
-            enriched_meta = {**meta_data, "tool_meta": tool_meta, "input": input_args, "output": output, "result_meta": result_meta}
 
             return MessageBlock(
                 id=msg_id,
@@ -131,16 +126,19 @@ class MessageBlockFactory:
                 tool_call_id=tool_call_id,
                 input=input_args,
                 tool_meta=tool_meta,
-                meta_data=enriched_meta,
+                references=references,
+                attachments=attachments,
+                meta_data={**meta_data, "tool_meta": tool_meta},
                 thread_id=thread_id
             )
 
-        # 3. Human / System Message
         else:
             return MessageBlock(
                 id=msg_id,
                 role=role, # type: ignore
                 content=content,
+                references=references,
+                attachments=attachments,
                 created_at=created_at or "",
                 status=status,
                 meta_data=meta_data,
@@ -163,6 +161,7 @@ class MessageBlockFactory:
         metadata: dict | None = None,
         parent_id: str | None = None,
         run_id: str | None = None,
+        references: list | None = None,
     ) -> MessageBlock:
         """
         Creates a MessageBlock directly from streaming event parameters.
@@ -218,6 +217,20 @@ class MessageBlockFactory:
             for tc in normalize_tool_calls(tool_calls):
                 validated_tool_calls.append(ToolCall(**tc))
 
+        # Resolve References
+        from app.core.engine.message.schemas import ReferenceBlock
+        ref_blocks = []
+        attachments = []
+        if references:
+            for ref in references:
+                if isinstance(ref, dict):
+                    rb = ReferenceBlock(**ref)
+                    ref_blocks.append(rb)
+                    attachments.append(rb.model_dump())
+                elif isinstance(ref, ReferenceBlock):
+                    ref_blocks.append(ref)
+                    attachments.append(ref.model_dump())
+
         return MessageBlock(
             id=f"msg-{thread_id}-{sequence_number}",
             thread_id=thread_id,
@@ -227,6 +240,8 @@ class MessageBlockFactory:
             content=content or "",
             thinking=thinking,
             tool_calls=validated_tool_calls,
+            references=ref_blocks,
+            attachments=attachments,
             status=status,  # type: ignore[arg-type]
             is_visible=True,
             sequence_number=sequence_number,

@@ -14,7 +14,7 @@ import { ProjectSwitcher } from "@/components/Sidebar/ProjectSwitcher"
 export interface HumanRequestCardProps {
     request: {
         id: string
-        type: "text" | "choice" | "confirmation" | "approval" | "text_input" | "confirm" | "project_switch"
+        type: "text" | "choice" | "confirmation" | "approval" | "text_input" | "confirm" | "project_switch" | "file_select"
         prompt: string
         options?: string[]
         context?: string
@@ -23,6 +23,8 @@ export interface HumanRequestCardProps {
             suggested_project_id?: number
             show_project_list?: boolean
             temporary?: boolean
+            multiple?: boolean
+            file_types?: string[]
         }
         status?: "waiting_human" | "completed" | "cancelled"
     }
@@ -178,6 +180,37 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                                 )}
                             </div>
                         )}
+
+                        {/* File Select Input */}
+                        {request.type === "file_select" && (
+                            <div className="space-y-4">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                        // Trigger system file picker via a hidden input or bridge
+                                        const input = document.createElement('input');
+                                        input.type = 'file';
+                                        input.multiple = request.payload?.multiple || false;
+                                        if (request.payload?.file_types) {
+                                            input.accept = request.payload.file_types.join(',');
+                                        }
+                                        input.onchange = (e) => {
+                                            const files = (e.target as HTMLInputElement).files;
+                                            if (files && files.length > 0) {
+                                                const paths = Array.from(files).map(f => (f as any).path || f.name).join(', ');
+                                                setInput(paths);
+                                            }
+                                        };
+                                        input.click();
+                                    }}
+                                    className="w-full h-12 justify-start gap-3 border-dashed border-2 hover:border-primary/40 hover:bg-primary/5 transition-all"
+                                    disabled={isSubmitting}
+                                >
+                                    <FolderGit2 className="h-5 w-5 text-primary/60" />
+                                    <span className="font-semibold">{input || t("chat.request.selectFiles", "Select Files")}</span>
+                                </Button>
+                            </div>
+                        )}
                     </div>
 
                     {/* Action Footer - Only show if pending */}
@@ -195,8 +228,8 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                                     {t("common.cancel", "Cancel")}
                                 </Button>
                                 <div className="flex gap-2">
-                                    {/* Standard Submit for Text/Choice */}
-                                    {(request.type === "text" || request.type === "text_input" || request.type === "choice") && (
+                                    {/* Standard Submit for Text/Choice/File */}
+                                    {(request.type === "text" || request.type === "text_input" || request.type === "choice" || request.type === "file_select") && (
                                         <Button
                                             onClick={() => handleResponse(input)}
                                             disabled={isSubmitting || !input.trim()}

@@ -2,19 +2,15 @@
 AttachmentExtractor — AI 回复产出物自动提取器。
 
 职责：
-1. 扫描 AI 回复文本，检测代码块类型（echarts/mermaid/map/artifact）和文件路径（uploads/）
+1. 扫描 AI 回复文本，检测代码块类型（echarts/mermaid/map/artifact/react）和引用语法（[REF: ...] 或 uploads/）
 2. 将检测结果结构化为 ReferenceBlock 数据，自动挂载到 AI 消息的引用列表
 3. 无副作用：仅做数据提取，不操作数据库或文件系统
-
-为什么需要这个？
-- AI 生成文件或图表后，仅在文本中提及，前端无法渲染附件卡片
-- 通过正则扫描，将隐式的产出物显式化为 MessageReference 记录
-- 作为提示词协议的"兜底"机制，即使 AI 未按规范声明，也能自动检测
 """
 
 import logging
 import re
 import uuid
+import json
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -34,7 +30,7 @@ ARTIFACT_CODE_BLOCK_TYPES = {
     "react": "react",
 }
 
-# 正则：匹配 uploads/ 路径（如 uploads/report.xlsx 或 /api/.../raw?path=uploads/...）
+# 正则：匹配 uploads/ 路径（如 uploads/report.xlsx）
 _PATH_PATTERN = re.compile(r"uploads/[\w\-./]+\.\w+")
 
 # 正则：匹配代码块语言标识符（```echarts ... ```）
@@ -42,6 +38,12 @@ _CODE_BLOCK_PATTERN = re.compile(r"```(\w+)\s*\n(.*?)```", re.DOTALL)
 
 # 正则：匹配引用标记 @[type:id]（如 @[message:uuid] 或 @[skill:skill_id]）
 _REFERENCE_PATTERN = re.compile(r"@\[(message|skill):([\w\-]+)\]")
+
+# 正则：匹配标准引用标记 [REF: type=TYPE id=ID name=NAME]
+_REF_TAG_PATTERN = re.compile(r"\[REF:\s+type=(\w+)\s+(?:id|path)=([\w\-./]+)(?:\s+name=[\"']?([^\]\"']+)[\"']?)?\]")
+
+# 正则：匹配 JSON 风格的 artifact 块
+_JSON_BLOCK_PATTERN = re.compile(r"```json\s*\n?(.*?)\n?```", re.DOTALL)
 
 
 class AttachmentExtractor:
@@ -57,22 +59,14 @@ class AttachmentExtractor:
     ) -> list[dict[str, Any]]:
         """
         从 AI 回复文本中提取所有附件引用。
-
-        Args:
-            content: AI 回复的原始文本
-            thread_id: 当前会话 ID（用于构造附件 URL）
-            project_id: 当前项目 ID（用于构造附件 URL）
-
-        Returns:
-            list of ReferenceBlock-compatible dicts，可直接传入 repo.persist(references=...)
         """
         if not content:
             return []
 
         references: list[dict[str, Any]] = []
-        seen_targets: set[str] = set()  # 去重：同一资源不重复注册
+        seen_targets: set[str] = set()  # 去重：统一资源标识符
 
-        # --- 1. 扫描代码块类型（Artifact）---
+        # --- 1. 扫描代码块类型（Markdown Artifacts）---
         for match in _CODE_BLOCK_PATTERN.finditer(content):
             lang = match.group(1).lower()
             block_content = match.group(2).strip()
@@ -81,41 +75,93 @@ class AttachmentExtractor:
             if not artifact_type:
                 continue
 
-            artifact_id = str(uuid.uuid4())
+            # Key for deduplication: type + content hash
             key = f"artifact:{lang}:{hash(block_content)}"
+            if key in seen_targets:
+                continue
+            seen_targets.add(key)
+
+            artifact_id = str(uuid.uuid4())
+            references.append({
+                "id": str(uuid.uuid4()),
+                "type": "artifact",
+                "target_id": artifact_id,
+                "target_name": f"{lang.capitalize()} 组件",
+                "metadata": {
+                    "artifact_type": artifact_type,
+                    "content": block_content[:1000],
+                },
+            })
+
+        # --- 2. 扫描 JSON 风格的 Blocks (Artifacts) ---
+        for match in _JSON_BLOCK_PATTERN.finditer(content):
+            try:
+                data = json.loads(match.group(1).strip())
+                if data.get("type") == "artifact":
+                    a_type = data.get("category") or data.get("artifact_type")
+                    if a_type:
+                        # Key for deduplication: artifact + type + data hash
+                        content_str = json.dumps(data.get("data", {}), sort_keys=True)
+                        key = f"artifact:{a_type}:{hash(content_str)}"
+                        if key in seen_targets:
+                            continue
+                        seen_targets.add(key)
+
+                        references.append({
+                            "id": str(uuid.uuid4()),
+                            "type": "artifact",
+                            "target_id": str(uuid.uuid4()),
+                            "target_name": f"{a_type.capitalize()} 组件",
+                            "metadata": {
+                                "artifact_type": a_type,
+                                "content": content_str,
+                            },
+                        })
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+        # --- 3. 扫描标准引用标记 [REF: ...] ---
+        for match in _REF_TAG_PATTERN.finditer(content):
+            ref_type = match.group(1)
+            target_id = match.group(2)
+            target_name = match.group(3) or target_id.rsplit("/", 1)[-1]
+
+            # Standardized key: type + target_id
+            key = f"ref:{ref_type}:{target_id}"
             if key in seen_targets:
                 continue
             seen_targets.add(key)
 
             references.append({
                 "id": str(uuid.uuid4()),
-                "type": "artifact",
-                "target_id": artifact_id,
-                "target_name": f"{lang.capitalize()} 图表",
+                "type": ref_type,
+                "target_id": target_id,
+                "target_name": target_name,
                 "metadata": {
-                    "artifact_type": artifact_type,
-                    "content": block_content[:500],  # 存储前 500 字符作为预览
+                    "source_id": target_id,
+                    "is_standard_ref": True
                 },
             })
-            logger.debug(f"[AttachmentExtractor] Detected artifact: {artifact_type} ({artifact_id})")
 
-        # --- 2. 扫描文件路径（File / Image）---
+        # --- 4. 扫描文件路径（Legacy uploads/ 路径）---
         for match in _PATH_PATTERN.finditer(content):
             path = match.group(0)
-            if path in seen_targets:
-                continue
-            seen_targets.add(path)
-
-            # 按扩展名区分类型
+            
+            # 按扩展名推断类型
             lower_path = path.lower()
             ext = "." + lower_path.rsplit(".", 1)[-1] if "." in lower_path else ""
-
             if ext in IMAGE_EXTENSIONS:
                 ref_type = "image"
             elif ext in AUDIO_EXTENSIONS:
                 ref_type = "audio"
             else:
                 ref_type = "file"
+
+            # Check standardized key to avoid duplicate with [REF]
+            key = f"ref:{ref_type}:{path}"
+            if key in seen_targets:
+                continue
+            seen_targets.add(key)
 
             filename = path.rsplit("/", 1)[-1]
             preview_url = f"/api/v1/projects/{project_id}/files/raw?path={path}&thread_id={thread_id}"
@@ -130,9 +176,8 @@ class AttachmentExtractor:
                     "source_path": path,
                 },
             })
-            logger.debug(f"[AttachmentExtractor] Detected {ref_type}: {filename}")
 
-        # --- 3. 扫描引用标记（Message / Skill）---
+        # --- 5. 扫描 Legacy 引用标记 @[type:id] ---
         for match in _REFERENCE_PATTERN.finditer(content):
             ref_type = match.group(1)
             target_id = match.group(2)
@@ -154,16 +199,9 @@ class AttachmentExtractor:
                     "is_auto_extracted": True
                 },
             })
-            logger.debug(f"[AttachmentExtractor] Detected {ref_type} reference: {target_id}")
-
-        if references:
-            logger.info(
-                f"[AttachmentExtractor] Extracted {len(references)} reference(s) "
-                f"from AI response (thread={thread_id})"
-            )
 
         return references
 
 
-# 全局单例，无状态可复用
+# 全局单例
 attachment_extractor = AttachmentExtractor()
