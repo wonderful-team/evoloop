@@ -371,7 +371,6 @@ def create_celery_app() -> TaskScheduler:
             "app.domain.codebase.indexing.tasks",
             "app.domain.project.summarizer",
             "app.domain.project.sync_tasks",
-            "app.domain.wiki.tasks",
             "app.core.engine.tasks",
             "app.core.atlas.tasks",
             "app.core.vision.cleanup",

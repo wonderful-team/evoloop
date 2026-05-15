@@ -167,11 +167,31 @@ class Neo4jDriver(IGraphDriver):
         top_k: int = 10,
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
-        """Perform a vector similarity search in Neo4j."""
+        """Perform a vector similarity search in Neo4j (delegates to VectorStore for Concepts)."""
+        
+        if label == "Concept":
+            from app.infrastructure.database.vector import get_vector_store
+            vector_store = get_vector_store()
+            
+            # 1. Search in unified vector store
+            vec_results = vector_store.search_concepts(query_embedding, top_k=top_k)
+            if not vec_results:
+                return []
+            
+            # 2. Re-hydrate from Neo4j to get the latest graph properties/relationships if needed
+            # For now, we fetch the full nodes from Neo4j based on IDs returned by vector store
+            concept_ids = [r["id"] for r in vec_results]
+            query = "MATCH (n:Concept) WHERE n.id IN $ids RETURN n"
+            async with self.session() as session:
+                result = await session.run(query, ids=concept_ids)
+                data = await result.data()
+                # Maintain order from vector store
+                nodes_by_id = {record["n"]["id"]: record["n"] for record in data if "n" in record}
+                return [nodes_by_id[cid] for cid in concept_ids if cid in nodes_by_id]
+
+        # Fallback for other labels (if they have native Neo4j indexes)
         index_name = f"{label.lower()}_embeddings"
         
-        # We use db.index.vector.queryNodes
-        # This requires Neo4j 5.11+
         where_clauses = []
         params = {"index": index_name, "query": query_embedding, "k": top_k}
         
@@ -189,8 +209,11 @@ class Neo4jDriver(IGraphDriver):
         RETURN node, score
         """
         
-        async with self.session() as session:
-            result = await session.run(query, **params)
-            data = await result.data()
-            # We can include score if needed, but for now just return node properties
-            return [record["node"] for record in data if "node" in record]
+        try:
+            async with self.session() as session:
+                result = await session.run(query, **params)
+                data = await result.data()
+                return [record["node"] for record in data if "node" in record]
+        except Exception as e:
+            logger.warning(f"[Neo4j] Native vector search failed for {label}: {e}")
+            return []

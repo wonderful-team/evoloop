@@ -822,7 +822,7 @@ class ADBDriver:
                 except Exception:
                     pass
 
-            final_data = {"package": "unknown", "activity": "unknown", "confidence": "none"}
+            final_data = {"package": "unknown", "activity": "unknown", "confidence": 0.0}
 
             if results:
                 # Weighted vote (prefer top activity)
@@ -831,7 +831,7 @@ class ADBDriver:
                     final_data = {
                         "package": results[0][0],
                         "activity": results[0][1],
-                        "confidence": "high",
+                        "confidence": 1.0,
                         "source": ",".join([r[2] for r in results])
                     }
                 else:
@@ -843,7 +843,7 @@ class ADBDriver:
                     final_data = {
                         "package": best_pkg,
                         "activity": best_act,
-                        "confidence": "medium",
+                        "confidence": 0.5,
                         "source": ",".join([r[2] for r in results if r[0] == best_pkg])
                     }
 

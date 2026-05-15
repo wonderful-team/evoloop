@@ -5,9 +5,10 @@ Uses a dedicated PostgreSQL instance (or separate database) for vector storage.
 Schema is managed via Alembic migrations; the store only ensures the pgvector
 extension is present and tables exist as a fallback.
 """
-
+import hashlib
 import logging
 from datetime import datetime
+from app.utils.time import utcnow
 from typing import Any
 
 from sqlalchemy import BigInteger, DateTime, Index, String, Text, create_engine, text
@@ -47,7 +48,7 @@ class VectorEmbedding(VectorBase):
     content: Mapped[str | None] = mapped_column(Text)
     metadata_: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow
+        DateTime(timezone=True), default=utcnow
     )
 
     __table_args__ = (
@@ -118,9 +119,7 @@ class PgVectorStore:
         if not chunks:
             return 0
 
-        import hashlib
-
-        now = datetime.utcnow()
+        now = utcnow()
         with self._session() as session:
             for chunk, emb in zip(chunks, embeddings):
                 chunk_id = hashlib.md5(
@@ -239,7 +238,7 @@ class PgVectorStore:
         if not records:
             return 0
 
-        now = datetime.utcnow()
+        now = utcnow()
         with self._session() as session:
             # Delete existing chunks for affected doc_ids (mirrors LanceDB behavior)
             doc_ids = {r["source_id"] for r in records}
@@ -312,6 +311,202 @@ class PgVectorStore:
             session.commit()
             return count
 
+    # -- memories -----------------------------------------------------------
+
+    def upsert_memory_chunks(self, records: list[dict[str, Any]]) -> int:
+        if not records:
+            return 0
+
+        now = utcnow()
+        with self._session() as session:
+            # Delete existing memories for these IDs first
+            ids = {r["id"] for r in records}
+            for mid in ids:
+                session.query(VectorEmbedding).filter(
+                    VectorEmbedding.source_type == "memory",
+                    VectorEmbedding.source_id == mid,
+                ).delete(synchronize_session=False)
+
+            for rec in records:
+                session.add(
+                    VectorEmbedding(
+                        source_type="memory",
+                        source_id=rec["id"],
+                        collection=str(rec.get("project_id", "default")),
+                        embedding=rec["vector"],
+                        content=rec.get("text", "") or rec.get("content", ""),
+                        metadata_=rec,
+                        created_at=rec.get("created_at", now),
+                    )
+                )
+            session.commit()
+
+        logger.debug(f"[PgVectorStore] Upserted {len(records)} memory chunks")
+        return len(records)
+
+    def search_memory(
+        self,
+        query_vector: list[float],
+        top_k: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        with self._session() as session:
+            emb_col = VectorEmbedding.embedding
+            q = (
+                session.query(
+                    VectorEmbedding,
+                    emb_col.cosine_distance(query_vector).label("distance"),
+                )
+                .filter(VectorEmbedding.source_type == "memory")
+                .order_by(emb_col.cosine_distance(query_vector))
+                .limit(top_k)
+            )
+
+            if filters:
+                if "project_id" in filters and filters["project_id"] is not None:
+                    q = q.filter(VectorEmbedding.collection == str(filters["project_id"]))
+                if "user_id" in filters and filters["user_id"] is not None:
+                    # In PgVectorStore, user_id is usually inside the JSONB metadata column
+                    q = q.filter(VectorEmbedding.metadata_["user_id"].astext == str(filters["user_id"]))
+
+            rows = q.all()
+
+            return [
+                {
+                    "id": r.VectorEmbedding.source_id,
+                    "text": r.VectorEmbedding.content,
+                    "project_id": r.VectorEmbedding.metadata_.get("project_id"),
+                    "user_id": r.VectorEmbedding.metadata_.get("user_id"),
+                    "score": 1.0 - float(r.distance),
+                }
+                for r in rows
+            ]
+
+    def delete_memory_by_id(self, memory_id: str) -> bool:
+        with self._session() as session:
+            count = (
+                session.query(VectorEmbedding)
+                .filter(VectorEmbedding.source_type == "memory")
+                .filter(VectorEmbedding.source_id == memory_id)
+                .delete(synchronize_session=False)
+            )
+            session.commit()
+            return count > 0
+
+    def delete_all_memories(self) -> int:
+        with self._session() as session:
+            count = (
+                session.query(VectorEmbedding)
+                .filter(VectorEmbedding.source_type == "memory")
+                .delete(synchronize_session=False)
+            )
+            session.commit()
+            return count
+
+    # -- skills -----------------------------------------------------------
+
+    def upsert_skill_chunks(self, records: list[dict[str, Any]]) -> int:
+        if not records:
+            return 0
+
+        now = utcnow()
+        with self._session() as session:
+            for rec in records:
+                # Delete existing skill with same ID (usually skill name)
+                session.query(VectorEmbedding).filter(
+                    VectorEmbedding.source_type == "skill",
+                    VectorEmbedding.source_id == rec["id"],
+                ).delete(synchronize_session=False)
+
+                session.add(
+                    VectorEmbedding(
+                        source_type="skill",
+                        source_id=rec["id"],
+                        embedding=rec["vector"],
+                        content=rec.get("description", ""),
+                        metadata_=rec,
+                        created_at=rec.get("created_at", now),
+                    )
+                )
+            session.commit()
+        return len(records)
+
+    def search_skills(self, query_vector: list[float], top_k: int = 10) -> list[dict[str, Any]]:
+        with self._session() as session:
+            emb_col = VectorEmbedding.embedding
+            rows = (
+                session.query(
+                    VectorEmbedding,
+                    emb_col.cosine_distance(query_vector).label("distance"),
+                )
+                .filter(VectorEmbedding.source_type == "skill")
+                .order_by(emb_col.cosine_distance(query_vector))
+                .limit(top_k)
+                .all()
+            )
+
+            return [
+                {
+                    "id": r.VectorEmbedding.source_id,
+                    "name": r.VectorEmbedding.metadata_.get("name", ""),
+                    "description": r.VectorEmbedding.content,
+                    "score": 1.0 - float(r.distance),
+                }
+                for r in rows
+            ]
+
+    # -- concepts ---------------------------------------------------------
+
+    def upsert_concept_chunks(self, records: list[dict[str, Any]]) -> int:
+        if not records:
+            return 0
+
+        now = utcnow()
+        with self._session() as session:
+            for rec in records:
+                session.query(VectorEmbedding).filter(
+                    VectorEmbedding.source_type == "concept",
+                    VectorEmbedding.source_id == rec["id"],
+                ).delete(synchronize_session=False)
+
+                session.add(
+                    VectorEmbedding(
+                        source_type="concept",
+                        source_id=rec["id"],
+                        collection=str(rec.get("project_id", -1)),
+                        embedding=rec["vector"],
+                        content=rec.get("description", ""),
+                        metadata_=rec,
+                        created_at=rec.get("created_at", now),
+                    )
+                )
+            session.commit()
+        return len(records)
+
+    def search_concepts(self, query_vector: list[float], top_k: int = 10) -> list[dict[str, Any]]:
+        with self._session() as session:
+            emb_col = VectorEmbedding.embedding
+            rows = (
+                session.query(
+                    VectorEmbedding,
+                    emb_col.cosine_distance(query_vector).label("distance"),
+                )
+                .filter(VectorEmbedding.source_type == "concept")
+                .order_by(emb_col.cosine_distance(query_vector))
+                .limit(top_k)
+                .all()
+            )
+
+            return [
+                {
+                    "id": r.VectorEmbedding.source_id,
+                    "name": r.VectorEmbedding.metadata_.get("name", ""),
+                    "description": r.VectorEmbedding.content,
+                    "score": 1.0 - float(r.distance),
+                }
+                for r in rows
+            ]
+
     # -- maintenance --------------------------------------------------------
 
     def get_stats(self) -> dict[str, Any]:
@@ -327,12 +522,30 @@ class PgVectorStore:
                 .filter(VectorEmbedding.source_type == "kb_doc")
                 .count()
             )
+            mem_count = (
+                session.query(VectorEmbedding)
+                .filter(VectorEmbedding.source_type == "memory")
+                .count()
+            )
+            skill_count = (
+                session.query(VectorEmbedding)
+                .filter(VectorEmbedding.source_type == "skill")
+                .count()
+            )
+            concept_count = (
+                session.query(VectorEmbedding)
+                .filter(VectorEmbedding.source_type == "concept")
+                .count()
+            )
             return {
                 "backend": "pgvector",
                 "db_uri": self._db_uri,
                 "total_vectors": total,
                 "code_chunks": code_count,
                 "kb_chunks": kb_count,
+                "memories": mem_count,
+                "skills": skill_count,
+                "concepts": concept_count,
                 "embedding_dim": self._embedding_dim,
             }
 
