@@ -294,6 +294,14 @@ class BlockMapper:
         # Mobile 兼容：is_visible bool → int
         data["is_visible"] = 1 if msg.is_visible else 0
 
+        # Mobile 兼容：确保 attachments 存在（由 references 填充）
+        if not data.get("attachments") and msg.references:
+            data["attachments"] = [ref.model_dump() for ref in msg.references]
+
+        # 节省带宽：Mobile 不需要 thinking 过程和原始元数据
+        data.pop("thinking", None)
+        data.pop("meta_data", None)
+
         return data
 
 
