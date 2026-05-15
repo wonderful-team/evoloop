@@ -22,6 +22,7 @@ import { Badge } from "@evoloop/shared/components/ui/badge"
 import { cn } from "@evoloop/shared/lib/utils"
 import { MessageContent } from "./MessageContent"
 import { ChangesetSnapshot } from "./ChangesetSnapshotView"
+import { MessageReferences } from "./MessageReferences"
 import { TTSButton } from "./TTSButton"
 import { useTTS, useAutoSpeak } from "@/hooks/useTTS"
 import { useAuth } from "@/hooks/useAuth"
@@ -264,6 +265,7 @@ const ChatMessageItem = memo(
             {msg.content && (
               <div className="doc-message-content w-full prose-compact transition-opacity">
                 <MessageContent content={msg.content} />
+                <MessageReferences references={msg.references || []} />
               </div>
             )}
 

@@ -8,6 +8,7 @@ Consolidates duplicate code from _execute_react_loop and _execute_single_shot.
 import asyncio
 import json
 import logging
+import os
 from typing import Any
 
 from langchain_core.messages import ToolMessage
@@ -147,21 +148,24 @@ class AgentToolExecutor:
                 from app.utils.diff import diff_tracker
                 
                 snapshot_paths = get_tool_affected_paths(tool_name, tool_args)
-                working_dir = get_working_directory(self.config)
-                logger.debug(f"[{self.name}] Snapshot paths: {snapshot_paths} | Working Dir: {working_dir}")
-                
-                resolved_paths = []
+                resolved_abs_paths = []
                 for path in snapshot_paths:
                     try:
-                        abs_path = resolve_path(path, working_dir)
-                        diff_tracker.capture_snapshot(abs_path, thread_id)
-                        resolved_paths.append(abs_path)
-                        logger.info(f"[{self.name}] Captured snapshot for: {abs_path}")
+                        abs_path = path
+                        if not os.path.isabs(abs_path):
+                            # Resolve relative paths against the current working directory
+                            wd = get_working_directory(self.config)
+                            abs_path = os.path.abspath(os.path.join(wd, abs_path))
+                        
+                        resolved_abs_paths.append(abs_path)
+                        if not diff_tracker.has_snapshot(abs_path, thread_id):
+                            diff_tracker.capture_snapshot(abs_path, thread_id)
+                            logger.info(f"[{self.name}] Captured snapshot for: {abs_path}")
                     except Exception as e:
                         logger.warning(f"[ToolExecutor] Failed to resolve path for snapshot: {path} | Error: {e}")
                 
                 # Store resolved paths in a local variable for post-execution diff tracking
-                self._current_resolved_paths = resolved_paths
+                self._current_resolved_paths = resolved_abs_paths
 
             # Execute Tool
             # Pass real tool_call_id via RunnableConfig metadata so callbacks can correlate
@@ -254,6 +258,7 @@ class AgentToolExecutor:
         # Guard: skip if tool is not state-mutating (e.g. read-only tools)
         tool_map = get_tool_map()
         tool_obj = tool_map.get(tool_name)
+        
         if not tool_obj or not tool_obj.metadata.get("is_state_mutating"):
             return
 
@@ -276,8 +281,8 @@ class AgentToolExecutor:
                         if settings.EMBEDDED_MODE:
                             # In embedded mode, we don't have a background worker running.
                             # We must persist the operation immediately to ensure changeset tracking works.
-                            from app.core.engine.tasks import persist_file_operation_task
-                            await persist_file_operation_task(
+                            from app.core.engine.tasks import _persist_file_operation_task
+                            await _persist_file_operation_task(
                                 thread_id=thread_id,
                                 message_id=str(msg_id),
                                 file_path=path,

@@ -30,6 +30,10 @@ class HumanRequestType(str, Enum):
     FILE_SELECT = "file_select"
     """Request user to select one or more files."""
 
+    # Multiple Choice
+    CHOICE = "choice"
+    """Request user to select from a list of options."""
+
 
 class AgentActivityState(DynamicBaseModel):
     mode: str

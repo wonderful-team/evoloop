@@ -131,7 +131,7 @@ class HITLBlock(DynamicBaseModel):
     """
     id: str
     thread_id: str
-    request_type: Literal["text_input", "choice", "confirmation", "file_select", "approval"]
+    request_type: Literal["text_input", "choice", "confirmation", "file_select", "approval", "project_switch"]
     prompt: str
     description: str = ""
     options: list[str] | None = None

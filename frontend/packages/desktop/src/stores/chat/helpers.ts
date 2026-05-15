@@ -27,6 +27,18 @@ export function normalizeMessage(rawMsg: any): any {
     if (rawMsg.role === "human" || rawMsg.role === "user") normalizedRole = "human"
     if (rawMsg.role === "tool") normalizedRole = "tool"
 
+    // Extract changeset info from references if not explicitly provided
+    let changesetCount = rawMsg.changeset_count || 0
+    let changesetFiles = rawMsg.changeset_files || []
+    
+    if (rawMsg.references) {
+        const csRef = rawMsg.references.find((r: any) => r.type === "changeset")
+        if (csRef && csRef.meta_data) {
+            changesetCount = csRef.meta_data.count || changesetCount
+            changesetFiles = csRef.meta_data.files || changesetFiles
+        }
+    }
+
     return {
         id: rawMsg.id,
         role: normalizedRole,
@@ -35,7 +47,8 @@ export function normalizeMessage(rawMsg: any): any {
         thinking: rawMsg.thinking,
         timestamp: rawMsg.created_at || new Date().toISOString(),
         references: rawMsg.references || [],
-        changeset_count: rawMsg.changeset_count || 0,
+        changeset_count: changesetCount,
+        changeset_files: changesetFiles,
         category: rawMsg.category,
         status: rawMsg.status,
         node_source: rawMsg.node_source,

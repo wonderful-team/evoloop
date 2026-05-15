@@ -38,12 +38,32 @@ import { ContextPanel } from "./ContextPanel"
 
 import { DiffDrawer } from "./DiffDrawer"
 import { RewindConfirmDialog } from "./RewindConfirmDialog"
+import { DebugManager } from "./DebugManager"
+import { HumanRequestCard } from "./HumanRequestCard"
 
 export function ChatInterface() {
+  // --- Store State ---
+  const { 
+    threadId: activeThreadId,
+    messages,
+    status,
+    humanRequest,
+    projectId: storeProjectId,
+    hasMoreHistory,
+    isLoadingHistory,
+    loadMoreHistory,
+    setThread,
+    sendMessage,
+    stopAgent,
+    fetchHistory,
+    _truncateMessages,
+    markChangeAsViewed,
+    markAllChangesAsViewed,
+    selectedModel
+  } = useChatStore()
 
   const { t } = useTranslation()
   const { currentProject, isGlobalMode } = useProjectStore()
-  const projectId = currentProject?.id
   const queryClient = useQueryClient()
 
   // --- UI State ---
@@ -56,23 +76,7 @@ export function ChatInterface() {
   const [sidebarActiveTab, setSidebarActiveTab] = useState<string>("chats")
   const [expandAgentChanges, setExpandAgentChanges] = useState<boolean>(false)
 
-  // --- Store State ---
-  // --- Store State (Granular Selectors to avoid full re-renders) ---
-  const activeThreadId = useChatStore((s) => s.threadId)
-  const messages = useChatStore((s) => s.messages)
-  const status = useChatStore((s) => s.status)
-  // Pagination state
-  const hasMoreHistory = useChatStore((s) => s.hasMoreHistory)
-  const isLoadingHistory = useChatStore((s) => s.isLoadingHistory)
-  const loadMoreHistory = useChatStore((s) => s.loadMoreHistory)
-  // Props required for components
-  const setThread = useChatStore((s) => s.setThread)
-  const sendMessage = useChatStore((s) => s.sendMessage)
-  const stopAgent = useChatStore((s) => s.stopAgent)
-  const _truncateMessages = useChatStore((s) => s._truncateMessages)
-  const markChangeAsViewed = useChatStore((s) => s.markChangeAsViewed)
-  const markAllChangesAsViewed = useChatStore((s) => s.markAllChangesAsViewed)
-  const selectedModel = useChatStore((s) => s.selectedModel)
+  const projectId = currentProject?.id ?? storeProjectId
 
   // We maintain 'showContextPanel' locally as it involves UI preference
   // Global mode: hidden by default; Project mode: show by default
@@ -673,6 +677,9 @@ export function ChatInterface() {
                   onQuote={(msg) => handleQuoteMessage(msg)}
                   onViewChangeset={handleViewChangeset}
                 />
+                {status === "interrupted" && humanRequest && (
+                  <HumanRequestCard request={humanRequest} />
+                )}
               </div>
             </div>
 
@@ -697,8 +704,6 @@ export function ChatInterface() {
                 </motion.div>
               )}
             </AnimatePresence>
-
-            {/* HumanRequestCard moved to AgentCanvas */}
 
             {/* Input Area */}
             <ChatInputArea
@@ -797,6 +802,7 @@ export function ChatInterface() {
         path={selectedDiff?.path || null}
         diff={selectedDiff?.diff || null}
       />
+      <DebugManager />
     </div>
   )
 }

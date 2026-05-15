@@ -9,6 +9,7 @@ import importlib
 import inspect
 import logging
 import pkgutil
+import re
 import threading
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -420,6 +421,23 @@ def get_tool_affected_paths(tool_name: str, tool_args: dict) -> list[str]:
             if val and isinstance(val, str):
                 snapshot_paths.append(val)
 
-    # Legacy fallback removed.
-    # All mutation-sensitive tools MUST use @evoloop_tool(affected_path_keys=[...])
+    # Legacy fallback and robust extraction
+    # We check common keys if the tool is state-mutating
+    mutating = is_state_mutating_tool(tool_name)
+
+    # Specialized heuristic for execute_command (rm)
+    if tool_name == "execute_command" and not snapshot_paths:
+        cmd = tool_args.get("command", "")
+        # Heuristic for rm [flags] path
+        rm_match = re.search(r'\brm\s+(?:-[a-zA-Z]+\s+)?([^\s;\|]+)', cmd)
+        if rm_match:
+            path = rm_match.group(1).strip("'\"")
+            snapshot_paths.append(path)
+
+    if not snapshot_paths and mutating:
+        for key in ["path", "file_path", "TargetFile"]:
+            val = tool_args.get(key)
+            if val and isinstance(val, str):
+                snapshot_paths.append(val)
+
     return snapshot_paths

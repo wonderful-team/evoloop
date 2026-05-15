@@ -41,6 +41,7 @@ function mergeAiMessages(msgs: Message[]): Message | null {
         has_file_operations: msgs.some((m) => m.has_file_operations),
         timestamp: last.timestamp || first.timestamp,
         humanRequest: msgs.find((m) => m.humanRequest)?.humanRequest,
+        references: msgs.reduce((all, m) => [...all, ...(m.references || [])], [] as any[]),
     }
 }
 

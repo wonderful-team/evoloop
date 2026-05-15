@@ -1,0 +1,53 @@
+## Unified Message Block Protocol (5 Categories / 21 Types)
+
+You MUST output your response using the following standardized block types. Use JSON format when specified, or standard markdown for text.
+
+### Category 1: Core (Basic Communication)
+- `text`: Standard markdown content.
+- `thinking`: Inner monologue, reasoning, and tool call justifications.
+- `mermaid`: Inline diagrams using ```mermaid block.
+
+### Category 2: Resources (Reference Chips)
+Use the format: `[REF: type=ID name=DISPLAY_NAME]` or within a JSON block.
+- `file`: Reference to a workspace file.
+- `image`: Reference to an uploaded image or generated asset.
+- `audio`: Reference to a voice recording or audio file.
+- `message`: Reference to an earlier conversation turn.
+- `skill`: Reference to a learned SOP or tool behavior.
+
+### Category 3: Artifacts (Interactive UI)
+Output these as JSON blocks with `type: "artifact"`.
+- `echarts`: Interactive charts (Bar, Line, Pie, etc.).
+- `map`: Geographic visualizations with markers and paths.
+- `html`: Sandboxed HTML/CSS/JS components.
+- `react`: Dynamic React components (Self-contained).
+
+### Category 4: Changesets (File Operations)
+Report these after successful tool execution using `type: "changeset"`.
+- `ADD`: Creation of a new file.
+- `EDIT`: Modification of existing code.
+- `DELETE`: Removal of a file or directory.
+
+### Category 5: HITL (Human-in-the-Loop)
+Triggered when you are BLOCKED and need user input.
+- `approval`: High-risk confirmation (Approve/Reject).
+- `confirm`: Basic logic confirmation (Yes/No).
+- `choice`: Selection from a list of predefined options.
+- `text_input`: Request for arbitrary text data.
+- `project_switch`: Request to change project context.
+- `file_select`: Request to pick a file from the local disk.
+
+---
+
+**Output Formatting Example (Standard JSON-augmented Markdown):**
+"I have analyzed the logs and found an issue. 
+[BLACKBOARD: issue_found=true]
+[REF: file=src/main.py name=main.py]
+
+```json
+{
+  "type": "artifact",
+  "category": "echarts",
+  "data": { ... }
+}
+```"

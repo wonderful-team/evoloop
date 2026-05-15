@@ -4,7 +4,7 @@ import re
 import shutil
 import time
 
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select, text, desc
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
@@ -12,7 +12,7 @@ from app.core.context.manager import ContextManager, EvoContext
 from app.core.learning.trace_recorder import sync_thread_to_graph
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.queue.factory import shared_task
-from app.models import FileOperation
+from app.models import FileOperation, Message
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +44,7 @@ async def _notify_file_operation(thread_id: str, message_id: str, file_path: str
     logger.debug(f"[Celery] Published file operation event for {file_path}")
 
 
-@shared_task(name="engine_persist_file_operation")
-async def persist_file_operation_task(
+async def _persist_file_operation_task(
     thread_id: str,
     message_id: str,
     file_path: str,
@@ -55,13 +54,11 @@ async def persist_file_operation_task(
     run_id: str | None = None,
     tool_call_id: str | None = None,
 ):
-    """Background task to persist file movement/edit diffs to the database."""
+    """Internal implementation of file operation persistence."""
     async with session_scope() as session:
         # Determine final message ID (resolve tool_call_id if needed)
         target_msg_id = message_id
         if tool_call_id:
-            from app.models import Message
-            from sqlalchemy import desc
             # Find the actual message ID associated with this tool_call_id
             stmt_msg = select(Message.id).where(
                 Message.thread_id == thread_id,
@@ -82,22 +79,41 @@ async def persist_file_operation_task(
             original_content=original_content,
         )
         session.add(op)
-    logger.debug(f"[Celery] Persisted file operation for {file_path}")
+        logger.info(f"[Celery] Persisted file operation for {file_path}")
 
-    # --- [Phase 3] 同步到消息标准化引用并触发实时更新 ---
-    from app.core.engine.message.repository import MessageRepository
-    from app.core.engine.message.publisher import MessagePublisher
-    from app.core.engine.message.mapper import BlockMapper
-    from app.models import Message
-    
-    repo = MessageRepository(thread_id=thread_id)
-    # 1. 更新数据库中的 MessageReference (changeset 类型)
-    await repo.sync_changeset_reference(
+        # --- [Phase 2] 同步到消息标准化引用并触发实时更新 ---
+        from app.core.engine.message.repository import MessageRepository
+        repo = MessageRepository(thread_id=thread_id)
+        await repo.sync_changeset_reference(
+            message_id=message_id,
+            file_path=file_path,
+            operation=operation,
+            run_id=run_id,
+            tool_call_id=tool_call_id
+        )
+
+
+@shared_task(name="engine_persist_file_operation")
+async def persist_file_operation_task(
+    thread_id: str,
+    message_id: str,
+    file_path: str,
+    operation: str,
+    diff_content: str,
+    original_content: str | None = None,
+    run_id: str | None = None,
+    tool_call_id: str | None = None,
+):
+    """Background task wrapper."""
+    return await _persist_file_operation_task(
+        thread_id=thread_id,
         message_id=message_id,
         file_path=file_path,
         operation=operation,
+        diff_content=diff_content,
+        original_content=original_content,
         run_id=run_id,
-        tool_call_id=tool_call_id
+        tool_call_id=tool_call_id,
     )
 
     # 2. 触发 SSE 增量更新：让前端气泡即时显示“变更徽章”

@@ -129,7 +129,7 @@ class LinkTokenService:
 
 class ActivityArtifact(DynamicBaseModel):
     """An artifact tracked during agent activity."""
-    id: int
+    id: str
     name: str
     type: str
     status: str
@@ -388,7 +388,7 @@ class ActivityStateService:
 
             # Add new
             new_artifact = ActivityArtifact(
-                id=len(artifacts) + 1,
+                id=str(len(artifacts) + 1),
                 name=name,
                 type=artifact_type,
                 status=status,
