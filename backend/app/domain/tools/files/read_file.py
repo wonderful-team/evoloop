@@ -19,7 +19,6 @@ from app.core.file import (
     FileStatus,
 )
 from app.core.tools import evoloop_tool
-from app.domain.tools.document_reader import read_document
 from app.i18n.service import i18n
 from .utils import resolve_and_validate_path
 
@@ -39,14 +38,26 @@ async def handle_read(
     except ValueError as e:
         return str(e)
 
-    # Smart routing: if it looks like a doc, use read_document logic
-    if path.lower().endswith((".pdf", ".docx", ".doc", ".xlsx", ".xls")):
-        return await read_document(
-            file_path=target_path,
-            start_page=start_line,
-            end_page=end_line
-        )
+    # 1. Routing for specialized formats (Documents, Images, Media)
+    # These formats have their own internal extraction and formatting.
+    special_formats = (".pdf", ".docx", ".doc", ".xlsx", ".xls", ".png", ".jpg", ".jpeg", ".mp3", ".wav", ".mp4", ".mov", ".avi", ".html")
+    if path.lower().endswith(special_formats):
+        try:
+            from app.core.file.content_extractor import content_extractor
+            return await content_extractor.extract(
+                file_path=target_path,
+                start_range=start_line,
+                end_range=end_line
+            )
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Extraction failed for {path}: {e}")
+            return i18n.get("domain_tools.files.read_error", error=str(e))
 
+    # 2. Standard Logic for Plain Text / Code
+    # This includes existence checks, large file previews, and metadata wrapping.
+    
     # Check existence
     if not os.path.exists(target_path):
         # Smart Error Handling - suggest similar files
@@ -54,9 +65,10 @@ async def handle_read(
         if os.path.exists(parent_dir):
             try:
                 from app.core.file import FileTraverser
-                entries = FileTraverser.list_entries(parent_dir)
+                # Convert iterator to list so we can slice it
+                all_entries = list(FileTraverser.list_entries(parent_dir))
                 siblings_info = []
-                for entry in entries[:20]:
+                for entry in all_entries[:20]:
                     if entry.is_dir():
                         siblings_info.append(f"{entry.name}/")
                     else:
