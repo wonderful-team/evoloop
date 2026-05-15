@@ -147,13 +147,16 @@ class AtlasEngine:
                 all_outputs.append(f"### {bid}\nNo UI map available for this application.")
                 continue
 
-
-            if transitions:
-                output.append("\n**Known Transitions**:")
-                for t in transitions:
-                    output.append(f"- {t['from_state']} --[{t['type']}: {t['label']}]--> {t['to_state']}")
+            output = [f"### UI Map for {bid} ({summary.platform})"]
+            output.append(f"- **States**: {summary.state_count} screens mapped")
+            
+            if summary.states:
+                output.append("- **Recorded States**: " + ", ".join(summary.states[:20])) # List of state IDs
 
             all_outputs.append("\n".join(output))
+        
+        if not all_outputs:
+            return "No UI map available for the requested applications."
 
         final_result = "\n\n---\n\n".join(all_outputs)
         final_result += "\n\n💡 Tip: Use `query_app_atlas(bundle_ids='...', state_id='...')` to see all buttons/inputs in a state."
@@ -474,11 +477,14 @@ class AtlasEngine:
         else:
             return self._classify_macos_element(element, metadata)
 
-    def _classify_android_element(self, element: AtlasElement, metadata: dict) -> str:
+    def _classify_android_element(self, element: AtlasElement, metadata: Any) -> str:
         """Android-specific classification."""
-        class_name = metadata.get("class", "").lower()
-        scrollable = metadata.get("scrollable", False)
-        resource_id = metadata.get("resource_id", "").lower()
+        # Ensure we have a dict for uniform access
+        m = metadata.model_dump() if hasattr(metadata, "model_dump") else metadata
+        
+        class_name = str(m.get("class") or m.get("class_name") or "").lower()
+        scrollable = m.get("scrollable", False)
+        resource_id = str(m.get("resource_id") or "").lower()
 
         # 1. Check for scrollable containers
         SCROLLABLE_CLASSES = [
@@ -496,9 +502,9 @@ class AtlasEngine:
             return "container_scrollable"
 
         # 2. Check for static navigation elements by position
-        bounds = element.bounds or {}
-        y = bounds.get("y", 0)
-        height = bounds.get("height", 0)
+        b = element.bounds.model_dump() if element.bounds else {}
+        y = b.get("y", 0)
+        height = b.get("height", 0)
         y_bottom = y + height
 
         # Top navigation (toolbar, actionbar)
@@ -519,8 +525,11 @@ class AtlasEngine:
 
         return "unknown"
 
-    def _classify_macos_element(self, element: AtlasElement, metadata: dict) -> str:
+    def _classify_macos_element(self, element: AtlasElement, metadata: Any) -> str:
         """macOS-specific classification."""
+        # Ensure we have a dict for uniform access (reserved for future use)
+        m = metadata.model_dump() if hasattr(metadata, "model_dump") else metadata
+        
         role = element.role.lower() if element.role else ""
         ax_path = element.ax_path.lower() if element.ax_path else ""
 
