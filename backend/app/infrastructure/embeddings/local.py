@@ -28,13 +28,15 @@ class LocalEmbedder(BaseEmbedder):
         async with self._lock:
             if self._model is None:
                 from sentence_transformers import SentenceTransformer
-                logger.info(f"[LocalEmbedder] Loading model '{self.model_name}' on {self.device}...")
+                import os
+                logger.info(f"[LocalEmbedder] Loading model '{self.model_name}' on {self.device} (HF_ENDPOINT={os.getenv('HF_ENDPOINT')})...")
                 # Nomic v1.5 requires trust_remote_code=True
                 self._model = await asyncio.to_thread(
-                    SentenceTransformer, 
-                    self.model_name, 
-                    device=self.device, 
-                    trust_remote_code=True
+                    lambda: SentenceTransformer(
+                        self.model_name, 
+                        device=self.device, 
+                        trust_remote_code=True
+                    )
                 )
             return self._model
 
@@ -49,7 +51,7 @@ class LocalEmbedder(BaseEmbedder):
             
         model = await self._get_model()
         logger.debug(f"[LocalEmbedder] Embedding {len(documents)} documents...")
-        embeddings = await asyncio.to_thread(model.encode, processed_docs, convert_to_numpy=True)
+        embeddings = await asyncio.to_thread(lambda: model.encode(processed_docs, convert_to_numpy=True))
         return embeddings.tolist()
 
     async def embed_query(self, query: str) -> list[float]:
@@ -63,7 +65,7 @@ class LocalEmbedder(BaseEmbedder):
             
         model = await self._get_model()
         logger.debug(f"[LocalEmbedder] Embedding query: {query[:50]}...")
-        embedding = await asyncio.to_thread(model.encode, processed_query, convert_to_numpy=True)
+        embedding = await asyncio.to_thread(lambda: model.encode(processed_query, convert_to_numpy=True))
         return embedding.tolist()
 
     # LangChain-compatible aliases

@@ -221,6 +221,7 @@ class Settings(BaseSettings):
 
     # Embedding Configuration
     EMBEDDING_DIMENSIONS: int = 768  # Nomic / Local Default
+    HF_ENDPOINT: str = "https://huggingface.co"
 
     # Wiki Generation
     WIKI_EXTRACT_CONCEPTS: bool = True  # Extract and store concepts from Wiki pages to Agent memory
@@ -411,10 +412,10 @@ class Settings(BaseSettings):
     SCREEN_RECORDING_MAX_SIZE_MB: int = 500    # 单次录制最大500MB
 
     @model_validator(mode="after")
-    def _setup_modelscope_cache(self) -> Self:
-        """Set ModelScope cache directory to MODELS_DIR for FunASR models."""
-        # Set environment variable for modelscope to use our models directory
+    def _setup_external_env(self) -> Self:
+        """Set environment variables for external libraries (ModelScope, HuggingFace)."""
         os.environ["MODELSCOPE_CACHE"] = self.MODELS_DIR
+        os.environ["HF_ENDPOINT"] = self.HF_ENDPOINT
         return self
 
     # Logic Limits
