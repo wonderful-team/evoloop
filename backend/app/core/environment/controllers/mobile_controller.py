@@ -15,7 +15,6 @@ import time
 from typing import Any
 
 from app.core.atlas import atlas_engine
-from app.core.atlas.models import AtlasApp
 from app.core.context import ContextManager
 from app.core.environment.controllers.utils import (
     RecordingContext,
@@ -326,7 +325,7 @@ class MobileController:
                 timeout_val: float = 8.0,
                 expected_pkg: str | None = None,
                 fast_probe_enabled: bool = False
-            ) -> tuple[int, int] | str:
+            ) -> dict | tuple[int, int] | str:
                 """Resolve element with coordinate fallback."""
                 resolved = await resolve_element(
                     name, role,
@@ -395,36 +394,6 @@ class MobileController:
                 last_sentinel_check = start_time
                 used_initial_a11y = False
 
-                # Pre-load Atlas info once (optimization: avoid DB queries in hot loop)
-                atlas_info = None
-                try:
-                    curr_app = await cls.get_current_app_cached(device_id=device_id)
-                    bundle_id = curr_app.get("package")
-                    if bundle_id:
-                        atlas_info = {
-                            "bundle_id": bundle_id,
-                            "is_dynamic": await atlas_engine.is_dynamic_app(bundle_id, "android"),
-                            "strategy": None,
-                            "summary": None,
-                            "is_stale": False
-                        }
-                        if atlas_info["is_dynamic"]:
-                            atlas_info["strategy"] = await atlas_engine.get_app_strategy(bundle_id, "android")
-                        else:
-                            atlas_info["summary"] = await atlas_engine.store.get_app_summary(bundle_id, platform="android")
-                            if atlas_info["summary"]:
-                                stored_hash = atlas_info["summary"].get("version_hash", "")
-                                if stored_hash:
-                                    try:
-                                        pkg_meta = await asyncio.to_thread(adb_driver.get_package_info, bundle_id, device_id=device_id)
-                                        dummy = AtlasApp(app_name=bundle_id, bundle_id=bundle_id, platform="android")
-                                        live_hash = dummy.compute_version_hash(str(pkg_meta.get("version_name", "0")), str(pkg_meta.get("last_update_time", "0")))
-                                        atlas_info["is_stale"] = (live_hash != stored_hash)
-                                    except Exception:
-                                        pass
-                except Exception:
-                    pass  # Atlas info is optional fallback
-
                 while time.time() - start_time < effective_timeout:
                     loop_start = time.time()
                     if expected_pkg and (loop_start - last_sentinel_check >= 1.0):
@@ -462,33 +431,17 @@ class MobileController:
                             best_el = candidates[0][1]
                             return {"x": best_el.x, "y": best_el.y}
 
-                    # 2. Atlas Fallback (after 1.5s) - Use pre-loaded atlas_info
+                    # 2. Atlas Fallback (after 1.5s) - [DIVIDEND] Unified resolution
                     elapsed = time.time() - start_time
-                    if elapsed > 1.5 and atlas_info:
-                        try:
-                            if atlas_info["is_dynamic"] and atlas_info["strategy"]:
-                                infra_elem = atlas_info["strategy"].get_infrastructure_element(name)
-                                if infra_elem and infra_elem.get("bounds"):
-                                    bounds = infra_elem["bounds"]
-                                    return {"x": bounds.get("x", 0), "y": bounds.get("y", 0)}
-                                strat = atlas_info["strategy"].get_strategy_for(name)
-                                if strat:
-                                    return {"strategy": strat.strategy_type, "parameters": strat.parameters, "source": "atlas_strategy"}
-                            elif not atlas_info["is_stale"] and atlas_info["summary"] and "states" in atlas_info["summary"]:
-                                for state in atlas_info["summary"]["states"][:3]:
-                                    try:
-                                        detail = await asyncio.wait_for(
-                                            atlas_engine.store.get_state_detail(atlas_info["bundle_id"], state["id"], platform="android"),
-                                            timeout=2.0
-                                        )
-                                        for el in detail.get("elements", []):
-                                            if name.lower() in str(el.get("label", "")).lower():
-                                                return {"x": el["x"], "y": el["y"]}
-                                    except asyncio.TimeoutError:
-                                        logger.debug(f"[Mobile] Atlas state detail timeout for state {state['id']}")
-                                        continue
-                        except Exception:
-                            pass
+                    if elapsed > 1.5:
+                        curr_app = await cls.get_current_app_cached(device_id=device_id)
+                        bundle_id = curr_app.get("package")
+                        if bundle_id:
+                            atlas_res = await atlas_engine.resolve_spatial_element(
+                                bundle_id, name, platform="android"
+                            )
+                            if atlas_res:
+                                return atlas_res
 
                     # 3. OCR Fallback
                     can_ocr = (is_h5 or elapsed > 3.0) and ocr_attempts < max_ocr_attempts
