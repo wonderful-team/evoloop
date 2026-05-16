@@ -120,8 +120,9 @@ export function MessageList({
 
         flushAiGroup()
 
-        // Turn-level pass: For each turn, find the last AI item and attach its content to the turn's first AI item as effective_content.
+        // Turn-level pass: For each turn, find the last AI item and attach its content to the turn's first AI item as effective_content. Also mark the last AI item in turn.
         let turnFirstAiIndex = -1
+        let turnLastAiIndex = -1
         let lastAiContentInTurn = ""
 
         for (let i = 0; i < items.length; i++) {
@@ -131,16 +132,25 @@ export function MessageList({
                     if (turnFirstAiIndex !== -1 && lastAiContentInTurn) {
                         (items[turnFirstAiIndex].data as any).effective_content = lastAiContentInTurn
                     }
+                    if (turnLastAiIndex !== -1) {
+                        (items[turnLastAiIndex].data as any).isLastInTurn = true
+                    }
                     turnFirstAiIndex = -1
+                    turnLastAiIndex = -1
                     lastAiContentInTurn = ""
                 } else if (item.data.role === "ai") {
                     if ((item.data as any).isFirstInTurn) {
                         if (turnFirstAiIndex !== -1 && lastAiContentInTurn) {
                             (items[turnFirstAiIndex].data as any).effective_content = lastAiContentInTurn
                         }
+                        if (turnLastAiIndex !== -1) {
+                            (items[turnLastAiIndex].data as any).isLastInTurn = true
+                        }
                         turnFirstAiIndex = i
+                        turnLastAiIndex = i
                         lastAiContentInTurn = item.data.content || ""
                     } else {
+                        turnLastAiIndex = i
                         if (item.data.content && item.data.content.trim() !== "") {
                             lastAiContentInTurn = item.data.content
                         }
@@ -150,6 +160,9 @@ export function MessageList({
         }
         if (turnFirstAiIndex !== -1 && lastAiContentInTurn) {
             (items[turnFirstAiIndex].data as any).effective_content = lastAiContentInTurn
+        }
+        if (turnLastAiIndex !== -1) {
+            (items[turnLastAiIndex].data as any).isLastInTurn = true
         }
 
         return items

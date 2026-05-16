@@ -281,6 +281,7 @@ export const MessageContent = memo(({ content, isUser }: MessageContentProps) =>
                     td: ({ children }) => <td className="px-4 py-2 border-b border-r last:border-r-0">{children}</td>,
                     img: ({ src, alt }) => <img src={src} alt={alt} className="max-w-full rounded-lg my-2" />,
                     li: ({ children }) => <li className="mb-0.5">{children}</li>,
+                    hr: () => <hr className="my-2 border-border/30" />,
                   }}
                 >
                   {processedPart}
