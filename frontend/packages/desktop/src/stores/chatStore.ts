@@ -7,10 +7,10 @@ import { llmPlatformService } from "@/services/llmPlatform"
 import type { Message } from "@/components/Chat/ChatMessageItem"
 
 import { ChatState, ActivitySnapshot } from "./chat/types"
-import { 
-    commitThinkingBuffer, 
-    normalizeMessage, 
-    tryParseHumanRequest 
+import {
+    commitThinkingBuffer,
+    normalizeMessage,
+    tryParseHumanRequest
 } from "./chat/helpers"
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -67,7 +67,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         if (threadId) {
             get().loadViewedChanges(threadId)
-            
+
             // Register callbacks once
             const store = get()
             ChatConnection.getInstance().setCallbacks({
@@ -347,7 +347,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set((state) => {
             const msgs = [...state.messages]
             let last = msgs[msgs.length - 1]
-            
+
             // Auto-create AI placeholder if not present or not currently streaming
             if (!last || (last.role !== "ai" && last.status !== "streaming")) {
                 const placeholder: Message = {
@@ -364,10 +364,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 last.thinking = (last.thinking || "") + text
                 last.status = "streaming"
             }
-            
-            return { 
+
+            return {
                 messages: msgs,
-                streamingThinking: (state.streamingThinking || "") + text 
+                streamingThinking: (state.streamingThinking || "") + text
             }
         })
     },
@@ -376,7 +376,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set((state) => {
             const msgs = [...state.messages]
             let last = msgs[msgs.length - 1]
-            
+
             // Auto-create AI placeholder if not present or not currently streaming
             if (!last || (last.role !== "ai" && last.status !== "streaming")) {
                 const placeholder: Message = {
@@ -396,10 +396,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 last.content = (last.content || "") + tokens
                 last.status = "streaming"
             }
-            
-            return { 
-                messages: msgs, 
-                streamingThinking: "" 
+
+            return {
+                messages: msgs,
+                streamingThinking: ""
             }
         })
     },
@@ -421,9 +421,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
             if (lastAi) lastAi.humanRequest = data
             return { humanRequest: data, status: "interrupted", messages: msgs }
         })
-        const type = req.request_type || req.type || "text_input"
-        const title = i18n.t(`chat.interrupted.${type}Title`, { defaultValue: i18n.t("chat.request.title") })
-        toast.error(title, { description: req.prompt, duration: Infinity })
     },
 
     _setActivitySnapshot: (data) => {
@@ -456,13 +453,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
     _updateStatus: (ev) => {
         const raw = ev.status || ev
         if (raw === "quota_exhausted") return set({ status: "quota_exhausted" })
-        
+
         let normalized = raw
         if (["done", "failed", "cancelled"].includes(raw)) normalized = "idle"
         else if (raw === "stopping") normalized = "stopped"
 
         const state = get()
-        const updates: Partial<ChatState> = { 
+        const updates: Partial<ChatState> = {
             status: normalized,
             activeMemories: ev.active_memories || state.activeMemories,
             agentState: ev.agent_state || state.agentState
@@ -480,22 +477,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set(updates)
     },
 
-    _setQuotaExhausted: (info) => set({ 
-        status: "quota_exhausted", 
+    _setQuotaExhausted: (info) => set({
+        status: "quota_exhausted",
         quotaExhaustedInfo: {
             title: info.title || i18n.t("chat.quotaExhausted.title"),
             message: info.message || i18n.t("chat.quotaExhausted.message"),
             hint: info.hint || i18n.t("chat.quotaExhausted.hint"),
             actionText: info.actionText || i18n.t("chat.quotaExhausted.action")
-        } 
+        }
     }),
 
     _setLLMAuthError: (ev) => {
         toast.error(ev.title || i18n.t("chat.llmAuthError", "LLM API 认证失败"), {
             description: ev.message || i18n.t("chat.llmAuthErrorDesc", "API 密钥无效或已过期"),
-            action: { 
-                label: i18n.t("chat.goToSettings", "去设置"), 
-                onClick: () => { window.location.hash = '#/settings' } 
+            action: {
+                label: i18n.t("chat.goToSettings", "去设置"),
+                onClick: () => { window.location.hash = '#/settings' }
             },
             duration: 10000,
         })
@@ -510,10 +507,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
     }),
 
-    _updateProgress: (ev) => set(state => ({ 
-        agentState: state.agentState 
-            ? { ...state.agentState, task_status: ev.message } 
-            : { mode: "PLANNING", task_name: "Agent Running", task_status: ev.message } 
+    _updateProgress: (ev) => set(state => ({
+        agentState: state.agentState
+            ? { ...state.agentState, task_status: ev.message }
+            : { mode: "PLANNING", task_name: "Agent Running", task_status: ev.message }
     })),
 
     _appendMessage: (raw) => {
@@ -538,8 +535,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
             set(state => {
                 const msgs = [...state.messages]
                 const ex = msgs[existIdx]
-                msgs[existIdx] = { 
-                    ...ex, 
+                msgs[existIdx] = {
+                    ...ex,
                     thinking: msg.thinking || ex.thinking,
                     content: (ex.status === "streaming") ? ex.content : (msg.content || ex.content),
                     status: msg.status || ex.status
@@ -560,11 +557,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (streamIdx >= 0) {
             set(state => {
                 const msgs = [...state.messages]
-                msgs[streamIdx] = { 
-                    ...msg, 
+                msgs[streamIdx] = {
+                    ...msg,
                     content: msg.content || msgs[streamIdx].content,
                     thinking: msg.thinking || msgs[streamIdx].thinking,
-                    status: msg.status || "completed" 
+                    status: msg.status || "completed"
                 }
                 return { messages: msgs }
             })
@@ -580,12 +577,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     _truncateMessages: (idx) => set(state => ({ messages: state.messages.slice(0, idx) })),
     _handleRunStart: (ev) => {
-        set({ 
-            status: "running", 
+        set({
+            status: "running",
             sessionGoal: ev.goal || get().sessionGoal,
-            streamingThinking: "", 
+            streamingThinking: "",
             _streamBuffer: "",
-            finalOutcome: null 
+            finalOutcome: null
         })
         console.log(`[ChatStore] Run started: ${ev.run_id}`)
     },
@@ -593,15 +590,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     _handleRunEnd: (ev) => {
         const state = get()
         const normalized = (ev.status === "done" || ev.status === "failed" || ev.status === "cancelled") ? "idle" : (ev.status as any || "idle")
-        
-        const updates: Partial<ChatState> = { 
+
+        const updates: Partial<ChatState> = {
             status: normalized,
             finalOutcome: ev.final_outcome || state.finalOutcome
         }
-        
+
         // Finalize any lingering streaming messages
         updates.messages = state.messages.map(m => m.status === "streaming" ? { ...m, status: "completed" } : m)
-        
+
         set(updates)
         console.log(`[ChatStore] Run ended: ${ev.run_id}, status: ${ev.status}`)
     },

@@ -10,6 +10,7 @@ import json
 from sqlalchemy import desc, func, select, update
 from sqlalchemy.orm import selectinload
 
+from app.core.engine.message.category import MessageCategory
 from app.core.engine.message.sequence import SequenceService
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Message, MessageReference
@@ -331,7 +332,11 @@ class MessageRepository:
             # 1. Query visible messages with cursor pagination
             visible_stmt = (
                 select(Message)
-                .where(Message.thread_id == self.thread_id, Message.is_visible == True)
+                .where(
+                    Message.thread_id == self.thread_id,
+                    Message.is_visible == True,
+                    Message.category != MessageCategory.HITL_REQUEST.value
+                )
                 .options(selectinload(Message.references))
                 .order_by(Message.sequence_number.desc())
                 .limit(limit + 1)
@@ -381,7 +386,11 @@ class MessageRepository:
             total_count = None
             if not before_id:
                 total_count = (await session.execute(
-                    select(func.count(Message.id)).where(Message.thread_id == self.thread_id, Message.is_visible == True)
+                    select(func.count(Message.id)).where(
+                        Message.thread_id == self.thread_id,
+                        Message.is_visible == True,
+                        Message.category != MessageCategory.HITL_REQUEST.value
+                    )
                 )).scalar()
 
             return all_messages, has_more, total_count
