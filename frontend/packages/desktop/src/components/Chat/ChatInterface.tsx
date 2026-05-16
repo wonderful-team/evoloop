@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { motion, AnimatePresence } from "framer-motion"
-import { ArrowDown, Brain } from "lucide-react"
+import { Brain } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -55,7 +54,6 @@ export function ChatInterface() {
     setThread,
     sendMessage,
     stopAgent,
-    fetchHistory,
     _truncateMessages,
     markChangeAsViewed,
     markAllChangesAsViewed,
@@ -76,7 +74,7 @@ export function ChatInterface() {
   const [sidebarActiveTab, setSidebarActiveTab] = useState<string>("chats")
   const [expandAgentChanges, setExpandAgentChanges] = useState<boolean>(false)
 
-  const projectId = currentProject?.id ?? storeProjectId
+  const projectId = (currentProject?.id ?? storeProjectId) ?? undefined
 
   // We maintain 'showContextPanel' locally as it involves UI preference
   // Global mode: hidden by default; Project mode: show by default
@@ -628,7 +626,7 @@ export function ChatInterface() {
             >
               <div 
                 ref={contentRef}
-                className="space-y-6 px-4 sm:px-6 lg:px-8 pb-1 pt-4 min-w-0"
+                className="space-y-3 px-3 sm:px-5 lg:px-6 pb-1 pt-3 min-w-0"
               >
                 <MessageList
                   messages={messages}
@@ -684,28 +682,6 @@ export function ChatInterface() {
               </div>
             </div>
 
-            {/* Scroll to Bottom Button */}
-            <AnimatePresence>
-              {isUserScrolled && (
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.5, y: 20 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.5, y: 20 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                  className="absolute bottom-4 right-4 z-10"
-                >
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="rounded-full bg-background border border-border hover:bg-muted transition-colors"
-                    onClick={() => scrollToBottom(true)}
-                  >
-                    <ArrowDown className="h-4 w-4" />
-                  </Button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
             {/* Input Area */}
             <ChatInputArea
               ref={chatInputRef}
@@ -760,7 +736,7 @@ export function ChatInterface() {
               <Input
                 id="name"
                 value={memoryName}
-                onChange={(e) => setMemoryName(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMemoryName(e.target.value)}
                 placeholder={t("chat.interface.conceptPlaceholder")}
                 className="col-span-3"
                 autoFocus

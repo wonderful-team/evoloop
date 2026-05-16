@@ -170,7 +170,7 @@ export function MessageList({
 
     return (
         <div className="min-h-0 min-w-0 relative">
-            <div className="px-4 pb-4 min-w-0">
+            <div className="px-1 pb-2 min-w-0">
                 {isLoadingHistory && (
                     <motion.div
                         initial={{ opacity: 0 }}
