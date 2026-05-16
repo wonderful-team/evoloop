@@ -232,6 +232,7 @@
       "stopAgentSuccess": "已停止",
       "thinkingProcess": "推理过程",
       "toolExecutionSteps": "工具执行步骤",
+      "executionSteps": "思考与执行过程",
       "uploadError": "上传失败",
       "uploadFile": "上传文件",
       "uploadSuccess": "文件上传成功"

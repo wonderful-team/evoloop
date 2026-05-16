@@ -232,6 +232,7 @@
       "stopAgentSuccess": "Stopped",
       "thinkingProcess": "Reasoning Process",
       "toolExecutionSteps": "Tool Execution Steps",
+      "executionSteps": "Reasoning & Execution Process",
       "uploadError": "Upload failed",
       "uploadFile": "Upload File",
       "uploadSuccess": "File uploaded successfully"
