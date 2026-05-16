@@ -19,17 +19,13 @@ class AtlasEngine:
     Handles data accumulation (ingestion from EventBus), graph persistence, 
     and retrieval for Agent Tools.
 
-    NOTE: In embedded mode, Atlas persistence is not available (no JSON backend
-    implemented yet). All store operations become no-ops.
+    NOTE: In embedded mode, Atlas persistence is available via FileGraphDriver.
     """
 
     def __init__(self, store: IAtlasStore = None):
         if settings.EMBEDDED_MODE and store is None:
-            logger.warning(
-                "[AtlasEngine] Embedded mode: Atlas persistence is disabled "
-                "(no file-based AtlasStore implemented)."
-            )
-        self.store = store or Neo4jAtlasStore()
+            logger.info("[AtlasEngine] Embedded mode enabled: Using FileGraph storage for Atlas.")
+        self.store = store or GraphAtlasStore()
 
     async def on_ui_tree_observed(self, event: Any) -> None:
         """
@@ -45,7 +41,7 @@ class AtlasEngine:
         if not bundle_id or bundle_id == "unknown" or not elements_data:
             return
 
-        # Phase 6: Check if this is a dynamic (coordinate-unstable) app
+        # 1. Check if this is a dynamic (coordinate-unstable) app
         try:
             dynamic_apps = await DynamicAppTriage.get_dynamic_apps(platform)
             is_dynamic = bundle_id in dynamic_apps
@@ -103,7 +99,7 @@ class AtlasEngine:
                 logger.debug(f"[AtlasEngine] AX Merge failed during observation: {e}")
 
         try:
-            # We use 'name' or 'bundle_id' for app_name as default
+            # Standard app mapping
             app_model = AtlasApp(
                 app_name=bundle_id,
                 bundle_id=bundle_id,
@@ -124,7 +120,7 @@ class AtlasEngine:
             app_model.add_state(state)
 
             await self.store.save_app_model(app_model)
-            logger.info(f"[AtlasEngine] Background mapped state '{window_title}' for {bundle_id} (Version: {version_hash or 'Legacy'})")
+            logger.info(f"[AtlasEngine] Background mapped state '{window_title}' for {bundle_id}")
 
         except Exception as e:
             logger.error(f"[AtlasEngine] Failed to index observed UI tree for {bundle_id}: {e}")
@@ -134,19 +130,13 @@ class AtlasEngine:
         Formats a structural summary of the app map or details of a specific state.
         """
         if state_id:
-            # Handle detailed state query
-            # We need to find the bundle_id for this state_id if not provided,
-            # but usually it's better to require bundle_id for performance if possible.
-            # For simplicity in tools, we'll try to find it.
-            if isinstance(bundle_ids, str):
-                target_bundle = bundle_ids
-            else:
-                target_bundle = bundle_ids[0] if bundle_ids else None
-
+            # For detailed state query, we need to know which app it belongs to.
+            # In AtlasEngine, state_id is usually retrieved from a bundle_id summary.
+            # We'll use the first bundle_id as context if available.
+            target_bundle = bundle_ids[0] if isinstance(bundle_ids, list) and bundle_ids else (bundle_ids if isinstance(bundle_ids, str) else None)
+            
             if not target_bundle:
-                # Fallback: list apps to find matches if needed, but Neo4j store can find by state_id
-                # Neo4jAtlasStore.get_state_detail already takes bundle_id.
-                return "Error: bundle_id is required when querying state_id."
+                return "Error: bundle_id is required to fetch state details."
 
             detail = await self.store.get_state_detail(target_bundle, state_id, platform=platform)
             if not detail:
@@ -155,15 +145,14 @@ class AtlasEngine:
             try:
                 return render_template(
                     "core/memory/atlas_detail.prompt.j2",
-                    window_title=detail.get('window_title', 'Unknown'),
-                    state_id=state_id,
                     bundle_id=target_bundle,
-                    elements=detail.get('elements', [])
+                    window_title=detail.window_title,
+                    state_id=state_id,
+                    elements=detail.elements
                 )
             except Exception as e:
                 logger.error(f"Failed to render Atlas detail template: {e}")
-                # Minimal fallback
-                return f"UI State Detail: {detail.get('window_title')} (ID: {state_id})"
+                return f"UI State Detail: {detail.window_title} (ID: {state_id})"
 
         if not bundle_ids:
             return "Please provide bundle_id(s) or a state_id."
@@ -200,7 +189,8 @@ class AtlasEngine:
             transitions = await self.store.get_transitions_summary(bundle_id, platform=platform)
 
             output = [
-                f"App UI Atlas: {summary['app_name']} ({bundle_id})",
+                f"App UI Atlas: {summary.app_name} ({bundle_id})",
+                f"**Known States ({summary.state_count})**:",
             ]
 
             if is_stale:
@@ -253,7 +243,7 @@ class AtlasEngine:
 
         output = ["App Atlas Directory", "The following applications have structural UI maps available:"]
         for app in apps:
-            output.append(f"- **{app['app_name']}** (Bundle ID: `{app['bundle_id']}`, Platform: {app['platform']})")
+            output.append(f"- **{app.app_name}** (Bundle ID: `{app.bundle_id}`, Platform: {app.platform})")
 
         output.append("\n💡 You can use `query_app_atlas(bundle_id)` to retrieve detailed maps for any of these.")
         return "\n".join(output)
@@ -268,7 +258,6 @@ class AtlasEngine:
     def _generate_state_id(self, bundle_id: str, window_title: str) -> str:
         """Generates a stable semantic ID for a UI state."""
         h = compute_state_id(bundle_id, window_title, length=8)
-        # Clean title for readability
         clean_title = "".join(c for c in window_title if c.isalnum()).lower()[:20]
         return f"{clean_title}_{h}"
 
@@ -280,19 +269,14 @@ class AtlasEngine:
         window_title: str
     ) -> None:
         """
-        Save or update strategy for a dynamic app.
-        Extracts infrastructure elements and creates default strategies.
+        Updates the interaction strategy for a dynamic app based on its infrastructure.
         """
         try:
-            # Get existing strategy or create new
-            strategy = await AtlasStrategyStore.get_strategy(bundle_id)
+            strategy = await AtlasStrategyStore.get_strategy(bundle_id, platform)
             if not strategy:
-                strategy = AppStrategy(
-                    bundle_id=bundle_id,
-                    platform=platform,
-                )
+                strategy = AppStrategy(bundle_id=bundle_id, platform=platform)
 
-            # Update infrastructure from current observation
+            # Update infrastructure elements (labels/roles only, no coords)
             infra_list = []
             for elem in infrastructure:
                 infra_list.append({
