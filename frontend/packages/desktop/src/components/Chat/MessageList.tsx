@@ -121,31 +121,54 @@ export function MessageList({
         flushAiGroup()
 
         // Turn-level pass: For each turn, find the last AI item and attach its content to the turn's first AI item as effective_content. Also mark the last AI item in turn.
+        const getItemTimestamp = (itm: any): string | undefined => {
+            if (!itm) return undefined
+            if (itm.data?.timestamp) return itm.data.timestamp
+            if (itm.data?.steps?.[0]?.timestamp) return itm.data.steps[0].timestamp
+            return undefined
+        }
+
+        let turnStartIndex = 0
         let turnFirstAiIndex = -1
         let turnLastAiIndex = -1
         let lastAiContentInTurn = ""
+
+        const closeTurn = () => {
+            if (turnFirstAiIndex !== -1 && lastAiContentInTurn) {
+                (items[turnFirstAiIndex].data as any).effective_content = lastAiContentInTurn
+            }
+            if (turnLastAiIndex !== -1) {
+                const lastAiItem = items[turnLastAiIndex]
+                ;(lastAiItem.data as any).isLastInTurn = true
+
+                // Calculate turn duration
+                const firstItem = items[turnStartIndex]
+                const firstTs = getItemTimestamp(firstItem)
+                const lastTs = getItemTimestamp(lastAiItem)
+                if (firstTs && lastTs) {
+                    const startMs = new Date(firstTs).getTime()
+                    const endMs = new Date(lastTs).getTime()
+                    if (!isNaN(startMs) && !isNaN(endMs) && endMs >= startMs) {
+                        const diffSec = (endMs - startMs) / 1000
+                        ;(lastAiItem.data as any).turnDuration = diffSec >= 1 ? `${diffSec.toFixed(1)}s` : `${Math.round((endMs - startMs))}ms`
+                    }
+                }
+            }
+        }
 
         for (let i = 0; i < items.length; i++) {
             const item = items[i]
             if (item.type === "message") {
                 if (item.data.role === "human") {
-                    if (turnFirstAiIndex !== -1 && lastAiContentInTurn) {
-                        (items[turnFirstAiIndex].data as any).effective_content = lastAiContentInTurn
-                    }
-                    if (turnLastAiIndex !== -1) {
-                        (items[turnLastAiIndex].data as any).isLastInTurn = true
-                    }
+                    closeTurn()
+                    turnStartIndex = i
                     turnFirstAiIndex = -1
                     turnLastAiIndex = -1
                     lastAiContentInTurn = ""
                 } else if (item.data.role === "ai") {
                     if ((item.data as any).isFirstInTurn) {
-                        if (turnFirstAiIndex !== -1 && lastAiContentInTurn) {
-                            (items[turnFirstAiIndex].data as any).effective_content = lastAiContentInTurn
-                        }
-                        if (turnLastAiIndex !== -1) {
-                            (items[turnLastAiIndex].data as any).isLastInTurn = true
-                        }
+                        closeTurn()
+                        turnStartIndex = i
                         turnFirstAiIndex = i
                         turnLastAiIndex = i
                         lastAiContentInTurn = item.data.content || ""
@@ -158,12 +181,7 @@ export function MessageList({
                 }
             }
         }
-        if (turnFirstAiIndex !== -1 && lastAiContentInTurn) {
-            (items[turnFirstAiIndex].data as any).effective_content = lastAiContentInTurn
-        }
-        if (turnLastAiIndex !== -1) {
-            (items[turnLastAiIndex].data as any).isLastInTurn = true
-        }
+        closeTurn()
 
         return items
     }, [messages])

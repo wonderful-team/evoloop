@@ -53,6 +53,28 @@ export interface Message {
   has_file_operations?: boolean
   references?: any[]
   effective_content?: string
+  turnDuration?: string
+}
+
+const formatSmartTimestamp = (timestamp?: string) => {
+  if (!timestamp) return ""
+  const date = new Date(timestamp)
+  if (isNaN(date.getTime())) return ""
+
+  const now = new Date()
+  const isToday =
+    date.getDate() === now.getDate() &&
+    date.getMonth() === now.getMonth() &&
+    date.getFullYear() === now.getFullYear()
+
+  const timeStr = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+
+  if (isToday) {
+    return timeStr
+  } else {
+    const dateStr = date.toLocaleDateString([], { month: "short", day: "numeric" })
+    return `${dateStr} ${timeStr}`
+  }
 }
 
 interface ChatMessageItemProps {
@@ -194,7 +216,10 @@ const ChatMessageItem = memo(
         {/* Footer Action & Timestamp (Only show timestamp and action buttons for the last AI message in turn) */}
         {msg.isLastInTurn && (
           <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-border/15 text-[11px] text-muted-foreground/40 font-mono">
-            <span>{msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}</span>
+            <span className="flex items-center gap-1.5 font-mono">
+              <span>{formatSmartTimestamp(msg.timestamp)}</span>
+              {msg.turnDuration && <span className="opacity-60 text-[10px]">({msg.turnDuration})</span>}
+            </span>
 
             <div className="flex items-center gap-0.5 text-muted-foreground/60">
               {actionContent && <TTSButton text={actionContent} size="sm" className="h-6 w-6 rounded hover:bg-muted/60 hover:text-foreground text-muted-foreground/70 transition-colors" />}
@@ -238,6 +263,7 @@ const ChatMessageItem = memo(
       prevProps.msg.id === nextProps.msg.id &&
       prevProps.msg.content === nextProps.msg.content &&
       prevProps.msg.effective_content === nextProps.msg.effective_content &&
+      prevProps.msg.turnDuration === nextProps.msg.turnDuration &&
       prevProps.msg.isLastInTurn === nextProps.msg.isLastInTurn &&
       prevProps.msg.thinking === nextProps.msg.thinking &&
       prevProps.msg.status === nextProps.msg.status &&
