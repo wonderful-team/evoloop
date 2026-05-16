@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { Loader2, Layers, ChevronRight } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
@@ -24,7 +24,7 @@ interface MessageListProps {
 
 type RenderItem =
     | { type: "message"; data: Message & { showDate?: boolean } }
-    | { type: "turn_steps_group"; id: string; steps: (Message & { showDate?: boolean })[] }
+    | { type: "turn_steps_group"; id: string; steps: (Message & { showDate?: boolean })[]; isTurnActive: boolean }
     | { type: "tool_group"; data: { steps: Message[]; showDate?: boolean; id: string } }
 
 /** Merge multiple AI messages from the same turn into a single message. */
@@ -53,6 +53,7 @@ function mergeAiMessages(msgs: Message[]): Message | null {
 
 function TurnStepsGroupView({
     steps,
+    isTurnActive,
     onAddToMemory,
     onRewind,
     onRetry,
@@ -60,6 +61,7 @@ function TurnStepsGroupView({
     onViewChangeset,
 }: {
     steps: (Message & { showDate?: boolean })[]
+    isTurnActive?: boolean
     onAddToMemory?: (text: string) => void
     onRewind?: (msg: Message) => void
     onRetry?: (msg: Message) => void
@@ -67,7 +69,11 @@ function TurnStepsGroupView({
     onViewChangeset?: (messageId: string | number, path?: string) => void
 }) {
     const { t } = useTranslation()
-    const [isOpen, setIsOpen] = useState(true)
+    const [isOpen, setIsOpen] = useState(!!isTurnActive)
+
+    useEffect(() => {
+        setIsOpen(!!isTurnActive)
+    }, [isTurnActive])
 
     return (
         <Collapsible
@@ -88,7 +94,7 @@ function TurnStepsGroupView({
                     <ChevronRight className="w-3.5 h-3.5 transition-transform duration-200 group-data-[state=open]:rotate-90 text-muted-foreground/50 ml-0.5" />
                 </Button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="pl-1 py-1 ml-3 my-1 border-l-2 border-border/40 space-y-1">
+            <CollapsibleContent className="pl-1 py-1 ml-3 my-1 border-l-1 border-border/40 space-y-1">
                 {steps.map((stepMsg) => (
                     <SmartChatMessageItem
                         key={stepMsg.id}
@@ -240,7 +246,7 @@ export function MessageList({
         }
         closeTurn()
 
-        // 步骤 3: 归纳步骤折叠组 (turn_steps_group)，并将最后一条消息中的 thinking 提取到步骤组内部
+        // 步骤 3: 归纳步骤折叠组 (turn_steps_group)，支持 SSE 实时运行态与完结态的折叠切换
         const groupedItems: RenderItem[] = []
         let currentTurnSteps: any[] = []
 
@@ -252,12 +258,15 @@ export function MessageList({
                         type: "turn_steps_group",
                         id: `steps_group_before_${item.data.id}`,
                         steps: currentTurnSteps,
+                        isTurnActive: false,
                     })
                     currentTurnSteps = []
                 }
                 groupedItems.push(item)
             } else {
                 if (item.data.isLastInTurn) {
+                    const isStreaming = item.data.status === "streaming" || item.data.status === "running" || item.data.status === "pending"
+
                     if (item.data.thinking) {
                         currentTurnSteps.push({
                             id: `${item.data.id}_thinking`,
@@ -273,6 +282,7 @@ export function MessageList({
                             type: "turn_steps_group",
                             id: `steps_group_${item.data.id}`,
                             steps: currentTurnSteps,
+                            isTurnActive: isStreaming,
                         })
                         currentTurnSteps = []
                     }
@@ -295,6 +305,7 @@ export function MessageList({
                 type: "turn_steps_group",
                 id: `steps_group_tail_${currentTurnSteps[0].id}`,
                 steps: currentTurnSteps,
+                isTurnActive: true,
             })
         }
 
@@ -357,6 +368,7 @@ export function MessageList({
                                 >
                                     <TurnStepsGroupView
                                         steps={item.steps}
+                                        isTurnActive={item.isTurnActive}
                                         onAddToMemory={onAddToMemory}
                                         onRewind={onRewind}
                                         onRetry={onRetry}

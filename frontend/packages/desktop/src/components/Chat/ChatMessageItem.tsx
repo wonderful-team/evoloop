@@ -181,7 +181,7 @@ const ChatMessageItem = memo(
                 <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90 text-muted-foreground/50" />
               </Button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="mt-1.5 pl-3 py-1.5 border-l-2 border-border/60 text-[12px] text-muted-foreground/80 leading-relaxed font-mono">
+            <CollapsibleContent className="mt-1.5 pl-3 py-1.5 border-l-1 border-border/60 text-[12px] text-muted-foreground/80 leading-relaxed font-mono">
               <MessageContent content={typeof msg.thinking === 'string' ? msg.thinking : JSON.stringify(msg.thinking, null, 2)} />
             </CollapsibleContent>
           </Collapsible>
