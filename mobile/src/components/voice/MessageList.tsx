@@ -14,7 +14,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { ChatMessage } from '@/types/conversation';
 import { useTheme } from '@/theme';
 import { useTranslation } from 'react-i18next';
-import { MessageContent, ChangesetSnapshot } from '@/components/chat';
+import { MessageContent, ChangesetSnapshot, MessageQuote, MessageAttachments } from '@/components/chat';
 import { useConversationStore } from '@/stores/conversationStore';
 
 import { shareChatMessage } from '@/utils/share';
@@ -200,7 +200,24 @@ const MessageItem = React.memo(function MessageItem({
                 </View>
               )}
 
+              {/* 引用消息 */}
+              {message.references && message.references.length > 0 && (
+                <View style={styles.referencesContainer}>
+                  {message.references.map((ref: any, idx: number) => (
+                    <MessageQuote key={idx} reference={ref} />
+                  ))}
+                </View>
+              )}
+
               <MessageContent content={message.content} isUser={isUser} />
+
+              {/* 附件/文件 */}
+              {message.attachments && message.attachments.length > 0 && (
+                <MessageAttachments 
+                  attachments={message.attachments} 
+                  isUser={isUser} 
+                />
+              )}
 
               {/* 文件变更快照 (Changeset Snapshot) */}
               {!isUser && (message.changeset_count ?? 0) > 0 && (
@@ -449,6 +466,9 @@ const styles = StyleSheet.create({
   },
   messageBody: {
     zIndex: 1,
+  },
+  referencesContainer: {
+    marginBottom: 8,
   },
   divider: {
     marginHorizontal: 12,

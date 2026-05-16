@@ -321,6 +321,97 @@ export const debugManager = {
         timestamp: now - 120000,
         status: 'streaming',
         isComplete: false,
+      },
+
+      // 10. 引用与多文件上传测试 (用户)
+      {
+        id: 'mock-human-complex',
+        role: 'human',
+        content: '我已经参考了你之前提到的那个架构图，并上传了最新的接口文档和实现代码，请帮我审核一下。',
+        timestamp: now - 100000,
+        status: 'completed',
+        isComplete: true,
+        // 引用之前的一条消息
+        references: [
+          {
+            type: 'message',
+            id: 'mock-mermaid-seq',
+            name: 'Mermaid 序列图测试',
+            detail: 'sequenceDiagram\n    participant U as 用户\n    participant A as AI 助手...'
+          }
+        ],
+        // 上传多个文件
+        attachments: [
+          {
+            id: 'att-file-1',
+            type: 'file',
+            name: 'API_V2_Draft.pdf',
+            url: 'https://example.com/files/api_v2.pdf',
+          },
+          {
+            id: 'att-file-2',
+            type: 'file',
+            name: 'auth_handler.go',
+            url: 'https://example.com/files/auth_handler.go',
+          }
+        ]
+      },
+
+      // 11. AI 回复包含文件导出
+      {
+        id: 'mock-ai-with-file',
+        role: 'ai',
+        content: '代码逻辑已经审查完毕。我为你生成了一份优化建议报告，以及一个修复后的代码补丁文件，你可以下载查看。',
+        thinking: '用户上传了 PDF 和 Go 代码。我分析了 auth_handler.go 中的 race condition，并准备了修复方案。',
+        timestamp: now - 90000,
+        status: 'completed',
+        isComplete: true,
+        attachments: [
+          {
+            id: 'ai-export-1',
+            type: 'file',
+            name: 'Optimization_Report.md',
+            url: 'https://example.com/export/report.md',
+          },
+          {
+            id: 'ai-export-2',
+            type: 'file',
+            name: 'fix_patch.zip',
+            url: 'https://example.com/export/patch.zip',
+          }
+        ]
+      },
+
+      // 12. 混合媒体测试
+      {
+        id: 'mock-human-media',
+        role: 'human',
+        content: '这是现场的报错截图，还有我引用的那个模块配置。',
+        timestamp: now - 80000,
+        status: 'completed',
+        isComplete: true,
+        attachments: [
+          {
+            id: 'img-1',
+            type: 'image',
+            name: 'crash_log.png',
+            url: 'https://placehold.co/800x600/000000/FFFFFF/png?text=Crash+Log',
+          },
+          {
+            id: 'ref-1',
+            type: 'file',
+            name: 'config.json',
+            url: 'https://example.com/config.json',
+          }
+        ],
+        references: [
+          {
+            type: 'file',
+            id: 'f-ref-99',
+            name: 'MessageContent.tsx',
+            detail: '核心渲染逻辑组件'
+          }
+        ]
       }
     ];
 
