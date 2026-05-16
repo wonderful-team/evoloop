@@ -20,6 +20,7 @@ class LocalEmbedder(BaseEmbedder):
         self.device = device
         self._model = None
         self._lock = asyncio.Lock()
+        self._encode_lock = asyncio.Lock()
         
         # Determine if we need Nomic-style prefixes
         self._is_nomic = "nomic" in model_name.lower()
@@ -51,7 +52,8 @@ class LocalEmbedder(BaseEmbedder):
             
         model = await self._get_model()
         logger.debug(f"[LocalEmbedder] Embedding {len(documents)} documents...")
-        embeddings = await asyncio.to_thread(lambda: model.encode(processed_docs, convert_to_numpy=True))
+        async with self._encode_lock:
+            embeddings = await asyncio.to_thread(lambda: model.encode(processed_docs, convert_to_numpy=True))
         return embeddings.tolist()
 
     async def embed_query(self, query: str) -> list[float]:
@@ -65,7 +67,8 @@ class LocalEmbedder(BaseEmbedder):
             
         model = await self._get_model()
         logger.debug(f"[LocalEmbedder] Embedding query: {query[:50]}...")
-        embedding = await asyncio.to_thread(lambda: model.encode(processed_query, convert_to_numpy=True))
+        async with self._encode_lock:
+            embedding = await asyncio.to_thread(lambda: model.encode(processed_query, convert_to_numpy=True))
         return embedding.tolist()
 
     # LangChain-compatible aliases
