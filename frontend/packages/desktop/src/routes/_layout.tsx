@@ -56,9 +56,9 @@ function Layout() {
 
       <SidebarProvider defaultOpen={false} className={isFullWidth ? "h-svh overflow-hidden" : ""}>
         <AppSidebar />
-        <SidebarInset>
-          <main className={`flex-1 ${isFullWidth ? "overflow-hidden" : "p-6 md:p-8"}`}>
-            <div className={isFullWidth ? "h-full w-full" : "mx-auto max-w-7xl"}>
+        <SidebarInset className="min-w-0 overflow-hidden">
+          <main className={`flex-1 min-w-0 ${isFullWidth ? "overflow-hidden" : "p-6 md:p-8"}`}>
+            <div className={isFullWidth ? "h-full w-full min-w-0 overflow-hidden" : "mx-auto max-w-7xl min-w-0"}>
               <Outlet />
             </div>
           </main>

@@ -16,6 +16,12 @@ import {
   ResizablePanelGroup,
 } from "@evoloop/shared/components/ui/resizable"
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@evoloop/shared/components/ui/sheet"
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -89,6 +95,29 @@ export function ChatInterface() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const chatInputRef = useRef<ChatInputAreaHandle | null>(null)
+
+  // Compact window detection (< 1024px, matching lg breakpoint of left sidebar)
+  const [isCompactWindow, setIsCompactWindow] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.innerWidth < 1024
+    }
+    return false
+  })
+
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 1023px)")
+    const onChange = () => setIsCompactWindow(mql.matches)
+    mql.addEventListener("change", onChange)
+    setIsCompactWindow(mql.matches)
+    return () => mql.removeEventListener("change", onChange)
+  }, [])
+
+  // Auto-close context panel when entering compact mode
+  useEffect(() => {
+    if (isCompactWindow) {
+      setShowContextPanel(false)
+    }
+  }, [isCompactWindow])
 
   // Smart Scroll State
   const [isUserScrolled, setIsUserScrolled] = useState(false)
@@ -561,14 +590,14 @@ export function ChatInterface() {
   }, [status, activeThreadId, handleStopThread])
 
   return (
-    <div className="flex flex-col h-full relative bg-background overflow-hidden">
-      <ResizablePanelGroup direction="horizontal" className="h-full w-full">
+    <div className="flex flex-col h-full w-full min-w-0 relative bg-background overflow-hidden">
+      <ResizablePanelGroup direction="horizontal" className="h-full w-full min-w-0 overflow-hidden">
         {/* Left Sidebar Panel */}
         <ResizablePanel
           defaultSize={16}
           minSize={15}
           maxSize={40}
-          className="hidden lg:block min-w-[100px]"
+          className="hidden lg:block min-w-[100px] overflow-hidden"
         >
           <ChatSidebar
             threads={threads.map(t => ({
@@ -596,12 +625,12 @@ export function ChatInterface() {
         <ResizableHandle withHandle />
 
         {/* Center Chat Panel */}
-        <ResizablePanel defaultSize={showContextPanel ? 64 : 84} minSize={20} className="min-w-0">
-          <div className="flex flex-col h-full relative min-h-0 min-w-0">
+        <ResizablePanel defaultSize={showContextPanel ? 64 : 84} minSize={20} className="min-w-0 overflow-hidden">
+          <div className="flex flex-col h-full relative min-h-0 min-w-0 w-full overflow-hidden">
             {/* Top Right Controls */}
             <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
               {/* Toggle Context Panel Button */}
-              {!showContextPanel && (
+              {(!showContextPanel || isCompactWindow) && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -619,15 +648,12 @@ export function ChatInterface() {
             <QuotaExhaustedBanner />
 
             <div
-              className="flex-1 overflow-y-auto min-h-0 min-w-0 scroll-smooth"
+              className="flex-1 overflow-y-auto min-h-0 min-w-0 w-full scroll-smooth"
               ref={scrollRef}
               onScroll={handleScroll}
               data-tour="chat-messages"
             >
-              <div 
-                ref={contentRef}
-                className="space-y-3 px-3 sm:px-5 lg:px-6 pb-1 pt-3 min-w-0"
-              >
+              <div ref={contentRef} className="space-y-3 px-3 sm:px-5 lg:px-6 pb-1 pt-3 min-w-0 w-full">
                 <MessageList
                   messages={messages}
                   hasMoreHistory={hasMoreHistory}
@@ -694,21 +720,20 @@ export function ChatInterface() {
               activeThreadId={activeThreadId || undefined}
               disabled={status === "interrupted"}
               isGlobalMode={isGlobalMode}
-
             />
           </div>
         </ResizablePanel>
 
-        {showContextPanel && (
+        {!isCompactWindow && showContextPanel && (
           <>
             <ResizableHandle withHandle />
             <ResizablePanel
               defaultSize={20}
               minSize={15}
               maxSize={40}
-              className="min-w-[200px]"
+              className="min-w-0 overflow-hidden"
             >
-              <div data-tour="chat-context" className="h-full">
+              <div data-tour="chat-context" className="h-full w-full min-w-0 overflow-hidden flex flex-col">
                 <ContextPanel
                   projectId={currentProject?.id}
                   activeThreadId={activeThreadId || ""}
@@ -721,6 +746,24 @@ export function ChatInterface() {
           </>
         )}
       </ResizablePanelGroup>
+
+      {/* Compact Window Context Sheet */}
+      {isCompactWindow && (
+        <Sheet open={showContextPanel} onOpenChange={setShowContextPanel}>
+          <SheetContent side="right" className="w-[320px] sm:w-[400px] max-w-[85vw] p-0 border-l bg-background [&>button]:hidden shadow-2xl flex flex-col min-w-0 overflow-hidden">
+            <SheetHeader className="sr-only">
+              <SheetTitle>{t("chat.context.title", { defaultValue: "Agent 工作台" })}</SheetTitle>
+            </SheetHeader>
+            <ContextPanel
+              projectId={currentProject?.id}
+              activeThreadId={activeThreadId || ""}
+              autoSwitchToTab={undefined}
+              onClose={handleCloseContextPanel}
+              isGlobalMode={isGlobalMode}
+            />
+          </SheetContent>
+        </Sheet>
+      )}
 
       {/* Memory Dialog */}
       <Dialog open={isMemoryDialogOpen} onOpenChange={setIsMemoryDialogOpen}>

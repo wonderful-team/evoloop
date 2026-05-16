@@ -2,7 +2,6 @@ import {
   Activity,
   Brain,
   Database,
-  Globe,
   LayoutDashboard,
   Loader2,
   X,
@@ -28,7 +27,7 @@ interface ContextPanelProps {
  * Two tabs: Activity (runtime) and Context (project assets).
  */
 export const ContextPanel = memo(
-  ({ projectId, activeThreadId, autoSwitchToTab, onClose, isGlobalMode }: ContextPanelProps) => {
+  ({ projectId, activeThreadId, autoSwitchToTab, onClose }: ContextPanelProps) => {
     const { t } = useTranslation()
     const [activeTab, setActiveTab] = useState("activity")
 
@@ -68,19 +67,19 @@ export const ContextPanel = memo(
     }
 
     return (
-      <div className="flex flex-col h-full bg-background">
+      <div className="flex flex-col h-full w-full bg-background min-w-0 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-3 border-b h-14 shrink-0">
-          <span className="font-semibold text-sm flex items-center gap-2">
+        <div className="flex items-center justify-between p-3 border-b h-14 shrink-0 w-full overflow-hidden">
+          <span className="font-semibold text-sm flex items-center gap-2 truncate min-w-0">
             {isAgentActive ? (
-              <Loader2 className="h-4 w-4 text-primary animate-spin" />
+              <Loader2 className="h-4 w-4 text-primary animate-spin shrink-0" />
             ) : (
-              <LayoutDashboard className="h-4 w-4 text-muted-foreground" />
+              <LayoutDashboard className="h-4 w-4 text-muted-foreground shrink-0" />
             )}
-            {t("chat.context.title")}
+            <span className="truncate">{t("chat.context.title")}</span>
           </span>
           {onClose && (
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 ml-2" onClick={onClose}>
               <X className="h-4 w-4" />
             </Button>
           )}
@@ -90,27 +89,27 @@ export const ContextPanel = memo(
         <Tabs
           value={activeTab}
           onValueChange={setActiveTab}
-          className="flex-1 flex flex-col min-h-0"
+          className="flex-1 flex flex-col min-h-0 min-w-0 w-full overflow-hidden"
         >
-          <div className="p-2 border-b bg-muted/10 shrink-0">
+          <div className="p-2 border-b bg-muted/10 shrink-0 w-full">
             <TabsList className="w-full grid grid-cols-2">
-              <TabsTrigger value="activity" className="text-xs">
-                <Activity className="h-3.5 w-3.5 mr-1.5" />
-                {t("chat.context.tabActivity")}
+              <TabsTrigger value="activity" className="text-xs truncate">
+                <Activity className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                <span className="truncate">{t("chat.context.tabActivity")}</span>
               </TabsTrigger>
-              <TabsTrigger value="context" className="text-xs">
-                <Database className="h-3.5 w-3.5 mr-1.5" />
-                {t("chat.context.groupContext")}
+              <TabsTrigger value="context" className="text-xs truncate">
+                <Database className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                <span className="truncate">{t("chat.context.groupContext")}</span>
               </TabsTrigger>
             </TabsList>
           </div>
 
-          <div className="flex-1 overflow-hidden relative">
-            <TabsContent value="activity" className="h-full m-0 data-[state=inactive]:hidden">
+          <div className="flex-1 overflow-hidden relative min-w-0 w-full flex flex-col">
+            <TabsContent value="activity" className="h-full w-full min-w-0 m-0 data-[state=inactive]:hidden overflow-hidden flex flex-col">
               <ActivityTab activeThreadId={activeThreadId} />
             </TabsContent>
 
-            <TabsContent value="context" className="h-full m-0 data-[state=inactive]:hidden">
+            <TabsContent value="context" className="h-full w-full min-w-0 m-0 data-[state=inactive]:hidden overflow-hidden flex flex-col">
               <ContextGroupTab projectId={projectId} />
             </TabsContent>
           </div>

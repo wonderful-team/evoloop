@@ -47,19 +47,19 @@ export const ChatSidebar = memo(
 
     return (
       <div
-        className="flex flex-col h-full bg-muted/5"
+        className="flex flex-col h-full w-full min-w-0 bg-muted/5 overflow-hidden"
         data-tour="chat-sidebar"
       >
-        <div className="p-2 border-b bg-background shrink-0">
+        <div className="p-2 border-b bg-background shrink-0 w-full min-w-0 overflow-hidden">
           <ProjectSwitcher />
         </div>
 
         <Tabs 
           value={activeTab || "chats"} 
           onValueChange={onTabChange}
-          className="flex flex-col flex-1 min-h-0"
+          className="flex flex-col flex-1 min-h-0 min-w-0 w-full overflow-hidden"
         >
-          <div className="p-2 border-b bg-muted/10 shrink-0">
+          <div className="p-2 border-b bg-muted/10 shrink-0 w-full">
             <TabsList className="w-full grid grid-cols-2">
               <TabsTrigger value="chats">
                 {t("chat.sidebar.tabChats")}
