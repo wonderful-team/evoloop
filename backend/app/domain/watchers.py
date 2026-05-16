@@ -23,13 +23,13 @@ logger = logging.getLogger(__name__)
 
 # --- Global Observer Manager ---
 
-
 class GlobalObserverManager:
     """
     Singleton to manage a single Watchdog Observer instance for the entire application.
     This prevents resource exhaustion and conflict issues on macOS (FSEvents).
     """
 
+    _started = False
     _instance = None
     _lock = RLock()
 
@@ -51,7 +51,6 @@ class GlobalObserverManager:
                 try:
                     self._observer.start()
                     self._started = True
-                    logger.info("Global Watchdog Observer started.")
                 except Exception as e:
                     logger.error(f"Failed to start Global Observer: {e}")
 
@@ -84,7 +83,6 @@ class GlobalObserverManager:
                 # Schedule via watchdog
                 watch = self._observer.schedule(event_handler, path, recursive=recursive)
                 self._watches[path] = watch
-                logger.debug(f"Scheduled watch on: {path}")
             except RuntimeError as re:
                 if "already scheduled" in str(re):
                     logger.warning(f"Watch already scheduled for {path}. Skipping/Ignoring.")
@@ -101,7 +99,6 @@ class GlobalObserverManager:
                 try:
                     self._observer.unschedule(watch)
                     del self._watches[path]
-                    logger.debug(f"Unscheduled watch on: {path}")
                 except Exception as e:
                     logger.error(f"Error unscheduling watch for {path}: {e}")
 
@@ -111,7 +108,6 @@ observer_manager = GlobalObserverManager()
 
 
 # --- Reuse Handlers ---
-
 
 class IndexingEventSubscriber(FileSystemEventHandler):
     """

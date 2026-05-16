@@ -242,10 +242,13 @@ async def _perform_vector_search(
     """
     # Get embedder
     embedder = EmbedderFactory.get_embedder()
-    
+    if embedder is None:
+        logger.warning("Semantic search unavailable: no embedding provider configured.")
+        return []
+
     # Generate query embedding
     query_embedding = await embedder.aembed_query(query)
-    
+
     # Get vector store
     vector_store = get_vector_store()
     

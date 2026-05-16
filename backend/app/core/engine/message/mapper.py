@@ -46,30 +46,51 @@ class BlockMapper:
     def from_db(msg) -> MessageBlock:
         """数据库 Message ORM → MessageBlock"""
         from app.models import Message as DBMessage
+        from app.core.engine.message.schemas import ReferenceBlock
 
         if not isinstance(msg, DBMessage):
             raise TypeError(f"Expected DB Message, got {type(msg)}")
 
-        # Serialize references from ORM relationship
-        references = None
-        if msg.references:
-            references = [
-                {
-                    "id": ref.id,
-                    "type": ref.type,
-                    "target_id": ref.target_id,
-                    "target_name": ref.target_name,
-                    "metadata": ref.meta_data,
-                }
-                for ref in msg.references
-            ]
+        # 1. 处理引用（标准化 ReferenceBlock）
+        references: list[ReferenceBlock] = []
+        attachments: list[dict[str, Any]] = []
+        
+        # 变更集相关顶层字段
+        has_file_ops = False
+        changeset_count = 0
+        changeset_files = []
 
-        # Validate and normalize tool calls
+        if msg.references:
+            for ref in msg.references:
+                ref_block = ReferenceBlock(
+                    id=ref.id,
+                    type=ref.type,  # type: ignore
+                    target_id=ref.target_id,
+                    target_name=ref.target_name,
+                    meta_data=ref.meta_data or {},
+                )
+                references.append(ref_block)
+                
+                # 为 Mobile 准备 attachments 字典列表
+                attachments.append(ref_block.model_dump())
+
+                # 提取 changeset 数据到顶层
+                if ref.type == "changeset":
+                    has_file_ops = True
+                    changeset_files = ref.meta_data.get("files", [])
+                    changeset_count = ref.meta_data.get("count", len(changeset_files))
+
+        # 2. 校验并归一化工具调用
         validated_tool_calls = None
         if msg.tool_calls:
             validated_tool_calls = []
             for tc in normalize_tool_calls(msg.tool_calls):
                 validated_tool_calls.append(ToolCall(**tc))
+
+        # 3. 提取工具元数据
+        tool_meta = None
+        if msg.meta_data and "tool_meta" in msg.meta_data:
+            tool_meta = msg.meta_data["tool_meta"]
 
         return MessageBlock(
             id=f"msg-{msg.thread_id}-{msg.sequence_number}",
@@ -81,17 +102,22 @@ class BlockMapper:
             content=msg.content or "",
             thinking=msg.thinking,
             tool_calls=validated_tool_calls,
+            tool_name=msg.tool_name,
+            tool_call_id=msg.tool_call_id,
+            tool_meta=tool_meta,
+            references=references,
+            attachments=attachments,
+            has_file_operations=has_file_ops,
+            changeset_count=changeset_count,
+            changeset_files=changeset_files,
             status=msg.status or "completed",  # type: ignore[arg-type]
+            is_complete=msg.status == "completed",
             is_visible=msg.is_visible,
             created_at=_format_iso(msg.created_at),
             sequence_number=msg.sequence_number or 0,
             parent_id=str(msg.parent_id) if msg.parent_id else None,
             checkpoint_id=msg.checkpoint_id,
-            references=references,
-            meta_data={
-                "tool_call_id": msg.tool_call_id,
-                "tool_name": msg.tool_name,
-            },
+            meta_data=msg.meta_data or {},
         )
 
     @staticmethod
@@ -267,6 +293,14 @@ class BlockMapper:
 
         # Mobile 兼容：is_visible bool → int
         data["is_visible"] = 1 if msg.is_visible else 0
+
+        # Mobile 兼容：确保 attachments 存在（由 references 填充）
+        if not data.get("attachments") and msg.references:
+            data["attachments"] = [ref.model_dump() for ref in msg.references]
+
+        # 节省带宽：Mobile 不需要 thinking 过程和原始元数据
+        data.pop("thinking", None)
+        data.pop("meta_data", None)
 
         return data
 

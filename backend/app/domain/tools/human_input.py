@@ -35,7 +35,7 @@ class HumanInputRequest(BaseModel):
 
     id: str
     thread_id: str
-    request_type: Literal["text", "choice", "confirmation", "approval"]
+    request_type: Literal["text", "choice", "confirmation", "approval", "project_switch", "file_select"]
     prompt: str
     options: list[str] | None = None
     context: str | None = None
@@ -159,7 +159,7 @@ async def cancel_request(request_id: str) -> bool:
 )
 async def ask_human(
     prompt: str,
-    input_type: Literal["text", "choice", "confirmation"] = "text",
+    input_type: Literal["text", "choice", "confirmation", "approval", "project_switch", "file_select"] = "text",
     options: list[str] | None = None,
     context: str | None = None,
     default_value: str | None = None,
@@ -193,8 +193,11 @@ async def ask_human(
     # Map internal type to standardized HumanRequestType
     type_map = {
         "text": HumanRequestType.TEXT_INPUT,
-        "choice": HumanRequestType.TEXT_INPUT,  # Frontend handles choice via options in text_input/custom
+        "choice": HumanRequestType.CHOICE,
         "confirmation": HumanRequestType.CONFIRM,
+        "approval": HumanRequestType.APPROVAL,
+        "project_switch": HumanRequestType.PROJECT_SWITCH,
+        "file_select": HumanRequestType.FILE_SELECT,
     }
     request_type = type_map.get(input_type, HumanRequestType.TEXT_INPUT)
 

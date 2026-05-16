@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react"
-import { motion, AnimatePresence } from "framer-motion"
 import {
   BrainCircuit,
   CheckCircle2,
@@ -80,7 +79,7 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
       return PlanningService.getPlan({ threadId: activeThreadId })
     },
     enabled: !!activeThreadId,
-    refetchInterval: 3000,
+    refetchInterval: isAgentActive ? 3000 : false,
   })
 
   const typedPlanData = planData as any
@@ -120,17 +119,18 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
         bufferAiIds = []
         bufferIsStreaming = false
       } else if (m.role === "tool") {
-        const toolCallId = m.tool_call_id || m.meta_data?.tool_call_id
-        const tName = m.meta_data?.tool_name || m.tool_name || "unknown"
+        const msgAny = m as any
+        const toolCallId = msgAny.tool_call_id || msgAny.meta_data?.tool_call_id
+        const tName = msgAny.meta_data?.tool_name || m.tool_name || "unknown"
         bufferSteps.unshift({
           id: (toolCallId || m.id) as string,
           tool_call_id: toolCallId as string,
           tool: tName,
-          name: m.meta_data?.tool_name || m.tool_name || t("chat.messageList.toolExecution"),
+          name: msgAny.meta_data?.tool_name || m.tool_name || t("chat.messageList.toolExecution"),
           status: (m.status === "completed" ? "done" : m.status) as any,
-          input: m.meta_data?.input || {},
+          input: msgAny.meta_data?.input || {},
           output: undefined,
-          tool_meta: m.meta_data?.tool_meta
+          tool_meta: msgAny.meta_data?.tool_meta
         })
       } else if (m.role === "ai") {
         if (m.status === "streaming") bufferIsStreaming = true
@@ -167,7 +167,7 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
   const [goalOpen, setGoalOpen] = useState(true)
 
   return (
-    <div className="h-full flex flex-col bg-muted/5 overflow-hidden">
+    <div className="h-full w-full min-w-0 flex flex-col bg-muted/5 overflow-hidden">
         {/* === BLOCK 0: GOAL === */}
         {sessionGoal && (
           <Collapsible 
@@ -294,31 +294,31 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
         <Collapsible 
           open={thinkingOpen} 
           onOpenChange={setThinkingOpen} 
-          className={`flex flex-col min-h-0 border-b transition-all duration-200 ${thinkingOpen ? "flex-1" : "shrink-0"}`}
+          className={`flex flex-col min-h-0 min-w-0 w-full overflow-hidden border-b transition-all duration-200 ${thinkingOpen ? "flex-1" : "shrink-0"}`}
         >
           <CollapsibleTrigger asChild>
-            <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors shrink-0">
+            <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors shrink-0 w-full overflow-hidden">
               {thinkingOpen ? (
-                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               ) : (
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               )}
-              <BrainCircuit className="h-3.5 w-3.5 text-primary/70" />
-              <span className="text-[10px] font-bold text-muted-foreground flex-1">
+              <BrainCircuit className="h-3.5 w-3.5 text-primary/70 shrink-0" />
+              <span className="text-[10px] font-bold text-muted-foreground flex-1 truncate">
                 {t("chat.thinkingTitle")}
               </span>
               {thinking && thinking.trim().length > 0 && isAgentActive && (
-                <span className="text-[10px] text-primary">
+                <span className="text-[10px] text-primary shrink-0 ml-1">
                   {t("chat.thinkingActive")}
                 </span>
               )}
             </div>
           </CollapsibleTrigger>
-          <CollapsibleContent className="flex-1 min-h-0 overflow-hidden flex flex-col">
-            <ScrollArea className="flex-1">
-              <div className="p-2">
+          <CollapsibleContent className="flex-1 min-h-0 min-w-0 w-full overflow-hidden flex flex-col">
+            <ScrollArea className="flex-1 min-w-0 w-full">
+              <div className="p-2 min-w-0 w-full overflow-hidden">
                 {thinking && thinking.trim().length > 0 ? (
-                  <div className="text-xs text-muted-foreground break-words leading-relaxed">
+                  <div className="text-xs text-muted-foreground break-words leading-relaxed min-w-0 w-full overflow-hidden [word-break:break-word] whitespace-normal">
                     <MessageContent content={thinking} />
                   </div>
                 ) : (
@@ -392,39 +392,39 @@ function StepGroup({ group }: { group: MessageGroup }) {
   }, [group.isStreaming])
 
   const runningCount = group.steps.filter((s) => s.status === "running").length
-  const doneCount = group.steps.filter((s) => s.status === "done" || s.status === "completed").length
+  const doneCount = group.steps.filter((s) => s.status === "done" || (s.status as any) === "completed").length
   const failedCount = group.steps.filter((s) => s.status === "failed").length
 
   return (
-    <div className="border-b border-border/30 last:border-0 overflow-hidden">
+    <div className="border-b border-border/30 last:border-0 overflow-hidden w-full min-w-0">
       <button
-        className="w-full flex items-center justify-between py-2.5 px-1 hover:bg-muted/30 transition-colors rounded-sm"
+        className="w-full flex items-center justify-between py-2.5 px-1 hover:bg-muted/30 transition-colors rounded-sm min-w-0"
         onClick={() => setExpanded((v) => !v)}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0 truncate">
           {group.isStreaming ? (
-            <div className="relative">
+            <div className="relative shrink-0">
               <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
             </div>
           ) : failedCount > 0 ? (
-            <XCircle className="h-3.5 w-3.5 text-red-500" />
+            <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
           ) : (
-            <CheckCircle2 className="h-3.5 w-3.5 text-primary/60" />
+            <CheckCircle2 className="h-3.5 w-3.5 text-primary/60 shrink-0" />
           )}
-          <span className="text-[10px] font-bold text-muted-foreground">
+          <span className="text-[10px] font-bold text-muted-foreground truncate">
             {t("chat.turnLabel", { turn: group.turn })}
           </span>
-          <span className="text-[9px] text-muted-foreground/50 font-mono">
+          <span className="text-[9px] text-muted-foreground/50 font-mono shrink-0">
             {group.isStreaming
               ? `${runningCount} RUNNING`
               : `${doneCount} DONE`}
           </span>
         </div>
-        <ChevronRight className={`h-3 w-3 text-muted-foreground/30 transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`} />
+        <ChevronRight className={`h-3 w-3 text-muted-foreground/30 transition-transform duration-200 shrink-0 ml-1 ${expanded ? 'rotate-90' : ''}`} />
       </button>
       
         {expanded && (
-          <div className="pb-3 space-y-1">
+          <div className="pb-3 space-y-1 w-full min-w-0 overflow-hidden">
             {group.steps.map((step, i) => (
               <StepRow key={step.id || i} step={step} />
             ))}
@@ -438,7 +438,7 @@ function StepRow({ step }: { step: ToolStep }) {
   const { t } = useTranslation()
   const isRunning = step.status === "running"
   const isFailed = step.status === "failed"
-  const isCompleted = step.status === "completed" || step.status === "done"
+  const isCompleted = step.status === "done" || (step.status as any) === "completed"
 
   const [isOpen, setIsOpen] = useState(isRunning)
 
@@ -449,7 +449,7 @@ function StepRow({ step }: { step: ToolStep }) {
 
   return (
     <div 
-      className="relative pl-6 py-2 group border-l border-transparent hover:border-primary/10 transition-colors"
+      className="relative pl-6 py-2 group border-l border-transparent hover:border-primary/10 transition-colors w-full min-w-0 overflow-hidden"
     >
       <div className="absolute left-[-1.5px] top-0 bottom-0 w-[1px] bg-border/20 group-hover:bg-primary/20" />
       <div className={`absolute left-[-4.5px] top-4 w-2 h-2 rounded-full border-2 border-background z-10 transition-colors ${
@@ -457,13 +457,13 @@ function StepRow({ step }: { step: ToolStep }) {
       }`} />
 
       <div 
-        className="flex items-center gap-2 cursor-pointer select-none"
+        className="flex items-center gap-2 cursor-pointer select-none w-full min-w-0 overflow-hidden"
         onClick={() => setIsOpen(!isOpen)}
       >
-        <span className="text-[10px] font-bold text-muted-foreground/80 tracking-tight flex-1 truncate font-mono">
+        <span className="text-[10px] font-bold text-muted-foreground/80 tracking-tight flex-1 truncate font-mono min-w-0">
           {step.name || step.tool_name || t("chat.messageList.toolExecution")}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0 ml-1">
           {isRunning ? (
             <Loader2 className="h-3 w-3 animate-spin text-primary" />
           ) : isFailed ? (
@@ -476,10 +476,12 @@ function StepRow({ step }: { step: ToolStep }) {
       </div>
 
       {isOpen && step.input && (
-        <div className="mt-1.5 p-2 bg-muted/20 rounded-sm text-[10px] font-mono text-muted-foreground/70 break-all border border-border/10 leading-relaxed shadow-inner">
-          {typeof step.input === "string" 
-            ? step.input 
-            : JSON.stringify(step.input, null, 2)}
+        <div className="mt-1.5 p-2 bg-muted/20 rounded-sm text-[10px] font-mono text-muted-foreground/70 break-all border border-border/10 leading-relaxed shadow-inner w-full min-w-0 overflow-x-auto max-h-60">
+          <pre className="whitespace-pre-wrap font-mono [word-break:break-word] m-0 text-[10px]">
+            {typeof step.input === "string" 
+              ? step.input 
+              : JSON.stringify(step.input, null, 2)}
+          </pre>
         </div>
       )}
     </div>

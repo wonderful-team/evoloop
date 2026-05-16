@@ -10,7 +10,7 @@ import os
 import shutil
 import tempfile
 import urllib.request
-from typing import Iterator, List, Optional
+from typing import Iterator, List, Optional, Callable
 from urllib.parse import urlparse
 
 from .types import (
@@ -36,7 +36,9 @@ def walk_tree(
     root_path: str,
     exclude_dirs: Optional[List[str]] = None,
     max_depth: Optional[int] = None,
-    include_dirs: bool = False
+    include_dirs: bool = False,
+    filter_func: Optional[Callable[[str], bool]] = None,
+    dir_filter: Optional[Callable[[str], bool]] = None,
 ) -> Iterator[str]:
     """
     Standardized directory walker. Delegated to FileTraverser.
@@ -45,6 +47,8 @@ def walk_tree(
         max_depth=max_depth,
         exclude_dirs=exclude_dirs,
         include_dirs=include_dirs,
+        filter_func=filter_func,
+        dir_filter=dir_filter,
         recursive=True
     )
     return FileTraverser.walk(root_path, options)

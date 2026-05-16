@@ -45,28 +45,24 @@ class ProjectContextManager:
             logger.debug(f"[ProjectContext] Cache hit for structure: {path}")
             return self._structure_cache[path]["structure"]
 
-        try:
-            from app.domain.project.tree_generator import AnnotatedTreeGenerator
+        from app.domain.project.tree_generator import AnnotatedTreeGenerator
 
-            logger.info(f"[ProjectContext] Generating structure for: {path}")
-            # Standard constraints for Generalist Agent
-            generator = AnnotatedTreeGenerator(
-                path,
-                max_depth=3,
-                with_symbols=False,
-                file_limit=30,
-                max_lines=150 # Guard against extreme bloat
-            )
-            structure = await generator.generate()
+        logger.info(f"[ProjectContext] Generating structure for: {path}")
+        # Standard constraints for Generalist Agent
+        generator = AnnotatedTreeGenerator(
+            path,
+            max_depth=3,
+            with_symbols=False,
+            file_limit=30,
+            max_lines=150 # Guard against extreme bloat
+        )
+        structure = await generator.generate()
 
-            self._structure_cache[path] = {
-                "structure": structure,
-                "timestamp": time.time()
-            }
-            return structure
-        except Exception as e:
-            logger.error(f"Failed to generate project structure: {e}")
-            return f"Error generating structure: {e}"
+        self._structure_cache[path] = {
+            "structure": structure,
+            "timestamp": time.time()
+        }
+        return structure
 
     def invalidate_cache(self, path: str | None = None):
         """Invalidate the structure cache for a path or all paths."""

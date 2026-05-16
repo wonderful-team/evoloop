@@ -228,25 +228,42 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
         """Run async function in Huey worker with enhanced error handling."""
         import traceback
         
-        # Huey workers run in separate threads/processes
-        # We need to run the async function properly
+        # Determine if we are already in an event loop (common in tests or embedded mode)
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
+            is_running = True
         except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        
-        try:
+            is_running = False
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+        # Helper to execute the core logic
+        async def _execute():
             from app.infrastructure.database.resource_manager import db_resource_manager
-            # db_resource_manager.initialize() now auto-rebinds its lock to the current event loop,
-            # so it is safe to call from Huey worker threads.
-            loop.run_until_complete(db_resource_manager.initialize(create_tables=False, seed_data=False))
-            
+            await db_resource_manager.initialize(create_tables=False, seed_data=False)
             if bind:
-                result = loop.run_until_complete(func(None, *args, **kwargs))
+                return await func(None, *args, **kwargs)
             else:
-                result = loop.run_until_complete(func(*args, **kwargs))
-            return result
+                return await func(*args, **kwargs)
+
+        try:
+            if is_running:
+                # We can't use run_until_complete here. 
+                # If we are in immediate mode, we might need a separate thread or a different approach.
+                # However, for Huey tasks triggered via send_task in a running loop, 
+                # we actually want to schedule it.
+                # BUT Huey's immediate mode expects a return value NOW.
+                
+                # Use a helper to run coroutine in a thread-safe way if needed, 
+                # or just use a nested loop strategy (like nest_asyncio).
+                import nest_asyncio
+                nest_asyncio.apply(loop)
+                return loop.run_until_complete(_execute())
+            else:
+                return loop.run_until_complete(_execute())
         except Exception as e:
             # Log the full exception for debugging
             error_msg = f"[Huey] Task execution failed: {func.__name__}: {type(e).__name__}: {e}"

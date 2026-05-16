@@ -1,49 +1,78 @@
+import os
+
 from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
-from app.core.context import ContextManager
 from app.core.file import resolve_path
 from app.core.tools import get_working_directory
 from app.i18n.service import i18n
+from app.infrastructure.config.service import SystemConfigService
 
 
 async def resolve_and_validate_path(path: str, config: RunnableConfig | None = None) -> str:
     """
     Resolve path and perform security check.
-    
-    File operations do NOT require a project - they only need a safe base path.
-    In global mode, uses WORKSPACE_ROOT as the base directory.
+
+    路径解析策略：
+    - 路径以 uploads/ 开头（任意模式）
+      → 物理根切换为 settings.CHAT_UPLOAD_DIR (~/.evoloop/uploads/)
+      → 聊天附件统一存放在此，与项目模式完全无关
+    - 其他路径
+      → 使用 WORKSPACE_ROOT（或 working_directory）作为物理根
+      → 如果目标文件不存在，自动回退到 CHAT_UPLOAD_DIR 中查找
+
     Raises ValueError on security violation or resolution failure.
     """
-    # Handle Agent Hallucinations (treating system root dependencies)
-    if path.strip() == "/" or path.strip() == "":
+    if path.strip() in ("/", ""):
         path = "."
 
     root = get_working_directory(config)
+    normalized_path = path.lstrip("/")
 
-    # In global mode (project_id is 0 or None, and root is current dir),
-    # use WORKSPACE_ROOT as the base directory for file operations.
-    # File operations don't require a project - they just need a safe workspace.
-    ctx = ContextManager.current()
-    if ctx.project_id == 0 or (ctx.project_id is None and root == "."):
-        from app.infrastructure.config.service import SystemConfigService
+    # 获取当前会话 ID 以支持物理隔离
+    thread_id = None
+    if config:
+        thread_id = config.get("configurable", {}).get("thread_id")
 
+    if normalized_path.startswith("uploads/"):
+        # 【统一映射】无论何种模式，uploads/ 始终指向聊天附件目录
+        filename = normalized_path[len("uploads/"):]
+        
+        # 优先级 1: 会话隔离目录 (~/.evoloop/uploads/{thread_id}/)
+        if thread_id:
+            thread_isolated_path = os.path.join(settings.CHAT_UPLOAD_DIR, thread_id, filename)
+            if os.path.exists(thread_isolated_path):
+                return thread_isolated_path
+        
+        # 优先级 2: 全局目录 (~/.evoloop/uploads/global/)
+        global_path = os.path.join(settings.CHAT_UPLOAD_DIR, "global", filename)
+        if os.path.exists(global_path):
+            return global_path
+            
+        # 优先级 3: 根目录 (向后兼容旧版 ~/.evoloop/uploads/)
+        legacy_path = os.path.join(settings.CHAT_UPLOAD_DIR, filename)
+        if os.path.exists(legacy_path):
+            return legacy_path
+            
+        # 如果都不存在，默认返回会话隔离路径（用于后续写入或报错提示）
+        root = os.path.join(settings.CHAT_UPLOAD_DIR, thread_id if thread_id else "global")
+        target_path = resolve_path(filename, base_path=root)
+    else:
+        # 【常规路径】尝试从 WORKSPACE_ROOT 解析
         workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
         if workspace_root:
             root = workspace_root
+            
+        target_path = resolve_path(path, base_path=root)
 
-    target_path = resolve_path(path, base_path=root)
-
-    if not target_path:  # Could not resolve
+    if not target_path:
         raise ValueError(i18n.get("domain_tools.files.resolve_error", path=path))
 
-    # Security Check: Prevent breaking out of working directory
-    is_safe = str(target_path).startswith(str(root))
-
+    # Security Check
+    is_safe = target_path.startswith(root)
     if not is_safe:
-        # Optional: Allow whitelisted system paths (e.g., /tmp/dataset for testing)
         for prefix in settings.ALLOWED_PATH_PREFIXES:
-            if str(target_path).startswith(prefix):
+            if target_path.startswith(prefix):
                 is_safe = True
                 break
 

@@ -66,6 +66,19 @@ async def handle_list(
                 lines.append(f"{e.name}{size_str}")
 
         output = '\n'.join(lines[:max_entries])
+
+        # 【虚拟注入】在根目录列表中注入 uploads/ 条目
+        # 无论全局模式还是项目模式，uploads/ 都指向 CHAT_UPLOAD_DIR (~/.evoloop/uploads/)
+        # 让 Agent 在任何模式下都能清楚地"看到"聊天附件的存放位置
+        from app.infrastructure.config.service import SystemConfigService
+        workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+        is_root_listing = (path in (".", "") or
+                          (workspace_root and target_path == workspace_root) or
+                          target_path == workspace_root)
+
+        if is_root_listing and not any(l.startswith("uploads/") for l in lines):
+            output = "uploads/\n" + output if output else "uploads/"
+
         if len(lines) > max_entries:
             output += f"\n\n... ({len(lines) - max_entries} more entries hidden)\nTip: Use filter=\"*.ext\" to narrow results, or increase max_entries."
         return output, {"count": len(lines), "recursive": False}

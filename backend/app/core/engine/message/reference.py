@@ -1,5 +1,6 @@
 import logging
 import os
+import uuid
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,7 +25,9 @@ class ReferenceService:
         message_text: str,
         attachments: list[dict[str, Any]],
         session: AsyncSession,
-        root_path: str | None = None
+        root_path: str | None = None,
+        thread_id: str | None = None,
+        project_id: int = 0
     ) -> ReferenceContext:
         """
         Process a list of attachments and inject them into the communication context.
@@ -32,7 +35,7 @@ class ReferenceService:
         """
         content_blocks = []
         reference_notes = []
-        updated_message = message_text
+        references = []
 
         quotes_data = []
         for att in attachments:
@@ -50,6 +53,15 @@ class ReferenceService:
                     quotes_data.append({"type": "Message", "name": att_name, "content": snippet})
                 if note:
                     reference_notes.append(note)
+                
+                # 为数据库持久化记录引用
+                references.append({
+                    "id": str(uuid.uuid4()),
+                    "type": "message",
+                    "target_id": att_id,
+                    "target_name": att_name,
+                    "metadata": {"snippet": snippet}
+                })
 
             # 2. File References
             elif att_type == "file":
@@ -58,6 +70,19 @@ class ReferenceService:
                     quotes_data.append({"type": "File", "name": att_name, "content": content})
                 if note:
                     reference_notes.append(note)
+                
+                # 为数据库持久化记录引用
+                url = f"/api/v1/projects/{project_id}/files/raw?path={att_id}"
+                if thread_id:
+                    url += f"&thread_id={thread_id}"
+
+                references.append({
+                    "id": str(uuid.uuid4()),
+                    "type": "file",
+                    "target_id": url,
+                    "target_name": att_name,
+                    "metadata": {"filename": att_name}
+                })
 
             # 3. Direct Image Attachments
             elif att_type == "image":
@@ -65,7 +90,14 @@ class ReferenceService:
                     "type": "image_url",
                     "image_url": {"url": att_id}
                 })
-                reference_notes.append(f"Image Attachment: {att_name}")
+                reference_notes.append(f"Image Attachment: {att_name} (Path: {att_id})")
+                references.append({
+                    "id": str(uuid.uuid4()),
+                    "type": "image",
+                    "target_id": att_id,
+                    "target_name": att_name,
+                    "metadata": {"filename": att_name}
+                })
 
             # 4. Audio Attachments
             elif att_type == "audio":
@@ -73,7 +105,7 @@ class ReferenceService:
                     "type": "text",
                     "text": f"[Audio: {att_name}]({att_id})"
                 })
-                reference_notes.append(f"Audio Attachment: {att_name}")
+                reference_notes.append(f"Audio Attachment: {att_name} (Path: {att_id})")
 
             # 5. Skill Attachments
             elif att_type == "skill":
@@ -91,16 +123,11 @@ class ReferenceService:
                 reference_notes.append(f"Attachment ({att_type}): {att_name}")
         
         # Render quotes using template
+        updated_message = message_text
         if quotes_data:
-            try:
-                # 模板路径保持不变，或者后续根据需要迁移模板
-                quoted_block = render_template("domain/project/project_management.prompt.j2", quotes=quotes_data)
-                updated_message = f"{message_text}\n\n{quoted_block}"
-            except Exception as e:
-                logger.error(f"Failed to render reference quotes: {e}")
-                updated_message = message_text
-        else:
-            updated_message = message_text
+            # 模板路径保持不变，或者后续根据需要迁移模板
+            quoted_block = render_template("domain/project/project_management.prompt.j2", quotes=quotes_data)
+            updated_message = f"{message_text}\n\n{quoted_block}"
 
         # Final assembly of the text block
         final_text = updated_message
@@ -116,7 +143,8 @@ class ReferenceService:
         return ReferenceContext(
             content_blocks=content_blocks,
             reference_notes=reference_notes,
-            injected_message=updated_message
+            injected_message=updated_message,
+            references=references
         )
 
     async def _handle_message_reference(self, msg_id_str: str, name: str, session: AsyncSession) -> tuple[str | None, str | None]:
@@ -136,7 +164,12 @@ class ReferenceService:
         # Resolve path
         target_path = file_path
         if root_path and not os.path.isabs(file_path):
-            target_path = os.path.join(root_path, file_path.lstrip("/"))
+            # 如果提供了 root_path 且路径是 uploads/ 开头，说明 root_path 已经是上传目录
+            # 需要去掉 uploads/ 前缀再拼接，防止出现 uploads/uploads/ 的错误路径
+            rel_path = file_path
+            if rel_path.startswith("uploads/"):
+                rel_path = rel_path[len("uploads/"):]
+            target_path = os.path.join(root_path, rel_path.lstrip("/"))
 
         # Binary check
         if any(target_path.lower().endswith(ext) for ext in BINARY_EXTENSIONS):
@@ -148,10 +181,10 @@ class ReferenceService:
             snippet = content[:2000]
             if len(content) > 2000:
                 snippet += "\n\n... (Content truncated for length)"
-            return snippet, f"Referencing File: {name}"
+            return snippet, f"Referencing File: {name} (Path: {file_path})"
         except Exception as e:
             logger.warning(f"Failed to read quoted file {target_path}: {e}")
-            return None, f"Referencing File (Read Failed): {name}"
+            return None, f"Referencing File (Read Failed): {name} (Path: {file_path})"
 
 
 reference_service = ReferenceService()

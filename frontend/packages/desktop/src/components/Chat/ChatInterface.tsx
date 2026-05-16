@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { motion, AnimatePresence } from "framer-motion"
-import { ArrowDown, Brain } from "lucide-react"
+import { Brain } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -16,6 +15,12 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@evoloop/shared/components/ui/resizable"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@evoloop/shared/components/ui/sheet"
 import {
   Dialog,
   DialogContent,
@@ -38,12 +43,31 @@ import { ContextPanel } from "./ContextPanel"
 
 import { DiffDrawer } from "./DiffDrawer"
 import { RewindConfirmDialog } from "./RewindConfirmDialog"
+import { DebugManager } from "./DebugManager"
+import { HumanRequestCard } from "./HumanRequestCard"
 
 export function ChatInterface() {
+  // --- Store State ---
+  const { 
+    threadId: activeThreadId,
+    messages,
+    status,
+    humanRequest,
+    projectId: storeProjectId,
+    hasMoreHistory,
+    isLoadingHistory,
+    loadMoreHistory,
+    setThread,
+    sendMessage,
+    stopAgent,
+    _truncateMessages,
+    markChangeAsViewed,
+    markAllChangesAsViewed,
+    selectedModel
+  } = useChatStore()
 
   const { t } = useTranslation()
   const { currentProject, isGlobalMode } = useProjectStore()
-  const projectId = currentProject?.id
   const queryClient = useQueryClient()
 
   // --- UI State ---
@@ -56,23 +80,7 @@ export function ChatInterface() {
   const [sidebarActiveTab, setSidebarActiveTab] = useState<string>("chats")
   const [expandAgentChanges, setExpandAgentChanges] = useState<boolean>(false)
 
-  // --- Store State ---
-  // --- Store State (Granular Selectors to avoid full re-renders) ---
-  const activeThreadId = useChatStore((s) => s.threadId)
-  const messages = useChatStore((s) => s.messages)
-  const status = useChatStore((s) => s.status)
-  // Pagination state
-  const hasMoreHistory = useChatStore((s) => s.hasMoreHistory)
-  const isLoadingHistory = useChatStore((s) => s.isLoadingHistory)
-  const loadMoreHistory = useChatStore((s) => s.loadMoreHistory)
-  // Props required for components
-  const setThread = useChatStore((s) => s.setThread)
-  const sendMessage = useChatStore((s) => s.sendMessage)
-  const stopAgent = useChatStore((s) => s.stopAgent)
-  const _truncateMessages = useChatStore((s) => s._truncateMessages)
-  const markChangeAsViewed = useChatStore((s) => s.markChangeAsViewed)
-  const markAllChangesAsViewed = useChatStore((s) => s.markAllChangesAsViewed)
-  const selectedModel = useChatStore((s) => s.selectedModel)
+  const projectId = (currentProject?.id ?? storeProjectId) ?? undefined
 
   // We maintain 'showContextPanel' locally as it involves UI preference
   // Global mode: hidden by default; Project mode: show by default
@@ -87,6 +95,29 @@ export function ChatInterface() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const chatInputRef = useRef<ChatInputAreaHandle | null>(null)
+
+  // Compact window detection (< 1024px, matching lg breakpoint of left sidebar)
+  const [isCompactWindow, setIsCompactWindow] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.innerWidth < 1024
+    }
+    return false
+  })
+
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 1023px)")
+    const onChange = () => setIsCompactWindow(mql.matches)
+    mql.addEventListener("change", onChange)
+    setIsCompactWindow(mql.matches)
+    return () => mql.removeEventListener("change", onChange)
+  }, [])
+
+  // Auto-close context panel when entering compact mode
+  useEffect(() => {
+    if (isCompactWindow) {
+      setShowContextPanel(false)
+    }
+  }, [isCompactWindow])
 
   // Smart Scroll State
   const [isUserScrolled, setIsUserScrolled] = useState(false)
@@ -386,12 +417,13 @@ export function ChatInterface() {
 
   const handleQuoteMessage = (msg: any) => {
     if (!msg || !msg.id) return
+    const quoteText = msg.effective_content !== undefined && msg.effective_content.trim() !== "" ? msg.effective_content : msg.content;
     
     // Construct reference item
     chatInputRef.current?.addReference({
       type: 'message',
       id: msg.id.toString(),
-      name: msg.content.slice(0, 50) + (msg.content.length > 50 ? "..." : ""),
+      name: quoteText.slice(0, 50) + (quoteText.length > 50 ? "..." : ""),
       detail: msg.role
     })
   }
@@ -558,14 +590,14 @@ export function ChatInterface() {
   }, [status, activeThreadId, handleStopThread])
 
   return (
-    <div className="flex flex-col h-full relative bg-background overflow-hidden">
-      <ResizablePanelGroup direction="horizontal" className="h-full w-full">
+    <div className="flex flex-col h-full w-full min-w-0 relative bg-background overflow-hidden">
+      <ResizablePanelGroup direction="horizontal" className="h-full w-full min-w-0 overflow-hidden">
         {/* Left Sidebar Panel */}
         <ResizablePanel
           defaultSize={16}
           minSize={15}
           maxSize={40}
-          className="hidden lg:block min-w-[100px]"
+          className="hidden lg:block min-w-[100px] overflow-hidden"
         >
           <ChatSidebar
             threads={threads.map(t => ({
@@ -593,12 +625,12 @@ export function ChatInterface() {
         <ResizableHandle withHandle />
 
         {/* Center Chat Panel */}
-        <ResizablePanel defaultSize={showContextPanel ? 64 : 84} minSize={20} className="min-w-0">
-          <div className="flex flex-col h-full relative min-h-0 min-w-0">
+        <ResizablePanel defaultSize={showContextPanel ? 64 : 84} minSize={20} className="min-w-0 overflow-hidden">
+          <div className="flex flex-col h-full relative min-h-0 min-w-0 w-full overflow-hidden">
             {/* Top Right Controls */}
             <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
               {/* Toggle Context Panel Button */}
-              {!showContextPanel && (
+              {(!showContextPanel || isCompactWindow) && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -616,15 +648,12 @@ export function ChatInterface() {
             <QuotaExhaustedBanner />
 
             <div
-              className="flex-1 overflow-y-auto min-h-0 min-w-0 scroll-smooth"
+              className="flex-1 overflow-y-auto min-h-0 min-w-0 w-full scroll-smooth"
               ref={scrollRef}
               onScroll={handleScroll}
               data-tour="chat-messages"
             >
-              <div 
-                ref={contentRef}
-                className="space-y-6 px-4 sm:px-6 lg:px-8 pb-1 pt-4 min-w-0"
-              >
+              <div ref={contentRef} className="space-y-3 px-3 sm:px-5 lg:px-6 pb-1 pt-3 min-w-0 w-full">
                 <MessageList
                   messages={messages}
                   hasMoreHistory={hasMoreHistory}
@@ -673,32 +702,11 @@ export function ChatInterface() {
                   onQuote={(msg) => handleQuoteMessage(msg)}
                   onViewChangeset={handleViewChangeset}
                 />
+                {status === "interrupted" && humanRequest && (
+                  <HumanRequestCard request={humanRequest} />
+                )}
               </div>
             </div>
-
-            {/* Scroll to Bottom Button */}
-            <AnimatePresence>
-              {isUserScrolled && (
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.5, y: 20 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.5, y: 20 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                  className="absolute bottom-4 right-4 z-10"
-                >
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="rounded-full bg-background border border-border hover:bg-muted transition-colors"
-                    onClick={() => scrollToBottom(true)}
-                  >
-                    <ArrowDown className="h-4 w-4" />
-                  </Button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* HumanRequestCard moved to AgentCanvas */}
 
             {/* Input Area */}
             <ChatInputArea
@@ -712,21 +720,20 @@ export function ChatInterface() {
               activeThreadId={activeThreadId || undefined}
               disabled={status === "interrupted"}
               isGlobalMode={isGlobalMode}
-
             />
           </div>
         </ResizablePanel>
 
-        {showContextPanel && (
+        {!isCompactWindow && showContextPanel && (
           <>
             <ResizableHandle withHandle />
             <ResizablePanel
               defaultSize={20}
               minSize={15}
               maxSize={40}
-              className="min-w-[200px]"
+              className="min-w-0 overflow-hidden"
             >
-              <div data-tour="chat-context" className="h-full">
+              <div data-tour="chat-context" className="h-full w-full min-w-0 overflow-hidden flex flex-col">
                 <ContextPanel
                   projectId={currentProject?.id}
                   activeThreadId={activeThreadId || ""}
@@ -739,6 +746,24 @@ export function ChatInterface() {
           </>
         )}
       </ResizablePanelGroup>
+
+      {/* Compact Window Context Sheet */}
+      {isCompactWindow && (
+        <Sheet open={showContextPanel} onOpenChange={setShowContextPanel}>
+          <SheetContent side="right" className="w-[320px] sm:w-[400px] max-w-[85vw] p-0 border-l bg-background [&>button]:hidden shadow-2xl flex flex-col min-w-0 overflow-hidden">
+            <SheetHeader className="sr-only">
+              <SheetTitle>{t("chat.context.title", { defaultValue: "Agent 工作台" })}</SheetTitle>
+            </SheetHeader>
+            <ContextPanel
+              projectId={currentProject?.id}
+              activeThreadId={activeThreadId || ""}
+              autoSwitchToTab={undefined}
+              onClose={handleCloseContextPanel}
+              isGlobalMode={isGlobalMode}
+            />
+          </SheetContent>
+        </Sheet>
+      )}
 
       {/* Memory Dialog */}
       <Dialog open={isMemoryDialogOpen} onOpenChange={setIsMemoryDialogOpen}>
@@ -754,7 +779,7 @@ export function ChatInterface() {
               <Input
                 id="name"
                 value={memoryName}
-                onChange={(e) => setMemoryName(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMemoryName(e.target.value)}
                 placeholder={t("chat.interface.conceptPlaceholder")}
                 className="col-span-3"
                 autoFocus
@@ -797,6 +822,7 @@ export function ChatInterface() {
         path={selectedDiff?.path || null}
         diff={selectedDiff?.diff || null}
       />
+      <DebugManager />
     </div>
   )
 }

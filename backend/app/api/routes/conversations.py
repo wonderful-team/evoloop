@@ -86,64 +86,21 @@ async def get_conversation_messages(
             })
 
         # Conversion: Message DB -> MessageBlock (Direct Mapping)
-        normalized = MessageNormalizer.normalize(all_messages)
-        db_msg_map = {str(m.id): m for m in all_messages}
+        # Use MessageNormalizer which delegates to MessageBlockFactory
+        final_blocks = MessageNormalizer.normalize(all_messages)
+
         final_items = []
+        for block in final_blocks:
+            # Map MessageBlock to MessageItem (ensuring extra fields are set)
+            item = MessageItem(**block.model_dump())
 
-        for f in normalized:
-            db_m = db_msg_map.get(str(f.id))
-            if not db_m:
-                final_items.append(MessageItem(**f.model_dump()))
-                continue
-
-            msg_id_str = str(db_m.id)
-            ops = message_ops_map.get(msg_id_str, [])
-            
-            # Parse References
-            refs = (
-                [
-                    ReferenceItem(
-                        id=ref.id,
-                        type=ref.type,
-                        target_id=ref.target_id,
-                        target_name=ref.target_name,
-                        metadata=ref.meta_data,
-                    )
-                    for ref in db_m.references
-                ]
-                if db_m.references
-                else []
-            )
-
-            item = MessageItem(
-                **f.model_dump(exclude={
-                    "status", "run_id", "parent_id", "references",
-                    "category", "content_type", "sequence_number",
-                    "checkpoint_id", "is_visible"
-                }),
-                run_id=db_m.run_id,
-                parent_id=db_m.parent_id,
-                references=refs,
-                has_file_operations=len(ops) > 0,
-                changeset_count=len(ops),
-                changeset_files=ops,
-                category=db_m.category,
-                content_type=db_m.content_type or "text",
-                status=db_m.status,
-                sequence_number=db_m.sequence_number,
-                checkpoint_id=db_m.checkpoint_id,
-                is_visible=db_m.is_visible,
-            )
-            
-            # Remove raw tool_calls (frontend uses folded steps instead)
+            # Remove raw tool_calls for SSE/UI (frontend uses steps)
             item.tool_calls = None
-            
-            # Tools often have huge output (e.g. file content, search results).
-            # The frontend UI only shows the tool_meta.display_name, so we can
-            # safely clear the content to save bandwidth and prevent memory bloat.
+
+            # Bandwidth optimization for tool messages
             if item.role == "tool":
                 item.content = ""
-                
+
             final_items.append(item)
 
         # Build response with cursors (based on filtered final_items)

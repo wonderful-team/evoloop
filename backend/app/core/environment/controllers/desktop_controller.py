@@ -163,53 +163,27 @@ class DesktopController:
 
     @classmethod
     async def _try_atlas(cls, name: str) -> ElementResolutionResult | None:
-        """Try to resolve element using App Atlas. Returns result or None."""
+        """[DIVIDEND] Try to resolve element using Atlas intelligence."""
         try:
             app_info = await asyncio.to_thread(macos_driver.get_current_app)
             bundle_id = app_info.get("bundle_id")
             if not bundle_id:
                 return None
 
-            is_dynamic = await asyncio.wait_for(
-                atlas_engine.is_dynamic_app(bundle_id, "macos"),
-                timeout=1.0
-            )
-
-            if is_dynamic:
-                strategy = await asyncio.wait_for(
-                    atlas_engine.get_app_strategy(bundle_id, "macos"),
-                    timeout=1.0
-                )
-                if strategy:
-                    infra_elem = strategy.get_infrastructure_element(name)
-                    if infra_elem and (infra_elem.get("resource_id") or infra_elem.get("ax_path")):
-                        return ElementResolutionResult(type="path", value=infra_elem.get("resource_id") or infra_elem.get("ax_path"))
-                    strat = strategy.get_strategy_for(name)
-                    if strat:
-                        return ElementResolutionResult(strategy=strat.strategy_type, parameters=strat.parameters, source="atlas_strategy")
-            else:
-                summary = await asyncio.wait_for(
-                    atlas_engine.store.get_app_summary(bundle_id, platform="macos"),
-                    timeout=1.0
-                )
-                if summary and "states" in summary:
-                    for state in summary["states"][:3]:  # Limit to first 3 states
-                        full_state = await asyncio.wait_for(
-                            atlas_engine.store.get_state_detail(bundle_id, state["id"], platform="macos"),
-                            timeout=0.5
-                        )
-                        if full_state and "elements" in full_state:
-                            for el in full_state["elements"]:
-                                el_name = str(el.get("label") or el.get("text") or el.get("name") or "").lower()
-                                if name.lower() in el_name:
-                                    if el.get("os_identifier") or el.get("ax_path"):
-                                        return ElementResolutionResult(type="path", value=el.get("os_identifier") or el.get("ax_path"))
-            return None
-        except asyncio.TimeoutError:
-            logger.debug(f"[Desktop] Atlas timeout for '{name}'")
+            result = await atlas_engine.resolve_spatial_element(bundle_id, name, platform="macos")
+            if result:
+                if "x" in result and "y" in result:
+                    # Prefer coordinates if available
+                    return ElementResolutionResult(x=result["x"], y=result["y"], source=result.get("source", "atlas"))
+                elif "strategy" in result:
+                    return ElementResolutionResult(
+                        strategy=result["strategy"],
+                        parameters=result.get("parameters", {}),
+                        source=result.get("source", "atlas_strategy")
+                    )
             return None
         except Exception as e:
-            logger.debug(f"[Desktop] Atlas failed for '{name}': {e}")
+            logger.debug(f"[Desktop] Atlas resolution dividend failed: {e}")
             return None
 
     @classmethod
@@ -765,7 +739,7 @@ class DesktopController:
         async def _check_once():
             raw_tree = await asyncio.to_thread(macos_driver.dump_ax_tree)
             if not raw_tree or "Error" in raw_tree:
-                return None, ControllerResponse.error("Verification Failed: Could not dump AX Tree.", details=str(raw_tree))
+                return (False, False), ControllerResponse.error("Verification Failed: Could not dump AX Tree.", details=str(raw_tree))
             elements = await _async_literal_eval(raw_tree)
             found_element = False
             found_text = False

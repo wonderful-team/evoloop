@@ -215,19 +215,8 @@ Once the criteria in the Mission Ticket are TRULY met:
 
 **Remember**: You are responsible for the DEPTH and COMPLETENESS of the execution. Do not stop prematurely.
 
-{%- if has_interactive_charts %}
-
-## Data Visualization Guidelines
-(Note: You are authorized to generate interactive visualizations for this task)
-{% include 'core/engine/fragments/visualization/echarts.j2' %}
-{% include 'core/engine/fragments/visualization/mermaid.j2' %}
-{% include 'core/engine/fragments/visualization/map.j2' %}
-{%- else %}
-
-## Data Visualization Guidelines
-(Note: You may generate basic visualizations using Mermaid for this task)
-{% include 'core/engine/fragments/visualization/mermaid.j2' %}
-{%- endif %}
+## Message Output Format (Standardized)
+{% include 'core/engine/fragments/message_block.j2' %}
 
 ## Reading Your Mission Ticket
 The Supervisor has handed you an **ExecutionTicket**. It contains:

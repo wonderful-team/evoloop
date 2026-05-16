@@ -39,11 +39,11 @@ export const BreadcrumbStatus = memo(() => {
     const isRunning = status === "running" || status === "summarizing"
 
     return (
-        <div className="flex items-center text-xs text-muted-foreground px-4 py-2 border-b bg-muted/20 select-none overflow-hidden">
+        <div className="flex items-center text-xs text-muted-foreground px-4 py-2 border-b bg-muted/20 select-none min-w-0 w-full overflow-hidden">
             {/* Project */}
-            <div className="flex items-center whitespace-nowrap hover:text-foreground transition-colors cursor-default">
-                <Home size={12} className="mr-1.5 opacity-70" />
-                <span className="font-medium max-w-[120px] truncate">
+            <div className="flex items-center whitespace-nowrap hover:text-foreground transition-colors cursor-default min-w-0 shrink">
+                <Home size={12} className="mr-1.5 opacity-70 shrink-0" />
+                <span className="font-medium max-w-[120px] truncate min-w-0">
                     {currentProject.name}
                 </span>
             </div>
@@ -53,13 +53,13 @@ export const BreadcrumbStatus = memo(() => {
 
             {/* Plan / Goal */}
             {displayTitle ? (
-                <div className="flex items-center whitespace-nowrap hover:text-foreground transition-colors cursor-default min-w-0">
+                <div className="flex items-center whitespace-nowrap hover:text-foreground transition-colors cursor-default min-w-0 shrink">
                     <span className="truncate max-w-[200px]" title={displayTitle}>
                         {displayTitle}
                     </span>
                 </div>
             ) : (
-                <span className="opacity-50 italic">
+                <span className="opacity-50 italic shrink-0">
                     {t("chat.status.ready", "Ready")}
                 </span>
             )}
@@ -68,9 +68,9 @@ export const BreadcrumbStatus = memo(() => {
             {(activeStep || isRunning) && (
                 <>
                     <ChevronRight size={12} className="mx-2 opacity-50 shrink-0" />
-                    <div className="flex items-center text-primary whitespace-nowrap min-w-0 animate-in fade-in slide-in-from-left-2">
-                        {isRunning && <Loader2 size={10} className="mr-1.5 animate-spin" />}
-                        <span className="font-medium truncate" title={activeStep?.description || agentState?.task_name}>
+                    <div className="flex items-center text-primary whitespace-nowrap min-w-0 shrink truncate animate-in fade-in slide-in-from-left-2">
+                        {isRunning && <Loader2 size={10} className="mr-1.5 animate-spin shrink-0" />}
+                        <span className="font-medium truncate min-w-0" title={activeStep?.description || agentState?.task_name}>
                             {activeStep?.description || agentState?.task_name || (isRunning ? t("chat.status.working", "Working...") : "")}
                         </span>
                     </div>

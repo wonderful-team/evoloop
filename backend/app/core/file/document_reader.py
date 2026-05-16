@@ -34,12 +34,9 @@ class DocumentReaderService:
                 return self._read_pdf(file_path, start_page, end_page)
             elif ext == ".html":
                 return await self._read_html(file_path)
-            elif ext in [".png", ".jpg", ".jpeg", ".bmp", ".webp"]:
-                return await self._read_image(file_path)
-            elif ext in [".mp3", ".wav", ".mp4", ".mov", ".avi"]:
-                return await self._read_media(file_path)
             else:
-                # Text/Code fallback with paging support
+                # Text/Code fallback handled by ContentExtractor normally, 
+                # but kept here for backward compatibility or internal calls.
                 result = read_file(file_path, start_line=start_page, end_line=end_page)
                 if not result.success:
                     raise IOError(result.error_message or "Failed to read file")
@@ -58,8 +55,6 @@ class DocumentReaderService:
         end_idx = min(total_pages, end_idx)
 
         text = []
-        # We omit the metadata and headers from core reader to stay clean for indexing
-        # but could add them if needed.
         for i in range(start_idx, end_idx):
             page_text = reader.pages[i].extract_text()
             text.append(page_text or "")
@@ -75,62 +70,21 @@ class DocumentReaderService:
         xl = pd.ExcelFile(path)
         text = []
         for sheet_name in xl.sheet_names:
-            # OPTIMIZATION: Use the already opened 'xl' object instead of re-reading file Path
             df = pd.read_excel(xl, sheet_name=sheet_name)
             if not df.empty:
                 text.append(f"Sheet: {sheet_name}\n")
                 try:
                     text.append(df.to_markdown(index=False))
                 except ImportError:
-                    # Fallback if tabulate is not installed
                     text.append(df.to_csv(index=False))
                 text.append("\n")
         return "\n".join(text)
 
     async def _read_html(self, file_path: str) -> str:
-        """Read HTML file and convert to Markdown."""
         result = read_file(file_path)
         if not result.success:
             return f"[Error reading HTML: {result.error_message}]"
         return md(result.content)
-
-    async def _read_image(self, path: str) -> str:
-        """Extract text from image using OCR."""
-        try:
-            result = await vision_engine.process(
-                task=VisionTask.OCR,
-                image_source=path
-            )
-            if not result.success:
-                return f"[OCR Error: {result.metadata.get('error')}]"
-
-            texts = [el.text for el in result.elements if el.text]
-            return "\n".join(texts)
-        except Exception as e:
-            logger.error(f"OCR failed for {path}: {e}")
-            return f"[OCR Error: {str(e)}]"
-
-    async def _read_media(self, path: str) -> str:
-        """Transcribe audio/video to text using the voice core module."""
-        try:
-            from app.core.voice import transcribe_file, list_stt_providers
-            
-            # Check if any STT provider is available
-            providers = list_stt_providers()
-            if not any(p.get("available") for p in providers):
-                return f"[Multimedia Asset: {os.path.basename(path)} - Transcription unavailable: No STT providers configured]"
-
-            logger.info(f"Transcribing media file: {path}")
-            result = await transcribe_file(path)
-            
-            if not result.text:
-                return f"[Multimedia Asset: {os.path.basename(path)} - Transcription returned empty content]"
-                
-            return f"### Multimedia Transcription ({os.path.basename(path)})\n\n{result.text}"
-            
-        except Exception as e:
-            logger.error(f"Media transcription failed for {path}: {e}")
-            return f"[Multimedia Asset: {os.path.basename(path)} - Transcription Error: {str(e)}]"
 
 
 document_reader_service = DocumentReaderService()

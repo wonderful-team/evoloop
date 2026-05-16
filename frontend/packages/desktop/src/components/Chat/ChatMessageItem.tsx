@@ -1,31 +1,23 @@
 import { memo, useEffect } from "react"
 import { motion } from "framer-motion"
 import {
-  Bot, User, Copy, RotateCcw, Undo, MoreHorizontal,
+  Copy, RotateCcw, Undo,
   Brain, Quote, ChevronRight, Loader2
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from "@evoloop/shared/components/ui/dropdown-menu"
-import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger
 } from "@evoloop/shared/components/ui/collapsible"
 import { Badge } from "@evoloop/shared/components/ui/badge"
-import { cn } from "@evoloop/shared/lib/utils"
 import { MessageContent } from "./MessageContent"
 import { ChangesetSnapshot } from "./ChangesetSnapshotView"
+import { MessageReferences } from "./MessageReferences"
 import { TTSButton } from "./TTSButton"
 import { useTTS, useAutoSpeak } from "@/hooks/useTTS"
-import { useAuth } from "@/hooks/useAuth"
-import { useSystemConfig } from "@/hooks/useSystemConfig"
 
 export interface Message {
   id: string | number
@@ -45,6 +37,7 @@ export interface Message {
     [key: string]: any
   }
   changeset_count?: number
+  isLastInTurn?: boolean
   changeset_files?: Array<{
     path: string
     operation: 'added' | 'modified' | 'deleted' | 'renamed'
@@ -59,6 +52,29 @@ export interface Message {
   humanRequest?: any
   has_file_operations?: boolean
   references?: any[]
+  effective_content?: string
+  turnDuration?: string
+}
+
+const formatSmartTimestamp = (timestamp?: string) => {
+  if (!timestamp) return ""
+  const date = new Date(timestamp)
+  if (isNaN(date.getTime())) return ""
+
+  const now = new Date()
+  const isToday =
+    date.getDate() === now.getDate() &&
+    date.getMonth() === now.getMonth() &&
+    date.getFullYear() === now.getFullYear()
+
+  const timeStr = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+
+  if (isToday) {
+    return timeStr
+  } else {
+    const dateStr = date.toLocaleDateString([], { month: "short", day: "numeric" })
+    return `${dateStr} ${timeStr}`
+  }
 }
 
 interface ChatMessageItemProps {
@@ -73,214 +89,172 @@ interface ChatMessageItemProps {
 }
 
 const ChatMessageItem = memo(
-  ({ msg, isGrouped, showAvatar, onAddToMemory, onRewind, onRetry, onQuote, onViewChangeset }: ChatMessageItemProps) => {
+  ({ msg, onAddToMemory, onRewind, onRetry, onQuote, onViewChangeset }: ChatMessageItemProps) => {
     const { t } = useTranslation()
-    const { user } = useAuth()
-    const { data: config } = useSystemConfig()
 
     // Hide system prompts from main chat
     if (msg.role === "system") {
       return null
     }
 
-    const userName = user?.nickname || user?.username || t("chat.role.user")
-    const deviceName = config?.EVOCLOUD_DEVICE_NAME || t("chat.role.assistant")
+    const isUser = msg.role === "human"
+    const actionContent = msg.effective_content !== undefined && msg.effective_content.trim() !== "" ? msg.effective_content : msg.content
 
     // Render Tool Message (Flat & Compact)
     if (msg.role === "tool") {
       return (
         <motion.div
-          className="group relative flex gap-2 w-full py-1 transition-colors hover:bg-muted/5"
+          className="group relative flex items-center gap-2.5 w-full py-1 px-3 my-0.5 rounded transition-colors font-mono text-[12px] text-muted-foreground/70 hover:text-muted-foreground bg-muted/10 hover:bg-muted/25"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.1 }}
         >
-          {/* Spine Column */}
-          <div className="shrink-0 w-10 flex flex-col items-center relative">
-            <div className="absolute top-0 bottom-0 w-[1px] bg-border/40 group-hover:bg-primary/20 transition-colors" />
-            <div className="w-2 h-2 rounded-full bg-border mt-2 group-hover:bg-primary/40 transition-colors z-10" />
-          </div>
+          <div className="w-1.5 h-1.5 rounded-full bg-primary/50 shrink-0" />
+          <span className="truncate flex-1" title={msg.tool_meta?.display_name || msg.tool_name || "TOOL"}>
+            {msg.tool_meta?.display_name || msg.tool_name || "TOOL"}
+          </span>
+          {msg.status === "running" && <Loader2 className="h-3 w-3 animate-spin text-primary ml-2 shrink-0" />}
+          {msg.changeset_count !== undefined && msg.changeset_count > 0 && (
+            <Badge variant="secondary" className="h-4 px-1.5 text-[9px] bg-primary/10 text-primary border-none shrink-0 ml-auto">
+              {msg.changeset_count} {t("chat.interface.files", { defaultValue: "FILES" })}
+            </Badge>
+          )}
+        </motion.div>
+      )
+    }
 
-          <div className="flex-1 min-w-0 flex items-center gap-3 py-1 border-b border-border/5 overflow-hidden">
-            <span className="text-[12px] text-foreground/60 truncate" title={msg.tool_meta?.display_name || msg.tool_name || "TOOL"}>
-              {msg.tool_meta?.display_name || msg.tool_name || "TOOL"}
-            </span>
+    // 1. User Message Layout (Ultra compact: no bottom line, no timestamp, actions folded in absolute hover pill)
+    if (isUser) {
+      return (
+        <motion.div
+          className="group relative flex flex-col w-full my-2.5 px-4 py-3.5 rounded-xl bg-primary text-primary-foreground text-[15px] font-medium leading-relaxed transition-all shadow-sm"
+          data-run-id={msg.run_id}
+        >
+          <MessageContent content={msg.content} isUser={isUser} />
 
-            {msg.status === "running" && <Loader2 className="h-3 w-3 animate-spin text-primary/40 ml-2" />}
-            {msg.changeset_count !== undefined && msg.changeset_count > 0 && (
-              <Badge variant="secondary" className="h-4 px-1.5 text-[9px] bg-primary/10 text-primary border-none ml-auto">
-                {msg.changeset_count} FILES
-              </Badge>
+          {/* Absolute Hover Action Pill (Folded into top-right corner on hover, saving vertical space) */}
+          <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/90 backdrop-blur-sm px-1 py-0.5 rounded-md shadow-sm border border-border/40 z-10">
+            {/* Copy */}
+            <Button variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-muted text-muted-foreground/80 hover:text-foreground" onClick={() => { navigator.clipboard.writeText(actionContent || ""); toast.success(t("chat.interface.copied")) }} title={t("chat.interface.copy")}>
+              <Copy className="h-3 w-3" />
+            </Button>
+            {/* Quote */}
+            <Button variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-muted text-muted-foreground/80 hover:text-foreground" onClick={onQuote} title={t("chat.interface.quote")}>
+              <Quote className="h-3 w-3" />
+            </Button>
+            {/* Memorize */}
+            {onAddToMemory && actionContent && (
+              <Button variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-muted text-muted-foreground/80 hover:text-foreground" onClick={() => onAddToMemory(actionContent)} title={t("chat.interface.memorize")}>
+                <Brain className="h-3 w-3" />
+              </Button>
+            )}
+            {/* Rewind */}
+            {onRewind && (
+              <Button variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-orange-500/10 text-muted-foreground/80 hover:text-orange-500" onClick={() => onRewind(msg)} title={t("chat.interface.rewind")}>
+                <Undo className="h-3 w-3" />
+              </Button>
+            )}
+            {/* Retry */}
+            {onRetry && (
+              <Button variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-primary/10 text-muted-foreground/80 hover:text-primary" onClick={() => onRetry(msg)} title={t("chat.interface.retry")}>
+                <RotateCcw className="h-3 w-3" />
+              </Button>
             )}
           </div>
         </motion.div>
       )
     }
 
+    // 2. AI Message Layout (Compact transparent document flow with bottom action bar)
     return (
       <motion.div
-        className={cn(
-          "group relative flex flex-col w-full transition-all",
-          isGrouped ? "mt-1" : "mt-4"
-        )}
+        className="group relative flex flex-col w-full my-1 text-foreground text-[14px] transition-all"
         data-run-id={msg.run_id}
       >
-        {/* 1. Header & Avatar */}
-        {showAvatar && (
-          <div className="flex items-center gap-2 mb-2">
-            <div className="shrink-0 w-10 flex flex-col items-center relative">
-              {msg.role !== "human" && (
-                <div className="absolute top-10 bottom-[-20px] w-[1px] bg-border/40 group-hover:bg-primary/20 transition-colors" />
-              )}
-              <div className={cn(
-                "p-2 rounded-full border transition-colors z-10",
-                msg.role === "human" ? "bg-[var(--doc-header-user)] border-primary/20" : "bg-[var(--doc-header-ai)] border-primary/20"
-              )}>
-                {msg.role === "human" ? <User size={18} className="text-primary" /> : <Bot size={18} className="text-primary" />}
-              </div>
-            </div>
+        {/* Thinking section (tight margin) */}
+        {msg.thinking && (
+          <Collapsible className="mb-2 overflow-hidden">
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-6 px-2 rounded text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors hover:bg-muted/40 flex items-center gap-1.5">
+                <Brain className="h-3 w-3 text-primary/70" />
+                <span>{t("chat.interface.thinkingProcess", { defaultValue: "Worked for thought" })}</span>
+                <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90 text-muted-foreground/50" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-1 pl-3 py-1 border-l-1 border-border/60 text-[12px] text-muted-foreground/80 leading-relaxed font-mono">
+              <MessageContent content={typeof msg.thinking === 'string' ? msg.thinking : JSON.stringify(msg.thinking, null, 2)} />
+            </CollapsibleContent>
+          </Collapsible>
+        )}
 
-            <div className={cn(
-              "doc-section-header flex-1 flex justify-between items-center rounded-lg px-3 py-3 transition-colors border border-border",
-              msg.role === "human" ? "bg-muted/40" : "bg-primary/5"
-            )}>
-              <div className="flex items-center gap-3">
-                <span className="text-[12px] font-bold text-foreground/60">
-                  {msg.role === "human" ? userName : deviceName}
-                </span>
-              </div>
-
-              {/* Right Side: Timestamp or Action Buttons */}
-              <div className="relative flex items-center justify-end min-w-[60px]">
-                {/* Default: Timestamp */}
-                {msg.timestamp && (
-                  <div className="text-[10px] text-muted-foreground/30 font-mono opacity-100 group-hover:opacity-0 transition-opacity duration-200 whitespace-nowrap pointer-events-none">
-                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </div>
-                )}
-
-                {/* Hover: Action Buttons */}
-                <div className="absolute right-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-transparent">
-                  {msg.role === "ai" && msg.content && <TTSButton text={msg.content} size="sm" className="h-7 w-7 rounded-md hover:bg-primary/5 text-muted-foreground/60 hover:text-primary transition-colors" />}
-
-                  {/* Copy */}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 rounded-md hover:bg-primary/5 text-muted-foreground/60 hover:text-primary transition-colors"
-                    onClick={() => {
-                      navigator.clipboard.writeText(msg.content)
-                      toast.success(t("chat.interface.copied"))
-                    }}
-                    title={t("chat.interface.copy")}
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </Button>
-
-                  {/* Quote */}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 rounded-md hover:bg-primary/5 text-muted-foreground/60 hover:text-primary transition-colors"
-                    onClick={onQuote}
-                    title={t("chat.interface.quote")}
-                  >
-                    <Quote className="h-3.5 w-3.5" />
-                  </Button>
-
-                  {/* Memorize */}
-                  {onAddToMemory && msg.content && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 rounded-md hover:bg-primary/5 text-muted-foreground/60 hover:text-primary transition-colors"
-                      onClick={() => onAddToMemory(msg.content)}
-                      title={t("chat.interface.memorize")}
-                    >
-                      <Brain className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-
-                  {/* Rewind (User Only) */}
-                  {onRewind && msg.role === "human" && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 rounded-md hover:bg-orange-500/5 text-muted-foreground/60 hover:text-orange-500 transition-colors"
-                      onClick={() => onRewind(msg)}
-                      title={t("chat.interface.rewind")}
-                    >
-                      <Undo className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-
-                  {/* Retry (User Only) */}
-                  {onRetry && msg.role === "human" && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 rounded-md hover:bg-primary/5 text-muted-foreground/60 hover:text-primary transition-colors"
-                      onClick={() => onRetry(msg)}
-                      title={t("chat.interface.retry")}
-                    >
-                      <RotateCcw className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
+        {/* AI Main Content */}
+        {msg.content && (
+          <div className="doc-message-content w-full prose-compact transition-opacity leading-relaxed">
+            <MessageContent content={msg.content} />
+            <MessageReferences
+              references={msg.references || []}
+              onReferenceClick={(ref) => {
+                if (ref.type === 'changeset') {
+                  onViewChangeset?.(msg.id)
+                }
+              }}
+            />
           </div>
         )}
 
-        {/* 2. Content Section */}
-        <div className="flex gap-2">
-          {/* Continued Spine */}
-          <div className="shrink-0 w-10 flex flex-col items-center relative">
-            {msg.role !== "human" && (
-              <>
-                {!showAvatar && <div className="absolute top-[-20px] bottom-0 w-[1px] bg-border/40 group-hover:bg-primary/20 transition-colors" />}
-                {showAvatar && <div className="absolute top-0 bottom-0 w-[1px] bg-border/40" />}
-              </>
-            )}
+        {/* Artifacts view */}
+        {msg.changeset_count !== undefined && msg.changeset_count > 0 && (
+          <div className="mt-2 my-1">
+            <ChangesetSnapshot
+              files={msg.changeset_files || []}
+              totalCount={msg.changeset_count}
+              onViewDetails={(path) => onViewChangeset?.(msg.id, path)}
+            />
           </div>
+        )}
 
-          <div className="flex-1 min-w-0 transition-all">
-            {/* Thinking / Reasoning */}
-            {msg.thinking && (
-              <Collapsible className="mb-2 overflow-hidden border-l-1 border-primary/10 pl-2">
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px] font-semibold text-muted-foreground/60 hover:text-primary transition-colors flex items-center gap-2">
-                    <Brain className="h-3 w-3" />
-                    {t("chat.interface.thinkingProcess")}
-                    <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="py-2 text-[11px] text-muted-foreground/60 italic leading-relaxed">
-                  <MessageContent content={typeof msg.thinking === 'string' ? msg.thinking : JSON.stringify(msg.thinking, null, 2)} />
-                </CollapsibleContent>
-              </Collapsible>
-            )}
+        {/* Footer Action & Timestamp (Only show timestamp and action buttons for the last AI message in turn) */}
+        {msg.isLastInTurn && (
+          <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-border/15 text-[11px] text-muted-foreground/40 font-mono">
+            <span className="flex items-center gap-1.5 font-mono">
+              <span>{formatSmartTimestamp(msg.timestamp)}</span>
+              {msg.turnDuration && <span className="opacity-60 text-[10px]">({msg.turnDuration})</span>}
+            </span>
 
-            {msg.content && (
-              <div className="doc-message-content w-full prose-compact transition-opacity">
-                <MessageContent content={msg.content} />
-              </div>
-            )}
+            <div className="flex items-center gap-0.5 text-muted-foreground/60">
+              {actionContent && <TTSButton text={actionContent} size="sm" className="h-6 w-6 rounded hover:bg-muted/60 hover:text-foreground text-muted-foreground/70 transition-colors" />}
 
-            {/* Artifacts / Interactive Elements */}
-            {msg.changeset_count !== undefined && msg.changeset_count > 0 && (
-              <div className="space-y-4 mt-2">
-                <ChangesetSnapshot
-                  files={msg.changeset_files || []}
-                  totalCount={msg.changeset_count}
-                  onViewDetails={(path) => onViewChangeset?.(msg.id, path)}
-                />
-              </div>
-            )}
+              <Button
+                variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-muted/60 hover:text-foreground text-muted-foreground/70 transition-colors"
+                onClick={() => {
+                  navigator.clipboard.writeText(actionContent || "")
+                  toast.success(t("chat.interface.copied"))
+                }}
+                title={t("chat.interface.copy")}
+              >
+                <Copy className="h-3 w-3" />
+              </Button>
+
+              <Button
+                variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-muted/60 hover:text-foreground text-muted-foreground/70 transition-colors"
+                onClick={onQuote}
+                title={t("chat.interface.quote")}
+              >
+                <Quote className="h-3 w-3" />
+              </Button>
+
+              {onAddToMemory && actionContent && (
+                <Button
+                  variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-muted/60 hover:text-foreground text-muted-foreground/70 transition-colors"
+                  onClick={() => onAddToMemory(actionContent)}
+                  title={t("chat.interface.memorize")}
+                >
+                  <Brain className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
-
-
+        )}
       </motion.div>
     )
   },
@@ -288,6 +262,9 @@ const ChatMessageItem = memo(
     return (
       prevProps.msg.id === nextProps.msg.id &&
       prevProps.msg.content === nextProps.msg.content &&
+      prevProps.msg.effective_content === nextProps.msg.effective_content &&
+      prevProps.msg.turnDuration === nextProps.msg.turnDuration &&
+      prevProps.msg.isLastInTurn === nextProps.msg.isLastInTurn &&
       prevProps.msg.thinking === nextProps.msg.thinking &&
       prevProps.msg.status === nextProps.msg.status &&
       prevProps.showAvatar === nextProps.showAvatar &&
@@ -314,21 +291,23 @@ const SmartChatMessageItem = memo((props: ChatMessageItemProps) => {
       return
     }
 
+    const speakContent = msg.effective_content !== undefined && msg.effective_content.trim() !== "" ? msg.effective_content : msg.content;
+
     if (
       autoSpeak &&
       msg.role === "ai" &&
-      msg.content &&
+      speakContent &&
       (!msg.status || msg.status === "completed") &&
       !isSpeaking &&
       (msg.node_source === "chat" || msg.node_source === "finish" || !msg.node_source)
     ) {
       const timer = setTimeout(() => {
-        speak(msg.content)
+        speak(speakContent)
         globalSpokenMessageIds.add(msg.id)
       }, 500)
       return () => clearTimeout(timer)
     }
-  }, [autoSpeak, msg.role, msg.content, msg.status, isSpeaking, speak, msg.node_source, msg.id, msg.timestamp])
+  }, [autoSpeak, msg.role, msg.content, msg.effective_content, msg.status, isSpeaking, speak, msg.node_source, msg.id, msg.timestamp])
 
   return <ChatMessageItem {...props} />
 })

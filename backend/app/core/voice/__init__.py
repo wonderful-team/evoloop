@@ -33,6 +33,7 @@ from app.core.voice.stt.factory import (
     STTFactory,
     get_stt_provider,
     transcribe_audio,
+    transcribe_file,
 )
 from app.core.voice.tts.factory import (
     TTSFactory,
@@ -68,4 +69,5 @@ __all__ = [
     "get_stt_provider",
     "list_stt_providers",
     "transcribe_audio",
+    "transcribe_file",
 ]

@@ -6,13 +6,12 @@ import sys
 from multiprocessing import freeze_support
 freeze_support()
 
-# Embedded mode: Use file-based token storage instead of macOS Keychain
-# This avoids keychain authorization prompts in PyInstaller builds
-os.environ["EVOLOOP_BUNDLED_APP"] = "true"
-os.environ["EVOLOOP_TOKEN_STORAGE"] = "file"
+# PyInstaller builds run in embedded mode (SQLite + FileCache, no external deps)
+os.environ["EMBEDDED_MODE"] = "true"
 
 # Ensure the app package is importable
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 
 def parse_args():
     """Parse command line arguments. Supports both --host/--port and env vars."""
@@ -36,6 +35,7 @@ def parse_args():
             i += 1
     
     return host, port
+
 
 def main():
     # Parse command line arguments
@@ -61,6 +61,7 @@ def main():
     )
     server = Server(config)
     server.run()
+
 
 if __name__ == "__main__":
     freeze_support()

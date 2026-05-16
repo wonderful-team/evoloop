@@ -70,6 +70,62 @@ class BaseVectorStore(Protocol):
         ...
 
     # ------------------------------------------------------------------
+    # Memory embeddings
+    # ------------------------------------------------------------------
+    def upsert_memory_chunks(self, records: list[dict[str, Any]]) -> int:
+        """Upsert memory chunk records."""
+        ...
+
+    def search_memory(
+        self,
+        query_vector: list[float],
+        top_k: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Semantic search over memory chunks."""
+        ...
+
+    def delete_memory_by_id(self, memory_id: str) -> bool:
+        """Remove a specific memory entry by its ID."""
+        ...
+
+    def delete_all_memories(self) -> int:
+        """Wipe all memory entries from the store."""
+        ...
+
+    # ------------------------------------------------------------------
+    # Learned Skill embeddings
+    # ------------------------------------------------------------------
+    def upsert_skill_chunks(self, records: list[dict[str, Any]]) -> int:
+        """Upsert skill chunk records."""
+        ...
+
+    def search_skills(
+        self,
+        query_vector: list[float],
+        bundle_id: str | None = None,
+        platform: str | None = None,
+        top_k: int = 10,
+    ) -> list[dict[str, Any]]:
+        """Semantic search over learned skills with optional Atlas filtering."""
+        ...
+
+    # ------------------------------------------------------------------
+    # Graph Concept embeddings
+    # ------------------------------------------------------------------
+    def upsert_concept_chunks(self, records: list[dict[str, Any]]) -> int:
+        """Upsert graph concept records."""
+        ...
+
+    def search_concepts(
+        self,
+        query_vector: list[float],
+        top_k: int = 10,
+    ) -> list[dict[str, Any]]:
+        """Semantic search over graph concepts."""
+        ...
+
+    # ------------------------------------------------------------------
     # Maintenance
     # ------------------------------------------------------------------
     def get_stats(self) -> dict[str, Any]:

@@ -18,6 +18,26 @@ from pydantic import Field
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
+class ReferenceBlock(DynamicBaseModel):
+    """
+    消息引用块 —— 挂载在消息上的非文本产出物（全平台统一标准）。
+
+    支持的类型及其约定：
+    - file       : 可下载文件（PDF、Excel、TXT 等）。target_id = 预览 URL
+    - image      : 图片（截图、生成图）。target_id = 图片 URL 或物理路径
+    - audio      : 音频（语音回复、上传音频）。target_id = 音频 URL 或路径
+    - message    : 引用历史消息（点击跳转）。target_id = message UUID
+    - artifact   : 可交互组件（echarts/mermaid/map/html/react）。target_id = artifact UUID
+    - changeset  : 代码变更集（文件修改列表）。target_id = run_id
+    - skill      : 技能引用。target_id = skill_id
+    """
+    id: str
+    type: Literal["file", "image", "audio", "message", "artifact", "changeset", "skill"]
+    target_id: str                # 资源路径、消息 ID、或唯一标识
+    target_name: str              # 人类可读名称
+    meta_data: dict[str, Any] = Field(default_factory=dict)  # 扩展字段（因表结构命名为 meta_data）
+
+
 class ToolCall(DynamicBaseModel):
     """
     工具调用请求 —— AI 发出的执行指令。
@@ -82,7 +102,14 @@ class MessageBlock(DynamicBaseModel):
     input: Any | None = None
     tool_meta: dict[str, Any] | None = None
 
-    # === 状态与可见性 ===
+    # === 附件与引用 (标准化 ReferenceBlock) ===
+    references: list[ReferenceBlock] | None = None
+    attachments: list[dict[str, Any]] | None = None  # Mobile 兼容字段
+
+    # === 变更集预览 (由 Mapper 自动填充) ===
+    has_file_operations: bool = False
+    changeset_count: int = 0
+    changeset_files: list[dict[str, Any]] | None = None
     status: Literal["pending", "running", "streaming", "completed", "failed", "waiting_human"] = "completed"
     is_visible: bool = True
 
@@ -90,14 +117,12 @@ class MessageBlock(DynamicBaseModel):
     created_at: str = ""                           # e.g. "2024-01-15T10:30:00+08:00"
     updated_at: str | None = None
 
-    # === 关联与元数据 ===
+    # === 溯源标识 ===
     sequence_number: int = 0
     parent_id: str | None = None
     checkpoint_id: str | None = None
+    is_complete: bool | None = None  # 显式完成状态
     meta_data: dict[str, Any] = Field(default_factory=dict)
-
-    # === 引用（知识/记忆/文件）===
-    references: list[dict[str, Any]] | None = None
 
 
 class HITLBlock(DynamicBaseModel):
@@ -106,7 +131,7 @@ class HITLBlock(DynamicBaseModel):
     """
     id: str
     thread_id: str
-    request_type: Literal["text_input", "choice", "confirmation", "file_select", "approval"]
+    request_type: Literal["text_input", "choice", "confirmation", "file_select", "approval", "project_switch"]
     prompt: str
     description: str = ""
     options: list[str] | None = None
@@ -158,3 +183,4 @@ class ReferenceContext(DynamicBaseModel):
     content_blocks: list[dict[str, Any]]
     reference_notes: list[str]
     injected_message: str
+    references: list[dict[str, Any]] = []

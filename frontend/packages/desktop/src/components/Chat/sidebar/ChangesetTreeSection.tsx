@@ -35,6 +35,8 @@ export function ChangesetTreeSection({ activeThreadId, onSelectFile, defaultExpa
     const setChangeset = useChatStore((s) => s.setChangeset)
     const markChangeAsViewed = useChatStore((s) => s.markChangeAsViewed)
     const viewedChanges = useChatStore((s) => s.viewedChanges)
+    const status = useChatStore((s) => s.status)
+    const isAgentActive = status === "running" || status === "interrupted" || status === "summarizing"
 
     const { data: changeset, isLoading } = useQuery<ChangesetNode[]>({
         queryKey: ["threadChangeset", activeThreadId],
@@ -46,7 +48,7 @@ export function ChangesetTreeSection({ activeThreadId, onSelectFile, defaultExpa
             return res.json()
         },
         enabled: !!activeThreadId,
-        refetchInterval: 5000,
+        refetchInterval: isAgentActive ? 5000 : false,
     })
 
     // Sync changeset to chatStore for badge count

@@ -196,6 +196,19 @@ class FileGraphDriver:
             nodes = await self.find_nodes("CodeEntity", {"name": name, "project_id": pid})
             return nodes
 
+        # 8. Memory Concept Aggregation: MATCH (c)-[:LINKED_TO]->(e:Memory) ... RETURN c.title as name, count(e) as count
+        if "LINKED_TO" in query_upper and "COUNT(E)" in query_upper and "CONCEPT" in query_upper:
+            counts = {} # title -> count
+            for u, v, d in self._graph.edges(data=True):
+                if d.get("type") == "LINKED_TO":
+                    src = self._graph.nodes[u]
+                    # Check if source is a concept
+                    if (src.get("_label") in ["Memory", "Concept"]) and src.get("type") == "concept":
+                        title = src.get("title") or src.get("name")
+                        if title:
+                            counts[title] = counts.get(title, 0) + 1
+            return [{"name": k, "count": v} for k, v in counts.items()]
+
         # 6. Concept Retrieval (for migration): MATCH (c:Concept)
         if "MATCH (C:CONCEPT)" in query_upper:
             nodes = await self.find_nodes("Concept")
@@ -243,6 +256,21 @@ class FileGraphDriver:
         else:
             self._graph.nodes[internal_id].update(attrs)
         
+        # [NEW] Sync Concept embeddings to unified vector store for better performance/standardization
+        if label == "Concept" and "embedding" in properties:
+            try:
+                from app.infrastructure.database.vector import get_vector_store
+                vector_store = get_vector_store()
+                vector_store.upsert_concept_chunks([{
+                    "id": node_id,
+                    "name": properties.get("name") or properties.get("title", ""),
+                    "description": properties.get("description") or properties.get("content", ""),
+                    "project_id": properties.get("project_id", -1),
+                    "vector": properties["embedding"]
+                }])
+            except Exception as ve:
+                logger.warning(f"[FileGraph] Failed to sync Concept vector to store: {ve}")
+
         self._save_graph()
         return self._graph.nodes[internal_id]
 
@@ -375,10 +403,28 @@ class FileGraphDriver:
         top_k: int = 10,
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
-        """Perform a vector similarity search on nodes in FileGraph."""
+        """Perform a vector similarity search on nodes (delegates to VectorStore for Concepts)."""
         if self._graph is None:
             return []
 
+        if label == "Concept":
+            from app.infrastructure.database.vector import get_vector_store
+            vector_store = get_vector_store()
+            
+            # 1. Search in unified vector store
+            vec_results = vector_store.search_concepts(query_embedding, top_k=top_k)
+            if not vec_results:
+                return []
+            
+            # 2. Re-hydrate from FileGraph
+            results = []
+            for r in vec_results:
+                internal_id = f"Concept:{r['id']}"
+                if internal_id in self._graph:
+                    results.append(self._graph.nodes[internal_id])
+            return results
+
+        # Fallback for other labels: Manual cosine similarity on in-memory graph
         candidates = []
         for n_id, attrs in self._graph.nodes(data=True):
             if attrs.get("_label") != label:

@@ -14,6 +14,7 @@ class TraverseOptions:
     max_depth: Optional[int] = None
     exclude_dirs: Optional[List[str]] = None
     filter_func: Optional[Callable[[str], bool]] = None
+    dir_filter: Optional[Callable[[str], bool]] = None
     include_dirs: bool = False
     recursive: bool = True
     follow_ignore: bool = True
@@ -46,11 +47,16 @@ class FileTraverser:
                 dirs[:] = []
 
             # Pruning ignored directories
-            if options.follow_ignore:
+            if options.follow_ignore or options.dir_filter:
                 valid_dirs = []
                 for d in dirs:
-                    if d in exclude_dirs or is_ignored_path(d):
-                        continue
+                    d_path = os.path.join(root, d)
+                    if options.follow_ignore:
+                        if d in exclude_dirs or is_ignored_path(d):
+                            continue
+                    if options.dir_filter:
+                        if not options.dir_filter(d_path):
+                            continue
                     valid_dirs.append(d)
                 dirs[:] = valid_dirs
 

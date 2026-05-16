@@ -10,9 +10,10 @@ import json
 from sqlalchemy import desc, func, select, update
 from sqlalchemy.orm import selectinload
 
+from app.core.engine.message.category import MessageCategory
 from app.core.engine.message.sequence import SequenceService
 from app.infrastructure.database.sql.database import session_scope
-from app.models import Message
+from app.models import Message, MessageReference
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ class MessageRepository:
         content_type: str = "text",
         metadata: dict | None = None,
         parent_id: str | None = None,
+        references: list[dict] | None = None,
     ) -> tuple[str | None, int]:
         """
         Persist a message to the database.
@@ -88,6 +90,20 @@ class MessageRepository:
                     parent_id=effective_parent_id,
                 )
                 session.add(log)
+                
+                # Persistence of MessageReferences (attachments, skills, etc.)
+                if references:
+                    for ref_data in references:
+                        ref = MessageReference(
+                            id=ref_data.get("id", str(uuid.uuid4())),
+                            message_id=log.id,
+                            type=ref_data.get("type", "file"),
+                            target_id=ref_data.get("target_id"),
+                            target_name=ref_data.get("target_name"),
+                            meta_data=ref_data.get("metadata", {}),
+                        )
+                        session.add(ref)
+                
                 await session.flush()
 
             return log.id, seq
@@ -133,8 +149,86 @@ class MessageRepository:
                 return True
 
         except Exception as e:
-            logger.error(f"[MessageRepository] Failed to update message seq={sequence_number}: {e}")
+            logger.error(f"[MessageRepository] Failed to update message: {e}")
             raise
+
+    async def sync_changeset_reference(
+        self,
+        message_id: str,
+        file_path: str,
+        operation: str,
+        run_id: str | None = None,
+        tool_call_id: str | None = None,
+    ) -> bool:
+        """
+        同步或创建消息的 changeset 引用。
+        支持通过 message_id 或 tool_call_id 定位目标消息。
+        """
+        try:
+            async with session_scope() as session:
+                target_msg_id = message_id
+                
+                # 1. 如果提供了 tool_call_id，尝试找回准确的消息 ID (解决回调与执行器 ID 不一致问题)
+                if tool_call_id:
+                    stmt_msg = select(Message.id).where(
+                        Message.thread_id == self.thread_id,
+                        Message.tool_call_id == tool_call_id
+                    ).order_by(desc(Message.sequence_number))
+                    res = await session.execute(stmt_msg)
+                    found_id = res.scalar_one_or_none()
+                    if found_id:
+                        target_msg_id = found_id
+                        logger.debug(f"[MessageRepository] Resolved tool_call_id {tool_call_id} -> msg {target_msg_id}")
+
+                # 2. 查找是否已有 changeset 引用
+                stmt = select(MessageReference).where(
+                    MessageReference.message_id == target_msg_id,
+                    MessageReference.type == "changeset"
+                )
+                result = await session.execute(stmt)
+                ref = result.scalar_one_or_none()
+
+                new_file_entry = {"path": file_path, "operation": operation.lower()}
+
+                if ref:
+                    # 3. 更新现有引用
+                    meta = ref.meta_data or {}
+                    files = meta.get("files", [])
+                    
+                    # 去重检查
+                    if not any(f["path"] == file_path for f in files):
+                        files.append(new_file_entry)
+                        meta["files"] = files
+                        meta["count"] = len(files)
+                        ref.meta_data = meta
+                        logger.debug(f"[MessageRepository] Updated changeset for msg {target_msg_id}: added {file_path}")
+                else:
+                    # 4. 创建新引用 (注意：如果消息不存在，此处仍会触发 IntegrityError)
+                    # 我们增加一个存在性检查
+                    stmt_check = select(Message.id).where(Message.id == target_msg_id)
+                    if not (await session.execute(stmt_check)).scalar_one_or_none():
+                        logger.warning(f"[MessageRepository] Cannot sync changeset: Message {target_msg_id} not found in DB yet.")
+                        return False
+
+                    ref = MessageReference(
+                        id=str(uuid.uuid4()),
+                        message_id=target_msg_id,
+                        type="changeset",
+                        target_id=run_id or target_msg_id,
+                        target_name="代码变更集",
+                        meta_data={
+                            "files": [new_file_entry],
+                            "count": 1
+                        }
+                    )
+                    session.add(ref)
+                    logger.debug(f"[MessageRepository] Created new changeset for msg {target_msg_id} with {file_path}")
+
+                await session.flush()
+                return True
+        except Exception as e:
+            logger.error(f"[MessageRepository] Failed to sync changeset reference: {e}")
+            return False
 
     async def resolve_tool_input(self, tool_call_id: str | None, tool_name: str | None = None) -> dict:
         """
@@ -238,7 +332,11 @@ class MessageRepository:
             # 1. Query visible messages with cursor pagination
             visible_stmt = (
                 select(Message)
-                .where(Message.thread_id == self.thread_id, Message.is_visible == True)
+                .where(
+                    Message.thread_id == self.thread_id,
+                    Message.is_visible == True,
+                    Message.category != MessageCategory.HITL_REQUEST.value
+                )
                 .options(selectinload(Message.references))
                 .order_by(Message.sequence_number.desc())
                 .limit(limit + 1)
@@ -288,7 +386,11 @@ class MessageRepository:
             total_count = None
             if not before_id:
                 total_count = (await session.execute(
-                    select(func.count(Message.id)).where(Message.thread_id == self.thread_id, Message.is_visible == True)
+                    select(func.count(Message.id)).where(
+                        Message.thread_id == self.thread_id,
+                        Message.is_visible == True,
+                        Message.category != MessageCategory.HITL_REQUEST.value
+                    )
                 )).scalar()
 
             return all_messages, has_more, total_count

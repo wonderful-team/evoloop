@@ -6,11 +6,20 @@ import sys
 import time
 from typing import Optional
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, Form
 from fastapi.responses import FileResponse
 
-from app.api.schemas.files import FileNode, FileContent, OpenFileRequest, OpenFileResponse, FileUploadResponse, \
-    FileSearchResult, FileNameSearchResult, CreateFileRequest
+from app.api.schemas.files import (
+    FileNode,
+    FileContent,
+    OpenFileRequest,
+    OpenFileResponse,
+    FileUploadResponse,
+    FileSearchResult,
+    FileNameSearchResult,
+    CreateFileRequest
+)
+from app.core.config import settings
 from app.domain.project.utils import get_project_path
 from app.core.file import TreeService, FileSearcher, FileTraverser, read_file, is_ignored_path
 
@@ -71,11 +80,33 @@ async def get_raw_file(project_id: int, path: str = Query(..., min_length=1)):
     """
     Get raw file content (for previewing images, PDFs, etc).
     """
+    normalized = path.lstrip("/")
+
+    # 聊天附件统一路由：任何 project_id 下，uploads/ 路径都指向 CHAT_UPLOAD_DIR
+    # 聊天上传的文件现在支持会话隔离：~/.evoloop/uploads/{thread_id}/
+    if normalized.startswith("uploads/"):
+        rel_path = normalized[len("uploads/"):]
+
+        # 临时方案：搜索所有子目录寻找该文件 (用于预览兼容性)
+        # 正式方案：在 resolve_and_validate_path 中处理 Agent 读取，这里处理 UI 预览
+        target_file = os.path.join(settings.CHAT_UPLOAD_DIR, rel_path)
+
+        # 如果根目录下没有，尝试在子目录中找（适配隔离后的路径）
+        if not os.path.exists(target_file):
+            for root, dirs, files in os.walk(settings.CHAT_UPLOAD_DIR):
+                if rel_path in files:
+                    target_file = os.path.join(root, rel_path)
+                    break
+                    
+        if not target_file or not os.path.exists(target_file) or not os.path.isfile(target_file):
+            raise HTTPException(404, "File not found")
+        return FileResponse(target_file)
+
     root_path = await get_project_path(project_id)
     if not root_path:
         raise HTTPException(status_code=404, detail="Project path not found")
 
-    target_file = os.path.join(root_path, path.lstrip("/"))
+    target_file = os.path.join(root_path, normalized)
 
     # Security check
     if not os.path.commonpath([root_path, target_file]) == root_path:
@@ -145,20 +176,34 @@ async def create_file(project_id: int, req: CreateFileRequest):
 
 
 @router.post("/upload")
-async def upload_file(project_id: int, file: UploadFile = File(...)):
+async def upload_file(
+    project_id: int, 
+    file: UploadFile = File(...),
+    thread_id: str | None = Form(None),
+    session_id: str | None = Form(None)
+):
     """
-    Upload a file to project's 'uploads' directory.
-    """
-    root_path = await get_project_path(project_id)
-    if not root_path:
-        raise HTTPException(status_code=404, detail="Project path invalid")
+    聊天输入框附件上传。
 
-    upload_dir = os.path.join(root_path, "uploads")
+    隔离策略：
+    1. 如果指定了 thread_id: 存入 uploads/{thread_id}/
+    2. 如果指定了 session_id: 存入 uploads/tmp_{session_id}/ (待转正)
+    3. 否则: 存入 uploads/global/ (兜底)
+    """
+    # 确定物理子目录
+    sub_dir = "global"
+    if thread_id:
+        sub_dir = thread_id
+    elif session_id:
+        sub_dir = f"tmp_{session_id}"
+
+    upload_dir = os.path.join(settings.CHAT_UPLOAD_DIR, sub_dir)
     os.makedirs(upload_dir, exist_ok=True)
 
     filename = os.path.basename(file.filename or "uploaded_file")
     target_path = os.path.join(upload_dir, filename)
 
+    # 处理同名冲突（在同一个会话/session内）
     if os.path.exists(target_path):
         base, ext = os.path.splitext(filename)
         filename = f"{base}_{int(time.time())}{ext}"
@@ -168,8 +213,13 @@ async def upload_file(project_id: int, file: UploadFile = File(...)):
         with open(target_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
+        # 逻辑路径依然返回 uploads/{filename}，前端不需要感知物理子目录
+        # 系统会在 resolve_path 时自动结合 thread_id 定位
         rel_path = f"uploads/{filename}"
-        url = f"/api/projects/{project_id}/files/raw?path={rel_path}"
+        url = f"/api/v1/projects/{project_id}/files/raw?path={rel_path}"
+        if thread_id:
+            url += f"&thread_id={thread_id}"
+            
         return FileUploadResponse(url=url, filename=filename, path=rel_path)
 
     except Exception as e:

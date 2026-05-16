@@ -3,6 +3,7 @@ import logging
 
 from app.core.environment.explorers.base import BaseExplorer
 from app.infrastructure.cache import cache
+from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -110,34 +111,28 @@ class DynamicAppTriage(BaseExplorer):
             logger.debug("[DynamicAppTriage] Skipping LLM triage: user not authenticated")
             return {}
 
-        from app.utils import render_template
+        prompt = render_template("domain/planning/dynamic_app_triage.prompt.j2", app_ids=app_ids)
+        role_name = render_template("domain/planning/expert_roles.prompt.j2", role="ui_dynamics").strip()
 
-        try:
-            prompt = render_template("domain/planning/dynamic_app_triage.prompt.j2", app_ids=app_ids)
-            role_name = render_template("domain/planning/expert_roles.prompt.j2", role="ui_dynamics").strip()
+        from app.core.llm import InternalLLMService
+        from app.infrastructure.config.service import SystemConfigService
+        model_name = SystemConfigService.get_value("LLM_MODEL")
+        response = await InternalLLMService.invoke(
+            messages=[
+                {"role": "system", "content": role_name},
+                {"role": "user", "content": prompt}
+            ],
+            purpose="environment_exploration",
+            temperature=0,
+            model_name=model_name,
+        )
 
-            from app.core.llm import InternalLLMService
-            from app.infrastructure.config.service import SystemConfigService
-            model_name = SystemConfigService.get_value("LLM_MODEL")
-            response = await InternalLLMService.invoke(
-                messages=[
-                    {"role": "system", "content": role_name},
-                    {"role": "user", "content": prompt}
-                ],
-                purpose="environment_exploration",
-                temperature=0,
-                model_name=model_name,
-            )
+        content = response.content.strip()
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
 
-            content = response.content.strip()
-            if "```json" in content:
-                content = content.split("```json")[1].split("```")[0].strip()
-
-            data = json.loads(content)
-            return data.get("results", {})
-        except Exception as e:
-            logger.error(f"[DynamicAppTriage] LLM Identification failed: {e}")
-            return {}
+        data = json.loads(content)
+        return data.get("results", {})
 
     @staticmethod
     async def get_dynamic_apps(platform: str = "android") -> set[str]:

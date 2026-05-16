@@ -403,10 +403,10 @@ export const ChatInputArea = memo(
 
     return (
       <div
-        className="shrink-0 p-4 pt-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+        className="shrink-0 p-2 pt-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
         data-tour="chat-input"
       >
-        <div className="w-full px-4 sm:px-6 lg:px-8 relative">
+        <div className="w-full px-4 relative">
           {/* Reference Picker Popover - Hidden in global mode */}
           {showPicker && currentProject && !isGlobalMode && (
             <div className="absolute bottom-full left-0 mb-2 z-50">
@@ -506,14 +506,9 @@ export const ChatInputArea = memo(
             )}
 
             {/* Bottom: Toolbar */}
-            <div className="relative flex items-center justify-between border-t border-border/40 bg-muted/20 p-2">
-              {/* Hint Text (Centered) */}
-              <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 select-none text-[10px] text-muted-foreground/50 whitespace-nowrap hidden sm:block">
-                {t("chat.interface.inputHint")}
-              </div>
-
+            <div className="flex items-center justify-between border-t border-border/40 bg-muted/20 p-2 gap-2 overflow-hidden">
               {/* Left Group: Tools */}
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 shrink-0">
                 <SkillLibraryDialog
                   threadId={activeThreadId ?? ""}
                   projectId={currentProject?.id}
@@ -550,8 +545,13 @@ export const ChatInputArea = memo(
                 <ModelSelectorWrapper isSending={isSending} />
               </div>
 
+              {/* Hint Text (Fluid Center) */}
+              <div className="flex-1 min-w-0 px-2 pointer-events-none select-none text-[10px] text-muted-foreground/40 text-center truncate hidden md:block">
+                {t("chat.interface.inputHint")}
+              </div>
+
               {/* Right Group: Action */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 shrink-0">
                 {/* Wake word listening indicator */}
                 {wakeWordEnabled && inputMode === 'voice' && (
                   <TooltipProvider delayDuration={100}>
@@ -624,9 +624,7 @@ export const ChatInputArea = memo(
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top">
-                      {inputMode === 'voice'
-                        ? t('chat.voice.switchToText', '切换到文字输入')
-                        : t('chat.voice.switchToVoice', '切换到语音输入')}
+                      {inputMode === 'voice' ? t('chat.voice.switchToText') : t('chat.voice.switchToVoice')}
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -648,9 +646,7 @@ export const ChatInputArea = memo(
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top">
-                      {autoSpeak
-                        ? t('chat.tts.autoSpeakOn', '自动朗读已开启')
-                        : t('chat.tts.autoSpeakOff', '自动朗读已关闭')}
+                      {autoSpeak ? t('chat.tts.autoSpeakOn') : t('chat.tts.autoSpeakOff')}
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>

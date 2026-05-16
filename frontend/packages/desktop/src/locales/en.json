@@ -43,6 +43,9 @@
     "name": "EvoLoop"
   },
   "auth": {
+    "changePassword": {
+      "desc": "Set a strong password to secure your account"
+    },
     "errors": {
       "confirmPasswordRequired": "Password confirmation is required",
       "fullNameRequired": "Full Name is required",
@@ -135,10 +138,13 @@
     "artifact": {
       "chart": "Chart",
       "chartError": "Chart Error",
+      "htmlPreview": "HTML Preview",
       "invalidChartOption": "Invalid Chart Option",
       "loadingMap": "Loading Map",
       "map": "Map",
       "mapError": "Map Error",
+      "preview": "Preview",
+      "reactComponent": "React Component",
       "saveImage": "Save Image"
     },
     "artifacts": {
@@ -205,6 +211,7 @@
       "copied": "Copied",
       "copy": "Copy",
       "deleteChatError": "Failed to delete chat",
+      "dropToUpload": "Drop files here to upload",
       "filesReverted": "{{count}} files reverted",
       "inputDisabled": "Please respond to the active request above...",
       "inputHint": "Enter to send, Shift + Enter for new line, Esc to stop",
@@ -225,6 +232,7 @@
       "stopAgentSuccess": "Stopped",
       "thinkingProcess": "Reasoning Process",
       "toolExecutionSteps": "Tool Execution Steps",
+      "executionSteps": "Reasoning & Execution Process",
       "uploadError": "Upload failed",
       "uploadFile": "Upload File",
       "uploadSuccess": "File uploaded successfully"
@@ -318,6 +326,7 @@
       "cancelled": "Cancelled",
       "completed": "Completed",
       "placeholder": "Enter your response...",
+      "selectFiles": "Select Files",
       "title": "Action Required"
     },
     "resourceRemoved": "Resource removed",
@@ -1124,6 +1133,7 @@
       "discoverTitle": "Discover Project Profile",
       "discoveryCompleted": "Discovery completed",
       "discoveryFailed": "Discovery failed",
+      "editPlaceholder": "Enter project profile in Markdown...",
       "notFound": "No profile found",
       "notFoundDescription": "This project doesn't have a PROJECT.md yet. Click Discover to generate one.",
       "phase": {
@@ -1359,6 +1369,10 @@
     }
   },
   "settings": {
+    "applyError": "Failed to apply settings",
+    "applySuccess": "Settings applied successfully",
+    "applyingChanges": "Applying changes...",
+    "draftReset": "Reset to default",
     "appearance": {
       "chatDisplay": "Chat Display",
       "chatDisplayDesc": "Customize how chat messages are displayed",
@@ -1371,9 +1385,11 @@
       "title": "Theme Preferences"
     },
     "danger": {
+      "delete_warning": "Deleting your account will permanently remove all your data. This action cannot be undone. Do you wish to continue?",
       "description": "Permanently delete your account and all associated data.",
       "kb_reset_btn": "Reset Knowledge Base",
       "kb_reset_confirm_desc": "This will delete all indexed code, file summaries, and memory concepts. The system will need to re-index everything from scratch.",
+      "kb_reset_warning": "Resetting the knowledge base will clear all document indices and memory maps. Active sessions might lose some local context.",
       "kb_reset_confirm_title": "Are you absolutely sure?",
       "kb_reset_desc": "Wipe all indexed code and memory concepts. Use this if the AI seems confused or hallucinations persist.",
       "kb_reset_error": "Failed to wipe Knowledge Base.",

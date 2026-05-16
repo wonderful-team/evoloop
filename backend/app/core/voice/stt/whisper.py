@@ -4,6 +4,8 @@ OpenAI Whisper 语音识别（云端）
 """
 
 import logging
+import os
+from typing import Any
 from collections.abc import AsyncIterator
 
 try:
@@ -87,9 +89,8 @@ class WhisperProvider(BaseSTTProvider):
 
         try:
             # 准备参数
-            kwargs = {
+            kwargs: dict[str, Any] = {
                 "model": model,
-                "file": ("audio.webm", options.audio_data),
                 "response_format": "verbose_json",
             }
 
@@ -99,8 +100,17 @@ class WhisperProvider(BaseSTTProvider):
             if options.prompt:
                 kwargs["prompt"] = options.prompt
 
-            # 调用 API
-            response = await client.audio.transcriptions.create(**kwargs)
+            # 如果提供了文件路径，使用文件流上传（内存友好）
+            if options.file_path and os.path.exists(options.file_path):
+                with open(options.file_path, "rb") as audio_file:
+                    kwargs["file"] = (os.path.basename(options.file_path), audio_file)
+                    response = await client.audio.transcriptions.create(**kwargs)
+            else:
+                # 否则使用内存数据
+                if not options.audio_data:
+                    raise ValueError("Either audio_data or file_path must be provided")
+                kwargs["file"] = ("audio.webm", options.audio_data)
+                response = await client.audio.transcriptions.create(**kwargs)
 
             # 解析结果
             detected_language = self._code_to_locale(
@@ -118,12 +128,14 @@ class WhisperProvider(BaseSTTProvider):
             logger.error(f"Whisper transcription failed: {e}")
             raise RuntimeError(f"Transcription failed: {e}")
 
-    async def transcribe_stream(self, options: STTOptions) -> AsyncIterator[STTResult]:
+    def transcribe_stream(self, options: STTOptions) -> AsyncIterator[STTResult]:
         """
         流式识别（Whisper 不支持真正的流式，模拟返回）
         """
-        result = await self.transcribe(options)
-        yield result
+        async def _gen():
+            result = await self.transcribe(options)
+            yield result
+        return _gen()
 
     def _locale_to_code(self, locale: VoiceLocale) -> str | None:
         """将 VoiceLocale 转换为 Whisper 语言代码"""
@@ -170,5 +182,5 @@ class WhisperLocalProvider(BaseSTTProvider):
     async def transcribe(self, options: STTOptions) -> STTResult:
         raise NotImplementedError("Local Whisper not implemented yet")
 
-    async def transcribe_stream(self, options: STTOptions) -> AsyncIterator[STTResult]:
+    def transcribe_stream(self, options: STTOptions) -> AsyncIterator[STTResult]:
         raise NotImplementedError("Local Whisper not implemented yet")

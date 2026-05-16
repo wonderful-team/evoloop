@@ -83,7 +83,7 @@ async def search_codebase(
                     "symbol": target.get("full_name", "Unknown"),
                     "type": target.get("type", "Unknown"),
                     "file": target.get("file_path", "Unknown"),
-                    "outgoing": [], # find_symbol_definition currently doesn't return outgoing in this view
+                    "outgoing": target.get("outgoing", []),
                     "incoming": []
                 }
                 
@@ -91,7 +91,8 @@ async def search_codebase(
                 if usages_task:
                     usages = await usages_task
                     if usages:
-                        graph_data["incoming"] = [{"source": u["source"], "type": "references"} for u in usages]
+                        # Format as strings for the template: "SourceEntity (references)"
+                        graph_data["incoming"] = [f"{u['source']} (references)" for u in usages]
                     
         except Exception as e:
             logger.error(f"Graph lookup failed: {e}")

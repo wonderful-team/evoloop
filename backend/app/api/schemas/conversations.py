@@ -18,7 +18,7 @@ class MessageItem(MessageBlock):
     references: list["ReferenceItem"] = []
     has_file_operations: bool = False
     changeset_count: int = 0
-    changeset_files: list[MessageChangesetFile] = []
+    changeset_files: list[MessageChangesetFile] | None = None
     category: str | None = None
     content_type: str = "text"
     status: str | None = None

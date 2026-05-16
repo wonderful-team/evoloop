@@ -100,20 +100,30 @@ class Message(Base):
 class MessageReference(Base):
     """
     Persistent Context References
-    Tracks what memory/knowledge/tool was used to generate a message.
+    挂载在消息上的所有非文本引用的持久化存储。
+
+    type 字段的合法值（与 ReferenceBlock.type 严格对应）：
+    - "file"       : 可下载文件（PDF、Excel、TXT 等）
+    - "image"      : 图片（截图、AI 生成图）
+    - "audio"      : 音频（语音回复、上传音频）
+    - "message"    : 引用历史消息（target_id = message UUID）
+    - "artifact"   : 可交互组件（echarts/mermaid/map/html）
+    - "changeset"  : 代码变更集（target_id = run_id，meta_data 含 files 列表）
+    - "skill"      : 技能引用（target_id = skill_id）
     """
 
     __tablename__ = "message_references"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)  # UUID
     message_id: Mapped[str] = mapped_column(ForeignKey("messages.id"), index=True)
-    type: Mapped[str] = mapped_column(String(50))  # memory, tool, knowledge, file, audio, image
-    target_id: Mapped[str] = mapped_column(String(255))  # ID or Name of the item (URL for audio/images)
-    target_name: Mapped[str] = mapped_column(String(255))  # Human readable name
-    meta_data: Mapped[dict | None] = mapped_column(JSON, default=None)  # Additional metadata (duration, transcript, etc.)
+    type: Mapped[str] = mapped_column(String(50))  # 见 docstring 中的合法值列表
+    target_id: Mapped[str] = mapped_column(String(255))  # 资源路径、消息 ID、URL 或唯一标识
+    target_name: Mapped[str] = mapped_column(String(255))  # 人类可读名称
+    meta_data: Mapped[dict | None] = mapped_column(JSON, default=None)  # 扩展元数据（size, mime_type, files, artifact_type 等）
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     message: Mapped["Message"] = relationship(back_populates="references")
+
 
 
 class Conversation(Base):
