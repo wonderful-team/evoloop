@@ -204,7 +204,7 @@ const MessageItem = React.memo(function MessageItem({
               {message.references && message.references.length > 0 && (
                 <View style={styles.referencesContainer}>
                   {message.references.map((ref: any, idx: number) => (
-                    <MessageQuote key={idx} reference={ref} />
+                    <MessageQuote key={idx} reference={ref} isUser={isUser} />
                   ))}
                 </View>
               )}

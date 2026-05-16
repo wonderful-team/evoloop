@@ -678,6 +678,28 @@ export const Body_files_upload_fileSchema = {
             type: 'string',
             format: 'binary',
             title: 'File'
+        },
+        thread_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Thread Id'
+        },
+        session_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Session Id'
         }
     },
     type: 'object',
@@ -1022,6 +1044,21 @@ export const ChatRequestSchema = {
                 }
             ],
             title: 'Attachments'
+        },
+        references: {
+            anyOf: [
+                {
+                    items: {
+                        additionalProperties: true,
+                        type: 'object'
+                    },
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'References'
         },
         skill_id: {
             anyOf: [
@@ -3717,6 +3754,53 @@ export const MessageItemSchema = {
             ],
             title: 'Tool Meta'
         },
+        references: {
+            items: {
+                '$ref': '#/components/schemas/ReferenceItem'
+            },
+            type: 'array',
+            title: 'References',
+            default: []
+        },
+        attachments: {
+            anyOf: [
+                {
+                    items: {
+                        additionalProperties: true,
+                        type: 'object'
+                    },
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Attachments'
+        },
+        has_file_operations: {
+            type: 'boolean',
+            title: 'Has File Operations',
+            default: false
+        },
+        changeset_count: {
+            type: 'integer',
+            title: 'Changeset Count',
+            default: 0
+        },
+        changeset_files: {
+            anyOf: [
+                {
+                    items: {
+                        '$ref': '#/components/schemas/MessageChangesetFile'
+                    },
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Changeset Files'
+        },
         status: {
             anyOf: [
                 {
@@ -3782,36 +3866,21 @@ export const MessageItemSchema = {
             ],
             title: 'Checkpoint Id'
         },
+        is_complete: {
+            anyOf: [
+                {
+                    type: 'boolean'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Is Complete'
+        },
         meta_data: {
             additionalProperties: true,
             type: 'object',
             title: 'Meta Data'
-        },
-        references: {
-            items: {
-                '$ref': '#/components/schemas/ReferenceItem'
-            },
-            type: 'array',
-            title: 'References',
-            default: []
-        },
-        has_file_operations: {
-            type: 'boolean',
-            title: 'Has File Operations',
-            default: false
-        },
-        changeset_count: {
-            type: 'integer',
-            title: 'Changeset Count',
-            default: 0
-        },
-        changeset_files: {
-            items: {
-                '$ref': '#/components/schemas/MessageChangesetFile'
-            },
-            type: 'array',
-            title: 'Changeset Files',
-            default: []
         }
     },
     additionalProperties: true,

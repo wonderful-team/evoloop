@@ -10,9 +10,38 @@
  */
 
 import i18n from '@/locales';
-import { ChatMessage } from '@/types/conversation';
+import { ChatMessage, MessageAttachment } from '@/types/conversation';
 import { HumanRequest } from '@/types/hitl';
 import { AgentSyncMessage } from '@/services/gateway/agentMessage';
+
+/**
+ * 标准化后端发送的 references 数组。
+ * 将后端 ReferenceBlock 的 target_id / target_name 映射为移动端 MessageReference 的 id / name / detail。
+ */
+export function adaptReferences(refs: Array<Record<string, any>> | null | undefined): Array<Record<string, any>> | undefined {
+  if (!refs || !Array.isArray(refs) || refs.length === 0) return undefined;
+  return refs.map(ref => ({
+    ...ref,
+    id: String(ref.id || ref.target_id || `ref-${Date.now()}`),
+    name: String(ref.name || ref.target_name || ref.title || 'Reference'),
+    detail: String(ref.detail || (ref.meta_data ? typeof ref.meta_data === 'string' ? ref.meta_data : JSON.stringify(ref.meta_data) : '')),
+  }));
+}
+
+/**
+ * 标准化后端发送的 attachments 数组。
+ * 将后端 ReferenceBlock 的 target_id / target_name 映射为移动端 MessageAttachment 的 url / name。
+ */
+export function adaptAttachments(atts: Array<Record<string, any>> | null | undefined): MessageAttachment[] | undefined {
+  if (!atts || !Array.isArray(atts) || atts.length === 0) return undefined;
+  return atts.map(att => ({
+    id: String(att.id || att.target_id || `att-${Date.now()}`),
+    type: (att.type === 'image' || att.type === 'audio' || att.type === 'file' || att.type === 'reference' || att.type === 'skill' || att.type === 'message') ? att.type : 'file',
+    url: String(att.url || att.target_id || ''),
+    name: String(att.name || att.target_name || att.title || 'Attachment'),
+    metadata: att.metadata || att.meta_data,
+  }));
+}
 
 /**
  * 统一时间戳规范化。
@@ -61,7 +90,8 @@ export function adaptAgentMessage(raw: AgentSyncMessage): ChatMessage {
     // 元数据透传
     category: raw.category ?? undefined,
     sequence_number: raw.sequence_number,
-    references: raw.references ?? undefined,
+    references: adaptReferences(raw.references),
+    attachments: adaptAttachments(raw.attachments || raw.references),
   };
 }
 
@@ -96,7 +126,8 @@ export function adaptHistoryMessage(raw: Record<string, any>): ChatMessage {
       return undefined;
     })(),
     has_file_operations: raw.has_file_operations ?? false,
-    references: raw.references ?? undefined,
+    references: adaptReferences(raw.references),
+    attachments: adaptAttachments(raw.attachments || raw.references),
     category: raw.category ?? undefined,
     sequence_number: raw.sequence_number ?? undefined,
   };

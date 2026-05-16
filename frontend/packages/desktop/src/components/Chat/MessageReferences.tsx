@@ -30,11 +30,13 @@ interface Reference {
 interface MessageReferencesProps {
   references: Reference[];
   onReferenceClick?: (ref: Reference) => void;
+  isUser?: boolean;
 }
 
 export const MessageReferences: React.FC<MessageReferencesProps> = ({ 
   references, 
-  onReferenceClick 
+  onReferenceClick,
+  isUser = false
 }) => {
   const { t } = useTranslation();
 
@@ -83,6 +85,7 @@ export const MessageReferences: React.FC<MessageReferencesProps> = ({
               key={res.id} 
               reference={res} 
               onClick={() => onReferenceClick?.(res)} 
+              isUser={isUser}
             />
           ))}
         </div>
@@ -91,7 +94,7 @@ export const MessageReferences: React.FC<MessageReferencesProps> = ({
   );
 };
 
-const ResourceChip = ({ reference, onClick }: { reference: Reference; onClick: () => void }) => {
+const ResourceChip = ({ reference, onClick, isUser = false }: { reference: Reference; onClick: () => void; isUser?: boolean }) => {
   const { t } = useTranslation();
   
   const getIcon = () => {
@@ -107,6 +110,9 @@ const ResourceChip = ({ reference, onClick }: { reference: Reference; onClick: (
   };
 
   const getColors = () => {
+    if (isUser) {
+      return "bg-white/15 text-white border-white/25 hover:bg-white/25 dark:bg-black/20 dark:border-white/15";
+    }
     switch (reference.type) {
       case 'skill': return "bg-amber-500/10 text-amber-600 border-amber-200/50 dark:border-amber-800/50";
       case 'message': return "bg-blue-500/10 text-blue-600 border-blue-200/50 dark:border-blue-800/50";

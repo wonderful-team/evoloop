@@ -411,6 +411,13 @@ export default function ChatScreen() {
       timestamp: Date.now(),
       isComplete: true,
       status: 'running',
+      references: options?.references,
+      attachments: options?.attachments ? options.attachments.map(a => ({
+        id: a.id || `att-${Date.now()}`,
+        type: (a.type === 'image' || a.type === 'audio' || a.type === 'file') ? a.type as any : 'file',
+        url: a.url,
+        name: a.name,
+      })) : undefined,
     };
     addMessage(userMessage);
 

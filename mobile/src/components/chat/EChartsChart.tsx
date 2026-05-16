@@ -127,8 +127,8 @@ export const EChartsChart = memo(function EChartsChart({ data }: EChartsChartPro
           </Text>
         </View>
         <View style={[styles.codeBlock, { backgroundColor: colors.background }]}>
-          <Text style={[styles.codeText, { color: colors.onSurface }]}>
-            {data.title || 'ECharts'}
+          <Text style={[styles.codeText, { color: colors.onSurface }]} numberOfLines={10}>
+            {typeof data.title === 'object' ? (data.title as any).text : (data.title || 'ECharts Error')}
           </Text>
         </View>
       </View>

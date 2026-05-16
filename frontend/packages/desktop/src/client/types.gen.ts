@@ -181,6 +181,8 @@ export type Body_audio_transcribe_stream = {
 
 export type Body_files_upload_file = {
     file: (Blob | File);
+    thread_id?: (string | null);
+    session_id?: (string | null);
 };
 
 export type Body_knowledge_bulk_upload = {
@@ -290,6 +292,9 @@ export type ChatRequest = {
     checkpoint_id?: (string | null);
     message_id?: (string | null);
     attachments?: (Array<{
+    [key: string]: unknown;
+}> | null);
+    references?: (Array<{
     [key: string]: unknown;
 }> | null);
     skill_id?: (number | null);
@@ -1039,6 +1044,13 @@ export type MessageItem = {
     tool_meta?: ({
     [key: string]: unknown;
 } | null);
+    references?: Array<ReferenceItem>;
+    attachments?: (Array<{
+    [key: string]: unknown;
+}> | null);
+    has_file_operations?: boolean;
+    changeset_count?: number;
+    changeset_files?: (Array<MessageChangesetFile> | null);
     status?: (string | null);
     is_visible?: boolean;
     created_at?: string;
@@ -1046,14 +1058,11 @@ export type MessageItem = {
     sequence_number?: (number | null);
     parent_id?: (string | null);
     checkpoint_id?: (string | null);
+    is_complete?: (boolean | null);
     meta_data?: {
         [key: string]: unknown;
     };
-    references?: Array<ReferenceItem>;
-    has_file_operations?: boolean;
-    changeset_count?: number;
-    changeset_files?: Array<MessageChangesetFile>;
-    [key: string]: unknown | string | boolean | ReferenceItem | number | MessageChangesetFile;
+    [key: string]: unknown | string | ReferenceItem | boolean | number;
 };
 
 export type role = 'human' | 'ai' | 'tool' | 'system';

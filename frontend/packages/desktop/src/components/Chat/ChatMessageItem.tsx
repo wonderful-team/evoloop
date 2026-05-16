@@ -131,6 +131,7 @@ const ChatMessageItem = memo(
           data-run-id={msg.run_id}
         >
           <MessageContent content={msg.content} isUser={isUser} />
+          <MessageReferences references={msg.references || []} isUser={true} />
 
           {/* Absolute Hover Action Pill (Folded into top-right corner on hover, saving vertical space) */}
           <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/90 backdrop-blur-sm px-1 py-0.5 rounded-md shadow-sm border border-border/40 z-10">

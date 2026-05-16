@@ -240,13 +240,21 @@ export function MessageContent({ content, isUser = false }: MessageContentProps)
         return <MermaidChart key={node.key} chart={content} />;
       }
 
-      if (language === 'artifact') {
+      if (language === 'artifact' || language === 'html' || language === 'react') {
+        const titleLabel = language === 'html' ? 'HTML Preview' : language === 'react' ? 'React Component Preview' : 'Artifact Preview';
         return (
           <View key={node.key} style={styles.artifactContainer}>
-            <Text style={styles.artifactTitle}>Artifact Preview</Text>
-            <View style={styles.artifactContent}>
-              {/* 这里可以对接具体的 Artifact 渲染逻辑 */}
-              <Text>{content}</Text>
+            <View style={styles.artifactTitleContainer}>
+              <MaterialIcons name={language === 'react' ? "code" : "web"} size={16} color="#666" />
+              <Text style={styles.artifactTitle}>{titleLabel}</Text>
+            </View>
+            <View style={[styles.artifactContent, { height: 250 }]}>
+              <WebView
+                source={{ html: content }}
+                style={{ backgroundColor: 'transparent' }}
+                scrollEnabled={true}
+                originWhitelist={['*']}
+              />
             </View>
           </View>
         );
@@ -323,7 +331,8 @@ export function MessageContent({ content, isUser = false }: MessageContentProps)
                 }
               }
 
-              if (block.type === 'artifact') {
+              if (block.type === 'artifact' || block.type === 'html' || block.type === 'react') {
+                const titleLabel = block.type === 'html' ? 'HTML Preview' : block.type === 'react' ? 'React Component Preview' : 'Artifact Preview';
                 const artifactHtml = `
                   <!DOCTYPE html>
                   <html>
@@ -344,8 +353,8 @@ export function MessageContent({ content, isUser = false }: MessageContentProps)
                 return (
                   <View key={bIndex} style={styles.artifactContainer}>
                     <View style={styles.artifactTitleContainer}>
-                      <MaterialIcons name="web" size={16} color="#666" />
-                      <Text style={styles.artifactTitle}>Artifact Preview</Text>
+                      <MaterialIcons name={block.type === 'react' ? "code" : "web"} size={16} color="#666" />
+                      <Text style={styles.artifactTitle}>{titleLabel}</Text>
                     </View>
                     <View style={[styles.artifactContent, { height: 250 }]}>
                       <WebView

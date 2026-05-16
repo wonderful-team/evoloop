@@ -1,7 +1,6 @@
 import React from 'react';
 import { Button } from "@evoloop/shared/components/ui/button";
 import { 
-  Bug, 
   Trash2, 
   Layers, 
   Zap, 
@@ -17,13 +16,13 @@ import { toast } from "sonner";
 import { v4 as uuidv4 } from 'uuid';
 
 export function DebugManager() {
-  const { messages, clearContent, addMessage, updateMessage } = useChatStore();
+  const { messages, clearContent } = useChatStore();
   const [isStreaming, setIsStreaming] = React.useState(false);
   
   const injectMocks = () => {
     const mocks = generateMockMessages();
     useChatStore.setState({ messages: mocks });
-    toast.success("15类全能消息块已注入");
+    toast.success("5大类21种形态全域消息块已注入");
   };
 
   const startStreamingSimulation = async () => {
@@ -31,23 +30,30 @@ export function DebugManager() {
     setIsStreaming(true);
     
     const msgId = uuidv4();
-    addMessage({
+    const newMsg: any = {
       id: msgId,
       role: "ai",
       content: "",
       thinking: "正在启动流式输出模拟...",
       status: "streaming",
       timestamp: new Date().toISOString(),
-    });
+    };
+    useChatStore.setState((s) => ({ messages: [...s.messages, newMsg] }));
 
     try {
       await simulateStreaming((content) => {
-        updateMessage(msgId, { content });
+        useChatStore.setState((s) => ({
+          messages: s.messages.map((m) => m.id === msgId ? { ...m, content } : m)
+        }));
       });
-      updateMessage(msgId, { status: "completed" });
+      useChatStore.setState((s) => ({
+        messages: s.messages.map((m) => m.id === msgId ? { ...m, status: "completed" } : m)
+      }));
       toast.success("流式输出完成");
     } catch (err) {
-      updateMessage(msgId, { status: "failed" });
+      useChatStore.setState((s) => ({
+        messages: s.messages.map((m) => m.id === msgId ? { ...m, status: "failed" } : m)
+      }));
       toast.error("流式输出失败");
     } finally {
       setIsStreaming(false);
@@ -175,7 +181,7 @@ export function DebugManager() {
             <Database className="h-2.5 w-2.5" />
             <span className="text-[9px] font-mono">{messages.length} MSGS</span>
           </div>
-          <span className="text-[9px] font-mono font-bold uppercase tracking-tighter">V1.5-DESKTOP</span>
+          <span className="text-[9px] font-mono font-bold uppercase tracking-tighter">V2.0-UNIVERSAL</span>
         </div>
       </div>
     </div>

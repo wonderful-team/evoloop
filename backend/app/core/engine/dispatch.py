@@ -54,6 +54,7 @@ async def dispatch_agent_run(
     *,
     project_id: int = 1,
     attachments: list[dict[str, Any]] | None = None,
+    references: list[dict[str, Any]] | None = None,
     upload_session_id: str | None = None,
     command_id: int | None = None,
     checkpoint_id: str | None = None,
@@ -143,10 +144,11 @@ async def dispatch_agent_run(
     if not os.path.exists(upload_root):
         upload_root = os.path.join(settings.CHAT_UPLOAD_DIR, "global")
 
+    combined_refs = (attachments or []) + (references or [])
     async with session_scope() as session:
         ref_context = await reference_service.process_references(
             message_text=message_content,
-            attachments=attachments or [],
+            attachments=combined_refs,
             session=session,
             root_path=upload_root, # 使用隔离后的目录作为根
             thread_id=thread_id,   # 传入会话 ID 用于生成预览 URL
@@ -158,7 +160,7 @@ async def dispatch_agent_run(
     # 2.5 Extract explicit skill_id from attachments for downstream routing
     # ------------------------------------------------------------------
     metadata = metadata or {}
-    for att in (attachments or []):
+    for att in combined_refs:
         if att.get("type") == "skill":
             skill_meta = att.get("metadata", {})
             metadata["explicit_skill_id"] = skill_meta.get("skill_id")

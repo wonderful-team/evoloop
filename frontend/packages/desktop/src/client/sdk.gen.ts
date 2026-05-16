@@ -1136,8 +1136,12 @@ export class FilesService {
     
     /**
      * Upload File
-     * Upload a file to project's 'uploads' directory.
-     * Returns the URL to access it via /raw endpoint.
+     * 聊天输入框附件上传。
+     *
+     * 隔离策略：
+     * 1. 如果指定了 thread_id: 存入 uploads/{thread_id}/
+     * 2. 如果指定了 session_id: 存入 uploads/tmp_{session_id}/ (待转正)
+     * 3. 否则: 存入 uploads/global/ (兜底)
      * @param data The data for the request.
      * @param data.projectId
      * @param data.formData
@@ -1161,7 +1165,7 @@ export class FilesService {
     
     /**
      * Search Files
-     * Search for text content within project files (simple grep).
+     * Search for text content within project files (standardized search).
      * @param data The data for the request.
      * @param data.projectId
      * @param data.q
@@ -1186,8 +1190,7 @@ export class FilesService {
     
     /**
      * Search Files By Name
-     * Search for file NAMES (not content).
-     * Much faster for "Quick Open" or "Reference" features.
+     * Search for files by name (standardized traversal).
      * @param data The data for the request.
      * @param data.projectId
      * @param data.q

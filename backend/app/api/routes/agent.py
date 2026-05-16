@@ -88,6 +88,7 @@ async def chat_endpoint(req: ChatRequest, bg_tasks: BackgroundTasks, _current_us
         message_content=req.message,
         project_id=req.project_id,
         attachments=attachments,
+        references=req.references,
         command_id=req.command_id,
         checkpoint_id=req.checkpoint_id,
         model=req.model,

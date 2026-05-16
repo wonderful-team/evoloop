@@ -160,10 +160,10 @@ export function extractArtifactBlocks(content: string): ExtractedPart[] {
 /**
  * 统一的消息块提取器 - 识别所有特殊组件块
  */
-export function extractAllSpecialBlocks(text: string): Array<{ type: 'text' | 'mermaid' | 'echarts' | 'map' | 'artifact'; content: string }> {
-  // 识别 ```mermaid, ```echarts, ```map, ```artifact 块
-  const blockRegex = /```(mermaid|echarts|map|artifact)\n([\s\S]*?)```/g;
-  const parts: Array<{ type: 'text' | 'mermaid' | 'echarts' | 'map' | 'artifact'; content: string }> = [];
+export function extractAllSpecialBlocks(text: string): Array<{ type: 'text' | 'mermaid' | 'echarts' | 'map' | 'artifact' | 'html' | 'react'; content: string }> {
+  // 识别 ```mermaid, ```echarts, ```map, ```artifact, ```html, ```react 块
+  const blockRegex = /```(mermaid|echarts|map|artifact|html|react)\n([\s\S]*?)```/g;
+  const parts: Array<{ type: 'text' | 'mermaid' | 'echarts' | 'map' | 'artifact' | 'html' | 'react'; content: string }> = [];
   
   let lastIndex = 0;
   let match;

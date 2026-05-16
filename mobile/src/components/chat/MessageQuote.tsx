@@ -12,9 +12,10 @@ interface MessageQuoteProps {
   reference: MessageReference;
   onRemove?: () => void;
   compact?: boolean;
+  isUser?: boolean;
 }
 
-export function MessageQuote({ reference, onRemove, compact = false }: MessageQuoteProps) {
+export function MessageQuote({ reference, onRemove, compact = false, isUser = false }: MessageQuoteProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
 
@@ -50,14 +51,14 @@ export function MessageQuote({ reference, onRemove, compact = false }: MessageQu
 
   if (compact) {
     return (
-      <View style={[styles.compactContainer, { backgroundColor: colors.primaryContainer }]}>
-        <MaterialIcons name={getIcon()} size={14} color={colors.primary} />
-        <Text variant="bodySmall" style={[styles.compactText, { color: colors.primary }]} numberOfLines={1}>
+      <View style={[styles.compactContainer, { backgroundColor: isUser ? 'rgba(255,255,255,0.15)' : colors.primaryContainer }]}>
+        <MaterialIcons name={getIcon()} size={14} color={isUser ? '#fff' : colors.primary} />
+        <Text variant="bodySmall" style={[styles.compactText, { color: isUser ? '#fff' : colors.primary }]} numberOfLines={1}>
           {reference.name}
         </Text>
         {onRemove && (
           <TouchableOpacity onPress={onRemove} style={styles.removeBtn}>
-            <MaterialIcons name="close" size={14} color={colors.primary} />
+            <MaterialIcons name="close" size={14} color={isUser ? '#fff' : colors.primary} />
           </TouchableOpacity>
         )}
       </View>
@@ -65,23 +66,23 @@ export function MessageQuote({ reference, onRemove, compact = false }: MessageQu
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.surfaceVariant }]}>
+    <View style={[styles.container, { backgroundColor: isUser ? 'rgba(0,0,0,0.06)' : colors.surfaceVariant }]}>
       <View style={styles.header}>
         <View style={styles.typeBadge}>
-          <MaterialIcons name={getIcon()} size={12} color={colors.primary} />
-          <Text variant="labelSmall" style={{ color: colors.primary, marginLeft: 4 }}>
+          <MaterialIcons name={getIcon()} size={12} color={isUser ? colors.onPrimaryContainer : colors.primary} />
+          <Text variant="labelSmall" style={{ color: isUser ? colors.onPrimaryContainer : colors.primary, marginLeft: 4 }}>
             {getTypeLabel()}
           </Text>
         </View>
         {onRemove && (
-          <IconButton icon="close" size={16} onPress={onRemove} style={styles.closeBtn} />
+          <IconButton icon="close" size={16} iconColor={isUser ? colors.onPrimaryContainer : undefined} onPress={onRemove} style={styles.closeBtn} />
         )}
       </View>
-      <Text variant="bodyMedium" style={{ color: colors.onSurface }} numberOfLines={2}>
+      <Text variant="bodyMedium" style={{ color: isUser ? colors.onPrimaryContainer : colors.onSurface }} numberOfLines={2}>
         {reference.name}
       </Text>
       {reference.detail && (
-        <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant, marginTop: 4 }} numberOfLines={1}>
+        <Text variant="bodySmall" style={{ color: isUser ? 'rgba(0,0,0,0.5)' : colors.onSurfaceVariant, marginTop: 4 }} numberOfLines={1}>
           {reference.detail}
         </Text>
       )}
