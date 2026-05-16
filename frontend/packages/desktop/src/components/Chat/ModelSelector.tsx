@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Brain, Star, Loader2 } from "lucide-react"
+import { Brain, Loader2, Eye } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import {
   Select,
@@ -70,7 +70,7 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
             >
               <SelectTrigger
                 className={cn(
-                  "h-8 w-[140px] text-xs border-0 bg-transparent hover:bg-muted/50 focus:ring-0 focus:ring-offset-0",
+                  "h-8 w-auto min-w-[120px] max-w-[260px] px-2 text-xs border-0 bg-transparent hover:bg-muted/50 focus:ring-0 focus:ring-offset-0 font-medium",
                   disabled && "opacity-50 cursor-not-allowed"
                 )}
               >
@@ -83,9 +83,9 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
                   {selectedModel ? (
                     <span className="flex items-center gap-1 truncate">
                       {selectedModel.name}
-                      {selectedModel.quota_required && (
+                      {/*selectedModel.quota_required && (
                         <Star className="h-3 w-3 text-amber-500 fill-amber-500" />
-                      )}
+                      )*/}
                     </span>
                   ) : (
                     <span className="text-muted-foreground">
@@ -111,12 +111,12 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
                         >
                           <span className="flex items-center gap-2 w-full">
                             {model.supports_vision ? (
-                              <span className="text-blue-500">👁</span>
+                              <Eye className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                             ) : (
-                              <Brain className="h-3.5 w-3.5 text-muted-foreground" />
+                              <Brain className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                             )}
                             <span className="flex-1 truncate">{model.name}</span>
-                            {model.quota_required && (
+                            {/*model.quota_required && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Star className="h-3 w-3 text-amber-500 fill-amber-500 flex-shrink-0" />
@@ -125,7 +125,7 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
                                   <p className="text-xs">{t("chat.modelSelector.requiresQuota")}</p>
                                 </TooltipContent>
                               </Tooltip>
-                            )}
+                            )*/}
                           </span>
                         </SelectItem>
                       ))}

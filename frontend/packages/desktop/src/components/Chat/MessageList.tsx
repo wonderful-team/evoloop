@@ -94,7 +94,7 @@ function TurnStepsGroupView({
                     <ChevronRight className="w-3.5 h-3.5 transition-transform duration-200 group-data-[state=open]:rotate-90 text-muted-foreground/50 ml-0.5" />
                 </Button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="pl-1 py-1 ml-3 my-1 border-l-1 border-border/40 space-y-1">
+            <CollapsibleContent className="pl-1 py-1 my-1 border-l-1 border-border/40 space-y-1">
                 {steps.map((stepMsg) => (
                     <SmartChatMessageItem
                         key={stepMsg.id}

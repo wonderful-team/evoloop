@@ -79,7 +79,7 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
       return PlanningService.getPlan({ threadId: activeThreadId })
     },
     enabled: !!activeThreadId,
-    refetchInterval: 3000,
+    refetchInterval: isAgentActive ? 3000 : false,
   })
 
   const typedPlanData = planData as any

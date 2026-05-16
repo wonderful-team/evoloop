@@ -104,7 +104,7 @@ const ChatMessageItem = memo(
     if (msg.role === "tool") {
       return (
         <motion.div
-          className="group relative flex items-center gap-2.5 w-full py-1.5 px-3 my-0.5 rounded transition-colors font-mono text-[12px] text-muted-foreground/70 hover:text-muted-foreground bg-muted/10 hover:bg-muted/25"
+          className="group relative flex items-center gap-2.5 w-full py-1 px-3 my-0.5 rounded transition-colors font-mono text-[12px] text-muted-foreground/70 hover:text-muted-foreground bg-muted/10 hover:bg-muted/25"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.1 }}
@@ -168,7 +168,7 @@ const ChatMessageItem = memo(
     // 2. AI Message Layout (Compact transparent document flow with bottom action bar)
     return (
       <motion.div
-        className="group relative flex flex-col w-full my-2 text-foreground text-[14px] transition-all"
+        className="group relative flex flex-col w-full my-1 text-foreground text-[14px] transition-all"
         data-run-id={msg.run_id}
       >
         {/* Thinking section (tight margin) */}
@@ -181,7 +181,7 @@ const ChatMessageItem = memo(
                 <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90 text-muted-foreground/50" />
               </Button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="mt-1.5 pl-3 py-1.5 border-l-1 border-border/60 text-[12px] text-muted-foreground/80 leading-relaxed font-mono">
+            <CollapsibleContent className="mt-1 pl-3 py-1 border-l-1 border-border/60 text-[12px] text-muted-foreground/80 leading-relaxed font-mono">
               <MessageContent content={typeof msg.thinking === 'string' ? msg.thinking : JSON.stringify(msg.thinking, null, 2)} />
             </CollapsibleContent>
           </Collapsible>
