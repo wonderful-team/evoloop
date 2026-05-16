@@ -17,6 +17,7 @@ import { EChartsArtifact } from './Artifacts/EChartsArtifact';
 import { MapArtifact } from './Artifacts/MapArtifact';
 import { HtmlArtifact } from './Artifacts/HtmlArtifact';
 import { ReactArtifact } from './Artifacts/ReactArtifact';
+import { TestReportCard } from './Artifacts/TestReportCard';
 
 interface Reference {
   id: string;
@@ -60,6 +61,8 @@ export const MessageReferences: React.FC<MessageReferencesProps> = ({
                 return <HtmlArtifact key={art.id} data={data} />;
               case 'react':
                 return <ReactArtifact key={art.id} data={data} />;
+              case 'test_report':
+                return <TestReportCard key={art.id} data={data as any} />;
               default:
                 return (
                   <div key={art.id} className="p-4 border border-dashed rounded-xl bg-muted/10 text-xs text-muted-foreground flex items-center gap-2">

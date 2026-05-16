@@ -390,12 +390,13 @@ export function ChatInterface() {
 
   const handleQuoteMessage = (msg: any) => {
     if (!msg || !msg.id) return
+    const quoteText = msg.effective_content !== undefined && msg.effective_content.trim() !== "" ? msg.effective_content : msg.content;
     
     // Construct reference item
     chatInputRef.current?.addReference({
       type: 'message',
       id: msg.id.toString(),
-      name: msg.content.slice(0, 50) + (msg.content.length > 50 ? "..." : ""),
+      name: quoteText.slice(0, 50) + (quoteText.length > 50 ? "..." : ""),
       detail: msg.role
     })
   }

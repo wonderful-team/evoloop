@@ -222,7 +222,6 @@ export const MapArtifact: React.FC<MapArtifactProps> = ({ data }) => {
             <MapPin className="w-4 h-4" />
         </div>
         <div className="flex flex-col">
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary/50 mb-0.5">Geospatial Artifact</span>
             <h3 className="text-sm font-bold tracking-tight">
                 {data.title || t('chat.artifact.map', 'Location Map')}
             </h3>

@@ -4,6 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@evoloop/shared/compon
 import { Button } from "@evoloop/shared/components/ui/button";
 import { useTranslation } from 'react-i18next';
 import { Download, AlertCircle } from 'lucide-react';
+import { toast } from "sonner";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeFile } from "@tauri-apps/plugin-fs";
 
 interface EChartsArtifactProps {
   data: {
@@ -134,22 +137,38 @@ export const EChartsArtifact: React.FC<EChartsArtifactProps> = ({ data }) => {
     return { ...baseOption, ...data.option };
   }, [data.option, isDark]);
 
-  const handleSaveImage = () => {
+  const handleSaveImage = async () => {
     const instance = chartRef.current?.getEchartsInstance();
-    if (instance) {
-      try {
-        const url = instance.getDataURL({
-          type: 'png',
-          pixelRatio: 2,
-          backgroundColor: isDark ? '#18181b' : '#ffffff',
-        });
-        const link = document.createElement('a');
-        link.download = `${data.title || 'chart'}.png`;
-        link.href = url;
-        link.click();
-      } catch (e) {
-        console.error('Failed to save chart image:', e);
+    if (!instance) return;
+
+    try {
+      const defaultFilename = `${data.title || 'chart'}.png`;
+
+      const filePath = await save({
+        defaultPath: defaultFilename,
+        filters: [{ name: 'Image', extensions: ['png'] }]
+      });
+
+      if (!filePath) return;
+
+      const dataUrl = instance.getDataURL({
+        type: 'png',
+        pixelRatio: 2,
+        backgroundColor: isDark ? '#18181b' : '#ffffff',
+      });
+
+      const base64Data = dataUrl.split(',')[1];
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
       }
+
+      await writeFile(filePath, bytes);
+      toast.success(t('common.saveSuccess'));
+    } catch (e) {
+      console.error('Failed to save chart image:', e);
+      toast.error(t('common.saveFailed'));
     }
   };
 
@@ -164,7 +183,6 @@ export const EChartsArtifact: React.FC<EChartsArtifactProps> = ({ data }) => {
       <div className="w-full my-6 border border-[var(--doc-border)] bg-muted/5 rounded-xl overflow-hidden transition-all duration-500 animate-in fade-in slide-in-from-top-2">
         <div className="py-3 px-5 border-b border-[var(--doc-border)] bg-muted/10 flex flex-row items-center justify-between group/chart">
           <div className="flex flex-col">
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary/50 mb-0.5">Visual Data Artifact</span>
             <h3 className="text-sm font-bold tracking-tight">
                 {data.title || t('chat.artifact.chart', 'Statistical Analysis')}
             </h3>

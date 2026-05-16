@@ -4,7 +4,6 @@ import { Loader2 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { SmartChatMessageItem, type Message } from "./ChatMessageItem"
 import { ChatWelcome } from "./ChatWelcome"
-import { GoalBanner } from "./GoalBanner"
 
 interface MessageListProps {
     messages: Message[]
@@ -120,6 +119,39 @@ export function MessageList({
         }
 
         flushAiGroup()
+
+        // Turn-level pass: For each turn, find the last AI item and attach its content to the turn's first AI item as effective_content.
+        let turnFirstAiIndex = -1
+        let lastAiContentInTurn = ""
+
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i]
+            if (item.type === "message") {
+                if (item.data.role === "human") {
+                    if (turnFirstAiIndex !== -1 && lastAiContentInTurn) {
+                        (items[turnFirstAiIndex].data as any).effective_content = lastAiContentInTurn
+                    }
+                    turnFirstAiIndex = -1
+                    lastAiContentInTurn = ""
+                } else if (item.data.role === "ai") {
+                    if ((item.data as any).isFirstInTurn) {
+                        if (turnFirstAiIndex !== -1 && lastAiContentInTurn) {
+                            (items[turnFirstAiIndex].data as any).effective_content = lastAiContentInTurn
+                        }
+                        turnFirstAiIndex = i
+                        lastAiContentInTurn = item.data.content || ""
+                    } else {
+                        if (item.data.content && item.data.content.trim() !== "") {
+                            lastAiContentInTurn = item.data.content
+                        }
+                    }
+                }
+            }
+        }
+        if (turnFirstAiIndex !== -1 && lastAiContentInTurn) {
+            (items[turnFirstAiIndex].data as any).effective_content = lastAiContentInTurn
+        }
+
         return items
     }, [messages])
 
@@ -146,8 +178,6 @@ export function MessageList({
                 {messages.length === 0 && !isLoadingHistory && (
                     <ChatWelcome />
                 )}
-
-                <GoalBanner />
 
                 <AnimatePresence initial={false}>
                     {renderItems.map((item) => {

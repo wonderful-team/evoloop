@@ -60,6 +60,7 @@ export interface Message {
   humanRequest?: any
   has_file_operations?: boolean
   references?: any[]
+  effective_content?: string
 }
 
 interface ChatMessageItemProps {
@@ -127,7 +128,9 @@ const ChatMessageItem = memo(
         data-run-id={msg.run_id}
       >
         {/* 1. Header & Avatar */}
-        {showAvatar && (
+        {showAvatar && (() => {
+          const actionContent = msg.effective_content !== undefined && msg.effective_content.trim() !== "" ? msg.effective_content : msg.content;
+          return (
           <div className="flex items-center gap-2 mb-2">
             <div className="shrink-0 w-10 flex flex-col items-center relative">
               {msg.role !== "human" && (
@@ -162,7 +165,7 @@ const ChatMessageItem = memo(
 
                 {/* Hover: Action Buttons */}
                 <div className="absolute right-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-transparent">
-                  {msg.role === "ai" && msg.content && <TTSButton text={msg.content} size="sm" className="h-7 w-7 rounded-md hover:bg-primary/5 text-muted-foreground/60 hover:text-primary transition-colors" />}
+                  {msg.role === "ai" && actionContent && <TTSButton text={actionContent} size="sm" className="h-7 w-7 rounded-md hover:bg-primary/5 text-muted-foreground/60 hover:text-primary transition-colors" />}
 
                   {/* Copy */}
                   <Button
@@ -170,7 +173,7 @@ const ChatMessageItem = memo(
                     size="icon"
                     className="h-7 w-7 rounded-md hover:bg-primary/5 text-muted-foreground/60 hover:text-primary transition-colors"
                     onClick={() => {
-                      navigator.clipboard.writeText(msg.content)
+                      navigator.clipboard.writeText(actionContent)
                       toast.success(t("chat.interface.copied"))
                     }}
                     title={t("chat.interface.copy")}
@@ -190,12 +193,12 @@ const ChatMessageItem = memo(
                   </Button>
 
                   {/* Memorize */}
-                  {onAddToMemory && msg.content && (
+                  {onAddToMemory && actionContent && (
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-7 w-7 rounded-md hover:bg-primary/5 text-muted-foreground/60 hover:text-primary transition-colors"
-                      onClick={() => onAddToMemory(msg.content)}
+                      onClick={() => onAddToMemory(actionContent)}
                       title={t("chat.interface.memorize")}
                     >
                       <Brain className="h-3.5 w-3.5" />
@@ -231,7 +234,7 @@ const ChatMessageItem = memo(
               </div>
             </div>
           </div>
-        )}
+          )})()}
 
         {/* 2. Content Section */}
         <div className="flex gap-2">
@@ -265,7 +268,14 @@ const ChatMessageItem = memo(
             {msg.content && (
               <div className="doc-message-content w-full prose-compact transition-opacity">
                 <MessageContent content={msg.content} />
-                <MessageReferences references={msg.references || []} />
+                <MessageReferences
+                  references={msg.references || []}
+                  onReferenceClick={(ref) => {
+                    if (ref.type === 'changeset') {
+                      onViewChangeset?.(msg.id);
+                    }
+                  }}
+                />
               </div>
             )}
 
@@ -290,6 +300,7 @@ const ChatMessageItem = memo(
     return (
       prevProps.msg.id === nextProps.msg.id &&
       prevProps.msg.content === nextProps.msg.content &&
+      prevProps.msg.effective_content === nextProps.msg.effective_content &&
       prevProps.msg.thinking === nextProps.msg.thinking &&
       prevProps.msg.status === nextProps.msg.status &&
       prevProps.showAvatar === nextProps.showAvatar &&
@@ -316,21 +327,23 @@ const SmartChatMessageItem = memo((props: ChatMessageItemProps) => {
       return
     }
 
+    const speakContent = msg.effective_content !== undefined && msg.effective_content.trim() !== "" ? msg.effective_content : msg.content;
+
     if (
       autoSpeak &&
       msg.role === "ai" &&
-      msg.content &&
+      speakContent &&
       (!msg.status || msg.status === "completed") &&
       !isSpeaking &&
       (msg.node_source === "chat" || msg.node_source === "finish" || !msg.node_source)
     ) {
       const timer = setTimeout(() => {
-        speak(msg.content)
+        speak(speakContent)
         globalSpokenMessageIds.add(msg.id)
       }, 500)
       return () => clearTimeout(timer)
     }
-  }, [autoSpeak, msg.role, msg.content, msg.status, isSpeaking, speak, msg.node_source, msg.id, msg.timestamp])
+  }, [autoSpeak, msg.role, msg.content, msg.effective_content, msg.status, isSpeaking, speak, msg.node_source, msg.id, msg.timestamp])
 
   return <ChatMessageItem {...props} />
 })

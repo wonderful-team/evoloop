@@ -109,6 +109,21 @@ export const generateMockMessages = (): Message[] => {
             dependencies: ["react", "lucide-react"]
           }
         }
+      },
+      {
+        id: uuidv4(),
+        type: "artifact",
+        target_id: "art-test-1",
+        target_name: "单元测试执行报告",
+        meta_data: {
+          artifact_type: "test_report",
+          data: {
+            status: "FAIL",
+            summary: "执行了 45 个测试用例，其中 42 个通过，3 个失败。主要集中在数据层异步超时问题。",
+            root_cause: "数据库连接池未能及时释放，导致并发请求超出系统设定上限抛出 TimeoutError。",
+            fix_suggestion: "建议在 db.session.close() 外部使用 context manager (async with) 确保事务执行完毕后立即归还连接。"
+          }
+        }
       }
     ]
   }));
