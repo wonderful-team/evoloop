@@ -1,6 +1,6 @@
 import { Message } from "../ChatMessageItem";
 
-export const generateMockMessages = (): Message[] => {
+export const generateMockMessages = import.meta.env.DEV ? (): Message[] => {
   const now = Date.now();
 
   const mockMessages: Message[] = [
@@ -247,12 +247,12 @@ export const generateMockMessages = (): Message[] => {
       content: '你能看看这个图片里的报错吗？',
       timestamp: new Date(now - 230000).toISOString(),
       status: 'completed',
-      attachments: [
+      references: [
         {
           id: 'att-1',
           type: 'image',
-          name: 'error_screenshot.png',
-          url: 'https://placehold.co/600x400/2563eb/ffffff/png?text=Error+Screenshot',
+          target_id: 'https://placehold.co/600x400/2563eb/ffffff/png?text=Error+Screenshot',
+          target_name: 'error_screenshot.png',
         }
       ]
     },
@@ -366,27 +366,25 @@ export const generateMockMessages = (): Message[] => {
           id: 'mock-mermaid-seq',
           target_id: 'mock-mermaid-seq',
           target_name: '引用消息: Mermaid 序列图测试',
-          detail: 'sequenceDiagram\n    participant U as 用户\n    participant A as AI 助手...'
+          meta_data: { detail: 'sequenceDiagram\n    participant U as 用户\n    participant A as AI 助手...' }
         },
         {
           type: 'skill',
           id: 'skill-1',
           target_id: 'mcp-code-audit',
           target_name: '已挂载技能: 深度代码审查'
-        }
-      ],
-      attachments: [
+        },
         {
           id: 'att-file-1',
           type: 'file',
-          name: 'API_V2_Draft.pdf',
-          url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+          target_id: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+          target_name: 'API_V2_Draft.pdf',
         },
         {
           id: 'att-file-2',
           type: 'file',
-          name: 'auth_handler.go',
-          url: 'https://raw.githubusercontent.com/golang/go/master/README.md',
+          target_id: 'https://raw.githubusercontent.com/golang/go/master/README.md',
+          target_name: 'auth_handler.go',
         }
       ]
     },
@@ -399,18 +397,18 @@ export const generateMockMessages = (): Message[] => {
       thinking: '用户上传了 PDF 和 Go 代码。我分析了 auth_handler.go 中的并发问题，并准备了完整的修复报告。',
       timestamp: new Date(now - 90000).toISOString(),
       status: 'completed',
-      attachments: [
+      references: [
         {
           id: 'ai-export-1',
           type: 'file',
-          name: 'Optimization_Report.md',
-          url: 'https://raw.githubusercontent.com/markdown-it/markdown-it/master/README.md',
+          target_id: 'https://raw.githubusercontent.com/markdown-it/markdown-it/master/README.md',
+          target_name: 'Optimization_Report.md',
         },
         {
           id: 'ai-export-2',
           type: 'file',
-          name: 'fix_patch.zip',
-          url: 'https://github.com/favicon.ico',
+          target_id: 'https://github.com/favicon.ico',
+          target_name: 'fix_patch.zip',
         }
       ]
     },
@@ -422,41 +420,39 @@ export const generateMockMessages = (): Message[] => {
       content: '这是现场的报错截图，还有我引用的那个模块配置。',
       timestamp: new Date(now - 80000).toISOString(),
       status: 'completed',
-      attachments: [
+      references: [
         {
           id: 'img-1',
           type: 'image',
-          name: 'crash_log.png',
-          url: 'https://picsum.photos/800/600?random=88',
+          target_id: 'https://picsum.photos/800/600?random=88',
+          target_name: 'crash_log.png',
         },
         {
           id: 'att-config',
           type: 'file',
-          name: 'config.json',
-          url: 'https://raw.githubusercontent.com/prettier/prettier/main/package.json',
-        }
-      ],
-      references: [
+          target_id: 'https://raw.githubusercontent.com/prettier/prettier/main/package.json',
+          target_name: 'config.json',
+        },
         {
           type: 'file',
           id: 'f-ref-99',
           target_id: 'MessageContent.tsx',
           target_name: '参考文件: MessageContent.tsx (核心渲染组件)',
-          detail: '核心渲染逻辑组件'
+          meta_data: { detail: '核心渲染逻辑组件' }
         }
       ]
     }
   ];
 
   return mockMessages;
-};
+} : (): Message[] => [];
 
-export const simulateStreaming = async (onUpdate: (content: string) => void) => {
-  const fullText = "### 实时多模态流式响应模拟\n\n正在根据你的多模态上下文生成智能诊断...\n\n- **解析速度**: 极致的响应速度 (毫秒级分发)\n- **协议对齐**: 完美分离 References 引用容器与 Attachments 附件卡片\n\n```typescript\nexport function verifyParity() {\n    console.log(\"All 5 categories & 21 forms successfully verified!\");\n    return { status: \"PASSED\", crossPlatform: true };\n}\n```\n\n希望这次全景重构与对齐演示能给你带来极致的体验！";
+export const simulateStreaming = import.meta.env.DEV ? async (onUpdate: (content: string) => void) => {
+  const fullText = "### 实时多模态流式响应模拟\n\n正在根据你的多模态上下文生成智能诊断...\n\n- **解析速度**: 极致的响应速度 (毫秒级分发)\n- **协议对齐**: 完美统一为 References 引用\n\n```typescript\nexport function verifyParity() {\n    console.log(\"All 5 categories & 21 forms successfully verified!\");\n    return { status: \"PASSED\", crossPlatform: true };\n}\n```\n\n希望这次全景重构与对齐演示能给你带来极致的体验！";
   let current = "";
   for (const char of fullText) {
     current += char;
     onUpdate(current);
     await new Promise(r => setTimeout(r, 20));
   }
-};
+} : async () => {};

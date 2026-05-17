@@ -1128,9 +1128,9 @@
       "title": "Project Overview"
     },
     "profile": {
-      "discover": "Discover",
-      "discoverDescription": "Analyze the project structure and generate a PROJECT.md configuration file.",
-      "discoverTitle": "Discover Project Profile",
+      "discover": "Generate Profile",
+      "discoverDescription": "Analyze project structure, attempt to build environment, and generate PROJECT.md profile document.",
+      "discoverTitle": "Generate Project Profile",
       "discoveryCompleted": "Discovery completed",
       "discoveryFailed": "Discovery failed",
       "editPlaceholder": "Enter project profile in Markdown...",

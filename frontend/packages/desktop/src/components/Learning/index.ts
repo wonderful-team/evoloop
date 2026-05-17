@@ -1,6 +1,5 @@
 // Learning components exports
 export { AndroidMirrorConsole } from "./AndroidMirrorConsole"
-export { DebugPanel } from "./DebugPanel"
 export { EditorSidebar } from "./EditorSidebar"
 export { GlobalRecorderManager } from "./GlobalRecorderManager"
 export { ImportSkillsDialog } from "./ImportSkillsDialog"

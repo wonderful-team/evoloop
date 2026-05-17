@@ -1030,21 +1030,6 @@ export const ChatRequestSchema = {
             ],
             title: 'Message Id'
         },
-        attachments: {
-            anyOf: [
-                {
-                    items: {
-                        additionalProperties: true,
-                        type: 'object'
-                    },
-                    type: 'array'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Attachments'
-        },
         references: {
             anyOf: [
                 {
@@ -3761,21 +3746,6 @@ export const MessageItemSchema = {
             type: 'array',
             title: 'References',
             default: []
-        },
-        attachments: {
-            anyOf: [
-                {
-                    items: {
-                        additionalProperties: true,
-                        type: 'object'
-                    },
-                    type: 'array'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Attachments'
         },
         has_file_operations: {
             type: 'boolean',

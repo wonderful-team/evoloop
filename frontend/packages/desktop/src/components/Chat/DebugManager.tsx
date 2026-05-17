@@ -96,7 +96,7 @@ export function DebugManager() {
     toast.info("会话已清空");
   };
 
-  const isDev = process.env.NODE_ENV === 'development' || localStorage.getItem('evoloop:debug') === 'true';
+  const isDev = import.meta.env.DEV;
   if (!isDev) return null;
 
   return (

@@ -19,13 +19,21 @@ import { MessageReferences } from "./MessageReferences"
 import { TTSButton } from "./TTSButton"
 import { useTTS, useAutoSpeak } from "@/hooks/useTTS"
 
+export interface MessageReference {
+  id: string
+  type: 'file' | 'image' | 'audio' | 'message' | 'artifact' | 'changeset' | 'skill'
+  target_id: string
+  target_name: string
+  meta_data?: Record<string, any>
+}
+
 export interface Message {
   id: string | number
   role: "human" | "ai" | "tool" | "system"
   content: string
   thinking?: string
   timestamp?: string
-  status?: "pending" | "streaming" | "running" | "completed" | "failed"
+  status?: "pending" | "streaming" | "running" | "completed" | "failed" | "waiting_human"
   run_id?: string
   node_source?: string
   tool_name?: string
@@ -42,16 +50,9 @@ export interface Message {
     path: string
     operation: 'added' | 'modified' | 'deleted' | 'renamed'
   }>
-  attachments?: Array<{
-    id: string
-    type: string
-    url: string
-    name: string
-    metadata?: any
-  }>
   humanRequest?: any
   has_file_operations?: boolean
-  references?: any[]
+  references?: MessageReference[]
   effective_content?: string
   turnDuration?: string
 }

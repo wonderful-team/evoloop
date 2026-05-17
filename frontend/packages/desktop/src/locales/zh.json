@@ -1128,9 +1128,9 @@
       "title": "项目概览"
     },
     "profile": {
-      "discover": "发现配置",
-      "discoverDescription": "分析项目结构并生成 PROJECT.md 配置文件。",
-      "discoverTitle": "发现项目配置",
+      "discover": "生成画像",
+      "discoverDescription": "分析项目结构，尝试构建项目运行环境，并生成 PROJECT.md 画像文档。",
+      "discoverTitle": "生成项目画像",
       "discoveryCompleted": "发现完成",
       "discoveryFailed": "发现失败",
       "editPlaceholder": "输入 Markdown 格式的项目简介...",

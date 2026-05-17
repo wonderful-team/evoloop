@@ -11,7 +11,7 @@ interface StartupScreenProps {
 
 // 启动页面模式：true = 终端窗口（开发模式），false = 简洁 LOGO + 进度条（正常模式）
 // 通过 .env 中的 VITE_STARTUP_DEBUG_MODE 配置，默认为 false
-const isDebugMode = import.meta.env.VITE_STARTUP_DEBUG_MODE === "true"
+const isDebugMode = import.meta.env.DEV && import.meta.env.VITE_STARTUP_DEBUG_MODE === "true"
 
 export default function StartupScreen({ onReady }: StartupScreenProps) {
     const { t } = useTranslation()

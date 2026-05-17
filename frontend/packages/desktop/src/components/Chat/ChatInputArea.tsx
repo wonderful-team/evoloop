@@ -6,7 +6,7 @@ import { FilesService } from "@/client/sdk.gen"
 import { SkillLibraryDialog } from "@/components/Learning/SkillLibraryDialog"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { cn } from "@evoloop/shared/lib/utils"
-import { type Attachment, AttachmentPreview } from "./AttachmentPreview"
+import { type PickedFile, FilePreview } from "./FilePreview"
 import { ReferencePicker, type ReferenceItem } from "./ReferencePicker"
 import { RecordingButton } from "./RecordingButton"
 import { VoiceRecorderButton, type VoiceRecorderButtonHandle } from "./VoiceRecorderButton"
@@ -20,7 +20,7 @@ import { useChatStore } from "@/stores/chatStore"
 import axios from "axios"
 
 interface ChatInputAreaProps {
-  onSend: (text: string, attachments?: any[]) => void
+  onSend: (text: string, pickedFiles?: any[]) => void
   onStop: () => void
   isAgentWorking: boolean
   isSending: boolean
@@ -53,7 +53,7 @@ export const ChatInputArea = memo(
     const { t } = useTranslation()
     const [inputValue, setInputValue] = useState("")
     const [isUploading, setIsUploading] = useState(false)
-    const [attachments, setAttachments] = useState<Attachment[]>([])
+    const [pickedFiles, setPickedFiles] = useState<PickedFile[]>([])
     const [isDragging, setIsDragging] = useState(false)
 
     const [showPicker, setShowPicker] = useState(false)
@@ -81,11 +81,11 @@ export const ChatInputArea = memo(
     const voiceRecorderRef = useRef<VoiceRecorderButtonHandle>(null)
 
     const handleSend = () => {
-      if ((!inputValue.trim() && attachments.length === 0) || isSending) return
+      if ((!inputValue.trim() && pickedFiles.length === 0) || isSending) return
 
-      // Pass raw input and attachments directly to store/parent
+      // Pass raw input and files directly to store/parent
       // The store handles the optimistic display formatting and API payload construction
-      onSend(inputValue, attachments)
+      onSend(inputValue, pickedFiles)
 
       // Request notification permission on first user gesture (if not already handled)
       if ("Notification" in window && Notification.permission === "default") {
@@ -100,7 +100,7 @@ export const ChatInputArea = memo(
 
       // Clear state
       setInputValue("")
-      setAttachments([])
+      setPickedFiles([])
     }
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -171,17 +171,17 @@ export const ChatInputArea = memo(
           // Infer type
           const isImage = file.type.startsWith("image/")
           const isAudio = file.type.startsWith("audio/")
-          const newAtt: Attachment = {
+          const newFile: PickedFile = {
             id: Math.random().toString(36).substring(2, 15),
             url: url,
             name: file.name,
             type: isImage ? "image" : isAudio ? "audio" : "file",
           }
-          return newAtt
+          return newFile
         })
 
-        const newAttachments = await Promise.all(uploadPromises)
-        setAttachments((prev) => [...prev, ...newAttachments])
+        const newFiles = await Promise.all(uploadPromises)
+        setPickedFiles((prev) => [...prev, ...newFiles])
         toast.success(t("chat.interface.uploadSuccess"))
       } catch (error: any) {
         toast.error(
@@ -244,21 +244,21 @@ export const ChatInputArea = memo(
         const newText = before + prefix + `@${item.name}` + suffix + after
         setInputValue(newText)
 
-        // Add to attachments
-        const newAtt: Attachment = {
+        // Add to picked files
+        const newFile: PickedFile = {
           id: Math.random().toString(36).substring(2, 15),
           url: item.id,
           name: item.name,
           type: item.type === 'file' ? 'file' : 'reference',
         }
         if (item.type === 'message') {
-          newAtt.type = 'message'
+          newFile.type = 'message'
         }
 
-        setAttachments(prev => {
+        setPickedFiles(prev => {
           // Avoid duplicates
-          if (prev.some(a => a.url === newAtt.url)) return prev
-          return [...prev, newAtt]
+          if (prev.some(a => a.url === newFile.url)) return prev
+          return [...prev, newFile]
         })
 
         // Restore focus
@@ -327,9 +327,9 @@ export const ChatInputArea = memo(
         const file = new File([blob], `voice_${Date.now()}.webm`, { type: 'audio/webm' })
         
         let audioUrl = ""
-        let newAtt: Attachment | null = null
+        let newFile: PickedFile | null = null
 
-        // If we have a project OR are in global mode, upload the file as an attachment
+        // If we have a project OR are in global mode, upload the file
         if (currentProject?.id || isGlobalMode) {
           const uploadProjectId = isGlobalMode ? 0 : currentProject!.id!
           const res: any = await FilesService.uploadFile({
@@ -338,15 +338,15 @@ export const ChatInputArea = memo(
           })
           audioUrl = res.url
 
-          // Add audio attachment
-          newAtt = {
+          // Add audio file
+          newFile = {
             id: Math.random().toString(36).substring(2, 15),
             url: audioUrl,
             name: file.name,
             type: 'audio',
             metadata: { duration, waveform },
           }
-          setAttachments((prev) => [...prev, newAtt!])
+          setPickedFiles((prev) => [...prev, newFile!])
           toast.success(t('chat.voice.sentSuccess', '语音已添加'))
         }
 
@@ -367,9 +367,9 @@ export const ChatInputArea = memo(
               
               // 如果是快捷键录音，转写完成后直接发送
               if (isRecordingFromShortcut) {
-                 onSend(transcript, newAtt ? [newAtt] : [])
+                 onSend(transcript, newFile ? [newFile] : [])
                  setInputValue("")
-                 setAttachments([]) // Clear for next message
+                 setPickedFiles([]) // Clear for next message
               } else {
                  setInputValue(prev => prev ? `${prev}\n${transcript}` : transcript)
               }
@@ -439,11 +439,11 @@ export const ChatInputArea = memo(
                 <span className="text-sm font-medium text-primary">{t('chat.interface.dropToUpload', '松开上传文件')}</span>
               </div>
             )}
-            {/* Top: Attachment Preview */}
-            <AttachmentPreview
-              attachments={attachments}
+            {/* Top: File Preview */}
+            <FilePreview
+              pickedFiles={pickedFiles}
               onRemove={(id) =>
-                setAttachments((prev) => prev.filter((a) => a.id !== id))
+                setPickedFiles((prev) => prev.filter((a) => a.id !== id))
               }
             />
 
@@ -517,14 +517,14 @@ export const ChatInputArea = memo(
                   projectId={currentProject?.id}
                   onSelectSkill={(skill) => {
                     // Attach skill as reference (ensure only one skill is mounted)
-                    const newAtt: Attachment = {
+                    const newFile: PickedFile = {
                       id: Math.random().toString(36).substring(2, 15),
                       url: skill.id,
                       name: skill.name,
                       type: 'skill',
                       metadata: { skill_id: skill.id, skill_name: skill.name },
                     }
-                    setAttachments(prev => [...prev.filter(a => a.type !== 'skill'), newAtt])
+                    setPickedFiles(prev => [...prev.filter(a => a.type !== 'skill'), newFile])
                     setIsSkillDialogOpen(false)
                     toast.success(t('chat.skillAttached', '技能已挂载'))
                   }}
@@ -662,7 +662,7 @@ export const ChatInputArea = memo(
                   disabled={
                     inputMode === 'voice' ||
                     (!inputValue.trim() &&
-                      attachments.length === 0 &&
+                      pickedFiles.length === 0 &&
                       !isAgentWorking) ||
                     isSending ||
                     (!currentProject && !isGlobalMode) ||

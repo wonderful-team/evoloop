@@ -291,9 +291,6 @@ export type ChatRequest = {
     command_id?: (number | null);
     checkpoint_id?: (string | null);
     message_id?: (string | null);
-    attachments?: (Array<{
-    [key: string]: unknown;
-}> | null);
     references?: (Array<{
     [key: string]: unknown;
 }> | null);
@@ -1045,9 +1042,6 @@ export type MessageItem = {
     [key: string]: unknown;
 } | null);
     references?: Array<ReferenceItem>;
-    attachments?: (Array<{
-    [key: string]: unknown;
-}> | null);
     has_file_operations?: boolean;
     changeset_count?: number;
     changeset_files?: (Array<MessageChangesetFile> | null);

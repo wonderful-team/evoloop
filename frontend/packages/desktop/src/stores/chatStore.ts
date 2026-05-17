@@ -189,13 +189,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
     },
 
-    sendMessage: async (content, attachments, skillId) => {
+    sendMessage: async (content, pickedFiles, skillId) => {
         const { threadId, projectId, skillId: stateSkillId } = get()
         if (projectId === null) return
 
         const activeSkillId = skillId || stateSkillId
         // Optimistic update
         const tempId = `temp-${Date.now()}`
+        const mappedReferences = (pickedFiles || [])
+            .map(a => ({
+                id: a.id,
+                type: (a.type === 'reference' ? 'message' : a.type) as any,
+                target_id: a.url,
+                target_name: a.name,
+                meta_data: a.metadata || {}
+            }));
+
         const userMsg: Message = {
             id: tempId,
             role: "human",
@@ -203,15 +212,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             timestamp: new Date().toISOString(),
             status: "completed",
             changeset_count: 0,
-            attachments: attachments || [],
-            references: (attachments || [])
-                .filter(a => ['reference', 'file', 'message', 'skill'].includes(a.type))
-                .map(a => ({
-                    id: a.id,
-                    type: a.type,
-                    target_id: a.url,
-                    target_name: a.name
-                }))
+            references: mappedReferences.length > 0 ? mappedReferences : undefined
         }
         set((state) => ({ messages: [...state.messages, userMsg] }))
 
@@ -223,7 +224,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     skill_id: activeSkillId || undefined,
                     message: content,
                     model: get().selectedModel || undefined,
-                    attachments: attachments || undefined,
+                    references: mappedReferences.length > 0 ? mappedReferences : undefined,
                 }
             })
 
@@ -457,6 +458,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         let normalized = raw
         if (["done", "failed", "cancelled"].includes(raw)) normalized = "idle"
         else if (raw === "stopping") normalized = "stopped"
+        else if (raw === "waiting_human") normalized = "interrupted"
 
         const state = get()
         const updates: Partial<ChatState> = {

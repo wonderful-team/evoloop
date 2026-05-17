@@ -82,7 +82,7 @@ export interface ChatState {
     fetchHistory: (threadId: string) => Promise<void>
     fetchActivity: (threadId: string) => Promise<void>
     loadMoreHistory: () => Promise<void>
-    sendMessage: (content: string, attachments?: any[], skillId?: number | null) => Promise<void>
+    sendMessage: (content: string, pickedFiles?: any[], skillId?: number | null) => Promise<void>
     stopAgent: () => Promise<void>
     resumeAgent: (userInput?: string) => Promise<void>
     cancelHumanRequest: (reason?: string) => Promise<void>

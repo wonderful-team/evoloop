@@ -280,9 +280,9 @@ export function ChatInterface() {
   }, [projectId, setThread])
 
   // Wrapper for sendMessage to handle post-send actions
-  const handleSendMessage = async (content: string, attachments?: any[]) => {
+  const handleSendMessage = async (content: string, pickedFiles?: any[]) => {
     const isNewThread = messages.length === 0
-    await sendMessage(content, attachments)
+    await sendMessage(content, pickedFiles)
     // If this was a new thread (first message), refresh the conversation list
     if (isNewThread && projectId !== undefined) {
       queryClient.invalidateQueries({ queryKey: ["projectConversations", projectId] })
@@ -822,7 +822,7 @@ export function ChatInterface() {
         path={selectedDiff?.path || null}
         diff={selectedDiff?.diff || null}
       />
-      <DebugManager />
+      {import.meta.env.DEV && <DebugManager />}
     </div>
   )
 }
