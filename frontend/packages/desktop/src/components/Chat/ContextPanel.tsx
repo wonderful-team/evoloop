@@ -1,6 +1,5 @@
 import {
   Activity,
-  Brain,
   Database,
   LayoutDashboard,
   Loader2,
@@ -55,16 +54,6 @@ export const ContextPanel = memo(
         setActiveTab("activity")
       }
     }, [status])
-
-
-    if (typeof projectId !== "number" || Number.isNaN(projectId)) {
-      return (
-        <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4 text-center">
-          <Brain className="h-10 w-10 mb-2 opacity-20" />
-          <p>{t("chat.context.selectProject")}</p>
-        </div>
-      )
-    }
 
     return (
       <div className="flex flex-col h-full w-full bg-background min-w-0 overflow-hidden">

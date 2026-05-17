@@ -9,7 +9,6 @@ import {
     X,
     CheckCircle2,
     XCircle,
-    AlertCircle,
     Target,
     ClipboardCheck,
     ChevronDown,
@@ -154,7 +153,16 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
     const [resourcesOpen, setResourcesOpen] = useState(true)
     const [memoryOpen, setMemoryOpen] = useState(true)
 
-    if (!projectId) return null
+    if (!projectId) {
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-6 text-center select-none">
+                <Brain className="h-12 w-12 mb-3 opacity-20" />
+                <p className="text-xs font-medium leading-relaxed">
+                    {t("chat.context.selectProject", { defaultValue: "请在左侧选择具体项目以查看并管理专属资源与记忆上下文" })}
+                </p>
+            </div>
+        )
+    }
 
     return (
         <div className="h-full flex flex-col bg-muted/5 overflow-hidden">
