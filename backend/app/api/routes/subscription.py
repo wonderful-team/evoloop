@@ -100,7 +100,10 @@ async def handle_benefits_update_webhook(payload: BenefitsUpdateWebhook):
     logger.info(f"[Webhook] Received benefits update: {payload.event} for member {payload.member_id}")
     
     # 清除该用户的所有缓存
-    if payload.event in ["subscription_created", "subscription_renewed", "subscription_upgraded"]:
+    if payload.event in [
+        "subscription_created", "subscription_renewed", "subscription_upgraded",
+        "subscription_expired", "subscription_cancelled"
+    ]:
         benefit_service.invalidate_cache(payload.member_id)
         logger.info(f"[Webhook] Benefits cache invalidated due to {payload.event}")
     

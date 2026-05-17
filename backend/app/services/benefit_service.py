@@ -104,11 +104,15 @@ class BenefitService:
         Check if a member has a specific capability.
         """
         data = await self.get_member_entitlements(member_id, token)
-        
+
+        # Subscription expired: no benefits regardless of level config
+        if data.get("is_expired", False):
+            return False
+
         # Features are usually in result['benefits'] dictionary or ['feature_list'] array
         # Based on b2c_mall schema, they are in the subscription_features list
         benefits = data.get("benefits", {})
-        
+
         # 1. Check dictionary of boolean/numeric values
         if feature_code in benefits:
             val = benefits[feature_code]
@@ -133,6 +137,11 @@ class BenefitService:
         """
         try:
             data = await self.get_member_entitlements(member_id)
+
+            # Subscription expired: all benefits denied
+            if data.get("is_expired", False):
+                return {code: False for code in benefit_codes}
+
             benefits = data.get("benefits", {})
 
             result = {}

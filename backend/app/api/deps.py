@@ -141,12 +141,17 @@ async def check_multiple_benefits(benefit_codes: list[str], token: TokenDep) -> 
     member_id = await identity_service.resolve_member_id_from_token(token)
     if not member_id:
         return {code: False for code in benefit_codes}
-        
+
     try:
         # For simplicity, we can fetch all entitlements once
         data = await benefit_service.get_member_entitlements(member_id)
+
+        # Subscription expired: all benefits denied
+        if data.get("is_expired", False):
+            return {code: False for code in benefit_codes}
+
         benefits = data.get("benefits", {})
-        
+
         result = {}
         for code in benefit_codes:
             # Check dict
