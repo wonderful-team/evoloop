@@ -146,12 +146,13 @@ export function useBatchFeatureCheck(features: FeatureCode[]) {
   
   for (const feature of features) {
     const hasAccess = data?.results?.[feature] ?? false
+    const isExpired = data?.is_expired ?? false
     results[feature] = {
       hasAccess,
-      isExpired: data?.is_expired ?? false,
+      isExpired,
       requiredPlan: FEATURE_PLAN_MAP[feature],
       featureName: FEATURE_NAME_MAP[feature],
-      canUse: hasAccess,
+      canUse: hasAccess && !isExpired,
       isLoading,
     }
   }

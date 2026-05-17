@@ -81,7 +81,7 @@ export function useFeatureAccess() {
   const { t } = useTranslation();
   const { isLoggedIn } = useAuthStore();
   const { benefits, isLoading: isLoadingBenefits } = useMemberBenefits();
-  const { detail, hasActiveSubscription } = useSubscription();
+  const { detail, hasActiveSubscription, isExpired } = useSubscription();
   const { checkBenefit, isLoading: isLoadingCheck } = useCheckBenefit();
   
   // 本地缓存的权益检查结果
@@ -130,7 +130,7 @@ export function useFeatureAccess() {
    * 适用于非关键性检查（如UI显示控制）
    */
   const canUseFeature = useCallback((featureCode: string): boolean => {
-    if (!isLoggedIn || !benefits) return false;
+    if (!isLoggedIn || !benefits || isExpired) return false;
     
     // 从权益数据中检查
     const value = benefits.benefits?.[featureCode];
@@ -146,7 +146,7 @@ export function useFeatureAccess() {
     }
     
     return false;
-  }, [isLoggedIn, benefits]);
+  }, [isLoggedIn, benefits, isExpired]);
 
   /**
    * 严格检查功能权限（请求后端确认）
@@ -285,7 +285,7 @@ export function useFeature(featureCode: string) {
  */
 export function useAIQuota() {
   const { benefits, isLoading } = useMemberBenefits();
-  const { detail } = useSubscription();
+  const { detail, isExpired } = useSubscription();
   
   const quota = benefits?.benefits?.ai_quota ?? 0;
   const isUnlimited = quota === -1;
@@ -296,7 +296,7 @@ export function useAIQuota() {
     isUnlimited,
     hasQuota,
     isLoading,
-    canUseAI: hasQuota,
+    canUseAI: hasQuota && !isExpired,
   };
 }
 
@@ -305,6 +305,7 @@ export function useAIQuota() {
  */
 export function useProjectLimit() {
   const { benefits, isLoading } = useMemberBenefits();
+  const { isExpired } = useSubscription();
   
   const limit = benefits?.benefits?.project_limit ?? 0;
   const isUnlimited = limit === -1;
@@ -313,6 +314,6 @@ export function useProjectLimit() {
     limit,
     isUnlimited,
     isLoading,
-    canCreateProject: isUnlimited || limit > 0,
+    canCreateProject: !isExpired && (isUnlimited || limit > 0),
   };
 }
