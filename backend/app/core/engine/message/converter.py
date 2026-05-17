@@ -65,6 +65,15 @@ class EvoMessageConverter:
                 content = m.get("content", "")
                 additional_kwargs = m.get("additional_kwargs", {}) or {}
 
+            # Preserve references in additional_kwargs for LangChain
+            references = m.get("references") if isinstance(m, dict) else getattr(m, "references", None)
+            if references:
+                additional_kwargs = additional_kwargs.copy()
+                additional_kwargs["references"] = [
+                    ref.model_dump() if hasattr(ref, "model_dump") else ref 
+                    for ref in references
+                ]
+
             # Mapping roles
             if role in ["human", "user"]:
                 deserialized.append(HumanMessage(content=content, additional_kwargs=additional_kwargs))

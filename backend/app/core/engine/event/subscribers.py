@@ -178,15 +178,11 @@ class EngineCommandSubscriber:
         
         # EPv2: 使用标准化字段
         message = payload.get("message") or payload.get("content") or ""
-        attachments = payload.get("attachments") or []
 
         # Mobile 通过 payload.references 发送的消息引用
         references = payload.get("references") or []
-        if references:
-            attachments = list(attachments) + list(references)
-
-        if not message and not attachments:
-            logger.debug("[EngineCommand] Remote command has no message or attachments, skipping")
+        if not message and not references:
+            logger.debug("[EngineCommand] Remote command has no message or references, skipping")
             return
 
         thread_id = command.get("thread_id")
@@ -196,7 +192,7 @@ class EngineCommandSubscriber:
 
         logger.info(
             f"[EngineCommand] Executing remote command on thread {thread_id}: "
-            f"Length={len(message) if message else 0}, Attachments={len(attachments)}"
+            f"Length={len(message) if message else 0}, References={len(references)}"
         )
 
         # Resolve Project ID
@@ -209,7 +205,7 @@ class EngineCommandSubscriber:
             thread_id=thread_id,
             message_content=message or "",
             project_id=project_id,
-            attachments=attachments,
+            references=references,
             command_id=command.get("command_id"),
             model=None,  # Remote commands don't carry model selection; fallback to default
         )
@@ -280,14 +276,15 @@ class EngineCommandSubscriber:
                 logger.error(f"[EngineCommand] No human message found for {action} thread {thread_id}")
                 return
 
-            attachments = None
+            references = None
             if target_msg.references:
-                attachments = [
+                references = [
                     {
                         "type": ref.type,
                         "id": ref.target_id,
-                        "name": ref.target_name,
-                        "url": ref.target_id if ref.type in ("file", "image") else None,
+                        "target_id": ref.target_id,
+                        "target_name": ref.target_name,
+                        "meta_data": ref.meta_data,
                     }
                     for ref in target_msg.references
                 ]
@@ -327,7 +324,7 @@ class EngineCommandSubscriber:
             thread_id=thread_id,
             message_content=retry_content,
             project_id=project_id,
-            attachments=attachments,
+            references=references,
             command_id=command.get("command_id"),
             model=None,
             is_retry=True,

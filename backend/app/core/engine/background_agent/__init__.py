@@ -62,7 +62,8 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
         project_id = DEFAULT_PROJECT_ID
 
     # 1. Lifecycle & Context Management
-    async with activity_monitor.run_scope(thread_id, inputs.goal) as run_id:
+    task_type = inputs.metadata.get("task_type") if inputs.metadata else None
+    async with activity_monitor.run_scope(thread_id, inputs.goal, task_type=task_type) as run_id:
         _final_status = "done"  # Track final status for command_complete signal
         try:
             # 2. Deserialize & Prepare

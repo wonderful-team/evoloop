@@ -57,7 +57,6 @@ class MessageBlockFactory:
         # 3. Handle References (if present in ORM)
         from app.core.engine.message.schemas import ReferenceBlock
         references = []
-        attachments = []
         if hasattr(msg, "references") and msg.references:
             for ref in msg.references:
                 ref_block = ReferenceBlock(
@@ -68,7 +67,6 @@ class MessageBlockFactory:
                     meta_data=ref.meta_data or {},
                 )
                 references.append(ref_block)
-                attachments.append(ref_block.model_dump())
 
         # 4. Human / System / AI / Tool
         if role == "ai":
@@ -92,7 +90,6 @@ class MessageBlockFactory:
                 thinking=thinking,
                 tool_calls=serializable_tool_calls,
                 references=references,
-                attachments=attachments,
                 created_at=created_at or "",
                 status=status,
                 meta_data=meta_data,
@@ -127,7 +124,6 @@ class MessageBlockFactory:
                 input=input_args,
                 tool_meta=tool_meta,
                 references=references,
-                attachments=attachments,
                 meta_data={**meta_data, "tool_meta": tool_meta},
                 thread_id=thread_id
             )
@@ -138,7 +134,6 @@ class MessageBlockFactory:
                 role=role, # type: ignore
                 content=content,
                 references=references,
-                attachments=attachments,
                 created_at=created_at or "",
                 status=status,
                 meta_data=meta_data,
@@ -220,16 +215,13 @@ class MessageBlockFactory:
         # Resolve References
         from app.core.engine.message.schemas import ReferenceBlock
         ref_blocks = []
-        attachments = []
         if references:
             for ref in references:
                 if isinstance(ref, dict):
                     rb = ReferenceBlock(**ref)
                     ref_blocks.append(rb)
-                    attachments.append(rb.model_dump())
                 elif isinstance(ref, ReferenceBlock):
                     ref_blocks.append(ref)
-                    attachments.append(ref.model_dump())
 
         return MessageBlock(
             id=f"msg-{thread_id}-{sequence_number}",
@@ -241,7 +233,6 @@ class MessageBlockFactory:
             thinking=thinking,
             tool_calls=validated_tool_calls,
             references=ref_blocks,
-            attachments=attachments,
             status=status,  # type: ignore[arg-type]
             is_visible=True,
             sequence_number=sequence_number,

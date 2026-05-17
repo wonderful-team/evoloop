@@ -51,7 +51,7 @@ class ActivityMonitor:
         return cls._instance
 
     @asynccontextmanager
-    async def run_scope(self, thread_id: str, main_goal: str = "处理用户请求") -> AsyncGenerator[str, None]:
+    async def run_scope(self, thread_id: str, main_goal: str = "处理用户请求", task_type: str = None) -> AsyncGenerator[str, None]:
         """
         Unified Agent Lifecycle Context Manager.
 
@@ -89,11 +89,11 @@ class ActivityMonitor:
             yield run_id
 
             # 4. Success End
-            await self.end_run(thread_id, status="done", run_id=run_id)
+            await self.end_run(thread_id, status="done", run_id=run_id, task_type=task_type)
 
         except AgentCancelledException:
             logger.info(f"[ActivityMonitor] 🛑 Run {run_id} cancelled by user")
-            await self.end_run(thread_id, status="cancelled", run_id=run_id)
+            await self.end_run(thread_id, status="cancelled", run_id=run_id, task_type=task_type)
             raise  # Re-raise for upper layers if needed (BackgroundAgent handles it)
 
         except AgentHumanInterruptException:
@@ -104,7 +104,7 @@ class ActivityMonitor:
 
         except Exception as e:
             logger.error(f"[ActivityMonitor] ❌ Run {run_id} failed with error: {e}", exc_info=True)
-            await self.end_run(thread_id, status="failed", run_id=run_id)
+            await self.end_run(thread_id, status="failed", run_id=run_id, task_type=task_type)
             raise
 
     async def start_run(self, thread_id: str, main_goal: str = "处理用户请求", run_id: str = None):
@@ -115,7 +115,7 @@ class ActivityMonitor:
         from app.core.engine.event.publishers import publish_agent_session_started
         await publish_agent_session_started(thread_id=thread_id)
 
-    async def end_run(self, thread_id: str, status="done", final_outcome: str = None, run_id: str = None):
+    async def end_run(self, thread_id: str, status="done", final_outcome: str = None, run_id: str = None, task_type: str = None):
         """Mark run as ended and publish status change."""
         result = await self._state_service.end_run(thread_id, status, final_outcome)
 
@@ -124,7 +124,7 @@ class ActivityMonitor:
         await publish_agent_run_completed(
             thread_id=thread_id,
             status=status,
-            payload={"run_id": run_id, "outcome": final_outcome}
+            payload={"run_id": run_id, "outcome": final_outcome, "task_type": task_type}
         )
 
         # 2. Publish internal SystemStatusEvent (automated bridge handles UI StatusEvent)

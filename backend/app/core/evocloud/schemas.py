@@ -64,7 +64,7 @@ class RemoteCommand(DynamicBaseModel):
     content: dict[str, Any] | None = None # 旧版负载
     payload: dict[str, Any] | None = None # EPv2 负载
     message: str | None = None
-    attachments: list[dict[str, Any]] = []
+    references: list[dict[str, Any]] = []
     thread_id: str | None = None
     project_id: int | None = None
 

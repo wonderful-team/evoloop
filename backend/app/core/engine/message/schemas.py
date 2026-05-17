@@ -104,7 +104,6 @@ class MessageBlock(DynamicBaseModel):
 
     # === 附件与引用 (标准化 ReferenceBlock) ===
     references: list[ReferenceBlock] | None = None
-    attachments: list[dict[str, Any]] | None = None  # Mobile 兼容字段
 
     # === 变更集预览 (由 Mapper 自动填充) ===
     has_file_operations: bool = False

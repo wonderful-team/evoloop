@@ -12,9 +12,9 @@ import logging
 import os
 import time
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends
 
-from app.api.deps import TokenDepOptional
+from app.api.deps import TokenDepOptional, TokenDep, require_benefit
 from app.api.schemas.project_profiles import DiscoverRequest, DiscoverResponse, ProfileContentResponse, UpdateProfileRequest
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
@@ -68,12 +68,12 @@ async def _ensure_project_discovery_skill() -> LearnedSkill | None:
         return None
 
 
-@router.post("/{project_id}/profile/discover", response_model=DiscoverResponse)
+@router.post("/{project_id}/profile/discover", response_model=DiscoverResponse, dependencies=[Depends(require_benefit("project_profile"))])
 async def discover_profile(
     project_id: int,
     req: DiscoverRequest,
     bg_tasks: BackgroundTasks,
-    _token: TokenDepOptional = None,
+    _token: TokenDep,
 ):
     """
     Trigger Agent-driven project discovery via the Skill system.
@@ -154,6 +154,7 @@ async def discover_profile(
     if "metadata" not in result.inputs:
         result.inputs["metadata"] = {}
     result.inputs["metadata"]["skip_persistence"] = True
+    result.inputs["metadata"]["task_type"] = "project_profile"
 
     bg_tasks.add_task(run_agent_background, thread_id, result.inputs)
 

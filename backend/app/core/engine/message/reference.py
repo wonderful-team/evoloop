@@ -17,20 +17,20 @@ logger = logging.getLogger(__name__)
 class ReferenceService:
     """
     Service to handle the standardization and processing of message/file references.
-    Converts raw attachments into LLM-ready context blocks and snippets.
+    Converts raw references into LLM-ready context blocks and snippets.
     """
 
     async def process_references(
         self,
         message_text: str,
-        attachments: list[dict[str, Any]],
+        references_input: list[dict[str, Any]],
         session: AsyncSession,
         root_path: str | None = None,
         thread_id: str | None = None,
         project_id: int = 0
     ) -> ReferenceContext:
         """
-        Process a list of attachments and inject them into the communication context.
+        Process a list of references and inject them into the communication context.
         接收 root_path 进行解耦，不再内部依赖 evocloud_manager 获取项目路径。
         """
         content_blocks = []
@@ -38,7 +38,7 @@ class ReferenceService:
         references = []
 
         quotes_data = []
-        for att in attachments:
+        for att in references_input:
             att_type = att.get("type", "file")
             att_id = att.get("id") or att.get("url")
             att_name = att.get("name") or att_id or "Unknown"
@@ -84,13 +84,13 @@ class ReferenceService:
                     "metadata": {"filename": att_name}
                 })
 
-            # 3. Direct Image Attachments
+            # 3. Direct Image References
             elif att_type == "image":
                 content_blocks.append({
                     "type": "image_url",
                     "image_url": {"url": att_id}
                 })
-                reference_notes.append(f"Image Attachment: {att_name} (Path: {att_id})")
+                reference_notes.append(f"Image Reference: {att_name} (Path: {att_id})")
                 references.append({
                     "id": str(uuid.uuid4()),
                     "type": "image",
@@ -99,15 +99,15 @@ class ReferenceService:
                     "metadata": {"filename": att_name}
                 })
 
-            # 4. Audio Attachments
+            # 4. Audio References
             elif att_type == "audio":
                 content_blocks.append({
                     "type": "text",
                     "text": f"[Audio: {att_name}]({att_id})"
                 })
-                reference_notes.append(f"Audio Attachment: {att_name} (Path: {att_id})")
+                reference_notes.append(f"Audio Reference: {att_name} (Path: {att_id})")
 
-            # 5. Skill Attachments
+            # 5. Skill References
             elif att_type == "skill":
                 metadata = att.get("metadata", {})
                 skill_id = metadata.get("skill_id") or att_id
@@ -120,7 +120,7 @@ class ReferenceService:
                 })
 
             else:
-                reference_notes.append(f"Attachment ({att_type}): {att_name}")
+                reference_notes.append(f"Reference ({att_type}): {att_name}")
         
         # Render quotes using template
         updated_message = message_text

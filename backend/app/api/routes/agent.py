@@ -60,18 +60,19 @@ async def chat_endpoint(req: ChatRequest, bg_tasks: BackgroundTasks, _current_us
     ContextManager.set(ctx)
 
     # Process skill_id if provided
-    attachments = req.attachments or []
+    references = req.references or []
     if req.skill_id:
-        # Fetch skill info and add as attachment
+        # Fetch skill info and add as reference
         try:
             async with session_scope() as session:
                 skill = await session.get(LearnedSkill, req.skill_id)
                 if skill:
-                    attachments.append({
+                    references.append({
                         "id": str(skill.id),
                         "type": "skill",
-                        "name": skill.name,
-                        "metadata": {
+                        "target_id": str(skill.id),
+                        "target_name": skill.name,
+                        "meta_data": {
                             "skill_id": skill.id,
                             "skill_name": skill.name,
                             "description": skill.description
@@ -87,8 +88,7 @@ async def chat_endpoint(req: ChatRequest, bg_tasks: BackgroundTasks, _current_us
         thread_id=req.thread_id,
         message_content=req.message,
         project_id=req.project_id,
-        attachments=attachments,
-        references=req.references,
+        references=references,
         command_id=req.command_id,
         checkpoint_id=req.checkpoint_id,
         model=req.model,
@@ -165,15 +165,16 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Requ
         if not last_human_msg:
             raise HTTPException(status_code=404, detail="No human message found to retry")
 
-        # Load attachments for reconstruction
-        attachments = None
+        # Load references for reconstruction
+        references = None
         if last_human_msg.references:
-            attachments = [
+            references = [
                 {
                     "type": ref.type,
                     "id": ref.target_id,
-                    "name": ref.target_name,
-                    "url": ref.target_id if ref.type in ("file", "image") else None,
+                    "target_id": ref.target_id,
+                    "target_name": ref.target_name,
+                    "meta_data": ref.meta_data,
                 }
                 for ref in last_human_msg.references
             ]
@@ -243,7 +244,7 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Requ
         thread_id=req.thread_id,
         message_content=retry_message_content,
         project_id=req.project_id,
-        attachments=attachments,
+        references=references,
         command_id=req.command_id,
         checkpoint_id=checkpoint_id,
         model=req.model,

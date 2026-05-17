@@ -53,7 +53,6 @@ class BlockMapper:
 
         # 1. 处理引用（标准化 ReferenceBlock）
         references: list[ReferenceBlock] = []
-        attachments: list[dict[str, Any]] = []
         
         # 变更集相关顶层字段
         has_file_ops = False
@@ -70,9 +69,6 @@ class BlockMapper:
                     meta_data=ref.meta_data or {},
                 )
                 references.append(ref_block)
-                
-                # 为 Mobile 准备 attachments 字典列表
-                attachments.append(ref_block.model_dump())
 
                 # 提取 changeset 数据到顶层
                 if ref.type == "changeset":
@@ -106,7 +102,6 @@ class BlockMapper:
             tool_call_id=msg.tool_call_id,
             tool_meta=tool_meta,
             references=references,
-            attachments=attachments,
             has_file_operations=has_file_ops,
             changeset_count=changeset_count,
             changeset_files=changeset_files,
@@ -222,6 +217,7 @@ class BlockMapper:
                 "sequence_number": msg.sequence_number,
                 "content_type": msg.content_type,
                 "checkpoint_id": msg.checkpoint_id,
+                "references": [ref.model_dump() for ref in msg.references] if msg.references else None,
             },
         }
 
@@ -293,10 +289,6 @@ class BlockMapper:
 
         # Mobile 兼容：is_visible bool → int
         data["is_visible"] = 1 if msg.is_visible else 0
-
-        # Mobile 兼容：确保 attachments 存在（由 references 填充）
-        if not data.get("attachments") and msg.references:
-            data["attachments"] = [ref.model_dump() for ref in msg.references]
 
         # 节省带宽：Mobile 不需要 thinking 过程和原始元数据
         data.pop("thinking", None)

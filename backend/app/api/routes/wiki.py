@@ -164,6 +164,7 @@ async def generate_wiki(
     if "metadata" not in result.inputs:
         result.inputs["metadata"] = {}
     result.inputs["metadata"]["skip_persistence"] = True
+    result.inputs["metadata"]["task_type"] = "wiki_generation"
 
     from fastapi import BackgroundTasks
     # BackgroundTasks is injected by FastAPI; we need to use it properly
