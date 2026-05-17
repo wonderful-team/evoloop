@@ -106,10 +106,6 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                 {/* Context - Extra info, rendered as a sub-document callout */}
                 {request.context && (
                     <div className="bg-muted/30 p-4 rounded-lg border border-[var(--doc-border)] text-xs font-mono leading-loose">
-                        <div className="flex items-center gap-2 mb-2 opacity-40 uppercase tracking-tighter font-bold">
-                            <BookOpen size={12} />
-                            Contextual Reference
-                        </div>
                         <MessageContent content={request.context} />
                     </div>
                 )}

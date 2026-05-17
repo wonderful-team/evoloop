@@ -57,6 +57,7 @@ export const ChatInputArea = memo(
     const [isDragging, setIsDragging] = useState(false)
 
     const [showPicker, setShowPicker] = useState(false)
+    const [isSkillDialogOpen, setIsSkillDialogOpen] = useState(false)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
 
     // History state
@@ -510,10 +511,12 @@ export const ChatInputArea = memo(
               {/* Left Group: Tools */}
               <div className="flex items-center gap-1 shrink-0">
                 <SkillLibraryDialog
+                  open={isSkillDialogOpen}
+                  onOpenChange={setIsSkillDialogOpen}
                   threadId={activeThreadId ?? ""}
                   projectId={currentProject?.id}
                   onSelectSkill={(skill) => {
-                    // Attach skill as reference
+                    // Attach skill as reference (ensure only one skill is mounted)
                     const newAtt: Attachment = {
                       id: Math.random().toString(36).substring(2, 15),
                       url: skill.id,
@@ -521,7 +524,8 @@ export const ChatInputArea = memo(
                       type: 'skill',
                       metadata: { skill_id: skill.id, skill_name: skill.name },
                     }
-                    setAttachments(prev => [...prev, newAtt])
+                    setAttachments(prev => [...prev.filter(a => a.type !== 'skill'), newAtt])
+                    setIsSkillDialogOpen(false)
                     toast.success(t('chat.skillAttached', '技能已挂载'))
                   }}
                   trigger={

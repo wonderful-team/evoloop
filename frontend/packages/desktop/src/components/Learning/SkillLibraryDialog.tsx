@@ -80,7 +80,7 @@ export function SkillLibraryDialog({
   })
 
   const skills = data?.data || []
-  const totalPages = data?.total_pages || 0
+  const totalPages = Number((data as any)?.total_pages || 1)
   const loading = isLoading
 
 

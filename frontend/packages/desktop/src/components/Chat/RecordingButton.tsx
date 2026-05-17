@@ -105,7 +105,7 @@ export function RecordingButton({
       {/* Scope Toggle - Only show when not recording */}
       {!isRecording && (
         <Tooltip>
-          <TooltipTrigger asChild>
+          {/*<TooltipTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
@@ -114,7 +114,7 @@ export function RecordingButton({
             >
               <Monitor className="h-4 w-4" />
             </Button>
-          </TooltipTrigger>
+          </TooltipTrigger>*/}
           <TooltipContent>
             {isDesktopRecording
               ? t("learning.desktopRecording", "System Monitoring (Desktop)")
