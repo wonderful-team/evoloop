@@ -10,7 +10,6 @@ import {
 } from "@evoloop/shared/components/ui/collapsible"
 import { ChevronDown, ChevronRight, Files, History, Globe, Wand2, Rocket, BookOpen } from "lucide-react"
 import { cn } from "@evoloop/shared/lib/utils"
-import { isGlobalProject } from "@/stores/projectStore"
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -20,7 +19,10 @@ import {
   DropdownMenuSeparator
 } from "@evoloop/shared/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@evoloop/shared/components/ui/tooltip"
-import { ProjectProfilesService, WikiService } from "@/client"
+import { WikiService } from "@/client"
+import { useQueryClient } from "@tanstack/react-query"
+import { useProjectStore, isGlobalProject } from "@/stores/projectStore"
+import { DiscoverDialog } from "@/components/Projects/Modules/Overview/DiscoverDialog"
 
 interface SidebarFilesTabProps {
   projectId?: number
@@ -32,26 +34,19 @@ interface SidebarFilesTabProps {
 
 export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuoteFile, expandChanges = false }: SidebarFilesTabProps) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const { currentProject, fetchProjects } = useProjectStore()
   const [isProjectOpen, setIsProjectOpen] = useState(true)
   const [isChangesOpen, setIsChangesOpen] = useState(expandChanges)
+  const [discoverOpen, setDiscoverOpen] = useState(false)
 
   // Check for global mode (projectId is 0)
   const isGlobal = isGlobalProject(projectId ? { id: projectId } as any : null)
 
-  const handleDeploy = async (e: React.MouseEvent) => {
+  const handleDeploy = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (isGlobal || !projectId) return
-
-    try {
-      await ProjectProfilesService.discoverProfile({
-        projectId,
-        requestBody: { record_secrets: false }
-      })
-      toast.success(t("chat.sidebar.deployStarted"))
-    } catch (error) {
-      console.error("Failed to start deployment task:", error)
-      toast.error("Failed to start deployment task")
-    }
+    setDiscoverOpen(true)
   }
 
   const handleGenerateWiki = async (e: React.MouseEvent) => {
@@ -60,12 +55,18 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
 
     try {
       await WikiService.generateWiki({
-        requestBody: { project_id: projectId, topic: "Comprehensive Project Documentation" }
+        requestBody: {
+          project_id: projectId,
+          topic: t("wiki.topic.full_documentation", { defaultValue: "完整项目百科" }),
+          force_regenerate: true
+        }
       })
-      toast.success(t("chat.sidebar.wikiStarted"))
+      toast.success(t("wiki.toast.start", { defaultValue: "百科生成已开始！将在后台运行。" }))
+      queryClient.invalidateQueries({ queryKey: ["wiki"] })
+      fetchProjects()
     } catch (error) {
       console.error("Failed to start wiki generation task:", error)
-      toast.error("Failed to start wiki generation task")
+      toast.error(t("wiki.toast.error", { defaultValue: "启动百科生成任务失败" }))
     }
   }
 
@@ -125,12 +126,12 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
                 </DropdownMenuItem>
                 
                 <DropdownMenuItem 
-                  disabled={isGlobal}
+                  disabled={isGlobal || currentProject?.wiki_status === "running"}
                   onClick={handleGenerateWiki}
                   className="gap-2 text-xs py-2 cursor-pointer"
                 >
                   <BookOpen className="h-3.5 w-3.5 text-green-500" />
-                  <span>{t("chat.sidebar.wiki")}</span>
+                  <span>{currentProject?.has_wiki ? t("wiki.regenerate_action", { defaultValue: "重新生成百科" }) : t("chat.sidebar.wiki", { defaultValue: "生成项目百科" })}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -184,6 +185,13 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
           </CollapsibleContent>
         </Collapsible>
       )}
+
+      <DiscoverDialog
+        projectId={projectId || 0}
+        open={discoverOpen}
+        onOpenChange={setDiscoverOpen}
+        onDiscovered={() => fetchProjects()}
+      />
     </div>
   )
 }
