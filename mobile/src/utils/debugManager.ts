@@ -9,7 +9,7 @@ import { ChatMessage, Conversation } from '@/types/conversation';
  * 调试模式数据管理器
  * 旨在通过注入极大量的、类型极其多样的模拟数据来全面覆盖 UI 和逻辑测试
  */
-export const debugManager = {
+export const debugManager = __DEV__ ? {
   /**
    * 注入海量模拟数据：包括各种角色、文件操作、思考过程、工具链、附件、状态等
    */
@@ -209,12 +209,12 @@ export const debugManager = {
         timestamp: now - 230000,
         status: 'completed',
         isComplete: true,
-        attachments: [
+        references: [
           {
             id: 'att-1',
             type: 'image',
-            name: 'error_screenshot.png',
-            url: 'https://placehold.co/600x400/png?text=Error+Screenshot',
+            target_id: 'https://placehold.co/600x400/png?text=Error+Screenshot',
+            target_name: 'error_screenshot.png',
           }
         ]
       },
@@ -331,28 +331,26 @@ export const debugManager = {
         timestamp: now - 100000,
         status: 'completed',
         isComplete: true,
-        // 引用之前的一条消息
+        // 引用和文件
         references: [
           {
             type: 'message',
             id: 'mock-mermaid-seq',
-            name: 'Mermaid 序列图测试',
-            detail: 'sequenceDiagram\n    participant U as 用户\n    participant A as AI 助手...'
-          }
-        ],
-        // 上传多个文件
-        attachments: [
+            target_id: 'mock-mermaid-seq',
+            target_name: 'Mermaid 序列图测试',
+            meta_data: { detail: 'sequenceDiagram\n    participant U as 用户\n    participant A as AI 助手...' }
+          },
           {
             id: 'att-file-1',
             type: 'file',
-            name: 'API_V2_Draft.pdf',
-            url: 'https://example.com/files/api_v2.pdf',
+            target_id: 'https://example.com/files/api_v2.pdf',
+            target_name: 'API_V2_Draft.pdf',
           },
           {
             id: 'att-file-2',
             type: 'file',
-            name: 'auth_handler.go',
-            url: 'https://example.com/files/auth_handler.go',
+            target_id: 'https://example.com/files/auth_handler.go',
+            target_name: 'auth_handler.go',
           }
         ]
       },
@@ -366,18 +364,18 @@ export const debugManager = {
         timestamp: now - 90000,
         status: 'completed',
         isComplete: true,
-        attachments: [
+        references: [
           {
             id: 'ai-export-1',
             type: 'file',
-            name: 'Optimization_Report.md',
-            url: 'https://example.com/export/report.md',
+            target_id: 'https://example.com/export/report.md',
+            target_name: 'Optimization_Report.md',
           },
           {
             id: 'ai-export-2',
             type: 'file',
-            name: 'fix_patch.zip',
-            url: 'https://example.com/export/patch.zip',
+            target_id: 'https://example.com/export/patch.zip',
+            target_name: 'fix_patch.zip',
           }
         ]
       },
@@ -390,27 +388,66 @@ export const debugManager = {
         timestamp: now - 80000,
         status: 'completed',
         isComplete: true,
-        attachments: [
+        references: [
           {
             id: 'img-1',
             type: 'image',
-            name: 'crash_log.png',
-            url: 'https://placehold.co/800x600/000000/FFFFFF/png?text=Crash+Log',
+            target_id: 'https://placehold.co/800x600/000000/FFFFFF/png?text=Crash+Log',
+            target_name: 'crash_log.png',
           },
           {
             id: 'ref-1',
             type: 'file',
-            name: 'config.json',
-            url: 'https://example.com/config.json',
-          }
-        ],
-        references: [
+            target_id: 'https://example.com/config.json',
+            target_name: 'config.json',
+          },
           {
             type: 'file',
             id: 'f-ref-99',
-            name: 'MessageContent.tsx',
-            detail: '核心渲染逻辑组件'
+            target_id: 'f-ref-99',
+            target_name: 'MessageContent.tsx',
+            meta_data: { detail: '核心渲染逻辑组件' }
           }
+        ]
+      },
+      // 13. 用户 9 图测试
+      {
+        id: 'mock-human-9-images',
+        role: 'human',
+        content: '这是用户上传的 9 张图片测试。',
+        timestamp: Date.now() - 60000,
+        status: 'completed',
+        isComplete: true,
+        references: [
+          { id: 'img-u-1', type: 'image', target_id: 'https://placehold.co/300x300/3b82f6/FFFFFF/png?text=User+1', target_name: 'u1.png' },
+          { id: 'img-u-2', type: 'image', target_id: 'https://placehold.co/300x300/3b82f6/FFFFFF/png?text=User+2', target_name: 'u2.png' },
+          { id: 'img-u-3', type: 'image', target_id: 'https://placehold.co/300x300/3b82f6/FFFFFF/png?text=User+3', target_name: 'u3.png' },
+          { id: 'img-u-4', type: 'image', target_id: 'https://placehold.co/300x300/3b82f6/FFFFFF/png?text=User+4', target_name: 'u4.png' },
+          { id: 'img-u-5', type: 'image', target_id: 'https://placehold.co/300x300/3b82f6/FFFFFF/png?text=User+5', target_name: 'u5.png' },
+          { id: 'img-u-6', type: 'image', target_id: 'https://placehold.co/300x300/3b82f6/FFFFFF/png?text=User+6', target_name: 'u6.png' },
+          { id: 'img-u-7', type: 'image', target_id: 'https://placehold.co/300x300/3b82f6/FFFFFF/png?text=User+7', target_name: 'u7.png' },
+          { id: 'img-u-8', type: 'image', target_id: 'https://placehold.co/300x300/3b82f6/FFFFFF/png?text=User+8', target_name: 'u8.png' },
+          { id: 'img-u-9', type: 'image', target_id: 'https://placehold.co/300x300/3b82f6/FFFFFF/png?text=User+9', target_name: 'u9.png' },
+        ]
+      },
+      // 14. AI 9 图测试
+      {
+        id: 'mock-ai-9-images',
+        role: 'ai',
+        content: '这是 AI 生成的 9 张图片测试。',
+        timestamp: Date.now() - 40000,
+        status: 'completed',
+        isComplete: true,
+        references: [
+          { id: 'img-a-1', type: 'image', target_id: 'https://placehold.co/300x300/10b981/FFFFFF/png?text=AI+1', target_name: 'a1.png' },
+          { id: 'img-a-2', type: 'image', target_id: 'https://placehold.co/300x300/10b981/FFFFFF/png?text=AI+2', target_name: 'a2.png' },
+          { id: 'img-a-3', type: 'image', target_id: 'https://placehold.co/300x300/10b981/FFFFFF/png?text=AI+3', target_name: 'a3.png' },
+          { id: 'img-a-4', type: 'image', target_id: 'https://placehold.co/300x300/10b981/FFFFFF/png?text=AI+4', target_name: 'a4.png' },
+          { id: 'img-a-5', type: 'image', target_id: 'https://placehold.co/300x300/10b981/FFFFFF/png?text=AI+5', target_name: 'a5.png' },
+          { id: 'img-a-6', type: 'image', target_id: 'https://placehold.co/300x300/10b981/FFFFFF/png?text=AI+6', target_name: 'a6.png' },
+          { id: 'img-a-7', type: 'image', target_id: 'https://placehold.co/300x300/10b981/FFFFFF/png?text=AI+7', target_name: 'a7.png' },
+          { id: 'img-a-8', type: 'image', target_id: 'https://placehold.co/300x300/10b981/FFFFFF/png?text=AI+8', target_name: 'a8.png' },
+          { id: 'img-a-9', type: 'image', target_id: 'https://placehold.co/300x300/10b981/FFFFFF/png?text=AI+9', target_name: 'a9.png' },
         ]
       }
     ];
@@ -509,4 +546,4 @@ export const debugManager = {
     setCurrentDevice(null);
     setCurrentRequest(null);
   }
-};
+} : null;

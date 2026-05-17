@@ -1,4 +1,4 @@
-// 附件选择组件 - 支持图片选择和相机拍照
+// 文件选择组件 - 支持图片选择和相机拍照 (对齐桌面端，废弃 Attachment 概念)
 
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -17,11 +17,11 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import ImagePicker from 'react-native-image-crop-picker';
 import { useTheme } from '@/theme';
 import { useTranslation } from 'react-i18next';
-import { uploadChatImage, ChatAttachment } from '@/services/api/upload';
+import { uploadChatImage, UploadedFile } from '@/services/api/upload';
 
-export { type ChatAttachment } from '@/services/api/upload';
+export { type UploadedFile } from '@/services/api/upload';
 
-export interface Attachment {
+export interface PickedFile {
   id: string;
   type: 'image' | 'video';
   uri: string;
@@ -33,40 +33,40 @@ export interface Attachment {
   url?: string;
 }
 
-interface AttachmentPickerProps {
-  attachments: Attachment[];
-  onAttachmentsChange: (attachments: Attachment[]) => void;
-  maxAttachments?: number;
-  onUploadComplete?: (attachments: ChatAttachment[]) => void;
+interface FilePickerProps {
+  files: PickedFile[];
+  onFilesChange: (files: PickedFile[]) => void;
+  maxFiles?: number;
+  onUploadComplete?: (uploadedFiles: UploadedFile[]) => void;
 }
 
-export function AttachmentPicker({
-  attachments,
-  onAttachmentsChange,
-  maxAttachments = 5,
+export function FilePicker({
+  files,
+  onFilesChange,
+  maxFiles = 5,
   onUploadComplete,
-}: AttachmentPickerProps) {
+}: FilePickerProps) {
   const { colors } = useTheme();
   const { t } = useTranslation();
   const [showOptions, setShowOptions] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  // 自动上传未上传的附件
+  // 自动上传未上传的文件
   useEffect(() => {
-    const pendingAttachments = attachments.filter(att => !att.uploaded && !att.uploading);
-    if (pendingAttachments.length === 0 || uploading) return;
+    const pendingFiles = files.filter(f => !f.uploaded && !f.uploading);
+    if (pendingFiles.length === 0 || uploading) return;
 
     let cancelled = false;
     const uploadPending = async () => {
       setUploading(true);
-      const uploadedAttachments: ChatAttachment[] = [];
+      const uploadedFiles: UploadedFile[] = [];
 
-      for (const attachment of pendingAttachments) {
+      for (const file of pendingFiles) {
         if (cancelled) break;
         try {
-          const uploaded = await uploadSingleImage(attachment);
+          const uploaded = await uploadSingleImage(file);
           if (uploaded.url) {
-            uploadedAttachments.push({
+            uploadedFiles.push({
               type: uploaded.type || 'image',
               url: uploaded.url,
               name: uploaded.name || '',
@@ -80,15 +80,54 @@ export function AttachmentPicker({
 
       if (!cancelled) {
         setUploading(false);
-        if (uploadedAttachments.length > 0) {
-          onUploadComplete?.(uploadedAttachments);
+        if (uploadedFiles.length > 0) {
+          onUploadComplete?.(uploadedFiles);
         }
       }
     };
 
     uploadPending();
     return () => { cancelled = true; };
-  }, [attachments, uploading, onUploadComplete, uploadSingleImage]);
+  }, [files, uploading, onUploadComplete]);
+
+  // 上传单个图片
+  const uploadSingleImage = useCallback(async (file: PickedFile): Promise<PickedFile> => {
+    try {
+      // 更新上传状态
+      onFilesChange(
+        files.map(f =>
+          f.id === file.id ? { ...f, uploading: true } : f
+        )
+      );
+
+      // 上传图片
+      const result = await uploadChatImage(file.uri);
+
+      // 更新上传成功状态
+      const updatedFile: PickedFile = {
+        ...file,
+        uploading: false,
+        uploaded: true,
+        url: result.url,
+      };
+
+      onFilesChange(
+        files.map(f =>
+          f.id === file.id ? updatedFile : f
+        )
+      );
+
+      return updatedFile;
+    } catch (error) {
+      // 更新上传失败状态
+      onFilesChange(
+        files.map(f =>
+          f.id === file.id ? { ...f, uploading: false, uploaded: false } : f
+        )
+      );
+      throw error;
+    }
+  }, [files, onFilesChange]);
 
   // 请求相机权限 (Android)
   const requestCameraPermission = useCallback(async () => {
@@ -126,51 +165,12 @@ export function AttachmentPicker({
     return true;
   }, []);
 
-  // 上传单个图片
-  const uploadSingleImage = useCallback(async (attachment: Attachment): Promise<Attachment> => {
-    try {
-      // 更新上传状态
-      onAttachmentsChange(
-        attachments.map(att =>
-          att.id === attachment.id ? { ...att, uploading: true } : att
-        )
-      );
-
-      // 上传图片
-      const result = await uploadChatImage(attachment.uri);
-
-      // 更新上传成功状态
-      const updatedAttachment: Attachment = {
-        ...attachment,
-        uploading: false,
-        uploaded: true,
-        url: result.url,
-      };
-
-      onAttachmentsChange(
-        attachments.map(att =>
-          att.id === attachment.id ? updatedAttachment : att
-        )
-      );
-
-      return updatedAttachment;
-    } catch (error) {
-      // 更新上传失败状态
-      onAttachmentsChange(
-        attachments.map(att =>
-          att.id === attachment.id ? { ...att, uploading: false, uploaded: false } : att
-        )
-      );
-      throw error;
-    }
-  }, [attachments, onAttachmentsChange]);
-
   // 处理图片选择
   const handleImagePick = useCallback(async () => {
     setShowOptions(false);
 
-    if (attachments.length >= maxAttachments) {
-      Alert.alert(t('common.tip'), t('common.maxAttachments', { count: maxAttachments }));
+    if (files.length >= maxFiles) {
+      Alert.alert(t('common.tip'), t('common.maxFiles', { count: maxFiles }));
       return;
     }
 
@@ -184,14 +184,14 @@ export function AttachmentPicker({
       const result = await ImagePicker.openPicker({
         mediaType: 'any',
         multiple: true,
-        maxFiles: maxAttachments - attachments.length,
+        maxFiles: maxFiles - files.length,
         compressImageQuality: 0.8,
       });
 
       // 处理单张或多张媒体文件
       const assets = Array.isArray(result) ? result : [result];
 
-      const newAttachments: Attachment[] = assets.map((asset, index) => {
+      const newFiles: PickedFile[] = assets.map((asset, index) => {
         const isVideo = asset.mime?.startsWith('video/') || asset.path?.match(/\.(mp4|mov|avi|mkv|wmv)$/i);
         return {
           id: `${isVideo ? 'vid' : 'img'}_${Date.now()}_${index}`,
@@ -205,24 +205,22 @@ export function AttachmentPicker({
         };
       });
 
-      onAttachmentsChange([...attachments, ...newAttachments]);
-      // 上传由 useEffect 自动处理
+      onFilesChange([...files, ...newFiles]);
     } catch (error: any) {
-      // 用户取消选择时不报错
       if (error.message?.includes('cancel') || error.message?.includes('Cancel')) {
         return;
       }
       console.error('选择媒体失败:', error);
       Alert.alert(t('common.error.title'), t('common.mediaPickError'));
     }
-  }, [attachments, maxAttachments, onAttachmentsChange, requestMediaLibraryPermission]);
+  }, [files, maxFiles, onFilesChange, requestMediaLibraryPermission]);
 
   // 处理相机拍照
   const handleCamera = useCallback(async () => {
     setShowOptions(false);
 
-    if (attachments.length >= maxAttachments) {
-      Alert.alert(t('common.tip'), t('common.maxAttachments', { count: maxAttachments }));
+    if (files.length >= maxFiles) {
+      Alert.alert(t('common.tip'), t('common.maxFiles', { count: maxFiles }));
       return;
     }
 
@@ -238,7 +236,7 @@ export function AttachmentPicker({
         compressImageQuality: 0.8,
       });
 
-      const newAttachment: Attachment = {
+      const newFile: PickedFile = {
         id: `camera_${Date.now()}`,
         type: 'image',
         uri: result.path,
@@ -249,24 +247,22 @@ export function AttachmentPicker({
         uploaded: false,
       };
 
-      onAttachmentsChange([...attachments, newAttachment]);
-      // 上传由 useEffect 自动处理
+      onFilesChange([...files, newFile]);
     } catch (error: any) {
-      // 用户取消拍照时不报错
       if (error.message?.includes('cancel') || error.message?.includes('Cancel')) {
         return;
       }
       console.error('拍照失败:', error);
       Alert.alert(t('common.error.title'), t('common.cameraError'));
     }
-  }, [attachments, maxAttachments, onAttachmentsChange, requestCameraPermission]);
+  }, [files, maxFiles, onFilesChange, requestCameraPermission]);
 
   // 处理视频录制
   const handleVideoRecord = useCallback(async () => {
     setShowOptions(false);
 
-    if (attachments.length >= maxAttachments) {
-      Alert.alert(t('common.tip'), t('common.maxAttachments', { count: maxAttachments }));
+    if (files.length >= maxFiles) {
+      Alert.alert(t('common.tip'), t('common.maxFiles', { count: maxFiles }));
       return;
     }
 
@@ -281,7 +277,7 @@ export function AttachmentPicker({
         mediaType: 'video',
       });
 
-      const newAttachment: Attachment = {
+      const newFile: PickedFile = {
         id: `vid_${Date.now()}`,
         type: 'video',
         uri: result.path,
@@ -292,22 +288,20 @@ export function AttachmentPicker({
         uploaded: false,
       };
 
-      onAttachmentsChange([...attachments, newAttachment]);
-      // 上传由 useEffect 自动处理
+      onFilesChange([...files, newFile]);
     } catch (error: any) {
-      // 用户取消录制时不报错
       if (error.message?.includes('cancel') || error.message?.includes('Cancel')) {
         return;
       }
       console.error('录制视频失败:', error);
       Alert.alert(t('common.error.title'), t('common.videoError'));
     }
-  }, [attachments, maxAttachments, onAttachmentsChange, requestCameraPermission]);
+  }, [files, maxFiles, onFilesChange, requestCameraPermission]);
 
-  // 移除附件
-  const removeAttachment = useCallback((id: string) => {
-    onAttachmentsChange(attachments.filter(att => att.id !== id));
-  }, [attachments, onAttachmentsChange]);
+  // 移除文件
+  const removeFile = useCallback((id: string) => {
+    onFilesChange(files.filter(f => f.id !== id));
+  }, [files, onFilesChange]);
 
   // 显示选项弹窗
   const showPickerOptions = useCallback(() => {
@@ -321,38 +315,38 @@ export function AttachmentPicker({
 
   return (
     <View style={styles.container}>
-      {/* 附件预览列表 */}
-      {attachments.length > 0 && (
-        <View style={styles.attachmentList}>
-          {attachments.map((att) => (
-            <View key={att.id} style={styles.attachmentItem}>
-              {att.type === 'video' ? (
-                <View style={[styles.attachmentImage, { backgroundColor: colors.surfaceVariant, alignItems: 'center', justifyContent: 'center' }]}>
+      {/* 文件预览列表 */}
+      {files.length > 0 && (
+        <View style={styles.fileList}>
+          {files.map((file) => (
+            <View key={file.id} style={styles.fileItem}>
+              {file.type === 'video' ? (
+                <View style={[styles.fileImage, { backgroundColor: colors.surfaceVariant, alignItems: 'center', justifyContent: 'center' }]}>
                   <MaterialIcons name="videocam" size={28} color={colors.primary} />
                 </View>
               ) : (
-                <Image source={{ uri: att.uri }} style={styles.attachmentImage} />
+                <Image source={{ uri: file.uri }} style={styles.fileImage} />
               )}
 
               {/* 上传中遮罩 */}
-              {att.uploading && (
+              {file.uploading && (
                 <View style={styles.uploadingOverlay}>
                   <ActivityIndicator size="small" color="#fff" />
                 </View>
               )}
 
               {/* 上传失败标记 */}
-              {!att.uploading && att.uploaded === false && (
+              {!file.uploading && file.uploaded === false && (
                 <View style={styles.errorOverlay}>
                   <MaterialIcons name="error" size={20} color="#fff" />
                 </View>
               )}
 
               {/* 删除按钮 */}
-              {!att.uploading && (
+              {!file.uploading && (
                 <TouchableOpacity
                   style={[styles.removeButton, { backgroundColor: colors.error }]}
-                  onPress={() => removeAttachment(att.id)}
+                  onPress={() => removeFile(file.id)}
                 >
                   <MaterialIcons name="close" size={14} color="#fff" />
                 </TouchableOpacity>
@@ -361,7 +355,7 @@ export function AttachmentPicker({
           ))}
           
           {/* 添加更多按钮 */}
-          {attachments.length < maxAttachments && !uploading && (
+          {files.length < maxFiles && !uploading && (
             <TouchableOpacity
               style={[styles.addButton, { borderColor: colors.outline }]}
               onPress={showPickerOptions}
@@ -371,8 +365,6 @@ export function AttachmentPicker({
           )}
         </View>
       )}
-
-      {/* 附件选择按钮已移除 */}
 
       {/* 选项弹窗 */}
       <Modal
@@ -445,21 +437,21 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
   },
-  attachmentList: {
+  fileList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     paddingHorizontal: 12,
     paddingVertical: 8,
     gap: 8,
   },
-  attachmentItem: {
+  fileItem: {
     position: 'relative',
     width: 72,
     height: 72,
     borderRadius: 8,
     overflow: 'hidden',
   },
-  attachmentImage: {
+  fileImage: {
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
@@ -494,15 +486,6 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  toolbar: {
-    flexDirection: 'row',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 16,
-  },
-  toolbarButton: {
-    padding: 8,
   },
   modalOverlay: {
     flex: 1,

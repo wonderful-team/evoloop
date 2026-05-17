@@ -10,7 +10,7 @@
  */
 
 import i18n from '@/locales';
-import { ChatMessage, MessageAttachment } from '@/types/conversation';
+import { ChatMessage } from '@/types/conversation';
 import { HumanRequest } from '@/types/hitl';
 import { AgentSyncMessage } from '@/services/gateway/agentMessage';
 
@@ -28,20 +28,7 @@ export function adaptReferences(refs: Array<Record<string, any>> | null | undefi
   }));
 }
 
-/**
- * 标准化后端发送的 attachments 数组。
- * 将后端 ReferenceBlock 的 target_id / target_name 映射为移动端 MessageAttachment 的 url / name。
- */
-export function adaptAttachments(atts: Array<Record<string, any>> | null | undefined): MessageAttachment[] | undefined {
-  if (!atts || !Array.isArray(atts) || atts.length === 0) return undefined;
-  return atts.map(att => ({
-    id: String(att.id || att.target_id || `att-${Date.now()}`),
-    type: (att.type === 'image' || att.type === 'audio' || att.type === 'file' || att.type === 'reference' || att.type === 'skill' || att.type === 'message') ? att.type : 'file',
-    url: String(att.url || att.target_id || ''),
-    name: String(att.name || att.target_name || att.title || 'Attachment'),
-    metadata: att.metadata || att.meta_data,
-  }));
-}
+
 
 /**
  * 统一时间戳规范化。
@@ -91,7 +78,6 @@ export function adaptAgentMessage(raw: AgentSyncMessage): ChatMessage {
     category: raw.category ?? undefined,
     sequence_number: raw.sequence_number,
     references: adaptReferences(raw.references),
-    attachments: adaptAttachments(raw.attachments || raw.references),
   };
 }
 
@@ -127,7 +113,6 @@ export function adaptHistoryMessage(raw: Record<string, any>): ChatMessage {
     })(),
     has_file_operations: raw.has_file_operations ?? false,
     references: adaptReferences(raw.references),
-    attachments: adaptAttachments(raw.attachments || raw.references),
     category: raw.category ?? undefined,
     sequence_number: raw.sequence_number ?? undefined,
   };

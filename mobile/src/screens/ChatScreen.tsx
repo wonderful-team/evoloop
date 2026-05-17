@@ -42,7 +42,7 @@ import { useProjects } from '@/hooks/useProjects';
 import { useChatGateway } from '@/hooks/chat/useChatGateway';
 import { useChatDeviceSync } from '@/hooks/chat/useChatDeviceSync';
 import { ChatMessage, MessageReference } from '@/types/conversation';
-import type { ChatAttachment } from '@/services/api/upload';
+import type { UploadedFile } from '@/services/api/upload';
 import Video from 'react-native-video';
 import { generateUUID } from '@/utils/uuid';
 import { ConnectionState } from '@/services/gateway/types';
@@ -367,7 +367,7 @@ export default function ChatScreen() {
   }, [currentConversationId, sendMessageToDevice, selectedDevice, updateMessageStatus]);
 
   // 发送消息（HTTP 版本）
-  const handleSendMessage = useCallback(async (text: string, options?: { attachments?: ChatAttachment[]; references?: MessageReference[] }) => {
+  const handleSendMessage = useCallback(async (text: string, options?: { references?: MessageReference[] }) => {
     // 权限校验：未登录时拦截并跳转
     if (!isLoggedIn) {
       showSnackbar(t('chat.voiceLoginRequired'));
@@ -392,17 +392,6 @@ export default function ChatScreen() {
       finalText = `${refText} ${text}`;
     }
 
-    // 如果有附件，将附件信息拼接到消息文本中
-    if (options?.attachments && options.attachments.length > 0) {
-      const attachmentTexts = options.attachments.map(att => {
-        if (att.type === 'image' || att.type === 'video') {
-          return `![${att.name}](${att.url})`;
-        }
-        return `[${t('chat.attachmentLabel', { name: att.name })}](${att.url})`;
-      }).join('\n');
-      finalText = finalText ? `${finalText}\n\n${attachmentTexts}` : attachmentTexts;
-    }
-
     // 立即将用户消息添加到本地消息列表（乐观更新）
     const userMessage: ChatMessage = {
       id: generateUUID(),
@@ -412,12 +401,6 @@ export default function ChatScreen() {
       isComplete: true,
       status: 'running',
       references: options?.references,
-      attachments: options?.attachments ? options.attachments.map(a => ({
-        id: a.id || `att-${Date.now()}`,
-        type: (a.type === 'image' || a.type === 'audio' || a.type === 'file') ? a.type as any : 'file',
-        url: a.url,
-        name: a.name,
-      })) : undefined,
     };
     addMessage(userMessage);
 
@@ -823,53 +806,62 @@ export default function ChatScreen() {
           </View>
 
           {/* 右侧我的按钮 */}
-          <Menu
-            visible={debugMenuVisible}
-            onDismiss={() => setDebugMenuVisible(false)}
-            anchor={
-              <TouchableOpacity
-                style={styles.iconBtn}
-                onPress={handleGoToProfile}
-                onLongPress={() => setDebugMenuVisible(true)}
-              >
-                <MaterialIcons name="person" size={24} color={colors.primary} />
-              </TouchableOpacity>
-            }
-          >
-            <Menu.Item 
-              onPress={() => { debugManager.injectInitialData(); setDebugMenuVisible(false); }} 
-              title="注入模拟数据" 
-              leadingIcon="database-plus"
-            />
-            <Menu.Item 
-              onPress={() => { debugManager.simulateAIStreaming(); setDebugMenuVisible(false); }} 
-              title="模拟流式输出" 
-              leadingIcon="waves"
-            />
-            <Menu.Item 
-              onPress={() => { debugManager.simulateHITLRequest('approval'); setDebugMenuVisible(false); }} 
-              title="模拟 HITL (授权)" 
-              leadingIcon="shield-check"
-            />
-            <Menu.Item 
-              onPress={() => { debugManager.simulateHITLRequest('choice'); setDebugMenuVisible(false); }} 
-              title="模拟 HITL (选择)" 
-              leadingIcon="format-list-bulleted"
-            />
-            <Menu.Item 
-              onPress={() => { debugManager.simulateHITLRequest('text'); setDebugMenuVisible(false); }} 
-              title="模拟 HITL (文本)" 
-              leadingIcon="text-short"
-            />
+          {__DEV__ ? (
+            <Menu
+              visible={debugMenuVisible}
+              onDismiss={() => setDebugMenuVisible(false)}
+              anchor={
+                <TouchableOpacity
+                  style={styles.iconBtn}
+                  onPress={handleGoToProfile}
+                  onLongPress={() => setDebugMenuVisible(true)}
+                >
+                  <MaterialIcons name="person" size={24} color={colors.primary} />
+                </TouchableOpacity>
+              }
+            >
+              <Menu.Item
+                onPress={() => { debugManager?.injectInitialData(); setDebugMenuVisible(false); }}
+                title="注入模拟数据"
+                leadingIcon="database-plus"
+              />
+              <Menu.Item
+                onPress={() => { debugManager?.simulateAIStreaming(); setDebugMenuVisible(false); }}
+                title="模拟流式输出"
+                leadingIcon="waves"
+              />
+              <Menu.Item
+                onPress={() => { debugManager?.simulateHITLRequest('approval'); setDebugMenuVisible(false); }}
+                title="模拟 HITL (授权)"
+                leadingIcon="shield-check"
+              />
+              <Menu.Item
+                onPress={() => { debugManager?.simulateHITLRequest('choice'); setDebugMenuVisible(false); }}
+                title="模拟 HITL (选择)"
+                leadingIcon="format-list-bulleted"
+              />
+              <Menu.Item
+                onPress={() => { debugManager?.simulateHITLRequest('text'); setDebugMenuVisible(false); }}
+                title="模拟 HITL (文本)"
+                leadingIcon="text-short"
+              />
 
-            <Divider />
-            <Menu.Item 
-              onPress={() => { debugManager.clearAll(); setDebugMenuVisible(false); }} 
-              title="清空所有数据" 
-              leadingIcon="delete-sweep"
-              titleStyle={{ color: colors.error }}
-            />
-          </Menu>
+              <Divider />
+              <Menu.Item
+                onPress={() => { debugManager?.clearAll(); setDebugMenuVisible(false); }}
+                title="清空所有数据"
+                leadingIcon="delete-sweep"
+                titleStyle={{ color: colors.error }}
+              />
+            </Menu>
+          ) : (
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={handleGoToProfile}
+            >
+              <MaterialIcons name="person" size={24} color={colors.primary} />
+            </TouchableOpacity>
+          )}
         </View>
 
 

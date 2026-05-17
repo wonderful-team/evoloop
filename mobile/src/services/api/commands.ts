@@ -2,6 +2,7 @@
 // 链路: Mobile → Gateway → Desktop (WebSocket)
 
 import { api } from './client';
+import { MessageReference } from '@/types/conversation';
 
 // ========== 类型定义 ==========
 
@@ -36,18 +37,10 @@ export interface ExecuteCommandResponse {
   request_id?: string;
 }
 
-/** 附件 */
-export interface Attachment {
-  type: 'image' | 'file' | 'audio';
-  url: string;
-  name: string;
-  mime_type: string;
-}
-
 /** 聊天消息负载 */
 export interface ChatPayload {
   content: string;
-  attachments?: Attachment[];
+  references?: MessageReference[];
   model?: string;
   options?: Record<string, any>;
 }

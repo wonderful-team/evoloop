@@ -237,7 +237,6 @@ export async function getMemories(projectId: number): Promise<MemoryConcept[]> {
 export async function sendMessage(
   conversationId: string,
   content: string,
-  attachments?: any[],
   options?: {
     model?: string;
     references?: any[];
@@ -247,7 +246,6 @@ export async function sendMessage(
     `/member/evolooplink/api/conversation/detail?conversation_id=${conversationId}/messages`,
     {
       content,
-      attachments,
       ...options,
     }
   );

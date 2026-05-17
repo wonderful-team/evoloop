@@ -21,7 +21,6 @@ export interface VoiceInputWithNLSHandle extends VoiceInputHandle {
 interface VoiceInputWithNLSProps {
   /** 发送文本消息 */
   onSendText: (text: string, options?: {
-    attachments?: any[];
     references?: MessageReference[];
   }) => void;
   /** 打断 TTS/Agent */

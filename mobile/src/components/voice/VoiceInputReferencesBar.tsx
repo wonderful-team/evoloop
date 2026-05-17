@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
-import { MessageQuote } from '@/components/chat/MessageQuote';
+import { ResourceChip } from '@/components/chat';
 import { MessageReference } from '@/types/conversation';
 
 interface VoiceInputReferencesBarProps {
@@ -21,7 +21,7 @@ export function VoiceInputReferencesBar({ references, onRemove }: VoiceInputRefe
       contentContainerStyle={styles.content}
     >
       {references.map((ref, index) => (
-        <MessageQuote
+        <ResourceChip
           key={ref.id}
           reference={ref}
           onRemove={() => onRemove(index)}

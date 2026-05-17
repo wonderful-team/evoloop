@@ -11,7 +11,7 @@ export interface UploadResponse {
   update_time: number;
 }
 
-export interface ChatAttachment {
+export interface UploadedFile {
   type: 'image' | 'video' | 'file';
   url: string;
   name: string;
@@ -23,7 +23,7 @@ export interface ChatAttachment {
  * @param uri 本地图片 URI
  * @returns 上传后的图片信息
  */
-export async function uploadChatImage(uri: string): Promise<ChatAttachment> {
+export async function uploadChatImage(uri: string): Promise<UploadedFile> {
   // 创建 FormData
   const formData = new FormData();
   
@@ -75,7 +75,7 @@ export async function uploadChatImage(uri: string): Promise<ChatAttachment> {
  * @param name 文件名
  * @returns 上传后的文件信息
  */
-export async function uploadChatFile(uri: string, name: string): Promise<ChatAttachment> {
+export async function uploadChatFile(uri: string, name: string): Promise<UploadedFile> {
   const formData = new FormData();
   
   // 获取文件扩展名
@@ -124,13 +124,13 @@ export async function uploadChatFile(uri: string, name: string): Promise<ChatAtt
  * @param uris 本地图片 URI 数组
  * @returns 上传后的图片信息数组
  */
-export async function uploadChatImages(uris: string[]): Promise<ChatAttachment[]> {
-  const results: ChatAttachment[] = [];
+export async function uploadChatImages(uris: string[]): Promise<UploadedFile[]> {
+  const results: UploadedFile[] = [];
   
   for (const uri of uris) {
     try {
-      const attachment = await uploadChatImage(uri);
-      results.push(attachment);
+      const uploadedFile = await uploadChatImage(uri);
+      results.push(uploadedFile);
     } catch (error) {
       console.error(`上传图片失败 ${uri}:`, error);
       // 继续上传其他图片

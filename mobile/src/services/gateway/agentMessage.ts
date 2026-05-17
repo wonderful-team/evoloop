@@ -82,7 +82,6 @@ export interface AgentSyncMessage {
 
   // === 引用 (知识/记忆/文件) ===
   references?: Array<Record<string, any>> | null;
-  attachments?: Array<Record<string, any>> | null;
 
   // 兼容旧协议字段
   project_id?: number;

@@ -28,37 +28,25 @@ export interface CreateConversationResponse {
   title: string;
 }
 
-// 消息引用类型
+// 消息引用类型 (对齐后端 ReferenceBlock)
 export interface MessageReference {
-  type: 'message' | 'file' | 'skill' | 'memory';
   id: string;
-  name: string;
-  detail?: string;
+  type: 'file' | 'image' | 'audio' | 'message' | 'artifact' | 'changeset' | 'skill';
+  target_id: string;
+  target_name: string;
+  meta_data?: Record<string, any>;
 }
 
-// 消息附件类型
-export interface MessageAttachment {
-  id: string;
-  type: 'image' | 'audio' | 'file' | 'reference' | 'skill' | 'message';
-  url: string;
-  name: string;
-  metadata?: {
-    duration?: number;
-    waveform?: number[];
-    skill_id?: string;
-    skill_name?: string;
-  };
-}
+
 
 export interface ChatMessage {
   id: string;
   role: 'human' | 'ai' | 'tool' | 'system';
   content: string;
-  timestamp: number;
+  timestamp: string; // 已从 number 改为 string (ISO 8601)
   isComplete?: boolean;
   isFinal?: boolean;
-  attachments?: MessageAttachment[];
-  references?: Array<Record<string, any>>;
+  references?: MessageReference[]; // 使用强类型
   has_file_operations?: boolean;
   steps?: any[];
   /** 消息状态，对齐后端原始值 */

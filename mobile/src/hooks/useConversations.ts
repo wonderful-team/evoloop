@@ -222,7 +222,6 @@ export function useConversations(options: UseConversationsOptions = {}) {
       const response = await conversationApi.sendMessage(
         conversationId,
         content,
-        undefined, // attachments
         options
       );
       

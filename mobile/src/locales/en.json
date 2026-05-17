@@ -212,10 +212,10 @@
       },
       "continuePrompt": "Continue"
     },
-    "attachments": {
-      "maxLimit": "You can only add up to 5 attachments"
+    "pickedFiles": {
+      "maxLimit": "You can only add up to 5 files"
     },
-    "attachmentLabel": "Attachment: {{name}}",
+    "fileLabel": "File: {{name}}",
     "threadList": {
       "newConversation": "New Conversation"
     },
@@ -272,6 +272,10 @@
       "file": "File",
       "skill": "Skill",
       "memory": "Memory",
+      "image": "Image",
+      "audio": "Audio",
+      "artifact": "Artifact",
+      "changeset": "Changeset",
       "reference": "Reference"
     },
     "tts": {
@@ -851,7 +855,7 @@
     "cameraPermissionRequired": "Camera permission is required to take photos",
     "mediaPickError": "Failed to select media, please try again",
     "cameraError": "Failed to take photo, please try again",
-    "maxAttachments": "You can only select up to {{count}} media files",
+    "maxFiles": "You can only select up to {{count}} media files",
     "videoPermissionRequired": "Camera permission is required to record video",
     "videoError": "Failed to record video, please try again",
     "endReached": "You've reached the end",

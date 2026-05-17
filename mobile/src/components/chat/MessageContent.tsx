@@ -34,7 +34,7 @@ interface ImageViewerProps {
   onClose: () => void;
 }
 
-function ImageViewer({ uri, visible, onClose }: ImageViewerProps) {
+export function ImageViewer({ uri, visible, onClose }: ImageViewerProps) {
   return (
     <Modal
       visible={visible}

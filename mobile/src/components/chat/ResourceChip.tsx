@@ -1,4 +1,4 @@
-// 消息引用组件 - 显示引用的消息或文件
+// 资源片段组件 - 显示引用的消息或文件 (对齐桌面端 ResourceChip)
 
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
@@ -8,14 +8,14 @@ import { useTheme } from '@/theme';
 import { MessageReference } from '@/types/conversation';
 import { useTranslation } from 'react-i18next';
 
-interface MessageQuoteProps {
+interface ResourceChipProps {
   reference: MessageReference;
   onRemove?: () => void;
   compact?: boolean;
   isUser?: boolean;
 }
 
-export function MessageQuote({ reference, onRemove, compact = false, isUser = false }: MessageQuoteProps) {
+export function ResourceChip({ reference, onRemove, compact = false, isUser = false }: ResourceChipProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
 
@@ -27,8 +27,14 @@ export function MessageQuote({ reference, onRemove, compact = false, isUser = fa
         return 'insert-drive-file';
       case 'skill':
         return 'psychology';
-      case 'memory':
-        return 'memory';
+      case 'image':
+        return 'image';
+      case 'audio':
+        return 'audiotrack';
+      case 'artifact':
+        return 'widgets';
+      case 'changeset':
+        return 'code';
       default:
         return 'link';
     }
@@ -42,23 +48,50 @@ export function MessageQuote({ reference, onRemove, compact = false, isUser = fa
         return t('chat.quote.file');
       case 'skill':
         return t('chat.quote.skill');
-      case 'memory':
-        return t('chat.quote.memory');
+      case 'image':
+        return t('chat.quote.image');
+      case 'audio':
+        return t('chat.quote.audio');
+      case 'artifact':
+        return t('chat.quote.artifact');
+      case 'changeset':
+        return t('chat.quote.changeset');
       default:
         return t('chat.quote.reference');
     }
   };
 
+  const getCompactColors = () => {
+    if (isUser) {
+      return {
+        bg: 'rgba(0, 0, 0, 0.05)',
+        text: colors.onPrimaryContainer,
+        border: 'rgba(0, 0, 0, 0.1)',
+      };
+    }
+    switch (reference.type) {
+      case 'skill':
+        return { bg: 'rgba(245, 158, 11, 0.1)', text: '#d97706', border: 'rgba(245, 158, 11, 0.2)' }; // Amber
+      case 'message':
+        return { bg: 'rgba(59, 130, 246, 0.1)', text: '#2563eb', border: 'rgba(59, 130, 246, 0.2)' }; // Blue
+      case 'changeset':
+        return { bg: 'rgba(147, 51, 234, 0.1)', text: '#7c3aed', border: 'rgba(147, 51, 234, 0.2)' }; // Purple
+      default:
+        return { bg: colors.surfaceVariant, text: colors.onSurfaceVariant, border: 'transparent' };
+    }
+  };
+
   if (compact) {
+    const compactColors = getCompactColors();
     return (
-      <View style={[styles.compactContainer, { backgroundColor: isUser ? 'rgba(255,255,255,0.15)' : colors.primaryContainer }]}>
-        <MaterialIcons name={getIcon()} size={14} color={isUser ? '#fff' : colors.primary} />
-        <Text variant="bodySmall" style={[styles.compactText, { color: isUser ? '#fff' : colors.primary }]} numberOfLines={1}>
-          {reference.name}
+      <View style={[styles.compactContainer, { backgroundColor: compactColors.bg, borderColor: compactColors.border, borderWidth: 1 }]}>
+        <MaterialIcons name={getIcon()} size={14} color={compactColors.text} />
+        <Text variant="bodySmall" style={[styles.compactText, { color: compactColors.text }]} numberOfLines={1}>
+          {reference.target_name}
         </Text>
         {onRemove && (
           <TouchableOpacity onPress={onRemove} style={styles.removeBtn}>
-            <MaterialIcons name="close" size={14} color={isUser ? '#fff' : colors.primary} />
+            <MaterialIcons name="close" size={14} color={compactColors.text} />
           </TouchableOpacity>
         )}
       </View>
@@ -79,11 +112,11 @@ export function MessageQuote({ reference, onRemove, compact = false, isUser = fa
         )}
       </View>
       <Text variant="bodyMedium" style={{ color: isUser ? colors.onPrimaryContainer : colors.onSurface }} numberOfLines={2}>
-        {reference.name}
+        {reference.target_name}
       </Text>
-      {reference.detail && (
+      {reference.meta_data?.detail && (
         <Text variant="bodySmall" style={{ color: isUser ? 'rgba(0,0,0,0.5)' : colors.onSurfaceVariant, marginTop: 4 }} numberOfLines={1}>
-          {reference.detail}
+          {reference.meta_data.detail}
         </Text>
       )}
     </View>

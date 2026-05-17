@@ -8,7 +8,7 @@ import { useTheme } from '@/theme';
 import { ImageOrVideo } from 'react-native-image-crop-picker';
 import { Alert } from 'react-native';
 import { VoiceSessionState } from '@/types/voice';
-import { AttachmentPicker, Attachment, ChatAttachment } from './AttachmentPicker';
+import { FilePicker, PickedFile, UploadedFile } from './FilePicker';
 import { uploadChatFile } from '@/services/api/upload';
 import { VoiceInputReferencesBar } from './VoiceInputReferencesBar';
 import { MessageReference } from '@/types/conversation';
@@ -17,6 +17,8 @@ import { VoiceInputVoicePanel } from './VoiceInputVoicePanel';
 import { useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MediaPickerModal } from '@/components/common/MediaPickerModal';
+import { useAuthStore } from '@/stores/authStore';
+import { router } from '@/utils/navigation';
 
 export enum InputMode {
   VOICE = 'voice',
@@ -30,7 +32,6 @@ export interface VoiceInputHandle {
 interface VoiceInputProps {
   state: VoiceSessionState;
   onSendText: (text: string, options?: {
-    attachments?: ChatAttachment[];
     references?: MessageReference[];
   }) => void;
   onToggleVoice?: () => void;
@@ -85,9 +86,10 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
 }, ref) => {
   const { colors } = useTheme();
   const { t } = useTranslation();
+  const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const [text, setText] = useState('');
   const [internalInputMode, setInternalInputMode] = useState<InputMode>(InputMode.VOICE);
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [pickedFiles, setPickedFiles] = useState<PickedFile[]>([]);
 
   // 草稿保存 key
   const draftKey = `chat_draft_${conversationId || 'global'}`;
@@ -114,7 +116,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
       if (draftTimerRef.current) {clearTimeout(draftTimerRef.current);}
     };
   }, [text, draftKey]);
-  const [uploadedAttachments, setUploadedAttachments] = useState<ChatAttachment[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [references, setReferences] = useState<MessageReference[]>([]);
   const [showReferencePicker, setShowReferencePicker] = useState(false);
   const [showReferenceHint, setShowReferenceHint] = useState(false);
@@ -144,19 +146,28 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
   }, [showReferenceHint]);
 
   const handleSend = useCallback(() => {
-    const hasContent = text.trim() || uploadedAttachments.length > 0 || references.length > 0;
+    const hasContent = text.trim() || uploadedFiles.length > 0 || references.length > 0;
     if (hasContent && !disabled) {
+      const mappedUploadedFiles = uploadedFiles.map(file => ({
+        id: file.url,
+        type: file.type === 'video' ? 'file' : file.type as any,
+        target_id: file.url,
+        target_name: file.name,
+        meta_data: { ext: file.ext }
+      }));
+
+      const combinedRefs = [...references, ...mappedUploadedFiles];
+
       onSendText(text.trim(), {
-        attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined,
-        references: references.length > 0 ? references : undefined,
+        references: combinedRefs.length > 0 ? combinedRefs : undefined,
       });
       setText('');
-      setAttachments([]);
-      setUploadedAttachments([]);
+      setPickedFiles([]);
+      setUploadedFiles([]);
       setReferences([]);
       Keyboard.dismiss();
     }
-  }, [text, uploadedAttachments, references, disabled, onSendText]);
+  }, [text, uploadedFiles, references, disabled, onSendText]);
 
   const toggleMode = useCallback(() => {
     if (onToggleMode) {
@@ -221,19 +232,23 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
 
   // 底部媒体面板
   const openMediaPicker = useCallback(() => {
-    if (attachments.length >= 5) {
-      Alert.alert(t('common.tip'), t('chat.attachments.maxLimit'));
+    if (!isLoggedIn) {
+      router.push('Auth');
+      return;
+    }
+    if (pickedFiles.length >= 5) {
+      Alert.alert(t('common.tip'), t('chat.pickedFiles.maxLimit'));
       return;
     }
     setShowMediaPicker(true);
-  }, [attachments.length]);
+  }, [isLoggedIn, pickedFiles.length, t]);
 
   const closeMediaPicker = useCallback(() => {
     setShowMediaPicker(false);
   }, []);
 
   const handleSelectImage = useCallback((images: ImageOrVideo[]) => {
-    const newAtts: Attachment[] = images.map((asset, index) => ({
+    const newFiles: PickedFile[] = images.map((asset, index) => ({
       id: `media_${Date.now()}_${index}`,
       type: asset.mime?.startsWith('video/') ? 'video' : 'image',
       uri: asset.path,
@@ -243,35 +258,35 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
       uploading: false,
       uploaded: false,
     }));
-    setAttachments(prev => [...prev, ...newAtts]);
+    setPickedFiles(prev => [...prev, ...newFiles]);
   }, []);
 
   const handleSelectFile = useCallback(async (files: any[]) => {
-    const newAtts: ChatAttachment[] = [];
-    for (const file of files.slice(0, 5 - attachments.length)) {
+    const newUploadedFiles: UploadedFile[] = [];
+    for (const file of files.slice(0, 5 - pickedFiles.length)) {
       try {
         const uploaded = await uploadChatFile(file.uri, file.name);
-        newAtts.push(uploaded);
+        newUploadedFiles.push(uploaded);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : t('voice.input.uploadFailed');
         Alert.alert(t('voice.input.uploadErrorTitle'), msg);
       }
     }
-    if (newAtts.length > 0) {
-      setUploadedAttachments(prev => [...prev, ...newAtts]);
+    if (newUploadedFiles.length > 0) {
+      setUploadedFiles(prev => [...prev, ...newUploadedFiles]);
     }
-  }, [attachments.length]);
+  }, [pickedFiles.length]);
 
-  const hasContent = text.trim() || uploadedAttachments.length > 0 || references.length > 0;
+  const hasContent = text.trim() || uploadedFiles.length > 0 || references.length > 0;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.surface }]}>
       {/* 附件预览 */}
-      <AttachmentPicker
-        attachments={attachments}
-        onAttachmentsChange={setAttachments}
-        onUploadComplete={(newAtts) => setUploadedAttachments(prev => [...prev, ...newAtts])}
-        maxAttachments={5}
+      <FilePicker
+        files={pickedFiles}
+        onFilesChange={setPickedFiles}
+        onUploadComplete={(newFiles) => setUploadedFiles(prev => [...prev, ...newFiles])}
+        maxFiles={5}
       />
 
       {/* 引用预览 */}
@@ -490,7 +505,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
         visible={showMediaPicker}
         onClose={closeMediaPicker}
         options={['camera', 'video', 'album', 'file']}
-        maxFiles={5 - attachments.length}
+        maxFiles={5 - pickedFiles.length}
         onSelectImage={handleSelectImage}
         onSelectFile={handleSelectFile}
       />

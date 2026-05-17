@@ -224,10 +224,10 @@
       },
       "continuePrompt": "继续"
     },
-    "attachments": {
-      "maxLimit": "最多只能添加 5 个附件"
+    "pickedFiles": {
+      "maxLimit": "最多只能添加 5 个文件"
     },
-    "attachmentLabel": "附件: {{name}}",
+    "fileLabel": "文件: {{name}}",
     "threadList": {
       "newConversation": "新对话"
     },
@@ -273,6 +273,10 @@
       "file": "文件",
       "skill": "技能",
       "memory": "记忆",
+      "image": "图片",
+      "audio": "音频",
+      "artifact": "组件",
+      "changeset": "变更",
       "reference": "引用"
     },
     "tts": {
@@ -891,7 +895,7 @@
     "cameraPermissionRequired": "需要相机权限才能拍照",
     "mediaPickError": "选择媒体失败，请重试",
     "cameraError": "拍照失败，请重试",
-    "maxAttachments": "最多只能选择 {{count}} 个媒体文件",
+    "maxFiles": "最多只能选择 {{count}} 个媒体文件",
     "videoPermissionRequired": "需要相机权限才能录制视频",
     "videoError": "录制视频失败，请重试",
     "endReached": "已经到底了",
