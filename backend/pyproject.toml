@@ -2,7 +2,7 @@
 name = "evoloop-backend"
 version = "0.1.0"
 description = "EvoLoop Backend"
-requires-python = ">=3.11,<4.0"
+requires-python = ">=3.11,<3.13"
 dependencies = [
     "fastapi[standard]<1.0.0,>=0.114.2",
     "python-multipart<1.0.0,>=0.0.7",
@@ -62,9 +62,10 @@ dependencies = [
     "websockets>=13.0,<15.0",
     "pathspec>=0.12.0",
     "pyright>=1.1.408", # Runtime dependency for LSP tool
-    # "torch==2.2.2", # Removed (replaced with LLM classifier)
+    "torch==2.2.2; sys_platform == 'darwin' and platform_machine == 'x86_64'", # Last version with macOS x86_64 wheels
+    "torch>=2.4.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     # "adaptive-classifier>=0.1.2", # Removed (replaced with LLM classifier)
-    # "numpy<2", # Constraint removed as heavy libs gone
+    "numpy<2; sys_platform == 'darwin' and platform_machine == 'x86_64'", # torch 2.2.2 incompatible with numpy 2.x
     "psutil>=5.9.0",
     "docker>=7.1.0",
     "requests>=2.32.5",
@@ -93,6 +94,7 @@ dependencies = [
     "itsdangerous>=2.2.0",
     "networkx>=3.6.1",
     "sentence-transformers>=5.5.0",
+    "transformers<5.0.0; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "einops>=0.8.2",
 ]
 
@@ -105,7 +107,7 @@ full = [
     "celery>=5.3.0",
     "redis>=5.0.0",
     "langchain-postgres>=0.0.9",
-    "langchain-neo4j>=0.7.0",
+    "langchain-neo4j>=0.7.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "langgraph-checkpoint-sqlite>=3.0.3",
     "langgraph-checkpoint-postgres>=3.0.4",
 ]
