@@ -170,7 +170,7 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
             <Collapsible 
               open={resourcesOpen} 
               onOpenChange={setResourcesOpen} 
-              className={`flex flex-col min-h-0 border-b transition-all duration-200 ${resourcesOpen ? "flex-1" : "shrink-0"}`}
+              className={`flex flex-col min-h-0 border-b border-border transition-all duration-200 ${resourcesOpen ? "flex-1" : "shrink-0"}`}
             >
                 <CollapsibleTrigger asChild>
                     <div className="p-2 flex items-center justify-between bg-muted/20 cursor-pointer hover:bg-muted/30 shrink-0">
@@ -291,7 +291,7 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
                                         </div>
                                         <div className="grid gap-2">
                                             <Label>{t("chat.context.addMemory.desc")}</Label>
-                                            <textarea className="flex min-h-[80px] w-full rounded-md border bg-background px-3 py-2 text-sm" value={newMemoryDesc} onChange={e => setNewMemoryDesc(e.target.value)} />
+                                            <textarea className="flex min-h-[80px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm" value={newMemoryDesc} onChange={e => setNewMemoryDesc(e.target.value)} />
                                         </div>
                                     </div>
                                     <DialogFooter>
@@ -317,7 +317,7 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
                                                 key={i}
                                                 role="button"
                                                 tabIndex={0}
-                                                className={`p-2 rounded-lg border text-xs transition-all cursor-pointer select-none ${active ? "bg-primary/10 border-primary/50 ring-1 ring-primary/20" : "bg-muted/10 border-transparent hover:bg-muted/30 hover:border-muted-foreground/20"}`}
+                                                className={`p-2 rounded-lg border border-border text-xs transition-all cursor-pointer select-none ${active ? "bg-primary/10 border-primary/50 ring-1 ring-primary/20" : "bg-muted/10 border-transparent hover:bg-muted/30 hover:border-muted-foreground/20"}`}
                                                 onClick={() => setSelectedConcept(c.name)}
                                                 onKeyDown={(e) => e.key === 'Enter' && setSelectedConcept(c.name)}
                                             >

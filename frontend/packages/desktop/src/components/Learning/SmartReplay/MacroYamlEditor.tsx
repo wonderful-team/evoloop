@@ -217,7 +217,7 @@ export function MacroYamlEditor({ steps, onChange, readOnly = false }: MacroYaml
         <div className="flex flex-col h-full">
             {/* Toolbar */}
             {!readOnly && (
-                <div className="flex items-center justify-between p-2 border-b bg-muted/30 shrink-0">
+                <div className="flex items-center justify-between p-2 border-b border-border bg-muted/30 shrink-0">
                     <div className="flex items-center gap-2">
                         <FileCode className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm font-medium">YAML</span>

@@ -166,21 +166,15 @@ export const GanttChart: React.FC = () => {
                 {/* Vertical Grid Lines */}
                 <div className="absolute inset-0 flex pointer-events-none pl-[25%]">
                   {calendarDays.map((_, i) => (
-                    <div
-                      key={i}
-                      className="flex-1 border-r border-dashed border-muted/50 last:border-0 h-full"
-                    />
+                    <div key={i} className="flex-1 border-r border-border border-dashed border-muted/50 last:border-0 h-full" />
                   ))}
                 </div>
 
                 {tasks.map((task) => {
                   const style = getTaskStyle(task)
                   return (
-                    <div
-                      key={task.task_id}
-                      className="flex hover:bg-muted/30 relative"
-                    >
-                      <div className="w-1/4 min-w-[200px] p-3 border-r relative z-10 bg-background/50 truncate">
+                    <div key={task.task_id} className="flex hover:bg-muted/30 relative">
+                      <div className="w-1/4 min-w-[200px] p-3 border-r border-border relative z-10 bg-background/50 truncate">
                         <div className="font-medium text-sm truncate">
                           {task.task_title}
                         </div>

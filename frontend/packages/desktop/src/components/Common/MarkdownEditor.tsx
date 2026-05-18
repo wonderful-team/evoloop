@@ -129,7 +129,7 @@ export function MarkdownEditor({ value, onChange, placeholder, className }: Mark
     return (
         <div className={cn("flex flex-col h-full border rounded-xl bg-background overflow-hidden", className)}>
             {/* Toolbar */}
-            <div className="flex items-center justify-between p-2 border-b bg-muted/30 shrink-0">
+            <div className="flex items-center justify-between p-2 border-b border-border bg-muted/30 shrink-0">
                 <div className="flex items-center gap-1">
                     {/* Placeholder for potential future toolbar items */}
                 </div>

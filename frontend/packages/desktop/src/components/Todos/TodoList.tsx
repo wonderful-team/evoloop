@@ -219,7 +219,7 @@ export function TodoList() {
     return (
         <div className="flex h-full w-full bg-background overflow-hidden">
             {/* LEFT SIDEBAR: Filters */}
-            <div className="w-64 border-r bg-muted/10 p-4 flex flex-col gap-6 shrink-0 h-full overflow-y-auto">
+            <div className="w-64 border-r border-border bg-muted/10 p-4 flex flex-col gap-6 shrink-0 h-full overflow-y-auto">
                 <div className="flex items-center gap-2 font-semibold text-lg px-2">
                     <Filter className="w-5 h-5" />
                     {t('todos.filters')}

@@ -196,7 +196,7 @@ export function AndroidMirrorConsole({ onOpenEditor }: AndroidMirrorConsoleProps
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-4">
                     <Card className="border-none shadow-sm bg-card/50 backdrop-blur-md">
-                        <CardHeader className="py-4 px-6 border-b bg-muted/30">
+                        <CardHeader className="py-4 px-6 border-b border-border bg-muted/30">
                             <div className="flex items-center justify-between">
                                 <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground/80">
                                     {t('learning.mirror.devices')}

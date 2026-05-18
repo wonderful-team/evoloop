@@ -112,8 +112,8 @@ function ProjectLayout() {
   return (
     <div className="flex h-full w-full">
       {/* Project Sidebar */}
-      <aside className="w-60 border-r bg-muted/10 flex flex-col shrink-0">
-        <div className="h-14 flex items-center gap-2 px-4 border-b">
+      <aside className="w-60 border-r border-border bg-muted/10 flex flex-col shrink-0">
+        <div className="h-14 flex items-center gap-2 px-4 border-b border-border">
           <Link
             to="/projects"
             className="p-1.5 -ml-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"

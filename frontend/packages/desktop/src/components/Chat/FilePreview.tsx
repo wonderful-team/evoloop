@@ -35,7 +35,7 @@ export function FilePreview({
         <div
           key={file.id}
           className={cn(
-            "relative group flex items-center gap-2 pr-7 pl-2 py-1.5 rounded-md border text-xs font-medium transition-all animate-in fade-in zoom-in-95",
+            "relative group flex items-center gap-2 pr-7 pl-2 py-1.5 rounded-md border border-border text-xs font-medium transition-all animate-in fade-in zoom-in-95",
             file.type === "message"
               ? "bg-green-500/10 border-green-500/20 text-green-700 dark:text-green-400"
               : file.type === "image"

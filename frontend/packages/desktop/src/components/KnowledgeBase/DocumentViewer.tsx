@@ -173,7 +173,7 @@ export function DocumentViewer({
       </ScrollArea>
 
       {/* Footer with pagination */}
-      <div className="flex items-center justify-between border-t px-4 py-2">
+      <div className="flex items-center justify-between border-t border-border px-4 py-2">
         <Button
           variant="ghost"
           size="sm"

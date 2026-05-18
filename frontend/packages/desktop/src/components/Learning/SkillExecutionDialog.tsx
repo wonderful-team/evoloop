@@ -229,7 +229,7 @@ export function SkillExecutionDialog({
           </div>
         </ScrollArea>
 
-        <DialogFooter className="p-6 pt-2 border-t mt-auto bg-muted/5">
+        <DialogFooter className="p-6 pt-2 border-t border-border mt-auto bg-muted/5">
           <Button
             variant="ghost"
             onClick={() => onOpenChange(false)}

@@ -22,8 +22,8 @@ export function FileExplorer({ projectId }: FileExplorerProps) {
 
   return (
     <div className="flex h-full border rounded-lg bg-background overflow-hidden">
-      <div className="w-1/4 min-w-[250px] border-r bg-muted/30 flex flex-col">
-        <div className="p-3 border-b font-medium text-sm text-muted-foreground">
+      <div className="w-1/4 min-w-[250px] border-r border-border bg-muted/30 flex flex-col">
+        <div className="p-3 border-b border-border font-medium text-sm text-muted-foreground">
           {t("files.title")}
         </div>
         <div className="flex-1 overflow-auto p-2">

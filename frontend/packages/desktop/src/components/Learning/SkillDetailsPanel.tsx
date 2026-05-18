@@ -98,7 +98,7 @@ export function SkillDetailsPanel({
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent className="sm:max-w-[800px] w-[90vw] p-0 flex flex-col">
-                <SheetHeader className="p-6 pb-2 border-b">
+                <SheetHeader className="p-6 pb-2 border-b border-border">
                     <div className="flex items-center gap-2 text-primary mb-1">
                         <Terminal className="h-5 w-5" />
                         <span className="text-xs font-bold uppercase tracking-wider">{t("learning.skillDetails")}</span>
@@ -113,7 +113,7 @@ export function SkillDetailsPanel({
                     <div className="p-6 space-y-8 pb-20">
                         {/* Stats Summary */}
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-muted/30 p-4 rounded-xl border flex flex-col gap-1">
+                            <div className="bg-muted/30 p-4 rounded-xl border border-border flex flex-col gap-1">
                                 <span className="text-[10px] text-muted-foreground uppercase font-bold">{t("learning.status")}</span>
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
@@ -130,7 +130,7 @@ export function SkillDetailsPanel({
                                     </Badge>
                                 </div>
                             </div>
-                            <div className="bg-muted/30 p-4 rounded-xl border flex flex-col gap-1">
+                            <div className="bg-muted/30 p-4 rounded-xl border border-border flex flex-col gap-1">
                                 <span className="text-[10px] text-muted-foreground uppercase font-bold">{t("learning.performance")}</span>
                                 <div className="flex items-center gap-2 font-bold text-green-600">
                                     <TrendingUp className="h-4 w-4" />
@@ -165,7 +165,7 @@ export function SkillDetailsPanel({
                             {parameters && parameters.length > 0 ? (
                                 <div className="space-y-2">
                                     {parameters.map((param: any, i: number) => (
-                                        <div key={i} className="bg-muted/30 p-4 rounded-xl border flex flex-col gap-1.5 transition-all hover:border-primary/20">
+                                        <div key={i} className="bg-muted/30 p-4 rounded-xl border border-border flex flex-col gap-1.5 transition-all hover:border-primary/20">
                                             <div className="flex items-center justify-between">
                                                 <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">
                                                     {t("learning.editor.paramType")}: {param.type}
@@ -315,7 +315,7 @@ export function SkillDetailsPanel({
                                                 ))}
                                             </tbody>
                                         </table>
-                                        <div className="mt-3 flex items-center gap-2 pt-3 border-t border-emerald-500/20">
+                                        <div className="mt-3 flex items-center gap-2 pt-3 border-t border-border border-emerald-500/20">
                                             <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[9px] font-bold">
                                                 {t("learning.steps", { count: flattenedMacro.length, defaultValue: `${flattenedMacro.length} STEPS` })}
                                             </Badge>
@@ -337,7 +337,7 @@ export function SkillDetailsPanel({
                                 {parameters && parameters.length > 0 ? (
                                     <div className="space-y-2">
                                         {parameters.map((param: any, i: number) => (
-                                            <div key={i} className="bg-muted/20 p-3 rounded-lg border text-xs">
+                                            <div key={i} className="bg-muted/20 p-3 rounded-lg border border-border text-xs">
                                                 <div className="font-bold flex items-center justify-between">
                                                     {param.name}
                                                     <span className="text-[9px] opacity-40 uppercase">{param.type}</span>
@@ -371,7 +371,7 @@ export function SkillDetailsPanel({
                     </div>
                 </ScrollArea>
 
-                <div className="p-4 border-t bg-card mt-auto flex gap-3 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+                <div className="p-4 border-t border-border bg-card mt-auto flex gap-3 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
                     {skill.status === "pending_review" ? (
                         <Button
                             variant="default"

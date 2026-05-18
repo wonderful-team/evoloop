@@ -750,7 +750,7 @@ export function ChatInterface() {
       {/* Compact Window Context Sheet */}
       {isCompactWindow && (
         <Sheet open={showContextPanel} onOpenChange={setShowContextPanel}>
-          <SheetContent side="right" className="w-[320px] sm:w-[400px] max-w-[85vw] p-0 border-l bg-background [&>button]:hidden shadow-2xl flex flex-col min-w-0 overflow-hidden">
+          <SheetContent side="right" className="w-[320px] sm:w-[400px] max-w-[85vw] p-0 border-l border-border bg-background [&>button]:hidden shadow-2xl flex flex-col min-w-0 overflow-hidden">
             <SheetHeader className="sr-only">
               <SheetTitle>{t("chat.context.title", { defaultValue: "Agent 工作台" })}</SheetTitle>
             </SheetHeader>

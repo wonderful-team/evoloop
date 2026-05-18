@@ -337,7 +337,7 @@ export function MacroEditor({
             <div className="flex flex-col h-full">
                 {/* Toolbar */}
                 {!readOnly && (
-                    <div className="flex items-center justify-between p-2 border-b bg-muted/30">
+                    <div className="flex items-center justify-between p-2 border-b border-border bg-muted/30">
                         <div className="flex items-center gap-2">
                             <span className="text-sm text-muted-foreground">
                                 {t("macroEditor.steps", { count: steps.length })}

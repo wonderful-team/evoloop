@@ -212,7 +212,7 @@ export function ProjectSwitcher({
         </DialogTrigger>
       )}
       <DialogContent className="sm:max-w-4xl max-h-[80vh] flex flex-col p-0 gap-0 overflow-hidden">
-        <div className="p-4 border-b">
+        <div className="p-4 border-b border-border">
           <DialogHeader className="mb-4">
             <DialogTitle>{t("projectSwitcher.title")}</DialogTitle>
             <DialogDescription>
@@ -235,7 +235,7 @@ export function ProjectSwitcher({
           <div
             onClick={() => handleSelect(GLOBAL_PROJECT)}
             className={cn(
-              "rounded-lg border shadow-sm transition-all relative group mb-4 cursor-pointer",
+              "rounded-lg border border-border shadow-sm transition-all relative group mb-4 cursor-pointer",
               isGlobalMode
                 ? "border-primary ring-1 ring-primary bg-card text-card-foreground"
                 : "bg-card text-card-foreground hover:border-primary hover:shadow-md",
@@ -273,7 +273,7 @@ export function ProjectSwitcher({
                     key={project.id}
                     onClick={() => handleSelect(project)}
                     className={cn(
-                      "rounded-lg border shadow-sm transition-all relative group cursor-pointer hover:border-primary hover:shadow-md",
+                      "rounded-lg border border-border shadow-sm transition-all relative group cursor-pointer hover:border-primary hover:shadow-md",
                       isSelected
                         ? "border-primary ring-1 ring-primary bg-card text-card-foreground"
                         : "bg-card text-card-foreground",
@@ -361,7 +361,7 @@ export function ProjectSwitcher({
           )}
         </div>
 
-        <div className="p-4 border-t bg-muted/50 flex justify-between items-center text-xs text-muted-foreground">
+        <div className="p-4 border-t border-border bg-muted/50 flex justify-between items-center text-xs text-muted-foreground">
           <span>
             {t("projectSwitcher.showing", { count: filteredProjects.length })}
           </span>

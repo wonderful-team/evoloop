@@ -129,7 +129,7 @@ export function KnowledgeBasePage() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between border-b px-6 py-4">
+      <div className="flex items-center justify-between border-b border-border px-6 py-4">
         <div className="flex items-center gap-3">
           <BookOpen className="h-6 w-6 text-primary" />
           <div>
@@ -166,7 +166,7 @@ export function KnowledgeBasePage() {
 
       {/* Stats & Active Filters */}
       {stats && (
-        <div className="grid grid-cols-4 gap-4 border-b bg-muted/50 px-6 py-3">
+        <div className="grid grid-cols-4 gap-4 border-b border-border bg-muted/50 px-6 py-3">
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm">
@@ -197,7 +197,7 @@ export function KnowledgeBasePage() {
 
       {/* Active Filters Bar */}
       {hasActiveFilters && (
-        <div className="flex items-center gap-2 border-b bg-muted/30 px-6 py-2">
+        <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-6 py-2">
           <span className="text-sm text-muted-foreground">
             {t("knowledge.filters")}:
           </span>
@@ -254,9 +254,9 @@ export function KnowledgeBasePage() {
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar - Collections & Tags */}
-        <div className="w-64 border-r bg-muted/30 overflow-auto">
+        <div className="w-64 border-r border-border bg-muted/30 overflow-auto">
           {/* Collections Section */}
-          <div className="p-4 border-b">
+          <div className="p-4 border-b border-border">
             <h3 className="mb-2 text-sm font-medium text-muted-foreground">
               {t("knowledge.collections")}
             </h3>

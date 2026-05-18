@@ -336,7 +336,7 @@ function TaskCard({
       </div>
 
       {isExpanded && (
-        <div className="px-3 pb-3 pt-0 border-t bg-muted/30">
+        <div className="px-3 pb-3 pt-0 border-t border-border bg-muted/30">
           <div className="pt-3 space-y-3">
             <p className="text-sm">{task.description}</p>
 

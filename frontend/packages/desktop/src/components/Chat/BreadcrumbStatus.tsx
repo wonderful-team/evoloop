@@ -39,7 +39,7 @@ export const BreadcrumbStatus = memo(() => {
     const isRunning = status === "running" || status === "summarizing"
 
     return (
-        <div className="flex items-center text-xs text-muted-foreground px-4 py-2 border-b bg-muted/20 select-none min-w-0 w-full overflow-hidden">
+        <div className="flex items-center text-xs text-muted-foreground px-4 py-2 border-b border-border bg-muted/20 select-none min-w-0 w-full overflow-hidden">
             {/* Project */}
             <div className="flex items-center whitespace-nowrap hover:text-foreground transition-colors cursor-default min-w-0 shrink">
                 <Home size={12} className="mr-1.5 opacity-70 shrink-0" />

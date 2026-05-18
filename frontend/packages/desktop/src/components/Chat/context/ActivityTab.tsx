@@ -173,7 +173,7 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
           <Collapsible 
             open={goalOpen} 
             onOpenChange={setGoalOpen} 
-            className={`flex flex-col min-h-0 border-b transition-all duration-200 ${goalOpen ? "shrink-0" : "shrink-0"}`}
+            className={`flex flex-col min-h-0 border-b border-border transition-all duration-200 ${goalOpen ? "shrink-0" : "shrink-0"}`}
           >
             <CollapsibleTrigger asChild>
               <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors bg-muted/20 shrink-0">
@@ -199,7 +199,7 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
         <Collapsible 
           open={planOpen} 
           onOpenChange={setPlanOpen} 
-          className={`flex flex-col min-h-0 border-b transition-all duration-200 ${planOpen ? "flex-1" : "shrink-0"}`}
+          className={`flex flex-col min-h-0 border-b border-border transition-all duration-200 ${planOpen ? "flex-1" : "shrink-0"}`}
         >
           <CollapsibleTrigger asChild>
             <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors bg-muted/20 shrink-0">
@@ -294,7 +294,7 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
         <Collapsible 
           open={thinkingOpen} 
           onOpenChange={setThinkingOpen} 
-          className={`flex flex-col min-h-0 min-w-0 w-full overflow-hidden border-b transition-all duration-200 ${thinkingOpen ? "flex-1" : "shrink-0"}`}
+          className={`flex flex-col min-h-0 min-w-0 w-full overflow-hidden border-b border-border transition-all duration-200 ${thinkingOpen ? "flex-1" : "shrink-0"}`}
         >
           <CollapsibleTrigger asChild>
             <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors shrink-0 w-full overflow-hidden">
@@ -448,9 +448,7 @@ function StepRow({ step }: { step: ToolStep }) {
   }, [isRunning, isCompleted])
 
   return (
-    <div 
-      className="relative pl-6 py-2 group border-l border-transparent hover:border-primary/10 transition-colors w-full min-w-0 overflow-hidden"
-    >
+    <div className="relative pl-6 py-2 group border-l border-border border-transparent hover:border-primary/10 transition-colors w-full min-w-0 overflow-hidden">
       <div className="absolute left-[-1.5px] top-0 bottom-0 w-[1px] bg-border/20 group-hover:bg-primary/20" />
       <div className={`absolute left-[-4.5px] top-4 w-2 h-2 rounded-full border-2 border-background z-10 transition-colors ${
         isRunning ? 'bg-primary' : isFailed ? 'bg-red-500' : isCompleted ? 'bg-primary/40' : 'bg-muted'

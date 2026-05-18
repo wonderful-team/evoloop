@@ -299,7 +299,7 @@ function FilesPage() {
                   {selectedFile.path}
                 </span>
 
-                <div className="ml-2 border-l pl-2 shrink-0">
+                <div className="ml-2 border-l border-border pl-2 shrink-0">
                   <Button
                     variant="ghost"
                     size="icon"
@@ -336,18 +336,12 @@ function FilesPage() {
                     className="w-full h-full overflow-auto bg-white p-4"
                   />
                 ) : isContentLoading ? (
-                  <div
-                    key="loading"
-                    className="h-full flex items-center justify-center text-muted-foreground text-sm"
-                  >
+                  <div key="loading" className="h-full flex items-center justify-center text-muted-foreground text-sm">
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                     {t("files.loadingContent")}
                   </div>
                 ) : fileType === "markdown" ? (
-                  <div
-                    key="markdown"
-                    className="p-8 prose prose-slate dark:prose-invert max-w-none overflow-auto h-full"
-                  >
+                  <div key="markdown" className="p-8 prose prose-slate dark:prose-invert max-w-none overflow-auto h-full">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={{

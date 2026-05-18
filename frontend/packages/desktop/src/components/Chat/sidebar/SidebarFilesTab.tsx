@@ -79,7 +79,7 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
         className="flex-1 flex flex-col min-h-0 overflow-hidden"
       >
         <CollapsibleTrigger asChild>
-          <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors border-b bg-muted/20">
+          <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors border-b border-border bg-muted/20">
             {isProjectOpen ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
             {isGlobal ? (
               <Globe className="h-3.5 w-3.5 text-blue-500" />
@@ -163,12 +163,12 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
           open={isChangesOpen}
           onOpenChange={setIsChangesOpen}
           className={cn(
-            "flex flex-col min-h-0 border-t transition-all duration-200 bg-background/50",
+            "flex flex-col min-h-0 border-t border-border transition-all duration-200 bg-background/50",
             isChangesOpen ? "h-[40%] shrink-0" : "flex-none"
           )}
         >
           <CollapsibleTrigger asChild>
-            <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors border-b bg-muted/20">
+            <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors border-b border-border bg-muted/20">
               {isChangesOpen ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
               <History className="h-3.5 w-3.5 text-amber-500/70" />
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex-1">

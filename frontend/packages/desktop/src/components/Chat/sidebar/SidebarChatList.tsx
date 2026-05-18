@@ -71,7 +71,7 @@ export function SidebarChatList({
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Search Input */}
-      <div className="pl-3 pr-3 pb-2 sticky top-0 bg-background/95 backdrop-blur z-10 border-b">
+      <div className="pl-3 pr-3 pb-2 sticky top-0 bg-background/95 backdrop-blur z-10 border-b border-border">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -236,7 +236,7 @@ export function SidebarChatList({
       </div>
 
       {/* Bottom Action */}
-      <div className="p-4 border-t mt-auto shrink-0">
+      <div className="p-4 border-t border-border mt-auto shrink-0">
         <Button
           onClick={onNewChat}
           className="w-full justify-start gap-2"

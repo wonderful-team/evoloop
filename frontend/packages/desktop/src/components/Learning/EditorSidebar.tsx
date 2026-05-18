@@ -66,8 +66,8 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
     const { t } = useTranslation()
 
     return (
-        <div className="w-[360px] border-r flex flex-col bg-muted/5">
-            <div className="h-[44px] px-3 border-b bg-muted/10 flex items-center gap-2 shrink-0">
+        <div className="w-[360px] border-r border-border flex flex-col bg-muted/5">
+            <div className="h-[44px] px-3 border-b border-border bg-muted/10 flex items-center gap-2 shrink-0">
                 <Settings2 className="h-4 w-4 text-primary" />
                 <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/80">{t("learning.editor.configSidebar")}</span>
             </div>

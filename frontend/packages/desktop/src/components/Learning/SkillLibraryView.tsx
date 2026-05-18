@@ -119,7 +119,7 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
     return (
         <div className="flex flex-col h-full space-y-4">
             {/* Toolbar */}
-            <div className="flex items-center justify-between gap-4 bg-card p-4 rounded-xl border shadow-sm">
+            <div className="flex items-center justify-between gap-4 bg-card p-4 rounded-xl border border-border shadow-sm">
                 <div className="relative flex-1 max-w-md">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -163,13 +163,13 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
                         {(filteredSkills as unknown as LearnedSkill[]).map((skill: LearnedSkill) => (
                             <Card
                                 key={skill.id}
-                                className="group hover:border-primary/30 transition-all border shadow-sm rounded-xl overflow-hidden flex flex-col cursor-pointer"
+                                className="group hover:border-primary/30 transition-all border border-border shadow-sm rounded-xl overflow-hidden flex flex-col cursor-pointer"
                                 onClick={() => { setSelectedSkill(skill); setDetailsOpen(true); }}
                             >
                                 <CardHeader className="p-4 pb-2">
                                     <div className="flex items-start justify-between">
                                         <div className="flex gap-4">
-                                            <div className="p-2 bg-primary/5 rounded-xl border border-primary/10 group-hover:bg-primary/10 transition-colors h-fit mt-1">
+                                            <div className="p-2 bg-primary/5 rounded-xl border border-border border-primary/10 group-hover:bg-primary/10 transition-colors h-fit mt-1">
                                                 <Terminal className="h-4 w-4 text-primary" />
                                             </div>
                                             <div className="flex-1 min-w-0">

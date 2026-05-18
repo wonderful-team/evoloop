@@ -125,9 +125,9 @@ export function SkillLibraryDialog({
             </div>
           </DialogHeader>
 
-          <div className="flex-1 flex overflow-hidden border-t">
+          <div className="flex-1 flex overflow-hidden border-t border-border">
             {/* Skill List Sidebar */}
-            <div className="w-1/3 min-w-[300px] border-r flex flex-col">
+            <div className="w-1/3 min-w-[300px] border-r border-border flex flex-col">
               <ScrollArea className="flex-1">
                 <div className="p-4 space-y-2">
                   {skills.length === 0 && !loading && (
@@ -167,7 +167,7 @@ export function SkillLibraryDialog({
               </ScrollArea>
 
               {/* Pagination Controls */}
-              <div className="p-2 border-t flex justify-between items-center bg-background/50 text-xs">
+              <div className="p-2 border-t border-border flex justify-between items-center bg-background/50 text-xs">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -277,7 +277,7 @@ export function SkillLibraryDialog({
                         {selectedSkill.parameters && selectedSkill.parameters.length > 0 ? (
                           <div className="space-y-2">
                             {selectedSkill.parameters.map((param: any, i: number) => (
-                              <div key={i} className="bg-muted/30 p-3 rounded-lg border text-xs">
+                              <div key={i} className="bg-muted/30 p-3 rounded-lg border border-border text-xs">
                                 <div className="font-bold flex items-center justify-between">
                                   {param.name}
                                   <span className="text-[9px] opacity-40 uppercase">{param.type}</span>
@@ -294,7 +294,7 @@ export function SkillLibraryDialog({
                   </ScrollArea>
 
                   {/* Footer Actions */}
-                  <div className="p-4 border-t bg-card mt-auto flex gap-3 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] z-10">
+                  <div className="p-4 border-t border-border bg-card mt-auto flex gap-3 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] z-10">
                     {onSelectSkill ? (
                       // Attach mode: mount skill to input
                       <Button
