@@ -5,6 +5,7 @@ import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { Text, Button, Snackbar, Card, Chip } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { useTheme } from '@/theme';
 import { router } from '@/utils/navigation';
 import { useDevices } from '@/hooks/useDevices';
 import { useAuthStore } from '@/stores/authStore';
@@ -49,6 +50,7 @@ function GuestLoginPrompt() {
 
 const DevicesContent = () => {
   const { t } = useTranslation();
+  const { colors } = useTheme();
   const { isLoggedIn } = useAuthStore();
   const {
     devices,

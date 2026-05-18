@@ -26,6 +26,7 @@ interface ThreadListProps {
 }
 
 export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }: ThreadListProps) {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const { isLoggedIn } = useAuthStore();
   const {

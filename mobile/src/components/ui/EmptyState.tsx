@@ -4,6 +4,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text, Button, IconButton } from 'react-native-paper';
 import { useTheme } from '@/theme';
+import { useTranslation } from 'react-i18next';
 
 interface EmptyStateProps {
   icon?: string;
@@ -24,6 +25,7 @@ export function EmptyState({
   secondaryActionLabel,
   onSecondaryAction,
 }: EmptyStateProps) {
+  const { t } = useTranslation();
   const { colors } = useTheme();
 
   return (

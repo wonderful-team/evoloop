@@ -4,6 +4,7 @@ import React, { Component, ReactNode } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Text, Button } from 'react-native-paper';
 import * as Sentry from '@sentry/react-native';
+import i18n from '@/locales';
 
 interface Props {
   children: ReactNode;
