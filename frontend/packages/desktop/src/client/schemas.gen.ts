@@ -1371,12 +1371,69 @@ export const ConversationListItemSchema = {
             type: 'string',
             title: 'Status',
             default: 'idle'
+        },
+        is_pinned: {
+            type: 'boolean',
+            title: 'Is Pinned',
+            default: false
+        },
+        goal: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Goal'
         }
     },
     additionalProperties: true,
     type: 'object',
     required: ['thread_id', 'title', 'project_id', 'updated_at'],
     title: 'ConversationListItem'
+} as const;
+
+export const ConversationListResponseSchema = {
+    properties: {
+        success: {
+            type: 'boolean',
+            title: 'Success',
+            default: true
+        },
+        message: {
+            type: 'string',
+            title: 'Message',
+            default: ''
+        },
+        data: {
+            items: {
+                '$ref': '#/components/schemas/ConversationListItem'
+            },
+            type: 'array',
+            title: 'Data'
+        },
+        total: {
+            type: 'integer',
+            title: 'Total',
+            default: 0
+        },
+        page: {
+            type: 'integer',
+            title: 'Page',
+            default: 1
+        },
+        page_size: {
+            type: 'integer',
+            title: 'Page Size',
+            default: 20
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    title: 'ConversationListResponse',
+    description: 'Response model for paginated conversation list.'
 } as const;
 
 export const ConversationSearchResultSchema = {
@@ -1417,6 +1474,85 @@ export const ConversationSearchResultSchema = {
     type: 'object',
     required: ['id', 'thread_id', 'role', 'content', 'created_at'],
     title: 'ConversationSearchResult'
+} as const;
+
+export const ConversationUpdateRequestSchema = {
+    properties: {
+        title: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Title'
+        },
+        is_pinned: {
+            anyOf: [
+                {
+                    type: 'boolean'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Is Pinned'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    title: 'ConversationUpdateRequest'
+} as const;
+
+export const ConversationUpdateResponseSchema = {
+    properties: {
+        success: {
+            type: 'boolean',
+            title: 'Success',
+            default: true
+        },
+        message: {
+            type: 'string',
+            title: 'Message',
+            default: ''
+        },
+        status: {
+            type: 'string',
+            title: 'Status'
+        },
+        thread_id: {
+            type: 'string',
+            title: 'Thread Id'
+        },
+        title: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Title'
+        },
+        is_pinned: {
+            anyOf: [
+                {
+                    type: 'boolean'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Is Pinned'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['status', 'thread_id'],
+    title: 'ConversationUpdateResponse'
 } as const;
 
 export const CreateFileRequestSchema = {
@@ -4969,19 +5105,6 @@ export const RegisterUsernameRequestSchema = {
     type: 'object',
     required: ['username', 'password'],
     title: 'RegisterUsernameRequest'
-} as const;
-
-export const RenameRequestSchema = {
-    properties: {
-        title: {
-            type: 'string',
-            title: 'Title'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['title'],
-    title: 'RenameRequest'
 } as const;
 
 export const ResetKnowledgeResponseSchema = {

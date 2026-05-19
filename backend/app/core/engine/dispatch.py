@@ -204,10 +204,11 @@ async def dispatch_agent_run(
             # Upsert Conversation (only for interactive sessions that persist messages)
             conversation = await session.get(Conversation, thread_id)
             if not conversation:
+                first_line = message_content.strip().split("\n")[0] if message_content else ""
                 conversation = Conversation(
                     id=thread_id,
                     project_id=project_id,
-                    title=message_content[:50],
+                    title=first_line[:200] or "未知话题",
                 )
                 session.add(conversation)
             else:

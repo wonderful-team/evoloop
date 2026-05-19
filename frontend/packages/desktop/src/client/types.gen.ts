@@ -385,7 +385,22 @@ export type ConversationListItem = {
     project_id: (number | null);
     updated_at: (string | null);
     status?: string;
-    [key: string]: unknown | string;
+    is_pinned?: boolean;
+    goal?: (string | null);
+    [key: string]: unknown | string | boolean;
+};
+
+/**
+ * Response model for paginated conversation list.
+ */
+export type ConversationListResponse = {
+    success?: boolean;
+    message?: string;
+    data?: Array<ConversationListItem>;
+    total?: number;
+    page?: number;
+    page_size?: number;
+    [key: string]: unknown | boolean | string | ConversationListItem | number;
 };
 
 export type ConversationSearchResult = {
@@ -396,6 +411,22 @@ export type ConversationSearchResult = {
     created_at: string;
     match_snippet?: (string | null);
     [key: string]: unknown | string;
+};
+
+export type ConversationUpdateRequest = {
+    title?: (string | null);
+    is_pinned?: (boolean | null);
+    [key: string]: unknown;
+};
+
+export type ConversationUpdateResponse = {
+    success?: boolean;
+    message?: string;
+    status: string;
+    thread_id: string;
+    title?: (string | null);
+    is_pinned?: (boolean | null);
+    [key: string]: unknown | boolean | string;
 };
 
 export type CreateFileRequest = {
@@ -1376,11 +1407,6 @@ export type RegisterUsernameRequest = {
     password: string;
     captcha_id?: (string | null);
     captcha_code?: (string | null);
-    [key: string]: unknown | string;
-};
-
-export type RenameRequest = {
-    title: string;
     [key: string]: unknown | string;
 };
 
@@ -2425,10 +2451,12 @@ export type AuthResetPasswordData = {
 export type AuthResetPasswordResponse = (EvoCloudProxyResponse);
 
 export type ConversationsListConversationsData = {
+    page?: number;
+    pageSize?: number;
     projectId?: (number | null);
 };
 
-export type ConversationsListConversationsResponse = (Array<ConversationListItem>);
+export type ConversationsListConversationsResponse = (ConversationListResponse);
 
 export type ConversationsGetConversationMessagesData = {
     beforeId?: (string | null);
@@ -2445,12 +2473,12 @@ export type ConversationsSearchConversationsData = {
 
 export type ConversationsSearchConversationsResponse = (Array<ConversationSearchResult>);
 
-export type ConversationsRenameConversationData = {
-    requestBody: RenameRequest;
+export type ConversationsUpdateConversationData = {
+    requestBody: ConversationUpdateRequest;
     threadId: string;
 };
 
-export type ConversationsRenameConversationResponse = (unknown);
+export type ConversationsUpdateConversationResponse = (ConversationUpdateResponse);
 
 export type ConversationsDeleteConversationData = {
     threadId: string;

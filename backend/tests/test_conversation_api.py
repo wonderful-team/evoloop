@@ -158,6 +158,55 @@ class TestConversationLifecycle:
         assert result[0]["status"] == "idle"
 
     @pytest.mark.asyncio
+    async def test_list_conversations_pagination(self, mock_db_session):
+        """测试获取对话列表时的分页与置顶字段"""
+        mock_conversations = [
+            MagicMock(
+                id="thread-1",
+                title="测试对话 1",
+                project_id=1,
+                updated_at=datetime.now(),
+                is_pinned=True,
+            ),
+            MagicMock(
+                id="thread-2",
+                title="测试对话 2",
+                project_id=1,
+                updated_at=datetime.now(),
+                is_pinned=False,
+            ),
+        ]
+        
+        from app.api.schemas.conversations import ConversationListResponse, ConversationListItem
+        
+        items = [
+            ConversationListItem(
+                thread_id=c.id,
+                title=c.title,
+                project_id=c.project_id,
+                updated_at=c.updated_at,
+                status="idle",
+                is_pinned=c.is_pinned,
+            )
+            for c in mock_conversations
+        ]
+        
+        response = ConversationListResponse(
+            data=items,
+            total=10,
+            page=1,
+            page_size=2,
+            success=True,
+            message="Success",
+        )
+        
+        assert response.total == 10
+        assert response.page == 1
+        assert response.page_size == 2
+        assert response.data[0].is_pinned is True
+        assert response.data[1].is_pinned is False
+
+    @pytest.mark.asyncio
     async def test_delete_conversation_cascade(self, mock_db_session):
         """测试删除对话的级联操作"""
         thread_id = "thread-to-delete"

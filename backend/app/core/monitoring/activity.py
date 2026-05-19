@@ -12,6 +12,8 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
 
+from sqlalchemy import select
+
 from app.core.events import system_bus
 from app.core.events.schemas import SystemLogEvent, SystemStatusEvent
 from app.core.monitoring.schemas import (
@@ -20,6 +22,7 @@ from app.core.monitoring.schemas import (
     SystemLogPayload,
 )
 from app.infrastructure.cache import cache
+from app.models import AgentActivity
 from app.models.schemas.events import (
     AgentStateEvent,
     ArtifactEvent,
@@ -347,22 +350,28 @@ class ActivityMonitor:
         """Get full activity state for a thread."""
         return await self._state_service.get_state(thread_id)
 
-    async def get_statuses(self, thread_ids: list[str]) -> dict[str, str]:
-        """Batch fetch statuses for multiple threads efficiently."""
+    async def get_statuses(self, thread_ids: list[str]) -> dict[str, dict[str, str]]:
+        """Batch fetch statuses and goals for multiple threads efficiently."""
         if not thread_ids:
             return {}
 
-        pipeline = cache.pipeline()
+        async with self._state_service._get_session_scope()() as session:
+            stmt = select(
+                AgentActivity.thread_id,
+                AgentActivity.status,
+                AgentActivity.main_goal
+            ).where(
+                AgentActivity.thread_id.in_(thread_ids)
+            )
+            result = await session.execute(stmt)
+            activity_map = {row[0]: {"status": row[1], "main_goal": row[2]} for row in result.all()}
+
+        # Default missing threads to "idle" and empty goal
         for tid in thread_ids:
-            pipeline.hget(f"activity:{tid}", "status")
+            if tid not in activity_map:
+                activity_map[tid] = {"status": "idle", "main_goal": ""}
 
-        results = await pipeline.execute()
-
-        status_map = {}
-        for i, status in enumerate(results):
-            status_map[thread_ids[i]] = status if status else "unknown"
-
-        return status_map
+        return activity_map
 
 
 # Global Instance

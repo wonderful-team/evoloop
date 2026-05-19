@@ -1,6 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query"
 import { Brain } from "lucide-react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import {
@@ -255,21 +255,60 @@ export function ChatInterface() {
 
   // --- Thread List (Sidebar) ---
   // Kept in React Query as it is a list view concern
-  const { data: threadsData } = useQuery({
+  const {
+    data: threadsInfiniteData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ["projectConversations", projectId],
-    queryFn: async () =>
-      ConversationsService.listConversations({ projectId: projectId! }),
+    queryFn: async ({ pageParam = 1 }) => {
+      const res = await ConversationsService.listConversations({
+        projectId: projectId!,
+        page: pageParam,
+        pageSize: 20,
+      })
+      return res
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      const currentPage = lastPage.page || 1
+      const pageSize = lastPage.page_size || 20
+      const total = lastPage.total || 0
+      if (currentPage * pageSize < total) {
+        return currentPage + 1
+      }
+      return undefined
+    },
     enabled: projectId !== undefined,
   })
 
-  const threads: Thread[] = (Array.isArray(threadsData) ? threadsData : []).map(
-    (t: any) => ({
-      thread_id: t.thread_id,
-      title: t.title,
-      updated_at: t.updated_at || new Date().toISOString(),
-      status: t.status,
-    }),
-  )
+  const threads: Thread[] = useMemo(() => {
+    if (!threadsInfiniteData) return []
+    return threadsInfiniteData.pages.flatMap((page) => {
+      const items = page.data || []
+      return items.map((t: any) => ({
+        ...t,
+        updated_at: t.updated_at || new Date().toISOString(),
+        status: t.status || "idle",
+        is_pinned: !!t.is_pinned,
+      }))
+    })
+  }, [threadsInfiniteData])
+
+  const handleTogglePin = useCallback(async (id: string, isPinned: boolean) => {
+    try {
+      await ConversationsService.updateConversation({
+        threadId: id,
+        requestBody: { is_pinned: isPinned },
+      })
+      queryClient.invalidateQueries({ queryKey: ["projectConversations", projectId] })
+      toast.success(isPinned ? "已置顶会话" : "已取消置顶")
+    } catch (err) {
+      console.error(err)
+      toast.error("操作失败")
+    }
+  }, [projectId, queryClient])
 
   // --- Handlers ---
 
@@ -619,6 +658,10 @@ export function ChatInterface() {
             activeTab={sidebarActiveTab}
             onTabChange={setSidebarActiveTab}
             expandAgentChanges={expandAgentChanges}
+            fetchNextPage={fetchNextPage}
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            onTogglePin={handleTogglePin}
           />
         </ResizablePanel>
 

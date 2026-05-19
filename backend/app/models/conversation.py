@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.database.sql.database import Base
@@ -143,6 +143,9 @@ class Conversation(Base):
     # values: 'pending', 'synced', 'failed'
     sync_status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending", index=True)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Pin State
+    is_pinned: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", index=True)
 
     messages: Mapped[list["Message"]] = relationship(
         back_populates="conversation",

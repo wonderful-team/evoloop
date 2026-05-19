@@ -15,6 +15,9 @@ from app.api.schemas.conversations import (
     ConversationDeleteResponse,
     RewindRequest,
     MessageListResponse,
+    ConversationListResponse,
+    ConversationUpdateRequest,
+    ConversationUpdateResponse,
 )
 from app.core.engine.message.folder import MessageNormalizer
 from app.core.engine.message.repository import MessageRepository
@@ -29,32 +32,57 @@ router = APIRouter()
 
 # Message components are now managed via app.core.engine.message.*
 
-@router.get("/", response_model=list[ConversationListItem])
-async def list_conversations(project_id: int | None = None):
+@router.get("/", response_model=ConversationListResponse)
+async def list_conversations(
+    project_id: int | None = None,
+    page: int = 1,
+    page_size: int = 20,
+):
     """
-    List conversations, optionally filtered by project.
+    List conversations, optionally filtered by project, with pagination and pinning.
     """
     async with get_db_session() as session:
-        stmt = select(Conversation).order_by(Conversation.updated_at.desc())
+        # Get total count first
+        count_stmt = select(func.count(Conversation.id))
+        if project_id is not None:
+            count_stmt = count_stmt.where(Conversation.project_id == project_id)
+        total_count_result = await session.execute(count_stmt)
+        total_count = total_count_result.scalar() or 0
+
+        # Fetch paginated results ordered by pin status and update time
+        stmt = select(Conversation).order_by(Conversation.is_pinned.desc(), Conversation.updated_at.desc())
         if project_id is not None:
             stmt = stmt.where(Conversation.project_id == project_id)
+
+        # Pagination
+        stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
         result = await session.execute(stmt)
         conversations = result.scalars().all()
 
-        # Fetch active statuses
         thread_ids = [c.id for c in conversations]
-        status_map = await activity_monitor.get_statuses(thread_ids)
+        activity_map = await activity_monitor.get_statuses(thread_ids)
 
-        return [
+        items = [
             ConversationListItem(
                 thread_id=c.id,
                 title=c.title or "Untitled",
                 project_id=c.project_id,
                 updated_at=c.updated_at,
-                status=status_map.get(c.id, "idle"),
+                status=activity_map.get(c.id, {}).get("status", "idle"),
+                is_pinned=c.is_pinned,
+                goal=activity_map.get(c.id, {}).get("main_goal"),
             ) for c in conversations
         ]
+
+        return ConversationListResponse(
+            data=items,
+            total=total_count,
+            page=page,
+            page_size=page_size,
+            success=True,
+            message="Successfully retrieved conversations",
+        )
 
 
 @router.get("/{thread_id}/messages", response_model=MessageListResponse)
@@ -156,16 +184,28 @@ async def search_conversations(q: str, project_id: int | None = None):
         ]
 
 
-@router.patch("/{thread_id}")
-async def rename_conversation(thread_id: str, req: RenameRequest):
+@router.patch("/{thread_id}", response_model=ConversationUpdateResponse)
+async def update_conversation(thread_id: str, req: ConversationUpdateRequest):
     async with get_db_session() as session:
         conversation = await session.get(Conversation, thread_id)
         if not conversation:
             raise HTTPException(404, "Conversation not found")
 
-        conversation.title = req.title
+        if req.title is not None:
+            conversation.title = req.title
+        if req.is_pinned is not None:
+            conversation.is_pinned = req.is_pinned
 
-    return ConversationRenameResponse(status="updated", thread_id=thread_id, title=req.title)
+        # Fetch updated values to return
+        title = conversation.title
+        is_pinned = conversation.is_pinned
+
+    return ConversationUpdateResponse(
+        status="updated",
+        thread_id=thread_id,
+        title=title,
+        is_pinned=is_pinned,
+    )
 
 
 @router.get("/{thread_id}/activity")

@@ -21,6 +21,10 @@ interface ChatSidebarProps {
   activeTab?: string
   onTabChange?: (tab: string) => void
   expandAgentChanges?: boolean
+  fetchNextPage?: () => void
+  hasNextPage?: boolean
+  isFetchingNextPage?: boolean
+  onTogglePin?: (id: string, isPinned: boolean) => void
 }
 
 export const ChatSidebar = memo(
@@ -37,6 +41,10 @@ export const ChatSidebar = memo(
     activeTab,
     onTabChange,
     expandAgentChanges = false,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    onTogglePin,
   }: ChatSidebarProps) => {
     const { t } = useTranslation()
     
@@ -88,6 +96,10 @@ export const ChatSidebar = memo(
               onDeleteThread={onDeleteThread}
               onStopThread={onStopThread}
               onNewChat={onNewChat}
+              fetchNextPage={fetchNextPage}
+              hasNextPage={hasNextPage}
+              isFetchingNextPage={isFetchingNextPage}
+              onTogglePin={onTogglePin}
             />
           </TabsContent>
 

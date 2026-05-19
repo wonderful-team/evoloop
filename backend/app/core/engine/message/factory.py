@@ -4,6 +4,7 @@ MessageBlockFactory - 统一视图层出厂转换器
 负责将底层的 ORM 模型或运行时的碎片化内存事件统一转换为前端严格依赖的 `MessageBlock` 契约结构。
 解决历史记录和流式事件结构分裂的问题。
 """
+import json
 import logging
 from datetime import datetime
 from typing import Any, Union
@@ -26,8 +27,6 @@ class MessageBlockFactory:
         if isinstance(obj, dict):
             return obj.get(key, default)
         return getattr(obj, key, default)
-
-
 
     @classmethod
     def from_orm(cls, msg: Any) -> MessageBlock:
@@ -179,7 +178,6 @@ class MessageBlockFactory:
             output = content or metadata.get("output", "")
             if status == "completed" and isinstance(output, str) and output.strip().startswith("{"):
                 try:
-                    import json
                     parsed = json.loads(output)
                     if isinstance(parsed, dict):
                         result_meta = {k.lower(): v for k, v in parsed.items()}

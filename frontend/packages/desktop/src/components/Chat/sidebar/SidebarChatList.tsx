@@ -1,14 +1,15 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   Check,
-  MessageSquare,
   Pencil,
   Plus,
   Search,
   Trash2,
   X,
+  Pin,
+  PinOff,
 } from "lucide-react"
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { ConversationsService } from "@/client"
 import { Button } from "@evoloop/shared/components/ui/button"
@@ -19,6 +20,8 @@ export interface Thread {
   title: string
   updated_at: string
   status?: string
+  is_pinned?: boolean
+  goal?: string | null
 }
 
 interface SidebarChatListProps {
@@ -28,6 +31,84 @@ interface SidebarChatListProps {
   onDeleteThread: (id: string) => void
   onStopThread: (id: string) => void
   onNewChat: () => void
+  fetchNextPage?: () => void
+  hasNextPage?: boolean
+  isFetchingNextPage?: boolean
+  onTogglePin?: (id: string, isPinned: boolean) => void
+}
+
+function formatRelativeTime(dateString: string) {
+  try {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMins / 60)
+    const diffDays = Math.floor(diffHours / 24)
+
+    if (diffMins < 1) {
+      return "刚刚"
+    }
+    if (diffMins < 60) {
+      return `${diffMins}分钟前`
+    }
+    if (diffHours < 24) {
+      return `${diffHours}小时前`
+    }
+    if (diffDays < 7) {
+      return `${diffDays}天前`
+    }
+
+    const mm = String(date.getMonth() + 1).padStart(2, '0')
+    const dd = String(date.getDate()).padStart(2, '0')
+    const hh = String(date.getHours()).padStart(2, '0')
+    const min = String(date.getMinutes()).padStart(2, '0')
+    return `${mm}-${dd} ${hh}:${min}`
+  } catch (e) {
+    return ""
+  }
+}
+interface GroupedThreads {
+  pinned: Thread[]
+  today: Thread[]
+  yesterday: Thread[]
+  recent: Thread[]
+  earlier: Thread[]
+}
+
+function groupThreads(threads: Thread[]): GroupedThreads {
+  const groups: GroupedThreads = {
+    pinned: [],
+    today: [],
+    yesterday: [],
+    recent: [],
+    earlier: [],
+  }
+
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000
+  const startOf7DaysAgo = startOfToday - 6 * 24 * 60 * 60 * 1000
+
+  for (const thread of threads) {
+    if (thread.is_pinned) {
+      groups.pinned.push(thread)
+      continue
+    }
+
+    const updatedTime = new Date(thread.updated_at).getTime()
+    if (updatedTime >= startOfToday) {
+      groups.today.push(thread)
+    } else if (updatedTime >= startOfYesterday) {
+      groups.yesterday.push(thread)
+    } else if (updatedTime >= startOf7DaysAgo) {
+      groups.recent.push(thread)
+    } else {
+      groups.earlier.push(thread)
+    }
+  }
+
+  return groups
 }
 
 export function SidebarChatList({
@@ -37,6 +118,10 @@ export function SidebarChatList({
   onDeleteThread,
   onStopThread,
   onNewChat,
+  fetchNextPage,
+  hasNextPage,
+  isFetchingNextPage,
+  onTogglePin,
 }: SidebarChatListProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -48,10 +133,37 @@ export function SidebarChatList({
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState("")
 
+  // Intersection Observer for infinite loading
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!hasNextPage || isFetchingNextPage || !fetchNextPage) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          fetchNextPage()
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    const currentSentinel = sentinelRef.current
+    if (currentSentinel) {
+      observer.observe(currentSentinel)
+    }
+
+    return () => {
+      if (currentSentinel) {
+        observer.unobserve(currentSentinel)
+      }
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+
   // Rename mutation
   const renameMutation = useMutation({
     mutationFn: ({ threadId, title }: { threadId: string; title: string }) =>
-      ConversationsService.renameConversation({
+      ConversationsService.updateConversation({
         threadId,
         requestBody: { title },
       }),
@@ -78,7 +190,7 @@ export function SidebarChatList({
             type="text"
             placeholder={t("chat.sidebar.searchPlaceholder")}
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e: any) => setSearchQuery(e.target.value)}
             className="pl-9 h-9 text-sm bg-muted/50 border-muted-foreground/20 focus:bg-background transition-colors shadow-sm"
           />
           {searchQuery && (
@@ -93,141 +205,225 @@ export function SidebarChatList({
       </div>
 
       {/* Chat List */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {filteredThreads.map((thread: Thread) => (
-          // biome-ignore lint/a11y/useSemanticElements: Cannot use button due to nested interactive elements
-          <div
-            key={thread.thread_id}
-            role="button"
-            tabIndex={0}
-            className={`group flex items-center justify-between text-sm p-2 rounded-md cursor-pointer hover:bg-muted ${activeThreadId === thread.thread_id ? "bg-muted font-medium" : ""}`}
-            onClick={() => setActiveThreadId(thread.thread_id)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                setActiveThreadId(thread.thread_id)
-              }
-            }}
-          >
-            <div className="flex items-center gap-2 truncate flex-1">
-              {/* Icon: Show Loading/Stop if running */}
-              {thread.status === "running" ? (
-                <div className="shrink-0 relative flex h-3.5 w-3.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                  <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-primary" />
-                </div>
-              ) : (
-                <MessageSquare
-                  size={14}
-                  className="shrink-0 text-muted-foreground"
-                />
-              )}
+      <div className="flex-1 overflow-y-auto p-2 space-y-4">
+        {(() => {
+          const grouped = groupThreads(filteredThreads)
+          const sections = [
+            { key: "pinned", label: "置顶会话", items: grouped.pinned },
+            { key: "today", label: "今天", items: grouped.today },
+            { key: "yesterday", label: "昨天", items: grouped.yesterday },
+            { key: "recent", label: "最近 7 天", items: grouped.recent },
+            { key: "earlier", label: "更早", items: grouped.earlier },
+          ]
 
-              {/* Inline Rename Mode */}
-              {editingThreadId === thread.thread_id ? (
-                // biome-ignore lint/a11y/noStaticElementInteractions: Stop propagation wrapper
-                <div
-                  className="flex items-center gap-1 flex-1"
-                  role="presentation"
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => e.stopPropagation()}
-                >
-                  <Input
-                    type="text"
-                    value={editingTitle}
-                    onChange={(e) => setEditingTitle(e.target.value)}
-                    className="h-6 text-xs flex-1"
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
+          const renderThreadItem = (thread: Thread) => (
+            <div
+              key={thread.thread_id}
+              role="button"
+              tabIndex={0}
+              className={`group flex items-center justify-between text-sm p-2 rounded-md cursor-pointer hover:bg-muted relative ${activeThreadId === thread.thread_id ? "bg-muted font-medium" : ""}`}
+              onClick={() => setActiveThreadId(thread.thread_id)}
+              onKeyDown={(e: any) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  setActiveThreadId(thread.thread_id)
+                }
+              }}
+            >
+              {/* Main Content Area (no left icon) */}
+              <div className="flex items-start min-w-0 flex-1 pt-0.5">
+                {/* Inline Rename Mode */}
+                {editingThreadId === thread.thread_id ? (
+                  // biome-ignore lint/a11y/noStaticElementInteractions: Stop propagation wrapper
+                  <div
+                    className="flex items-center gap-1 flex-1"
+                    role="presentation"
+                    onClick={(e: any) => e.stopPropagation()}
+                    onKeyDown={(e: any) => e.stopPropagation()}
+                  >
+                    <Input
+                      type="text"
+                      value={editingTitle}
+                      onChange={(e: any) => setEditingTitle(e.target.value)}
+                      className="h-6 text-xs flex-1"
+                      autoFocus
+                      onKeyDown={(e: any) => {
+                        if (e.key === "Enter") {
+                          renameMutation.mutate({
+                            threadId: thread.thread_id,
+                            title: editingTitle,
+                          })
+                        } else if (e.key === "Escape") {
+                          setEditingThreadId(null)
+                        }
+                      }}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5"
+                      onClick={() =>
                         renameMutation.mutate({
                           threadId: thread.thread_id,
                           title: editingTitle,
                         })
-                      } else if (e.key === "Escape") {
-                        setEditingThreadId(null)
                       }
-                    }}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-5 w-5"
-                    onClick={() =>
-                      renameMutation.mutate({
-                        threadId: thread.thread_id,
-                        title: editingTitle,
-                      })
-                    }
-                  >
-                    <Check size={12} className="text-green-500" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-5 w-5"
-                    onClick={() => setEditingThreadId(null)}
-                  >
-                    <X size={12} className="text-muted-foreground" />
-                  </Button>
-                </div>
-              ) : (
-                <span className="truncate">
-                  {thread.title || t("chat.sidebar.untitled")}
+                    >
+                      <Check size={12} className="text-green-500" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5"
+                      onClick={() => setEditingThreadId(null)}
+                    >
+                      <X size={12} className="text-muted-foreground" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <span className="truncate flex items-center gap-1.5 font-medium text-foreground" title={thread.title || t("chat.sidebar.untitled")}>
+                      {thread.is_pinned && (
+                        <Pin size={10} className="shrink-0 text-amber-500 fill-amber-500/25" />
+                      )}
+                      <span className="truncate">
+                        {thread.title || t("chat.sidebar.untitled")}
+                      </span>
+                    </span>
+                    {thread.goal && (
+                      <span className="text-[11px] text-muted-foreground/80 truncate mt-0.5 block pr-8" title={thread.goal}>
+                        {thread.goal}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Absolute positioned Relative Time label in bottom right corner */}
+              {thread.status !== "running" && (
+                <span className="text-[9px] text-muted-foreground absolute right-2 bottom-1.5 whitespace-nowrap group-hover:opacity-0 transition-opacity duration-150 pointer-events-none z-10">
+                  {formatRelativeTime(thread.updated_at)}
                 </span>
               )}
-            </div>
 
-            <div className="flex items-center shrink-0">
-              {/* Rename Button */}
-              {editingThreadId !== thread.thread_id &&
-                thread.status !== "running" && (
+              {/* Actions Area (Vertically Centered on Right Side) */}
+              <div className="flex items-center shrink-0 ml-2 relative min-h-[24px] z-20">
+                {/* Actions container: visible on hover */}
+                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-background/95 rounded pl-1 absolute right-0 top-1/2 -translate-y-1/2">
+                  {/* Pin/Unpin Button */}
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => {
+                    className="h-6 w-6"
+                    onClick={(e: any) => {
                       e.stopPropagation()
-                      setEditingThreadId(thread.thread_id)
-                      setEditingTitle(thread.title || "")
+                      onTogglePin?.(thread.thread_id, !thread.is_pinned)
                     }}
+                    title={thread.is_pinned ? "取消置顶" : "置顶会话"}
                   >
-                    <Pencil size={12} className="text-muted-foreground" />
+                    {thread.is_pinned ? (
+                      <PinOff size={12} className="text-amber-500 fill-amber-500/25" />
+                    ) : (
+                      <Pin size={12} className="text-muted-foreground hover:text-foreground" />
+                    )}
+                  </Button>
+
+                  {/* Rename Button (not for running) */}
+                  {editingThreadId !== thread.thread_id && thread.status !== "running" && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={(e: any) => {
+                        e.stopPropagation()
+                        setEditingThreadId(thread.thread_id)
+                        setEditingTitle(thread.title || "")
+                      }}
+                      title={t("common.rename") || "重命名"}
+                    >
+                      <Pencil size={12} className="text-muted-foreground hover:text-foreground" />
+                    </Button>
+                  )}
+
+                  {/* Stop Button (only for running, inside hover container) */}
+                  {thread.status === "running" && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-destructive hover:bg-destructive/10"
+                      onClick={(e: any) => {
+                        e.stopPropagation()
+                        onStopThread(thread.thread_id)
+                      }}
+                      title={t("chat.interface.stop") || "停止"}
+                    >
+                      <div className="h-2 w-2 bg-current rounded-[1px]" />
+                    </Button>
+                  )}
+
+                  {/* Delete Button (not for running) */}
+                  {thread.status !== "running" && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={(e: any) => {
+                        e.stopPropagation()
+                        onDeleteThread(thread.thread_id)
+                      }}
+                      title={t("common.delete") || "删除"}
+                    >
+                      <Trash2
+                        size={12}
+                        className="text-muted-foreground hover:text-destructive"
+                      />
+                    </Button>
+                  )}
+                </div>
+
+                {/* Standalone Stop Button: permanently visible on the right when running and not hovered */}
+                {thread.status === "running" && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-destructive hover:bg-destructive/10 shrink-0 z-10 animate-pulse group-hover:opacity-0 group-hover:pointer-events-none transition-opacity duration-150 absolute right-0 top-1/2 -translate-y-1/2"
+                    onClick={(e: any) => {
+                      e.stopPropagation()
+                      onStopThread(thread.thread_id)
+                    }}
+                    title={t("chat.interface.stop") || "停止"}
+                  >
+                    <div className="h-2 w-2 bg-current rounded-[1px]" />
                   </Button>
                 )}
-
-              {/* Stop Button if running */}
-              {thread.status === "running" && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-destructive hover:bg-destructive/10"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onStopThread(thread.thread_id)
-                  }}
-                  title={t("chat.interface.stop")}
-                >
-                  <div className="h-2 w-2 bg-current rounded-[1px]" />
-                </Button>
-              )}
-
-              <Button
-                variant="ghost"
-                size="icon"
-                className={`h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity ${thread.status === "running" ? "hidden" : ""}`}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onDeleteThread(thread.thread_id)
-                }}
-              >
-                <Trash2
-                  size={12}
-                  className="text-muted-foreground hover:text-destructive"
-                />
-              </Button>
+              </div>
             </div>
+          )
+
+          return (
+            <>
+              {sections.map(
+                (section) =>
+                  section.items.length > 0 && (
+                    <div key={section.key} className="space-y-1">
+                      <div className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider px-2 py-1 select-none">
+                        {section.label}
+                      </div>
+                      <div className="space-y-1">
+                        {section.items.map(renderThreadItem)}
+                      </div>
+                    </div>
+                  )
+              )}
+            </>
+          )
+        })()}
+
+        {/* Infinite loading sentinel */}
+        {hasNextPage && (
+          <div ref={sentinelRef} className="py-2 text-center text-xs text-muted-foreground">
+            {isFetchingNextPage ? "加载中..." : "加载更多"}
           </div>
-        ))}
+        )}
         {threads.length === 0 && (
           <div className="p-4 text-xs text-muted-foreground text-center">
             {t("chat.sidebar.noHistory")}

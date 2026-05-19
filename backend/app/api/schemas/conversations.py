@@ -41,12 +41,19 @@ class RenameRequest(DynamicBaseModel):
     title: str
 
 
+class ConversationUpdateRequest(DynamicBaseModel):
+    title: str | None = None
+    is_pinned: bool | None = None
+
+
 class ConversationListItem(DynamicBaseModel):
     thread_id: str
     title: str
     project_id: int | None
     updated_at: datetime | None
     status: str = "idle"
+    is_pinned: bool = False
+    goal: str | None = None
 
 
 class ReferenceItemMetadata(DynamicBaseModel):
@@ -105,3 +112,15 @@ class MessageListResponse(ListResponse[MessageItem]):
     first_id: str | None = None
     last_id: str | None = None
     total_count: int | None = None
+
+
+class ConversationUpdateResponse(BaseAPIResponse):
+    status: str
+    thread_id: str
+    title: str | None = None
+    is_pinned: bool | None = None
+
+
+class ConversationListResponse(ListResponse[ConversationListItem]):
+    """Response model for paginated conversation list."""
+    pass
