@@ -142,6 +142,8 @@ class WorkerPromptBuilder:
             "plan": plan or self.plan,
             "macro_goal": session_goal,
             "previous_output": previous_output,
+            "historical_context": self.ticket.historical_context if self.ticket else None,
+            "referenced_tech": self.ticket.referenced_tech if self.ticket else None,
         }
         return render_template("core/engine/fragments/worker_mission_ticket.j2", **to_template_context(template_vars))
 

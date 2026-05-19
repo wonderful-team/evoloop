@@ -86,12 +86,16 @@ class RouteToInterceptor(ToolCallInterceptor):
 
         logger.info(f"[SignalRegistry] Intent: -> {target} ({reason})")
 
+        skill_ids = args.get("skill_ids")
+        if not skill_ids and args.get("skill_id"):
+            skill_ids = [args.get("skill_id")]
+
         signal = RouteToSignal(
             target=target,
             reason=reason,
             context=context,
             authorized_tools=authorized_tools,
-            skill_id=args.get("skill_id"),
+            skill_ids=skill_ids,
         )
 
         output_msg = f"Routing to {target}"

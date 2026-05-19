@@ -23,7 +23,7 @@ export interface ChatState {
     // --- Data ---
     threadId: string | null
     projectId: number | null
-    skillId: number | null
+    skillIds: number[]
     sessionGoal: string | null
     messages: Message[]
 
@@ -78,11 +78,11 @@ export interface ChatState {
     _flushTimeout: any
 
     // --- Actions ---
-    setThread: (threadId: string | null, projectId: number | null, skillId?: number | null) => Promise<void>
+    setThread: (threadId: string | null, projectId: number | null, skillIds?: number[]) => Promise<void>
     fetchHistory: (threadId: string) => Promise<void>
     fetchActivity: (threadId: string) => Promise<void>
     loadMoreHistory: () => Promise<void>
-    sendMessage: (content: string, pickedFiles?: any[], skillId?: number | null) => Promise<void>
+    sendMessage: (content: string, pickedFiles?: any[], skillIds?: number[]) => Promise<void>
     stopAgent: () => Promise<void>
     resumeAgent: (userInput?: string) => Promise<void>
     cancelHumanRequest: (reason?: string) => Promise<void>

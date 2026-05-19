@@ -294,7 +294,7 @@ export type ChatRequest = {
     references?: (Array<{
     [key: string]: unknown;
 }> | null);
-    skill_id?: (number | null);
+    skill_ids?: (Array<(number)> | null);
     revert_files?: boolean;
 };
 

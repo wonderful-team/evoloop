@@ -516,7 +516,7 @@ export const ChatInputArea = memo(
                   threadId={activeThreadId ?? ""}
                   projectId={currentProject?.id}
                   onSelectSkill={(skill) => {
-                    // Attach skill as reference (ensure only one skill is mounted)
+                    // Attach skill as reference (allow multiple skills to be mounted)
                     const newFile: PickedFile = {
                       id: Math.random().toString(36).substring(2, 15),
                       url: skill.id,
@@ -524,7 +524,7 @@ export const ChatInputArea = memo(
                       type: 'skill',
                       metadata: { skill_id: skill.id, skill_name: skill.name },
                     }
-                    setPickedFiles(prev => [...prev.filter(a => a.type !== 'skill'), newFile])
+                    setPickedFiles(prev => [...prev.filter(a => a.url !== skill.id), newFile])
                     setIsSkillDialogOpen(false)
                     toast.success(t('chat.skillAttached', '技能已挂载'))
                   }}

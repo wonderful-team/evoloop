@@ -146,7 +146,7 @@ async def generate_wiki(
         ticket=ExecutionTicket(
             ticket_type="task",
             topic="Wiki Generation",
-            skill_id=skill.id if skill else None,
+            skill_ids=[skill.id] if skill else None,
             agent_config=AgentRuntimeConfig(
                 role_name="Worker",
                 system_instructions=system_instructions,
@@ -166,18 +166,11 @@ async def generate_wiki(
     result.inputs["metadata"]["skip_persistence"] = True
     result.inputs["metadata"]["task_type"] = "wiki_generation"
 
-    from fastapi import BackgroundTasks
-    # BackgroundTasks is injected by FastAPI; we need to use it properly
-    # But here we're in the route function. We can't use bg_tasks without injecting it.
-    # Let's use asyncio.create_task instead, or inject BackgroundTasks.
-    # Actually, let's look at project_profiles.py — it uses bg_tasks.add_task.
-    # We should do the same.
-
     bg_tasks.add_task(run_agent_background, thread_id, result.inputs)
 
     logger.info(
         f"[WikiAPI] Dispatched wiki generation mission for project {req.project_id} "
-        f"(thread_id={thread_id}, skill_id={skill.id if skill else 'None'}, lang={user_lang})"
+        f"(thread_id={thread_id}, skill_ids={[skill.id] if skill else 'None'}, lang={user_lang})"
     )
 
     return WikiGenerationResponse(

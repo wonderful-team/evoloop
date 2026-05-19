@@ -17,7 +17,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // --- Initial State ---
     threadId: null,
     projectId: null,
-    skillId: null,
+    skillIds: [],
     sessionGoal: null,
     messages: [],
     changeset: [],
@@ -43,12 +43,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     _flushTimeout: null,
 
     // --- Core Actions ---
-    setThread: async (threadId, projectId, skillId) => {
+    setThread: async (threadId, projectId, skillIds) => {
         const currentThreadId = get().threadId
         set({
             threadId,
             projectId,
-            skillId: skillId || null,
+            skillIds: skillIds || [],
             ...(currentThreadId !== threadId ? {
                 messages: [],
                 status: "idle",
@@ -189,18 +189,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
     },
 
-    sendMessage: async (content, pickedFiles, skillId) => {
-        const { threadId, projectId, skillId: stateSkillId } = get()
+    sendMessage: async (content, pickedFiles, skillIds) => {
+        const { threadId, projectId, skillIds: stateSkillIds } = get()
         if (projectId === null) return
 
-        const activeSkillId = skillId || stateSkillId
+        const pickedSkillIds = (pickedFiles || [])
+            .filter(f => f.type === 'skill' && f.metadata?.skill_id)
+            .map(f => Number(f.metadata.skill_id));
+
+        const activeSkillIds = Array.from(new Set([...((skillIds && skillIds.length > 0) ? skillIds : stateSkillIds), ...pickedSkillIds]));
+
         // Optimistic update
         const tempId = `temp-${Date.now()}`
         const mappedReferences = (pickedFiles || [])
             .map(a => ({
                 id: a.id,
                 type: (a.type === 'reference' ? 'message' : a.type) as any,
-                target_id: a.url,
+                target_id: String(a.url),
                 target_name: a.name,
                 meta_data: a.metadata || {}
             }));
@@ -221,7 +226,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 requestBody: {
                     thread_id: threadId || undefined,
                     project_id: projectId,
-                    skill_id: activeSkillId || undefined,
+                    skill_ids: activeSkillIds.length > 0 ? activeSkillIds : undefined,
                     message: content,
                     model: get().selectedModel || undefined,
                     references: mappedReferences.length > 0 ? mappedReferences : undefined,
@@ -231,7 +236,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             // If this was a new thread, sync the ID and re-init state/SSE
             if (res && res.thread_id && !threadId) {
                 console.log(`[ChatStore] Syncing new threadId: ${res.thread_id}`)
-                await get().setThread(res.thread_id, projectId, activeSkillId)
+                await get().setThread(res.thread_id, projectId, activeSkillIds)
             }
         } catch (e: any) {
             toast.error(i18n.t("chat.errors.sendFailed"))

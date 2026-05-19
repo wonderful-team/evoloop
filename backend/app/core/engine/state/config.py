@@ -2,7 +2,7 @@ from __future__ import annotations
 """Agent runtime configuration and execution tickets."""
 from typing import Any
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from app.core.engine.state.workspace import SubtaskContext
 from app.infrastructure.pydantic_base import DynamicBaseModel
@@ -94,7 +94,6 @@ class ExecutionTicket(DynamicBaseModel):
     historical_context: Any | None = None
     referenced_tech: Any | None = None
     # Skill routing
-    skill_id: int | str | None = None
     skill_ids: list[int | str] | None = None
     workflow_mode: str | None = None
     mcp_servers_required: list[str] = Field(default_factory=list)
@@ -110,9 +109,8 @@ class ExecutionTicket(DynamicBaseModel):
             raise ValueError("ExecutionTicket.topic cannot be empty or missing. Check upstream caller (route_to, decompose_task, etc.) to ensure a non-empty topic/intent/reason is provided.")
         return v.strip()
 
-    @field_validator("skill_id", mode="before")
-    @classmethod
-    def _coerce_skill_id(cls, v):
-        if v is not None:
-            return str(v)
-        return v
+    @model_validator(mode="after")
+    def _normalize_ticket_skills(self):
+        if self.skill_ids and not self.workflow_mode:
+            self.workflow_mode = "single" if len(self.skill_ids) <= 1 else "sequential"
+        return self

@@ -208,7 +208,7 @@ class WorkerNode(BaseAgentNode):
             logger.info(
                 f"[Worker] ExecutionTicket received | "
                 f"topic='{execution_ticket.topic}' | "
-                f"skills={execution_ticket.skill_ids or execution_ticket.skill_id} | "
+                f"skills={execution_ticket.skill_ids} | "
                 f"acceptance={execution_ticket.acceptance_criteria} | "
                 f"role={(execution_ticket.agent_config.role_name if execution_ticket.agent_config else 'Worker')}"
             )
@@ -216,11 +216,6 @@ class WorkerNode(BaseAgentNode):
         # Check for multi-skill workflow
         skill_ids = execution_ticket.skill_ids or [] if execution_ticket else []
         workflow_mode = execution_ticket.workflow_mode or "single" if execution_ticket else "single"
-
-        # Backward compatibility
-        if not skill_ids and execution_ticket and execution_ticket.skill_id:
-            skill_ids = [execution_ticket.skill_id]
-            workflow_mode = "single"
 
         is_multi_skill_workflow = workflow_mode == "sequential" and len(skill_ids) > 1
 

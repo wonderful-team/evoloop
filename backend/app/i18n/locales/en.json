@@ -5,7 +5,7 @@
   "documenter": {
     "page_generation": "Write a comprehensive documentation page about: {topic}. This is for the file {filename}.\n\nIMPORTANT: Write the documentation content in English.",
     "approval_request": "I have designed the following Wiki structure based on your project:\n\n{plan_summary}\n\nDo you want me to proceed with generating these files?",
-    "success": "Wiki Generation Complete.\nPages created:\n{pages}",
+    "success": "Project Wiki Generation Complete.\nPages created:\n{pages}",
     "error": "Error planning documentation: {error}",
     "error_loading_plan": "Error loading pending plan. Please try again.",
     "plan_cancelled": "Documentation plan cancelled by user.",

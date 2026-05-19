@@ -94,18 +94,14 @@ class SupervisorPromptBuilder:
 
         # Extract explicit skill attachment from run metadata
         run_metadata = config.get("metadata", {}) if config else {}
-        explicit_skill_id = run_metadata.get("explicit_skill_id")
-        explicit_skill_name = run_metadata.get("explicit_skill_name")
+        explicit_skills = run_metadata.get("explicit_skills")
 
         template_vars = {
             "iteration_count": self.iteration_count,
             "environment_block": env_block,
             "session_goal": session_goal,
             "active_skills": active_skills,
-            "explicit_skill": {
-                "id": explicit_skill_id,
-                "name": explicit_skill_name,
-            } if explicit_skill_id else None,
+            "explicit_skills": explicit_skills,
             "memory": {
                 "episodic_raw": ctx.metadata.get("episodic_memory_raw", ""),
                 "core_raw": ctx.metadata.get("core_memory_raw", ""),

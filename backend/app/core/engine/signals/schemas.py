@@ -1,6 +1,6 @@
 from abc import ABC
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.core.engine.state.blackboard import SpawnPlan
 from app.core.engine.state.config import AgentRuntimeConfig
@@ -33,7 +33,13 @@ class RouteToSignal(AgentSignal):
     target: str = "finish"
     context: RoutingContext = Field(default_factory=RoutingContext)
     authorized_tools: list[str] | None = None
-    skill_id: int | None = None
+    skill_ids: list[int] | None = None
+
+    @model_validator(mode="after")
+    def _normalize_skills(self):
+        if self.skill_ids and not self.context.skill_ids:
+            self.context.skill_ids = self.skill_ids
+        return self
 
 
 class SpawnSubtasksSignal(AgentSignal):

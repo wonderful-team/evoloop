@@ -141,7 +141,7 @@ async def discover_profile(
         ticket=ExecutionTicket(
             ticket_type="task",
             topic="Project Discovery",
-            skill_id=skill.id if skill else None,
+            skill_ids=[skill.id] if skill else None,
             agent_config=AgentRuntimeConfig(
                 role_name="Worker",
                 system_instructions=system_instructions,
@@ -160,7 +160,7 @@ async def discover_profile(
 
     logger.info(
         f"[ProjectProfilesAPI] Dispatched discovery mission for project {project_id} "
-        f"(thread_id={thread_id}, skill_id={skill.id if skill else 'None'})"
+        f"(thread_id={thread_id}, skill_ids={[skill.id] if skill else 'None'})"
     )
 
     return DiscoverResponse(

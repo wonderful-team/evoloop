@@ -105,7 +105,11 @@ async def persist_file_operation_task(
     tool_call_id: str | None = None,
 ):
     """Background task wrapper."""
-    return await _persist_file_operation_task(
+    from app.core.engine.message.mapper import BlockMapper
+    from app.core.engine.message.publisher import MessagePublisher
+    from sqlalchemy.orm import selectinload
+
+    await _persist_file_operation_task(
         thread_id=thread_id,
         message_id=message_id,
         file_path=file_path,
@@ -119,7 +123,6 @@ async def persist_file_operation_task(
     # 2. 触发 SSE 增量更新：让前端气泡即时显示“变更徽章”
     async with session_scope() as session:
         # 获取最新的消息（带引用）
-        from sqlalchemy.orm import selectinload
         stmt = select(Message).where(Message.id == message_id).options(selectinload(Message.references))
         result = await session.execute(stmt)
         db_msg = result.scalar_one_or_none()

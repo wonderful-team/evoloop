@@ -159,13 +159,21 @@ async def dispatch_agent_run(
     # 2.5 Extract explicit skill_id from references for downstream routing
     # ------------------------------------------------------------------
     metadata = metadata or {}
+    explicit_skills = []
     for att in combined_refs:
         if att.get("type") == "skill":
-            skill_meta = att.get("metadata", {})
-            metadata["explicit_skill_id"] = skill_meta.get("skill_id")
-            metadata["explicit_skill_name"] = skill_meta.get("skill_name")
-            logger.info(f"[Dispatch] Explicit skill attached: {metadata['explicit_skill_name']} (ID: {metadata['explicit_skill_id']})")
-            break
+            skill_meta = att.get("metadata") or att.get("meta_data") or {}
+            sid = skill_meta.get("skill_id") or att.get("id")
+            sname = skill_meta.get("skill_name") or att.get("target_name") or "Unknown"
+            if sid:
+                explicit_skills.append({
+                    "id": sid,
+                    "name": sname,
+                    "description": skill_meta.get("description", "")
+                })
+    if explicit_skills:
+        metadata["explicit_skills"] = explicit_skills
+        logger.info(f"[Dispatch] Explicit skills attached: {[s['name'] for s in explicit_skills]} (IDs: {[s['id'] for s in explicit_skills]})")
 
     # ------------------------------------------------------------------
     # 3. Build goal for activity monitor and session tracking

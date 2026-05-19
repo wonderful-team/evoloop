@@ -1,9 +1,11 @@
 [CONTEXT UPDATE — Turn {{ iteration_count }}]
 
-{%- if explicit_skill %}
-## Explicitly Attached Skill
-- **Skill**: {{ explicit_skill.name }} (ID: {{ explicit_skill.id }})
-- **Instruction**: User explicitly selected this skill. Use `skill_id={{ explicit_skill.id }}` in your `route_to` call unless it is clearly irrelevant.
+{%- if explicit_skills %}
+## Explicitly Attached Skills
+{%- for skill in explicit_skills %}
+- **Skill**: {{ skill.name }} (ID: {{ skill.id }})
+{%- endfor %}
+- **Instruction**: User explicitly selected these skills. Use `skill_ids={{ explicit_skills|map(attribute='id')|list }}` in your `route_to` call unless clearly irrelevant.
 {%- endif %}
 
 {%- if active_skills %}

@@ -1045,16 +1045,19 @@ export const ChatRequestSchema = {
             ],
             title: 'References'
         },
-        skill_id: {
+        skill_ids: {
             anyOf: [
                 {
-                    type: 'integer'
+                    items: {
+                        type: 'integer'
+                    },
+                    type: 'array'
                 },
                 {
                     type: 'null'
                 }
             ],
-            title: 'Skill Id'
+            title: 'Skill Ids'
         },
         revert_files: {
             type: 'boolean',

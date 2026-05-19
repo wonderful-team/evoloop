@@ -545,7 +545,7 @@
     "skillLearning": "技能学习",
     "timesheet": "工时表",
     "voice": "语音交互",
-    "wikiGeneration": "Wiki 生成"
+    "wikiGeneration": "项目百科生成"
   },
   "files": {
     "downloadFile": "下载文件",
@@ -1619,15 +1619,18 @@
       "code_execution": "代码执行",
       "desktop_control": "桌面控制",
       "gantt": "甘特图",
+      "interactive_charts": "交互式图表",
+      "knowledge_base": "知识库",
       "mcp": "MCP服务",
       "mobile_control": "手机控制",
       "project_limit": "项目数量",
+      "project_profile": "项目画像",
       "skill_learning": "技能学习",
       "sort": "优先级权重",
       "storage": "存储空间",
       "timesheet": "工时表",
       "voice": "语音交互",
-      "wiki_generation": "知识库生成"
+      "wiki_generation": "项目百科生成"
     },
     "errors": {
       "benefitDescription": "「{{feature}}」功能需要升级订阅才能使用",

@@ -64,8 +64,12 @@ class SkillHydrator:
 
         # Eager mode: Fetch and return full SOP instructions
         execution_ticket = state.blackboard.ticket
-        # skill_id takes priority from the ticket if present, otherwise fallback to topic
-        query = execution_ticket.skill_id if execution_ticket else topic
+        # skill_ids takes priority from the ticket if present, otherwise fallback to topic
+        query = (execution_ticket.skill_ids[0] if execution_ticket.skill_ids else None) if execution_ticket else None
+        if not query and execution_ticket and execution_ticket.skill_id:
+            query = execution_ticket.skill_id
+        if not query:
+            query = topic
 
         logger.info(f"[Hydrator] Eagerly hydrating skills for query: {query}")
         match, relevant, reasoning = await skill_discovery.exact_search(

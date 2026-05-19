@@ -545,7 +545,7 @@
     "skillLearning": "Skill Learning",
     "timesheet": "Timesheet",
     "voice": "Voice Interaction",
-    "wikiGeneration": "Wiki Generation"
+    "wikiGeneration": "Project Wiki Generation"
   },
   "files": {
     "downloadFile": "Download File",
@@ -1619,15 +1619,18 @@
       "code_execution": "Code Execution",
       "desktop_control": "Desktop Control",
       "gantt": "Gantt Chart",
+      "interactive_charts": "Interactive Charts",
+      "knowledge_base": "Knowledge Base",
       "mcp": "MCP Services",
       "mobile_control": "Mobile Control",
       "project_limit": "Project Limit",
+      "project_profile": "Project Profile",
       "skill_learning": "Skill Learning",
       "sort": "Priority weight",
       "storage": "Storage Space",
       "timesheet": "Timesheet",
       "voice": "Voice Interaction",
-      "wiki_generation": "Wiki Generation"
+      "wiki_generation": "Project Wiki Generation"
     },
     "errors": {
       "benefitDescription": "The \"{{feature}}\" feature requires a plan upgrade.",

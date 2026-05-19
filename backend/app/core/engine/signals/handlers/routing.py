@@ -29,7 +29,7 @@ class RouteToHandler(SignalHandler[RouteToSignal]):
         logger.info(f"[SignalHandler] ✅ Intercepted route_to -> {target} | Reason: {reason}")
 
         # 1. Update Blackboard
-        blackboard = state.blackboard # Already guaranteed to be BlackboardState
+        blackboard = state.blackboard  # Already guaranteed to be BlackboardState
         blackboard.route_reason = reason
 
         # 2. Construct Execution Ticket
@@ -75,6 +75,12 @@ class RouteToHandler(SignalHandler[RouteToSignal]):
                     cleaned_steps.append(str(s))
             parameters["task_steps"] = cleaned_steps
 
+        context_dump = routing_context.model_dump()
+        historical_context = context_dump.get("historical_context")
+        referenced_tech = context_dump.get("referenced_tech")
+
+        normalized_skill_ids = routing_context.skill_ids or signal.skill_ids
+
         execution_ticket = ExecutionTicket(
             ticket_type=routing_context.ticket_type or "task",
             priority=routing_context.priority or "normal",
@@ -84,18 +90,19 @@ class RouteToHandler(SignalHandler[RouteToSignal]):
             constraints=routing_context.constraints or [],
             agent_config=agent_config,
             namespace_context=inferred_namespace,
-            skill_id=signal.skill_id,
-            skill_ids=routing_context.skill_ids,  # type: ignore[arg-type]
+            skill_ids=normalized_skill_ids,  # type: ignore[arg-type]
             workflow_mode=routing_context.workflow_mode or "single",
             macro_goal=routing_context.macro_goal,
             parameters=TicketParameters(**parameters) if parameters else None,
+            historical_context=historical_context,
+            referenced_tech=referenced_tech,
         )
         blackboard.ticket = execution_ticket
         target_name = target.value if hasattr(target, 'value') else str(target)
         logger.info(
             f"[Routing] ExecutionTicket dispatched to {target_name} | "
             f"topic='{execution_ticket.topic}' | "
-            f"skills={execution_ticket.skill_ids or execution_ticket.skill_id} | "
+            f"skill_ids={execution_ticket.skill_ids} | "
             f"tools={agent_config.tools if agent_config else []} | "
             f"acceptance={execution_ticket.acceptance_criteria}"
         )
@@ -121,11 +128,18 @@ def create_route_to_signal(args: dict) -> RouteToSignal:
             context_data = json.loads(context_data)
         except (json.JSONDecodeError, TypeError, ValueError):
             context_data = {}
-            
+
+    if isinstance(context_data, dict):
+        for field in ["skill_ids", "workflow_mode", "historical_context", "referenced_tech"]:
+            if field in args and field not in context_data:
+                context_data[field] = args[field]
+
+    raw_skill_ids = args.get("skill_ids") or (context_data.get("skill_ids") if isinstance(context_data, dict) else None)
+
     return RouteToSignal(
         target=args.get("target", RoutingTarget.FINISH),
         reason=args.get("reason", ""),
         context=RoutingContext.model_validate(context_data) if context_data else RoutingContext(),
         authorized_tools=args.get("authorized_tools"),
-        skill_id=args.get("skill_id"),
+        skill_ids=raw_skill_ids,
     )

@@ -59,27 +59,33 @@ async def chat_endpoint(req: ChatRequest, bg_tasks: BackgroundTasks, _current_us
     )
     ContextManager.set(ctx)
 
-    # Process skill_id if provided
+    # Process skill_ids if provided
     references = req.references or []
-    if req.skill_id:
-        # Fetch skill info and add as reference
+    if req.skill_ids:
         try:
             async with session_scope() as session:
-                skill = await session.get(LearnedSkill, req.skill_id)
-                if skill:
+                stmt = select(LearnedSkill).where(LearnedSkill.id.in_(req.skill_ids))
+                res = await session.execute(stmt)
+                skills = res.scalars().all()
+                for skill in skills:
                     references.append({
                         "id": str(skill.id),
                         "type": "skill",
                         "target_id": str(skill.id),
                         "target_name": skill.name,
-                        "meta_data": {
+                        "metadata": {
+                            "skill_id": skill.id,
+                            "skill_name": skill.name,
+                            "description": skill.description
+                        },
+                        "meta_data": {  # 保留兼容，供外部旧的解析逻辑取用
                             "skill_id": skill.id,
                             "skill_name": skill.name,
                             "description": skill.description
                         }
                     })
         except Exception as e:
-            logger.warning(f"Failed to fetch skill {req.skill_id}: {e}")
+            logger.warning(f"Failed to fetch skills {req.skill_ids}: {e}")
 
     logger.debug(f"[ChatEndpoint] Run initialized for thread {req.thread_id}")
 

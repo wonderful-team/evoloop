@@ -90,7 +90,7 @@ class SequentialWorkflowNode(BaseAgentNode):
 
         # Build step-specific ticket
         step_ticket = copy.deepcopy(execution_ticket)
-        step_ticket.skill_id = getattr(skill, "id", None)
+        step_ticket.skill_ids = [getattr(skill, "id")] if getattr(skill, "id", None) else None
         step_ticket.topic = f"Step {step_index + 1}: {skill_name}"
 
         # Build prompt
