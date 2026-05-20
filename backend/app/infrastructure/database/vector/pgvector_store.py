@@ -16,6 +16,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from app.core.config import settings
+from app.constants import DEFAULT_PROJECT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -332,7 +333,7 @@ class PgVectorStore:
                     VectorEmbedding(
                         source_type="memory",
                         source_id=rec["id"],
-                        collection=str(rec.get("project_id", "default")),
+                        collection=str(rec.get("project_id", DEFAULT_PROJECT_ID)),
                         embedding=rec["vector"],
                         content=rec.get("text", "") or rec.get("content", ""),
                         metadata_=rec,
@@ -473,7 +474,7 @@ class PgVectorStore:
                     VectorEmbedding(
                         source_type="concept",
                         source_id=rec["id"],
-                        collection=str(rec.get("project_id", -1)),
+                        collection=str(rec.get("project_id", DEFAULT_PROJECT_ID)),
                         embedding=rec["vector"],
                         content=rec.get("description", ""),
                         metadata_=rec,

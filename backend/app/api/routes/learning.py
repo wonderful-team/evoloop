@@ -13,6 +13,8 @@ from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
+from app.constants import DEFAULT_PROJECT_ID
+
 from fastapi import Depends, APIRouter, BackgroundTasks, Body, File, HTTPException, Query, Response, UploadFile
 from sqlalchemy import or_, func, select
 
@@ -757,7 +759,7 @@ async def execute_skill(
         bg_tasks.add_task(
             execute_macro_with_fallback, 
             thread_id=body.thread_id, 
-            project_id=body.project_id or 1,
+            project_id=body.project_id if body.project_id is not None else DEFAULT_PROJECT_ID,
             skill=skill,  # Pass full skill object for unified policy
             macro_payload=macro_payload, 
             params=body.params
@@ -768,7 +770,7 @@ async def execute_skill(
         result = await dispatch_agent_run(
             thread_id=body.thread_id,
             message_content=directive,
-            project_id=body.project_id or 1,
+            project_id=body.project_id if body.project_id is not None else DEFAULT_PROJECT_ID,
             goal_prefix=f"[Skill: {skill_name}] ",
         )
 

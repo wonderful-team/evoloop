@@ -128,7 +128,8 @@ class ProjectSyncService:
             async with session_scope() as session:
                 if cloud_project:
                     # Case 2: Cloud exists + Local exists -> Auto-link
-                    cloud_project_id = cloud_project.get("project_id") or cloud_project.get("id")
+                    raw_pid = cloud_project.get("project_id")
+                    cloud_project_id = raw_pid if raw_pid is not None else cloud_project.get("id")
                     logger.info(f"[ProjectSync] Auto-linking local project '{repo_name}' to Cloud Project ID: {cloud_project_id}")
 
                     repo = Repository(

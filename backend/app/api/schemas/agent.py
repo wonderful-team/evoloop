@@ -5,12 +5,13 @@ from typing import Any
 from app.api.schemas.responses import BaseAPIResponse
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.schemas.base import ScopedRequest
+from app.constants import DEFAULT_PROJECT_ID
 
 
 class ChatRequest(ScopedRequest):
     thread_id: str | None = None
     message: str
-    project_id: int | None = 1
+    project_id: int | None = DEFAULT_PROJECT_ID
     model: str | None = None
     command_id: int | None = None
     checkpoint_id: str | None = None

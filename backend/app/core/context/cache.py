@@ -19,6 +19,7 @@ from pydantic import Field
 from app.core.context.schemas import DynamicContextLayer
 from app.core.engine.state import AgentState
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.constants import DEFAULT_PROJECT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ class StaticContextLayer(DynamicBaseModel):
     system_preferences: dict = Field(default_factory=dict)
 
     # Metadata
-    project_id: int = 0
+    project_id: int = DEFAULT_PROJECT_ID
     cached_at: float = Field(default_factory=time.time)
     version: str = "1.0"
 
@@ -133,8 +134,8 @@ class LayeredContextCache:
     @classmethod
     def invalidate_static(cls, session_id: str, project_id: int | None = None):
         """Invalidate static cache for a session or project."""
-        if project_id:
-            # Invalidate all entries for this project
+        if project_id is not None:
+            # Invalidate all entries for this project (project_id=DEFAULT_PROJECT_ID/0 is global mode, also valid)
             keys_to_remove = [
                 k for k in cls._static_cache.keys()
                 if k.endswith(f":{project_id}")

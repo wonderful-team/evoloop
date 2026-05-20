@@ -1,6 +1,7 @@
 import logging
 import os
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.evocloud import evocloud_manager
 
 logger = logging.getLogger(__name__)
@@ -11,12 +12,12 @@ async def get_project_path(project_id: int) -> str:
     Resolve local project path from project_id.
 
     Resolution order:
-    - project_id == 0 (Global Mode): Returns WORKSPACE_ROOT from SystemConfig
+    - project_id == DEFAULT_PROJECT_ID (0, Global Mode): Returns WORKSPACE_ROOT from SystemConfig
     - project_id > 0: Cloud API → Local DB
     """
     # 全局模式特判：返回 WORKSPACE_ROOT 作为文件读/搜索的基准目录
     # 注意：上传写入不走此函数，由 API 层直接路由至 settings.CHAT_UPLOAD_DIR
-    if project_id == 0:
+    if project_id == DEFAULT_PROJECT_ID:
         from app.infrastructure.config.service import SystemConfigService
         workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT", "")
         return workspace_root or ""

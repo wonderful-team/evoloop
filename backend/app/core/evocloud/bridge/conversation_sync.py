@@ -7,6 +7,7 @@ from datetime import datetime
 
 from sqlalchemy import select
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.evocloud.schemas import SyncConversation, SyncMessage
 from app.infrastructure.database.sql.database import get_db_session
 from app.models import Conversation as ConversationModel
@@ -192,7 +193,7 @@ class ConversationSyncManager:
         """格式化会话数据"""
         return SyncConversation(
             id=str(conv.id),
-            project_id=conv.project_id or 0,
+            project_id=conv.project_id if conv.project_id is not None else DEFAULT_PROJECT_ID,
             title=conv.title or "新会话",
             created_at=int(conv.created_at.timestamp()) if conv.created_at else int(datetime.now().timestamp()),
             updated_at=int(conv.updated_at.timestamp()) if conv.updated_at else int(datetime.now().timestamp()),
@@ -203,7 +204,7 @@ class ConversationSyncManager:
         return SyncMessage(
             id=msg.id,
             thread_id=msg.thread_id,
-            project_id=msg.project_id or 0,
+            project_id=msg.project_id if msg.project_id is not None else DEFAULT_PROJECT_ID,
             role=msg.role,
             content=msg.content,
             thinking=msg.thinking,

@@ -10,6 +10,7 @@ from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
 
 from app.api.deps import TokenDep, TokenDepOptional
 from app.api.schemas.tasks import TaskCreateRequest, TaskUpdateRequest, TaskStatusUpdate, TaskExecutionResponse
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.evocloud import evocloud_manager
@@ -162,7 +163,7 @@ async def execute_task(task_id: int, bg_tasks: BackgroundTasks, authorization: s
     result = await dispatch_agent_run(
         thread_id=thread_id,
         message_content=prompt,
-        project_id=task.get("project_id", 1),
+        project_id=task.get("project_id", DEFAULT_PROJECT_ID),
         goal_prefix="[Task Execution] ",
         metadata={"task_id": task_id},
     )

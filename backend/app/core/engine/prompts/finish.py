@@ -1,6 +1,7 @@
 import json
 import logging
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.context import ContextManager
 from app.core.engine.state.blackboard import BlackboardState, VerificationStatus
 from app.core.engine.state.config import ExecutionTicket
@@ -51,7 +52,7 @@ class FinishPromptBuilder:
         try:
             ctx, actual_cwd, mode, project_concepts = self._prepare_common_context()
 
-            is_global_mode = self.project_id == 0 or self.project_id is None
+            is_global_mode = self.project_id == DEFAULT_PROJECT_ID or self.project_id is None
             template_vars = {
                 "user_lang": SystemConfigService.get_language_preference(),
                 "project_id": self.project_id,

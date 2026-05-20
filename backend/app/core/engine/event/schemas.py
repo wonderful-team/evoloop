@@ -10,6 +10,7 @@ from typing import Any
 from pydantic import Field, model_validator
 
 from app.core.events.base import BaseEvent, EventData
+from app.constants import DEFAULT_PROJECT_ID
 
 
 class AgentEvent(BaseEvent):
@@ -47,7 +48,7 @@ class AgentRunCompletedEvent(AgentEvent):
     """Event emitted when an agent run (thread) finishes successfully."""
     event_type: str = "agent.run_completed"
     thread_id: str = ""
-    project_id: int = 1
+    project_id: int = DEFAULT_PROJECT_ID
     goal: str = ""
     status: str = "done"
     payload: dict[str, Any] = Field(default_factory=dict)

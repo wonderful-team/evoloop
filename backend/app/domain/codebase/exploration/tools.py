@@ -12,6 +12,7 @@ from typing import Annotated
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.tools import evoloop_tool, get_working_directory
 from app.utils import render_template
 from .engine import get_exploration_engine
@@ -48,7 +49,7 @@ async def find_symbol(
         return "Error: Symbol name is required."
     
     ctx = config.get("configurable", {}) if config else {}
-    project_id = ctx.get("project_id", 1)
+    project_id = ctx.get("project_id", DEFAULT_PROJECT_ID)
     repo_path = get_working_directory(config)
     
     engine = get_exploration_engine()
@@ -102,7 +103,7 @@ async def ask_codebase(
         return "Error: Question is required."
     
     ctx = config.get("configurable", {}) if config else {}
-    project_id = ctx.get("project_id", 1)
+    project_id = ctx.get("project_id", DEFAULT_PROJECT_ID)
     
     try:
         # Use existing semantic search from memory_manager

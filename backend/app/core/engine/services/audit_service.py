@@ -260,7 +260,7 @@ class LayeredAuditor:
             verification_status=blackboard.verification,
             action_context=_extract_tool_usage(messages),
             iteration_count=state.iteration_count or 0,
-            project_id=state.project_id or DEFAULT_PROJECT_ID,
+            project_id=state.project_id if state.project_id is not None else DEFAULT_PROJECT_ID,
             blackboard=blackboard,
             session_goal=state.session_goal,
         )
@@ -364,7 +364,7 @@ class LayeredAuditor:
         verification_status = blackboard.verification or VerificationStatus(status="unverified")
         action_context = _extract_tool_usage(messages)
         iteration_count = state.iteration_count or 0
-        project_id = ctx.project_id or state.project_id or DEFAULT_PROJECT_ID
+        project_id = ctx.project_id if ctx.project_id is not None else (state.project_id if state.project_id is not None else DEFAULT_PROJECT_ID)
 
         from app.core.environment import get_awakened_state
         awakened_state = get_awakened_state()

@@ -3,6 +3,7 @@ Git-based knowledge harvesting tools.
 """
 import os
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager
 from app.core.tools import evoloop_tool
 from app.i18n.service import i18n
@@ -17,7 +18,7 @@ async def auto_harvest_from_git():
     from app.core.engine.tasks import git_harvest_task
 
     ctx = ContextManager.current()
-    project_id = ctx.project_id or 1
+    project_id = ctx.project_id if ctx.project_id is not None else DEFAULT_PROJECT_ID
     cwd = ctx.working_directory or os.getcwd()
 
     # 0. Check if Git repo exists (Fast check)

@@ -4,6 +4,7 @@ from typing import Annotated
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager
 from app.core.tools import evoloop_tool
 from app.domain.tools.schemas import ExtractedConcept
@@ -28,7 +29,7 @@ async def save_concepts(
         concepts: A list of objects containing 'name' and 'description'.
     """
     ctx = ContextManager.current()
-    project_id = ctx.project_id or 1
+    project_id = ctx.project_id if ctx.project_id is not None else DEFAULT_PROJECT_ID
 
     if not concepts:
         return "No concepts provided for harvesting."

@@ -19,6 +19,7 @@ from app.api.schemas.files import (
     FileNameSearchResult,
     CreateFileRequest
 )
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.domain.project.utils import get_project_path
 from app.core.file import TreeService, FileSearcher, FileTraverser, read_file, is_ignored_path
@@ -31,10 +32,10 @@ router = APIRouter(prefix="/projects/{project_id}/files", tags=["files"])
 async def list_files(project_id: int, path: str | None = None):
     """
     Get file tree for a project.
-    If project_id is 0, returns workspace root files (Global Mode).
+    If project_id is DEFAULT_PROJECT_ID (0, global mode), returns workspace root files.
     If path is None, returns root.
     """
-    if project_id == 0:
+    if project_id == DEFAULT_PROJECT_ID:
         from app.infrastructure.config.service import SystemConfigService
         root_path = SystemConfigService.get_value("WORKSPACE_ROOT")
         if not root_path:

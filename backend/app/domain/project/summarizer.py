@@ -4,6 +4,7 @@ import os
 
 from langchain_core.output_parsers import JsonOutputParser
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.evocloud import evocloud_manager
 from app.core.monitoring.activity import activity_monitor
 from app.domain.codebase.filter import FileFilter
@@ -26,7 +27,7 @@ async def _summarize_project_logic(name: str, path: str):
     logger.info(f"[ProjectSummarizer] Analyzing {name}...")
 
     # 0. Resolve Project ID Early (Used for Graph Lookup)
-    project_id = 1  # Default
+    project_id = DEFAULT_PROJECT_ID  # Default (global mode)
     try:
         projects = await evocloud_manager.scan_projects()
         abs_path = os.path.abspath(path)
@@ -133,7 +134,7 @@ async def _summarize_project_logic(name: str, path: str):
         # Resolve Project ID via API Scan (Redundant but safe fallback if logic above failed? No we have early check.)
         # We can reuse project_id resolved above.
 
-        if project_id:
+        if project_id is not None:
             logger.info(f"[ProjectSummarizer] Resolved Project ID {project_id} for {name}")
 
             # Upload Summary

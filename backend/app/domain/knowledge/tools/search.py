@@ -13,6 +13,7 @@ from pydantic import Field
 from app.core.tools import evoloop_tool
 from app.domain.knowledge.services.search import get_fts_service
 from app.domain.knowledge.services.store import KnowledgeStoreService
+from app.constants import DEFAULT_PROJECT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ async def kb_search(
     pattern: Annotated[str, Field(description="Search pattern (FTS5 syntax: 'phrase' for exact, term1 AND term2, etc.)")],
     path: Annotated[str, Field(default="", description="Subdirectory to search in")] = "",
     collection: Annotated[str, Field(default="", description="Collection to search in")] = "",
-    source_project_id: Annotated[int, Field(default=0, description="Workspace project ID to prioritize")] = 0,
+    source_project_id: Annotated[int, Field(default=DEFAULT_PROJECT_ID, description="Workspace project ID to prioritize")] = DEFAULT_PROJECT_ID,
     context_lines: Annotated[int, Field(default=2, ge=0, le=10, description="Context lines around matches")] = 2,
     case_sensitive: Annotated[bool, Field(default=False, description="Case sensitive search")] = False,
     max_results: Annotated[int, Field(default=20, ge=1, le=100, description="Maximum results")] = 20,

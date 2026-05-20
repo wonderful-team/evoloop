@@ -2,6 +2,7 @@ import logging
 
 from pydantic import Field
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager
 from app.core.tools.base import evoloop_tool
 from app.infrastructure.pydantic_base import DynamicBaseModel
@@ -33,7 +34,7 @@ async def synthesize_skill(reason: str, thread_id: str | None = None) -> str:
     """
     ctx = ContextManager.current()
     target_thread = thread_id or (ctx.thread_id if ctx else None)
-    project_id = ctx.project_id if ctx else 0
+    project_id = ctx.project_id if ctx else DEFAULT_PROJECT_ID
 
     if not target_thread:
         return "Error: Could not determine thread_id for synthesis."

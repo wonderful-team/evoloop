@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from app.core.learning.schemas.events import DomEventData, GlobalEventData
 from app.core.learning.schemas.skills import SkillExecutionParams
 from app.models.schemas.base import ScopedRequest
+from app.constants import DEFAULT_PROJECT_ID
 
 
 class HumanInputRequestOut(BaseModel):
@@ -24,7 +25,7 @@ class HumanInputRequestOut(BaseModel):
 class ExecuteSkillRequest(ScopedRequest):
     thread_id: str
     params: SkillExecutionParams
-    project_id: int | None = 1
+    project_id: int | None = DEFAULT_PROJECT_ID
     execution_mode: str | None = None  # Optional: override skill's execution mode
 
 

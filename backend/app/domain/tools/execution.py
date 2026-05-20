@@ -8,6 +8,7 @@ from typing import Any, Annotated, Optional
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.context import ContextManager
 from app.core.tools import evoloop_tool, get_working_directory
 from app.core.tools.background import task_manager, TaskType, TaskStatus, CreateBackgroundTaskRequest
@@ -86,7 +87,7 @@ async def _execute_command(command: str, config: RunnableConfig | None = None) -
         ctx = ContextManager.current()
         working_dir = get_working_directory(config)
         
-        if ctx.project_id == 0 or (ctx.project_id is None and working_dir == "."):
+        if ctx.project_id == DEFAULT_PROJECT_ID or (ctx.project_id is None and working_dir == "."):
             workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
             if workspace_root:
                 working_dir = workspace_root
@@ -275,7 +276,7 @@ async def _run_command_background(
         ctx = ContextManager.current()
         working_dir = get_working_directory(config)
         
-        if ctx.project_id == 0 or (ctx.project_id is None and working_dir == "."):
+        if ctx.project_id == DEFAULT_PROJECT_ID or (ctx.project_id is None and working_dir == "."):
             from app.infrastructure.config.service import SystemConfigService
             workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
             if workspace_root:
@@ -405,7 +406,7 @@ async def _execute_smart(
         ctx = ContextManager.current()
         working_dir = get_working_directory(config)
         
-        if ctx.project_id == 0 or (ctx.project_id is None and working_dir == "."):
+        if ctx.project_id == DEFAULT_PROJECT_ID or (ctx.project_id is None and working_dir == "."):
             from app.infrastructure.config.service import SystemConfigService
             workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
             if workspace_root:
@@ -514,7 +515,7 @@ async def _execute_command_with_timeout(
     ctx = ContextManager.current()
     working_dir = get_working_directory(config)
     
-    if ctx.project_id == 0 or (ctx.project_id is None and working_dir == "."):
+    if ctx.project_id == DEFAULT_PROJECT_ID or (ctx.project_id is None and working_dir == "."):
         from app.infrastructure.config.service import SystemConfigService
         workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
         if workspace_root:

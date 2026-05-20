@@ -31,6 +31,7 @@ from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.engine.message.reference import reference_service
 from app.domain.project.utils import get_project_path
+from app.constants import DEFAULT_PROJECT_ID
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Conversation, MessageReference
 
@@ -52,7 +53,7 @@ async def dispatch_agent_run(
     thread_id: str,
     message_content: str,
     *,
-    project_id: int = 1,
+    project_id: int = DEFAULT_PROJECT_ID,
     references: list[dict[str, Any]] | None = None,
     upload_session_id: str | None = None,
     command_id: int | None = None,
@@ -278,7 +279,7 @@ async def persist_user_message(
         conversation.updated_at = datetime.now(timezone.utc)
 
         from app.core.engine.message.repository import MessageRepository
-        repo = MessageRepository(thread_id, project_id or conversation.project_id)
+        repo = MessageRepository(thread_id, project_id if project_id is not None else conversation.project_id)
         msg_id, seq = await repo.persist(
             role="human",
             content=content,

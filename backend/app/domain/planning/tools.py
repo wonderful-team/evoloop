@@ -9,6 +9,7 @@ from sqlalchemy import delete, select
 from app.core.context.manager import ContextManager
 from app.core.tools import evoloop_tool
 from .schemas import Plan, Step
+from ...constants import DEFAULT_PROJECT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -228,7 +229,7 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
         proposed_plan: The detailed plan step-by-step.
     """
     ctx = ContextManager.current()
-    project_id = ctx.project_id or 1
+    project_id = ctx.project_id if ctx.project_id is not None else DEFAULT_PROJECT_ID
     root = ctx.working_directory or "."
 
     try:

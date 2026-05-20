@@ -5,6 +5,7 @@ Memory Replay - Retrieves relevant memories during awakening.
 import logging
 import os
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.environment.schemas import (
     ConceptSummary,
     EpisodeSummary,
@@ -35,8 +36,8 @@ async def replay_memory(project_id: int | None = None) -> MemoryContext:
     manager = container.memory_manager
 
     # 1. Retrieve recent episodes from Long-Term Memory
-    # Note: project_id can be 0 (global mode), skip in that case
-    if project_id is not None and project_id != 0:
+    # Note: project_id can be DEFAULT_PROJECT_ID/0 (global mode), skip in that case
+    if project_id is not None and project_id != DEFAULT_PROJECT_ID:
         try:
             from app.core.memory.models import MemoryType
             actual_memories = await manager.search_memories(
@@ -62,11 +63,11 @@ async def replay_memory(project_id: int | None = None) -> MemoryContext:
 
     # 2. Retrieve project concepts from Semantic Memory
     try:
-        global_concepts_text = await manager.get_project_concepts(0)
+        global_concepts_text = await manager.get_project_concepts(DEFAULT_PROJECT_ID)
         concepts.extend(_parse_concepts(global_concepts_text))
 
         # 2b. Project-specific concepts
-        if project_id and project_id != 0:
+        if project_id is not None and project_id != DEFAULT_PROJECT_ID:
             project_concepts_text = await manager.get_project_concepts(project_id)
             concepts.extend(_parse_concepts(project_concepts_text))
     except Exception as e:

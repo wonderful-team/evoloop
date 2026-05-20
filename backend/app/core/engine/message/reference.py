@@ -5,7 +5,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants import BINARY_EXTENSIONS
+from app.constants import BINARY_EXTENSIONS, DEFAULT_PROJECT_ID
 from app.core.engine.message.schemas import ReferenceContext
 from app.core.file.document_reader import document_reader_service
 from app.models.conversation import Message
@@ -27,7 +27,7 @@ class ReferenceService:
         session: AsyncSession,
         root_path: str | None = None,
         thread_id: str | None = None,
-        project_id: int = 0
+        project_id: int = DEFAULT_PROJECT_ID
     ) -> ReferenceContext:
         """
         Process a list of references and inject them into the communication context.

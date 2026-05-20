@@ -46,7 +46,7 @@ class MemoryPruningService:
         for res_id in res_ids:
             entry = memory_map.get(res_id)
             if entry:
-                if project_id and entry.project_id != project_id:
+                if project_id is not None and entry.project_id != project_id:
                     continue
                 memories.append(entry)
 
@@ -125,8 +125,8 @@ class MemoryPruningService:
                 from app.domain.project.service import project_context_manager
                 project_context = project_context_manager
 
-            project_root = await project_context.get_project_structure(project_id) if project_id else "No project root found"
-            readme = await project_context.extract_description_from_readme(project_id) if project_id else ""
+            project_root = await project_context.get_project_structure(project_id) if project_id is not None else "No project root found"
+            readme = await project_context.extract_description_from_readme(project_id) if project_id is not None else ""
         except Exception as e:
             logger.warning(f"[Pruning] Failed to gather project context for semantic pruning: {e}")
             return []

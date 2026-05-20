@@ -212,7 +212,7 @@ Relationships:
             "domain/codebase/cypher_generation.prompt.j2",
             schema="{schema}", # Keep LangChain placeholders {schema} and {question} or pass data directly?
             question="{question}",
-            project_id=project_id if project_id and project_id != 0 else None
+            project_id=project_id
         )
 
         cypher_prompt = PromptTemplate(

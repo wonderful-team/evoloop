@@ -34,7 +34,7 @@ def build_subtask_sends(state: AgentState, blackboard: BlackboardState) -> list[
     if spawn_plan is None:
         return []
     subtasks = spawn_plan.subtasks
-    project_id = state.project_id or DEFAULT_PROJECT_ID
+    project_id = state.project_id if state.project_id is not None else DEFAULT_PROJECT_ID
     parent_thread_id = state.thread_id or "unknown"
 
     logger.info(f"[Router] Spawning {len(subtasks)} parallel subtasks")

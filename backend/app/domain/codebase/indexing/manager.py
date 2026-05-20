@@ -265,18 +265,18 @@ class IndexingManager:
                 return
 
             project_id = repo.project_id
-            if project_id:
+            if project_id is not None:
                 self._active_jobs[project_id] = "indexing"
 
             logger.info(f"Triggering full index for Repo ID: {repo_id} ({repo.name})")
 
             try:
                 await self._service.index_repository(repo.local_path, repo.id)
-                if project_id:
+                if project_id is not None:
                     self._active_jobs[project_id] = "done"
             except Exception as e:
                 logger.error(f"Repo Index failed: {e}")
-                if project_id:
+                if project_id is not None:
                     self._active_jobs[project_id] = "error_repo"
 
     async def run_indexing_background(self, repo_id: int):

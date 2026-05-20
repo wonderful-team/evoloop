@@ -3,6 +3,7 @@ from typing import Any
 from pydantic import field_validator
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.constants import DEFAULT_PROJECT_ID
 
 
 class EvoCloudConfig(DynamicBaseModel):
@@ -28,7 +29,7 @@ class EvoCloudConfig(DynamicBaseModel):
 
 class SyncConversation(DynamicBaseModel):
     id: str
-    project_id: int = 0
+    project_id: int = DEFAULT_PROJECT_ID
     title: str = "新会话"
     created_at: int
     updated_at: int
@@ -37,7 +38,7 @@ class SyncConversation(DynamicBaseModel):
 class SyncMessage(DynamicBaseModel):
     id: str | int
     thread_id: str
-    project_id: int = 0
+    project_id: int = DEFAULT_PROJECT_ID
     role: str
     content: str | None = None
     thinking: str | None = None

@@ -143,7 +143,7 @@ async def query_graph_natural_language(
         # Find functions that call BOTH pay() AND notify()
         query_graph_nl(
             question="调用关系",
-            project_id=1,
+            project_id=DEFAULT_PROJECT_ID,
             entities=["pay", "notify"],
             entity_operator="and"
         )
@@ -151,7 +151,7 @@ async def query_graph_natural_language(
         # Find functions that call pay() OR notify()
         query_graph_nl(
             question="调用关系",
-            project_id=1,
+            project_id=DEFAULT_PROJECT_ID,
             entities=["pay", "notify"],
             entity_operator="or"
         )

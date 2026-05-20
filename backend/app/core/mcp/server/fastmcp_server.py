@@ -2,6 +2,7 @@ import os
 
 from mcp.server.fastmcp import FastMCP
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.domain.codebase.exploration import ask_codebase, find_symbol
 from app.domain.codebase.retrieval.tools import search_codebase
 from app.domain.tools.execution import execute_command
@@ -218,7 +219,7 @@ async def remember_concept(name: str, description: str, related_files: list[str]
             await MemoryLifespanManager.ainitialize()
         container = MemoryLifespanManager.get_container()
         manager = container.memory_manager
-        concept = Concept(name=name, description=description, project_id=0, related_files=related_files)
+        concept = Concept(name=name, description=description, project_id=DEFAULT_PROJECT_ID, related_files=related_files)
         await manager.store_concept(concept)
         return f"Stored concept: {name}"
     except Exception as e:

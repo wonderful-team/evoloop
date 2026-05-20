@@ -6,6 +6,7 @@ from typing import List
 from pydantic import Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.constants import DEFAULT_PROJECT_ID
 
 
 class SearchResult(DynamicBaseModel):
@@ -14,6 +15,7 @@ class SearchResult(DynamicBaseModel):
     description: str
     score: float
     files: List[str] = Field(default_factory=list)
+
 
 class StorageHealthCheck(DynamicBaseModel):
     """Health check result for a memory storage backend."""
@@ -24,10 +26,12 @@ class StorageHealthCheck(DynamicBaseModel):
     latency_ms: float | None = None
     error: str | None = None
 
+
 class MemoryMetadata(DynamicBaseModel):
     source_url: str | None = None
     author: str | None = None
     related_message_ids: list[str] = Field(default_factory=list)
+
 
 class CheckpointDedupResult(DynamicBaseModel):
     """Result of a checkpoint deduplication operation."""
@@ -40,13 +44,15 @@ class CheckpointDedupResult(DynamicBaseModel):
     elapsed_ms: int = 0
     error: str | None = None
 
+
 class Concept(DynamicBaseModel):
     """A semantic concept or knowledge entity extracted from the codebase or conversations."""
     name: str = Field(description="Unique name of the concept, technology, or pattern")
     description: str = Field(description="Detailed description of what it is and how it is used")
-    project_id: int | None = Field(default=0, description="Associated project ID (0 for global)")
+    project_id: int | None = Field(default=DEFAULT_PROJECT_ID, description="Associated project ID (DEFAULT_PROJECT_ID/0 for global)")
     related_files: list[str] = Field(default_factory=list, description="List of file paths related to this concept")
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
 
 class Episode(DynamicBaseModel):
     """A recorded execution episode representing a past task attempt."""
@@ -55,9 +61,10 @@ class Episode(DynamicBaseModel):
     result: str = Field(description="The outcome of the attempt")
     plan_summary: str | None = Field(default=None, description="Summary of the plan used")
     error_msg: str | None = Field(default=None, description="Error message if failed")
-    project_id: int | None = Field(default=0)
+    project_id: int | None = Field(default=DEFAULT_PROJECT_ID)
     source_message_id: str | None = Field(default=None)
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+
 
 class RetrievalContext(DynamicBaseModel):
     """Context for memory retrieval."""
@@ -66,6 +73,7 @@ class RetrievalContext(DynamicBaseModel):
     already_surfaced: set[str] = Field(default_factory=set)  # Memory IDs already shown to user
     user_id: str | None = None
     project_id: int | None = None
+
 
 class ForgottenRecord(DynamicBaseModel):
     """Record of a forgotten tool output."""
@@ -77,6 +85,7 @@ class ForgottenRecord(DynamicBaseModel):
     reason: str
     step_index: int  # The message index when it was forgotten
 
+
 class AuditEntry(DynamicBaseModel):
     """Audit log entry for tracking forget/recall operations."""
     action: str  # "forget" or "recall"
@@ -85,6 +94,7 @@ class AuditEntry(DynamicBaseModel):
     reason: str
     success: bool
     details: str = ""
+
 
 class SectionBudget(DynamicBaseModel):
     """Budget allocation for a MEMORY.md section."""
@@ -96,6 +106,7 @@ class SectionBudget(DynamicBaseModel):
     @property
     def remaining(self) -> int:
         return self.lines - self.used
+
 
 class MemorySectionEntry(DynamicBaseModel):
     """A single entry in a MEMORY.md section."""

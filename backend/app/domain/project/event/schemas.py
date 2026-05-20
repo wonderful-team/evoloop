@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any
 from pydantic import Field
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.events.base import BaseEvent
 
 try:
@@ -91,7 +92,7 @@ class ProjectSwitchedEvent(ProjectEvent):
     """
     Published when user switches active project context.
     """
-    project_id: int = 0
+    project_id: int = DEFAULT_PROJECT_ID
     project_name: str = ""
     path: str = ""
 

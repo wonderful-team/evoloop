@@ -55,7 +55,8 @@ class ContextPluginRegistry:
         # Generate stable cache key - use request_id as fallback for thread_id
         # to avoid all None-thread_id contexts sharing one cache entry
         effective_thread_id = ctx.thread_id or ctx.request_id or "global"
-        cache_key = (effective_thread_id, ctx.project_id or 0)
+        from app.constants import DEFAULT_PROJECT_ID
+        cache_key = (effective_thread_id, ctx.project_id if ctx.project_id is not None else DEFAULT_PROJECT_ID)
         now = time.time()
 
         # Check cache

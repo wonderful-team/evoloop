@@ -9,7 +9,7 @@ import asyncio
 import logging
 import os
 
-from app.constants import PROJECT_NORM_FILES
+from app.constants import DEFAULT_PROJECT_ID, PROJECT_NORM_FILES
 from app.core.context import thread_context_store
 from app.core.engine.event.schemas import WebSocketMessageReceivedEvent
 from app.core.events.decorators import event_register, event_subscribe
@@ -55,7 +55,8 @@ class ProjectSwitchWebSocketSubscriber:
             return
 
         # 2. 提取信息
-        project_id = payload.get("project_id") or cmd.project_id
+        raw_pid = payload.get("project_id")
+        project_id = raw_pid if raw_pid is not None else cmd.project_id
         project_name = payload.get("project_name") or ""
         path = payload.get("path")
 
@@ -78,7 +79,7 @@ class ProjectSwitchWebSocketSubscriber:
         # 4. 发布领域事件
         from app.domain.project.event.publishers import publish_project_switched
         await publish_project_switched(
-            project_id=project_id or 0,
+            project_id=project_id if project_id is not None else DEFAULT_PROJECT_ID,
             project_name=project_name,
             path=path,
         )
@@ -260,7 +261,7 @@ class ProjectMemoryContextSubscriber:
     async def on_context_gather(self, event: MemoryContextGatherEvent) -> None:
         """Render project context fragment and append to event data."""
         project_id = event.data.project_id
-        if not project_id:
+        if project_id is None:
             return
 
         project_path = SystemConfigService.get_value("WORKSPACE_ROOT")
@@ -360,8 +361,9 @@ class ProjectContextHydratorSubscriber:
         if not ctx:
             return
 
-        project_id = event.data.get("project_id") or ctx.project_id
-        if not project_id or project_id == 0:
+        raw_pid = event.data.get("project_id")
+        project_id = raw_pid if raw_pid is not None else ctx.project_id
+        if project_id is None or project_id == DEFAULT_PROJECT_ID:
             return
 
         # We always want to fetch and update if we have a valid project_id

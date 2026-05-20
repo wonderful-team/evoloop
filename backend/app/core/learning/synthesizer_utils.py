@@ -13,6 +13,7 @@ import yaml
 from pydantic import Field
 
 from app.core.config import settings
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.learning.schemas import MacroVerificationResult
 from app.utils.extract import extract_section as _extract_section
 from app.utils.extract import extract_yaml_block as _extract_yaml_block
@@ -26,7 +27,7 @@ logger = logging.getLogger(__name__)
 async def verify_macro_script(
     macro_script: list[dict] | str,
     thread_id: str = "verifier",
-    project_id: int = 1,
+    project_id: int = DEFAULT_PROJECT_ID,
     params: dict | None = None
 ) -> MacroVerificationResult:
     """

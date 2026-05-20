@@ -10,6 +10,7 @@ from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.engine.schemas import SupervisorContext
 from app.infrastructure.config.service import SystemConfigService
 from app.utils import render_template
@@ -47,7 +48,7 @@ class SupervisorPromptBuilder:
         mode = get_sandbox_mode()
 
         # 2. Protocol & Sys Info Prep (STATIC parts only)
-        is_global_mode = self.project_id == 0 or self.project_id is None
+        is_global_mode = self.project_id == DEFAULT_PROJECT_ID or self.project_id is None
 
         # Read PROJECT.md if exists (static for the session)
         project_profile = ""

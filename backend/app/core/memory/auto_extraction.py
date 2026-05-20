@@ -156,7 +156,7 @@ class AutoMemoryExtractor:
 
         # Gather project context for extraction
         project_context = ""
-        if project_id:
+        if project_id is not None:
             try:
                 project_context = await self._gather_multi_source_context(project_id)
             except Exception as e:
@@ -695,7 +695,7 @@ class AutoMemoryExtractor:
 
     async def _gather_multi_source_context(self, project_id: int | None) -> str:
         """Gather facts from README, Tree structure, and TODOs via event-driven providers."""
-        if not project_id:
+        if project_id is None:
             return "No project selected."
 
         from app.core.memory.event.publishers import publish_memory_context_gather

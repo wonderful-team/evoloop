@@ -11,12 +11,18 @@ import logging
 from typing import Any
 
 from app.core.execution.macro.agent_validator import AgentMacroValidator
-from app.core.execution.macro.models import EnvironmentConfig, VerificationRequest, VerificationResponse, \
-    VerificationStatus, ExecutionMode
+from app.core.execution.macro.models import (
+    EnvironmentConfig,
+    VerificationRequest,
+    VerificationResponse,
+    VerificationStatus,
+    ExecutionMode,
+)
 from app.core.execution.macro.schemas import MacroEvolutionResult, MacroScript, MacroStep, ModeRecommendation
 from app.core.execution.macro.service import MacroRunResult, MacroService
 from app.core.execution.macro.verification_reporter import VerificationReporter
 from app.utils.yaml import macro_from_yaml
+from app.constants import DEFAULT_PROJECT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -293,7 +299,7 @@ class SynthesisIntegration:
     async def verify_for_synthesis(
         macro_script: list[dict[str, Any]] | Any,
         thread_id: str,
-        project_id: int = 1
+        project_id: int = DEFAULT_PROJECT_ID
     ) -> VerificationResponse:
         """
         Verify macro during skill synthesis.

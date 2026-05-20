@@ -17,6 +17,7 @@ from typing import Any, Optional
 from langchain_core.messages import BaseMessage
 
 from app.core.config import settings
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.memory.backends import GraphMemoryStorage
 from app.core.memory.backends.file_backend import FileMemoryStorage
 from app.core.memory.backends.sql_short_term import SqlShortTermMemory
@@ -200,7 +201,7 @@ class MemoryManager:
         self,
         concept: Concept | str,
         description: str | None = None,
-        project_id: int | None = 0,
+        project_id: int | None = DEFAULT_PROJECT_ID,
         related_files: list[str] | None = None
     ) -> None:
         """

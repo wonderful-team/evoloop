@@ -151,7 +151,7 @@ class TodoMemoryContextProvider:
     async def on_context_gather(self, event: MemoryContextGatherEvent) -> None:
         """Render todo context fragment and append to event data."""
         project_id = event.data.project_id
-        if not project_id:
+        if project_id is None:
             return
 
         try:

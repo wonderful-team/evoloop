@@ -2,6 +2,7 @@ import json
 import logging
 from typing import List, Dict, Any
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager
 from app.core.evocloud import evocloud_manager
 from app.core.tools import evoloop_tool
@@ -86,7 +87,7 @@ async def create_project_task(project_id: int | None = None, task_data: str = ""
         task_data (str): JSON string representation of the task data (title, desc, priority, etc.).
     """
     ctx_pid = ContextManager.current().project_id
-    pid = project_id if project_id is not None else (ctx_pid or 1)
+    pid = project_id if project_id is not None else (ctx_pid if ctx_pid is not None else DEFAULT_PROJECT_ID)
 
     try:
         if isinstance(task_data, str):

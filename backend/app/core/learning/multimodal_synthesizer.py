@@ -26,6 +26,7 @@ from pathlib import Path
 import yaml
 from sqlalchemy import or_, select
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.learning.frame_compressor import (
     CompressedFrame,
@@ -253,7 +254,7 @@ class MultimodalSkillSynthesizer:
                 return []
         return macro_yaml if isinstance(macro_yaml, list) else []
 
-    async def verify_macro(self, macro_script: str, project_id: int = 1) -> MacroVerificationResult:
+    async def verify_macro(self, macro_script: str, project_id: int = DEFAULT_PROJECT_ID) -> MacroVerificationResult:
         """Dry-run 验证宏脚本的有效性"""
         return await verify_macro_script(
             macro_script=macro_script,

@@ -17,6 +17,7 @@ from app.api.schemas.agent import ChatRequest, WebhookRequest, ResumeRequest, Ca
     ResumeChatResponse, CancelHITLResponse, WebhookResponse
 from app.core.context import thread_context_store
 from app.core.context.manager import ContextManager, EvoContext
+from app.constants import DEFAULT_PROJECT_ID
 # --- Background Worker ---
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
@@ -467,7 +468,7 @@ async def webhook_endpoint(req: WebhookRequest, bg_tasks: BackgroundTasks):
     result = await dispatch_agent_run(
         thread_id=tid,
         message_content=messages[0].content if messages else "No content",
-        project_id=1,  # Default project
+        project_id=DEFAULT_PROJECT_ID,  # Default project (global mode)
         goal_prefix=f"[{req.source.capitalize()} Event] ",
     )
 

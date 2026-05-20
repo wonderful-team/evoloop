@@ -15,7 +15,7 @@ class ContextFilter(logging.Filter):
     def filter(self, record):
         ctx = ContextManager.current()
         record.thread_id = ctx.thread_id or "-"
-        record.project_id = ctx.project_id or "-"
+        record.project_id = ctx.project_id if ctx.project_id is not None else "-"
         return True
 
 

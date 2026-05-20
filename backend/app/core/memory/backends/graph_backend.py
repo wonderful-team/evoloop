@@ -211,7 +211,7 @@ class GraphMemoryStorage(IMemoryStorage):
             search_filters = filters or {}
             if privacy:
                 search_filters["privacy"] = privacy.value
-            if project_id:
+            if project_id is not None:
                 search_filters["project_id"] = project_id
             
             nodes = await self._driver.find_nodes(label, search_filters, limit=limit)
@@ -277,7 +277,7 @@ class GraphMemoryStorage(IMemoryStorage):
         if not self._driver:
             return []
 
-        filters = {"project_id": project_id} if project_id else None
+        filters = {"project_id": project_id} if project_id is not None else None
         
         # We search Concepts or Memories (Episodes)
         # For simplicity, we search Concept first as they are usually the entry points.
@@ -323,7 +323,7 @@ class GraphMemoryStorage(IMemoryStorage):
         all_entries = []
         for label in ["Memory", "Concept"]:
             filters = {}
-            if project_id:
+            if project_id is not None:
                 filters["project_id"] = project_id
             
             nodes = await self._driver.find_nodes(label, filters, limit=count)

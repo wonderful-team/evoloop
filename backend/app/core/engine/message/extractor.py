@@ -13,6 +13,8 @@ import uuid
 import json
 from typing import Any
 
+from app.constants import DEFAULT_PROJECT_ID
+
 logger = logging.getLogger(__name__)
 
 # 图片扩展名（用于区分 file 和 image 类型）
@@ -55,7 +57,7 @@ class AttachmentExtractor:
         self,
         content: str,
         thread_id: str,
-        project_id: int = 0,
+        project_id: int = DEFAULT_PROJECT_ID,
     ) -> list[dict[str, Any]]:
         """
         从 AI 回复文本中提取所有附件引用。

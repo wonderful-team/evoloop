@@ -14,6 +14,7 @@ from pydantic import Field
 from typing import TYPE_CHECKING, Any
 
 from app.core.config import settings
+from app.constants import DEFAULT_PROJECT_ID
 
 if TYPE_CHECKING:
     from app.core.execution.macro.schemas import MacroScript
@@ -155,7 +156,7 @@ class WorkflowSynthesizer:
 
         return skill
 
-    async def verify_macro(self, macro_script: str, project_id: int = 1) -> VerificationResponse:
+    async def verify_macro(self, macro_script: str, project_id: int = DEFAULT_PROJECT_ID) -> VerificationResponse:
         """
         [Phase 5] Agent-based verification of a draft macro.
 

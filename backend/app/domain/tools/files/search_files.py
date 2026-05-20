@@ -7,6 +7,7 @@ from typing import Annotated, Optional, Dict, Any
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.tools import evoloop_tool
 from .utils import resolve_and_validate_path
@@ -152,7 +153,7 @@ async def search_files_internal(
         from app.core.context import ContextManager
         from app.infrastructure.config.service import SystemConfigService
         ctx = ContextManager.current()
-        is_global_root = ((ctx.project_id == 0 or ctx.project_id is None) and 
+        is_global_root = ((ctx.project_id == DEFAULT_PROJECT_ID or ctx.project_id is None) and 
                          (path == "." or path == "" or target_path == SystemConfigService.get_value("WORKSPACE_ROOT")))
         
         if is_global_root:

@@ -109,7 +109,7 @@ async def list_autonomous_tasks(project_id: Optional[int] = None) -> str:
     try:
         async with session_scope() as session:
             stmt = select(AutonomousTask)
-            if project_id:
+            if project_id is not None:
                 stmt = stmt.where(AutonomousTask.project_id == project_id)
             
             result = await session.execute(stmt)

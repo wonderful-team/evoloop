@@ -271,7 +271,7 @@ class SupervisorNode(BaseAgentNode):
 
     async def build_prompt_pair(self, state: AgentState, config: RunnableConfig) -> tuple[str, str]:
         """Construct (Static Instructions, Dynamic Context Ticket)."""
-        project_id = (state.project_id or DEFAULT_PROJECT_ID)
+        project_id = state.project_id if state.project_id is not None else DEFAULT_PROJECT_ID
         messages = list(state.messages)
 
         # Build logical context for the prompt builder

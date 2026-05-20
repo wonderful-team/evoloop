@@ -1,6 +1,7 @@
 import logging
 from typing import Any
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.context import ContextManager, plugin_registry
 from app.core.engine.state.blackboard import BlackboardState
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
@@ -56,7 +57,7 @@ class WorkerPromptBuilder:
 
         # Static Sys Info (Project identity only)
         sys_info = {
-            "is_global_mode": ctx.project_id == 0 or ctx.project_id is None,
+            "is_global_mode": ctx.project_id == DEFAULT_PROJECT_ID or ctx.project_id is None,
             "project_concepts": ctx.metadata.get("project_concepts", ""),
             "project_profile": project_profile,
             "cwd": get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", "")),

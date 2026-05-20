@@ -10,6 +10,7 @@ from typing import Any, Optional
 import lancedb
 import pyarrow as pa
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.infrastructure.database.vector.base import BaseVectorStore
 from app.logging import logger
@@ -427,7 +428,7 @@ class LanceVectorStore(BaseVectorStore):
             "id": [r["id"] for r in records],
             "vector": [r["vector"] for r in records],
             "text": [r.get("text", "") or r.get("content", "") for r in records],
-            "project_id": [r.get("project_id") if r.get("project_id") is not None else -1 for r in records],
+            "project_id": [r.get("project_id") if r.get("project_id") is not None else DEFAULT_PROJECT_ID for r in records],
             "user_id": [r.get("user_id", "") for r in records],
             "created_at": [r.get("created_at", now).replace(microsecond=0) for r in records],
         })
@@ -551,7 +552,7 @@ class LanceVectorStore(BaseVectorStore):
             "vector": [r["vector"] for r in records],
             "name": [r.get("name", "") for r in records],
             "description": [r.get("description", "") for r in records],
-            "project_id": [r.get("project_id", -1) for r in records],
+            "project_id": [r.get("project_id", DEFAULT_PROJECT_ID) for r in records],
             "created_at": [r.get("created_at", now).replace(microsecond=0) for r in records],
         })
 

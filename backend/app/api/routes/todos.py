@@ -12,6 +12,7 @@ from app.models.todo import (
 
 router = APIRouter(tags=["todos"])
 
+
 # --- Routes ---
 
 @router.post("/", response_model=TodoResponse)
@@ -21,6 +22,7 @@ async def create_todo(todo_in: TodoCreate, session: AsyncSession = Depends(get_d
     await session.commit()
     await session.refresh(todo)
     return todo
+
 
 @router.get("/", response_model=list[TodoResponse])
 async def list_todos(
@@ -33,12 +35,13 @@ async def list_todos(
     query = select(TodoItem).order_by(desc(TodoItem.created_at)).limit(limit).offset(offset)
     if status:
         query = query.where(TodoItem.status == status)
-    if project_id:
+    if project_id is not None:
         query = query.where(TodoItem.project_id == project_id)
 
     result = await session.execute(query)
     todos = result.scalars().all()
     return todos
+
 
 @router.get("/{todo_id}", response_model=TodoResponse)
 async def get_todo(todo_id: str, session: AsyncSession = Depends(get_db)):
@@ -47,6 +50,7 @@ async def get_todo(todo_id: str, session: AsyncSession = Depends(get_db)):
     if not todo:
         raise HTTPException(status_code=404, detail="Todo not found")
     return todo
+
 
 @router.patch("/{todo_id}", response_model=TodoResponse)
 async def update_todo(
@@ -64,6 +68,7 @@ async def update_todo(
     await session.commit()
     await session.refresh(todo)
     return todo
+
 
 @router.delete("/{todo_id}")
 async def delete_todo(todo_id: str, session: AsyncSession = Depends(get_db)):

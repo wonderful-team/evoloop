@@ -6,7 +6,7 @@ Ported from evoloop-engineer.
 from enum import Enum
 
 # ====================== Engine Constants ======================
-DEFAULT_PROJECT_ID = 1
+DEFAULT_PROJECT_ID = 0
 
 # Forgetting safety window - can only forget tool outputs older than N steps
 FORGET_SAFETY_WINDOW = 5

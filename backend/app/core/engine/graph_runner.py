@@ -7,6 +7,7 @@ standard exception handling.
 
 import logging
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.engine.callbacks.database_logger import DatabaseCallbackHandler
 from app.core.engine.callbacks.transparent import TransparentCallbackHandler
 from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
@@ -39,7 +40,7 @@ async def resume_graph_background(
 
     # Extract project_id from config metadata (same pattern as run_agent_background)
     raw_project_id = config.get("metadata", {}).get("project_id") if config else None
-    project_id = int(raw_project_id) if raw_project_id is not None else 0
+    project_id = int(raw_project_id) if raw_project_id is not None else DEFAULT_PROJECT_ID
     run_id = config.get("configurable", {}).get("run_id", f"resume-{thread_id}") if config else f"resume-{thread_id}"
 
     db_callback = DatabaseCallbackHandler(

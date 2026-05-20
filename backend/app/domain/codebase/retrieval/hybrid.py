@@ -3,6 +3,7 @@ from typing import Any, Literal
 
 from sqlalchemy import select
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.domain.codebase.retrieval.rewriter import query_rewriter
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.vector import get_vector_store
@@ -62,7 +63,7 @@ class HybridSearcher:
         )
 
         # If project filtering is needed, filter by repository ownership
-        if project_id is not None and project_id != 0:
+        if project_id is not None and project_id != DEFAULT_PROJECT_ID:
             async with self.session_factory() as session:
                 repo_ids = await session.scalars(
                     select(Repository.id).where(Repository.project_id == project_id)
@@ -97,8 +98,8 @@ class HybridSearcher:
                 .join(Repository, SourceFile.repository_id == Repository.id)
             )
 
-            # Note: project_id can be 0 (global mode), skip filter in that case
-            if project_id is not None and project_id != 0:
+            # Note: project_id can be DEFAULT_PROJECT_ID/0 (global mode), skip filter in that case
+            if project_id is not None and project_id != DEFAULT_PROJECT_ID:
                 stmt = stmt.where(Repository.project_id == project_id)
 
             # Construct conditions for terms based on operator

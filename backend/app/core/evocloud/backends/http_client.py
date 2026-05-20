@@ -17,6 +17,7 @@ from app.models.schemas.auth import EvoCloudProxyResponse, LoginResult
 from app.utils import http as http_utils
 from app.utils import json as json_utils
 from app.utils.security import generate_hmac_signature
+from app.constants import DEFAULT_PROJECT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -374,8 +375,8 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
     async def add_timesheet_quick(self, data: dict, token=None) -> dict:
         return await self.request("POST", "/projectmanage/api/timesheet/quickAdd", data=data, token=token)
 
-    async def get_project_statistics(self, project_id=0, token=None) -> dict:
-        p = {"project_id": project_id} if project_id else {}
+    async def get_project_statistics(self, project_id=DEFAULT_PROJECT_ID, token=None) -> dict:
+        p = {"project_id": project_id} if project_id is not None else {}
         return await self.request("GET", "/projectmanage/api/project/statistics", params=p, token=token)
 
     async def get_ai_global_config(self) -> dict:
@@ -513,13 +514,13 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
 
     async def get_device_logs(self, device_key: str, limit=20, project_id=None, token: str | None = None) -> dict:
         params = {"device_key": device_key, "limit": limit}
-        if project_id:
+        if project_id is not None:
             params["project_id"] = project_id
         return await self.request("GET", "/evolooplink/api/log/recent", params=params, token=token)
 
     async def search_device_logs(self, device_key: str, query: str, limit=20, project_id=None, token: str | None = None) -> dict:
         params = {"device_key": device_key, "query": query, "limit": limit}
-        if project_id:
+        if project_id is not None:
             params["project_id"] = project_id
         return await self.request("GET", "/evolooplink/api/log/search", params=params, token=token)
 
@@ -748,7 +749,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             params={"device_key": device_key, "conversation_ids": conversation_ids}
         )
 
-    async def get_conversations(self, project_id: int = 0, page: int = 1, page_size: int = 20) -> dict:
+    async def get_conversations(self, project_id: int = DEFAULT_PROJECT_ID, page: int = 1, page_size: int = 20) -> dict:
         """
         获取我的会话列表 (Mobile 也会用此方法)
 

@@ -14,7 +14,7 @@ EvoLoop Message System - 统一消息处理系统
     )
     
     # 处理 AI 消息
-    handler = MessageHandler(thread_id="xxx", project_id=1)
+    handler = MessageHandler(thread_id="xxx", project_id=DEFAULT_PROJECT_ID)
     result = await handler.handle_ai_message(
         content="我来帮您处理",
         tool_calls=[{"name": "read_file", ...}],

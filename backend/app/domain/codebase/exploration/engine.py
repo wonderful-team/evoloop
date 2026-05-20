@@ -33,7 +33,7 @@ class CodeExplorationEngine:
     async def find_symbol(
         self,
         name: str,
-        project_id: int = 1,
+        project_id: int = DEFAULT_PROJECT_ID,
         repo_path: Optional[str] = None
     ) -> Optional[dict]:
         """

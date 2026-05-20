@@ -35,6 +35,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["projects"])
 
 
+def _resolve_project_id(p: dict) -> int | None:
+    """Safely resolve project_id from cloud project dict, treating 0 as valid."""
+    raw = p.get("project_id")
+    return raw if raw is not None else p.get("id")
+
+
 def _extract_projects(response: dict | list) -> tuple[list, dict | None]:
     """
     Extract projects list from API response.
@@ -121,7 +127,8 @@ async def get_projects(
 
             matched_count = 0
             for cloud_project in projects:
-                project_id = cloud_project.get("project_id") or cloud_project.get("id")
+                raw_pid = cloud_project.get("project_id")
+                project_id = raw_pid if raw_pid is not None else cloud_project.get("id")
                 project_name = cloud_project.get("name") or cloud_project.get("project_name", "")
 
                 # Check if this cloud project exists in workspace by name
@@ -240,7 +247,8 @@ async def get_projects(
 
     # 3. Enrich projects with local status
     for p in projects:
-        pid = p.get("project_id") or p.get("id")
+        raw_pid = p.get("project_id")
+        pid = raw_pid if raw_pid is not None else p.get("id")
         if pid and pid in local_status_map:
             local_info = local_status_map[pid]
             p["local_status"] = local_info["status"]
@@ -260,7 +268,7 @@ async def get_projects(
     # 3.5. Filter out ignored projects from the cloud list
     # Projects that were linked but then ignored should not appear
     original_count = len(projects)
-    projects = [p for p in projects if (p.get("project_id") or p.get("id")) not in ignored_project_ids]
+    projects = [p for p in projects if (_resolve_project_id(p)) not in ignored_project_ids]
     filtered_count = original_count - len(projects)
     if filtered_count > 0:
         logger.info(f"[ProjectsAPI] Filtered {filtered_count} ignored projects from cloud list")
@@ -277,7 +285,7 @@ async def get_projects(
             # - Must be in local_status_map (linked locally)
             # - Must have exists_locally = True (path exists)
             # - Must NOT be DISCONNECTED
-            cloud_project_ids = {p.get("project_id") or p.get("id") for p in projects}
+            cloud_project_ids = {_resolve_project_id(p) for p in projects}
             local_linked_ids = set(local_status_map.keys())
 
             # Find orphaned local repos (local has but cloud doesn't) - should not happen for switchable
@@ -294,25 +302,25 @@ async def get_projects(
 
             projects = [
                 p for p in projects
-                if (p.get("project_id") or p.get("id")) in switchable_ids
+                if (_resolve_project_id(p)) in switchable_ids
             ]
             logger.info(f"[ProjectsAPI] Filtered to switchable projects: {len(projects)} of {original_count} "
                        f"(cloud={len(cloud_project_ids)}, valid_local={len(valid_local_ids)}, intersection={len(switchable_ids)})")
         elif filter_type == "cloud_only":
             # STRICT: Cloud only = in cloud list but NOT linked locally
-            cloud_project_ids = {p.get("project_id") or p.get("id") for p in projects}
+            cloud_project_ids = {_resolve_project_id(p) for p in projects}
             local_linked_ids = set(local_status_map.keys())
 
             cloud_only_ids = cloud_project_ids - local_linked_ids
 
             projects = [
                 p for p in projects
-                if (p.get("project_id") or p.get("id")) in cloud_only_ids
+                if (_resolve_project_id(p)) in cloud_only_ids
             ]
             logger.info(f"[ProjectsAPI] Filtered to cloud-only projects: {len(projects)} of {original_count}")
         elif filter_type == "disconnected":
             # STRICT: Disconnected = in BOTH cloud AND local, but path doesn't exist
-            cloud_project_ids = {p.get("project_id") or p.get("id") for p in projects}
+            cloud_project_ids = {_resolve_project_id(p) for p in projects}
 
             disconnected_ids = {
                 pid for pid, info in local_status_map.items()
@@ -323,7 +331,7 @@ async def get_projects(
 
             projects = [
                 p for p in projects
-                if (p.get("project_id") or p.get("id")) in disconnected_ids
+                if (_resolve_project_id(p)) in disconnected_ids
             ]
             logger.info(f"[ProjectsAPI] Filtered to disconnected projects: {len(projects)} of {original_count}")
 
@@ -335,7 +343,7 @@ async def get_projects(
     # Collect IDs for batch DB query (only for locally existing projects)
     project_ids = []
     for p in projects:
-        pid = p.get("project_id") or p.get("id")
+        pid = _resolve_project_id(p)
         # Only query system status if project exists locally
         if pid and p.get("exists_locally"):
             project_ids.append(pid)
@@ -353,7 +361,7 @@ async def get_projects(
     pipe = cache.pipeline()
     project_keys = []
     for p in projects:
-        pid = p.get("project_id") or p.get("id")
+        pid = _resolve_project_id(p)
         if pid:
             keys = [
                 f"sys:{pid}:wiki",
@@ -383,7 +391,7 @@ async def get_projects(
 
     # Enrich loop
     for p in projects:
-        pid = p.get("project_id") or p.get("id")
+        pid = _resolve_project_id(p)
         if pid:
             # Local Status from map
             statuses = status_map.get(pid, {"wiki_status": "idle", "indexing_status": "idle", "summarization_status": "idle"})

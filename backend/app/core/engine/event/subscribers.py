@@ -12,6 +12,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.context import thread_context_store
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
@@ -198,7 +199,12 @@ class EngineCommandSubscriber:
         # Resolve Project ID
         pid_from_payload = command.get("project_id")
         pid_from_context = thread_context_store.get_active_project("remote-default")
-        project_id = pid_from_payload or pid_from_context or 0
+        if pid_from_payload is not None:
+            project_id = pid_from_payload
+        elif pid_from_context is not None:
+            project_id = pid_from_context
+        else:
+            project_id = DEFAULT_PROJECT_ID
 
         # Unified dispatch preparation (DB persistence, EvoCloud sync, model fallback)
         result = await dispatch_agent_run(
@@ -290,7 +296,7 @@ class EngineCommandSubscriber:
                 ]
 
             retry_content = target_msg.content
-            project_id = target_msg.project_id or 1
+            project_id = target_msg.project_id if target_msg.project_id is not None else DEFAULT_PROJECT_ID
 
         orchestrator = RewindOrchestrator(event_bus=system_bus)
         rewind_result = await orchestrator.perform_rewind(

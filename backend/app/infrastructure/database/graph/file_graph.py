@@ -11,6 +11,7 @@ import math
 from pathlib import Path
 
 from typing import Any
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -114,8 +115,9 @@ class FileGraphDriver:
         # 2. Deletion Pattern: MATCH (f:File)-[:CONTAINS]->(e) DETACH DELETE e, f
         if "DETACH DELETE" in query_upper and "FILE" in query_upper:
             path = params.get("path")
-            pid = params.get("pid") or params.get("project_id")
-            
+            raw_pid = params.get("pid")
+            pid = raw_pid if raw_pid is not None else params.get("project_id")
+
             # Use internal ID pattern
             file_id = f"File:{path}"
             if file_id in self._graph:
@@ -192,7 +194,8 @@ class FileGraphDriver:
         # 7. Basic Retrieval Fallback (CodeEntity search)
         if "CODEENTITY" in query_upper:
             name = params.get("name")
-            pid = params.get("pid") or params.get("project_id")
+            raw_pid = params.get("pid")
+            pid = raw_pid if raw_pid is not None else params.get("project_id")
             nodes = await self.find_nodes("CodeEntity", {"name": name, "project_id": pid})
             return nodes
 
@@ -265,7 +268,7 @@ class FileGraphDriver:
                     "id": node_id,
                     "name": properties.get("name") or properties.get("title", ""),
                     "description": properties.get("description") or properties.get("content", ""),
-                    "project_id": properties.get("project_id", -1),
+                    "project_id": properties.get("project_id", DEFAULT_PROJECT_ID),
                     "vector": properties["embedding"]
                 }])
             except Exception as ve:
@@ -524,7 +527,8 @@ class FileGraphSession:
 
         # Find by property
         name = parameters.get('name')
-        pid = parameters.get('pid') or parameters.get('project_id')
+        raw_pid = parameters.get('pid')
+        pid = raw_pid if raw_pid is not None else parameters.get('project_id')
         path = parameters.get('path')
 
         matched_nodes = []
@@ -533,7 +537,7 @@ class FileGraphSession:
             match = True
             if name and attrs.get('name') != name:
                 match = False
-            if pid and attrs.get('project_id') != pid:
+            if pid is not None and attrs.get('project_id') != pid:
                 match = False
             if path and attrs.get('path') != path:
                 match = False

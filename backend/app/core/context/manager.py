@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import Field
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.schemas import ContextMetadata
 from app.core.exceptions import GlobalModeError
 from app.infrastructure.pydantic_base import DynamicBaseModel
@@ -142,9 +143,7 @@ class ContextManager:
             if explicit_id == 0:
                 if allow_global:
                     return 0
-                raise GlobalModeError(
-                    "Explicit project_id=0 (global mode) provided, but this operation requires a specific project."
-                )
+                raise GlobalModeError(f"Explicit project_id={DEFAULT_PROJECT_ID} (global mode) provided, but this operation requires a specific project.")
             return explicit_id
 
         # Priority 2: Check context
