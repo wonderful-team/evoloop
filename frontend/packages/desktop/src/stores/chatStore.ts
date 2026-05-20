@@ -128,12 +128,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
     fetchActivity: async (threadId) => {
         try {
             const data = (await ConversationsService.getThreadActivity({ threadId })) as any as ActivitySnapshot
+            let normalizedStatus = data.status || "idle"
+            if (["done", "failed", "cancelled"].includes(normalizedStatus)) {
+                normalizedStatus = "idle"
+            } else if (normalizedStatus === "stopping") {
+                normalizedStatus = "stopped"
+            }
             set({
                 artifacts: data.artifacts || [],
                 activeMemories: data.active_memories || [],
                 agentState: data.agent_state || null,
                 finalOutcome: data.final_outcome || null,
-                status: (data.status === "done" || data.status === "failed") ? "idle" : (data.status as any || "idle")
+                status: normalizedStatus as any
             })
         } catch (e) {
             console.error("[ChatStore] Fetch activity failed", e)
@@ -219,7 +225,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
             changeset_count: 0,
             references: mappedReferences.length > 0 ? mappedReferences : undefined
         }
-        set((state) => ({ messages: [...state.messages, userMsg] }))
+        set((state) => ({ 
+            messages: [...state.messages, userMsg],
+            status: "running",
+            quotaExhaustedInfo: null
+        }))
 
         try {
             const res: any = await AgentService.chatEndpoint({
@@ -241,7 +251,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         } catch (e: any) {
             toast.error(i18n.t("chat.errors.sendFailed"))
             set((state) => ({
-                messages: state.messages.filter(m => m.id !== tempId)
+                messages: state.messages.filter(m => m.id !== tempId),
+                status: "idle"
             }))
         }
     },
@@ -347,7 +358,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
     },
 
     // --- Internal Handlers ---
-    _setConnectionStatus: (connected, status) => set({ isConnected: connected, connectionStatus: status }),
+    _setConnectionStatus: (connected, status) => {
+        const prevConnected = get().isConnected
+        set({ isConnected: connected, connectionStatus: status })
+        if (connected && !prevConnected) {
+            const threadId = get().threadId
+            if (threadId) {
+                console.log("[ChatStore] SSE Reconnected, fetching latest history and activity...")
+                get().fetchHistory(threadId)
+                get().fetchActivity(threadId)
+            }
+        }
+    },
 
     _appendThinking: (text) => {
         set((state) => {

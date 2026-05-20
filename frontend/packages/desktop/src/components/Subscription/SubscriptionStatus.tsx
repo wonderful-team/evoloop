@@ -11,9 +11,10 @@ interface SubscriptionStatusProps {
   quota?: AiQuota
   isLoading?: boolean
   onRenew?: () => void
+  onUpgrade?: () => void
 }
 
-export const SubscriptionStatus = ({ detail, quota, isLoading, onRenew }: SubscriptionStatusProps) => {
+export const SubscriptionStatus = ({ detail, quota, isLoading, onRenew, onUpgrade }: SubscriptionStatusProps) => {
   const { t } = useTranslation()
 
   if (isLoading) {
@@ -26,7 +27,8 @@ export const SubscriptionStatus = ({ detail, quota, isLoading, onRenew }: Subscr
 
   const renderQuota = () => {
     if (!quota) return null
-    const usagePercent = quota.is_unlimited ? 0 : (quota.used / quota.total) * 100
+    const rawPercent = quota.is_unlimited ? 0 : (quota.used / quota.total) * 100
+    const usagePercent = Math.min(100, rawPercent)
     
     return (
       <div className="flex-1 flex flex-col gap-2 px-4 lg:px-12">
@@ -50,8 +52,8 @@ export const SubscriptionStatus = ({ detail, quota, isLoading, onRenew }: Subscr
           <div className="space-y-1.5">
             <Progress value={usagePercent} className="h-2 shadow-inner bg-muted/50" />
             <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
-              <span>{t("subscription.quota.usedPercent", { percent: Math.round(usagePercent) })}</span>
-              {usagePercent > 80 && (
+              <span>{t("subscription.quota.usedPercent", { percent: Math.round(rawPercent) })}</span>
+              {usagePercent >= 80 && (
                 <span className="text-destructive font-bold animate-pulse">{t("subscription.quota.lowBalance")}</span>
               )}
             </div>
@@ -61,7 +63,8 @@ export const SubscriptionStatus = ({ detail, quota, isLoading, onRenew }: Subscr
     )
   }
 
-  if (!detail || detail.level_id === 1) {
+  const isFreeUser = !detail || detail.status === 'none' || !detail.is_member
+  if (isFreeUser) {
     return (
       <Card className="border-border bg-card overflow-hidden">
         <CardContent className="py-6 px-8">
@@ -142,18 +145,28 @@ export const SubscriptionStatus = ({ detail, quota, isLoading, onRenew }: Subscr
           {renderQuota()}
 
           {/* Right: Action */}
-          {!isExpired && onRenew && (
+          {!isExpired && (
             <div className="shrink-0">
-              <Button 
-                size="sm" 
-                onClick={onRenew} 
-                variant={isExpiringSoon ? "default" : "secondary"} 
-                className={`h-10 px-6 font-black shadow-sm transition-all hover:scale-[1.02] active:scale-95 ${
-                  isExpiringSoon ? "bg-amber-500 hover:bg-amber-600 text-white" : ""
-                }`}
-              >
-                {isExpiringSoon ? t("subscription.status.renewNow") : t("subscription.status.renew")}
-              </Button>
+              {detail.level_id === 1 && onUpgrade ? (
+                <Button 
+                  size="sm" 
+                  onClick={onUpgrade}
+                  className="h-10 px-6 font-black shadow-sm shadow-primary/10 transition-all hover:scale-[1.02] active:scale-95"
+                >
+                  {t("subscription.status.upgradeNow")}
+                </Button>
+              ) : onRenew ? (
+                <Button 
+                  size="sm" 
+                  onClick={onRenew} 
+                  variant={isExpiringSoon ? "default" : "secondary"} 
+                  className={`h-10 px-6 font-black shadow-sm transition-all hover:scale-[1.02] active:scale-95 ${
+                    isExpiringSoon ? "bg-amber-500 hover:bg-amber-600 text-white" : ""
+                  }`}
+                >
+                  {isExpiringSoon ? t("subscription.status.renewNow") : t("subscription.status.renew")}
+                </Button>
+              ) : null}
             </div>
           )}
         </div>

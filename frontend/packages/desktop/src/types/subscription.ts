@@ -15,7 +15,8 @@ export interface SubscriptionDetail {
   level_id: number;
   level_name: string;
   expire_time: number;
-  status: number;
+  status: string;
+  is_member: number;
   is_auto_renew: boolean;
   order_no?: string;
 }

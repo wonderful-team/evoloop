@@ -82,6 +82,9 @@ function SubscriptionDashboard() {
                   handleSelectPlan(detail.level_id)
                 }
               }}
+              onUpgrade={() => {
+                document.getElementById('plans-section')?.scrollIntoView({ behavior: 'smooth' })
+              }}
             />
             
             <Alert className="bg-muted/50 border-border py-2.5">

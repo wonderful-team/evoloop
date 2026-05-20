@@ -32,7 +32,7 @@ interface ChatInputAreaProps {
 }
 
 export interface ChatInputAreaHandle {
-  addReference: (item: ReferenceItem) => void
+  addReference: (item: ReferenceItem, insertText?: boolean) => void
   setInput: (text: string) => void
   focus: () => void
 }
@@ -227,46 +227,49 @@ export const ChatInputArea = memo(
       }
     }
 
-    const handleSelectReference = (item: ReferenceItem) => {
-      // Insert text at cursor
+    const handleSelectReference = (item: ReferenceItem, insertText = false) => {
+      // If user typed '@' to trigger the picker, strip it so it doesn't linger in text
       const textarea = textareaRef.current
       if (textarea) {
         const start = textarea.selectionStart
         const end = textarea.selectionEnd
         const text = inputValue
-        const before = text.substring(0, start)
-        const after = text.substring(end)
-
-        // Only add space if needed
-        const prefix = before.endsWith(" ") ? "" : " "
-        const suffix = after.startsWith(" ") ? "" : " "
-
-        const newText = before + prefix + `@${item.name}` + suffix + after
-        setInputValue(newText)
-
-        // Add to picked files
-        const newFile: PickedFile = {
-          id: Math.random().toString(36).substring(2, 15),
-          url: item.id,
-          name: item.name,
-          type: item.type === 'file' ? 'file' : 'reference',
+        const lastAtIndex = text.lastIndexOf("@", start - 1)
+        if (lastAtIndex !== -1 && text.substring(lastAtIndex, start).trim() === "@") {
+          const before = text.substring(0, lastAtIndex)
+          const after = text.substring(end)
+          setInputValue(before + after)
+          setTimeout(() => {
+            if (textarea) {
+              textarea.selectionStart = lastAtIndex
+              textarea.selectionEnd = lastAtIndex
+            }
+          }, 0)
         }
-        if (item.type === 'message') {
-          newFile.type = 'message'
-        }
-
-        setPickedFiles(prev => {
-          // Avoid duplicates
-          if (prev.some(a => a.url === newFile.url)) return prev
-          return [...prev, newFile]
-        })
-
-        // Restore focus
-        setTimeout(() => {
-          textarea.focus()
-          // Update cursor position ???
-        }, 0)
       }
+
+      // Add to picked files (green reference badge)
+      const newFile: PickedFile = {
+        id: Math.random().toString(36).substring(2, 15),
+        url: item.id,
+        name: item.name,
+        type: item.type === 'file' ? 'file' : 'reference',
+      }
+      if (item.type === 'message') {
+        newFile.type = 'message'
+      }
+
+      setPickedFiles(prev => {
+        // Avoid duplicates
+        if (prev.some(a => a.url === newFile.url)) return prev
+        return [...prev, newFile]
+      })
+
+      // Restore focus to input area
+      setTimeout(() => {
+        textarea?.focus()
+      }, 0)
+
       setShowPicker(false)
     }
 
@@ -391,8 +394,8 @@ export const ChatInputArea = memo(
     }
 
     useImperativeHandle(ref, () => ({
-      addReference: (item: ReferenceItem) => {
-        handleSelectReference(item)
+      addReference: (item: ReferenceItem, insertText = false) => {
+        handleSelectReference(item, insertText)
       },
       setInput: (text: string) => {
         setInputValue(text)
@@ -413,7 +416,7 @@ export const ChatInputArea = memo(
             <div className="absolute bottom-full left-0 mb-2 z-50">
               <ReferencePicker
                 projectId={currentProject.id!}
-                onSelect={handleSelectReference}
+                onSelect={(item) => handleSelectReference(item, true)}
                 onClose={() => setShowPicker(false)}
               />
               {/* Click outside backdrop */}

@@ -22,6 +22,7 @@ from app.core.monitoring.schemas import (
     SystemLogPayload,
 )
 from app.infrastructure.cache import cache
+from app.infrastructure.database.sql.database import session_scope
 from app.models import AgentActivity
 from app.models.schemas.events import (
     AgentStateEvent,
@@ -126,12 +127,12 @@ class ActivityMonitor:
         from app.core.engine.event.publishers import publish_agent_run_completed
         await publish_agent_run_completed(
             thread_id=thread_id,
-            status=status,
+            status=result.status,
             payload={"run_id": run_id, "outcome": final_outcome, "task_type": task_type}
         )
 
         # 2. Publish internal SystemStatusEvent (automated bridge handles UI StatusEvent)
-        await system_bus.publish(SystemStatusEvent(thread_id=thread_id, status=result.get("status", status)))
+        await system_bus.publish(SystemStatusEvent(thread_id=thread_id, status=result.status))
 
         return result
 
@@ -355,7 +356,7 @@ class ActivityMonitor:
         if not thread_ids:
             return {}
 
-        async with self._state_service._get_session_scope()() as session:
+        async with session_scope() as session:
             stmt = select(
                 AgentActivity.thread_id,
                 AgentActivity.status,

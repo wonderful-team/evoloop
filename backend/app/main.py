@@ -33,8 +33,6 @@ async def lifespan(app: FastAPI):
     startup_time = time.time()
     logger.info("Initializing EvoLoop resources...")
 
-    # 1. Persistence & Database (Unified Resource Management)
-    # This single call handles: Engine Init, Table Creation, and Data Seeding.
     await db_resource_manager.initialize(create_tables=True, seed_data=True)
     checkpointer = db_resource_manager.checkpointer
 
