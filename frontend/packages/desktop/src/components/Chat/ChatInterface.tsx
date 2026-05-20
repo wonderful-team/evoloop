@@ -45,6 +45,7 @@ import { DiffDrawer } from "./DiffDrawer"
 import { RewindConfirmDialog } from "./RewindConfirmDialog"
 import { DebugManager } from "./DebugManager"
 import { HumanRequestCard } from "./HumanRequestCard"
+import { QuotaExhaustedCard } from "./QuotaExhaustedCard"
 
 export function ChatInterface() {
   // --- Store State ---
@@ -747,6 +748,9 @@ export function ChatInterface() {
                 />
                 {status === "interrupted" && humanRequest && (
                   <HumanRequestCard request={humanRequest} />
+                )}
+                {status === "quota_exhausted" && (
+                  <QuotaExhaustedCard />
                 )}
               </div>
             </div>

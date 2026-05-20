@@ -203,7 +203,12 @@ class ActivityStateService:
             if activity is None:
                 return ActivityState(status=status)
 
-            final_status = "cancelled" if activity.status == "stopping" else status
+            if activity.status in ("quota_exhausted", "cancelled", "failed"):
+                final_status = activity.status
+            elif activity.status == "stopping":
+                final_status = "cancelled"
+            else:
+                final_status = status
             activity.status = final_status
             if final_outcome:
                 activity.final_outcome = final_outcome

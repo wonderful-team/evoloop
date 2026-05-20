@@ -207,9 +207,15 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
             # Do NOT send command_complete — the task is paused, not finished.
             return
         except Exception as e:
-            # Let handle_task_exception deal with DB/UI reporting
-            # run_scope will mark status as "failed"
+            # Let handle_task_exception deal with DB/UI reporting.
+            # It already persists the error, pushes to UI/Mobile, and calls
+            # activity_monitor.end_run with the appropriate status.
             from app.core.engine.background_agent.errors import handle_task_exception
             handler = db_callback._handler if db_callback else None
             await handle_task_exception(thread_id, project_id, e, handler=handler)
-            raise
+
+            # Do not re-raise. The final status (failed, quota_exhausted, etc.)
+            # is already set. Re-raising would only cause run_scope to
+            # redundantly call end_run and propagate the exception to
+            # FastAPI BackgroundTasks with no benefit.
+            return

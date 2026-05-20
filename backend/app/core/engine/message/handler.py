@@ -28,6 +28,14 @@ from app.core.engine.message.schemas import MessageHandlerResult
 from app.core.engine.message.stream import MessageStreamPolicy
 from app.core.tools.registry import get_tool_metadata
 from app.i18n.service import i18n
+from app.models.schemas.events import (
+    StatusEvent,
+    LLMAuthErrorEvent,
+    QuotaExhaustedEvent,
+    TokenEvent,
+    ThinkingEvent,
+    ProgressEvent,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -431,7 +439,6 @@ class MessageHandler:
         await MobileErrorNotifier(self).push(classification)
 
         if classification.error_type == "quota_exhausted":
-            from app.models.schemas.events import QuotaExhaustedEvent
             if not self._publisher:
                 self._publisher = MessagePublisher(thread_id=self.thread_id, project_id=self.project_id)
             await self._publisher.publish(QuotaExhaustedEvent(
@@ -442,7 +449,6 @@ class MessageHandler:
             ))
         
         elif classification.error_type == "llm_auth":
-            from app.models.schemas.events import LLMAuthErrorEvent
             if not self._publisher:
                 self._publisher = MessagePublisher(thread_id=self.thread_id, project_id=self.project_id)
             await self._publisher.publish(LLMAuthErrorEvent(
@@ -451,8 +457,11 @@ class MessageHandler:
                 message=classification.message
             ))
 
+        # Terminal errors should appear in chat list like an AI message.
+        # "system" role is filtered out by frontend _appendMessage.
+        error_role = "ai" if classification.is_terminal else "system"
         await self._dispatch_block(
-            role="system", content=f"**{classification.title}**\n{classification.message}",
+            role=error_role, content=f"**{classification.title}**\n{classification.message}",
             category=category.value,
             metadata={
                 "error_type": classification.error_type,
@@ -463,10 +472,12 @@ class MessageHandler:
         )
 
         # [STATUS FIX] Ensure frontend transitions to error state
-        from app.models.schemas.events import StatusEvent
         if not self._publisher:
             self._publisher = MessagePublisher(thread_id=self.thread_id, project_id=self.project_id)
-        await self._publisher.publish(StatusEvent(thread_id=self.thread_id, status="error"))
+        # Only send generic error status for non-terminal errors.
+        # Terminal errors (quota_exhausted, llm_auth) already sent dedicated events.
+        if not classification.is_terminal:
+            await self._publisher.publish(StatusEvent(thread_id=self.thread_id, status="error"))
 
         return MessageHandlerResult(
             category=category.value, persisted=category == MessageCategory.ERROR_BUSINESS,
@@ -529,16 +540,16 @@ class MessageHandler:
     @staticmethod
     async def stream_token(thread_id: str, token_buffer: str) -> None:
         """分发 LLM Token 片段"""
-        if not token_buffer: return
-        from app.models.schemas.events import TokenEvent
+        if not token_buffer:
+            return
         publisher = MessagePublisher(thread_id=thread_id)
         await publisher.publish(TokenEvent(thread_id=thread_id, content=token_buffer))
 
     @staticmethod
     async def stream_thinking(thread_id: str, thinking_delta: str) -> None:
         """分发 AI 思考过程片段"""
-        if not thinking_delta: return
-        from app.models.schemas.events import ThinkingEvent
+        if not thinking_delta:
+            return
         publisher = MessagePublisher(thread_id=thread_id)
         await publisher.publish(ThinkingEvent(thread_id=thread_id, content=thinking_delta))
 
@@ -551,7 +562,6 @@ class MessageHandler:
         metadata: dict | None = None
     ) -> None:
         """分发任务/工具执行进度"""
-        from app.models.schemas.events import ProgressEvent
         publisher = MessagePublisher(thread_id=thread_id)
         await publisher.publish(ProgressEvent(
             thread_id=thread_id,
