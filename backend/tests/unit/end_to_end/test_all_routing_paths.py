@@ -372,3 +372,133 @@ async def test_node_error_handler_returns_finish():
 
     with pytest.raises(Exception, match="test error"):
         await node.handle_error(state, Exception("test error"), config=RunnableConfig())
+
+
+# =============================================================================
+# 信号队列化机制测试（多 route_to 串行派发）
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_process_tool_executions_queues_multiple_signals():
+    """
+    T1: 单回合内多个 route_to 调用时，第一个立即生效，其余入队而非丢弃。
+    验证 inference_engine._process_tool_executions 返回三元组中的 queued_signals。
+    """
+    from app.core.engine.inference_engine import InferenceEngine
+    from app.core.engine.signals.schemas import RouteToSignal
+    from langchain_core.messages import AIMessage
+    from langchain_core.runnables import RunnableConfig
+
+    engine = InferenceEngine()
+
+    response = AIMessage(content="", tool_calls=[
+        {"id": "tc1", "name": "route_to", "args": {"target": "worker", "reason": "task1"}},
+        {"id": "tc2", "name": "route_to", "args": {"target": "worker", "reason": "task2"}},
+        {"id": "tc3", "name": "route_to", "args": {"target": "worker", "reason": "task3"}},
+    ])
+
+    async def fake_interceptor(tc, config):
+        return RouteToSignal(target=tc["args"]["target"], reason=tc["args"]["reason"])
+
+    tool_results, primary_signal, queued_signals = await engine._process_tool_executions(
+        response=response,
+        name="TestSupervisor",
+        config=RunnableConfig(),
+        interceptors={"route_to": fake_interceptor},
+        tool_executor=None,
+        local_tool_history=[],
+    )
+
+    assert primary_signal is not None
+    assert primary_signal.reason == "task1"        # 第一个立即生效
+    assert len(queued_signals) == 2                 # 后两个入队，不丢弃
+    assert queued_signals[0].reason == "task2"
+    assert queued_signals[1].reason == "task3"
+    assert tool_results == []
+
+
+@pytest.mark.asyncio
+async def test_process_tool_executions_single_signal_backward_compat():
+    """
+    T4（回归保护）: 单个 route_to 时，行为与改动前完全一致：primary_signal 正常，queued_signals 为空列表。
+    """
+    from app.core.engine.inference_engine import InferenceEngine
+    from app.core.engine.signals.schemas import RouteToSignal
+    from langchain_core.messages import AIMessage
+    from langchain_core.runnables import RunnableConfig
+
+    engine = InferenceEngine()
+
+    response = AIMessage(content="", tool_calls=[
+        {"id": "tc1", "name": "route_to", "args": {"target": "worker", "reason": "single_task"}},
+    ])
+
+    async def fake_interceptor(tc, config):
+        return RouteToSignal(target=tc["args"]["target"], reason=tc["args"]["reason"])
+
+    tool_results, primary_signal, queued_signals = await engine._process_tool_executions(
+        response=response,
+        name="TestSupervisor",
+        config=RunnableConfig(),
+        interceptors={"route_to": fake_interceptor},
+        tool_executor=None,
+        local_tool_history=[],
+    )
+
+    assert primary_signal is not None
+    assert primary_signal.reason == "single_task"
+    assert queued_signals == []                     # 无额外信号，队列为空（回归保护）
+
+
+@pytest.mark.asyncio
+async def test_supervisor_prepare_state_drains_pending_signals():
+    """
+    T2: blackboard.pending_signals 非空时，SupervisorNode.prepare_state 直接消费队列头部，
+    绕过 LLM，并将剩余信号写回 blackboard。
+    """
+    from app.core.engine.nodes.supervisor import SupervisorNode
+    from app.core.engine.state import AgentState
+    from app.core.engine.state.blackboard import BlackboardState
+    from app.core.engine.signals.schemas import RouteToSignal
+    from langchain_core.runnables import RunnableConfig
+
+    node = SupervisorNode()
+    blackboard = BlackboardState()
+    blackboard.pending_signals = [
+        RouteToSignal(target="worker", reason="task2").model_dump(),
+        RouteToSignal(target="worker", reason="task3").model_dump(),
+    ]
+    state = AgentState(messages=[], blackboard=blackboard.model_dump())
+
+    result = await node.prepare_state(state, RunnableConfig())
+
+    assert result is not None, "应立即返回 StateUpdate，不需要 LLM"
+    assert result.next_node == "worker"
+    assert result.blackboard is not None
+    assert len(result.blackboard.pending_signals) == 1
+    assert result.blackboard.pending_signals[0]["reason"] == "task3"
+
+
+@pytest.mark.asyncio
+async def test_supervisor_prepare_state_empty_queue_routes_normally():
+    """
+    T3: pending_signals 为空 + worker_outcome=success 时，
+    Supervisor 走正常路径路由到 FINISH，不因空队列触发异常行为。
+    """
+    from app.core.engine.nodes.supervisor import SupervisorNode
+    from app.core.engine.state import AgentState
+    from app.core.engine.state.blackboard import BlackboardState
+    from langchain_core.runnables import RunnableConfig
+
+    node = SupervisorNode()
+    blackboard = BlackboardState()
+    blackboard.pending_signals = []
+    blackboard.worker_outcome = "success"
+    state = AgentState(messages=[], blackboard=blackboard.model_dump())
+
+    result = await node.prepare_state(state, RunnableConfig())
+
+    # 队列空 + worker_outcome=success → 应路由到 FINISH
+    assert result is not None
+    assert result.next_node == "finish"
+
