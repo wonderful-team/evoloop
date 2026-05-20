@@ -427,7 +427,7 @@ async def _run_wiki_agent(project_id: int, project_path: str, skill, timeout: in
         ticket=ExecutionTicket(
             ticket_type="task",
             topic="Wiki Generation",
-            skill_id=skill.id if skill else None,
+            skill_ids=[skill.id] if skill else None,
             agent_config=AgentRuntimeConfig(
                 role_name="Worker",
                 system_instructions=system_instructions,

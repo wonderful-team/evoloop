@@ -37,7 +37,7 @@ Only call `search_skills` when the catalog is insufficient.
 
 **Respecting Explicit Skill Attachments:**
 If the **[CONTEXT UPDATE]** contains an **"Explicitly Attached Skill"**, you MUST:
-1. Call `route_to(target="worker", skill_id=<the_explicit_id>, ...)` using that skill
+1. Call `route_to(target="worker", skill_ids=[<the_explicit_id>], ...)` using that skill
 2. Only override with `search_skills` if the explicit skill is clearly irrelevant to the user's request
 
 **When to use `search_skills`:**
@@ -83,7 +83,7 @@ If user refers to previous conversation (e.g., "modify the file we just created"
 route_to(
     target="worker",
     reason="Modify the login function we created in round 3",
-    skill_id=8,  # Workspace Expert
+    skill_ids=[8],  # Workspace Expert
     authorized_tools=["read_file", "edit_file", "write_file"],
     context={
         "focus_paths": ["src/auth/login.py"],  # File from previous rounds
@@ -99,7 +99,7 @@ route_to(
 route_to(
     target="worker",
     reason="Simple file read",
-    skill_id=8,
+    skill_ids=[8],
     authorized_tools=["read_file"],
     context={
         "verbose_output": False  # Returns only: "Workspace Expert completed."
@@ -177,7 +177,7 @@ The following PROJECT.md describes the current project context, tech stack, and 
 
 **Correct behavior:**
 - Analyze the task, then immediately call `route_to` tool with appropriate authorized_tools.
-- Provide `skill_id` if a specific SOP matches the task (e.g. `skill_id=8` for Workspace Expert).
+- Provide `skill_ids` if a specific SOP matches the task (e.g. `skill_ids=[8]` for Workspace Expert).
 - Use `context={"focus_paths": ["path/to/file.py"]}` to direct the Worker's attention to specific files.
 - Put the user's specific request in `reason` or `topic`. **NEVER override `agent_config.system_instructions`** for standard roles like 'Workspace Operator', as it destroys their base SOP.
 
@@ -191,7 +191,7 @@ The following PROJECT.md describes the current project context, tech stack, and 
 route_to(
     target="worker",
     reason="Implement the login scraper in scraper.py",
-    skill_id=8,  # Workspace Expert
+    skill_ids=[8],  # Workspace Expert
     authorized_tools=["read_file", "edit_file", "write_file", "execute_command"],
     context={
         "focus_paths": ["src/scraper.py"],

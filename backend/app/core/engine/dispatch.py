@@ -156,7 +156,7 @@ async def dispatch_agent_run(
     content_blocks = ref_context.content_blocks
 
     # ------------------------------------------------------------------
-    # 2.5 Extract explicit skill_id from references for downstream routing
+    # 2.5 Extract explicit skill_ids from references for downstream routing
     # ------------------------------------------------------------------
     metadata = metadata or {}
     explicit_skills = []

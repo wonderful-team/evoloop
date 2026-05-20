@@ -66,8 +66,6 @@ class SkillHydrator:
         execution_ticket = state.blackboard.ticket
         # skill_ids takes priority from the ticket if present, otherwise fallback to topic
         query = (execution_ticket.skill_ids[0] if execution_ticket.skill_ids else None) if execution_ticket else None
-        if not query and execution_ticket and execution_ticket.skill_id:
-            query = execution_ticket.skill_id
         if not query:
             query = topic
 
