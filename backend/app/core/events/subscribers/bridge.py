@@ -36,8 +36,14 @@ class UniversalBridgeSubscriber:
         """
         Listen to all system events and bridge public ones to the external bus.
         """
+        # Defensive: some events on the bus are plain Pydantic models, not BaseEvent
+        if not isinstance(event, BaseEvent):
+            return
+
         if not getattr(event, "is_public", False):
             return
+
+        event_type = getattr(event, "type_name", type(event).__name__)
 
         # Extract routing metadata
         channel_type = getattr(event, "broadcast_channel", "system")
@@ -60,7 +66,7 @@ class UniversalBridgeSubscriber:
             bus = get_event_bus()
             await bus.publish(target_channel, utils_json.dumps(payload, ensure_ascii=False))
             
-            logger.debug(f"[UniversalBridge] Bridged {event.type_name} -> {target_channel}")
+            logger.debug(f"[UniversalBridge] Bridged {event_type} -> {target_channel}")
         except Exception as e:
-            logger.warning(f"[UniversalBridge] Failed to bridge event {event.type_name}: {e}")
+            logger.warning(f"[UniversalBridge] Failed to bridge event {event_type}: {e}")
 
