@@ -531,17 +531,19 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             data={"device_key": device_key, "client_id": client_id},
         )
 
-    async def register_device(self, key: str, name: str, os_info: str) -> dict:
-        """Register device via Gateway.
+    async def register_device(self, fingerprint: str, name: str, os_info: str) -> dict:
+        """Claim a device from the server.
 
-        Note: In the new architecture, device registration is handled via WebSocket
-        handshake. This HTTP endpoint is kept for backward compatibility.
+        The server will:
+        1. Look up existing device by fingerprint + member_id
+        2. Return existing device_key if found
+        3. Check device limit and create new device_key if not found
         """
         return await self.request(
             "POST",
             "/api/v1/devices/register",
             data={
-                "device_key": key,
+                "fingerprint": fingerprint,
                 "device_name": name,
                 "device_type": "desktop",
                 "os_info": os_info,

@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import os
 import platform
 import ssl
 from collections import deque
@@ -20,10 +19,9 @@ from app.core.evocloud.schemas import (
     WebSocketHandshake,
     WebSocketPing,
 )
+from app.core.device_fingerprint import get_hardware_fingerprint
 from app.core.identity import identity_service
-from app.core import file as file_utils
 from app.utils.async_utils import run_in_thread
-from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -64,10 +62,6 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
     @property
     def device_key(self) -> str:
-        # Note: _get_or_create_device_key is now async, but device_key is used
-        # synchronously in some places. Use an async method for new code.
-        # For backward compatibility, we keep the property but it may return
-        # an empty string if not yet loaded. Call ensure_device_key() in async context.
         return getattr(self, "_device_key", "") or ""
 
     async def ensure_device_key(self) -> str:
@@ -77,34 +71,35 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         return self._device_key
 
     async def _get_or_create_device_key(self) -> str:
-        # 1. Try cache-backed storage first
+        # 1. Try cache-backed storage first (separate from token storage)
         dk = await identity_service.store.get_device_key()
         if dk:
+            logger.info(f"[EvoCloud] Device key loaded from persistent storage: {dk[:20]}...")
             return dk
 
-        # 2. Migration: Try legacy file
-        base_dir = self.config.app_data_dir or os.path.expanduser("~")
-        key_file = os.path.join(base_dir, ".evoloop_device_key")
+        # 2. Claim device from server (server-issued device_key)
+        fingerprint = get_hardware_fingerprint()
+        device_name = self.device_name or f"{platform.node()}"
+        os_info = platform.platform()
 
-        legacy_file = os.path.expanduser("~/.evoloop_device_key")
-        if not os.path.exists(key_file) and os.path.exists(legacy_file):
-            key_file = legacy_file
+        logger.info(f"[EvoCloud] Claiming device from server (fingerprint={fingerprint[:16]}...)")
 
-        if os.path.exists(key_file):
-            dk = file_utils.read_file(key_file).content.strip()
-            # Migrate to cache
-            await identity_service.store.save_device_key(dk)
-            try:
-                os.remove(key_file)
-                logger.info(f"Migrated device key from {key_file} to cache-backed storage")
-            except Exception as e:
-                logger.warning(f"Failed to remove legacy key file: {e}")
-            return dk
-
-        # 3. Create New
-        dk = gen_uuid()
-        await identity_service.store.save_device_key(dk)
-        return dk
+        result = await self.api.register_device(fingerprint, device_name, os_info)
+        if result and result.get("code") == 0:
+            data = result.get("data", {})
+            dk = data.get("device_key", "")
+            is_new = data.get("is_new", True)
+            if dk:
+                await identity_service.store.save_device_key(dk)
+                logger.info(
+                    f"[EvoCloud] Device claimed successfully: {dk[:20]}... (is_new={is_new})"
+                )
+                return dk
+            else:
+                raise RuntimeError("Server returned empty device_key")
+        else:
+            msg = result.get("message", "unknown error") if result else "no response"
+            raise RuntimeError(f"Device claim failed: {msg}")
 
     async def bind_client_id(self, client_id: str):
         """Bind a mobile client to this device via HTTP API."""
@@ -151,8 +146,8 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
     async def start(self):
         """Start the WebSocket connection and Heartbeat Loops.
 
-        Note: Device registration is now done via WebSocket handshake.
-        HTTP registration is removed in favor of pure WebSocket architecture.
+        Device registration is now server-issued. The device_key is obtained
+        via HTTP claim before WebSocket connection.
         """
         if self._running:
             return
@@ -161,7 +156,11 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
             logger.warning("[EvoCloud] Cannot start Device Link: No Token")
             return
 
-        await self.ensure_device_key()
+        dk = await self.ensure_device_key()
+        if not dk:
+            logger.error("[EvoCloud] Cannot start Device Link: No valid device_key from server")
+            return
+
         self._running = True
 
         logger.info(f"[EvoCloud] Starting Device Link (device_key={self.device_key})...")
@@ -325,7 +324,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         return True
 
     async def _on_error_protocol(self, payload: dict) -> bool:
-        """Handle error messages from Gateway (e.g. invalid_token)."""
+        """Handle error messages from Gateway (e.g. invalid_token, device_sync_failed)."""
         code = payload.get("code")
         message = payload.get("message")
         logger.warning(f"[EvoCloud] WS ERROR RECV: code={code}, message={message}")
@@ -342,6 +341,16 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                 await self.stop()
             # If refresh succeeds, on_token_change callback will trigger _force_reconnect.
             return False  # Do not publish as business event
+
+        if code == "device_sync_failed":
+            logger.warning("[EvoCloud] Device key rejected by server (revoked or belongs to another user), clearing and re-claiming...")
+            await identity_service.store.delete_device_key()
+            self._device_key = ""
+            # Trigger reconnect: the loop will call ensure_device_key() again
+            # which will claim a new device_key from the server.
+            asyncio.create_task(self._force_reconnect())
+            return False
+
         return True
 
     async def _on_init_protocol(self, payload: dict) -> bool:

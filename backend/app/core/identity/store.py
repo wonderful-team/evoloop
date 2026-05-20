@@ -1,10 +1,13 @@
 import logging
+import os
 
 from app.infrastructure.cache import cache
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 TOKEN_HASH_KEY = "evoloop:tokens"
+DEVICE_IDENTITY_HASH_KEY = "evoloop:device:identity"
 
 # Hash field names
 FIELD_ACCESS_TOKEN = "access_token"
@@ -24,7 +27,13 @@ class IdentityStore:
     The underlying backend is selected automatically based on EMBEDDED_MODE:
     - EMBEDDED_MODE=true  -> FileCache
     - EMBEDDED_MODE=false -> RedisCache
+
+    Device key is stored in a SEPARATE hash (evoloop:device:identity) so that
+    logout/clear() does NOT wipe the device identifier. The device key survives
+    across login sessions.
     """
+
+    # --- Token fields (survive in evoloop:tokens, cleared on logout) ---
 
     @classmethod
     async def save_access_token(cls, token: str) -> bool:
@@ -57,21 +66,6 @@ class IdentityStore:
         return True
 
     @classmethod
-    async def save_device_key(cls, key: str) -> bool:
-        await cache.hset(TOKEN_HASH_KEY, FIELD_DEVICE_KEY, key)
-        return True
-
-    @classmethod
-    async def get_device_key(cls) -> str | None:
-        val = await cache.hget(TOKEN_HASH_KEY, FIELD_DEVICE_KEY)
-        return val if val is not None else None
-
-    @classmethod
-    async def delete_device_key(cls) -> bool:
-        await cache.hdel(TOKEN_HASH_KEY, FIELD_DEVICE_KEY)
-        return True
-
-    @classmethod
     async def save_member_id(cls, member_id: int) -> bool:
         await cache.hset(TOKEN_HASH_KEY, FIELD_MEMBER_ID, str(member_id))
         return True
@@ -91,6 +85,23 @@ class IdentityStore:
         await cache.hdel(TOKEN_HASH_KEY, FIELD_MEMBER_ID)
         return True
 
+    # --- Device key (stored separately, survives logout) ---
+
+    @classmethod
+    async def save_device_key(cls, key: str) -> bool:
+        await cache.hset(DEVICE_IDENTITY_HASH_KEY, FIELD_DEVICE_KEY, key)
+        return True
+
+    @classmethod
+    async def get_device_key(cls) -> str | None:
+        val = await cache.hget(DEVICE_IDENTITY_HASH_KEY, FIELD_DEVICE_KEY)
+        return val if val is not None else None
+
+    @classmethod
+    async def delete_device_key(cls) -> bool:
+        await cache.hdel(DEVICE_IDENTITY_HASH_KEY, FIELD_DEVICE_KEY)
+        return True
+
     @classmethod
     async def get_all(cls) -> dict:
         """Return all stored token fields as a dict."""
@@ -98,6 +109,6 @@ class IdentityStore:
 
     @classmethod
     async def clear(cls) -> bool:
-        """Delete the entire token hash."""
+        """Delete the entire token hash (device key is preserved)."""
         await cache.delete(TOKEN_HASH_KEY)
         return True
