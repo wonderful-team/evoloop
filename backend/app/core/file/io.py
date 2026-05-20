@@ -314,6 +314,8 @@ def write_file(
         try:
             with open(temp_path, "w", encoding=encoding) as f:
                 f.write(content)
+                f.flush()
+                os.fsync(f.fileno())
 
             # Atomic rename
             os.replace(temp_path, file_path)
