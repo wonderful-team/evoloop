@@ -111,6 +111,43 @@ class SupervisorNode(BaseAgentNode):
         # Here we apply semantic filtering: Supervisor doesn't need to see Worker's
         # detailed tool-call chains, only high-level mission context and summaries.
 
+        # ─────────────────────────────────────────────────────────────────────
+        # Priority 0: Drain queued signal queue.
+        # When the Supervisor emitted multiple route_to calls in one turn, the
+        # first was dispatched immediately; the rest were serialised into
+        # blackboard.pending_signals. Here we drain the queue one entry per
+        # Supervisor invocation, bypassing the LLM entirely.
+        # ─────────────────────────────────────────────────────────────────────
+        blackboard = state.blackboard
+        if blackboard and getattr(blackboard, "pending_signals", None):
+            import app.core.engine.signals.schemas as schemas
+            from app.core.engine.signals.dispatcher import SignalDispatcher
+
+            next_sig_dict = blackboard.pending_signals[0]
+            remaining = blackboard.pending_signals[1:]
+
+            try:
+                sig_type = next_sig_dict.pop("_type", "RouteToSignal")
+                SignalClass = getattr(schemas, sig_type, schemas.RouteToSignal)
+                signal = SignalClass.model_validate(next_sig_dict)
+                
+                dispatch_result = await SignalDispatcher.dispatch(state, signal, config)
+                if dispatch_result is not None:
+                    bb_update = dispatch_result.blackboard or blackboard
+
+                    bb_update.pending_signals = remaining
+                    dispatch_result.blackboard = bb_update
+                    logger.info(
+                        f"[Supervisor] 🚦 Consuming queued signal → {signal.target} "
+                        f"| remaining_queue={len(remaining)}"
+                    )
+                    return dispatch_result
+            except Exception as e:
+                # If the queued signal is malformed, log and clear the bad entry
+                logger.warning(f"[Supervisor] Failed to consume queued signal: {e}. Clearing entry.")
+                blackboard.pending_signals = remaining
+        # ─────────────────────────────────────────────────────────────────────
+
         # Filter messages before Supervisor reasoning — this is a "view" operation
         # that does not mutate the global checkpoint state.
         state.messages = self._filter_messages_for_supervisor(list(state.messages))

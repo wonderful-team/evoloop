@@ -127,12 +127,18 @@ Do NOT rely on assumptions. If the scope is large or unknown:
 - **TINY/SMALL**: Prefer single `route_to(target="worker")` turns.
 - **MEDIUM/LARGE**: YOU MUST break the task into logical parts and use `decompose_task` to split the work across multiple parallel specialists. NEVER use a single summary task for a massive request.
 
-### Using `decompose_task`
-When you call `decompose_task`, the system will:
+### Using `decompose_task` or Multiple `route_to` Calls
+When you need to distribute work:
 1. Break your task into independent sub-tasks based on your factual scale estimation.
-2. Spawn multiple parallel Workers.
-3. Aggregate their results.
-4. Return the consolidated findings to you via the **Aggregator**.
+2. For most parallel or sequential subtasks, you can simply **call `route_to` multiple times** in a single turn (e.g., one call for frontend, one for backend). The system will queue them in `pending_signals` and execute them serially. You will not be invoked again until the entire queue is processed, so it is highly efficient.
+3. Alternatively, for massive jobs, use `decompose_task` to spawn multiple parallel Workers which will be aggregated.
+
+**Example - Serial Queueing via Multiple route_to (Recommended for standard multi-step):**
+```python
+route_to(target="worker", reason="Refactor frontend models", context={"focus_paths": ["src/frontend/models"]})
+route_to(target="worker", reason="Update backend APIs", context={"focus_paths": ["src/backend/api"]})
+# Both will be queued and executed serially without needing your intervention between them.
+```
 
 **Example - Large Project Wiki Generation:**
 If project scale is LARGE and type is CONTENT:

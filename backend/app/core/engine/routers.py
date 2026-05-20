@@ -74,7 +74,8 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
     max_steps = settings.SUPERVISOR_AGENT_MAX_STEPS
     if blackboard and blackboard.metadata and blackboard.metadata.max_supervisor_steps:
         max_steps = blackboard.metadata.max_supervisor_steps
-    if iteration_count >= max_steps:
+    # ONLY enforce max_steps if there are no pending signals in the queue
+    if iteration_count >= max_steps and not getattr(blackboard, "pending_signals", None):
         logger.warning(f"[Router] Hard limit reached ({iteration_count}/{max_steps}). Forcing termination.")
         return RoutingTarget.FINISH
 

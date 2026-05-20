@@ -245,21 +245,30 @@ class InferenceEngine:
         interceptors: dict[str, Callable] | None,
         tool_executor: Any | None,
         local_tool_history: list
-    ) -> tuple[list[BaseMessage], Any | None]:
-        """Processes tool calls, handles interceptors, and executes tools."""
+    ) -> tuple[list[BaseMessage], Any | None, list[Any]]:
+        """Processes tool calls, handles interceptors, and executes tools.
+
+        Returns:
+            (tool_results, primary_signal, queued_signals)
+            queued_signals: additional signals captured in the same turn that would
+            previously have been silently dropped. SupervisorNode persists these to
+            blackboard.pending_signals so they can be drained serially without
+            re-running the Supervisor LLM.
+        """
         pending_signal = None
+        queued_signals: list[Any] = []
         remaining_tool_calls = []
 
         for tc in response.tool_calls:
-            if pending_signal is not None:
-                logger.warning(f"[{name}] Multiple signals detected in one turn. Ignoring additional: {tc['name']}")
-                continue
-
             interceptor = (interceptors or {}).get(tc["name"])
             if interceptor:
                 sig = await interceptor(tc, config)
                 if sig is not None:
-                    pending_signal = sig
+                    if pending_signal is None:
+                        pending_signal = sig          # first signal fires immediately
+                    else:
+                        logger.info(f"[{name}] Queuing additional signal: {tc['name']}")
+                        queued_signals.append(sig)    # subsequent signals are queued
                     continue
 
             remaining_tool_calls.append(tc)
@@ -269,7 +278,7 @@ class InferenceEngine:
             logger.info(f"[{name}] 🛠️ Executing {len(remaining_tool_calls)} tool calls via tool_executor")
             res, batch_signal = await tool_executor.execute_batch(remaining_tool_calls, local_tool_history)
             tool_results = res
-            
+
             if batch_signal and pending_signal is None:
                 logger.info(f"[{name}] ⚡ Post-execution signal detected: {type(batch_signal).__name__}")
                 pending_signal = batch_signal
@@ -283,7 +292,7 @@ class InferenceEngine:
             else:
                 logger.info(f"[{name}] ℹ️ No remaining tool_calls after interception.")
 
-        return tool_results, pending_signal
+        return tool_results, pending_signal, queued_signals
 
     async def run_react_loop(
         self,
@@ -365,7 +374,7 @@ class InferenceEngine:
 
             logger.info(f"[{name}] 🔧 tool_calls detected: {len(response.tool_calls)} calls")
 
-            tool_results, pending_signal = await self._process_tool_executions(
+            tool_results, pending_signal, queued_signals = await self._process_tool_executions(
                 response=response,
                 name=name,
                 config=config,
@@ -385,6 +394,7 @@ class InferenceEngine:
                     "last_response": last_response,
                     "is_truncated": False,
                     "signal": pending_signal,
+                    "queued_signals": queued_signals,
                 }
 
         is_truncated = False
@@ -454,7 +464,7 @@ class InferenceEngine:
         local_tool_history = []
 
         if response.tool_calls:
-            tool_results, batch_signal = await self._process_tool_executions(
+            tool_results, batch_signal, _ = await self._process_tool_executions(
                 response=response,
                 name=name,
                 config=config,

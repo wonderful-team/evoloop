@@ -185,6 +185,7 @@ class AgentEngine:
             signal=inference_result.get("signal"),
             routing_target=routing_target,
             outcome=outcome,
+            queued_signals=inference_result.get("queued_signals", []),
         )
 
         # Add node_source marker to AI messages

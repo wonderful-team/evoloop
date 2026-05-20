@@ -231,6 +231,13 @@ class BlackboardState(DynamicBaseModel):
     lint_errors: Any | None = Field(
         default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
     )
+    # Signal queue: stores additional route_to signals that arrived in the same turn.
+    # Each element is a serializable dict (reconstructible as RouteToSignal).
+    # SupervisorNode.prepare_state() drains this queue serially without re-running the LLM.
+    pending_signals: list[dict[str, Any]] = Field(
+        default_factory=list,
+        json_schema_extra={"merge_policy": MergePolicy.REPLACE},
+    )
 
 
 def _resolve_field_policy(field_name: str, field_info: Any) -> tuple[MergePolicy, str | None]:

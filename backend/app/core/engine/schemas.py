@@ -125,6 +125,10 @@ class EngineResult(DynamicBaseModel):
     signal: Any | None = None
     routing_target: str | None = None
     outcome: NodeOutcome | None = None
+    # Additional signals that arrived in the same Supervisor turn and were queued.
+    # Persisted into blackboard.pending_signals by handle_outcome so SupervisorNode
+    # can drain them serially without re-running the LLM.
+    queued_signals: list[Any] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
