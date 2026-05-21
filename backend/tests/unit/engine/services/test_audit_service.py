@@ -163,18 +163,21 @@ class TestFinishNodePrepareAuditInput:
 
         assert blackboard.metadata.audit_input_data is not None
         assert blackboard.metadata.audit_input_data.plan_summary["completed"] == 8
-        assert blackboard.metadata.audit_input_data.tool_stats["write_wiki_page"] == 2
+        # tool_stats is no longer populated by _prepare_audit_input (simplified in refactor)
+        assert blackboard.metadata.audit_input_data.tool_stats == {}
 
     @pytest.mark.asyncio
-    async def test_detects_context_overload_anomaly(self, finish_node):
-        metadata = BlackboardMetadata()
+    async def test_detects_incomplete_plan_anomaly(self, finish_node):
+        metadata = BlackboardMetadata(
+            plan_progress=PlanProgress(total_steps=10, completed_steps=5),
+        )
         blackboard = BlackboardState(metadata=metadata)
-        state = AgentState(blackboard=blackboard, messages=[AIMessage(content="x")] * 110)
+        state = AgentState(blackboard=blackboard, messages=[AIMessage(content="x")] * 10)
 
         await finish_node._prepare_audit_input(state, blackboard)
 
         anomaly_types = [a.anomaly_type for a in blackboard.metadata.audit_anomalies]
-        assert "context_overload" in anomaly_types
+        assert "incomplete_plan" in anomaly_types
 
     @pytest.mark.asyncio
     async def test_rebuilds_audit_input_even_with_existing_deliverables(self, finish_node):

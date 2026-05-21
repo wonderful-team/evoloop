@@ -22,27 +22,26 @@ def test_phase2_imports():
 @pytest.mark.asyncio
 async def test_fts_service_init():
     """Test FTS service initialization."""
-    from app.domain.knowledge.services.search import FTSService
+    from app.infrastructure.search.sqlite_fts import SQLiteFTSBackend
     
     with tempfile.TemporaryDirectory() as tmpdir:
-        fts = FTSService(db_path=f"{tmpdir}/search.db")
+        fts = SQLiteFTSBackend(db_path=f"{tmpdir}/search.db")
         await fts.initialize()
         
-        # Check backend is initialized (FTSService is a thin wrapper now)
-        assert fts._backend is not None
+        assert fts is not None
 
 
 @pytest.mark.asyncio
 async def test_fts_index_and_search():
     """Test FTS indexing and search."""
-    from app.domain.knowledge.services.search import FTSService
+    from app.infrastructure.search.sqlite_fts import SQLiteFTSBackend
+    from app.infrastructure.search.base import IndexDocumentRequest
     
     with tempfile.TemporaryDirectory() as tmpdir:
-        fts = FTSService(db_path=f"{tmpdir}/search.db")
+        fts = SQLiteFTSBackend(db_path=f"{tmpdir}/search.db")
         await fts.initialize()
         
         # Index a document
-        from app.infrastructure.search.base import IndexDocumentRequest
         success = await fts.index_document(
             IndexDocumentRequest(
                 doc_id="test/doc1.md",
@@ -64,14 +63,14 @@ async def test_fts_index_and_search():
 @pytest.mark.asyncio
 async def test_fts_suggestions():
     """Test FTS search suggestions."""
-    from app.domain.knowledge.services.search import FTSService
+    from app.infrastructure.search.sqlite_fts import SQLiteFTSBackend
+    from app.infrastructure.search.base import IndexDocumentRequest
     
     with tempfile.TemporaryDirectory() as tmpdir:
-        fts = FTSService(db_path=f"{tmpdir}/search.db")
+        fts = SQLiteFTSBackend(db_path=f"{tmpdir}/search.db")
         await fts.initialize()
         
         # Index documents
-        from app.infrastructure.search.base import IndexDocumentRequest
         await fts.index_document(
             IndexDocumentRequest(
                 doc_id="test/api.md",

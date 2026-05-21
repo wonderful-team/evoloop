@@ -70,12 +70,11 @@ async def memory_setup(test_memory_root, test_db_path):
         "app.core.memory.two_tier.settings",
         "app.core.memory.maintenance.settings",
         "app.core.memory.auto_extraction.settings",
-        "app.core.memory.backends.file_backend.settings",
+        "app.core.memory.store.settings",
     ]
     mock_settings = type("MockSettings", (), {
         "BRAIN_MEMORY_ROOT": test_memory_root,
         "EMBEDDED_MODE": True,
-        "MEMORY_BACKEND": "file",
         "EMBEDDING_DIMENSIONS": 768,
         "AUTO_MEMORY_EXTRACTION": True,
         "AUTO_MEMORY_EXTRACTION_INTERVAL": 1,
@@ -85,11 +84,31 @@ async def memory_setup(test_memory_root, test_db_path):
         p.start()
 
     from app.core.memory.config import MemoryConfig
-    from app.core.memory.backends.file_backend import FileMemoryStorage
-    from app.core.memory.backends.sql_short_term import SqlShortTermMemory
+    from app.core.memory.store import MemoryStore
+    from app.core.memory.short_term import SqlShortTermMemory
     from app.core.memory.manager import MemoryManager
     from app.core.memory.quality import MemoryQualityAnalyzer
     from app.core.memory.state_tracking import MemoryStateTracker
+
+    # Patch embedder and vector store to avoid slow model loading
+    mock_embedder = AsyncMock()
+    mock_embedder.embed_query = AsyncMock(return_value=[0.1] * 768)
+    embedder_patcher = patch(
+        "app.infrastructure.embeddings.factory.EmbedderFactory.get_embedder",
+        return_value=mock_embedder,
+    )
+    embedder_patcher.start()
+
+    mock_vector_store = MagicMock()
+    mock_vector_store.upsert_memory_chunks = MagicMock()
+    mock_vector_store.search_memory = MagicMock(return_value=[])
+    mock_vector_store.delete_memory_by_id = MagicMock()
+    mock_vector_store.delete_all_memories = MagicMock()
+    vector_patcher = patch(
+        "app.core.memory.store.get_vector_store",
+        return_value=mock_vector_store,
+    )
+    vector_patcher.start()
 
     config = MemoryConfig(
         memory_root=Path(test_memory_root),
@@ -98,7 +117,7 @@ async def memory_setup(test_memory_root, test_db_path):
         hot_memory_max_chars=8000,
     )
 
-    storage = FileMemoryStorage(str(config.memory_root))
+    storage = MemoryStore(str(config.memory_root))
     await storage.initialize()
 
     short_term = SqlShortTermMemory()
@@ -125,6 +144,8 @@ async def memory_setup(test_memory_root, test_db_path):
     }
 
     await short_term.flush()
+    embedder_patcher.stop()
+    vector_patcher.stop()
     for p in reversed(patchers):
         p.stop()
     await test_engine.dispose()
@@ -224,7 +245,7 @@ class TestPhase3ManualStore:
         await mgr.save_memory(entry)
 
         storage = memory_setup["storage"]
-        from app.core.memory.backends.sqlite_index import SqliteMemoryIndex
+        # SqliteMemoryIndex inlined into _FileEngine
         idx: SqliteMemoryIndex = storage.index_db
         row = await idx.search(filters={"id": "mem_sqlite_001"}, limit=1)
         assert len(row) == 1
@@ -401,7 +422,7 @@ class TestPhase5Retrieval:
         await mgr.save_memory(entry)
 
         # Patch vector search to bypass NoOpEmbedder failure
-        with patch.object(storage.vector_db, "search", new_callable=AsyncMock, return_value=[{"id": "mem_search_001"}]):
+        with patch.object(storage.vector_db, "search_memory", return_value=[{"id": "mem_search_001"}]):
             results = await mgr.search_memories(query="Redis", project_id=42, limit=10)
         assert any("Redis" in (r.title or r.content) for r in results)
 
@@ -550,7 +571,7 @@ class TestPhase9Consistency:
         assert len(found_files) > 0, "File layer missing"
 
         # Layer 2: SQLite
-        from app.core.memory.backends.sqlite_index import SqliteMemoryIndex
+        # SqliteMemoryIndex inlined into _FileEngine
         idx: SqliteMemoryIndex = storage.index_db
         rows = await idx.search(filters={"id": "mem_consistency_01"}, limit=1)
         assert len(rows) == 1, "SQLite layer missing"
@@ -582,7 +603,7 @@ class TestPhase9Consistency:
         assert len(found_files) == 0, "File layer not purged"
 
         # Layer 2: SQLite
-        from app.core.memory.backends.sqlite_index import SqliteMemoryIndex
+        # SqliteMemoryIndex inlined into _FileEngine
         idx: SqliteMemoryIndex = storage.index_db
         rows = await idx.search(filters={"id": "mem_consistency_02"}, limit=1)
         assert len(rows) == 0, "SQLite layer not purged"
@@ -712,9 +733,11 @@ class TestPhase12EventDrivenExtraction:
 
         # 1. Seed DB with 4+ messages (minimum for extraction gate)
         from app.models.conversation import Message
-        from app.infrastructure.database.sql.database import session_scope
+        from app.infrastructure.database.resource_manager import db_resource_manager
         import uuid
-        async with session_scope() as session:
+
+        session = db_resource_manager.session_factory()
+        async with session:
             for i in range(5):
                 msg = Message(
                     id=str(uuid.uuid4()),
@@ -726,6 +749,7 @@ class TestPhase12EventDrivenExtraction:
                     is_visible=True,
                 )
                 session.add(msg)
+            await session.commit()
 
         # 2. Mock LLM extraction to avoid real LLM calls
         from app.core.memory.auto_extraction import AutoMemoryExtractor
@@ -746,10 +770,10 @@ class TestPhase12EventDrivenExtraction:
 
         # 3. Set up event handler
         from app.core.engine.event.schemas import AgentRunCompletedEvent
-        from app.core.memory.event.subscribers import MemoryLifecycleHandler
+        from app.core.memory.event.subscribers import MemoryLifecycleSubscriber
         from unittest.mock import patch
 
-        handler = MemoryLifecycleHandler()
+        handler = MemoryLifecycleSubscriber()
 
         event = AgentRunCompletedEvent(
             thread_id=thread_id,
@@ -791,9 +815,10 @@ class TestPhase12EventDrivenExtraction:
 
         # Seed messages
         from app.models.conversation import Message
-        from app.infrastructure.database.sql.database import session_scope
+        from app.infrastructure.database.resource_manager import db_resource_manager
         import uuid
-        async with session_scope() as session:
+        session = db_resource_manager.session_factory()
+        async with session:
             for i in range(5):
                 msg = Message(
                     id=str(uuid.uuid4()),
@@ -805,6 +830,7 @@ class TestPhase12EventDrivenExtraction:
                     is_visible=True,
                 )
                 session.add(msg)
+            await session.commit()
 
         # Mock extraction
         from app.core.memory.auto_extraction import AutoMemoryExtractor
@@ -823,12 +849,12 @@ class TestPhase12EventDrivenExtraction:
             return [entry]
 
         from app.core.engine.event.schemas import AgentRunCompletedEvent
-        from app.core.memory.event.subscribers import MemoryLifecycleHandler
+        from app.core.memory.event.subscribers import MemoryLifecycleSubscriber
         from app.core.events import system_bus
         from app.core.events.decorators import register_instance_handlers
         from unittest.mock import patch
 
-        handler = MemoryLifecycleHandler()
+        handler = MemoryLifecycleSubscriber()
         register_instance_handlers(handler, system_bus)
 
         event = AgentRunCompletedEvent(

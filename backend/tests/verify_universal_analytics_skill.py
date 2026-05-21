@@ -43,7 +43,7 @@ async def run_verification():
         
         project_id = 99
         thread_id = f"analytics-test-{uuid.uuid4().hex[:6]}"
-        target_file = "/Users/huangjinhuan/项目/develop-assistant.cn/抖音本地样本数据.xlsx"
+        target_file = "/Users/xujin/Projects/develop-assistant.cn/抖音本地样本数据.xlsx"
         
         user_input = (
             f"分析文件 {target_file}，"

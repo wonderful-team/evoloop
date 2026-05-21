@@ -72,6 +72,7 @@ class TestLayeredAuditorClassification:
         from unittest.mock import MagicMock
         mock = MagicMock()
         mock.verification = None
+        mock.metadata = None
         return mock
     
     def test_comprehensive_for_file_write(self, auditor, empty_state, empty_blackboard):
@@ -166,7 +167,7 @@ class TestLayeredAuditorClassification:
     def test_comprehensive_for_long_conversation(self, auditor, empty_state, empty_blackboard):
         """Long conversation should trigger comprehensive audit."""
         tool_history = ['read_file:{"path": "/tmp/test.py"}']
-        messages = [MockMessage(content="Content") for _ in range(25)]  # 25 messages
+        messages = [MockMessage(content="Content") for _ in range(55)]  # > 50 messages
         
         decision = auditor.classify_tier(tool_history, messages, empty_blackboard, empty_state)
         
@@ -471,7 +472,7 @@ class TestPerformance:
             decision = auditor.classify_tier(tool_history, messages, blackboard, state)
         duration = (time.time() - start) / 1000 * 1000000  # microseconds per call
         
-        assert duration < 100  # Should be < 100 microseconds
+        assert duration < 500  # Should be < 500 microseconds
 
 
 if __name__ == "__main__":

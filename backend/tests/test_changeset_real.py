@@ -27,7 +27,7 @@ async def initialize_system():
     await db_resource_manager.initialize(create_tables=True)
     await MemoryLifespanManager.ainitialize()
     
-    from app.core.memory.backends.vector_index import VectorMemoryIndex
+    from app.infrastructure.database.vector import get_vector_store
     patcher = patch.object(VectorMemoryIndex, "search", return_value=[])
     patcher.start()
     

@@ -30,7 +30,7 @@ for noisy in [
     "app.domain.project.service",
     "app.core.vision.pipeline.manager",
     "app.infrastructure.embeddings.factory",
-    "app.core.memory.backends.file_backend",
+    "app.core.memory.store",
     "app.core.context.cache",
 ]:
     logging.getLogger(noisy).setLevel(logging.ERROR)

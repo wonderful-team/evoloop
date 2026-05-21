@@ -34,6 +34,23 @@ class PrivacyLevel(str, Enum):
     TEAM = 'team'
 
 
+# Restore real vector store (conftest.py mocks it for unit tests)
+import app.infrastructure.database.vector as _vector_mod
+from app.infrastructure.database.vector.lancedb_store import LanceVectorStore
+import app.core.memory.store as _store_mod
+
+# Need a real get_vector_store that works
+def _real_get_vector_store():
+    if _vector_mod._vector_store is not None:
+        return _vector_mod._vector_store
+    _vector_mod._vector_store = LanceVectorStore()
+    return _vector_mod._vector_store
+
+_vector_mod._vector_store = None
+_vector_mod.get_vector_store = _real_get_vector_store
+_store_mod.get_vector_store = _real_get_vector_store
+
+
 print("=" * 60)
 print("EvoLoop Memory System Test Suite")
 print("=" * 60)
@@ -42,7 +59,7 @@ print("=" * 60)
 print("\n[1/8] Testing imports...")
 try:
     from app.core.memory.models import MemoryEntry, MemoryType as MT, PrivacyLevel as PL
-    from app.core.memory.backends.file_backend import FileMemoryStorage
+    from app.core.memory.store import MemoryStore
     from app.core.memory.interfaces.long_term import Concept, Episode
     print("✅ All imports successful")
 except Exception as e:
@@ -83,13 +100,13 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
-# Test 3: FileMemoryStorage
-print("\n[3/8] Testing FileMemoryStorage...")
+# Test 3: MemoryStore
+print("\n[3/8] Testing MemoryStore...")
 
 async def test_storage():
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
-            storage = FileMemoryStorage(tmpdir)
+            storage = MemoryStore(tmpdir)
             
             # Test save
             entry = MemoryEntry(
@@ -178,7 +195,7 @@ def test_adapters():
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create storage
-            storage = FileMemoryStorage(tmpdir)
+            storage = MemoryStore(tmpdir)
             
             # Test the new interface directly
             async def run_tests():
@@ -225,7 +242,7 @@ print("\n[6/8] Testing Preference adapter...")
 async def test_prefs():
     """Test preference save and search."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        storage = FileMemoryStorage(tmpdir)
+        storage = MemoryStore(tmpdir)
         
         # Simulate setting a preference
         entry = MemoryEntry(
@@ -264,7 +281,7 @@ print("\n[7/8] Testing LongTerm adapter...")
 async def test_longterm():
     """Test long-term concept storage."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        storage = FileMemoryStorage(tmpdir)
+        storage = MemoryStore(tmpdir)
         
         # Test store_concept simulation
         concept = Concept(
