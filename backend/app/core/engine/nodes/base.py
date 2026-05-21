@@ -218,6 +218,7 @@ class BaseAgentNode(BaseNode, ABC):
                             _serialize_signal(s)
                             for s in engine_result.queued_signals
                         ]
+                        bb.signal_queue_total = len(bb.pending_signals)
                         dispatch_result.blackboard = bb
                         logger.info(
                             f"[{self.node_name}] 📥 Queued {len(engine_result.queued_signals)} signals "

@@ -137,6 +137,12 @@ class SupervisorNode(BaseAgentNode):
 
                     bb_update.pending_signals = remaining
                     dispatch_result.blackboard = bb_update
+
+                    # Proactive DB Plan Step sync: advance step status on each
+                    # signal consume so the DB plan stays in sync with the
+                    # actual signal queue progress.
+                    await self._sync_db_plan_step_on_signal_consume(state, config)
+
                     logger.info(
                         f"[Supervisor] 🚦 Consuming queued signal → {signal.target} "
                         f"| remaining_queue={len(remaining)}"
@@ -200,6 +206,14 @@ class SupervisorNode(BaseAgentNode):
                     )
 
                 # Fallback 2: query DB for plan steps not completed
+                # Anti-loop: if signal_queue_total > 0 and pending_signals is
+                # empty, ALL queued signals have been consumed successfully.
+                # In that case, stale DB PlanSteps are an artifact of the signal
+                # queue bypassing update_step_status — auto-complete them.
+                signals_fully_consumed = (
+                    getattr(blackboard, 'signal_queue_total', 0) > 0
+                    and not getattr(blackboard, 'pending_signals', None)
+                )
                 try:
                     from app.models.planning import Plan as DBPlan, PlanStep as DBPlanStep
                     thread_id = state.thread_id or config.get("configurable", {}).get("thread_id")
@@ -216,12 +230,34 @@ class SupervisorNode(BaseAgentNode):
                                 result_steps = await session.execute(stmt_steps)
                                 pending_db_steps = result_steps.scalars().all()
                                 if pending_db_steps:
-                                    logger.info(f"[Supervisor] ⚠️ Worker reports success but DB plan has {len(pending_db_steps)} pending steps. Routing back to WORKER.")
-                                    return StateUpdate(
-                                        next_node=RoutingTarget.WORKER,
-                                        blackboard=blackboard,
-                                        iteration_count=(state.iteration_count or 0) + 1
-                                    )
+                                    if signals_fully_consumed:
+                                        # All queued signals consumed + Worker success
+                                        # → DB steps are stale; auto-complete to
+                                        #   prevent infinite routing loop.
+                                        for step in pending_db_steps:
+                                            step.status = "completed"
+                                            step.result = (
+                                                "Auto-completed: all queued routing "
+                                                "signals consumed and Worker reported "
+                                                "success."
+                                            )
+                                        logger.info(
+                                            f"[Supervisor] ✅ Auto-completing "
+                                            f"{len(pending_db_steps)} stale DB plan "
+                                            f"steps (signal queue fully drained)."
+                                        )
+                                        # Fall through to FINISH
+                                    else:
+                                        logger.info(
+                                            f"[Supervisor] ⚠️ Worker reports success "
+                                            f"but DB plan has {len(pending_db_steps)} "
+                                            f"pending steps. Routing back to WORKER."
+                                        )
+                                        return StateUpdate(
+                                            next_node=RoutingTarget.WORKER,
+                                            blackboard=blackboard,
+                                            iteration_count=(state.iteration_count or 0) + 1
+                                        )
                 except Exception as e:
                     logger.debug(f"[Supervisor] DB plan check skipped: {e}")
                 logger.info("[Supervisor] ✅ Task complete. Routing to FINISH.")
@@ -379,6 +415,63 @@ class SupervisorNode(BaseAgentNode):
             blackboard=blackboard,
             iteration_count=new_iter_count
         )
+
+    async def _sync_db_plan_step_on_signal_consume(
+        self, state: AgentState, config: RunnableConfig
+    ) -> None:
+        """Proactively sync DB PlanStep status when a queued signal is consumed.
+
+        Each time a signal is drained from pending_signals, the *previous*
+        Worker run has just completed successfully. This method:
+        1. Marks the first ``in_progress`` DB step as ``completed``.
+        2. Marks the next ``pending`` DB step as ``in_progress``.
+
+        This keeps the DB plan in lockstep with the signal queue, preventing
+        the post-queue DB check from detecting stale ``pending`` steps and
+        triggering an infinite routing loop back to Worker.
+        """
+        try:
+            from app.models.planning import Plan as DBPlan, PlanStep as DBPlanStep
+
+            thread_id = state.thread_id or config.get("configurable", {}).get("thread_id")
+            if not thread_id:
+                return
+
+            async with session_scope() as session:
+                stmt = select(DBPlan).where(
+                    DBPlan.thread_id == thread_id, DBPlan.status == "active"
+                )
+                result = await session.execute(stmt)
+                db_plan = result.scalar_one_or_none()
+                if not db_plan:
+                    return
+
+                stmt_steps = (
+                    select(DBPlanStep)
+                    .where(DBPlanStep.plan_id == db_plan.id)
+                    .order_by(DBPlanStep.order)
+                )
+                result_steps = await session.execute(stmt_steps)
+                steps = result_steps.scalars().all()
+
+                # 1. Complete the current in_progress step
+                for step in steps:
+                    if step.status == "in_progress":
+                        step.status = "completed"
+                        step.result = "Completed via signal queue dispatch."
+                        break
+
+                # 2. Advance: mark next pending step as in_progress
+                for step in steps:
+                    if step.status in ("pending",):
+                        step.status = "in_progress"
+                        break
+
+                logger.debug(
+                    "[Supervisor] 📋 DB plan step synced on signal consume"
+                )
+        except Exception as e:
+            logger.debug(f"[Supervisor] DB plan step sync skipped: {e}")
 
     async def _emit_status(self, config: RunnableConfig, status: str):
         """Emit status update via activity_monitor."""

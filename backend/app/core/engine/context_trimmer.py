@@ -30,18 +30,18 @@ logger = logging.getLogger(__name__)
 
 # Node budget ratios: fraction of model context window allocated per node type
 NODE_BUDGET_RATIOS: dict[str, float] = {
-    "supervisor": 0.25,   # Routing decisions need less history
-    "worker": 0.60,       # Execution needs more context for long-horizon tasks
-    "finish": 0.75,       # Summary needs maximum history
-    "chat": 0.55,         # Conversation needs more turns
-    "default": 0.40,
+    "supervisor": 0.30,   # Routing decisions need less history
+    "worker": 0.85,       # Execution needs more context for long-horizon tasks
+    "finish": 0.80,       # Summary needs maximum history
+    "chat": 0.80,         # Conversation needs more turns
+    "default": 0.60,
 }
 
 # Trigger trimming when token usage exceeds this fraction of budget
 TRIM_THRESHOLD_RATIO = 0.70
 
 # Hard limit: never exceed this fraction of model context (reserve for output)
-HARD_LIMIT_RATIO = 0.90
+HARD_LIMIT_RATIO = 0.95
 
 # Layer proportions within effective budget
 LAYER_RECENT_RATIO = 0.50   # Layer 1: full retention
@@ -413,7 +413,19 @@ class ContextTrimmer:
                         middle_messages.insert(0, msg)
                         middle_tokens += msg_tokens
                         middle_idx = i
-                # Non-forgotten ToolMessages are dropped in middle layer
+                else:
+                    # Index replacement for non-forgotten ToolMessages
+                    placeholder = ToolMessage(
+                        content=f"[TRIMMED: Tool output removed due to context window limits. Call 'recall' or 'list_forgotten_outputs' if this was critical.]",
+                        tool_call_id=msg.tool_call_id,
+                        name=msg.name,
+                        additional_kwargs={"is_summarized": True}
+                    )
+                    ph_tokens = estimate_message_tokens(placeholder)
+                    if middle_tokens + ph_tokens <= middle_budget:
+                        middle_messages.insert(0, placeholder)
+                        middle_tokens += ph_tokens
+                        middle_idx = i
 
             elif isinstance(msg, SystemMessage):
                 # System messages in middle: skip (prompt cache handles them)
@@ -453,11 +465,17 @@ class ContextTrimmer:
                 f"[TokenWindow] Hard limit exceeded ({total_tokens}/{hard_limit}), "
                 f"aggressive pruning"
             )
-            # Aggressive: drop non-forgotten ToolMessages first
-            pruned = [
-                m for m in result
-                if not (isinstance(m, ToolMessage) and not m.additional_kwargs.get("forgotten"))
-            ]
+            pruned = []
+            for m in result:
+                if isinstance(m, ToolMessage) and not m.additional_kwargs.get("forgotten"):
+                    pruned.append(ToolMessage(
+                        content="[TRIMMED: Tool output removed due to context limit. Call 'recall' or 'list_forgotten_outputs' if this was critical.]",
+                        tool_call_id=m.tool_call_id,
+                        name=m.name,
+                        additional_kwargs={"is_summarized": True}
+                    ))
+                else:
+                    pruned.append(m)
             if count_total_tokens(pruned) <= hard_limit:
                 result = pruned
             else:

@@ -238,6 +238,18 @@ class BlackboardState(DynamicBaseModel):
         default_factory=list,
         json_schema_extra={"merge_policy": MergePolicy.REPLACE},
     )
+    # Original size of the signal queue when it was first populated.
+    # 0 means signals were never queued; > 0 means the queue mechanism was used.
+    # Used by Supervisor to detect "all signals consumed" vs "never queued" and
+    # auto-complete stale DB PlanSteps to prevent infinite routing loops.
+    signal_queue_total: int = Field(
+        default=0,
+        json_schema_extra={"merge_policy": MergePolicy.REPLACE},
+    )
+    shared_context: dict[str, str] = Field(
+        default_factory=dict,
+        json_schema_extra={"merge_policy": MergePolicy.MERGE_DICT},
+    )
 
 
 def _resolve_field_policy(field_name: str, field_info: Any) -> tuple[MergePolicy, str | None]:
@@ -285,12 +297,26 @@ def merge_blackboard(old: Any, new: Any) -> BlackboardState | None:
             setattr(merged, field_name, merged_list)
         elif policy == MergePolicy.MERGE_DICT:
             old_meta = getattr(merged, field_name, None)
-            old_dict = old_meta.model_dump() if old_meta is not None else {}
-            new_dict = new_val.model_dump() if new_val is not None else {}
+            old_dict = old_meta.model_dump() if hasattr(old_meta, "model_dump") else (old_meta if isinstance(old_meta, dict) else {})
+            new_dict = new_val.model_dump() if hasattr(new_val, "model_dump") else (new_val if isinstance(new_val, dict) else {})
             # Only overwrite with non-None new values to avoid wiping existing state
             merged_dict = {**old_dict, **{k: v for k, v in new_dict.items() if v is not None}}
-            field_type = type(old_meta) if old_meta is not None else type(new_val)
-            setattr(merged, field_name, field_type.model_validate(merged_dict))
+            
+            cls_to_use = None
+            if hasattr(old_meta, "model_validate"):
+                cls_to_use = type(old_meta)
+            elif hasattr(new_val, "model_validate"):
+                cls_to_use = type(new_val)
+            else:
+                # Fallback to field annotation
+                field_info = merged.model_fields.get(field_name)
+                if field_info:
+                    cls_to_use = field_info.annotation
+                    
+            if cls_to_use and hasattr(cls_to_use, "model_validate"):
+                setattr(merged, field_name, cls_to_use.model_validate(merged_dict))
+            else:
+                setattr(merged, field_name, merged_dict)
         elif policy == MergePolicy.DEDUP_APPEND:
             if not new_val:
                 setattr(merged, field_name, new_val)

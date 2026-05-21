@@ -24,7 +24,43 @@ logger = logging.getLogger(__name__)
 
 
 # ========================================================================
-# 1. Long-term Memory Tools (Remember/Recall)
+# 1. Inter-Worker Handover Tools
+# ========================================================================
+
+@evoloop_tool(
+    is_state_mutating=True,
+    summary_template="evoloop.tool_summary.write_handover_notes"
+)
+async def write_handover_notes(notes: str, key: str = "general") -> str:
+    """
+    Leave critical handover notes (like API contracts, architecture decisions)
+    for the next agent/worker to read. This is a short-term memory explicitly 
+    passed to subsequent tasks in this workflow.
+
+    Use this when you have finished designing an interface, API, or component,
+    and you know a future step will need to consume it.
+
+    Args:
+        notes: The critical information to pass on.
+        key: Category or name of the component (e.g., "PTEExam_API").
+    """
+    try:
+        ctx = ContextManager.current()
+        if ctx and ctx.metadata.blackboard:
+            shared = ctx.metadata.blackboard.shared_context
+            shared[key] = notes
+            # Trigger state persistence via blackboard mutation
+            ctx.metadata.blackboard.shared_context = shared
+            logger.info(f"[MemoryTool] Wrote handover notes for key: {key}")
+            return f"Successfully saved handover notes under key '{key}'."
+        return "Error: Blackboard context not available."
+    except Exception as e:
+        logger.error(f"[MemoryTool] Failed to write handover notes: {e}")
+        return f"Failed to write handover notes: {str(e)}"
+
+
+# ========================================================================
+# 2. Long-term Memory Tools (Remember/Recall)
 # ========================================================================
 
 @evoloop_tool(

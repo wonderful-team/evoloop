@@ -23,15 +23,15 @@ from dataclasses import dataclass, field
 from typing import Any
 
 # Ensure backend is importable
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 # ──────────────────────────────────────────────────────────────
 # FIXED TEST PARAMETERS
 # ──────────────────────────────────────────────────────────────
 TEST_PROJECT_ID = 99
 TEST_PROJECT_PATH = "/Users/huangjinhuan/项目/testProjects/software-ecommerce"
-TEST_TIMEOUT = 3600
-TEST_LOG_FILE = "/tmp/code_dev_e2e_test.log"
+TEST_TIMEOUT = 10800
+TEST_LOG_FILE = os.path.join(os.path.dirname(__file__), "code_dev_e2e_test.log")
 
 # ──────────────────────────────────────────────────────────────
 # Logging setup: write to stdout only (caller redirects to file)
@@ -166,10 +166,14 @@ def _parse_metrics_from_log(log_path: str) -> ExecutionMetrics:
 
 
 def _pre_test_cleanup():
+    try:
+        os.makedirs(os.path.dirname(TEST_LOG_FILE), exist_ok=True)
+    except Exception:
+        pass
+    
     if os.path.exists(TEST_LOG_FILE):
         os.remove(TEST_LOG_FILE)
         logger.info(f"[Test] Removed old log: {TEST_LOG_FILE}")
-    os.makedirs(os.path.dirname(TEST_LOG_FILE), exist_ok=True)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -276,8 +280,7 @@ async def _run_code_agent(project_id: int, project_path: str, skill, timeout: in
         message_content=message,
         project_id=project_id,
         goal_prefix="[FullStack PTE Dev] ",
-        skip_message_persistence=True,
-        model="kimi-k2-thinking-turbo"
+        skip_message_persistence=True
     )
 
     if result.status == "failed":
@@ -325,9 +328,13 @@ async def _run_code_agent(project_id: int, project_path: str, skill, timeout: in
 
 
 async def main():
+    _pre_test_cleanup()
     parser = argparse.ArgumentParser(description="Code Development Lifecycle Test (FullStack PTE)")
     parser.add_argument("--timeout", type=int, default=TEST_TIMEOUT, help="Agent timeout in seconds")
     args = parser.parse_args()
+
+    sys.stdout = open(TEST_LOG_FILE, "w", buffering=1)
+    sys.stderr = sys.stdout
 
     timeout = args.timeout
 
@@ -339,8 +346,6 @@ async def main():
     logger.info(f"Timeout:        {timeout}s")
     logger.info(f"Log File:       {TEST_LOG_FILE}")
     logger.info("")
-
-    _pre_test_cleanup()
 
     try:
         await _init_backend()

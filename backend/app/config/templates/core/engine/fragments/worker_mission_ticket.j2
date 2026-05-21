@@ -159,8 +159,15 @@ The Supervisor has provided background information from previous conversation:
 {%- endif %}
 {%- endif %}
 
-{%- if blackboard.subtask_results is defined or blackboard.metadata is defined %}
+{%- if blackboard.subtask_results is defined or blackboard.metadata is defined or (blackboard.shared_context and blackboard.shared_context|length > 0) %}
 ## Session State
+{%- if blackboard.shared_context and blackboard.shared_context|length > 0 %}
+### 📝 Inter-Worker Handover Notes (Shared Context)
+The following critical notes were left by previous workers/subtasks for you to consume:
+{% for key, notes in blackboard.shared_context.items() -%}
+- **{{ key }}**: {{ notes }}
+{% endfor %}
+{%- endif %}
 {%- if blackboard.subtask_results %}
 - **Subtasks Done**: {{ blackboard.subtask_results|length }}
 {%- endif %}

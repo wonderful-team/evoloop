@@ -50,6 +50,7 @@ nodes:
       - "forget_tool_outputs"
       - "recall_tool_output"
       - "list_forgotten_outputs"
+      - "write_handover_notes"
       # Knowledge & Memory (Simple remember/recall)
       - "remember"
       - "recall"

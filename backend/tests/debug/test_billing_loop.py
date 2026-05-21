@@ -113,8 +113,8 @@ async def run_test():
         logger.info(f"Before Test - Quota Info: {r}")
         before_quota = r.get('quota', 0)
         before_used = r.get('quota_used', 0)
-        before_remains = before_quota - before_used
-        logger.info(f"Before Test - Remaining Quota: {before_remains}")
+        before_remains = before_quota
+        logger.info(f"Before Test - Quota(remaining): {before_quota}, Used: {before_used}")
     except Exception as e:
         logger.error(f"Request failed: {e}")
         return
@@ -154,10 +154,10 @@ async def run_test():
         
         after_quota = r3.get('quota', 0)
         after_used = r3.get('quota_used', 0)
-        after_remains = after_quota - after_used
+        after_remains = after_quota
         
         logger.info(f"After Test - Quota Info: {r3}")
-        logger.info(f"After Test - Remaining Quota: {after_remains}")
+        logger.info(f"After Test - Quota(remaining): {after_quota}, Used: {after_used}")
         
         diff = before_remains - after_remains
         if diff > 0:
