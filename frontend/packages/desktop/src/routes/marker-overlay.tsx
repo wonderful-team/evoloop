@@ -7,8 +7,19 @@ import { getCurrentWindow, LogicalSize, LogicalPosition } from "@tauri-apps/api/
 import { motion, AnimatePresence } from "framer-motion";
 import { LearningService } from "@/client/sdk.gen";
 
+import { isTauri } from "@/lib/tauri";
+
 export const Route = createFileRoute("/marker-overlay")({
-    component: MarkerOverlay,
+    component: () => {
+        if (!isTauri()) {
+            return (
+                <div className="flex items-center justify-center h-screen text-muted-foreground">
+                    Marker overlay is only available in the desktop app.
+                </div>
+            );
+        }
+        return <MarkerOverlay />;
+    },
 });
 
 interface ExtractRegion {

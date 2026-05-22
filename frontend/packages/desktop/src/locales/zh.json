@@ -1422,6 +1422,7 @@
     "general": {
       "browse": "浏览",
       "browseError": "打开目录选择器失败",
+      "webBrowseHint": "文件夹选择器仅在桌面客户端中可用。如果在Web环境，请手动输入绝对路径。",
       "description": "配置全局系统偏好设置和路径。",
       "deviceName": "设备名称",
       "deviceNameDesc": "此名称用于在 EvoLoop 网络中标识此设备。",
@@ -1440,8 +1441,8 @@
       "selectLanguageDesc": "选择您偏好的界面语言。",
       "success": "设置保存成功",
       "title": "常规设置",
-      "workspaceRoot": "工作区根目录",
-      "workspaceRootDesc": "项目操作的工作区目录。",
+      "workspaceRoot": "工作空间路径",
+      "workspaceRootDesc": "统一工作空间，该路径下的各个子目录将被自动识别为独立的项目。",
       "workspaceRootPlaceholder": "/path/to/workspace"
     },
     "intro": "管理您的账户和 EvoLoop 配置。",
@@ -1941,14 +1942,15 @@
     "projects": {
       "browse": "浏览",
       "browseError": "无法打开目录选择器",
-      "info1": "扫描目录下的代码项目",
-      "info2": "建立知识索引以提供智能帮助",
+      "webBrowseHint": "文件夹选择器仅在桌面客户端中可用。如果在Web环境，请手动输入绝对路径。",
+      "info1": "扫描该目录下的各个子目录作为独立项目",
+      "info2": "建立项目的知识索引以提供智能帮助",
       "info3": "所有数据保留在本地，不会上传",
       "infoTitle": "EvoLoop 会做什么？",
-      "label": "项目根目录",
-      "subtitle": "选择您存放代码项目的根目录，EvoLoop 将扫描并索引其中的项目。",
+      "label": "工作空间",
+      "subtitle": "选择统一工作空间，该路径下的各个子目录将被自动识别为不同的项目。",
       "suggestions": "常用路径",
-      "title": "设置项目目录"
+      "title": "设置工作空间"
     },
     "saveError": "保存失败",
     "saveSuccess": "配置已保存",

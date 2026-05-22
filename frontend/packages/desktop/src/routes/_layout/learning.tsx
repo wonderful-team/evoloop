@@ -11,6 +11,7 @@ import { McpView } from "@/components/Learning/McpView"
 import { RecordingButton } from "@/components/Chat/RecordingButton"
 import { useRecordingStore } from "@/stores/recordingStore"
 import { MultimodalSynthesizeDialog } from "@/components/Learning/MultimodalSynthesizeDialog"
+import { isTauri } from "@/lib/tauri"
 
 export const Route = createFileRoute("/_layout/learning")({
     component: LearningPage,
@@ -102,12 +103,14 @@ function LearningPage() {
                     </p>
                 </div>
 
-                <div className="flex items-center gap-2 bg-muted/30 p-1.5 rounded-xl border border-border">
-                    <span className="text-xs font-medium text-muted-foreground px-2">
-                        {t("learning.quickStart")}:
-                    </span>
-                    <RecordingButton threadId="global" />
-                </div>
+                {isTauri() && (
+                    <div className="flex items-center gap-2 bg-muted/30 p-1.5 rounded-xl border border-border">
+                        <span className="text-xs font-medium text-muted-foreground px-2">
+                            {t("learning.quickStart")}:
+                        </span>
+                        <RecordingButton threadId="global" />
+                    </div>
+                )}
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab as any} className="w-full h-full flex flex-col overflow-hidden">
@@ -116,10 +119,12 @@ function LearningPage() {
                         <BookOpen className="h-3.5 w-3.5" />
                         {t("learning.tabs.library")}
                     </TabsTrigger>
-                    <TabsTrigger value="recording" className="rounded-md px-6 gap-2 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all text-left">
-                        <Sparkles className="h-3.5 w-3.5" />
-                        {t("learning.tabs.recording")}
-                    </TabsTrigger>
+                    {isTauri() && (
+                        <TabsTrigger value="recording" className="rounded-md px-6 gap-2 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all text-left">
+                            <Sparkles className="h-3.5 w-3.5" />
+                            {t("learning.tabs.recording")}
+                        </TabsTrigger>
+                    )}
                     <TabsTrigger value="mcp" className="rounded-md px-6 gap-2 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all text-left">
                         <Server className="h-3.5 w-3.5" />
                         {t("learning.tabs.mcpServers")}

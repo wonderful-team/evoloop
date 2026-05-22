@@ -9,10 +9,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { LearningService } from "@/client/sdk.gen"
 import type { DomEventData } from "@/client/types.gen"
 import { useRecordingStore } from "@/stores/recordingStore"
+import { isTauri } from "@/lib/tauri"
 
 declare global {
   interface Window {
     __TAURI__?: Record<string, unknown>
+    __TAURI_INTERNALS__?: Record<string, unknown>
   }
 }
 
@@ -319,7 +321,7 @@ export function useActionRecorder(
 
       // Capture screenshot via Tauri if available
       try {
-        if (window.__TAURI__) {
+        if (isTauri()) {
           const { invoke } = await import("@tauri-apps/api/core")
           screenshotBase64 = await invoke<string>("capture_screenshot")
         }

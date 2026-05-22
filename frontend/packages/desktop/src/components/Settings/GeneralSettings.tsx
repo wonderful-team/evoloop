@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Checkbox } from "@evoloop/shared/components/ui/checkbox"
 import { useQueryClient } from "@tanstack/react-query"
-import { open } from "@tauri-apps/plugin-dialog"
+import { isTauri } from "@/lib/tauri"
 import { PlayCircle, Monitor, Save, Languages } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
@@ -140,7 +140,12 @@ export default function GeneralSettings() {
   }, [registerSaveHandler, unregisterSaveHandler, registerResetHandler, form])
 
   const handleBrowse = async () => {
+    if (!isTauri()) {
+      toast.info(t("settings.general.webBrowseHint"))
+      return
+    }
     try {
+      const { open } = await import("@tauri-apps/plugin-dialog")
       const selected = await open({
         directory: true,
         multiple: false,
@@ -252,6 +257,8 @@ export default function GeneralSettings() {
                       variant="outline"
                       className="h-10 shrink-0"
                       onClick={handleBrowse}
+                      disabled={!isTauri()}
+                      title={!isTauri() ? t("settings.general.webBrowseHint") : ""}
                     >
                       {t("settings.general.browse")}
                     </Button>

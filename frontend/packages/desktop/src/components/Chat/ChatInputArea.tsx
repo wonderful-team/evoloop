@@ -17,6 +17,7 @@ import { useTauriVoiceShortcut, useTauriVoiceShortcutSettings } from "@/hooks/us
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@evoloop/shared/components/ui/tooltip"
 import { Separator } from "@evoloop/shared/components/ui/separator"
 import { useChatStore } from "@/stores/chatStore"
+import { isTauri } from "@/lib/tauri"
 import axios from "axios"
 
 interface ChatInputAreaProps {
@@ -542,12 +543,14 @@ export const ChatInputArea = memo(
                     </Button>
                   }
                 />
-                <div className="h-8 flex items-center justify-center">
-                  <RecordingButton
-                    threadId={activeThreadId ?? ""}
-                    enabled={true}
-                  />
-                </div>
+                {isTauri() && (
+                  <div className="h-8 flex items-center justify-center">
+                    <RecordingButton
+                      threadId={activeThreadId ?? ""}
+                      enabled={true}
+                    />
+                  </div>
+                )}
                 {/* Model Selector */}
                 <ModelSelectorWrapper isSending={isSending} />
               </div>

@@ -189,14 +189,20 @@ export function LLMConfigStep() {
             onValueChange={handleModelSelect}
             disabled={isLoadingModels}
           >
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue
                 placeholder={
                   isLoadingModels
                     ? t("common.loading")
                     : t("wizard.llm.selectModelPlaceholder")
                 }
-              />
+              >
+                {selectedModelId === "custom" ? (
+                  <span>{t("settings.llm.custom")}</span>
+                ) : selectedPreset ? (
+                  <span>{selectedPreset.name}</span>
+                ) : undefined}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {presetModels.map((model) => (

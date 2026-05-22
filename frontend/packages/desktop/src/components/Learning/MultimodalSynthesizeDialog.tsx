@@ -2,8 +2,7 @@ import { Loader2, Sparkles, Info, Settings2, FileVideo, ExternalLink, Trash2, Al
 import { useState, useCallback, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { openPath } from "@tauri-apps/plugin-opener"
-import { remove, exists } from "@tauri-apps/plugin-fs"
+import { isTauri } from "@/lib/tauri"
 import { useMultimodalSynthesis, type SynthesisResult } from "@/hooks"
 import { useRecordingStore } from "@/stores/recordingStore"
 import { LearningService } from "@/client/sdk.gen"
@@ -85,7 +84,12 @@ export function MultimodalSynthesizeDialog({
                 setVideoExists(null)
                 return
             }
+            if (!isTauri()) {
+                setVideoExists(false)
+                return
+            }
             try {
+                const { exists } = await import("@tauri-apps/plugin-fs")
                 const fileExists = await exists(videoPath)
                 setVideoExists(fileExists)
                 console.log(`[MultimodalSynthesizeDialog] Video file check: ${videoPath} exists=${fileExists}`)
@@ -202,8 +206,9 @@ export function MultimodalSynthesizeDialog({
             }
 
             // 2. Delete local video file using Tauri fs API
-            if (videoPath) {
+            if (videoPath && isTauri()) {
                 try {
+                    const { remove } = await import("@tauri-apps/plugin-fs")
                     await remove(videoPath)
                     console.log("[MultimodalSynthesizeDialog] Deleted video file:", videoPath)
                 } catch (err) {
@@ -243,11 +248,17 @@ export function MultimodalSynthesizeDialog({
             toast.error(t("learning.noVideoPath"))
             return
         }
+        if (!isTauri()) {
+            toast.info(t("learning.webVideoHint", "Video playback is only available in the desktop app."))
+            return
+        }
         try {
             console.log("[MultimodalSynthesizeDialog] Opening video path:", videoPath)
             console.log("[MultimodalSynthesizeDialog] Video exists check:", videoExists)
 
             // First check if file exists
+            const { exists } = await import("@tauri-apps/plugin-fs")
+            const { openPath } = await import("@tauri-apps/plugin-opener")
             const fileExists = await exists(videoPath)
             if (!fileExists) {
                 toast.error(t("learning.videoNotFound") + videoPath)

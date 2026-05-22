@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react"
-import { invoke } from "@tauri-apps/api/core"
+import { safeInvoke, isTauri } from "@/lib/tauri"
 
 // Throttle interval: 10 seconds between permission checks
 const CHECK_THROTTLE_MS = 10000
@@ -21,6 +21,12 @@ export function useAccessibilityPermission() {
             return hasPermission ?? true
         }
 
+        // Skip Tauri-only permission checks in web mode
+        if (!isTauri()) {
+            setHasPermission(true)
+            return true
+        }
+
         // Throttle checks unless forced
         const now = Date.now()
         if (!force && now - lastCheckTime.current < CHECK_THROTTLE_MS) {
@@ -31,7 +37,7 @@ export function useAccessibilityPermission() {
         setIsChecking(true)
         try {
             lastCheckTime.current = now
-            const result = await invoke<boolean>("check_accessibility_permission")
+            const result = await safeInvoke<boolean>("check_accessibility_permission")
             console.log("[useAccessibilityPermission] checkPermission result:", result)
 
             // Only update state if result is stable or forced
@@ -62,9 +68,9 @@ export function useAccessibilityPermission() {
     }, [hasPermission, isChecking])
 
     const requestPermission = useCallback(async () => {
-        if (!window.__TAURI__) return
+        if (!isTauri()) return
         try {
-            await invoke("open_accessibility_settings")
+            await safeInvoke("open_accessibility_settings")
             // Reset failure count when user opens settings
             consecutiveFalseCount.current = 0
             // Re-check after a delay (user needs time to grant permission)

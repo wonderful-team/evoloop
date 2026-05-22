@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react"
-import { invoke } from "@tauri-apps/api/core"
+import { safeInvoke, isTauri } from "@/lib/tauri"
 
 // Throttle interval: 10 seconds between permission checks (reduced from 30s)
 const CHECK_THROTTLE_MS = 10000
@@ -21,6 +21,12 @@ export function useScreenRecordingPermission() {
             return hasPermission ?? true
         }
 
+        // Skip Tauri-only permission checks in web mode
+        if (!isTauri()) {
+            setHasPermission(true)
+            return true
+        }
+
         // Throttle checks unless forced
         const now = Date.now()
         if (!force && now - lastCheckTime.current < CHECK_THROTTLE_MS) {
@@ -31,7 +37,7 @@ export function useScreenRecordingPermission() {
         setIsChecking(true)
         try {
             lastCheckTime.current = now
-            const result = await invoke<boolean>("check_screen_recording_permission")
+            const result = await safeInvoke<boolean>("check_screen_recording_permission")
             console.log("[useScreenRecordingPermission] checkPermission result:", result)
 
             // Only update state if result is stable or forced
@@ -61,9 +67,9 @@ export function useScreenRecordingPermission() {
     }, [hasPermission, isChecking])
 
     const requestPermission = useCallback(async () => {
-        if (!window.__TAURI__) return
+        if (!isTauri()) return
         try {
-            await invoke("open_screen_recording_settings")
+            await safeInvoke("open_screen_recording_settings")
             // Reset failure count when user opens settings
             consecutiveFalseCount.current = 0
             // Re-check after a delay (user needs time to grant permission)

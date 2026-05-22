@@ -5,8 +5,7 @@ import { Button } from "@evoloop/shared/components/ui/button";
 import { useTranslation } from 'react-i18next';
 import { Download, AlertCircle } from 'lucide-react';
 import { toast } from "sonner";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeFile } from "@tauri-apps/plugin-fs";
+import { isTauri } from "@/lib/tauri";
 
 interface EChartsArtifactProps {
   data: {
@@ -144,27 +143,40 @@ export const EChartsArtifact: React.FC<EChartsArtifactProps> = ({ data }) => {
     try {
       const defaultFilename = `${data.title || 'chart'}.png`;
 
-      const filePath = await save({
-        defaultPath: defaultFilename,
-        filters: [{ name: 'Image', extensions: ['png'] }]
-      });
-
-      if (!filePath) return;
-
       const dataUrl = instance.getDataURL({
         type: 'png',
         pixelRatio: 2,
         backgroundColor: isDark ? '#18181b' : '#ffffff',
       });
 
-      const base64Data = dataUrl.split(',')[1];
-      const binaryString = atob(base64Data);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
+      if (isTauri()) {
+        const { save } = await import("@tauri-apps/plugin-dialog")
+        const { writeFile } = await import("@tauri-apps/plugin-fs")
+        const filePath = await save({
+          defaultPath: defaultFilename,
+          filters: [{ name: 'Image', extensions: ['png'] }]
+        });
+
+        if (!filePath) return;
+
+        const base64Data = dataUrl.split(',')[1];
+        const binaryString = atob(base64Data);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        await writeFile(filePath, bytes);
+      } else {
+        // Web fallback: trigger browser download
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = defaultFilename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       }
 
-      await writeFile(filePath, bytes);
       toast.success(t('common.saveSuccess'));
     } catch (e) {
       console.error('Failed to save chart image:', e);

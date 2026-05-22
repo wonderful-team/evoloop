@@ -1,5 +1,5 @@
 import i18n from "@evoloop/shared/i18n"
-import { ask, message } from '@tauri-apps/plugin-dialog'
+import { isTauri } from '@/lib/tauri'
 
 /**
  * 检查麦克风权限状态
@@ -64,10 +64,15 @@ export async function showPermissionGuide(): Promise<void> {
     instructions = i18n.t('permissions.microphone.genericInstructions')
   }
 
-  await message(instructions, {
-    title: i18n.t('permissions.microphone.title'),
-    kind: 'info'
-  })
+  if (isTauri()) {
+    const { message } = await import('@tauri-apps/plugin-dialog')
+    await message(instructions, {
+      title: i18n.t('permissions.microphone.title'),
+      kind: 'info'
+    })
+  } else {
+    window.alert(instructions)
+  }
 }
 
 /**
@@ -90,13 +95,19 @@ export async function ensureMicrophonePermission(): Promise<boolean> {
   }
   
   // 被拒绝，显示引导
-  const shouldShowGuide = await ask(
-    i18n.t('permissions.microphone.denyPrompt'),
-    { 
-      title: i18n.t('permissions.microphone.title'),
-      kind: 'warning' 
-    }
-  )
+  let shouldShowGuide = false
+  if (isTauri()) {
+    const { ask } = await import('@tauri-apps/plugin-dialog')
+    shouldShowGuide = await ask(
+      i18n.t('permissions.microphone.denyPrompt'),
+      {
+        title: i18n.t('permissions.microphone.title'),
+        kind: 'warning'
+      }
+    )
+  } else {
+    shouldShowGuide = window.confirm(i18n.t('permissions.microphone.denyPrompt'))
+  }
   
   if (shouldShowGuide) {
     await showPermissionGuide()

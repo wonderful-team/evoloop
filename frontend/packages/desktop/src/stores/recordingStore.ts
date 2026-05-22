@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import { invoke } from "@tauri-apps/api/core"
+import { safeInvoke, isTauri } from "@/lib/tauri"
 
 interface RecordingState {
     isRecording: boolean
@@ -125,8 +125,9 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
     setDeviceResolution: (res) => set({ deviceResolution: res }),
 
     openMarkerOverlay: async () => {
+        if (!isTauri()) return
         try {
-            const result = await invoke<string>("create_marker_overlay")
+            const result = await safeInvoke<string>("create_marker_overlay")
             console.log("[RecordingStore] Marker overlay:", result)
             set({ isMarkerOverlayOpen: true })
         } catch (err) {
@@ -135,8 +136,9 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
     },
 
     closeMarkerOverlay: async () => {
+        if (!isTauri()) return
         try {
-            const result = await invoke<string>("close_marker_overlay")
+            const result = await safeInvoke<string>("close_marker_overlay")
             console.log("[RecordingStore] Marker overlay:", result)
             set({ isMarkerOverlayOpen: false })
         } catch (err) {
@@ -145,8 +147,9 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
     },
 
     openAndroidMarkerOverlay: async () => {
+        if (!isTauri()) return
         try {
-            const result = await invoke<string>("create_android_marker_overlay")
+            const result = await safeInvoke<string>("create_android_marker_overlay")
             console.log("[RecordingStore] Android marker overlay:", result)
             set({ isAndroidMarkerOverlayOpen: true })
         } catch (err) {
@@ -155,8 +158,9 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
     },
 
     closeAndroidMarkerOverlay: async () => {
+        if (!isTauri()) return
         try {
-            const result = await invoke<string>("close_android_marker_overlay")
+            const result = await safeInvoke<string>("close_android_marker_overlay")
             console.log("[RecordingStore] Android marker overlay:", result)
             set({ isAndroidMarkerOverlayOpen: false })
         } catch (err) {

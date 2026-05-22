@@ -12,6 +12,7 @@ import { useWakeWord, useWakeWordSettings } from '@/hooks/useWakeWord'
 import { useTauriVoiceShortcut, useTauriVoiceShortcutSettings } from '@/hooks/useTauriVoiceShortcut'
 import { useSettings } from './SettingsContext'
 import { TTSSettings } from './TTSSettings'
+import { isTauri as checkIsTauri } from '@/lib/tauri'
 
 export function VoiceControlSettings() {
   const { t } = useTranslation()
@@ -120,7 +121,7 @@ export function VoiceControlSettings() {
     if (!SpeechRecognition) {
       setIsSupported(false)
     }
-    if ((window as any).__TAURI__) {
+    if (checkIsTauri()) {
       setIsTauri(true)
     }
   }, [])

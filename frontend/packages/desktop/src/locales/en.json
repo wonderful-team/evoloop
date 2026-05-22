@@ -1422,6 +1422,7 @@
     "general": {
       "browse": "Browse",
       "browseError": "Failed to open directory selector",
+      "webBrowseHint": "Directory picker is only available in the desktop app. Please type the path manually.",
       "description": "Configure global system preferences and paths.",
       "deviceName": "Device Name",
       "deviceNameDesc": "This name identifies this device in the EvoLoop network.",
@@ -1440,8 +1441,8 @@
       "selectLanguageDesc": "Select your preferred interface language.",
       "success": "Settings saved successfully",
       "title": "General Settings",
-      "workspaceRoot": "Workspace Root Directory",
-      "workspaceRootDesc": "The workspace directory for project operations.",
+      "workspaceRoot": "Workspace",
+      "workspaceRootDesc": "The unified workspace for the Agent. Subdirectories will be recognized as independent projects.",
       "workspaceRootPlaceholder": "/path/to/workspace"
     },
     "intro": "Manage your account and EvoLoop configurations.",
@@ -1941,14 +1942,15 @@
     "projects": {
       "browse": "Browse",
       "browseError": "Failed to open directory selector",
-      "info1": "Scan code projects in this directory",
+      "webBrowseHint": "Directory picker is only available in the desktop app. Please type the path manually.",
+      "info1": "Scan subdirectories in this workspace as individual projects",
       "info2": "Build knowledge index for smart assistance",
       "info3": "All data stays local, nothing uploaded",
       "infoTitle": "What will EvoLoop do?",
-      "label": "Projects Root",
-      "subtitle": "Choose your code projects root directory. EvoLoop will scan and index projects within.",
+      "label": "Workspace",
+      "subtitle": "Choose the root directory for your Agent workspace. Subdirectories within will be automatically recognized as independent projects.",
       "suggestions": "Common paths",
-      "title": "Set Projects Directory"
+      "title": "Set Workspace"
     },
     "saveError": "Failed to save",
     "saveSuccess": "Configuration saved",
