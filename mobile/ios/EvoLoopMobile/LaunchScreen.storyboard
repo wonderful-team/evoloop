@@ -16,28 +16,28 @@
                         <rect key="frame" x="0.0" y="0.0" width="414" height="896"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
-                            <!-- 高清渐变背景 -->
-                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="SplashBackground" translatesAutoresizingMaskIntoConstraints="NO" id="bg-img">
-                                <rect key="frame" x="0.0" y="0.0" width="414" height="896"/>
-                            </imageView>
                             <!-- 居中不拉伸的 LOGO -->
                             <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="SplashScreen" translatesAutoresizingMaskIntoConstraints="NO" id="abc-123-def">
-                                <rect key="frame" x="132" y="373" width="150" height="150"/>
+                                <rect key="frame" x="147" y="368" width="120" height="120"/>
                                 <constraints>
-                                    <constraint firstAttribute="width" constant="150" id="w1"/>
-                                    <constraint firstAttribute="height" constant="150" id="h1"/>
+                                    <constraint firstAttribute="width" constant="120" id="w1"/>
+                                    <constraint firstAttribute="height" constant="120" id="h1"/>
                                 </constraints>
                             </imageView>
+                            <!-- Slogan 文本 -->
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="拥有属于你的 AI 数字员工" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="slogan-lbl">
+                                <rect key="frame" x="107" y="512" width="200" height="18"/>
+                                <fontDescription key="fontDescription" type="system" weight="medium" pointSize="15"/>
+                                <color key="textColor" red="0.29019607843137252" green="0.29019607843137252" blue="0.29019607843137252" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                                <nil key="highlightedColor"/>
+                            </label>
                         </subviews>
-                        <color key="backgroundColor" red="0.050980392156862744" green="0.066666666666666666" blue="0.090196078431372548" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                         <constraints>
-                            <constraint firstItem="bg-img" firstAttribute="top" secondItem="Ze5-6b-2t3" secondAttribute="top" id="c1"/>
-                            <constraint firstItem="bg-img" firstAttribute="leading" secondItem="Ze5-6b-2t3" secondAttribute="leading" id="c2"/>
-                            <constraint firstAttribute="trailing" secondItem="bg-img" secondAttribute="trailing" id="c3"/>
-                            <constraint firstAttribute="bottom" secondItem="bg-img" secondAttribute="bottom" id="c4"/>
-                            
                             <constraint firstItem="abc-123-def" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="c5"/>
-                            <constraint firstItem="abc-123-def" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="centerY" id="c6"/>
+                            <constraint firstItem="abc-123-def" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="centerY" constant="-20" id="c6"/>
+                            <constraint firstItem="slogan-lbl" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="c7"/>
+                            <constraint firstItem="slogan-lbl" firstAttribute="top" secondItem="abc-123-def" secondAttribute="bottom" constant="24" id="c8"/>
                         </constraints>
                         <viewLayoutGuide key="safeArea" id="Bcu-3y-fUS"/>
                     </view>
