@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 # ──────────────────────────────────────────────────────────────
 TEST_PROJECT_ID = 99
 TEST_PROJECT_PATH = "/Users/huangjinhuan/项目/testProjects/software-ecommerce"
-TEST_TIMEOUT = 10800
+TEST_TIMEOUT = 3600
 TEST_LOG_FILE = os.path.join(os.path.dirname(__file__), "code_dev_e2e_test.log")
 
 # ──────────────────────────────────────────────────────────────
@@ -57,11 +57,18 @@ class ExecutionMetrics:
     finish_reasons: dict[str, dict[str, int]] = field(default_factory=lambda: {"Worker": {}, "Supervisor": {}})
     worker_total_steps: int = 0
     worker_max_steps_in_loop: int = 0
+    worker_actual_steps: int = 0
     worker_tools_per_loop: list[int] = field(default_factory=list)
+    total_context_tokens: int = 0
+    context_trim_events: int = 0
+    llm_generation_time: float = 0.0
     large_text_responses: int = 0
     elapsed_seconds: float = 0.0
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    git_modified_files: int = 0
+    git_lines_added: int = 0
+    git_lines_deleted: int = 0
 
     def to_report(self) -> str:
         lines = [
@@ -90,20 +97,30 @@ class ExecutionMetrics:
                 for reason, count in sorted(reasons.items(), key=lambda x: -x[1]):
                     lines.append(f"    {reason:20s}: {count}")
 
+        tool_execution_time = max(0.0, self.elapsed_seconds - self.llm_generation_time)
         lines.extend([
             f"",
             f"--- Worker Loop Detail ---",
             f"  Total ReAct steps:   {self.worker_total_steps}",
+            f"  Actual Steps Executed: {self.worker_actual_steps}",
             f"  Max steps/loop:      {self.worker_max_steps_in_loop}",
             f"  Avg tools/loop:      {self._avg_tools_per_loop():.1f}",
+            f"",
+            f"--- Advanced Metrics ---",
+            f"  Total Context Tokens: {self.total_context_tokens:,}",
+            f"  Context Trim Events:  {self.context_trim_events}",
+            f"  Git Modified Files:   {self.git_modified_files}",
+            f"  Git Lines (+/-):      +{self.git_lines_added} / -{self.git_lines_deleted}",
             f"",
             f"--- Anomalies ---",
             f"  Large text responses (>1000 chars, no tools): {self.large_text_responses}",
             f"  Errors:              {len(self.errors)}",
             f"  Warnings:            {len(self.warnings)}",
             f"",
-            f"--- Timing ---",
+            f"--- Timing Breakdown ---",
             f"  Total elapsed:       {self.elapsed_seconds:.1f}s",
+            f"  LLM Generation Time: {self.llm_generation_time:.1f}s",
+            f"  Tool Execution Time: {tool_execution_time:.1f}s",
             f"",
             "=" * 60,
         ])
@@ -128,7 +145,7 @@ def _parse_metrics_from_log(log_path: str) -> ExecutionMetrics:
 
     metrics.supervisor_runs = len(re.findall(r"\[Supervisor\] .+ run_react_loop START", content))
     metrics.worker_runs = len(re.findall(r"\[Worker\] .+ run_react_loop START", content))
-    metrics.finish_runs = len(re.findall(r"\[Finish\] .+ run_react_loop START", content))
+    metrics.finish_runs = len(re.findall(r"\[Finish\] ✅ COMPREHENSIVE audit complete|\[Session Reviewer\] .+ run_react_loop START", content))
 
     for match in re.finditer(r"🛠️ Call: ([a-z_]+)", content):
         tool = match.group(1)
@@ -157,10 +174,20 @@ def _parse_metrics_from_log(log_path: str) -> ExecutionMetrics:
     if metrics.worker_tools_per_loop:
         metrics.worker_max_steps_in_loop = max(metrics.worker_tools_per_loop)
 
+    metrics.worker_actual_steps = len(re.findall(r"\[Worker\] 🔄 Step", content))
+
     for match in re.finditer(r"ERROR|Error:|Exception:|FAILED|❌", content):
         line = content[content.rfind("\n", 0, match.start()) + 1:content.find("\n", match.end())]
         if line and len(line) < 300:
             metrics.errors.append(line.strip())
+
+    for match in re.finditer(r"Context: \d+ msgs, ~(\d+) tokens", content):
+        metrics.total_context_tokens += int(match.group(1))
+
+    metrics.context_trim_events = len(re.findall(r"✂️ Loop trim", content))
+
+    for match in re.finditer(r"⏱️ LLM Latency: ([\d\.]+)s", content):
+        metrics.llm_generation_time += float(match.group(1))
 
     return metrics
 
@@ -255,7 +282,7 @@ async def _run_code_agent(project_id: int, project_path: str, skill, timeout: in
     from app.core.engine.state.blackboard import BlackboardState
     from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket, TicketParameters
 
-    thread_id = f"code-dev-fullstack-{int(time.time())}"
+    thread_id = "code-dev-fullstack-e2e-real-test"
     thread_context_store.set_working_directory(thread_id, project_path)
 
     system_instructions = (
@@ -265,13 +292,12 @@ async def _run_code_agent(project_id: int, project_path: str, skill, timeout: in
     )
 
     message = (
-        "请使用 universal_code_development 技能，对当前的 `software-ecommerce` （一个现有的 PHP 电商系统）进行深度改造，将其核心架构扩展或重构成一套完整的『PTE 在线练习与考试系统』。\n\n"
-        "任务要求：\n"
-        "1. **深度集成**：不要在独立的空白文件夹中自嗨。你必须探索并理解 `app/`、`addon/`、`public/` 等现有目录的 MVC 架构和路由机制。\n"
-        "2. **后端改造**：在现有的框架下新增 PTE 题库管理、考试发卷、AI 评分对接的核心 Controller 和 Service 逻辑。确保复用原有的用户鉴权（User Auth）系统。\n"
-        "3. **前端改造**：在系统的原有前端结构（可能是 Vue、React 或原生模板）中，植入『全真模拟考试界面』和『练习成绩面板』。\n"
-        "4. **数据库设计**：提供或生成适配现有电商系统表结构的 PTE 试题与成绩表 SQL（或 ORM 实体）。\n"
-        "5. 使用工具批量修改和生成代码。遇到未知的底层框架类，必须自行使用 `search_files` 或 `read_file` 查阅源码进行对齐。完成后结束任务。"
+        "请使用 universal_code_development 技能。根据你在 `PROJECT_ARCHITECTURE.md` 中的调研发现，当前系统已经内置了 PTE 题库和基础考试模块。\n\n"
+        "现在的核心任务是：对现有的 PTE 模块进行具体的**二次开发与优化改进**：\n"
+        "1. **口语评测增强**：探索现存的 Azure / GPT 语音评分服务（如 `SpeechAzureService.php` 或 `AI.php` 或模型类），为其增加【语速(Speed)】【流利度(Fluency)】【停顿检测(Pause Detection)】的评分维度逻辑。\n"
+        "2. **考试数据结构扩充**：探索考试和试卷相关的数据模型或控制器（如 `Exam.php`、`mock_exam_records` 表），增加记录【考试计时器(Timer)】【答题进度(Progress)】等必须的结构。\n"
+        "3. **必须实操**：不要只写架构报告，你必须去使用工具读取现有的 PHP/SQL 代码，并真实地使用写工具（write_file 或 execute_command 编辑文本）把这些改进代码植入进去。\n"
+        "4. 遇到未知的底层框架类，自行使用 search_files 或 read_file 查阅源码进行对齐。完成后结束任务。"
     )
 
     logger.info(f"[Test] Dispatching agent run (thread_id={thread_id})...")
@@ -280,7 +306,7 @@ async def _run_code_agent(project_id: int, project_path: str, skill, timeout: in
         message_content=message,
         project_id=project_id,
         goal_prefix="[FullStack PTE Dev] ",
-        skip_message_persistence=True
+        skip_message_persistence=False
     )
 
     if result.status == "failed":
@@ -304,11 +330,11 @@ async def _run_code_agent(project_id: int, project_path: str, skill, timeout: in
         )
     )
     result.inputs["blackboard"] = blackboard.model_dump(mode="json")
-    
+
     if "metadata" not in result.inputs:
         result.inputs["metadata"] = {}
     result.inputs["metadata"]["user_id"] = "test-user-1"
-    result.inputs["metadata"]["skip_persistence"] = True
+    result.inputs["metadata"]["skip_persistence"] = False
 
     logger.info(f"[Test] Running agent (timeout={timeout}s)...")
     start = time.time()
@@ -357,6 +383,21 @@ async def main():
         elapsed = time.time() - start_time
         metrics = _parse_metrics_from_log(TEST_LOG_FILE)
         metrics.elapsed_seconds = elapsed
+        
+        # Git Stats
+        import subprocess
+        try:
+            git_status = subprocess.run(["git", "diff", "--numstat"], cwd=TEST_PROJECT_PATH, capture_output=True, text=True)
+            if git_status.returncode == 0 and git_status.stdout.strip():
+                lines = git_status.stdout.strip().split("\n")
+                metrics.git_modified_files = len(lines)
+                for line in lines:
+                    parts = line.split("\t")
+                    if len(parts) >= 2:
+                        if parts[0] != "-": metrics.git_lines_added += int(parts[0])
+                        if parts[1] != "-": metrics.git_lines_deleted += int(parts[1])
+        except Exception as e:
+            logger.warning(f"Failed to fetch git stats: {e}")
 
         logger.info(metrics.to_report())
 
