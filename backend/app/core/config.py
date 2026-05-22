@@ -189,11 +189,10 @@ class Settings(BaseSettings):
         os.makedirs(base, exist_ok=True)
         return base
 
-    # Graph (Neo4j) - Optional, disabled in embedded mode
+    # Graph (Neo4j) - Only used when EMBEDDED_MODE=false
     NEO4J_URI: str | None = "bolt://localhost:7687"
     NEO4J_USER: str | None = "neo4j"
     NEO4J_PASSWORD: str | None = None
-    USE_NEO4J: bool = True  # Set to False to disable Neo4j
 
     # Cache backend (Redis in production, FileCache in embedded mode)
     REDIS_URL: str | None = "redis://localhost:6379/0"
@@ -510,9 +509,12 @@ class Settings(BaseSettings):
     def _configure_embedded_mode(self) -> Self:
         """Auto-disable external services when EMBEDDED_MODE is enabled."""
         if self.EMBEDDED_MODE:
-            self.USE_NEO4J = False
             self.NEO4J_URI = None
+            self.NEO4J_USER = None
+            self.NEO4J_PASSWORD = None
             self.REDIS_URL = None
+            self.MEILISEARCH_URL = None
+            self.MEILISEARCH_API_KEY = None
         return self
 
     @model_validator(mode="after")

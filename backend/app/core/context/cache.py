@@ -63,7 +63,7 @@ class LayeredContextCache:
     async def get_static_layer(
         cls,
         session_id: str,
-        project_id: int,
+        project_id: int | None,
         loader_fn: callable
     ) -> StaticContextLayer:
         """
@@ -71,9 +71,10 @@ class LayeredContextCache:
         
         Args:
             session_id: Unique session identifier
-            project_id: Project ID for cache scoping
+            project_id: Project ID for cache scoping (None defaults to global)
             loader_fn: Async function to load static data
         """
+        project_id = project_id if project_id is not None else DEFAULT_PROJECT_ID
         cache_key = f"{session_id}:{project_id}"
 
         # Check cache

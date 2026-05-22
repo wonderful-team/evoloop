@@ -11,6 +11,7 @@ from typing import Optional
 from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile
 
 from app.api.responses import BaseAPIResponse
+from app.core.config import settings
 from app.infrastructure.database.sql.database import get_db_session
 from app.api.schemas.knowledge import DocumentResponse, DocumentListResponse, DocumentMetadataResponse, \
     DocumentContentResponse, CollectionResponse, TagItem, TagResponse, DocumentSearchResponse, FTSSearchResult, \
@@ -542,7 +543,7 @@ async def list_maintenance_reports(
         logger.warning(f"Failed to read reports from DB: {e}")
     # Fallback to JSON files if SQLite is empty
     if not reports:
-        reports_dir = Path.home() / ".evoloop" / "knowledge" / "reports"
+        reports_dir = Path(settings.KNOWLEDGE_BASE_PATH) / "reports"
         if reports_dir.exists():
             report_files = sorted(
                 reports_dir.glob("maintenance_*.json"),

@@ -10,6 +10,7 @@ Features:
 """
 
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
 from app.core.config import settings
@@ -99,9 +100,9 @@ class MeilisearchBackend:
                 "title": request.title,
                 "content": request.content[:50000],  # Meilisearch has size limits
                 "tags": ",".join(request.tags or []),
-                "file_size": request.file_size,
-                "word_count": request.word_count,
-                "indexed_at": index._iso_timestamp(),  # type: ignore[attr-defined]
+                "file_size": request.file_size or 0,
+                "word_count": request.word_count or 0,
+                "indexed_at": datetime.now(timezone.utc).isoformat(),
             }
             index.add_documents([doc], primary_key="id")
             return True

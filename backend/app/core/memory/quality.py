@@ -51,10 +51,10 @@ class MemoryQualityAnalyzer:
     
     Usage:
         from app.core.memory.config import MemoryConfig
-        from app.core.memory.backends.file_backend import FileMemoryStorage
-        
+        from app.core.memory.store import MemoryStore
+
         config = MemoryConfig.from_settings()
-        storage = FileMemoryStorage(str(config.memory_root))
+        storage = MemoryStore(str(config.memory_root))
         analyzer = MemoryQualityAnalyzer(storage=storage, config=config)
     """
 

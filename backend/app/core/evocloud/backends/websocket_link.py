@@ -267,6 +267,8 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     handshake = WebSocketHandshake(payload={
                         "device_type": "agent",
                         "device_key": self.device_key,
+                        "device_name": self.device_name,
+                        "os_info": platform.platform(),
                         "token": await self.api.get_token()
                     })
                     await ws.send(json.dumps(handshake.model_dump()))

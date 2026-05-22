@@ -12,10 +12,8 @@ This module provides:
 
 # Services
 from app.core.memory.auto_extraction import AutoMemoryExtractor
-# Backends
-from app.core.memory.backends.file_backend import FileMemoryStorage
 # Configuration and Dependency Injection
-from app.core.memory.config import MemoryConfig, default_memory_config
+from app.core.memory.config import MemoryConfig, get_default_memory_config
 from app.core.memory.container import MemoryContainer
 # Maintenance
 from app.core.memory.maintenance import (
@@ -61,7 +59,7 @@ __all__ = [
 
     # Configuration & Dependency Injection
     "MemoryConfig",
-    "default_memory_config",
+    "get_default_memory_config",
     "MemoryContainer",
 
     # Models
@@ -70,9 +68,6 @@ __all__ = [
     "MemorySearchResult",
     "MemoryType",
     "PrivacyLevel",
-
-    # Backends
-    "FileMemoryStorage",
 
     # Services
     "AutoMemoryExtractor",

@@ -74,6 +74,8 @@ async def _summarize_project_logic(name: str, path: str):
                 else:
                     # Try fallback: maybe path needs trailing slash?
                     pass
+        except NotImplementedError:
+            logger.debug(f"[ProjectSummarizer] Graph summary not available in embedded mode")
         except Exception as e:
             logger.warning(f"[ProjectSummarizer] Failed to fetch graph summary: {e}")
 

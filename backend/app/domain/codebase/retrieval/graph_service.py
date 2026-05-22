@@ -15,7 +15,11 @@ from typing import Any
 from langchain_core.prompts.prompt import PromptTemplate
 
 from app.core.config import settings
-from app.infrastructure.database.graph.driver import GraphManager, get_graph_db
+from app.infrastructure.database.graph.driver import GraphManager
+from app.infrastructure.database.graph.langchain_graph import (
+    create_cypher_qa_chain,
+    create_langchain_graph,
+)
 from app.infrastructure.llm.factory import get_default_llm
 
 logger = logging.getLogger(__name__)
@@ -23,16 +27,15 @@ logger = logging.getLogger(__name__)
 
 class GraphService:
     """
-    Unified service for Neo4j graph operations.
+    Unified service for graph operations.
     
-    Combines functionality from previous GraphExplorer and GraphRetrievalService
-    to eliminate redundancy.
+    Works with both FileGraph (embedded) and Neo4j (production).
+    Natural-language queries require Neo4j and are disabled in embedded mode.
     """
 
     def __init__(self):
         # Always initialize driver through GraphManager
         self._driver = GraphManager.get_driver()
-        self._graph = None # For QAChain (Neo4j only)
         self._embedded_mode = settings.EMBEDDED_MODE
         
         if self._embedded_mode:
@@ -41,43 +44,10 @@ class GraphService:
             logger.info("GraphService: Running in Neo4j Mode")
 
         # Initialize LangChain Neo4jGraph for NL queries (Production Mode only)
-        if not self._embedded_mode:
-            try:
-                from langchain_neo4j import Neo4jGraph
-                
-                self._graph = Neo4jGraph(
-                    url=settings.NEO4J_URI,
-                    username=settings.NEO4J_USER,
-                    password=settings.NEO4J_PASSWORD,
-                    refresh_schema=False,
-                )
-                
-                # Define schema explicitly (bypassing APOC)
-                self._graph.schema = """
-Node properties:
-- **File**
-  - path: STRING (The relative file path, e.g. 'app/main.py')
-  - project_id: INTEGER
-  - last_indexed: INTEGER
-- **CodeEntity**
-  - name: STRING (Short name, e.g. 'UserService')
-  - full_name: STRING (Fully qualified name)
-  - type: STRING (e.g. 'function', 'class', 'method')
-  - project_id: INTEGER
-
-Relationship properties:
-- **RELATION**
-  - type: STRING (e.g. 'calls', 'imports', 'inherits')
-
-Relationships:
-(:File)-[:CONTAINS]->(:CodeEntity)
-(:CodeEntity)-[:RELATION]->(:CodeEntity)
-"""
-                logger.info("GraphService initialized with manual schema")
-                
-            except Exception as e:
-                logger.error(f"Failed to initialize Neo4jGraph: {e}")
-                self._graph = None
+        # Factory lives in infrastructure layer to keep domain clean.
+        self._graph = create_langchain_graph()
+        if self._graph:
+            logger.info("GraphService initialized with manual schema")
 
     # =================================================================================
     # Structured Queries (from former GraphRetrievalService)
@@ -203,14 +173,12 @@ Relationships:
         if not self._graph:
             return "Graph Service is not available (Neo4j not connected or in Embedded Mode)."
 
-        from langchain_neo4j import GraphCypherQAChain
-
         llm = await get_default_llm(temperature=0)
 
         from app.utils import render_template
         prompt_text = render_template(
             "domain/codebase/cypher_generation.prompt.j2",
-            schema="{schema}", # Keep LangChain placeholders {schema} and {question} or pass data directly?
+            schema="{schema}",
             question="{question}",
             project_id=project_id
         )
@@ -220,17 +188,13 @@ Relationships:
             template=prompt_text
         )
 
-        chain = GraphCypherQAChain.from_llm(
-            llm=llm,
-            graph=self._graph,
-            verbose=True,
-            cypher_prompt=cypher_prompt,
-            allow_dangerous_requests=True,
-        )
-
         try:
+            chain = create_cypher_qa_chain(llm, self._graph, cypher_prompt)
             result = await chain.ainvoke({"query": question})
             return result["result"]
+        except RuntimeError as e:
+            logger.warning(f"Graph NL Query unavailable: {e}")
+            return "Graph natural-language queries are not available in embedded mode."
         except Exception as e:
             logger.error(f"Graph NL Query Failed: {e}")
             return f"I couldn't query the graph: {e}"

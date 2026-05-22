@@ -39,6 +39,17 @@ services:
     volumes:
       - app-neo4j-data:/data
 
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    restart: always
+    environment:
+      - MEILI_MASTER_KEY=${MEILISEARCH_API_KEY:-}
+      - MEILI_NO_ANALYTICS=true
+    ports:
+      - "${MEILISEARCH_PORT:-7700}:7700"
+    volumes:
+      - app-meilisearch-data:/meili_data
+
   backend:
     build:
       context: ./backend
@@ -60,9 +71,11 @@ services:
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_USER=${POSTGRES_USER?Variable not set}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD?Variable not set}
-      # Neo4j & Redis Config (Inject from .env if needed or defaults)
+      # Neo4j, Redis & Meilisearch Config (Inject from .env if needed or defaults)
       - NEO4J_URI=bolt://host.docker.internal:7687 
       - REDIS_URL=redis://host.docker.internal:6379/0
+      - MEILISEARCH_URL=http://host.docker.internal:7700
+      - MEILISEARCH_API_KEY=${MEILISEARCH_API_KEY:-}
     ports:
       - "${PORT}:${PORT}"
     extra_hosts:
@@ -81,4 +94,5 @@ volumes:
   app-db-data:
   app-redis-data:
   app-neo4j-data:
+  app-meilisearch-data:
 

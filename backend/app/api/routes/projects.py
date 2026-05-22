@@ -531,22 +531,23 @@ async def delete_project(project_id: int):
                 except Exception as e:
                     logger.warning(f"[ProjectsAPI] Failed to clear Redis cache for project {project_id}: {e}")
 
-                # Clean up graph data (if enabled)
-                from app.infrastructure.database.graph.driver import GraphManager, is_graph_enabled
-                if is_graph_enabled():
-                    try:
-                        driver = GraphManager.get_driver()
-                        await driver.execute_query(
-                            """
-                            MATCH (f:File {project_id: $pid})
-                            OPTIONAL MATCH (f)-[:CONTAINS]->(e)
-                            DETACH DELETE e
-                            DETACH DELETE f
-                            """,
-                            pid=project_id,
-                        )
-                    except Exception as e:
-                        logger.warning(f"[ProjectsAPI] Failed to cleanup graph data for project {project_id}: {e}")
+                # Clean up graph data
+                from app.infrastructure.database.graph.driver import GraphManager
+                try:
+                    driver = GraphManager.get_driver()
+                    await driver.execute_query(
+                        """
+                        MATCH (f:File {project_id: $pid})
+                        OPTIONAL MATCH (f)-[:CONTAINS]->(e)
+                        DETACH DELETE e
+                        DETACH DELETE f
+                        """,
+                        pid=project_id,
+                    )
+                except NotImplementedError:
+                    logger.debug(f"[ProjectsAPI] Graph cleanup skipped (not supported in embedded mode)")
+                except Exception as e:
+                    logger.warning(f"[ProjectsAPI] Failed to cleanup graph data for project {project_id}: {e}")
 
                 # Clean up vector store data (if enabled)
                 try:

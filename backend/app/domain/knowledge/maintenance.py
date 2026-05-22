@@ -2,6 +2,7 @@ import logging
 
 from sqlalchemy import text
 
+from app.core.config import settings
 from app.infrastructure.database.graph.driver import get_graph_db
 from app.infrastructure.database.sql.database import get_db_session
 
@@ -52,7 +53,10 @@ async def wipe_knowledge_base():
 
             for t in tables_to_truncate:
                 try:
-                    await session.execute(text(f"TRUNCATE TABLE {t} CASCADE;"))
+                    if settings.EMBEDDED_MODE:
+                        await session.execute(text(f"DELETE FROM {t};"))
+                    else:
+                        await session.execute(text(f"TRUNCATE TABLE {t} CASCADE;"))
                 except Exception as e:
                     logger.warning(f"SQL: Error truncating {t}: {e}")
 

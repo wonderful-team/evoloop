@@ -165,6 +165,18 @@ def shared_task(
         value = await result.get(timeout=30)
     """
     scheduler = get_scheduler()
+    if func is None:
+        # Called as @shared_task(name=..., bind=...) def fn(): ...
+        def decorator(f):
+            return scheduler.task(
+                f,
+                name=name,
+                bind=bind,
+                retries=retries,
+                retry_delay=retry_delay,
+                **options
+            )
+        return decorator
     return scheduler.task(
         func,
         name=name,

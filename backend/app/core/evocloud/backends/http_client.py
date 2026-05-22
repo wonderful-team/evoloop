@@ -41,7 +41,23 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         return self.base_url.rstrip('/')
 
     def _get_base_url(self, is_gateway: bool) -> str:
-        prefix = "/gateway" if is_gateway else "/member"
+        """
+        获取请求的基础 URL。
+        
+        生产环境：使用统一入口，通过 /gateway 和 /member 前缀路由
+        本地开发：通过环境变量 EVOCLOUD_GATEWAY_URL / EVOCLOUD_MEMBER_URL 分别配置
+        """
+        import os
+        if is_gateway:
+            gateway_url = os.getenv("EVOCLOUD_GATEWAY_URL")
+            if gateway_url:
+                return gateway_url.rstrip('/')
+            prefix = "/gateway"
+        else:
+            member_url = os.getenv("EVOCLOUD_MEMBER_URL")
+            if member_url:
+                return member_url.rstrip('/')
+            prefix = "/member"
         return f"{self.root_url}{prefix}"
 
     async def get_client(self) -> httpx.AsyncClient:
