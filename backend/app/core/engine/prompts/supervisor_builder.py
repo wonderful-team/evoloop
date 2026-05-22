@@ -48,12 +48,9 @@ class SupervisorPromptBuilder:
         mode = get_sandbox_mode()
 
         # 2. Protocol & Sys Info Prep (STATIC parts only)
-        is_global_mode = self.project_id == DEFAULT_PROJECT_ID or self.project_id is None
 
         # Read PROJECT.md if exists (static for the session)
-        project_profile = ""
-        if not is_global_mode:
-            project_profile = read_project_profile(ctx.working_directory, "[SupervisorPrompt]")
+        project_profile = read_project_profile(ctx.working_directory, "[SupervisorPrompt]")
 
         # 3. Prepare Template Variables (STATIC only — no blackboard/memory/telemetry)
         template_vars = {
@@ -62,7 +59,6 @@ class SupervisorPromptBuilder:
             "sandbox_mode": mode,
             "sys_info": {
                 "cwd": actual_cwd,
-                "is_global_mode": is_global_mode,
                 "project_profile": project_profile,
             },
             "project_concepts": ctx.metadata.get("project_concepts", ""),

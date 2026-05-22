@@ -181,92 +181,7 @@ class SupervisorNode(BaseAgentNode):
         # 2. Check Worker/Aggregator Outcome
         worker_outcome = StateLifecycleManager.consume_worker_outcome(state)
         if worker_outcome:
-            if worker_outcome == "success":
-                # NEW: Plan Completeness Gate — verify plan is fully completed before routing to FINISH
-                progress = blackboard.metadata.plan_progress
-                if progress and not progress.is_complete():
-                    logger.info(
-                        f"[Supervisor] ⚠️ Worker reports success but plan incomplete "
-                        f"({progress.completed_steps}/{progress.total_steps}). Routing back to WORKER."
-                    )
-                    return StateUpdate(
-                        next_node=RoutingTarget.WORKER,
-                        blackboard=blackboard,
-                        iteration_count=(state.iteration_count or 0) + 1
-                    )
-
-                # Fallback: check structured_plan for pending steps
-                plan = state.structured_plan or state.current_plan
-                if plan and _plan_has_pending_steps(plan):
-                    logger.info("[Supervisor] ⚠️ Worker reports success but structured_plan has pending steps. Routing back to WORKER.")
-                    return StateUpdate(
-                        next_node=RoutingTarget.WORKER,
-                        blackboard=blackboard,
-                        iteration_count=(state.iteration_count or 0) + 1
-                    )
-
-                # Fallback 2: query DB for plan steps not completed
-                # Anti-loop: if signal_queue_total > 0 and pending_signals is
-                # empty, ALL queued signals have been consumed successfully.
-                # In that case, stale DB PlanSteps are an artifact of the signal
-                # queue bypassing update_step_status — auto-complete them.
-                signals_fully_consumed = (
-                    getattr(blackboard, 'signal_queue_total', 0) > 0
-                    and not getattr(blackboard, 'pending_signals', None)
-                )
-                try:
-                    from app.models.planning import Plan as DBPlan, PlanStep as DBPlanStep
-                    thread_id = state.thread_id or config.get("configurable", {}).get("thread_id")
-                    if thread_id:
-                        async with session_scope() as session:
-                            stmt = select(DBPlan).where(DBPlan.thread_id == thread_id, DBPlan.status == "active")
-                            result = await session.execute(stmt)
-                            db_plan = result.scalar_one_or_none()
-                            if db_plan:
-                                stmt_steps = select(DBPlanStep).where(
-                                    DBPlanStep.plan_id == db_plan.id,
-                                    DBPlanStep.status.notin_(["completed", "done", "success"])
-                                )
-                                result_steps = await session.execute(stmt_steps)
-                                pending_db_steps = result_steps.scalars().all()
-                                if pending_db_steps:
-                                    if signals_fully_consumed:
-                                        # All queued signals consumed + Worker success
-                                        # → DB steps are stale; auto-complete to
-                                        #   prevent infinite routing loop.
-                                        for step in pending_db_steps:
-                                            step.status = "completed"
-                                            step.result = (
-                                                "Auto-completed: all queued routing "
-                                                "signals consumed and Worker reported "
-                                                "success."
-                                            )
-                                        logger.info(
-                                            f"[Supervisor] ✅ Auto-completing "
-                                            f"{len(pending_db_steps)} stale DB plan "
-                                            f"steps (signal queue fully drained)."
-                                        )
-                                        # Fall through to FINISH
-                                    else:
-                                        logger.info(
-                                            f"[Supervisor] ⚠️ Worker reports success "
-                                            f"but DB plan has {len(pending_db_steps)} "
-                                            f"pending steps. Routing back to WORKER."
-                                        )
-                                        return StateUpdate(
-                                            next_node=RoutingTarget.WORKER,
-                                            blackboard=blackboard,
-                                            iteration_count=(state.iteration_count or 0) + 1
-                                        )
-                except Exception as e:
-                    logger.debug(f"[Supervisor] DB plan check skipped: {e}")
-                logger.info("[Supervisor] ✅ Task complete. Routing to FINISH.")
-                return StateUpdate(
-                    next_node=RoutingTarget.FINISH,
-                    blackboard=blackboard,
-                    iteration_count=(state.iteration_count or 0) + 1
-                )
-            elif worker_outcome == "truncated":
+            if worker_outcome == "truncated":
                 # Worker hit max_steps and was truncated. Bypass Supervisor LLM entirely
                 # and route directly back to Worker to continue execution.
                 # The Worker retains blackboard state and will pick up where it left off.
@@ -279,29 +194,12 @@ class SupervisorNode(BaseAgentNode):
                     blackboard=blackboard,
                     iteration_count=(state.iteration_count or 0) + 1
                 )
-            else:
-                logger.warning(f"[Supervisor] 🔄 Worker outcome: {worker_outcome}. Re-planning required.")
-                # If plan has pending steps, route back to Worker directly
-                progress = blackboard.metadata.plan_progress
-                if progress and not progress.is_complete():
-                    logger.info(
-                        f"[Supervisor] ⚠️ Worker failed/truncated but plan incomplete "
-                        f"({progress.completed_steps}/{progress.total_steps}). Routing back to WORKER."
-                    )
-                    return StateUpdate(
-                        next_node=RoutingTarget.WORKER,
-                        blackboard=blackboard,
-                        iteration_count=(state.iteration_count or 0) + 1
-                    )
-                plan = state.structured_plan or state.current_plan
-                if plan and _plan_has_pending_steps(plan):
-                    logger.info("[Supervisor] ⚠️ Worker failed/truncated but structured_plan has pending steps. Routing back to WORKER.")
-                    return StateUpdate(
-                        next_node=RoutingTarget.WORKER,
-                        blackboard=blackboard,
-                        iteration_count=(state.iteration_count or 0) + 1
-                    )
-                blackboard.ticket = None
+
+            # For "success", "failed", or any other semantic outcome:
+            # DO NOT intercept with Python logic. Clear the active ticket and 
+            # let the Supervisor LLM read the context to decide the next step.
+            logger.info(f"[Supervisor] ℹ️ Worker returned '{worker_outcome}'. Delegating review to Supervisor LLM.")
+            blackboard.ticket = None
 
         return None
 

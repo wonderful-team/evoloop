@@ -37,7 +37,7 @@ export function UpgradePrompt({
     timesheet: t("features.timesheet"),
   }
 
-  const planName = t(`plans.${requiredPlan}`)
+  const planName = t(`subscription.plans.${requiredPlan}`)
 
   const handleUpgrade = () => {
     window.location.href = "/subscription"

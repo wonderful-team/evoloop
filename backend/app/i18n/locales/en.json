@@ -204,7 +204,6 @@
       "list_mcp_prompts": "Listing MCP prompts",
       "list_mcp_resources": "Listing MCP resources",
       "list_todos": "Listing todos",
-      "multiedit_file": "Multi-editing '{path}'",
       "query_command_status": "Querying command status '{task_id}'",
       "read_mcp_resource": "Reading MCP resource '{uri}'",
       "default": "Running {tool}"

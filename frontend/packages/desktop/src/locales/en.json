@@ -235,7 +235,8 @@
       "executionSteps": "Reasoning & Execution Process",
       "uploadError": "Upload failed",
       "uploadFile": "Upload File",
-      "uploadSuccess": "File uploaded successfully"
+      "uploadSuccess": "File uploaded successfully",
+      "files": "Files"
     },
     "interrupted": {
       "addInput": "Add Instructions",
@@ -398,7 +399,11 @@
       "speak": "Speak",
       "speed": "Speed",
       "stop": "Stop",
-      "voice": "Voice"
+      "voice": "Voice",
+      "gender": {
+        "female": "Female",
+        "male": "Male"
+      }
     },
     "turnLabel": "Turn {{turn}}",
     "voice": {
@@ -512,7 +517,8 @@
     "uploading": "Uploading...",
     "url": "URL",
     "yes": "Yes",
-    "continue": "Continue"
+    "continue": "Continue",
+    "rename": "Rename"
   },
   "context": {
     "noDescription": "No Description"
@@ -1809,7 +1815,43 @@
     "prev": "Previous",
     "replayDesc": "View the product feature introduction again",
     "replayTitle": "Replay Tour",
-    "skipAriaLabel": "Skip tour"
+    "skipAriaLabel": "Skip tour",
+    "step1": {
+      "title": "Welcome to EvoLoop",
+      "content": "EvoLoop is your universal AI agent assistant, helping you with code development, project management, and more."
+    },
+    "step2": {
+      "title": "Chat",
+      "content": "Chat with AI here, ask questions or request assistance."
+    },
+    "step3": {
+      "title": "Projects",
+      "content": "Manage your development projects, organize code files and workflows."
+    },
+    "step4": {
+      "title": "MCP Extensions",
+      "content": "Extend AI capabilities through the MCP protocol, connecting more tools and services."
+    },
+    "step5": {
+      "title": "Settings",
+      "content": "Configure models, themes, shortcuts, and other personalization options."
+    },
+    "step6": {
+      "title": "Chat List",
+      "content": "View and manage your conversation history."
+    },
+    "step7": {
+      "title": "Message Area",
+      "content": "View AI responses and generated content."
+    },
+    "step8": {
+      "title": "Context Panel",
+      "content": "Manage context information for the current conversation, including memory and references."
+    },
+    "step9": {
+      "title": "Input Box",
+      "content": "Type your questions or instructions here to start interacting with AI."
+    }
   },
   "updateNotification": {
     "forceUpdate": {

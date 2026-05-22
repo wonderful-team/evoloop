@@ -205,6 +205,7 @@ class InferenceEngine:
             start_perf = time.perf_counter()
             response = await self._stream_llm_response(llm_with_tools, loop_messages, config)
             latency = time.perf_counter() - start_perf
+            logger.info(f"[{name}] ⏱️ LLM Latency: {latency:.2f}s")
 
             if is_single_shot and sys_hash:
                 logger.warning(f"[{name}] PROMPT CACHE DIAGNOSTIC: SystemPromptHash={sys_hash} | Latency={latency:.2f}s")
@@ -307,6 +308,7 @@ class InferenceEngine:
         interceptors: dict[str, Callable] | None = None,
         on_thinking: Callable | None = None,
         model: str | None = None,
+        iteration_count: int | None = None,
     ) -> dict:
         """
         Core ReAct loop.
@@ -328,9 +330,10 @@ class InferenceEngine:
         local_tool_history = []
         last_response = None
 
-        logger.info(f"[{name}] ▶️ run_react_loop START | model={model} | max_steps={max_steps} | msg_count={len(messages)} | tool_executor={'YES' if tool_executor else 'NO'}")
+        logger.info(f"[{name}] ▶️ run_react_loop START | iteration={iteration_count} | model={model} | max_steps={max_steps} | msg_count={len(messages)} | tool_executor={'YES' if tool_executor else 'NO'}")
 
         for i in range(max_steps):
+            logger.info(f"[{name}] 🔄 Step {i+1}/{max_steps} (Iteration {iteration_count})")
             thread_id = config.get("configurable", {}).get("thread_id")
             run_id = config.get("configurable", {}).get("run_id")
             if thread_id:

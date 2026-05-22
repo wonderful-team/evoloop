@@ -12,6 +12,7 @@ nodes:
       - "decompose_task"
       - "search_skills"
       - "search_history"
+      - "search_web"
       - "read_file"
       - "list_directory"
       - "search_files"
