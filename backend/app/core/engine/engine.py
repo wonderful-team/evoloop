@@ -147,6 +147,7 @@ class AgentEngine:
                 tool_executor=tool_executor,
                 interceptors=interceptors,
                 model=model,
+                iteration_count=state.iteration_count,
             )
 
         # 7. Parse blackboard updates from final response content

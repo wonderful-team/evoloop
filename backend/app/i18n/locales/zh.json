@@ -206,7 +206,6 @@
       "list_mcp_prompts": "列出 MCP 提示",
       "list_mcp_resources": "列出 MCP 资源",
       "list_todos": "列出待办",
-      "multiedit_file": "批量编辑 '{path}'[[ ({count} 处变更) ]]",
       "query_command_status": "查询命令状态 '{task_id}'",
       "read_mcp_resource": "读取 MCP 资源 '{uri}'[[ (元数据: {metadata}) ]]",
       "default": "正在运行 {tool}"

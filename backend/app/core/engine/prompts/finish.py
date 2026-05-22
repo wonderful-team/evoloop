@@ -51,8 +51,6 @@ class FinishPromptBuilder:
         """Builds the STATIC Reviewer system prompt."""
         try:
             ctx, actual_cwd, mode, project_concepts = self._prepare_common_context()
-
-            is_global_mode = self.project_id == DEFAULT_PROJECT_ID or self.project_id is None
             template_vars = {
                 "user_lang": SystemConfigService.get_language_preference(),
                 "project_id": self.project_id,
@@ -61,7 +59,6 @@ class FinishPromptBuilder:
                 "sys_info": {
                     "cwd": actual_cwd,
                     "project_concepts": project_concepts,
-                    "is_global_mode": is_global_mode,
                 },
                 "audit_context": self.action_context
             }

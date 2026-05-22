@@ -235,7 +235,8 @@
       "executionSteps": "思考与执行过程",
       "uploadError": "上传失败",
       "uploadFile": "上传文件",
-      "uploadSuccess": "文件上传成功"
+      "uploadSuccess": "文件上传成功",
+      "files": "文件"
     },
     "interrupted": {
       "addInput": "添加指令",
@@ -398,7 +399,11 @@
       "speak": "朗读",
       "speed": "语速",
       "stop": "停止",
-      "voice": "语音"
+      "voice": "语音",
+      "gender": {
+        "female": "女声",
+        "male": "男声"
+      }
     },
     "turnLabel": "第 {{turn}} 轮",
     "voice": {
@@ -512,7 +517,8 @@
     "uploading": "上传中...",
     "url": "网址",
     "yes": "是",
-    "continue": "继续"
+    "continue": "继续",
+    "rename": "重命名"
   },
   "context": {
     "noDescription": "No Description"
@@ -1809,7 +1815,43 @@
     "prev": "上一步",
     "replayDesc": "再次查看产品功能介绍",
     "replayTitle": "重新播放引导",
-    "skipAriaLabel": "跳过引导"
+    "skipAriaLabel": "跳过引导",
+    "step1": {
+      "title": "欢迎使用 EvoLoop",
+      "content": "EvoLoop 是您的通用 AI 智能体助手，可以帮助您完成代码开发、项目管理等任务。"
+    },
+    "step2": {
+      "title": "对话",
+      "content": "在这里与 AI 进行对话，提出问题或请求协助。"
+    },
+    "step3": {
+      "title": "项目",
+      "content": "管理您的开发项目，组织代码文件和工作流。"
+    },
+    "step4": {
+      "title": "MCP 扩展",
+      "content": "通过 MCP 协议扩展 AI 的能力，连接更多工具和服务。"
+    },
+    "step5": {
+      "title": "设置",
+      "content": "配置模型、主题、快捷键等个性化选项。"
+    },
+    "step6": {
+      "title": "对话列表",
+      "content": "查看和管理您的历史对话记录。"
+    },
+    "step7": {
+      "title": "消息区域",
+      "content": "查看 AI 的回复和生成的内容。"
+    },
+    "step8": {
+      "title": "上下文面板",
+      "content": "管理当前对话的上下文信息，包括记忆和引用。"
+    },
+    "step9": {
+      "title": "输入框",
+      "content": "在这里输入您的问题或指令，与 AI 开始交互。"
+    }
   },
   "updateNotification": {
     "forceUpdate": {

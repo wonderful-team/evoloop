@@ -57,7 +57,6 @@ class WorkerPromptBuilder:
 
         # Static Sys Info (Project identity only)
         sys_info = {
-            "is_global_mode": ctx.project_id == DEFAULT_PROJECT_ID or ctx.project_id is None,
             "project_concepts": ctx.metadata.get("project_concepts", ""),
             "project_profile": project_profile,
             "cwd": get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", "")),
@@ -68,9 +67,10 @@ class WorkerPromptBuilder:
         has_desktop_tool = any(t in authorized_tools for t in ["desktop_control", "open_app"])
         has_mobile_tool = any(t in authorized_tools for t in ["mobile_control", "list_devices"])
         has_browser_tool = "browser_control" in authorized_tools
+        has_wiki_tools = any(t in authorized_tools for t in ["write_wiki_page", "edit_wiki_page", "save_concepts"])
 
         logger.info(f"[WorkerPromptBuilder] Static Protocol flags: "
-                   f"browser={has_browser_tool}, desktop={has_desktop_tool}, mobile={has_mobile_tool}")
+                   f"browser={has_browser_tool}, desktop={has_desktop_tool}, mobile={has_mobile_tool}, wiki={has_wiki_tools}")
 
         # Static Feature Check
         has_interactive_charts = False
@@ -98,6 +98,7 @@ class WorkerPromptBuilder:
             "has_desktop_tool": has_desktop_tool,
             "has_mobile_tool": has_mobile_tool,
             "has_browser_tool": has_browser_tool,
+            "has_wiki_tools": has_wiki_tools,
             "has_interactive_charts": has_interactive_charts,
         }
 
