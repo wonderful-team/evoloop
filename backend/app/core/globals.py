@@ -3,6 +3,8 @@ import os
 import time
 from typing import Any
 
+from app.core.config import settings
+
 logger = logging.getLogger(__name__)
 
 _graph: Any | None = None
@@ -24,7 +26,7 @@ def get_graph() -> Any:
     global _graph, _config_path, _last_load_time, _checkpointer
 
     # Hot Reload Logic
-    if _config_path and os.path.exists(_config_path):
+    if settings.ENVIRONMENT == "local" and _config_path and os.path.exists(_config_path):
         mtime = os.path.getmtime(_config_path)
         if mtime > _last_load_time:
             logger.info(f"[HotReload] Detected change in {_config_path}. Rebuilding graph...")

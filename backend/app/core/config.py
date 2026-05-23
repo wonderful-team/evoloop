@@ -196,6 +196,7 @@ class Settings(BaseSettings):
 
     # Cache backend (Redis in production, FileCache in embedded mode)
     REDIS_URL: str | None = "redis://localhost:6379/0"
+    REDIS_MAX_CONNECTIONS: int = Field(120, validation_alias="REDIS_MAX_CONNECTIONS")
 
     # Task Queue Backend (celery | huey | local | auto)
     # - celery: Full Celery with Redis (requires Redis, not available in embedded mode)
@@ -230,6 +231,13 @@ class Settings(BaseSettings):
 
     ENABLE_VISION_OCR: bool = True
     ENABLE_MACRO_SELF_HEALING: bool = True
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def ENABLE_ENVIRONMENT_CONTROLS(self) -> bool:
+        """是否启用本地环境控制工具（浏览器、桌面、手机）。在纯服务器部署中禁用。"""
+        # 如果是内嵌模式(桌面端应用)，或者允许本地开发，则默认开启
+        return self.EMBEDDED_MODE or self.ENVIRONMENT == "local"
 
     # Screenshot Configuration
     ENABLE_PARTIAL_SCREENSHOT: bool = True  # True: Auto-capture current window region, False: Full screen only
