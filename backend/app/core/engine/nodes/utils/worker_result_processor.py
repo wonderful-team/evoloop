@@ -169,6 +169,40 @@ async def process_worker_result(
     blackboard.ticket = updated_execution_ticket
     blackboard.verification = verification_summary
 
+    # 5d. Compile Technical Execution Trace (Handoff Report)
+    trace_lines = []
+    if tool_history:
+        tool_counts = {}
+        for t_sig in tool_history:
+            t_name = t_sig.split(":")[0] if ":" in t_sig else t_sig
+            tool_counts[t_name] = tool_counts.get(t_name, 0) + 1
+        
+        touched_files = set()
+        if engine_result.messages:
+            for msg in engine_result.messages:
+                if getattr(msg, "tool_calls", None):
+                    for tc in msg.tool_calls:
+                        if tc.get("name") in ("edit_file", "write_file", "replace_file_content", "multi_replace_file_content", "write_to_file", "replace_content"):
+                            args = tc.get("args", {})
+                            path = args.get("path", "") or args.get("TargetFile", "")
+                            if path:
+                                touched_files.add(path)
+        
+        trace_lines.append("\n\n--- 🛠️ Technical Execution Trace ---")
+        trace_lines.append(f"Tools executed ({len(tool_history)} total): " + ", ".join([f"{k} ({v})" for k, v in tool_counts.items()]))
+        if touched_files:
+            trace_lines.append(f"Files modified: {', '.join(list(touched_files)[:5])}")
+            if len(touched_files) > 5:
+                trace_lines[-1] += f" (+{len(touched_files)-5} more)"
+        
+        if worker_outcome == "truncated":
+            trace_lines.append("⚠️ Execution was forcefully TRUNCATED due to max_steps timeout.")
+        elif worker_outcome == "failed":
+            trace_lines.append(f"❌ Execution FAILED. Check recent tool errors.")
+
+    technical_trace = "\n".join(trace_lines) if trace_lines else ""
+    worker_content = worker_content + technical_trace
+
     # Preserve ALL original messages (including ToolMessages) so that
     # retry/resume can reconstruct the full conversation history from
     # checkpoints.  The summarised content is injected as the *last*
