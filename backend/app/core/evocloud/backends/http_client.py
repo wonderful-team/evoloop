@@ -418,8 +418,8 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
     async def get_register_config(self) -> EvoCloudProxyResponse:
         return EvoCloudProxyResponse.model_validate(await self.request("GET", "/api/register/config"))
 
-    async def get_register_agreement(self) -> EvoCloudProxyResponse:
-        return EvoCloudProxyResponse.model_validate(await self.request("GET", "/api/register/agreement"))
+    async def get_register_agreement(self, type: str = "SERVICE") -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(await self.request("GET", "/api/register/aggrement", params={"type": type}))
 
     async def send_mobile_code(self, mobile: str, captcha_id: str, captcha_code: str, type: str = "login") -> EvoCloudProxyResponse:
         return EvoCloudProxyResponse.model_validate(
@@ -439,7 +439,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         return EvoCloudProxyResponse.model_validate(await self.request("POST", "/api/register/mobile", data=data))
 
     async def register_username(self, data: dict) -> EvoCloudProxyResponse:
-        return EvoCloudProxyResponse.model_validate(await self.request("POST", "/api/register/account", data=data))
+        return EvoCloudProxyResponse.model_validate(await self.request("POST", "/api/register/username", data=data))
 
     async def login_mobile(self, mobile: str, key: str, code: str) -> LoginResult:
         res = await self.request(
@@ -549,16 +549,19 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         )
 
     async def register_device(self, fingerprint: str, name: str, os_info: str) -> dict:
-        """Claim a device from the server.
+        """Claim a device from the PHP Member Center.
 
         The server will:
         1. Look up existing device by fingerprint + member_id
         2. Return existing device_key if found
         3. Check device limit and create new device_key if not found
+
+        Endpoint routes to Member Center (not Gateway) because device_key
+        generation is a business logic owned by PHP Backend.
         """
         return await self.request(
             "POST",
-            "/api/v1/devices/register",
+            "/evolooplink/api/device/register",
             data={
                 "fingerprint": fingerprint,
                 "device_name": name,

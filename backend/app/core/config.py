@@ -423,6 +423,13 @@ class Settings(BaseSettings):
         """Set environment variables for external libraries (ModelScope, HuggingFace)."""
         os.environ["MODELSCOPE_CACHE"] = self.MODELS_DIR
         os.environ["HF_ENDPOINT"] = self.HF_ENDPOINT
+        # Unify HuggingFace / sentence-transformers cache into MODELS_DIR
+        # to prevent re-downloading after system cache cleanup.
+        os.environ["HF_HOME"] = os.path.join(self.MODELS_DIR, "huggingface")
+        os.environ["SENTENCE_TRANSFORMERS_HOME"] = os.path.join(self.MODELS_DIR, "sentence_transformers")
+        # Force offline mode for HuggingFace Hub to guarantee zero network requests.
+        # Must be set before any module imports huggingface_hub.
+        os.environ["HF_HUB_OFFLINE"] = "1"
         return self
 
     # Logic Limits
