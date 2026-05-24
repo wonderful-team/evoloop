@@ -707,6 +707,29 @@ export const Body_files_upload_fileSchema = {
     title: 'Body_files-upload_file'
 } as const;
 
+export const Body_files_workspace_uploadSchema = {
+    properties: {
+        file: {
+            type: 'string',
+            format: 'binary',
+            title: 'File'
+        },
+        target_dir: {
+            type: 'string',
+            title: 'Target Dir',
+            default: ''
+        },
+        overwrite: {
+            type: 'boolean',
+            title: 'Overwrite',
+            default: false
+        }
+    },
+    type: 'object',
+    required: ['file'],
+    title: 'Body_files-workspace_upload'
+} as const;
+
 export const Body_knowledge_bulk_uploadSchema = {
     properties: {
         files: {
@@ -969,7 +992,7 @@ export const ChatRequestSchema = {
                 }
             ],
             title: 'Project Id',
-            default: 1
+            default: 0
         },
         thread_id: {
             anyOf: [
@@ -2600,7 +2623,7 @@ export const ExecuteSkillRequestSchema = {
                 }
             ],
             title: 'Project Id',
-            default: 1
+            default: 0
         },
         thread_id: {
             type: 'string',

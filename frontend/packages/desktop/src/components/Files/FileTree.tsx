@@ -8,7 +8,7 @@ import {
   Pin,
   Quote,
 } from "lucide-react"
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { FilesService, ResourcesService } from "@/client"
@@ -44,6 +44,9 @@ export function FileTree({
   onQuoteFile,
 }: FileTreeProps) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [isDragOver, setIsDragOver] = useState(false)
+
   const {
     data: files,
     isLoading,
@@ -54,6 +57,54 @@ export function FileTree({
     staleTime: 1000 * 60 * 5, // Cache for 5 mins
     enabled: isLoggedIn(), // Only fetch if user is logged in
   })
+
+  const handleUpload = async (targetPath: string, files: FileList, overwrite = false) => {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      try {
+        await FilesService.workspaceUpload({
+          projectId,
+          formData: {
+            file: file as any,
+            target_dir: targetPath,
+            overwrite: overwrite as any,
+          }
+        })
+      } catch (error: any) {
+        if (error.status === 409 || error.body?.detail?.includes("already exists")) {
+          if (window.confirm(t("files.overwritePrompt", { defaultValue: `文件 ${file.name} 已存在，是否覆盖？` }))) {
+            const dt = new DataTransfer()
+            dt.items.add(file)
+            await handleUpload(targetPath, dt.files, true)
+          }
+        } else {
+          toast.error(t("files.uploadError", { defaultValue: `上传 ${file.name} 失败` }))
+        }
+      }
+    }
+    queryClient.invalidateQueries({ queryKey: ["files", projectId] })
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await handleUpload(path, e.dataTransfer.files)
+    }
+  }
 
   if (isLoading) {
     return (
@@ -73,8 +124,13 @@ export function FileTree({
 
   if (!files || (files as any).length === 0) {
     return (
-      <div className="pl-4 py-1 text-xs text-muted-foreground italic">
-        {t("files.empty")}
+      <div 
+        className={cn("pl-4 py-4 text-xs text-muted-foreground italic rounded-md transition-colors", isDragOver && "bg-primary/10 border-dashed border border-primary/50")}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {t("files.empty")} (Drop files here to upload)
       </div>
     )
   }
@@ -83,7 +139,12 @@ export function FileTree({
   const fileList = files as unknown as FileNode[]
 
   return (
-    <div className="text-sm">
+    <div 
+      className={cn("text-sm transition-colors rounded-md", isDragOver && level === 0 && "bg-primary/5 border-dashed border border-primary/30 min-h-[50px]")}
+      onDragOver={level === 0 ? handleDragOver : undefined}
+      onDragLeave={level === 0 ? handleDragLeave : undefined}
+      onDrop={level === 0 ? handleDrop : undefined}
+    >
       {fileList.map((node) => (
         <FileTreeNode
           key={node.path}
@@ -92,6 +153,7 @@ export function FileTree({
           projectId={projectId}
           onSelectFile={onSelectFile}
           onQuoteFile={onQuoteFile}
+          onUpload={handleUpload}
         />
       ))}
     </div>
@@ -104,37 +166,19 @@ function FileTreeNode({
   projectId,
   onSelectFile,
   onQuoteFile,
+  onUpload,
 }: {
   node: FileNode
   level: number
   projectId: number
   onSelectFile: (file: FileNode) => void
   onQuoteFile?: (file: FileNode) => void
+  onUpload: (targetPath: string, files: FileList) => Promise<void>
 }) {
   const [isOpen, setIsOpen] = useState(false)
+  const [isDragOver, setIsDragOver] = useState(false)
   const isFolder = node.type === "directory"
   const { t } = useTranslation()
-  const queryClient = useQueryClient()
-
-  const pinResourceMutation = useMutation({
-    mutationFn: async () => {
-      return ResourcesService.createResource({
-        projectId,
-        requestBody: {
-          type: "file",
-          name: node.name,
-          content: node.path,
-        },
-      })
-    },
-    onSuccess: () => {
-      toast.success(t("files.pinnedSuccess"))
-      queryClient.invalidateQueries({
-        queryKey: ["projectResources", projectId],
-      })
-    },
-    onError: () => toast.error(t("files.pinnedError")),
-  })
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -145,13 +189,44 @@ function FileTreeNode({
     }
   }
 
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!isFolder) return
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(true)
+    if (!isOpen) {
+      // Optional: auto-open folder after a short delay
+    }
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!isFolder) return
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    if (!isFolder) return
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await onUpload(node.path, e.dataTransfer.files)
+    }
+  }
+
   const content = (
     <div
       className={cn(
         "flex items-center gap-1.5 py-1 px-2 hover:bg-accent/50 cursor-pointer rounded-sm select-none whitespace-nowrap transition-colors group",
+        isDragOver && isFolder && "bg-primary/20 ring-1 ring-primary"
       )}
       style={{ paddingLeft: `${level * 12 + 8}px` }}
       onClick={handleClick}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       {isFolder ? (
         <span className="text-muted-foreground mr-0.5 shrink-0">
@@ -169,26 +244,21 @@ function FileTreeNode({
 
       <span className="truncate flex-1">{node.name}</span>
 
-      {!isFolder && (
+      {!isFolder && onQuoteFile && (
         <Button
           variant="ghost"
           size="icon"
           className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mr-1"
-          title={t("files.pinToResources")}
+          title={t("chat.interface.quoteFile")}
           onClick={(e) => {
             e.stopPropagation()
-            pinResourceMutation.mutate()
+            onQuoteFile(node)
           }}
-          disabled={pinResourceMutation.isPending}
         >
-          {pinResourceMutation.isPending ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
-          ) : (
-            <Pin
-              size={12}
-              className="text-muted-foreground hover:text-primary"
-            />
-          )}
+          <Quote
+            size={12}
+            className="text-muted-foreground hover:text-primary"
+          />
         </Button>
       )}
     </div>

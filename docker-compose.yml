@@ -80,6 +80,39 @@ services:
       - "${PORT}:${PORT}"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      - app-evoloop-data:/root/.evoloop
+
+  worker:
+    build:
+      context: ./backend
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
+      redis:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      - DOMAIN=${DOMAIN}
+      - ENVIRONMENT=${ENVIRONMENT}
+      - SECRET_KEY=${SECRET_KEY?Variable not set}
+      - POSTGRES_SERVER=db
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER?Variable not set}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD?Variable not set}
+      - NEO4J_URI=bolt://host.docker.internal:7687 
+      - REDIS_URL=redis://host.docker.internal:6379/0
+      - MEILISEARCH_URL=http://host.docker.internal:7700
+      - MEILISEARCH_API_KEY=${MEILISEARCH_API_KEY:-}
+    command: ["python", "bin/run.py", "worker"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - app-evoloop-data:/root/.evoloop
 
   frontend:
     build:
@@ -95,4 +128,5 @@ volumes:
   app-redis-data:
   app-neo4j-data:
   app-meilisearch-data:
+  app-evoloop-data:
 

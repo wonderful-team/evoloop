@@ -185,6 +185,12 @@ export type Body_files_upload_file = {
     session_id?: (string | null);
 };
 
+export type Body_files_workspace_upload = {
+    file: (Blob | File);
+    target_dir?: string;
+    overwrite?: boolean;
+};
+
 export type Body_knowledge_bulk_upload = {
     /**
      * Multiple files to upload
@@ -2587,6 +2593,13 @@ export type FilesUploadFileData = {
 };
 
 export type FilesUploadFileResponse = (unknown);
+
+export type FilesWorkspaceUploadData = {
+    formData: Body_files_workspace_upload;
+    projectId: number;
+};
+
+export type FilesWorkspaceUploadResponse = (FileNode);
 
 export type FilesSearchFilesData = {
     projectId: number;
