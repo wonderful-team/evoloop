@@ -94,6 +94,10 @@ class EvoCloudManager:
 
     async def start(self) -> None:
         """Start background services (Link) for the current loop."""
+        if not settings.MOBILE_SYNC_ENABLED:
+            logger.info("[EvoCloud] MOBILE_SYNC_ENABLED=false — skipping WebSocket link and conversation sync")
+            return
+
         link = self.link
         if link:
             await link.start()

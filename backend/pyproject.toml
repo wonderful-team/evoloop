@@ -106,6 +106,7 @@ full = [
     "neo4j>=5.20.0",
     "celery>=5.3.0",
     "redis>=5.0.0",
+    "meilisearch>=0.31.0",
     "langchain-postgres>=0.0.9",
     "langchain-neo4j>=0.7.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "langgraph-checkpoint-sqlite>=3.0.3",

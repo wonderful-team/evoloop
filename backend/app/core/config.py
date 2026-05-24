@@ -99,7 +99,7 @@ class Settings(BaseSettings):
     VECTOR_POSTGRES_PORT: int = 5432
     VECTOR_POSTGRES_USER: str | None = None
     VECTOR_POSTGRES_PASSWORD: str = ""
-    VECTOR_POSTGRES_DB: str = "evoloop_vector"
+    VECTOR_POSTGRES_DB: str | None = None
 
     # --- Search Backend Configuration ---
     # "auto": EMBEDDED_MODE=True → sqlite_fts, False → meilisearch
@@ -232,12 +232,9 @@ class Settings(BaseSettings):
     ENABLE_VISION_OCR: bool = True
     ENABLE_MACRO_SELF_HEALING: bool = True
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def ENABLE_ENVIRONMENT_CONTROLS(self) -> bool:
-        """是否启用本地环境控制工具（浏览器、桌面、手机）。在纯服务器部署中禁用。"""
-        # 如果是内嵌模式(桌面端应用)，或者允许本地开发，则默认开启
-        return self.EMBEDDED_MODE or self.ENVIRONMENT == "local"
+    # 是否启用本地环境控制工具（浏览器、桌面、手机）。可以根据实际需要开启或关闭。
+    # 纯服务端部署推荐关闭 (False)，需要 AI 控制真实设备时开启 (True)。
+    ENABLE_ENVIRONMENT_CONTROLS: bool = False
 
     # Screenshot Configuration
     ENABLE_PARTIAL_SCREENSHOT: bool = True  # True: Auto-capture current window region, False: Full screen only
@@ -308,12 +305,15 @@ class Settings(BaseSettings):
     EVOCLOUD_DEVICE_NAME: str | None = Field("EvoLoop-Desktop", validation_alias="EVOCLOUD_DEVICE_NAME")
     EVOCLOUD_SSL_VERIFY: bool = Field(True, validation_alias="EVOCLOUD_SSL_VERIFY")
 
-    @field_validator("EVOCLOUD_SSL_VERIFY", mode="before")
-    @classmethod
-    def parse_ssl_verify(cls, v):
-        if isinstance(v, str):
-            return v.lower() in ("true", "1", "yes", "on")
-        return bool(v)
+    # Mobile Sync
+    # 是否启用与移动端的数据同步通道。
+    # 设置为 False 可完全屏蔽以下所有对外通信：
+    #   - WebSocket 连接到 Gateway（含 handshake / ping / message_sync /
+    #     agent_run_completed / command_ack / query_response）
+    #   - 对话历史 HTTP 同步（全量 + 增量）
+    #   - 设备注册与 Mobile 客户端绑定
+    # 适用场景：纯服务器部署，不需要移动端接入时（MOBILE_SYNC_ENABLED=false）。
+    MOBILE_SYNC_ENABLED: bool = Field(True, validation_alias="MOBILE_SYNC_ENABLED")
 
     # --- Deprecated Configuration (Phase 4 Cleanup) ---
     USE_CLIENT_FOR_TOOLS: bool = False  # @deprecated: Will be replaced by dynamic transport selection
@@ -490,7 +490,7 @@ class Settings(BaseSettings):
             password=self.VECTOR_POSTGRES_PASSWORD or self.POSTGRES_PASSWORD,
             host=server,
             port=self.VECTOR_POSTGRES_PORT or self.POSTGRES_PORT,
-            path=self.VECTOR_POSTGRES_DB,
+            path=self.VECTOR_POSTGRES_DB or self.POSTGRES_DB,
         ))
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:

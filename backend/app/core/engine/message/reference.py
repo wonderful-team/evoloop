@@ -40,8 +40,8 @@ class ReferenceService:
         quotes_data = []
         for att in references_input:
             att_type = att.get("type", "file")
-            att_id = att.get("id") or att.get("url")
-            att_name = att.get("name") or att_id or "Unknown"
+            att_id = att.get("target_id") or att.get("id") or att.get("url")
+            att_name = att.get("target_name") or att.get("name") or att_id or "Unknown"
 
             if not att_id:
                 continue

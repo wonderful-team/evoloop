@@ -21,6 +21,7 @@ import time
 from datetime import datetime
 from typing import Any
 
+from app.core.config import settings
 from app.core.engine.message.event_bus import get_event_bus
 from app.core.engine.message.mapper import BlockMapper
 from app.core.engine.message.schemas import MessageBlock
@@ -86,6 +87,9 @@ class MessagePublisher:
     async def _publish_mobile(self, block: MessageBlock) -> None:
         """通过 EvoCloud Gateway WebSocket 推送到 Mobile"""
         try:
+            if not settings.MOBILE_SYNC_ENABLED:
+                return
+
             if not evocloud_manager.link or not evocloud_manager.link.is_connected():
                 logger.debug("[Publisher] WebSocket not connected, skipping mobile push")
                 return
