@@ -68,16 +68,6 @@ export default function RegisterScreen() {
   const { colors } = useTheme();
   const { sendMobileCode, isLoading } = useAuth();
 
-  // 注册类型
-  const [registerType, setRegisterType] = useState<RegisterType>('mobile');
-
-  // 手机号注册表单
-  const [mobile, setMobile] = useState('');
-  const [mobileCode, setMobileCode] = useState('');
-  const [mobileCodeKey, setMobileCodeKey] = useState('');
-  const [mobilePassword, setMobilePassword] = useState('');
-  const [showMobilePassword, setShowMobilePassword] = useState(false);
-
   // 用户名注册表单
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -124,12 +114,7 @@ export default function RegisterScreen() {
         return;
       }
 
-      // 根据配置设置默认注册方式
-      if (registerMethods.includes('username')) {
-        setRegisterType('username');
-      } else if (registerMethods.includes('mobile')) {
-        setRegisterType('mobile');
-      }
+      // 根据配置设置默认注册方式 (现在只有用户名注册)
     } catch (error: any) {
       console.error('获取注册配置失败:', error);
     }
@@ -210,96 +195,6 @@ export default function RegisterScreen() {
       setFormErrors({
         captchaCode: error.message || t('auth.errors.captchaUnavailable')
       });
-    }
-  };
-
-  // 发送手机验证码
-  const handleSendMobileCode = async () => {
-    // 验证手机号
-    if (!validate.mobile(mobile)) {
-      setFormErrors({ mobile: t('auth.errors.enterCorrectMobile') });
-      Alert.alert(t('common.tip'), t('auth.errors.enterCorrectMobile'));
-      return false;
-    }
-
-    // 如果需要图形验证码
-    if (needCaptcha && !captchaCode) {
-      setFormErrors({ captchaCode: t('auth.errors.enterCaptcha') });
-      return false;
-    }
-
-    try {
-      const result = await sendMobileCode(mobile, captchaId, captchaCode);
-      if (result) {
-        setMobileCodeKey(result.key);
-        setFormErrors({});
-        return true;
-      }
-    } catch (error: any) {
-      setFormErrors({
-        mobile: error.message || t('auth.errors.sendCodeFailed'),
-      });
-      // 刷新验证码
-      if (needCaptcha) {
-        refreshCaptcha();
-      }
-    }
-    return false;
-  };
-
-  // 手机号注册
-  const handleMobileRegister = async () => {
-    // 表单验证
-    const errors: Record<string, string> = {};
-
-    if (!validate.mobile(mobile)) {
-      errors.mobile = t('auth.errors.enterCorrectMobile');
-    }
-    if (!mobileCode) {
-      errors.mobileCode = t('auth.errors.codeRequired');
-    }
-
-    const minPwdLen = getMinPasswordLength();
-    if (!mobilePassword || mobilePassword.length < minPwdLen) {
-      errors.mobilePassword = t('auth.errors.passwordTooShort');
-    }
-
-    // 密码复杂度校验
-    if (registerConfig?.pwd_complexity) {
-      const complexityError = validatePasswordComplexity(mobilePassword, registerConfig.pwd_complexity, t);
-      if (complexityError) {
-        errors.mobilePassword = complexityError;
-      }
-    }
-
-    if (needCaptcha && !captchaCode) {
-      errors.captchaCode = t('auth.errors.enterCaptcha');
-    }
-    if (showAgreement() && !agreedToTerms) {
-      setShowTermsDialog(true);
-      return;
-    }
-
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors);
-      return;
-    }
-
-    setFormErrors({});
-    setRegisterError('');
-
-    try {
-      await authApi.registerWithMobile({
-        mobile,
-        key: mobileCodeKey,
-        code: mobileCode,
-        password: mobilePassword,
-      });
-
-      // 注册成功，跳转到登录页
-      router.replace('Login');
-    } catch (error: any) {
-      setRegisterError(error.message || t('auth.errors.registerFailed'));
     }
   };
 
@@ -390,160 +285,8 @@ export default function RegisterScreen() {
             </Text>
           </View>
 
-          {/* 注册类型切换 - 根据配置显示 */}
-          {isRegisterMethodEnabled('mobile') && isRegisterMethodEnabled('username') && (
-            <View style={[styles.tabContainer, { backgroundColor: colors.surfaceVariant }]}>
-              <TouchableOpacity
-                style={[
-                  styles.tab,
-                  registerType === 'mobile' && [styles.activeTab, { backgroundColor: colors.surface }],
-                ]}
-                onPress={() => setRegisterType('mobile')}
-              >
-                <Text
-                  variant="labelLarge"
-                  style={{ color: registerType === 'mobile' ? colors.onSurface : colors.text.secondary }}
-                >
-                  {t('auth.register.tabMobile')}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.tab,
-                  registerType === 'username' && [styles.activeTab, { backgroundColor: colors.surface }],
-                ]}
-                onPress={() => setRegisterType('username')}
-              >
-                <Text
-                  variant="labelLarge"
-                  style={{ color: registerType === 'username' ? colors.onSurface : colors.text.secondary }}
-                >
-                  {t('auth.register.tabAccount')}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* 如果只有一种注册方式，显示标题 */}
-          {(!isRegisterMethodEnabled('mobile') || !isRegisterMethodEnabled('username')) && (
-            <View style={styles.singleRegisterTitle}>
-              <Text variant="titleMedium" style={{ color: colors.onSurface }}>
-                {isRegisterMethodEnabled('mobile') ? t('auth.register.tabMobile') : t('auth.register.tabAccount')}
-              </Text>
-            </View>
-          )}
-
-          {/* 手机号注册表单 */}
-          {(registerType === 'mobile' || !isRegisterMethodEnabled('username')) && isRegisterMethodEnabled('mobile') && (
-            <View style={styles.form}>
-              <View>
-                <TextInput
-                  label={t('auth.register.mobilePlaceholder')}
-                  value={mobile}
-                  onChangeText={(text) => {
-                    setMobile(text);
-                    if (formErrors.mobile) {
-                      setFormErrors((prev) => ({ ...prev, mobile: '' }));
-                    }
-                  }}
-                  placeholder={t('auth.register.mobilePlaceholder')}
-                  keyboardType="phone-pad"
-                  maxLength={11}
-                  error={!!formErrors.mobile}
-                  style={styles.input}
-                />
-                {formErrors.mobile && (
-                  <Text style={[styles.errorText, { color: colors.error }]}>
-                    {formErrors.mobile}
-                  </Text>
-                )}
-              </View>
-
-              {/* 图形验证码 */}
-              {needCaptcha && (
-                <View>
-                  <View style={styles.captchaContainer}>
-                    <TextInput
-                      label={t('auth.login.captchaLabel')}
-                      value={captchaCode}
-                      onChangeText={setCaptchaCode}
-                      error={!!formErrors.captchaCode}
-                      style={[styles.input, styles.captchaInput]}
-                    />
-                    <CaptchaImage
-                      captchaId={captchaId}
-                      captchaImage={captchaImage}
-                      onRefresh={refreshCaptcha}
-                    />
-                  </View>
-                  {formErrors.captchaCode && (
-                    <Text style={[styles.errorText, { color: colors.error }]}>
-                      {formErrors.captchaCode}
-                    </Text>
-                  )}
-                </View>
-              )}
-
-              <View>
-                <View style={styles.codeContainer}>
-                  <TextInput
-                    label={t('auth.login.smsCodeLabel')}
-                    value={mobileCode}
-                    onChangeText={(text) => {
-                      setMobileCode(text);
-                      if (formErrors.mobileCode) {
-                        setFormErrors((prev) => ({ ...prev, mobileCode: '' }));
-                      }
-                    }}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    error={!!formErrors.mobileCode}
-                    style={[styles.input, styles.codeInput]}
-                  />
-                  <CountdownButton
-                    onPress={handleSendMobileCode}
-                    disabled={!validate.mobile(mobile) || (needCaptcha && !captchaCode)}
-                  />
-                </View>
-                {formErrors.mobileCode && (
-                  <Text style={[styles.errorText, { color: colors.error }]}>
-                    {formErrors.mobileCode}
-                  </Text>
-                )}
-              </View>
-
-              <View>
-                <TextInput
-                  label={t('auth.register.passwordPlaceholder')}
-                  value={mobilePassword}
-                  onChangeText={(text) => {
-                    setMobilePassword(text);
-                    if (formErrors.mobilePassword) {
-                      setFormErrors((prev) => ({ ...prev, mobilePassword: '' }));
-                    }
-                  }}
-                  secureTextEntry={!showMobilePassword}
-                  error={!!formErrors.mobilePassword}
-                  style={styles.input}
-                  placeholder={t('auth.register.passwordPlaceholder')}
-                  right={
-                    <TextInput.Icon
-                      icon={showMobilePassword ? 'eye-off' : 'eye'}
-                      onPress={() => setShowMobilePassword(!showMobilePassword)}
-                    />
-                  }
-                />
-                {formErrors.mobilePassword && (
-                  <Text style={[styles.errorText, { color: colors.error }]}>
-                    {formErrors.mobilePassword}
-                  </Text>
-                )}
-              </View>
-            </View>
-          )}
-
           {/* 用户名注册表单 */}
-          {(registerType === 'username' || !isRegisterMethodEnabled('mobile')) && isRegisterMethodEnabled('username') && (
+          {isRegisterMethodEnabled('username') && (
             <View style={styles.form}>
               <View>
                 <TextInput
@@ -668,7 +411,7 @@ export default function RegisterScreen() {
           {/* 注册按钮 */}
           <Button
             mode="contained"
-            onPress={registerType === 'mobile' ? handleMobileRegister : handleUsernameRegister}
+            onPress={handleUsernameRegister}
             loading={isLoading}
             disabled={isLoading}
             style={styles.registerButton}

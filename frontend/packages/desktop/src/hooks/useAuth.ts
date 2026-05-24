@@ -27,7 +27,7 @@ export interface UserRegister {
 const useAuth = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { showErrorToast } = useCustomToast()
+  const { showErrorToast, showSuccessToast } = useCustomToast()
 
   const { data: user } = useQuery<UserPublic | null, Error>({
     queryKey: ["currentUser"],
@@ -35,21 +35,68 @@ const useAuth = () => {
     enabled: isLoggedIn(),
   })
 
+  const registerConfigQuery = useQuery({
+    queryKey: ["registerConfig"],
+    queryFn: () => AuthService.getRegisterConfig(),
+  })
+
   const signUpMutation = useMutation({
-    mutationFn: (data: UserRegister) =>
-      AuthService.registerUsername({ requestBody: data as any }), // Fix: Use AuthService
+    mutationFn: async (data: UserRegister) => {
+      const res = await AuthService.registerUsername({ requestBody: data as any })
+      if (res.code !== undefined && res.code < 0) {
+        throw new Error(res.message || "Registration failed")
+      }
+      return res
+    },
     onSuccess: () => {
+      showSuccessToast("注册成功")
       navigate({ to: "/login" })
     },
-    onError: handleError.bind(showErrorToast),
+    onError: (err: any) => {
+      showErrorToast(err.message || "Something went wrong.")
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] })
     },
   })
 
+  const registerMobileMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await AuthService.registerMobile({ requestBody: data })
+      if (res.code !== undefined && res.code < 0) {
+        throw new Error(res.message || "Registration failed")
+      }
+      return res
+    },
+    onSuccess: () => {
+      showSuccessToast("注册成功")
+      navigate({ to: "/login" })
+    },
+    onError: (err: any) => {
+      showErrorToast(err.message || "Something went wrong.")
+    },
+  })
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await AuthService.resetPassword({ requestBody: data })
+      if (res.code !== undefined && res.code < 0) {
+        throw new Error(res.message || "Reset failed")
+      }
+      return res
+    },
+    onSuccess: () => {
+      showSuccessToast("密码重置成功")
+      navigate({ to: "/login" })
+    },
+    onError: (err: any) => {
+      showErrorToast(err.message || "Something went wrong.")
+    },
+  })
+
   const login = async (data: any) => {
     const response = await AccountService.loginAccessToken({
-      formData: data as any, // Cast to any because the generated data.formData expects AccountLoginAccessTokenData
+      formData: data as any,
     })
     localStorage.setItem("access_token", response.access_token)
   }
@@ -57,7 +104,6 @@ const useAuth = () => {
   const loginMutation = useMutation({
     mutationFn: login,
     onSuccess: () => {
-      // Invalidate current user query to force refetch
       queryClient.invalidateQueries({ queryKey: ["currentUser"] })
       navigate({ to: "/" })
     },
@@ -65,9 +111,18 @@ const useAuth = () => {
   })
 
   const requestMobileCodeMutation = useMutation({
-    mutationFn: (data: { mobile: string; captcha_id?: string; captcha_code?: string }) =>
-      AccountService.requestMobileCode({ requestBody: data }),
-    onError: handleError.bind(showErrorToast),
+    mutationFn: async (data: { mobile: string; captcha_id?: string; captcha_code?: string; type?: string }) => {
+      // Provide a default type 'login' if not specified
+      const requestData = { type: 'login', ...data }
+      const res = await AuthService.sendSms({ requestBody: requestData as any })
+      if (res.code !== undefined && res.code < 0) {
+        throw new Error(res.message || "Failed to send code")
+      }
+      return res
+    },
+    onError: (err: any) => {
+      showErrorToast(err.message || "Something went wrong.")
+    },
   })
 
   const loginMobileMutation = useMutation({
@@ -77,7 +132,6 @@ const useAuth = () => {
       return response
     },
     onSuccess: () => {
-      // Invalidate current user query to force refetch
       queryClient.invalidateQueries({ queryKey: ["currentUser"] })
       navigate({ to: "/" })
     },
@@ -86,21 +140,21 @@ const useAuth = () => {
 
   const logout = async () => {
     try {
-      // Call backend to cleanup EvoLoop connection
       await AccountService.logout()
     } catch (e) {
       console.error("Logout cleanup failed:", e)
     } finally {
-      // Clear access token
       localStorage.removeItem("access_token")
       localStorage.removeItem("evoloop_member_id")
-
       queryClient.resetQueries()
     }
   }
 
   return {
+    registerConfigQuery,
     signUpMutation,
+    registerMobileMutation,
+    resetPasswordMutation,
     loginMutation,
     requestMobileCodeMutation,
     loginMobileMutation,

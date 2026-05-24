@@ -1409,7 +1409,9 @@ export type RegisterMobileRequest = {
 };
 
 export type RegisterUsernameRequest = {
-    username: string;
+    username?: (string | null);
+    email?: (string | null);
+    full_name?: (string | null);
     password: string;
     captcha_id?: (string | null);
     captcha_code?: (string | null);
@@ -2417,6 +2419,10 @@ export type AuthGetCaptchaData = {
 export type AuthGetCaptchaResponse = (EvoCloudProxyResponse);
 
 export type AuthGetRegisterConfigResponse = (EvoCloudProxyResponse);
+
+export type AuthGetRegisterAgreementData = {
+    type?: string;
+};
 
 export type AuthGetRegisterAgreementResponse = (EvoCloudProxyResponse);
 

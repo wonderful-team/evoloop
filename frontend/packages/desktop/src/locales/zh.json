@@ -112,7 +112,14 @@
       "fullNamePlaceholder": "User",
       "hasAccount": "已有账号？",
       "login": "登录",
-      "submit": "注册"
+      "submit": "注册",
+      "username": "用户名",
+      "usernamePlaceholder": "请输入用户名",
+      "agreementText": "我已阅读并同意",
+      "agreementService": "《服务协议》",
+      "agreementAnd": "与",
+      "agreementPrivacy": "《隐私政策》",
+      "agreeToTermsRequired": "请先阅读并同意服务协议"
     },
     "reset": {
       "confirmPassword": "确认密码",

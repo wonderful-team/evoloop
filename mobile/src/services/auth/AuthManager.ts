@@ -36,8 +36,10 @@ export class AuthManager {
 
   // 获取注册/登录配置
   static async getRegisterConfig(): Promise<RegisterConfig> {
-    const response = await api.get<ApiResponse<RegisterConfig>>(`/member/api/register/config`);
-    return unwrapResponse<RegisterConfig>(response);
+    const response = await api.get<ApiResponse<any>>(`/member/api/register/config`);
+    const data = unwrapResponse<any>(response);
+    // The register config is nested inside the 'value' property
+    return data.value ? data.value as RegisterConfig : data as RegisterConfig;
   }
 
   // 获取验证码配置

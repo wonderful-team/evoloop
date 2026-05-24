@@ -5094,8 +5094,37 @@ export const RegisterMobileRequestSchema = {
 export const RegisterUsernameRequestSchema = {
     properties: {
         username: {
-            type: 'string',
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
             title: 'Username'
+        },
+        email: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Email'
+        },
+        full_name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Full Name'
         },
         password: {
             type: 'string',
@@ -5126,7 +5155,7 @@ export const RegisterUsernameRequestSchema = {
     },
     additionalProperties: true,
     type: 'object',
-    required: ['username', 'password'],
+    required: ['password'],
     title: 'RegisterUsernameRequest'
 } as const;
 

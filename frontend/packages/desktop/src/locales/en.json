@@ -112,7 +112,14 @@
       "fullNamePlaceholder": "User",
       "hasAccount": "Already have an account?",
       "login": "Log in",
-      "submit": "Sign Up"
+      "submit": "Sign Up",
+      "username": "Username",
+      "usernamePlaceholder": "Enter username",
+      "agreementText": "I have read and agree to the",
+      "agreementService": "Service Agreement",
+      "agreementAnd": "and",
+      "agreementPrivacy": "Privacy Policy",
+      "agreeToTermsRequired": "Please read and agree to the terms of service"
     },
     "reset": {
       "confirmPassword": "Confirm Password",

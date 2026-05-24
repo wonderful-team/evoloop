@@ -25,6 +25,8 @@ export default defineConfig({
     tailwindcss(),
   ],
   build: {
+    outDir: path.resolve(__dirname, "dist"),
+    emptyOutDir: true,
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, "packages/desktop/index.html"),
