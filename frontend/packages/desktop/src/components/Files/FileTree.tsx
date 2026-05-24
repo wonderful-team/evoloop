@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { Link } from "@tanstack/react-router"
 import {
   ChevronDown,
   ChevronRight,
@@ -56,6 +57,10 @@ export function FileTree({
     queryFn: () => FilesService.listFiles({ projectId, path }),
     staleTime: 1000 * 60 * 5, // Cache for 5 mins
     enabled: isLoggedIn(), // Only fetch if user is logged in
+    retry: (failureCount, error: any) => {
+      if (error?.status === 404) return false;
+      return failureCount < 3;
+    },
   })
 
   const handleUpload = async (targetPath: string, files: FileList, overwrite = false) => {
@@ -115,9 +120,16 @@ export function FileTree({
   }
 
   if (error) {
+    const isGlobalNotConfigured = projectId === 0 && (error as any).status === 404;
+
     return (
-      <div className="pl-4 py-1 text-xs text-destructive">
-        {t("files.error")}
+      <div className="pl-4 py-2 text-xs text-destructive flex flex-col items-start gap-2">
+        <span>{isGlobalNotConfigured ? t("files.workspaceNotConfigured", { defaultValue: "尚未配置全局工作区目录" }) : t("files.error")}</span>
+        {isGlobalNotConfigured && (
+          <Button variant="outline" size="sm" className="h-6 text-[10px]" asChild>
+            <Link to="/settings">前往设置</Link>
+          </Button>
+        )}
       </div>
     )
   }
