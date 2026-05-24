@@ -228,6 +228,47 @@ async def upload_file(
         raise HTTPException(500, f"Failed to upload file: {str(e)}")
 
 
+@router.post("/workspace_upload", response_model=FileNode)
+async def workspace_upload(
+    project_id: int,
+    file: UploadFile = File(...),
+    target_dir: str = Form(""),
+    overwrite: bool = Form(False)
+):
+    """
+    Upload a binary file directly into the project workspace.
+    """
+    root_path = await get_project_path(project_id)
+    if not root_path:
+        raise HTTPException(status_code=404, detail="Project path invalid")
+
+    # Clean target_dir to prevent directory traversal
+    target_dir = target_dir.lstrip("/")
+    target_dir_path = os.path.join(root_path, target_dir)
+    
+    filename = os.path.basename(file.filename or "uploaded_file")
+    target_file = os.path.join(target_dir_path, filename)
+
+    # Security check: ensure target_file is inside root_path
+    if not os.path.commonpath([root_path, target_file]) == root_path:
+        raise HTTPException(403, "Access denied")
+
+    if os.path.exists(target_file) and not overwrite:
+        raise HTTPException(409, "File already exists")
+
+    try:
+        os.makedirs(target_dir_path, exist_ok=True)
+        with open(target_file, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        # Return relative path for frontend FileNode
+        rel_path = os.path.relpath(target_file, root_path)
+        return FileNode(name=filename, path=rel_path, type="file")
+    except Exception as e:
+        logger.error(f"Failed to upload to workspace {target_file}: {e}")
+        raise HTTPException(500, f"Failed to upload to workspace: {str(e)}")
+
+
 @router.get("/search", response_model=list[FileSearchResult])
 async def search_files(project_id: int, q: str):
     """
