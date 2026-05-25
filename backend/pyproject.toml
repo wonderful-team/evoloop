@@ -30,9 +30,9 @@ dependencies = [
     "google-genai>=1.0.0", # Adjusted version constraint for broad compatibility
     "openai>=1.30.0",
     # Task Queue (Embedded mode: Huey + SQLite, Full mode: Celery + Redis)
-    "huey[sqlite]>=2.5.0",  # Lightweight task queue for embedded mode
+    "huey[sqlite]>=2.5.0", # Lightweight task queue for embedded mode
     "anthropic>=0.25.0",
-    "edge-tts>=7.0.0",  # Text-to-Speech (Microsoft Edge, free)
+    "edge-tts>=7.0.0", # Text-to-Speech (Microsoft Edge, free)
     "tree-sitter-python>=0.21.0",
     "tree-sitter-javascript>=0.21.0",
     "tree-sitter-typescript>=0.21.0",
@@ -96,6 +96,7 @@ dependencies = [
     "sentence-transformers>=5.5.0",
     "transformers<5.0.0; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "einops>=0.8.2",
+    "psycopg2-binary>=2.9.12",
 ]
 
 [project.optional-dependencies]
