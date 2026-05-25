@@ -178,24 +178,9 @@ class SupervisorNode(BaseAgentNode):
                 logger.info(f"[Supervisor] 🧩 All {expected} subtasks done. Routing to Aggregator.")
                 return StateUpdate(next_node=RoutingTarget.AGGREGATOR)
 
-        # 2. Check Worker/Aggregator Outcome
         worker_outcome = StateLifecycleManager.consume_worker_outcome(state)
         if worker_outcome:
-            if worker_outcome == "truncated":
-                # Worker hit max_steps and was truncated. Bypass Supervisor LLM entirely
-                # and route directly back to Worker to continue execution.
-                # The Worker retains blackboard state and will pick up where it left off.
-                logger.info(
-                    "[Supervisor] Worker was truncated by max_steps. "
-                    "Routing back to WORKER to continue execution."
-                )
-                return StateUpdate(
-                    next_node=RoutingTarget.WORKER,
-                    blackboard=blackboard,
-                    iteration_count=(state.iteration_count or 0) + 1
-                )
-
-            # For "success", "failed", or any other semantic outcome:
+            # For "success", "failed", "truncated", or any other semantic outcome:
             # DO NOT intercept with Python logic. Clear the active ticket and 
             # let the Supervisor LLM read the context to decide the next step.
             logger.info(f"[Supervisor] ℹ️ Worker returned '{worker_outcome}'. Delegating review to Supervisor LLM.")
