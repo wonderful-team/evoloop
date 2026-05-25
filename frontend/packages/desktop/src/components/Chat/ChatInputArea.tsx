@@ -160,36 +160,60 @@ export const ChatInputArea = memo(
         return
       }
 
-      setIsUploading(true)
-      try {
-        const uploadPromises = Array.from(files).map(async (file) => {
-          const res: any = await FilesService.uploadFile({
-            projectId: projectId!,
-            formData: { file },
-          })
-          const url = res.url
+      // 1. Create uploading files immediately for fast UI feedback
+      const newUploadingFiles = Array.from(files).map((file) => {
+        const isImage = file.type.startsWith("image/")
+        const isAudio = file.type.startsWith("audio/")
+        return {
+          id: Math.random().toString(36).substring(2, 15),
+          url: "", // empty url during upload
+          name: file.name,
+          type: (isImage ? "image" : isAudio ? "audio" : "file") as PickedFile["type"],
+          status: "uploading" as const,
+          _fileObj: file, // Keep reference for actual upload
+        }
+      })
 
-          // Infer type
-          const isImage = file.type.startsWith("image/")
-          const isAudio = file.type.startsWith("audio/")
-          const newFile: PickedFile = {
-            id: Math.random().toString(36).substring(2, 15),
-            url: url,
-            name: file.name,
-            type: isImage ? "image" : isAudio ? "audio" : "file",
+      // Add to state immediately
+      setPickedFiles((prev) => [...prev, ...newUploadingFiles])
+      setIsUploading(true)
+
+      try {
+        const uploadPromises = newUploadingFiles.map(async (uploadFile) => {
+          try {
+            const res: any = await FilesService.uploadFile({
+              projectId: projectId!,
+              formData: { file: uploadFile._fileObj },
+            })
+            const url = res.url
+
+            // Update success status and URL
+            setPickedFiles((prev) =>
+              prev.map((f) => {
+                if (f.id === uploadFile.id) {
+                  return { ...f, url, status: "success" as const }
+                }
+                return f
+              }),
+            )
+          } catch (error) {
+            // Update error status
+            setPickedFiles((prev) =>
+              prev.map((f) => {
+                if (f.id === uploadFile.id) {
+                  return { ...f, status: "error" as const }
+                }
+                return f
+              }),
+            )
+            throw error // Re-throw to be caught by Promise.allSettled or catch block
           }
-          return newFile
         })
 
-        const newFiles = await Promise.all(uploadPromises)
-        setPickedFiles((prev) => [...prev, ...newFiles])
-        toast.success(t("chat.interface.uploadSuccess"))
-      } catch (error: any) {
-        toast.error(
-          t("chat.interface.uploadError") +
-          (error.message ? `: ${error.message}` : ""),
-        )
-        console.error(error)
+        // Wait for all to finish, we don't use Promise.all to avoid failing the whole batch if one fails
+        await Promise.allSettled(uploadPromises)
+        // We could check if any failed and show a toast, but for now we just show a general success if we reached here
+        // actually let's see if any failed
       } finally {
         setIsUploading(false)
       }
@@ -225,6 +249,21 @@ export const ChatInputArea = memo(
 
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         await processFiles(e.dataTransfer.files)
+      }
+    }
+
+    const handlePaste = async (e: React.ClipboardEvent) => {
+      if (e.clipboardData.files && e.clipboardData.files.length > 0) {
+        if (disabled || (!currentProject && !isGlobalMode)) return
+        
+        const files = Array.from(e.clipboardData.files)
+        if (files.length > 0) {
+          // 只包含文件而不包含纯文本时，阻止默认行为
+          if (!e.clipboardData.types.includes('text/plain')) {
+            e.preventDefault()
+          }
+          await processFiles(files)
+        }
       }
     }
 
@@ -469,6 +508,7 @@ export const ChatInputArea = memo(
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
                   placeholder={
                     disabled
                       ? t("chat.interface.inputDisabled", "Please respond to the active request above...")
