@@ -41,23 +41,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         return self.base_url.rstrip('/')
 
     def _get_base_url(self, is_gateway: bool) -> str:
-        """
-        获取请求的基础 URL。
-        
-        生产环境：使用统一入口，通过 /gateway 和 /member 前缀路由
-        本地开发：通过环境变量 EVOCLOUD_GATEWAY_URL / EVOCLOUD_MEMBER_URL 分别配置
-        """
-        import os
-        if is_gateway:
-            gateway_url = os.getenv("EVOCLOUD_GATEWAY_URL")
-            if gateway_url:
-                return gateway_url.rstrip('/')
-            prefix = "/gateway"
-        else:
-            member_url = os.getenv("EVOCLOUD_MEMBER_URL")
-            if member_url:
-                return member_url.rstrip('/')
-            prefix = "/member"
+        prefix = "/gateway" if is_gateway else "/member"
         return f"{self.root_url}{prefix}"
 
     async def get_client(self) -> httpx.AsyncClient:
@@ -244,12 +228,28 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
                 logger.error(f"API Error {resp.status_code}: {resp.text[:200]}")
 
             try:
-                return resp.json()
+                result = resp.json()
+                if result is None:
+                    return {"code": -1, "message": "Empty response body"}
+                return result
             except json.JSONDecodeError:
                 return {"code": -1, "message": f"Invalid JSON: {resp.text[:100]}"}
 
         except httpx.RequestError as e:
-            logger.error(f"Request connection error to {url}: {e}")
+            logger.error(f"Request connection error to {url}: {type(e).__name__}: {e} (repr: {repr(e)}, cause: {repr(e.__cause__)})")
+            # Recreate HTTP client on connection errors (stale pool) and retry once
+            if _retry_count < 1:
+                logger.info(f"[EvoCloud] Recreating HTTP client and retrying {endpoint}...")
+                await self.close()
+                return await self.request(
+                    method=method,
+                    endpoint=endpoint,
+                    params=params,
+                    data=data,
+                    token=token,
+                    headers=headers,
+                    _retry_count=_retry_count + 1,
+                )
             return {"code": -1, "message": str(e)}
         except Exception as e:
             logger.error(f"Request failed: {e}")
