@@ -807,6 +807,7 @@
     "status": "状态",
     "statusBadge": {
       "active": "已激活",
+      "candidate": "候选",
       "draft": "草稿",
       "inactive": "已停用",
       "pending_review": "待审核",
