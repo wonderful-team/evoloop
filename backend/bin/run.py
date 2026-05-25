@@ -33,6 +33,7 @@ def run_api():
         port=port,
         reload=reload,
         workers=workers if not reload else 1,
+        loop="asyncio",
     )
 
 

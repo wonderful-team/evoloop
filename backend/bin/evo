@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# EvoLoop CLI 工具 (ARM64 版本)
+# EvoLoop CLI 工具 (通用版本)
 # ============================
 # 封装常用开发命令，统一通过 evo 命令访问
 #
@@ -15,16 +15,6 @@
 #   evo clean             清理系统
 #
 
-set -e
-
-# 强制使用 arm64 架构执行
-if [ "$(arch)" != "arm64" ]; then
-    exec arch -arm64 "$0" "$@"
-fi
-
-# 确保使用新安装的 ARM64 uv
-export PATH="$HOME/.local/bin:$PATH"
-
 # 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -32,6 +22,23 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
+
+# 打印带颜色的信息
+info() {
+    echo -e "${BLUE}ℹ${NC} $1"
+}
+
+success() {
+    echo -e "${GREEN}✓${NC} $1"
+}
+
+warning() {
+    echo -e "${YELLOW}⚠${NC} $1"
+}
+
+error() {
+    echo -e "${RED}✗${NC} $1"
+}
 
 # 脚本目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -46,7 +53,8 @@ show_help() {
 ╠══════════════════════════════════════════════════════════════╣
 ║                                                              ║
 ║  【开发环境】                                                 ║
-║    evo install          安装依赖                             ║
+║    evo install          安装基础依赖                         ║
+║    evo install full     安装完整依赖 (含 Redis/Neo4j 等)     ║
 ║    evo start            一键启动所有服务（API + Worker）     ║
 ║    evo stop             停止所有服务                         ║
 ║    evo logs             查看服务日志                         ║
@@ -127,6 +135,8 @@ show_help() {
 ║    evo export openapi   导出 OpenAPI 文档到前端              ║
 ║                                                              ║
 ║  【环境】                                                     ║
+║    evo x86 <cmd>        强制以 x86_64 模式运行                ║
+║    evo arm <cmd>        强制以 arm64 模式运行                 ║
 ║    evo doctor           检测开发环境依赖                     ║
 ║    evo setup            一键配置开发环境                     ║
 ║                                                              ║
@@ -134,22 +144,51 @@ show_help() {
 EOF
 }
 
-# 打印带颜色的信息
-info() {
-    echo -e "${BLUE}ℹ${NC} $1"
-}
+# 架构处理逻辑
+# 支持手动指定架构: evo x86 <cmd> 或 evo arm <cmd>
+TARGET_ARCH=""
+if [ "$1" == "x86" ]; then
+    TARGET_ARCH="x86_64"
+    shift
+    export EVO_FORCE_ARCH="x86_64"
+elif [ "$1" == "arm" ]; then
+    TARGET_ARCH="arm64"
+    shift
+    export EVO_FORCE_ARCH="arm64"
+fi
 
-success() {
-    echo -e "${GREEN}✓${NC} $1"
-}
+# 获取当前架构
+CURRENT_ARCH=$(arch)
+if [ "$CURRENT_ARCH" == "i386" ]; then CURRENT_ARCH="x86_64"; fi
 
-warning() {
-    echo -e "${YELLOW}⚠${NC} $1"
-}
+# 决定最终目标架构
+if [ -z "$TARGET_ARCH" ]; then
+    if [ -n "$EVO_FORCE_ARCH" ]; then
+        TARGET_ARCH="$EVO_FORCE_ARCH"
+    else
+        # 默认逻辑：在 ARM Mac 上优先使用 arm64，否则使用原生架构
+        if [ "$(uname -m)" == "arm64" ]; then
+            TARGET_ARCH="arm64"
+        else
+            TARGET_ARCH="x86_64"
+        fi
+    fi
+fi
 
-error() {
-    echo -e "${RED}✗${NC} $1"
-}
+# 如果当前架构不是目标架构，尝试切换
+if [ "$CURRENT_ARCH" != "$TARGET_ARCH" ]; then
+    # 检查系统是否支持目标架构
+    if [ "$TARGET_ARCH" == "arm64" ] && [ "$(uname -m)" != "arm64" ]; then
+        error "错误: 当前系统不支持 ARM64 模式"
+        exit 1
+    fi
+    
+    info "切换到 $TARGET_ARCH 模式执行..."
+    exec arch -$TARGET_ARCH "$0" "$@"
+fi
+
+# 确保使用新安装的 uv
+export PATH="$HOME/.local/bin:$PATH"
 
 # 检查 uv 是否安装
 check_uv() {
@@ -168,7 +207,13 @@ case "${1:-help}" in
     # ==================== 开发环境 ====================
     install)
         info "安装依赖..."
-        .venv/bin/pip install -r requirements.txt 2>/dev/null || .venv/bin/pip install -e .
+        check_uv
+        if [ "${2:-}" == "full" ]; then
+            info "正在安装 Full 模式附加依赖 (Redis, Neo4j, Celery 等)..."
+            uv pip install -e ".[full]"
+        else
+            uv pip install -r requirements.txt 2>/dev/null || uv pip install -e .
+        fi
         info "创建数据库目录..."
         mkdir -p ~/.evoloop/database
         success "安装完成"
@@ -256,25 +301,52 @@ case "${1:-help}" in
         info "停止所有服务..."
         LOG_DIR="$PROJECT_DIR/logs"
 
-        # 尝试从 pid 文件停止
-        if [ -f "$LOG_DIR/api.pid" ]; then
-            kill $(cat "$LOG_DIR/api.pid") 2>/dev/null || true
-            rm -f "$LOG_DIR/api.pid"
-        fi
-        if [ -f "$LOG_DIR/worker.pid" ]; then
-            kill $(cat "$LOG_DIR/worker.pid") 2>/dev/null || true
-            rm -f "$LOG_DIR/worker.pid"
-        fi
-        if [ -f "$LOG_DIR/beat.pid" ]; then
-            kill $(cat "$LOG_DIR/beat.pid") 2>/dev/null || true
-            rm -f "$LOG_DIR/beat.pid"
-        fi
+        stop_service() {
+            local name=$1
+            local pid_file=$2
+            local pattern=$3
+            
+            local pid=""
+            if [ -f "$pid_file" ]; then
+                pid=$(cat "$pid_file")
+            else
+                # 尝试通过进程名查找
+                pid=$(pgrep -f "$pattern" | head -1)
+            fi
+            
+            if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+                info "正在停止 $name (PID: $pid)..."
+                kill "$pid" 2>/dev/null || true
+                
+                # 等待最多 10 秒
+                for i in {1..10}; do
+                    if ! kill -0 "$pid" 2>/dev/null; then
+                        break
+                    fi
+                    sleep 1
+                done
+                
+                # 如果 10 秒后仍在运行，使用 SIGKILL 强制杀掉
+                if kill -0 "$pid" 2>/dev/null; then
+                    warning "$name (PID: $pid) 拒绝停止，正在强制终止 (SIGKILL)..."
+                    kill -9 "$pid" 2>/dev/null || true
+                fi
+                success "$name 已停止"
+            fi
+            
+            rm -f "$pid_file"
+        }
 
-        # 兜底：强制终止
-        pkill -f "python bin/run.py api" 2>/dev/null || true
-        pkill -f "python bin/run.py worker" 2>/dev/null || true
+        stop_service "API" "$LOG_DIR/api.pid" "python.*bin/run.py api"
+        stop_service "Worker" "$LOG_DIR/worker.pid" "python.*bin/run.py worker"
+        stop_service "Beat" "$LOG_DIR/beat.pid" "celery.*beat"
+
+        # 兜底：强制终止可能残留的子进程（例如多进程 Worker fork 出来的进程）
+        pkill -f "python.*bin/run.py api" 2>/dev/null || true
+        pkill -f "python.*bin/run.py worker" 2>/dev/null || true
         pkill -f "celery.*beat" 2>/dev/null || true
-        success "服务已停止"
+        
+        success "所有服务已彻底停止"
         ;;
 
     logs)
@@ -717,6 +789,25 @@ case "${1:-help}" in
         exit 1
         ;;
 
+    # ==================== 模型下载 ====================
+    model)
+        case "${2:-}" in
+            download)
+                shift 2
+                info "预下载 embedding 模型到本地缓存..."
+                .venv/bin/python scripts/download_models.py "$@"
+                ;;
+            *)
+                error "未知模型命令: ${2:-}"
+                echo "可用命令: download [model_name]"
+                echo "示例:"
+                echo "  evo model download                                    # 下载默认模型"
+                echo "  evo model download nomic-ai/nomic-embed-text-v1.5    # 下载指定模型"
+                exit 1
+                ;;
+        esac
+        ;;
+
     # ==================== 导出 ====================
     export)
         case "${2:-}" in
@@ -828,10 +919,9 @@ case "${1:-help}" in
             export PATH="$HOME/.cargo/bin:$PATH"
         fi
 
-        # 步骤 2: 安装依赖
         # 步骤 2: 安装 Python 依赖
-        info "安装 Python 依赖..."
-        arch -arm64 .venv/bin/pip install -e . || arch -arm64 .venv/bin/pip install -r requirements.txt
+        info "安装 Python 依赖 (当前架构: $(arch))..."
+        .venv/bin/pip install -e . || .venv/bin/pip install -r requirements.txt
 
         # 步骤 3: 创建数据库目录
         info "创建数据目录..."
