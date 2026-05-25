@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { SystemService } from "@/client/sdk.gen"
 import { useTranslation } from "react-i18next"
 import { listen } from "@tauri-apps/api/event"
+import { isTauri } from "@/lib/tauri"
 import { cn } from "@evoloop/shared/lib/utils"
 import icon from "/assets/images/evoloop-icon.svg"
 
@@ -86,8 +87,7 @@ export default function StartupScreen({ onReady }: StartupScreenProps) {
         const setupListener = async () => {
             try {
                 // Check if we are in a Tauri environment to avoid errors in browser
-                // In Tauri v2, window.__TAURI_INTERNALS__ is the indicator
-                if (typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__) {
+                if (isTauri()) {
                     unlistenFn = await listen<string>("backend-log", (event) => {
                         setLogs((prev) => [...prev, event.payload])
                     })

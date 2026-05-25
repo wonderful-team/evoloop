@@ -9,11 +9,10 @@ receive their dependencies via constructor injection.
 import logging
 
 from app.core.memory.auto_extraction import AutoMemoryExtractor
-from app.core.memory.backends.file_backend import FileMemoryStorage
-from app.core.memory.backends.sql_short_term import SqlShortTermMemory
 from app.core.memory.config import MemoryConfig
-from app.core.memory.interfaces.storage import IMemoryStorage
 from app.core.memory.manager import MemoryManager
+from app.core.memory.short_term import SqlShortTermMemory
+from app.core.memory.store import MemoryStore
 from app.core.memory.pruning import MemoryPruningService
 from app.core.memory.quality import MemoryQualityAnalyzer
 from app.core.memory.retrieval import MemoryRetriever
@@ -39,11 +38,11 @@ class MemoryContainer:
         Args:
             config: Memory system configuration. If None, uses default config.
         """
-        self.config = config or MemoryConfig()
+        self.config = config or MemoryConfig.from_settings()
         self._initialized = False
 
         # Components (initialized lazily)
-        self._storage: IMemoryStorage | None = None
+        self._storage: MemoryStore | None = None
         self._short_term: SqlShortTermMemory | None = None
         self._pruning: MemoryPruningService | None = None
         self._smart_retriever: MemoryRetriever | None = None
@@ -95,14 +94,7 @@ class MemoryContainer:
 
     async def _init_storage(self) -> None:
         """Initialize storage backend."""
-        if self.config.is_file_backend:
-            self._storage = FileMemoryStorage(str(self.config.memory_root))
-        elif self.config.is_neo4j_backend:
-            # Graph backend (Neo4j in production, FileGraph in embedded)
-            from app.core.memory.backends.graph_backend import GraphMemoryStorage
-            self._storage = GraphMemoryStorage()
-        else:
-            raise ValueError(f"Unsupported backend type: {self.config.backend_type}")
+        self._storage = MemoryStore(str(self.config.memory_root))
 
     async def _init_short_term(self) -> None:
         """Initialize short-term memory backend."""
@@ -114,8 +106,8 @@ class MemoryContainer:
     # ==========================================================================
 
     @property
-    def storage(self) -> IMemoryStorage:
-        """Get storage backend (IMemoryStorage interface)."""
+    def storage(self) -> MemoryStore:
+        """Get storage backend."""
         if self._storage is None:
             raise RuntimeError("Container not initialized. Call initialize() first.")
         return self._storage

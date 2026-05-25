@@ -14,18 +14,19 @@ export default defineConfig({
       "@evoloop/shared": path.resolve(__dirname, "./packages/shared/src"),
     },
   },
-  envDir: "./",
   plugins: [
     tanstackRouter({
       target: "react",
       autoCodeSplitting: true,
-      routesDirectory: "./packages/desktop/src/routes",
-      generatedRouteTree: "./packages/desktop/src/routeTree.gen.ts",
+      routesDirectory: "./src/routes",
+      generatedRouteTree: "./src/routeTree.gen.ts",
     }),
     react(),
     tailwindcss(),
   ],
   build: {
+    outDir: path.resolve(__dirname, "dist"),
+    emptyOutDir: true,
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, "packages/desktop/index.html"),

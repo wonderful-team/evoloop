@@ -6,6 +6,7 @@ All memory-related settings are encapsulated in the MemoryConfig dataclass.
 """
 
 import logging
+import os
 from pathlib import Path
 
 from pydantic import Field
@@ -15,43 +16,23 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 logger = logging.getLogger(__name__)
 
 
+def _default_memory_root() -> Path:
+    """Resolve memory root from EVOLOOP_APP_DATA_DIR (same logic as Settings.APP_DATA_DIR)."""
+    app_data = os.getenv("EVOLOOP_APP_DATA_DIR", os.path.join(os.path.expanduser("~"), ".evoloop"))
+    return Path(app_data) / "memory"
+
+
 class MemoryConfig(DynamicBaseModel):
     """
     Centralized configuration for the memory system.
-    
-    This replaces scattered settings access throughout the memory module,
-    making dependencies explicit and the system more testable.
-    
+
     Usage:
-        # Production
         config = MemoryConfig.from_settings()
-        
-        # Testing
-        config = MemoryConfig(
-            memory_root=Path("/tmp/test_memory"),
-            backend_type="file",
-            extraction_interval=1,
-        )
     """
 
     # Storage settings
-    memory_root: Path = Field(default_factory=lambda: Path.home() / ".evoloop" / "memory")
+    memory_root: Path = Field(default_factory=_default_memory_root)
     """Root directory for file-based memory storage."""
-
-    backend_type: str = "file"
-    """Backend type: 'file' or 'neo4j'."""
-
-    # Neo4j settings (for full mode)
-    neo4j_uri: str | None = None
-    neo4j_user: str | None = None
-    neo4j_password: str | None = None
-
-    # Short-term memory settings
-    short_term_backend: str = "sqlite"
-    """Short-term backend: 'sqlite' or 'postgresql'."""
-
-    database_url: str | None = None
-    """Database URL for PostgreSQL mode."""
 
     # Extraction settings
     extraction_interval: int = 1
@@ -100,27 +81,17 @@ class MemoryConfig(DynamicBaseModel):
 
     @classmethod
     def from_settings(cls) -> "MemoryConfig":
-        """
-        Create configuration from Django/Celery settings.
-        
-        This is the production entry point. For testing, create
-        MemoryConfig instances directly with test values.
-        """
+        """Create configuration from application settings."""
         from app.core.config import settings
 
         return cls(
             memory_root=Path(getattr(settings, 'BRAIN_MEMORY_ROOT',
-                                     Path.home() / ".evoloop" / "memory")),
-            backend_type=getattr(settings, 'MEMORY_BACKEND', 'file'),
-            neo4j_uri=getattr(settings, 'NEO4J_URI', None),
-            neo4j_user=getattr(settings, 'NEO4J_USER', None),
-            neo4j_password=getattr(settings, 'NEO4J_PASSWORD', None),
-            short_term_backend=getattr(settings, 'SHORT_TERM_BACKEND', 'sqlite'),
-            database_url=getattr(settings, 'DATABASE_URL', None),
+                                     _default_memory_root())),
             extraction_interval=getattr(settings, 'AUTO_MEMORY_EXTRACTION_INTERVAL', 1),
             min_messages_for_extraction=getattr(settings, 'MIN_MESSAGES_FOR_EXTRACTION', 4),
             max_extraction_turns=getattr(settings, 'MAX_EXTRACTION_TURNS', 5),
             default_search_limit=getattr(settings, 'MEMORY_SEARCH_LIMIT', 10),
+            max_selections=getattr(settings, 'MAX_MEMORY_SELECTIONS', 5),
             min_relevance_score=getattr(settings, 'MEMORY_MIN_RELEVANCE', 0.7),
             quality_check_enabled=getattr(settings, 'MEMORY_QUALITY_CHECK', True),
             auto_cleanup_enabled=getattr(settings, 'MEMORY_AUTO_CLEANUP', False),
@@ -132,20 +103,19 @@ class MemoryConfig(DynamicBaseModel):
         )
 
     @property
-    def is_file_backend(self) -> bool:
-        """Check if using file-based backend."""
-        return self.backend_type == "file"
-
-    @property
-    def is_neo4j_backend(self) -> bool:
-        """Check if using Neo4j backend."""
-        return self.backend_type == "neo4j"
-
-    @property
     def extraction_enabled(self) -> bool:
         """Check if auto-extraction is enabled."""
         return self.extraction_interval > 0
 
 
 # Default configuration instance (for backward compatibility)
-default_memory_config = MemoryConfig()
+# Lazily resolved so that module-level import does not bypass settings.
+default_memory_config: MemoryConfig | None = None
+
+
+def get_default_memory_config() -> MemoryConfig:
+    """Get the lazily-initialized default memory config."""
+    global default_memory_config
+    if default_memory_config is None:
+        default_memory_config = MemoryConfig.from_settings()
+    return default_memory_config

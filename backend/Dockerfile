@@ -20,6 +20,9 @@ ENV UV_COMPILE_BYTECODE=1
 # Ref: https://docs.astral.sh/uv/guides/integration/docker/#caching
 ENV UV_LINK_MODE=copy
 
+# Use Aliyun PyPI mirror for faster installation in mainland China
+ENV UV_INDEX_URL="https://mirrors.aliyun.com/pypi/simple/"
+
 # Install dependencies
 # Ref: https://docs.astral.sh/uv/guides/integration/docker/#intermediate-layers
 RUN --mount=type=cache,target=/root/.cache/uv \

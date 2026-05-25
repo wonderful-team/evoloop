@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import os
 from typing import Any
 from app.infrastructure.embeddings.base import BaseEmbedder
 
@@ -28,17 +29,23 @@ class LocalEmbedder(BaseEmbedder):
     async def _get_model(self):
         async with self._lock:
             if self._model is None:
+                # Force offline mode to guarantee zero network requests to HuggingFace.
+                # Must be set BEFORE importing sentence_transformers/huggingface_hub
+                # so the library picks it up during module initialization.
+                os.environ["HF_HUB_OFFLINE"] = "1"
+
                 from sentence_transformers import SentenceTransformer
-                import os
-                logger.info(f"[LocalEmbedder] Loading model '{self.model_name}' on {self.device} (HF_ENDPOINT={os.getenv('HF_ENDPOINT')})...")
-                # Nomic v1.5 requires trust_remote_code=True
+
+                logger.info(f"[LocalEmbedder] Loading model '{self.model_name}' on {self.device}...")
                 self._model = await asyncio.to_thread(
                     lambda: SentenceTransformer(
-                        self.model_name, 
-                        device=self.device, 
-                        trust_remote_code=True
+                        self.model_name,
+                        device=self.device,
+                        trust_remote_code=True,
+                        local_files_only=True,
                     )
                 )
+                logger.info(f"[LocalEmbedder] Model loaded from local cache.")
             return self._model
 
     async def embed_documents(self, documents: list[str]) -> list[list[float]]:

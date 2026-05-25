@@ -11,7 +11,7 @@ from app.domain.codebase.indexing.components.file_preparer import FilePreparer
 from app.domain.codebase.indexing.components.graph_syncer import GraphSyncer
 from app.domain.codebase.indexing.components.sql_persister import SQLPersister
 from app.domain.codebase.indexing.extractors.treesitter_extractor import TreeSitterExtractor
-from app.infrastructure.database.graph.driver import get_graph_db, is_graph_enabled
+from app.infrastructure.database.graph.driver import get_graph_db
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.embeddings.base import BaseEmbedder
 from app.infrastructure.embeddings.factory import EmbedderFactory
@@ -163,8 +163,8 @@ class IndexingService:
                 else:
                     logger.warning(f"Skipping vector upsert for {prepared.rel_path}: No embeddings generated (provider might be unconfigured).")
 
-                # 4. Sync Graph (only if graph is enabled)
-                if is_graph_enabled():
+                # 4. Sync Graph
+                try:
                     line_count = prepared.content.count("\n") + 1
                     await self.graph_syncer.sync(
                         prepared,
@@ -173,8 +173,8 @@ class IndexingService:
                         source_file_pg_id=source_file.id,
                         entity_pg_ids=name_to_id
                     )
-                else:
-                    logger.debug(f"[IndexingService] Graph sync skipped (graph disabled in embedded mode)")
+                except NotImplementedError:
+                    logger.debug(f"[IndexingService] Graph sync skipped (not supported in embedded mode)")
 
             except Exception as e:
                 logger.error(f"Error indexing file {file_path}: {e}")
@@ -202,8 +202,8 @@ class IndexingService:
                     await session.delete(source_file)
                     logger.info(f"Removed {rel_path} from SQL Index")
 
-                # 2. Graph Cleanup (only if enabled)
-                if is_graph_enabled():
+                # 2. Graph Cleanup
+                try:
                     driver = await get_graph_db()
                     project_id = repo.project_id
                     
@@ -226,8 +226,10 @@ class IndexingService:
                         pid=project_id,
                     )
                     logger.info(f"Removed {rel_path} from Graph Index")
-                else:
-                    logger.debug(f"[IndexingService] Graph cleanup skipped (graph disabled in embedded mode)")
+                except NotImplementedError:
+                    logger.debug(f"[IndexingService] Graph cleanup skipped (not supported in embedded mode)")
+                except Exception as e:
+                    logger.warning(f"[IndexingService] Graph cleanup failed for {rel_path}: {e}")
 
             except Exception as e:
                 logger.error(f"Error removing file {file_path}: {e}")

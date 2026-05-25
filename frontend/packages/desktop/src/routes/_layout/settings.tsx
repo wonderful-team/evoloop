@@ -20,10 +20,11 @@ import {
 import useAuth from "@/hooks/useAuth"
 import { cn } from "@evoloop/shared/lib/utils"
 import { Footer } from "@/components/Common/Footer"
+import { isTauri } from "@/lib/tauri"
 
 const NavConfig = () => {
   const { t } = useTranslation()
-  return [
+  const items = [
     {
       value: "general",
       title: t("settings.tabs.general"),
@@ -62,6 +63,10 @@ const NavConfig = () => {
       variant: "danger" as const,
     },
   ]
+  if (!isTauri()) {
+    return items.filter(item => item.value !== "models" && item.value !== "voice")
+  }
+  return items
 }
 
 export const Route = createFileRoute("/_layout/settings")({

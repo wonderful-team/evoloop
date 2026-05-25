@@ -32,9 +32,9 @@ async def get_register_config() -> EvoCloudProxyResponse:
 
 
 @router.get("/register/agreement")
-async def get_register_agreement() -> EvoCloudProxyResponse:
-    """Get Registration Agreement"""
-    return await evocloud_manager.api.get_register_agreement()
+async def get_register_agreement(type: str = "SERVICE") -> EvoCloudProxyResponse:
+    """Get Registration Agreement (SERVICE or PRIVACY)"""
+    return await evocloud_manager.api.get_register_agreement(type=type)
 
 
 @router.post("/sms/send")

@@ -31,7 +31,7 @@ async def initialize_system():
     await MemoryLifespanManager.ainitialize()
     
     # Mock 掉向量数据库搜索，防止维度不匹配报错
-    from app.core.memory.backends.vector_index import VectorMemoryIndex
+    from app.infrastructure.database.vector import get_vector_store
     patcher = patch.object(VectorMemoryIndex, "search", return_value=[])
     patcher.start()
     logger.info("[Mock] VectorMemoryIndex.search patched (returns empty list)")

@@ -17,8 +17,8 @@ def test_persist_policy_for_internal_messages():
     assert MessagePersistencePolicy.should_persist(MessageCategory.INTERNAL_LLM_JSON) is False
     assert MessagePersistencePolicy.should_persist(MessageCategory.INTERNAL_SYSTEM) is False
 
-    # 内部工具调用需要持久化（供后续推理使用）
-    assert MessagePersistencePolicy.should_persist(MessageCategory.INTERNAL_TOOL_CALL) is True
+    # 内部工具调用默认不入库（瞬态消息）
+    assert MessagePersistencePolicy.should_persist(MessageCategory.INTERNAL_TOOL_CALL) is False
 
     # 用户可见消息应该持久化
     assert MessagePersistencePolicy.should_persist(MessageCategory.USER) is True

@@ -8,8 +8,19 @@ import { invoke } from "@tauri-apps/api/core";
 import { motion, AnimatePresence } from "framer-motion";
 import { LearningService } from "@/client/sdk.gen";
 
+import { isTauri } from "@/lib/tauri";
+
 export const Route = createFileRoute("/android-marker-overlay")({
-    component: AndroidMarkerOverlay,
+    component: () => {
+        if (!isTauri()) {
+            return (
+                <div className="flex items-center justify-center h-screen text-muted-foreground">
+                    Android marker overlay is only available in the desktop app.
+                </div>
+            );
+        }
+        return <AndroidMarkerOverlay />;
+    },
 });
 
 interface ExtractRegion {

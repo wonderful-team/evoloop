@@ -18,12 +18,10 @@ from langchain_core.messages import BaseMessage
 
 from app.core.config import settings
 from app.constants import DEFAULT_PROJECT_ID
-from app.core.memory.backends import GraphMemoryStorage
-from app.core.memory.backends.file_backend import FileMemoryStorage
-from app.core.memory.backends.sql_short_term import SqlShortTermMemory
 from app.core.memory.config import MemoryConfig
 from app.core.memory.interfaces.short_term import IShortTermMemory
-from app.core.memory.interfaces.storage import IMemoryStorage
+from app.core.memory.short_term import SqlShortTermMemory
+from app.core.memory.store import MemoryStore
 from app.core.memory.models import (
     MemoryEntry,
     MemorySearchResult,
@@ -52,7 +50,7 @@ class MemoryManager:
     def __init__(
         self,
         config: Optional['MemoryConfig'] = None,
-        storage: IMemoryStorage | None = None,
+        storage: MemoryStore | None = None,
         short_term: IShortTermMemory | None = None,
     ):
         """
@@ -60,7 +58,7 @@ class MemoryManager:
 
         Args:
             config: Memory configuration. If None, uses default from settings.
-            storage: Storage backend. If None, creates based on config.
+            storage: Storage backend. If None, creates based on EMBEDDED_MODE.
             short_term: Short-term memory backend. If None, creates SqlShortTermMemory.
         """
         # Import here to avoid circular imports at module level
@@ -69,26 +67,19 @@ class MemoryManager:
         self.config = config or MemoryConfig.from_settings()
 
         # Short-term memory (always SQL)
-        self.short_term: IShortTermMemory = short_term if short_term is not None else SqlShortTermMemory()
+        if short_term is not None:
+            self.short_term = short_term
+        else:
+            self.short_term: IShortTermMemory = SqlShortTermMemory()
 
         # Long-term memory backend
-        self._storage: IMemoryStorage
         if storage is not None:
             self._storage = storage
             logger.info("MemoryManager: Using provided storage backend")
-        elif settings.EMBEDDED_MODE:
-            # File-based storage for embedded mode
-            self._storage = FileMemoryStorage()
-            logger.info("MemoryManager: Initialized with FileBackend (embedded mode)")
         else:
-            # Graph backend for full mode
-            try:
-                self._storage = GraphMemoryStorage()
-                logger.info("MemoryManager: Initialized with GraphBackend (full mode)")
-            except Exception as e:
-                # Fallback to file if Graph not available
-                self._storage = FileMemoryStorage()
-                logger.warning(f"MemoryManager: Graph storage failed, falling back to FileBackend: {e}")
+            self._storage = MemoryStore()
+            mode = "embedded" if settings.EMBEDDED_MODE else "full"
+            logger.info(f"MemoryManager: Initialized with MemoryStore ({mode} mode)")
 
         # Services (use storage directly)
         from app.core.memory.auto_extraction import AutoMemoryExtractor
@@ -99,19 +90,16 @@ class MemoryManager:
         self.pruning = MemoryPruningService(self._storage)
         self.retrieval = MemoryRetriever(self._storage, config=self.config)
         self.quality = MemoryQualityAnalyzer(self._storage, config=self.config)
-        self._two_tier: Any = None
 
     async def initialize(self) -> None:
         """Initialize all memory components."""
         await self.short_term.initialize()
-        # File/Neo4j backends initialize lazily
+        await self._storage.initialize()
         logger.info("MemoryManager: All components initialized")
 
     async def flush(self) -> None:
         """Flush all memory components (for testing)."""
         await self.short_term.flush()
-        # FileMemoryStorage is stateless and doesn't need flush
-        # Neo4j backend would have flush() if needed
         if hasattr(self._storage, 'flush'):
             await self._storage.flush()
         logger.info("MemoryManager: All components flushed")
@@ -403,6 +391,18 @@ class MemoryManager:
         """
         return await self._storage.get(entry_id)
 
+    async def delete_memory(self, entry_id: str) -> bool:
+        """
+        Delete a memory entry.
+
+        Args:
+            entry_id: Memory entry ID to delete
+
+        Returns:
+            True if deleted, False if not found
+        """
+        return await self._storage.delete(entry_id)
+
     async def search_memories(
         self,
         query: str,
@@ -462,14 +462,13 @@ class MemoryManager:
         Returns:
             MEMORY.md content (truncated if exceeds limits)
         """
-        if self._two_tier is None:
-            from app.core.memory.two_tier import TwoTierMemoryManager
-            self._two_tier = TwoTierMemoryManager(
-                storage=self._storage,
-                config=self.config,
-                analyzer=self.quality
-            )
-        return await self._two_tier.get_hot_memory()
+        from app.core.memory.two_tier import TwoTierMemoryManager
+        two_tier = TwoTierMemoryManager(
+            storage=self._storage,
+            config=self.config,
+            analyzer=self.quality
+        )
+        return await two_tier.get_hot_memory()
 
     async def search_cold_memory(
         self,
@@ -489,14 +488,13 @@ class MemoryManager:
         Returns:
             List of relevant memory entries
         """
-        if self._two_tier is None:
-            from app.core.memory.two_tier import TwoTierMemoryManager
-            self._two_tier = TwoTierMemoryManager(
-                storage=self._storage,
-                config=self.config,
-                analyzer=self.quality
-            )
-        return await self._two_tier.search_cold_memory(query, max_results)
+        from app.core.memory.two_tier import TwoTierMemoryManager
+        two_tier = TwoTierMemoryManager(
+            storage=self._storage,
+            config=self.config,
+            analyzer=self.quality
+        )
+        return await two_tier.search_cold_memory(query, max_results)
 
     async def regenerate_memory_md(self) -> None:
         """
@@ -505,14 +503,13 @@ class MemoryManager:
         This updates the hot memory (Tier 1) based on the current
         state of cold memory (Tier 2), applying budgets and rankings.
         """
-        if self._two_tier is None:
-            from app.core.memory.two_tier import TwoTierMemoryManager
-            self._two_tier = TwoTierMemoryManager(
-                storage=self._storage,
-                config=self.config,
-                analyzer=self.quality
-            )
-        await self._two_tier.regenerate_memory_md()
+        from app.core.memory.two_tier import TwoTierMemoryManager
+        two_tier = TwoTierMemoryManager(
+            storage=self._storage,
+            config=self.config,
+            analyzer=self.quality
+        )
+        await two_tier.regenerate_memory_md()
 
     async def list_memories(
         self,
@@ -561,8 +558,8 @@ class MemoryManager:
         """
         Remove duplicate checkpoint memories from storage.
 
-        Only works with FileMemoryStorage backend. For other backends,
-        returns empty result.
+        Only supported when the underlying storage engine implements
+        deduplicate_checkpoints. Returns empty result otherwise.
 
         Args:
             dry_run: If True, only report duplicates without deleting
@@ -570,11 +567,10 @@ class MemoryManager:
         Returns:
             Dict with deduplication stats
         """
-        from app.core.memory.backends.file_backend import FileMemoryStorage
-        if isinstance(self._storage, FileMemoryStorage):
+        if hasattr(self._storage, 'deduplicate_checkpoints'):
             return await self._storage.deduplicate_checkpoints(dry_run)
         else:
-            logger.warning("[MemoryManager] deduplicate_checkpoints only supported for FileMemoryStorage")
+            logger.warning("[MemoryManager] deduplicate_checkpoints not supported by current storage backend")
             return CheckpointDedupResult(
                 dry_run=dry_run,
                 total_checkpoints=0,
@@ -609,13 +605,12 @@ class MemoryManager:
         Returns:
             List of extracted memory entries
         """
-        result = await self.extraction.maybe_extract(
+        return await self.extraction.maybe_extract(
             thread_id=thread_id,
             messages=messages,
             project_id=project_id,
             user_id=user_id,
         )
-        return result or []
 
     async def run_maintenance(self, project_id: int | None = None, force: bool = False) -> dict:
         """

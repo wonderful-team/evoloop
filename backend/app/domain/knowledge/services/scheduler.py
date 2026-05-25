@@ -17,10 +17,13 @@ Knowledge Base Maintenance Scheduler - 知识库维护调度器
 """
 
 import asyncio
+import json
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
+from app.core.config import settings
 from app.domain.knowledge.services.auto_maintenance import get_maintenance_service
 
 logger = logging.getLogger(__name__)
@@ -219,11 +222,8 @@ class MaintenanceScheduler:
     async def _save_report(self, report, report_type: str):
         """保存维护报告"""
         try:
-            import json
-            from pathlib import Path
-
             # 确保目录存在
-            reports_dir = Path.home() / ".evoloop" / "knowledge" / "reports"
+            reports_dir = Path(settings.KNOWLEDGE_BASE_PATH) / "reports"
             reports_dir.mkdir(parents=True, exist_ok=True)
 
             # 生成文件名

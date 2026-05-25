@@ -40,7 +40,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 # FIXED TEST PARAMETERS
 # ──────────────────────────────────────────────────────────────
 TEST_PROJECT_ID = 53
-TEST_PROJECT_PATH = "/Users/huangjinhuan/项目/testProjects/software-ecommerce"
+TEST_PROJECT_PATH = "/Users/xujin/Projects/develop-assistant.cn/member-center"
 TEST_TIMEOUT = 3600
 TEST_LOG_FILE = "/tmp/wiki_e2e_test_v4.log"
 

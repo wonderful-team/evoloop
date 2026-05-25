@@ -330,12 +330,16 @@ class MessageRepository:
         """
         async with session_scope() as session:
             # 1. Query visible messages with cursor pagination
+            from sqlalchemy import or_
             visible_stmt = (
                 select(Message)
                 .where(
                     Message.thread_id == self.thread_id,
                     Message.is_visible == True,
-                    Message.category != MessageCategory.HITL_REQUEST.value
+                    or_(
+                        Message.category.is_(None),
+                        Message.category != MessageCategory.HITL_REQUEST.value
+                    )
                 )
                 .options(selectinload(Message.references))
                 .order_by(Message.sequence_number.desc())

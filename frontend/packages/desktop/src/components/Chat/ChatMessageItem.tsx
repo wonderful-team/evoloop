@@ -170,7 +170,7 @@ const ChatMessageItem = memo(
     // 2. AI Message Layout (Compact transparent document flow with bottom action bar)
     return (
       <motion.div
-        className="group relative flex flex-col w-full my-1 text-foreground text-[14px] transition-all"
+        className="group relative flex flex-col mx-4 my-1 text-foreground text-[14px] transition-all"
         data-run-id={msg.run_id}
       >
         {/* Thinking section (tight margin) */}

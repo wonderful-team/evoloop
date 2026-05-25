@@ -147,14 +147,32 @@ class FileGraphDriver:
             return [{"name": k, "count": v} for k, v in counts.items()]
 
         # 4. Cleanup Pattern: MATCH (n:LABEL) DETACH DELETE n
+        # Also supports MATCH (n:LABEL {prop: $val}) and MATCH (n {prop: $val})
         if "DETACH DELETE N" in query_upper:
             import re
-            match = re.search(r"MATCH \(N:(\w+)\)", query_upper)
+
+            # Try MATCH (n:LABEL) or MATCH (n:LABEL {prop: $val})
+            match = re.search(r"MATCH\s*\(\s*(\w+)\s*:\s*(\w+)", query_upper)
             if match:
-                label = match.group(1).capitalize()
-                # Correct capitalization if needed (e.g., Codeentity -> CodeEntity)
-                if label == "Codeentity": label = "CodeEntity"
-                return await self.delete_nodes(label)
+                label = match.group(2).capitalize()
+                if label == "Codeentity":
+                    label = "CodeEntity"
+                # Extract inline filters {prop: $val} from original query to preserve param case
+                filters = self._extract_inline_filters(query, params)
+                return await self.delete_nodes(label, filters=filters or None)
+
+            # Try MATCH (n {prop: $val}) without label
+            match_no_label = re.search(r"MATCH\s*\(\s*\w+\s*\{\s*([^}]+)\s*\}\s*\)", query_upper)
+            if match_no_label:
+                filters = self._extract_inline_filters(query, params)
+                to_delete = []
+                for node_id, attrs in self._graph.nodes(data=True):
+                    if all(attrs.get(k) == v for k, v in filters.items()):
+                        to_delete.append(node_id)
+                if to_delete:
+                    self._graph.remove_nodes_from(to_delete)
+                    self._save_graph()
+                return [{"deleted_count": len(to_delete)}]
 
         # 5. Ghost Node Cleanup Pattern: MATCH (n:CodeEntity) WHERE NOT (n)<-[:CONTAINS]-(:File)
         if "CODEENTITY" in query_upper and "WHERE NOT" in query_upper and "CONTAINS" in query_upper:
@@ -227,8 +245,31 @@ class FileGraphDriver:
             logger.info(f"[FileGraph] Maintenance query handled silently: {query[:50]}...")
             return []
 
-        logger.warning(f"[FileGraph] Unsupported query pattern: {query[:100]}")
-        return []
+        raise NotImplementedError(
+            f"FileGraphDriver does not support this Cypher query pattern. "
+            f"Query: {query[:100]}..."
+        )
+
+    @staticmethod
+    def _extract_inline_filters(query: str, params: dict) -> dict:
+        """Extract {key: $param} or {key: value} from a Cypher MATCH clause."""
+        import re
+        filters = {}
+        match = re.search(r"\{\s*([^}]+)\s*\}", query)
+        if match:
+            for part in match.group(1).split(","):
+                part = part.strip()
+                if ":" not in part:
+                    continue
+                k, v = part.split(":", 1)
+                k = k.strip()
+                v = v.strip()
+                if v.startswith("$"):
+                    filters[k] = params.get(v[1:])
+                else:
+                    # Strip quotes from literal values
+                    filters[k] = v.strip("'\"")
+        return filters
 
     async def verify_connectivity(self):
         """Verify graph is loaded."""

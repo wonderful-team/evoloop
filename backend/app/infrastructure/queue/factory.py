@@ -21,7 +21,8 @@ Usage:
     result = scheduler.send_task("my_task", args=(1, 2))
     value = await result.get(timeout=30)
 """
-
+import asyncio
+import functools
 import logging
 from typing import Optional, Literal
 
@@ -165,14 +166,30 @@ def shared_task(
         value = await result.get(timeout=30)
     """
     scheduler = get_scheduler()
-    return scheduler.task(
-        func,
-        name=name,
-        bind=bind,
-        retries=retries,
-        retry_delay=retry_delay,
-        **options
-    )
+    
+    def decorator(f):
+        target_f = f
+
+        # If the scheduler is real Celery and the function is async, wrap it.
+        # LocalCelery and HueyTaskScheduler handle async natively, so we only wrap for real Celery.
+        if asyncio.iscoroutinefunction(f) and type(scheduler).__name__ == "Celery":
+            @functools.wraps(f)
+            def _celery_async_wrapper(*args, **kwargs):
+                return asyncio.run(f(*args, **kwargs))
+            target_f = _celery_async_wrapper
+
+        return scheduler.task(
+            target_f,
+            name=name,
+            bind=bind,
+            retries=retries,
+            retry_delay=retry_delay,
+            **options
+        )
+
+    if func is not None:
+        return decorator(func)
+    return decorator
 
 
 # Periodic task decorator

@@ -123,7 +123,7 @@ class RedisCache(Cache):
             settings.REDIS_URL or "redis://localhost:6379/0",
             encoding="utf-8",
             decode_responses=True,
-            max_connections=120,
+            max_connections=settings.REDIS_MAX_CONNECTIONS,
             socket_timeout=5.0,
             socket_connect_timeout=5.0,
             retry_on_timeout=True

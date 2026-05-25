@@ -1,4 +1,4 @@
-import { open } from "@tauri-apps/plugin-dialog"
+import { isTauri } from "@/lib/tauri"
 import { motion } from "framer-motion"
 import { FolderOpen } from "lucide-react"
 import { useEffect } from "react"
@@ -19,7 +19,12 @@ export function ProjectsStep() {
     }, [data.workspaceRoot, setCanProceed])
 
     const handleBrowse = async () => {
+        if (!isTauri()) {
+            toast.info(t("wizard.projects.webBrowseHint"))
+            return
+        }
         try {
+            const { open } = await import("@tauri-apps/plugin-dialog")
             const selected = await open({
                 directory: true,
                 multiple: false,
@@ -55,7 +60,12 @@ export function ProjectsStep() {
                             placeholder="/Users/yourname/Projects"
                             className="flex-1"
                         />
-                        <Button variant="outline" onClick={handleBrowse}>
+                        <Button 
+                            variant="outline" 
+                            onClick={handleBrowse}
+                            disabled={!isTauri()}
+                            title={!isTauri() ? t("wizard.projects.webBrowseHint") : ""}
+                        >
                             <FolderOpen className="h-4 w-4 mr-2" />
                             {t("wizard.projects.browse")}
                         </Button>

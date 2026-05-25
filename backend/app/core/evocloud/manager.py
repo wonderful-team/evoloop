@@ -94,6 +94,10 @@ class EvoCloudManager:
 
     async def start(self) -> None:
         """Start background services (Link) for the current loop."""
+        if not settings.MOBILE_SYNC_ENABLED:
+            logger.info("[EvoCloud] MOBILE_SYNC_ENABLED=false — skipping WebSocket link and conversation sync")
+            return
+
         link = self.link
         if link:
             await link.start()
@@ -156,8 +160,8 @@ class EvoCloudManager:
         """Internal method to fetch projects from API."""
         import os
         resp = await self.api.get_projects(page=1, page_size=100)
-        if resp.get("code") != 0:
-            logger.error(f"Failed to fetch projects from API: {resp.get('message')}")
+        if not resp or resp.get("code") != 0:
+            logger.error(f"Failed to fetch projects from API: {resp.get('message') if resp else 'Empty response'}")
             return []
 
         api_projects = resp.get("data", {}).get("list", [])

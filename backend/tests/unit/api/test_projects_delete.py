@@ -82,14 +82,10 @@ class TestDeleteProject:
     @pytest.fixture
     def mock_graph_enabled(self):
         """Mock graph as enabled with mock driver."""
-        graph_session = AsyncMock()
-        driver = MagicMock()
-        driver.session.return_value.__aenter__ = AsyncMock(return_value=graph_session)
-        driver.session.return_value.__aexit__ = AsyncMock(return_value=False)
+        driver = AsyncMock()
 
-        with patch("app.infrastructure.database.graph.driver.is_graph_enabled", return_value=True), \
-             patch("app.infrastructure.database.graph.driver.get_graph_db", AsyncMock(return_value=driver)):
-            yield driver, graph_session
+        with patch("app.infrastructure.database.graph.driver.GraphManager.get_driver", return_value=driver):
+            yield driver
 
     @pytest.fixture
     def mock_vector_store(self):
@@ -108,7 +104,12 @@ class TestDeleteProject:
         original = getattr(projects_module, "session_scope", None)
         mock_ctx = MagicMock()
         mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        async def _aexit(*args):
+            await mock_session.commit()
+            return False
+
+        mock_ctx.__aexit__ = _aexit
         # session_scope is a function that returns an async context manager
         mock_scope = MagicMock(return_value=mock_ctx)
 
@@ -151,9 +152,9 @@ class TestDeleteProject:
         pipe.delete.assert_any_call("sys:123:wiki")
         pipe.execute.assert_awaited_once()
 
-        driver, graph_session = mock_graph_enabled
-        graph_session.run.assert_awaited_once()
-        call_args = graph_session.run.call_args
+        driver = mock_graph_enabled
+        driver.execute_query.assert_awaited_once()
+        call_args = driver.execute_query.call_args
         assert "DETACH DELETE" in call_args[0][0]
         assert call_args[1]["pid"] == 123
 

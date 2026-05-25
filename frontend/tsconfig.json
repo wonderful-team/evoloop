@@ -19,7 +19,8 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./packages/desktop/src/*"]
+      "@/*": ["./packages/desktop/src/*"],
+      "@evoloop/shared/*": ["./packages/shared/src/*"]
     }
   },
   "include": ["packages/desktop/src", "packages/shared/src", "tests", "playwright.config.ts"],

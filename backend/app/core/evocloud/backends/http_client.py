@@ -228,12 +228,28 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
                 logger.error(f"API Error {resp.status_code}: {resp.text[:200]}")
 
             try:
-                return resp.json()
+                result = resp.json()
+                if result is None:
+                    return {"code": -1, "message": "Empty response body"}
+                return result
             except json.JSONDecodeError:
                 return {"code": -1, "message": f"Invalid JSON: {resp.text[:100]}"}
 
         except httpx.RequestError as e:
-            logger.error(f"Request connection error to {url}: {e}")
+            logger.error(f"Request connection error to {url}: {type(e).__name__}: {e} (repr: {repr(e)}, cause: {repr(e.__cause__)})")
+            # Recreate HTTP client on connection errors (stale pool) and retry once
+            if _retry_count < 1:
+                logger.info(f"[EvoCloud] Recreating HTTP client and retrying {endpoint}...")
+                await self.close()
+                return await self.request(
+                    method=method,
+                    endpoint=endpoint,
+                    params=params,
+                    data=data,
+                    token=token,
+                    headers=headers,
+                    _retry_count=_retry_count + 1,
+                )
             return {"code": -1, "message": str(e)}
         except Exception as e:
             logger.error(f"Request failed: {e}")
@@ -402,8 +418,8 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
     async def get_register_config(self) -> EvoCloudProxyResponse:
         return EvoCloudProxyResponse.model_validate(await self.request("GET", "/api/register/config"))
 
-    async def get_register_agreement(self) -> EvoCloudProxyResponse:
-        return EvoCloudProxyResponse.model_validate(await self.request("GET", "/api/register/agreement"))
+    async def get_register_agreement(self, type: str = "SERVICE") -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(await self.request("GET", "/api/register/aggrement", params={"type": type}))
 
     async def send_mobile_code(self, mobile: str, captcha_id: str, captcha_code: str, type: str = "login") -> EvoCloudProxyResponse:
         return EvoCloudProxyResponse.model_validate(
@@ -423,7 +439,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         return EvoCloudProxyResponse.model_validate(await self.request("POST", "/api/register/mobile", data=data))
 
     async def register_username(self, data: dict) -> EvoCloudProxyResponse:
-        return EvoCloudProxyResponse.model_validate(await self.request("POST", "/api/register/account", data=data))
+        return EvoCloudProxyResponse.model_validate(await self.request("POST", "/api/register/username", data=data))
 
     async def login_mobile(self, mobile: str, key: str, code: str) -> LoginResult:
         res = await self.request(
@@ -533,16 +549,19 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         )
 
     async def register_device(self, fingerprint: str, name: str, os_info: str) -> dict:
-        """Claim a device from the server.
+        """Claim a device from the PHP Member Center.
 
         The server will:
         1. Look up existing device by fingerprint + member_id
         2. Return existing device_key if found
         3. Check device limit and create new device_key if not found
+
+        Endpoint routes to Member Center (not Gateway) because device_key
+        generation is a business logic owned by PHP Backend.
         """
         return await self.request(
             "POST",
-            "/api/v1/devices/register",
+            "/evolooplink/api/device/register",
             data={
                 "fingerprint": fingerprint,
                 "device_name": name,

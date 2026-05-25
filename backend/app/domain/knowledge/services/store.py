@@ -4,11 +4,13 @@ Knowledge store service for file operations.
 
 import json
 import logging
+import os
 import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Iterator, Optional
 
+from app.core.config import settings
 from app.domain.knowledge.models import DocumentMetadata, MarkdownDocument
 from app.domain.knowledge.schemas import DocumentSaveResult, DocumentReadResult, DocumentListItem
 from app.core import file as file_utils
@@ -49,7 +51,7 @@ class KnowledgeStoreService:
         if base_path:
             self.base_path = Path(base_path)
         else:
-            self.base_path = Path.home() / ".evoloop" / "knowledge"
+            self.base_path = Path(settings.KNOWLEDGE_BASE_PATH)
         
         # Ensure directories exist
         self._ensure_directories()
@@ -469,19 +471,20 @@ class KnowledgeStoreService:
         """Delete a collection and all its documents."""
         project_raw = self.base_path / "raw" / name
         project_meta = self.base_path / "meta" / name
-        
+
         deleted = False
-        
-        if file_utils.file_exists(str(project_raw)):
+
+        # Check existence with os.path.exists (directories are not files)
+        if os.path.exists(str(project_raw)):
             file_utils.delete_directory(str(project_raw))
             deleted = True
-        
-        if file_utils.file_exists(str(project_meta)):
+
+        if os.path.exists(str(project_meta)):
             file_utils.delete_directory(str(project_meta))
-        
+
         if deleted:
             logger.info(f"Deleted collection: {name}")
-        
+
         return deleted
     
     # ==========================================================================

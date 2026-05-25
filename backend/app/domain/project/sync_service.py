@@ -51,8 +51,8 @@ class ProjectSyncService:
                 return
 
             res = await evocloud_manager.api.get_current_project()
-            if res.get("code") != 0:
-                logger.warning(f"[ProjectSync] Failed to fetch current project: {res.get('message')}")
+            if not res or res.get("code") != 0:
+                logger.warning(f"[ProjectSync] Failed to fetch current project: {res.get('message') if res else 'Empty response'}")
                 return
 
             project_data = res.get("data", {})
@@ -351,22 +351,28 @@ class ProjectSyncService:
 
             return repo
 
-    async def get_detected_projects(self) -> list[Repository]:
+    async def get_detected_projects(self, member_id: int | None = None) -> list[Repository]:
         """Get all projects with DETECTED status (awaiting user confirmation)."""
         async with session_scope() as session:
             stmt = select(Repository).where(
                 Repository.sync_status == "DETECTED"
-            ).order_by(Repository.detected_at.desc())
+            )
+            if member_id is not None:
+                stmt = stmt.where(Repository.member_id == member_id)
+            stmt = stmt.order_by(Repository.detected_at.desc())
 
             result = await session.execute(stmt)
             return list(result.scalars().all())
 
-    async def get_ignored_projects(self) -> list[Repository]:
+    async def get_ignored_projects(self, member_id: int | None = None) -> list[Repository]:
         """Get all projects with IGNORED status."""
         async with session_scope() as session:
             stmt = select(Repository).where(
                 Repository.sync_status == "IGNORED"
-            ).order_by(Repository.detected_at.desc())
+            )
+            if member_id is not None:
+                stmt = stmt.where(Repository.member_id == member_id)
+            stmt = stmt.order_by(Repository.detected_at.desc())
 
             result = await session.execute(stmt)
             return list(result.scalars().all())

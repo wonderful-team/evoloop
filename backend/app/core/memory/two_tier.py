@@ -24,13 +24,13 @@ Budget System:
 
 Usage:
     from app.core.memory.config import MemoryConfig
-    from app.core.memory.backends.file_backend import FileMemoryStorage
+    from app.core.memory.store import MemoryStore
     from app.core.memory.retrieval import MemoryRetriever
-    
+
     config = MemoryConfig.from_settings()
-    storage = FileMemoryStorage(str(config.memory_root))
+    storage = MemoryStore(str(config.memory_root))
     retriever = MemoryRetriever(storage=storage, config=config)
-    
+
     manager = TwoTierMemoryManager(storage=storage, config=config)
     
     # Tier 1: Always loaded
@@ -326,10 +326,7 @@ class TwoTierMemoryManager:
             # Access count (from quality analyzer if available)
             access_count = 0
             if self._analyzer:
-                # Use public API instead of private attribute access
                 access_count = self._analyzer.get_access_count(entry.id)
-            elif hasattr(self._storage, "_access_counts"):  # Fallback for simple systems
-                access_count = getattr(self._storage, "_access_counts", {}).get(entry.id, 0)
 
             # Freshness (exponential decay)
             age_days = (now - entry.updated_at).days

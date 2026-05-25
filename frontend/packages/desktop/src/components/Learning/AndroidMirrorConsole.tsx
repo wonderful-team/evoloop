@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Smartphone, RefreshCcw, Monitor, StopCircle, AlertTriangle, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { invoke } from '@tauri-apps/api/core';
+import { safeInvoke, isTauri } from '@/lib/tauri';
 import { LearningService } from "@/client/sdk.gen";
 import { Button } from '@evoloop/shared/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@evoloop/shared/components/ui/card';
@@ -67,7 +67,7 @@ export function AndroidMirrorConsole({ onOpenEditor }: AndroidMirrorConsoleProps
                 startRecording('global', 'mobile', res.device_id, res.session_id);
                 // [FIX] Set tray recording start time for Android recording
                 try {
-                    await invoke('set_recording_start_time');
+                    await safeInvoke('set_recording_start_time');
                 } catch (e) {
                     console.error('[AndroidMirrorConsole] Failed to set recording start time:', e);
                 }
@@ -105,33 +105,35 @@ export function AndroidMirrorConsole({ onOpenEditor }: AndroidMirrorConsoleProps
                 await openAndroidMarkerOverlay();
 
                 // [FIX] Wait for overlay to be ready before sending session info
-                const { listen } = await import('@tauri-apps/api/event');
-                const { emit } = await import('@tauri-apps/api/event');
+                if (isTauri()) {
+                    const { listen } = await import('@tauri-apps/api/event');
+                    const { emit } = await import('@tauri-apps/api/event');
 
-                // Wait for the overlay to emit 'android-marker-ready'
-                await new Promise<void>((resolve) => {
-                    const unlisten = listen('android-marker-ready', () => {
-                        console.log("[AndroidMirrorConsole] Overlay is ready, sending session info");
-                        unlisten.then(f => f());
-                        resolve();
+                    // Wait for the overlay to emit 'android-marker-ready'
+                    await new Promise<void>((resolve) => {
+                        const unlisten = listen('android-marker-ready', () => {
+                            console.log("[AndroidMirrorConsole] Overlay is ready, sending session info");
+                            unlisten.then(f => f());
+                            resolve();
+                        });
+
+                        // Timeout after 5 seconds just in case
+                        setTimeout(() => {
+                            console.warn("[AndroidMirrorConsole] Timeout waiting for overlay ready, sending anyway");
+                            resolve();
+                        }, 5000);
                     });
 
-                    // Timeout after 5 seconds just in case
-                    setTimeout(() => {
-                        console.warn("[AndroidMirrorConsole] Timeout waiting for overlay ready, sending anyway");
-                        resolve();
-                    }, 5000);
-                });
-
-                // Send session ID, thread ID and start time to overlay
-                const payload = {
-                    sessionId: activeSession.sessionId,
-                    threadId: activeThreadId || activeSession.sessionId,
-                    recordingStartTime: recordingStartTime,
-                    deviceId: activeSession.deviceId
-                };
-                console.log("[AndroidMirrorConsole] Emitting session to overlay:", payload);
-                await emit('android-marker-session', payload);
+                    // Send session ID, thread ID and start time to overlay
+                    const payload = {
+                        sessionId: activeSession.sessionId,
+                        threadId: activeThreadId || activeSession.sessionId,
+                        recordingStartTime: recordingStartTime,
+                        deviceId: activeSession.deviceId
+                    };
+                    console.log("[AndroidMirrorConsole] Emitting session to overlay:", payload);
+                    await emit('android-marker-session', payload);
+                }
             } else {
                 // Close marker overlay when recording stops
                 await closeAndroidMarkerOverlay();

@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { invoke } from "@tauri-apps/api/core"
+import { safeInvoke } from "@/lib/tauri"
 import { LearningService } from "@/client/sdk.gen"
 
 export interface SynthesisResult {
@@ -134,7 +134,7 @@ export function useRecordingWithSynthesis() {
     const startRecording = useCallback(async () => {
         const sessionId = `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
-        await invoke("start_screen_recording")
+        await safeInvoke("start_screen_recording")
 
         setRecordingState({
             isRecording: true,
@@ -149,7 +149,7 @@ export function useRecordingWithSynthesis() {
         if (!recordingState.isRecording) return null
 
         try {
-            const videoPath = await invoke<string>("stop_screen_recording")
+            const videoPath = await safeInvoke<string>("stop_screen_recording")
 
             setRecordingState(prev => ({
                 ...prev,

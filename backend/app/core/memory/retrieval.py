@@ -9,12 +9,12 @@ Inspired by Claude Code's findRelevantMemories.ts, this module implements:
 
 Usage:
     from app.core.memory.config import MemoryConfig
-    from app.core.memory.backends.file_backend import FileMemoryStorage
-    
+    from app.core.memory.store import MemoryStore
+
     config = MemoryConfig.from_settings()
-    storage = FileMemoryStorage(str(config.memory_root))
+    storage = MemoryStore(str(config.memory_root))
     retriever = MemoryRetriever(storage=storage, config=config)
-    
+
     results = await retriever.find_relevant(
         query="How do I deploy this?",
         context={"recent_tools": ["docker_build", "deploy"]},
@@ -44,11 +44,11 @@ class MemoryRetriever:
     Stage 2: LLM selects the most relevant from candidates
     
     Usage:
+        from app.core.memory.store import MemoryStore
         from app.core.memory.config import MemoryConfig
-        from app.core.memory.backends.file_backend import FileMemoryStorage
-        
+
         config = MemoryConfig.from_settings()
-        storage = FileMemoryStorage(str(config.memory_root))
+        storage = MemoryStore(str(config.memory_root))
         retriever = MemoryRetriever(storage=storage, config=config)
     """
 

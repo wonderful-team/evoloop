@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { invoke } from "@tauri-apps/api/core"
-import { listen, UnlistenFn } from "@tauri-apps/api/event"
+import { safeInvoke, safeListen } from "@/lib/tauri"
+import type { UnlistenFn } from "@tauri-apps/api/event"
 import { LearningService } from "@/client/sdk.gen"
 import type { GlobalEventData } from "@/client/types.gen"
 
@@ -140,7 +140,7 @@ export function useGlobalRecorder(options: UseGlobalRecorderOptions) {
     // Start/Stop recording via Rust
     const startRecording = useCallback(async () => {
         try {
-            await invoke("start_global_recording")
+            await safeInvoke("start_global_recording")
             setEventCount(0)
             eventCountRef.current = 0
             eventsBuffer.current = []
@@ -164,7 +164,7 @@ export function useGlobalRecorder(options: UseGlobalRecorderOptions) {
         }
 
         try {
-            await invoke("stop_global_recording")
+            await safeInvoke("stop_global_recording")
             setIsRecording(false)
             isRecordingRef.current = false
             console.log("[GlobalRecorder] Stopped recording")
@@ -194,7 +194,7 @@ export function useGlobalRecorder(options: UseGlobalRecorderOptions) {
 
         const setupListener = async () => {
             try {
-                const unlistenFn = await listen<GlobalEvent>("global-event", (event) => {
+                const unlistenFn = await safeListen<GlobalEvent>("global-event", (event) => {
                     // Only buffer events when actually recording
                     if (isRecordingRef.current) {
                         // [v4] Skip events from marker overlay windows

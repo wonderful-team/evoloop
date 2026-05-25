@@ -14,7 +14,7 @@ from langchain_core.tools import InjectedToolArg
 
 from app.constants import FORGET_SAFETY_WINDOW
 from app.core.context.manager import ContextManager
-from app.core.memory.backends.sql_short_term import SqlShortTermMemory
+from app.core.memory.short_term import SqlShortTermMemory
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 from app.core.tools.base import evoloop_tool
 from app.utils import ContentFormatter

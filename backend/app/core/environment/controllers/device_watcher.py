@@ -5,6 +5,7 @@ Device Watcher — Monitors ADB device connection events.
 import asyncio
 import logging
 
+from app.core.config import settings
 from app.core.environment.controllers.mirror_session import mirror_manager
 from app.infrastructure.drivers.adb import adb_driver
 
@@ -21,6 +22,10 @@ class DeviceWatcher:
 
     def start(self):
         """Start the background watcher task."""
+        if not settings.ENABLE_ENVIRONMENT_CONTROLS:
+            logger.info("Environment controls disabled, skipping DeviceWatcher")
+            return
+
         if not self._task:
             self._running = True
             self._task = asyncio.create_task(self._watch_loop())

@@ -6,9 +6,7 @@ import { LearningService } from "@/client/sdk.gen"
 import { useScreenRecordingPermission } from "@/hooks/useScreenRecordingPermission"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
-import { listen, emit } from "@tauri-apps/api/event"
-import { invoke } from "@tauri-apps/api/core"
-import { getCurrentWindow } from "@tauri-apps/api/window"
+import { safeListen, safeEmit, safeInvoke, safeGetCurrentWindow } from "@/lib/tauri"
 import { useNavigate } from "@tanstack/react-router"
 import { handleApiError } from "@/interceptors"
 
@@ -36,76 +34,84 @@ export function GlobalRecorderManager() {
 
     // Sync static translations to tray
     useEffect(() => {
-        invoke("sync_tray_translations", {
+        safeInvoke("sync_tray_translations", {
             showText: t("learning.tray.show"),
             quitText: t("learning.tray.quit")
-        })
+        }).catch(() => {})
     }, [i18n.language, t])
 
     useEffect(() => {
-        invoke("sync_tray_recording_state", {
+        safeInvoke("sync_tray_recording_state", {
             isRecording,
             startText: t("learning.tray.startRecording"),
             stopText: t("learning.tray.stopRecording")
-        })
+        }).catch(() => {})
     }, [isRecording, i18n.language, t])
 
     // Sync countdown to tray
     useEffect(() => {
-        invoke("sync_tray_countdown", {
+        safeInvoke("sync_tray_countdown", {
             isPreparing,
             countdown
-        })
+        }).catch(() => {})
     }, [isPreparing, countdown])
 
     // Listen for tray events
     useEffect(() => {
         console.log("[GlobalRecorderManager] Setting up tray listener")
-        const unlisten = listen("tray-record-toggle", () => {
-            console.log("[GlobalRecorderManager] Tray toggle received")
-            const state = useRecordingStore.getState()
-            if (state.isRecording) {
-                state.setPostRecordingAction('synthesize')
-                state.stopRecording()
-            } else if (state.isPreparing) {
-                // Cancel the countdown if user clicks during preparation
-                state.setIsPreparing(false)
-                state.setCountdown(0)
-                console.log("[GlobalRecorderManager] Recording preparation cancelled from tray")
-            } else {
-                // Start countdown preparation
-                state.initiateRecording("global")
-            }
-        })
+        let unlistenFn: (() => void) | undefined
+        const setup = async () => {
+            unlistenFn = await safeListen("tray-record-toggle", () => {
+                console.log("[GlobalRecorderManager] Tray toggle received")
+                const state = useRecordingStore.getState()
+                if (state.isRecording) {
+                    state.setPostRecordingAction('synthesize')
+                    state.stopRecording()
+                } else if (state.isPreparing) {
+                    // Cancel the countdown if user clicks during preparation
+                    state.setIsPreparing(false)
+                    state.setCountdown(0)
+                    console.log("[GlobalRecorderManager] Recording preparation cancelled from tray")
+                } else {
+                    // Start countdown preparation
+                    state.initiateRecording("global")
+                }
+            })
+        }
+        setup()
         return () => {
-            unlisten.then(f => f())
+            if (unlistenFn) unlistenFn()
         }
     }, [])
 
     // Listen for watchdog auto-stop (timeout / size limit)
     useEffect(() => {
-        const unlisten = listen<string>("recording-auto-stopped", (event) => {
-            const reason = event.payload
-            console.warn("[GlobalRecorderManager] Recording auto-stopped by watchdog:", reason)
+        let unlistenFn: (() => void) | undefined
+        const setup = async () => {
+            unlistenFn = await safeListen<string>("recording-auto-stopped", (event) => {
+                const reason = event.payload
+                console.warn("[GlobalRecorderManager] Recording auto-stopped by watchdog:", reason)
 
-            const state = useRecordingStore.getState()
-            if (!state.isRecording) return
+                const state = useRecordingStore.getState()
+                if (!state.isRecording) return
 
-            // Show appropriate toast
-            if (reason === "timeout") {
-                toast.warning(t("learning.recordingAutoStoppedTimeout"))
-            } else if (reason === "size_limit") {
-                toast.warning(t("learning.recordingAutoStoppedSize"))
-            } else {
-                toast.warning(t("learning.recordingAutoStopped"))
-            }
+                // Show appropriate toast
+                if (reason === "timeout") {
+                    toast.warning(t("learning.recordingAutoStoppedTimeout"))
+                } else if (reason === "size_limit") {
+                    toast.warning(t("learning.recordingAutoStoppedSize"))
+                } else {
+                    toast.warning(t("learning.recordingAutoStopped"))
+                }
 
-            // Trigger the same graceful stop flow as a manual tray stop
-            state.setPostRecordingAction('synthesize')
-            state.stopRecording()
-        })
+                // Trigger the same graceful stop flow as a manual tray stop
+                state.setPostRecordingAction('synthesize')
+                state.stopRecording()
+            })
+        }
+        setup()
         return () => {
-            unlisten.then(f => f())
+            if (unlistenFn) unlistenFn()
         }
     }, [t])
 
@@ -131,11 +137,16 @@ export function GlobalRecorderManager() {
     const isMarkingRef = useRef(false);
 
     useEffect(() => {
-        const unlistenStarted = listen("marking-started", () => { isMarkingRef.current = true; });
-        const unlistenStopped = listen("marking-stopped", () => { isMarkingRef.current = false; });
+        let unlistenStartedFn: (() => void) | undefined
+        let unlistenStoppedFn: (() => void) | undefined
+        const setup = async () => {
+            unlistenStartedFn = await safeListen("marking-started", () => { isMarkingRef.current = true; });
+            unlistenStoppedFn = await safeListen("marking-stopped", () => { isMarkingRef.current = false; });
+        }
+        setup()
         return () => {
-            unlistenStarted.then(f => f());
-            unlistenStopped.then(f => f());
+            if (unlistenStartedFn) unlistenStartedFn();
+            if (unlistenStoppedFn) unlistenStoppedFn();
         }
     }, []);
 
@@ -198,7 +209,7 @@ export function GlobalRecorderManager() {
         const totalEvents = (isDesktopRecording || recordingSource === 'mobile') ? globalRecorder.eventCount : domRecorder.eventCount
         setEventCount(totalEvents)
         // Sync to tray
-        invoke("sync_tray_event_count", { count: totalEvents })
+        safeInvoke("sync_tray_event_count", { count: totalEvents }).catch(() => {})
     }, [domRecorder.eventCount, globalRecorder.eventCount, isDesktopRecording, recordingSource, setEventCount])
 
     // Sync session ID to store (for dialogs)
@@ -241,7 +252,7 @@ export function GlobalRecorderManager() {
                                 try {
                                     const deviceId = useRecordingStore.getState().recordingSourceDeviceId;
                                     if (deviceId) {
-                                        const bounds = await invoke<any>("get_mirror_window_bounds", { deviceId });
+                                        const bounds = await safeInvoke<any>("get_mirror_window_bounds", { deviceId });
                                         setMirrorBounds(bounds);
                                         console.log("[GlobalRecorderManager] Mirror bounds for transformation:", bounds);
                                     }
@@ -258,14 +269,14 @@ export function GlobalRecorderManager() {
                         // Start screen video recording - Skip if we are recording mobile specifically
                         if (useRecordingStore.getState().recordingSource === 'desktop') {
                             try {
-                                const path = await invoke<string>("start_screen_recording")
+                                const path = await safeInvoke<string>("start_screen_recording")
                                 setVideoPath(path)
                                 console.log("[GlobalRecorderManager] Screen recording started:", path)
 
                                 // [v3 Unified] Pass session info to standalone desktop marker overlay
                                 const currentStartTime = useRecordingStore.getState().recordingStartTime
                                 console.log("[GlobalRecorderManager] Emitting session to marker overlay:", { sessionId: domRecorder.sessionId, recordingStartTime: currentStartTime, threadId: activeThreadId })
-                                await emit('desktop-marker-session', {
+                                await safeEmit('desktop-marker-session', {
                                     sessionId: domRecorder.sessionId,
                                     recordingStartTime: currentStartTime,
                                     threadId: activeThreadId
@@ -282,8 +293,8 @@ export function GlobalRecorderManager() {
 
                         // [FIX] Hide main window when recording starts to avoid obstructing the screen
                         try {
-                            const win = getCurrentWindow()
-                            await win.hide()
+                            const win = await safeGetCurrentWindow()
+                            if (win) await win.hide()
                         } catch (hideErr) {
                             console.warn("[GlobalRecorderManager] Failed to hide main window:", hideErr)
                         }
@@ -320,7 +331,7 @@ export function GlobalRecorderManager() {
                         let vPath: string | null = null
                         if (useRecordingStore.getState().recordingSource === 'desktop') {
                             try {
-                                vPath = await invoke<string>("stop_screen_recording")
+                                vPath = await safeInvoke<string>("stop_screen_recording")
                                 console.log("[GlobalRecorderManager] Screen recording stopped:", vPath)
                             } catch (videoErr) {
                                 console.warn("[GlobalRecorderManager] Screen recording stop failed:", videoErr)
@@ -382,7 +393,7 @@ export function GlobalRecorderManager() {
 
                         // [FIX] Show and focus main window when recording stops
                         try {
-                            await invoke("show_main_window")
+                            await safeInvoke("show_main_window")
                         } catch (showErr) {
                             console.warn("[GlobalRecorderManager] Failed to show/focus main window:", showErr)
                         }

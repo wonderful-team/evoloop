@@ -7,7 +7,6 @@ from app.infrastructure.search directly.
 """
 
 import logging
-from pathlib import Path
 from typing import Optional
 
 from app.infrastructure.search import get_search_backend
@@ -26,15 +25,8 @@ logger = logging.getLogger(__name__)
 class FTSService:
     """Deprecated: use app.infrastructure.search.get_search_backend() instead."""
 
-    def __init__(self, db_path: Optional[Path] = None, pool=None):
-        if db_path is not None:
-            # Create an isolated backend for testing
-            from app.infrastructure.search.sqlite_fts import SQLiteFTSBackend
-            self._backend = SQLiteFTSBackend(db_path=db_path)
-        else:
-            self._backend = get_search_backend()
-        # Expose pool for backward compat (only SQLiteFTSBackend has it)
-        self.pool = getattr(self._backend, "pool", None)
+    def __init__(self):
+        self._backend = get_search_backend()
 
     async def initialize(self) -> None:
         await self._backend.initialize()
@@ -99,9 +91,9 @@ class FTSService:
 _fts_service: Optional[FTSService] = None
 
 
-def get_fts_service(db_path: Optional[Path] = None) -> FTSService:
+def get_fts_service() -> FTSService:
     """Get or create FTS service singleton."""
     global _fts_service
     if _fts_service is None:
-        _fts_service = FTSService(db_path=db_path)
+        _fts_service = FTSService()
     return _fts_service

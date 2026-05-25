@@ -117,6 +117,9 @@ class DynamicAppTriage(BaseExplorer):
         from app.core.llm import InternalLLMService
         from app.infrastructure.config.service import SystemConfigService
         model_name = SystemConfigService.get_value("LLM_MODEL")
+        if not model_name:
+            logger.debug("[DynamicAppTriage] Skipping LLM triage: no LLM model configured")
+            return {}
         response = await InternalLLMService.invoke(
             messages=[
                 {"role": "system", "content": role_name},

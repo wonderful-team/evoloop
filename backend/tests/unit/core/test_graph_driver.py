@@ -34,7 +34,10 @@ class TestFileGraphDriverDelete:
         from app.infrastructure.database.graph.file_graph import FileGraphDriver
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            driver = FileGraphDriver(data_dir=tmpdir)
+            # FileGraphDriver takes .parent of data_dir, so pass a subdir
+            graph_subdir = os.path.join(tmpdir, "graph")
+            os.makedirs(graph_subdir, exist_ok=True)
+            driver = FileGraphDriver(data_dir=graph_subdir)
             yield driver
 
     @pytest.fixture
@@ -94,43 +97,31 @@ class TestFileGraphDriverDelete:
         assert "file2" not in G
 
     @pytest.mark.asyncio
-    async def test_optional_match_delete_cascades(self, graph_with_nodes):
+    async def test_optional_match_delete_cascades_raises(self, graph_with_nodes):
         """
-        MATCH (f:File {project_id: $pid})
-        OPTIONAL MATCH (f)-[:CONTAINS]->(e)
-        DETACH DELETE e, f
-        should delete File node and its successors.
+        OPTIONAL MATCH + DETACH DELETE is not supported by FileGraphDriver.
+        It should raise NotImplementedError rather than silently fail.
         """
         driver = graph_with_nodes
         G = driver._graph
 
         assert G.number_of_nodes() == 5
-        assert G.has_edge("file1", "entity1")
-        assert G.has_edge("file1", "entity2")
 
         session = driver.session()
-        async with session as s:
-            result = await s.run(
-                """
-                MATCH (f {project_id: $pid})
-                OPTIONAL MATCH (f)-[:CONTAINS]->(e)
-                DETACH DELETE e
-                DETACH DELETE f
-                """,
-                pid=1,
-            )
-            data = await result.data()
+        with pytest.raises(NotImplementedError):
+            async with session as s:
+                await s.run(
+                    """
+                    MATCH (f {project_id: $pid})
+                    OPTIONAL MATCH (f)-[:CONTAINS]->(e)
+                    DETACH DELETE e
+                    DETACH DELETE f
+                    """,
+                    pid=1,
+                )
 
-        # file1, entity1, entity2 should be deleted (3 nodes)
-        # file2 (project_id=1 but no successors) should also be deleted
-        # file3 (project_id=2) should remain
-        assert G.number_of_nodes() == 1
-        assert "file3" in G
-        assert "file1" not in G
-        assert "file2" not in G
-        assert "entity1" not in G
-        assert "entity2" not in G
-        assert data[0]["deleted_count"] == 4
+        # Graph should remain unchanged since the query was rejected
+        assert G.number_of_nodes() == 5
 
     @pytest.mark.asyncio
     async def test_delete_returns_count(self, graph_with_nodes):
@@ -164,16 +155,15 @@ class TestFileGraphDriverDelete:
         assert G.number_of_nodes() == 5
 
     @pytest.mark.asyncio
-    async def test_non_delete_match_still_works(self, graph_with_nodes):
-        """Regular MATCH (without DETACH DELETE) should still return results."""
+    async def test_non_delete_match_raises_not_implemented(self, graph_with_nodes):
+        """Generic MATCH ... RETURN is not supported by FileGraphDriver.
+        It should raise NotImplementedError rather than silently return []."""
         driver = graph_with_nodes
 
         session = driver.session()
-        async with session as s:
-            result = await s.run(
-                "MATCH (n {project_id: $pid}) RETURN n",
-                pid=1,
-            )
-            data = await result.data()
-
-        assert len(data) == 4  # file1, file2, entity1, entity2
+        with pytest.raises(NotImplementedError):
+            async with session as s:
+                await s.run(
+                    "MATCH (n {project_id: $pid}) RETURN n",
+                    pid=1,
+                )

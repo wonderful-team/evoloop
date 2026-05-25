@@ -52,7 +52,7 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
   }
 
   // 分组模型
-  const platformModels = models.filter((m) => m.type === "platform" && m.available !== false)
+  const platformModels = models.filter((m) => m.type === "platform")
   const customModels = models.filter((m) => m.type === "custom")
 
   // 获取当前选中的模型信息 (使用 id 而不是 model，以区分 platform 和 custom)
@@ -107,7 +107,6 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
                           key={model.id}
                           value={model.id}
                           className="text-xs py-2"
-                          disabled={model.available === false}
                         >
                           <span className="flex items-center gap-2 w-full">
                             {model.supports_vision ? (

@@ -4,6 +4,13 @@ Pytest configuration for EvoLoop Backend tests.
 This module mocks heavy dependencies that are not available in the test environment
 and patches application-level singletons to prevent slow initialization and
 background task leaks during test execution.
+
+MOCK ARCHITECTURE:
+- "Always-on" mocks (module level): Vision frameworks, event-loop leak prevention,
+  HookSystem side-effect suppression, and optional heavy dependencies.
+- "Unit-test-only" mocks (conditional): Task Queue, Vector Store, Resource Manager,
+  SystemConfigService. These are skipped when `--integration` is passed so that
+  integration tests can exercise real backend implementations.
 """
 import sys
 from unittest.mock import MagicMock, AsyncMock
@@ -28,10 +35,11 @@ sys.modules["app.core.vision.engine"] = _mock_vision_engine
 
 
 # =============================================================================
-# 1. Mock Task Queue / Huey
+# 1-4. Unit-test-only mocks (applied in pytest_configure when --integration absent)
 # =============================================================================
-# Prevents Huey SQLite scheduler initialization and ensures @shared_task
-# decorated functions remain callable in tests without enqueuing background work.
+# These mocks are deferred to pytest_configure so that integration tests can
+# opt out via the --integration flag and exercise real backend implementations.
+
 class _NoOpTaskScheduler:
     """No-op scheduler for tests. Prevents Huey SQLite initialization."""
 
@@ -85,48 +93,6 @@ class _NoOpTaskScheduler:
         return decorator
 
 
-_mock_scheduler = _NoOpTaskScheduler()
-
-# Patch factory BEFORE any @shared_task decorated modules are imported
-import app.infrastructure.queue.factory as _factory_mod
-
-_factory_mod._scheduler = _mock_scheduler
-_factory_mod.get_scheduler = lambda: _mock_scheduler
-
-import app.infrastructure.queue.huey_queue as _huey_queue_mod
-
-_huey_queue_mod.get_huey_scheduler = lambda: _mock_scheduler
-
-
-def _noop_shared_task(
-    func=None, *, name=None, bind=False, retries=0, retry_delay=0, **options
-):
-    return _mock_scheduler.task(
-        func, name=name, bind=bind, retries=retries, retry_delay=retry_delay, **options
-    )
-
-
-_factory_mod.shared_task = _noop_shared_task
-_huey_queue_mod.shared_task = _noop_shared_task
-
-
-# =============================================================================
-# 2. Mock Vector Store
-# =============================================================================
-# LanceVectorStore initialization touches the filesystem and can take >30s.
-_mock_vector_store = MagicMock()
-import app.infrastructure.database.vector as _vector_mod
-
-_vector_mod._vector_store = _mock_vector_store
-_vector_mod.get_vector_store = lambda: _mock_vector_store
-_vector_mod.reset_vector_store = lambda: None
-
-
-# =============================================================================
-# 3. Mock Database Resource Manager
-# =============================================================================
-# Prevents db_resource_manager.initialize() from spinning up LanceDB/SQLite
-# pools and creating tables on every test that touches it.
 @asynccontextmanager
 async def _mock_raw_connection():
     conn = MagicMock()
@@ -138,22 +104,55 @@ async def _mock_raw_connection():
     yield conn
 
 
-import app.infrastructure.database.resource_manager as _rm_mod
+def _apply_unit_test_mocks():
+    """Apply mocks that should only be active during unit test runs.
 
-_rm_mod.db_resource_manager.initialize = AsyncMock()
-_rm_mod.db_resource_manager.shutdown = AsyncMock()
-_rm_mod.db_resource_manager.close = AsyncMock()
-_rm_mod.db_resource_manager.reset = AsyncMock()
-_rm_mod.db_resource_manager.get_raw_connection = _mock_raw_connection
-_rm_mod.db_resource_manager._initialized = True
+    Called from pytest_configure when --integration is NOT present.
+    """
+    # 1. Mock Task Queue / Huey
+    _mock_scheduler = _NoOpTaskScheduler()
 
+    import app.infrastructure.queue.factory as _factory_mod
 
-# =============================================================================
-# 4. Mock SystemConfigService to avoid DB lookups
-# =============================================================================
-import app.infrastructure.config.service as _config_service_mod
+    _factory_mod._scheduler = _mock_scheduler
+    _factory_mod.get_scheduler = lambda: _mock_scheduler
 
-_config_service_mod.SystemConfigService.get_value = MagicMock(return_value=None)
+    import app.infrastructure.queue.huey_queue as _huey_queue_mod
+
+    _huey_queue_mod.get_huey_scheduler = lambda: _mock_scheduler
+
+    def _noop_shared_task(
+        func=None, *, name=None, bind=False, retries=0, retry_delay=0, **options
+    ):
+        return _mock_scheduler.task(
+            func, name=name, bind=bind, retries=retries, retry_delay=retry_delay, **options
+        )
+
+    _factory_mod.shared_task = _noop_shared_task
+    _huey_queue_mod.shared_task = _noop_shared_task
+
+    # 2. Mock Vector Store
+    _mock_vector_store = MagicMock()
+    import app.infrastructure.database.vector as _vector_mod
+
+    _vector_mod._vector_store = _mock_vector_store
+    _vector_mod.get_vector_store = lambda: _mock_vector_store
+    _vector_mod.reset_vector_store = lambda: None
+
+    # 3. Mock Database Resource Manager
+    import app.infrastructure.database.resource_manager as _rm_mod
+
+    _rm_mod.db_resource_manager.initialize = AsyncMock()
+    _rm_mod.db_resource_manager.shutdown = AsyncMock()
+    _rm_mod.db_resource_manager.close = AsyncMock()
+    _rm_mod.db_resource_manager.reset = AsyncMock()
+    _rm_mod.db_resource_manager.get_raw_connection = _mock_raw_connection
+    _rm_mod.db_resource_manager._initialized = True
+
+    # 4. Mock SystemConfigService to avoid DB lookups
+    import app.infrastructure.config.service as _config_service_mod
+
+    _config_service_mod.SystemConfigService.get_value = MagicMock(return_value=None)
 
 
 # =============================================================================
@@ -411,6 +410,30 @@ import pytest
 import logging
 
 
+def pytest_addoption(parser):
+    """Add custom command-line options."""
+    parser.addoption(
+        "--integration",
+        action="store_true",
+        default=False,
+        help="Run integration tests with real backend implementations (skips unit-test-only mocks)",
+    )
+
+
+def pytest_configure(config):
+    """Configure pytest before test collection."""
+    if not config.getoption("--integration"):
+        _apply_unit_test_mocks()
+    else:
+        # Integration mode: reset factory singleton so real scheduler can be created
+        try:
+            import app.infrastructure.queue.factory as _factory_mod
+
+            _factory_mod._scheduler = None
+        except Exception:
+            pass
+
+
 @pytest.fixture(autouse=True)
 def preserve_logging_handlers():
     """Prevent tests from breaking caplog by calling basicConfig()."""
@@ -427,12 +450,6 @@ def preserve_logging_handlers():
             root.addHandler(handler)
     # Always reset root level to NOTSET so caplog can capture all levels
     root.setLevel(logging.NOTSET)
-
-
-def pytest_configure(config):
-    """Configure pytest before test collection."""
-    # Ensure mocks are in place
-    pass
 
 
 def pytest_unconfigure(config):

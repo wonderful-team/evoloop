@@ -417,3 +417,8 @@ def get_celery_app() -> TaskScheduler:
     if _celery_app is None:
         _celery_app = create_celery_app()
     return _celery_app
+
+
+# Module-level aliases for Celery CLI and standalone worker scripts
+celery_app = get_celery_app()
+celery = celery_app

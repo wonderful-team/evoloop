@@ -129,9 +129,9 @@ async def test_phase2():
     # 1. Test FTS Service
     print("\n1. Testing FTS Service...")
     try:
-        from app.domain.knowledge.services.search import FTSService
+        from app.infrastructure.search.sqlite_fts import SQLiteFTSBackend
         with tempfile.TemporaryDirectory() as tmpdir:
-            fts = FTSService(db_path=f"{tmpdir}/search.db")
+            fts = SQLiteFTSBackend(db_path=f"{tmpdir}/search.db")
             await fts.initialize()
             
             # Index document
@@ -140,7 +140,7 @@ async def test_phase2():
                 path="test/doc.md",
                 title="Test Document",
                 content="This is a test document about authentication.",
-                project="test",
+                collection="test",
                 tags=["auth"]
             )
             

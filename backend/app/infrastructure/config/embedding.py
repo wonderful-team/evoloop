@@ -95,6 +95,8 @@ class EmbeddingConfigService:
         try:
             await driver.execute_query("DROP INDEX concept_embeddings IF EXISTS")
             logger.info("Dropped concept_embeddings index")
+        except NotImplementedError:
+            logger.debug("Graph Drop Index skipped (not supported in embedded mode)")
         except Exception as e:
             logger.warning(f"Graph Drop Index warning: {e}")
 

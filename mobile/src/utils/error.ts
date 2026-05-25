@@ -25,7 +25,7 @@ export function handleApiError(error: unknown): Error {
 export function isAuthError(error: unknown): boolean {
   if (error instanceof Error) {
     const msg = error.message || '';
-    return /unauthorized|未登录|token|401|403/i.test(msg);
+    return /unauthorized|未登录|过期|token|401|403/i.test(msg);
   }
   return false;
 }

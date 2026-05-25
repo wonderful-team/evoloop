@@ -8,6 +8,7 @@ Event subscribers for EvoCloud lifecycle, real-time sync, and WebSocket messages
 import asyncio
 import logging
 
+from app.core.config import settings
 from app.core.engine.event.schemas import WebSocketMessageReceivedEvent
 from app.core.engine.event.types import AgentEventType
 from app.core.events import SystemEventType
@@ -118,6 +119,9 @@ class EvoCloudSyncSubscriber:
         Immediately schedules an incremental sync so messages
         don't wait for the next 30-minute polling cycle.
         """
+        if not settings.MOBILE_SYNC_ENABLED:
+            return
+
         sync_manager = evocloud_manager.sync_manager
         if sync_manager is None:
             logger.debug("[EvoCloudSync] No sync manager active, skipping")

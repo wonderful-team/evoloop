@@ -81,7 +81,6 @@ class GraphManager:
     Dispatches to Neo4j or FileGraph based on configuration.
     """
     _drivers: dict[asyncio.AbstractEventLoop, IGraphDriver] = {}
-    _use_neo4j: bool = settings.USE_NEO4J and not settings.EMBEDDED_MODE
 
     @classmethod
     def get_driver(cls) -> IGraphDriver:
@@ -91,7 +90,7 @@ class GraphManager:
         In Full Mode, returns Neo4jDriver.
         """
         # 1. Handle Embedded Mode (File-based Graph)
-        if settings.EMBEDDED_MODE or not cls._use_neo4j:
+        if settings.EMBEDDED_MODE:
             from app.infrastructure.database.graph.file_graph import FileGraphDriver
 
             # We don't cache FileGraphDriver per loop since it's typically used
@@ -129,7 +128,6 @@ class GraphManager:
             return driver
         except Exception as e:
             logger.error(f"Failed to connect to Neo4j: {e}. Falling back to FileGraph.")
-            cls._use_neo4j = False
             # Recurse to get FileGraph fallback
             return cls.get_driver()
 
@@ -157,8 +155,12 @@ class GraphManager:
 
     @classmethod
     def is_enabled(cls) -> bool:
-        """Check if graph features are enabled (always true if FileGraph exists)."""
-        return True
+        """Check if graph features are enabled.
+
+        Graph features (Neo4j Cypher queries) are only available in server mode.
+        In embedded mode FileGraph is available but does not support Cypher.
+        """
+        return not settings.EMBEDDED_MODE
 
 
 # =============================================================================

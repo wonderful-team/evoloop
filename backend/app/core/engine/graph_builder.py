@@ -42,6 +42,14 @@ class GraphBuilder:
         with open(config_path) as f:
             raw_config = yaml.safe_load(f)
 
+        # Environment Controls Filtering (Headless Server Compatibility)
+        from app.core.config import settings
+        if not settings.ENABLE_ENVIRONMENT_CONTROLS:
+            disabled_tools = {"browser_control", "desktop_control", "mobile_control", "analyze_image", "verify_ui_state"}
+            for node in raw_config.get("nodes", []):
+                if "tools" in node and node["tools"]:
+                    node["tools"] = [t for t in node["tools"] if t not in disabled_tools]
+
         agent_config = AgentConfig.model_validate(raw_config)
 
         # 2. Load State Schema
