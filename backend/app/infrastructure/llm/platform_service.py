@@ -73,18 +73,8 @@ class LLMPlatformService:
         
         使用锁防止并发请求导致重复 fetch（竞争条件）
         """
-        current_time = time.time()
-        
-        # 快速检查：缓存有效直接返回（无需加锁）
-        if self._models_cache and (current_time - self._last_fetch_time) < self._cache_ttl:
-            return list(self._models_cache.values())
-        
         # 加锁：防止多个并发请求同时 fetch
         async with self._fetch_lock:
-            # 双重检查：拿到锁后再次确认缓存是否已被其他协程更新
-            if self._models_cache and (time.time() - self._last_fetch_time) < self._cache_ttl:
-                return list(self._models_cache.values())
-            
             try:
                 # 使用标准化的 HTTP client（自动处理 SSL、认证、路由）
                 from app.core.evocloud import evocloud_manager
@@ -102,7 +92,7 @@ class LLMPlatformService:
                 for m in models:
                     if m.get("config_type") != "evoloop":
                         continue
-                        
+
                     model = PlatformModel(
                         model_id=m.get("model_id", ""),
                         display_name=m.get("display_name", ""),
@@ -122,12 +112,12 @@ class LLMPlatformService:
                     )
                     platform_models.append(model)
                     self._models_cache[model.model_id] = model
-                
+
                 self._last_fetch_time = time.time()
-                
+
                 logger.info(f"[LLMPlatform] Fetched {len(platform_models)} platform models")
                 return platform_models
-                    
+
             except Exception as e:
                 logger.error(f"[LLMPlatform] Error fetching models: {e}")
                 return []

@@ -6,6 +6,7 @@ from typing import Any
 import yaml
 from langgraph.graph import END, StateGraph
 
+from app.core.config import settings
 from app.core.engine.schemas import AgentGraphConfig as AgentConfig
 
 logger = logging.getLogger(__name__)
@@ -43,7 +44,6 @@ class GraphBuilder:
             raw_config = yaml.safe_load(f)
 
         # Environment Controls Filtering (Headless Server Compatibility)
-        from app.core.config import settings
         if not settings.ENABLE_ENVIRONMENT_CONTROLS:
             disabled_tools = {"browser_control", "desktop_control", "mobile_control", "analyze_image", "verify_ui_state"}
             for node in raw_config.get("nodes", []):

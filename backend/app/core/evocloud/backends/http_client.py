@@ -549,15 +549,12 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         )
 
     async def register_device(self, fingerprint: str, name: str, os_info: str) -> dict:
-        """Claim a device from the PHP Member Center.
+        """Claim a device from the server.
 
         The server will:
         1. Look up existing device by fingerprint + member_id
         2. Return existing device_key if found
         3. Check device limit and create new device_key if not found
-
-        Endpoint routes to Member Center (not Gateway) because device_key
-        generation is a business logic owned by PHP Backend.
         """
         return await self.request(
             "POST",

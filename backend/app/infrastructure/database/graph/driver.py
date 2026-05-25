@@ -128,8 +128,11 @@ class GraphManager:
             return driver
         except Exception as e:
             logger.error(f"Failed to connect to Neo4j: {e}. Falling back to FileGraph.")
-            # Recurse to get FileGraph fallback
-            return cls.get_driver()
+            # Explicitly fallback to FileGraph to avoid infinite recursion
+            from app.infrastructure.database.graph.file_graph import FileGraphDriver
+            driver = FileGraphDriver()
+            cls._drivers[loop] = driver
+            return driver
 
     @classmethod
     async def close_driver(cls):
