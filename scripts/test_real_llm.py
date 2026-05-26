@@ -46,8 +46,6 @@ sys.modules["app.core.file.document_reader"] = _doc_reader_mock
 
 # ── Environment (embedded mode = SQLite + FileCache + Huey) ──────────────────
 os.environ["EMBEDDED_MODE"] = "true"
-os.environ["USE_REDIS"] = "false"
-os.environ["USE_NEO4J"] = "false"
 os.environ["SQLITE_DB_PATH"] = "/tmp/evoloop_test.db"
 os.environ["CHECKPOINTER_DATABASE_URI"] = "sqlite+aiosqlite:///tmp/evoloop_test.db"
 os.environ["PYTHONUNBUFFERED"] = "1"

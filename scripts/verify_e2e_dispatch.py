@@ -39,16 +39,12 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 import os
 
 os.environ["EMBEDDED_MODE"] = "true"
-os.environ["USE_REDIS"] = "false"
-os.environ["USE_NEO4J"] = "false"
 os.environ["SQLITE_DB_PATH"] = ":memory:"
 os.environ["CHECKPOINTER_DATABASE_URI"] = "sqlite:///:memory:"
 
 from app.core.config import settings
 
 settings.EMBEDDED_MODE = True
-settings.USE_REDIS = False
-settings.USE_NEO4J = False
 
 # 预 mock 架构不兼容的依赖（这些在 EMBEDDED_MODE 下不会被真实使用）
 from unittest import mock
