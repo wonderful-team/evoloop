@@ -799,10 +799,11 @@ case "${1:-help}" in
                 ;;
             *)
                 error "未知模型命令: ${2:-}"
-                echo "可用命令: download [model_name]"
+                echo "可用命令: download [model_name] [--endpoint URL]"
                 echo "示例:"
                 echo "  evo model download                                    # 下载默认模型"
                 echo "  evo model download nomic-ai/nomic-embed-text-v1.5    # 下载指定模型"
+                echo "  evo model download --endpoint https://hf-mirror.com  # 使用镜像下载"
                 exit 1
                 ;;
         esac
