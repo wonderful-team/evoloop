@@ -1153,3 +1153,97 @@ class TestPhase14Maintenance:
         assert memory_md.exists(), "MEMORY.md should be regenerated"
         content = memory_md.read_text(encoding="utf-8")
         assert "Project Memory" in content
+
+
+
+# ───────────────────────── Phase 15: FileEngine Edge Cases ─────────────────────────
+
+class TestFileEngineEdgeCases:
+    """补充 _FileEngine 的边界情况测试。"""
+
+    @pytest.mark.asyncio
+    async def test_concurrent_save_no_race_condition(self, memory_setup):
+        """并发保存同一内容不应产生重复条目。"""
+        import asyncio
+        mgr = memory_setup["manager"]
+        from app.core.memory.models import MemoryEntry, MemoryType
+
+        entry = MemoryEntry(
+            id="mem_concurrent_01",
+            type=MemoryType.PROJECT,
+            title="Concurrent Test",
+            content="Same content for race condition test.",
+            project_id=1,
+        )
+
+        # 并发保存两次
+        results = await asyncio.gather(
+            mgr.save_memory(entry),
+            mgr.save_memory(entry),
+            return_exceptions=True,
+        )
+
+        # 应该只产生一个条目（hash 去重）
+        found = await mgr.get_memory("mem_concurrent_01")
+        assert found is not None
+        assert found.content == entry.content
+
+    @pytest.mark.asyncio
+    async def test_large_content_storage(self, memory_setup):
+        """大内容（>100KB）应能正确存储和检索。"""
+        mgr = memory_setup["manager"]
+        from app.core.memory.models import MemoryEntry, MemoryType
+
+        large_content = "x" * 100_000
+        entry = MemoryEntry(
+            id="mem_large_01",
+            type=MemoryType.PROJECT,
+            title="Large Content Test",
+            content=large_content,
+            project_id=1,
+        )
+        await mgr.save_memory(entry)
+
+        found = await mgr.get_memory("mem_large_01")
+        assert found is not None
+        assert found.content == large_content
+        assert len(found.content) == 100_000
+
+    @pytest.mark.asyncio
+    async def test_special_characters_in_content(self, memory_setup):
+        """内容包含特殊字符（Unicode、换行、引号）应正确保存。"""
+        mgr = memory_setup["manager"]
+        from app.core.memory.models import MemoryEntry, MemoryType
+
+        special_content = '特殊字符测试 🚀\n"quoted" \'single\' <tag> &amp; \t\n中文内容'
+        entry = MemoryEntry(
+            id="mem_special_01",
+            type=MemoryType.PROJECT,
+            title="Special Characters",
+            content=special_content,
+            project_id=1,
+        )
+        await mgr.save_memory(entry)
+
+        found = await mgr.get_memory("mem_special_01")
+        assert found is not None
+        assert found.content == special_content
+
+    @pytest.mark.asyncio
+    async def test_rapid_save_and_delete_cycle(self, memory_setup):
+        """快速保存然后删除应正确清理所有层。"""
+        mgr = memory_setup["manager"]
+        from app.core.memory.models import MemoryEntry, MemoryType
+
+        entry = MemoryEntry(
+            id="mem_rapid_01",
+            type=MemoryType.PROJECT,
+            title="Rapid Cycle",
+            content="Quick save and delete.",
+            project_id=1,
+        )
+        await mgr.save_memory(entry)
+        assert await mgr.get_memory("mem_rapid_01") is not None
+
+        await mgr.delete_memory("mem_rapid_01")
+        assert await mgr.get_memory("mem_rapid_01") is None
