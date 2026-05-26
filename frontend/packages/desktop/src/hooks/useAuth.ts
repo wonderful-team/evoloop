@@ -146,7 +146,10 @@ const useAuth = () => {
     } finally {
       localStorage.removeItem("access_token")
       localStorage.removeItem("evoloop_member_id")
-      queryClient.resetQueries()
+      // clear the query cache to avoid refetching without a token
+      queryClient.clear()
+      // manually navigate to login to unmount protected components
+      navigate({ to: "/login" })
     }
   }
 

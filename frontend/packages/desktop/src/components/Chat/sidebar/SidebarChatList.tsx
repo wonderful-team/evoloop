@@ -247,6 +247,7 @@ export function SidebarChatList({
                       className="h-6 text-xs flex-1"
                       autoFocus
                       onKeyDown={(e: any) => {
+                        if (e.nativeEvent.isComposing) return
                         if (e.key === "Enter") {
                           renameMutation.mutate({
                             threadId: thread.thread_id,
@@ -306,50 +307,87 @@ export function SidebarChatList({
               )}
 
               {/* Actions Area (Vertically Centered on Right Side) */}
-              <div className="flex items-center shrink-0 ml-2 relative min-h-[24px] z-20">
-                {/* Actions container: visible on hover */}
-                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-background/95 rounded pl-1 absolute right-0 top-1/2 -translate-y-1/2">
-                  {/* Pin/Unpin Button */}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={(e: any) => {
-                      e.stopPropagation()
-                      onTogglePin?.(thread.thread_id, !thread.is_pinned)
-                    }}
-                    title={thread.is_pinned ? "取消置顶" : "置顶会话"}
-                  >
-                    {thread.is_pinned ? (
-                      <PinOff size={12} className="text-amber-500 fill-amber-500/25" />
-                    ) : (
-                      <Pin size={12} className="text-muted-foreground hover:text-foreground" />
-                    )}
-                  </Button>
-
-                  {/* Rename Button (not for running) */}
-                  {editingThreadId !== thread.thread_id && thread.status !== "running" && (
+              {editingThreadId !== thread.thread_id && (
+                <div className="flex items-center shrink-0 ml-2 relative min-h-[24px] z-20">
+                  {/* Actions container: visible on hover */}
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-background/95 rounded pl-1 absolute right-0 top-1/2 -translate-y-1/2">
+                    {/* Pin/Unpin Button */}
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6"
                       onClick={(e: any) => {
                         e.stopPropagation()
-                        setEditingThreadId(thread.thread_id)
-                        setEditingTitle(thread.title || "")
+                        onTogglePin?.(thread.thread_id, !thread.is_pinned)
                       }}
-                      title={t("common.rename") || "重命名"}
+                      title={thread.is_pinned ? "取消置顶" : "置顶会话"}
                     >
-                      <Pencil size={12} className="text-muted-foreground hover:text-foreground" />
+                      {thread.is_pinned ? (
+                        <PinOff size={12} className="text-amber-500 fill-amber-500/25" />
+                      ) : (
+                        <Pin size={12} className="text-muted-foreground hover:text-foreground" />
+                      )}
                     </Button>
-                  )}
 
-                  {/* Stop Button (only for running, inside hover container) */}
+                    {/* Rename Button (not for running) */}
+                    {thread.status !== "running" && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={(e: any) => {
+                          e.stopPropagation()
+                          setEditingThreadId(thread.thread_id)
+                          setEditingTitle(thread.title || "")
+                        }}
+                        title={t("common.rename") || "重命名"}
+                      >
+                        <Pencil size={12} className="text-muted-foreground hover:text-foreground" />
+                      </Button>
+                    )}
+
+                    {/* Stop Button (only for running, inside hover container) */}
+                    {thread.status === "running" && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-destructive hover:bg-destructive/10"
+                        onClick={(e: any) => {
+                          e.stopPropagation()
+                          onStopThread(thread.thread_id)
+                        }}
+                        title={t("chat.interface.stop") || "停止"}
+                      >
+                        <div className="h-2 w-2 bg-current rounded-[1px]" />
+                      </Button>
+                    )}
+
+                    {/* Delete Button (not for running) */}
+                    {thread.status !== "running" && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={(e: any) => {
+                          e.stopPropagation()
+                          onDeleteThread(thread.thread_id)
+                        }}
+                        title={t("common.delete") || "删除"}
+                      >
+                        <Trash2
+                          size={12}
+                          className="text-muted-foreground hover:text-destructive"
+                        />
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Standalone Stop Button: permanently visible on the right when running and not hovered */}
                   {thread.status === "running" && (
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 text-destructive hover:bg-destructive/10"
+                      className="h-6 w-6 text-destructive hover:bg-destructive/10 shrink-0 z-10 animate-pulse group-hover:opacity-0 group-hover:pointer-events-none transition-opacity duration-150 absolute right-0 top-1/2 -translate-y-1/2"
                       onClick={(e: any) => {
                         e.stopPropagation()
                         onStopThread(thread.thread_id)
@@ -359,43 +397,8 @@ export function SidebarChatList({
                       <div className="h-2 w-2 bg-current rounded-[1px]" />
                     </Button>
                   )}
-
-                  {/* Delete Button (not for running) */}
-                  {thread.status !== "running" && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={(e: any) => {
-                        e.stopPropagation()
-                        onDeleteThread(thread.thread_id)
-                      }}
-                      title={t("common.delete") || "删除"}
-                    >
-                      <Trash2
-                        size={12}
-                        className="text-muted-foreground hover:text-destructive"
-                      />
-                    </Button>
-                  )}
                 </div>
-
-                {/* Standalone Stop Button: permanently visible on the right when running and not hovered */}
-                {thread.status === "running" && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-destructive hover:bg-destructive/10 shrink-0 z-10 animate-pulse group-hover:opacity-0 group-hover:pointer-events-none transition-opacity duration-150 absolute right-0 top-1/2 -translate-y-1/2"
-                    onClick={(e: any) => {
-                      e.stopPropagation()
-                      onStopThread(thread.thread_id)
-                    }}
-                    title={t("chat.interface.stop") || "停止"}
-                  >
-                    <div className="h-2 w-2 bg-current rounded-[1px]" />
-                  </Button>
-                )}
-              </div>
+              )}
             </div>
           )
 

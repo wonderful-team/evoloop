@@ -8,7 +8,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@evoloop/shared/components/ui/collapsible"
-import { ChevronDown, ChevronRight, Files, History, Globe, Wand2, Rocket, BookOpen } from "lucide-react"
+import { ChevronDown, ChevronRight, Files, History, Globe, Wand2, Rocket, BookOpen, Edit, RefreshCw } from "lucide-react"
 import { cn } from "@evoloop/shared/lib/utils"
 import { 
   DropdownMenu, 
@@ -20,9 +20,16 @@ import {
 } from "@evoloop/shared/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@evoloop/shared/components/ui/tooltip"
 import { WikiService } from "@/client"
-import { useQueryClient } from "@tanstack/react-query"
+import { useQueryClient, useQuery } from "@tanstack/react-query"
+import { FilesService } from "@/client"
 import { useProjectStore, isGlobalProject } from "@/stores/projectStore"
 import { DiscoverDialog } from "@/components/Projects/Modules/Overview/DiscoverDialog"
+import { Link } from "@tanstack/react-router"
+import { FilePreviewModal } from "@/components/Files/FilePreviewModal"
+import { Button } from "@evoloop/shared/components/ui/button"
+
+import { ProjectProfileDrawer } from "@/components/Files/ProjectProfileDrawer"
+import { FolderPlus, Upload } from "lucide-react"
 
 interface SidebarFilesTabProps {
   projectId?: number
@@ -39,15 +46,19 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
   const [isProjectOpen, setIsProjectOpen] = useState(true)
   const [isChangesOpen, setIsChangesOpen] = useState(expandChanges)
   const [discoverOpen, setDiscoverOpen] = useState(false)
+  const [previewFile, setPreviewFile] = useState<{ path: string; name: string } | null>(null)
+  const [isCreatingRootFolder, setIsCreatingRootFolder] = useState(false)
 
   // Check for global mode (projectId is 0)
   const isGlobal = isGlobalProject(projectId ? { id: projectId } as any : null)
 
-  const handleDeploy = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (isGlobal || !projectId) return
-    setDiscoverOpen(true)
-  }
+  const { data: rootFiles } = useQuery({
+    queryKey: ["files", projectId || 0, ""],
+    queryFn: () => FilesService.listFiles({ projectId: projectId || 0, path: "" }),
+    enabled: projectId !== undefined,
+  })
+
+  const hasProjectProfile = Array.isArray(rootFiles) && rootFiles.some((f: any) => f.name === "PROJECT.md")
 
   const handleGenerateWiki = async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -88,42 +99,80 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
             )}
             <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex-1">
               {isGlobal
-                ? t("chat.sidebar.workspaceFiles")
-                : t("chat.sidebar.projectFiles")}
+                ? t("chat.sidebar.workspaceFiles", { defaultValue: "工作区文件" })
+                : t("chat.sidebar.projectFiles", { defaultValue: "项目文件" })}
             </span>
 
-            {/* Project Actions Dropdown */}
-            <DropdownMenu>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                    <div className="p-1 hover:bg-muted rounded-md transition-colors group/trigger">
-                      <Wand2 className={cn("h-3.5 w-3.5 text-muted-foreground/60 group-hover/trigger:text-primary transition-colors", isGlobal && "opacity-40")} />
-                    </div>
-                  </DropdownMenuTrigger>
-                </TooltipTrigger>
-                {isGlobal && (
-                  <TooltipContent side="top">
-                    {t("chat.sidebar.projectOnly")}
-                  </TooltipContent>
-                )}
-              </Tooltip>
-              
-              <DropdownMenuContent align="end" className="w-56" onClick={(e) => e.stopPropagation()}>
-                <DropdownMenuLabel className="text-[11px] font-bold uppercase tracking-tight text-muted-foreground/80">
-                  {t("chat.sidebar.actions")}
-                  {isGlobal && <span className="ml-2 text-[10px] font-normal lowercase opacity-60">({t("chat.sidebar.projectOnly")})</span>}
-                </DropdownMenuLabel>
+            <div className="flex items-center gap-0.5">
+              {projectId !== undefined && (
+                <>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-primary" onClick={(e) => {
+                        e.stopPropagation()
+                        setIsProjectOpen(true)
+                        setIsCreatingRootFolder(true)
+                      }}>
+                        <FolderPlus className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">{t("files.newFolder", { defaultValue: "新建文件夹" })}</TooltipContent>
+                  </Tooltip>
+                  
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="relative h-6 w-6">
+                        <Button variant="ghost" size="icon" className="h-6 w-6 absolute inset-0 text-muted-foreground hover:text-primary" onClick={(e) => e.stopPropagation()}>
+                          <Upload className="h-3.5 w-3.5" />
+                        </Button>
+                        <input
+                          type="file"
+                          multiple
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            if (!e.target.files?.length) return
+                            const dt = new DataTransfer()
+                            for (let i = 0; i < e.target.files.length; i++) {
+                              dt.items.add(e.target.files[i])
+                            }
+                            FilesService.workspaceUpload({ projectId, formData: { target_dir: "", file: e.target.files[0] as any } }) // Note: simplistic upload for root, better handled in FileTree
+                              .then(() => queryClient.invalidateQueries({ queryKey: ["files", projectId] }))
+                              .catch(() => toast.error(t("files.uploadError", { defaultValue: "上传失败" })))
+                          }}
+                        />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">{t("files.uploadFile", { defaultValue: "上传文件" })}</TooltipContent>
+                  </Tooltip>
+                </>
+              )}
+
+              {/* Project Actions Dropdown */}
+              <DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                      <div className="p-1 hover:bg-muted rounded-md transition-colors group/trigger">
+                        <Wand2 className={cn("h-3.5 w-3.5 text-muted-foreground/60 group-hover/trigger:text-primary transition-colors", isGlobal && "opacity-40")} />
+                      </div>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  {isGlobal && (
+                    <TooltipContent side="top">
+                      {t("chat.sidebar.projectOnly", { defaultValue: "仅项目内可用" })}
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+                
+                <DropdownMenuContent align="end" className="w-56" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenuLabel className="text-[11px] font-bold uppercase tracking-tight text-muted-foreground/80">
+                    {t("chat.sidebar.actions", { defaultValue: "项目操作" })}
+                    {isGlobal && <span className="ml-2 text-[10px] font-normal lowercase opacity-60">({t("chat.sidebar.projectOnly", { defaultValue: "仅项目内可用" })})</span>}
+                  </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 
-                <DropdownMenuItem 
-                  disabled={isGlobal}
-                  onClick={handleDeploy}
-                  className="gap-2 text-xs py-2 cursor-pointer"
-                >
-                  <Rocket className="h-3.5 w-3.5 text-blue-500" />
-                  <span>{t("chat.sidebar.deploy")}</span>
-                </DropdownMenuItem>
+
                 
                 <DropdownMenuItem 
                   disabled={isGlobal || currentProject?.wiki_status === "running"}
@@ -136,21 +185,81 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+        </div>
         </CollapsibleTrigger>
         <CollapsibleContent className="flex-1 overflow-y-auto">
-          <div className="p-2">
+          <div className="p-2 h-full flex flex-col">
             {projectId !== undefined ? (
-              <FileTree
-                projectId={projectId}
-                onSelectFile={(file) => {
-                  navigator.clipboard.writeText(file.path)
-                  toast.success(t("chat.sidebar.copiedPath", { path: file.path }))
-                }}
-                onQuoteFile={onQuoteFile}
-              />
+              <>
+                <div className="mb-2">
+                  {hasProjectProfile ? (
+                    <div 
+                      className="px-3 py-2 border border-muted/50 rounded-md bg-muted/10 hover:bg-muted/30 transition-colors flex items-center justify-between group cursor-pointer" 
+                      onClick={() => setPreviewFile({ path: "PROJECT.md", name: "PROJECT.md" })}
+                    >
+                      <div className="flex items-center gap-2 text-sm text-primary">
+                        <BookOpen className="h-4 w-4" />
+                        <span className="font-medium">PROJECT.md</span>
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => {
+                              e.stopPropagation()
+                              setDiscoverOpen(true)
+                            }}>
+                              <RefreshCw className="h-3 w-3" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">{t("projects.profile.reanalyze", { defaultValue: "重新分析项目" })}</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => {
+                              e.stopPropagation()
+                              setPreviewFile({ path: "PROJECT.md", name: "PROJECT.md" })
+                            }}>
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">{t("common.edit", { defaultValue: "编辑" })}</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="px-3 py-3 border border-dashed border-muted-foreground/30 rounded-md bg-muted/5 flex flex-col items-center justify-center gap-2 text-center">
+                      <p className="text-[11px] text-muted-foreground leading-tight">
+                        {t("projects.profile.missing", { defaultValue: "缺少项目资料，这会影响 Agent 的理解。" })}
+                      </p>
+                      <Button variant="outline" size="sm" className="h-7 text-xs w-full bg-background" onClick={() => setDiscoverOpen(true)}>
+                        <Wand2 className="h-3 w-3 mr-1.5 text-primary" />
+                        {t("projects.profile.discoverTitle", { defaultValue: "分析与初始化" })}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 overflow-auto">
+                  <FileTree
+                    projectId={projectId}
+                    onSelectFile={(file) => setPreviewFile({ path: file.path, name: file.name })}
+                    onQuoteFile={onQuoteFile}
+                    isCreatingRootFolder={isCreatingRootFolder}
+                    onCancelCreateRootFolder={() => setIsCreatingRootFolder(false)}
+                    onCreateRootFolder={async (name) => {
+                      try {
+                        await FilesService.createDirectory({ projectId, requestBody: { path: name } })
+                        queryClient.invalidateQueries({ queryKey: ["files", projectId] })
+                        setIsCreatingRootFolder(false)
+                      } catch (error) {
+                        toast.error(t("files.createFolderError", { defaultValue: "创建文件夹失败" }))
+                      }
+                    }}
+                  />
+                </div>
+              </>
             ) : (
               <div className="p-4 text-center text-xs text-muted-foreground italic">
-                {t("chat.sidebar.noProject")}
+                {t("chat.sidebar.noProject", { defaultValue: "未选择项目" })}
               </div>
             )}
           </div>
@@ -172,7 +281,7 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
               {isChangesOpen ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
               <History className="h-3.5 w-3.5 text-amber-500/70" />
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex-1">
-                {t("chat.sidebar.agentChanges")}
+                {t("chat.sidebar.agentChanges", { defaultValue: "Agent 改动记录" })}
               </span>
             </div>
           </CollapsibleTrigger>
@@ -191,6 +300,19 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
         open={discoverOpen}
         onOpenChange={setDiscoverOpen}
         onDiscovered={() => fetchProjects()}
+      />
+
+      <FilePreviewModal
+        projectId={projectId || 0}
+        file={previewFile?.name !== "PROJECT.md" ? previewFile : null}
+        open={!!previewFile && previewFile.name !== "PROJECT.md"}
+        onOpenChange={(open) => !open && setPreviewFile(null)}
+      />
+      
+      <ProjectProfileDrawer
+        projectId={projectId || 0}
+        open={!!previewFile && previewFile.name === "PROJECT.md"}
+        onOpenChange={(open) => !open && setPreviewFile(null)}
       />
     </div>
   )

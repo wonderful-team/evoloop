@@ -198,6 +198,8 @@ const ChatMessageItem = memo(
               onReferenceClick={(ref) => {
                 if (ref.type === 'changeset') {
                   onViewChangeset?.(msg.id)
+                } else if ((ref.type === 'file' || ref.type === 'image' || ref.type === 'audio') && ref.target_id) {
+                  window.open(ref.target_id, '_blank')
                 }
               }}
             />

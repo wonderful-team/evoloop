@@ -93,7 +93,7 @@ export const ChangesetSnapshot = memo(({ files, totalCount, onViewDetails }: Cha
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="text-[10px] py-1 px-2">
-                    {file.path}
+                    {getFileName(file.path)}
                   </TooltipContent>
                 </Tooltip>
               )

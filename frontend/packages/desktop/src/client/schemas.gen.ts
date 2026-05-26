@@ -4204,6 +4204,19 @@ export const MirrorSessionResponseSchema = {
     title: 'MirrorSessionResponse'
 } as const;
 
+export const MkdirRequestSchema = {
+    properties: {
+        path: {
+            type: 'string',
+            title: 'Path'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['path'],
+    title: 'MkdirRequest'
+} as const;
+
 export const MobileCodeRequestSchema = {
     properties: {
         mobile: {
@@ -4332,6 +4345,23 @@ export const ModelsListResponseSchema = {
     type: 'object',
     required: ['models', 'last_updated'],
     title: 'ModelsListResponse'
+} as const;
+
+export const MoveFileRequestSchema = {
+    properties: {
+        source_path: {
+            type: 'string',
+            title: 'Source Path'
+        },
+        target_path: {
+            type: 'string',
+            title: 'Target Path'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['source_path', 'target_path'],
+    title: 'MoveFileRequest'
 } as const;
 
 export const NextTaskResponseSchema = {

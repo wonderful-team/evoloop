@@ -568,7 +568,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     ...ex,
                     thinking: msg.thinking || ex.thinking,
                     content: (ex.status === "streaming") ? ex.content : (msg.content || ex.content),
-                    status: msg.status || ex.status
+                    status: msg.status || ex.status,
+                    // Merge references: prefer incoming if existing has none
+                    references: (msg.references && msg.references.length > 0) ? msg.references : ex.references,
                 }
                 return { messages: msgs }
             })

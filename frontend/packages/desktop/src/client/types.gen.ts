@@ -1147,6 +1147,11 @@ export type MirrorSessionResponse = {
     [key: string]: unknown | boolean | string;
 };
 
+export type MkdirRequest = {
+    path: string;
+    [key: string]: unknown | string;
+};
+
 export type MobileCodeRequest = {
     /**
      * Phone number
@@ -1190,6 +1195,12 @@ export type ModelsListResponse = {
     }>;
     last_updated: string;
     [key: string]: unknown | boolean | string;
+};
+
+export type MoveFileRequest = {
+    source_path: string;
+    target_path: string;
+    [key: string]: unknown | string;
 };
 
 /**
@@ -2572,6 +2583,13 @@ export type FilesCreateFileData = {
 
 export type FilesCreateFileResponse = (FileNode);
 
+export type FilesDeleteFileData = {
+    path: string;
+    projectId: number;
+};
+
+export type FilesDeleteFileResponse = (BaseAPIResponse);
+
 export type FilesGetFileContentData = {
     path: string;
     projectId: number;
@@ -2620,6 +2638,20 @@ export type FilesSearchFilesByNameData = {
 };
 
 export type FilesSearchFilesByNameResponse = (Array<FileNameSearchResult>);
+
+export type FilesCreateDirectoryData = {
+    projectId: number;
+    requestBody: MkdirRequest;
+};
+
+export type FilesCreateDirectoryResponse = (FileNode);
+
+export type FilesMoveFileData = {
+    projectId: number;
+    requestBody: MoveFileRequest;
+};
+
+export type FilesMoveFileResponse = (FileNode);
 
 export type KnowledgeUploadDocumentData = {
     formData: Body_knowledge_upload_document;
@@ -3178,7 +3210,7 @@ export type MemoryAddConceptResponse = (ConceptOperationResponse);
 
 export type MemoryListConceptsWithCountsData = {
     limit?: number;
-    projectId: number;
+    projectId?: (number | null);
 };
 
 export type MemoryListConceptsWithCountsResponse = (Array<ConceptResponse>);
@@ -3465,6 +3497,7 @@ export type SubscriptionHandleBenefitsUpdateWebhookResponse = (unknown);
 export type SubtasksCreateTaskWithSubtasksData = {
     projectId: number;
     requestBody: TaskWithSubtasksCreate;
+    token?: unknown;
 };
 
 export type SubtasksCreateTaskWithSubtasksResponse = (TaskCreateResponse);
@@ -3502,6 +3535,7 @@ export type SubtasksListRootTasksData = {
     limit?: number;
     projectId: number;
     status?: (string | null);
+    token?: unknown;
 };
 
 export type SubtasksListRootTasksResponse = (TaskListResponse);

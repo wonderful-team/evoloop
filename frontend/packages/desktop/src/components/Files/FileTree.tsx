@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import {
   ChevronDown,
@@ -6,20 +6,35 @@ import {
   FileCode,
   Folder,
   Loader2,
-  Pin,
   Quote,
+  Edit2,
+  Trash2,
+  FolderPlus,
+  Eye,
 } from "lucide-react"
-import { useState, useCallback } from "react"
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { FilesService, ResourcesService } from "@/client"
+import { FilesService } from "@/client"
 import { Button } from "@evoloop/shared/components/ui/button"
+import { Input } from "@evoloop/shared/components/ui/input"
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
+  ContextMenuSeparator,
 } from "@evoloop/shared/components/ui/context-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@evoloop/shared/components/ui/alert-dialog"
 import { cn } from "@evoloop/shared/lib/utils"
 import { isLoggedIn } from "@/hooks/useAuth"
 
@@ -35,6 +50,9 @@ interface FileTreeProps {
   level?: number
   onSelectFile: (file: FileNode) => void
   onQuoteFile?: (file: FileNode) => void
+  isCreatingRootFolder?: boolean
+  onCreateRootFolder?: (name: string) => Promise<void>
+  onCancelCreateRootFolder?: () => void
 }
 
 export function FileTree({
@@ -43,10 +61,14 @@ export function FileTree({
   level = 0,
   onSelectFile,
   onQuoteFile,
+  isCreatingRootFolder,
+  onCreateRootFolder,
+  onCancelCreateRootFolder,
 }: FileTreeProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [isDragOver, setIsDragOver] = useState(false)
+  const [rootFolderInput, setRootFolderInput] = useState("")
 
   const {
     data: files,
@@ -114,7 +136,7 @@ export function FileTree({
   if (isLoading) {
     return (
       <div className="pl-4 py-1 text-xs text-muted-foreground flex items-center">
-        <Loader2 className="h-3 w-3 animate-spin mr-1" /> {t("files.loading")}
+        <Loader2 className="h-3 w-3 animate-spin mr-1" /> {t("files.loading", { defaultValue: "加载中..." })}
       </div>
     )
   }
@@ -124,7 +146,7 @@ export function FileTree({
 
     return (
       <div className="pl-4 py-2 text-xs text-destructive flex flex-col items-start gap-2">
-        <span>{isGlobalNotConfigured ? t("files.workspaceNotConfigured", { defaultValue: "尚未配置全局工作区目录" }) : t("files.error")}</span>
+        <span>{isGlobalNotConfigured ? t("files.workspaceNotConfigured", { defaultValue: "尚未配置全局工作区目录" }) : t("files.error", { defaultValue: "加载失败" })}</span>
         {isGlobalNotConfigured && (
           <Button variant="outline" size="sm" className="h-6 text-[10px]" asChild>
             <Link to="/settings">前往设置</Link>
@@ -142,13 +164,41 @@ export function FileTree({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {t("files.empty")} (Drop files here to upload)
+        {level === 0 && isCreatingRootFolder && (
+          <div className="flex items-center gap-1.5 py-1 px-2 rounded-sm whitespace-nowrap mb-2" style={{ paddingLeft: `${level * 12 + 8}px` }}>
+            <span className="w-4 shrink-0" />
+            <Folder size={14} className="text-blue-400/80 shrink-0" />
+            <Input 
+              autoFocus
+              className="h-6 text-xs px-1.5 py-0 border-primary/50 focus-visible:ring-1 focus-visible:ring-offset-0 w-full max-w-[200px]"
+              value={rootFolderInput}
+              onChange={(e) => setRootFolderInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === "Escape") {
+                  if (e.key === "Escape") setRootFolderInput("")
+                  e.currentTarget.blur()
+                }
+              }}
+              onBlur={async () => {
+                if (rootFolderInput.trim() && onCreateRootFolder) {
+                  await onCreateRootFolder(rootFolderInput.trim())
+                } else if (onCancelCreateRootFolder) {
+                  onCancelCreateRootFolder()
+                }
+                setRootFolderInput("")
+              }}
+            />
+          </div>
+        )}
+        {t("files.empty", { defaultValue: "空文件夹" })} (Drop files here to upload)
       </div>
     )
   }
 
   // Backend returns FileNode[] directly
-  const fileList = files as unknown as FileNode[]
+  const fileList = (files as unknown as FileNode[]).filter(node => 
+    !(level === 0 && node.name === "PROJECT.md")
+  )
 
   return (
     <div 
@@ -157,6 +207,32 @@ export function FileTree({
       onDragLeave={level === 0 ? handleDragLeave : undefined}
       onDrop={level === 0 ? handleDrop : undefined}
     >
+      {level === 0 && isCreatingRootFolder && (
+        <div className="flex items-center gap-1.5 py-1 px-2 rounded-sm whitespace-nowrap" style={{ paddingLeft: `${level * 12 + 8}px` }}>
+          <span className="w-4 shrink-0" />
+          <Folder size={14} className="text-blue-400/80 shrink-0" />
+          <Input 
+            autoFocus
+            className="h-6 text-xs px-1.5 py-0 border-primary/50 focus-visible:ring-1 focus-visible:ring-offset-0 w-full max-w-[200px]"
+            value={rootFolderInput}
+            onChange={(e) => setRootFolderInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === "Escape") {
+                if (e.key === "Escape") setRootFolderInput("")
+                e.currentTarget.blur()
+              }
+            }}
+            onBlur={async () => {
+              if (rootFolderInput.trim() && onCreateRootFolder) {
+                await onCreateRootFolder(rootFolderInput.trim())
+              } else if (onCancelCreateRootFolder) {
+                onCancelCreateRootFolder()
+              }
+              setRootFolderInput("")
+            }}
+          />
+        </div>
+      )}
       {fileList.map((node) => (
         <FileTreeNode
           key={node.path}
@@ -189,8 +265,19 @@ function FileTreeNode({
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
+  const [isRenaming, setIsRenaming] = useState(false)
+  const [renameInput, setRenameInput] = useState(node.name)
+  const [isCreatingChild, setIsCreatingChild] = useState(false)
+  const [childFolderInput, setChildFolderInput] = useState("")
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
   const isFolder = node.type === "directory"
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
+
+  const refreshFiles = () => {
+    queryClient.invalidateQueries({ queryKey: ["files", projectId] })
+  }
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -201,14 +288,17 @@ function FileTreeNode({
     }
   }
 
+  const handleDragStart = (e: React.DragEvent) => {
+    e.stopPropagation()
+    e.dataTransfer.setData("application/x-evoloop-file", node.path)
+    e.dataTransfer.effectAllowed = "move"
+  }
+
   const handleDragOver = (e: React.DragEvent) => {
     if (!isFolder) return
     e.preventDefault()
     e.stopPropagation()
     setIsDragOver(true)
-    if (!isOpen) {
-      // Optional: auto-open folder after a short delay
-    }
   }
 
   const handleDragLeave = (e: React.DragEvent) => {
@@ -223,8 +313,88 @@ function FileTreeNode({
     e.preventDefault()
     e.stopPropagation()
     setIsDragOver(false)
+
+    // Handle internal move
+    const sourcePath = e.dataTransfer.getData("application/x-evoloop-file")
+    if (sourcePath) {
+      // Don't move into itself or its direct parent
+      if (sourcePath !== node.path && sourcePath !== `${node.path}/${sourcePath.split('/').pop()}`) {
+        try {
+          await FilesService.moveFile({
+            projectId,
+            requestBody: {
+              source_path: sourcePath,
+              target_path: `${node.path}/${sourcePath.split('/').pop()}`
+            }
+          })
+          refreshFiles()
+          toast.success(t("files.moveSuccess", { defaultValue: "移动成功" }))
+        } catch (error) {
+          toast.error(t("files.moveError", { defaultValue: "移动失败" }))
+        }
+      }
+      return
+    }
+
+    // Handle external upload
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       await onUpload(node.path, e.dataTransfer.files)
+    }
+  }
+
+  const handleRenameSubmit = async () => {
+    setIsRenaming(false)
+    const newName = renameInput.trim()
+    if (!newName || newName === node.name) return
+    const targetPath = node.path.substring(0, node.path.lastIndexOf('/')) + '/' + newName
+    
+    try {
+      await FilesService.moveFile({
+        projectId,
+        requestBody: {
+          source_path: node.path,
+          target_path: targetPath.replace(/^\//, "") // ensure no leading slash if root
+        }
+      })
+      refreshFiles()
+    } catch (error) {
+      toast.error(t("files.renameError", { defaultValue: "重命名失败" }))
+      setRenameInput(node.name)
+    }
+  }
+
+  const handleCreateChildSubmit = async () => {
+    const newName = childFolderInput.trim()
+    if (!newName) {
+      setIsCreatingChild(false)
+      return
+    }
+    try {
+      await FilesService.createDirectory({
+        projectId,
+        requestBody: {
+          path: `${node.path}/${newName}`
+        }
+      })
+      setIsCreatingChild(false)
+      setChildFolderInput("")
+      refreshFiles()
+      setIsOpen(true)
+    } catch (error) {
+      toast.error(t("files.createFolderError", { defaultValue: "创建文件夹失败" }))
+    }
+  }
+
+  const handleDelete = async () => {
+    setShowDeleteConfirm(false)
+    try {
+      await FilesService.deleteFile({
+        projectId,
+        path: node.path
+      })
+      refreshFiles()
+    } catch (error) {
+      toast.error(t("files.deleteError", { defaultValue: "删除失败" }))
     }
   }
 
@@ -236,6 +406,8 @@ function FileTreeNode({
       )}
       style={{ paddingLeft: `${level * 12 + 8}px` }}
       onClick={handleClick}
+      draggable
+      onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -254,9 +426,30 @@ function FileTreeNode({
         <FileCode size={14} className="text-muted-foreground shrink-0" />
       )}
 
-      <span className="truncate flex-1">{node.name}</span>
+      {isRenaming ? (
+        <Input
+          autoFocus
+          className="h-5 text-xs px-1 py-0 border-primary/50 focus-visible:ring-1 focus-visible:ring-offset-0 w-full max-w-[200px]"
+          value={renameInput}
+          onChange={(e) => setRenameInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === "Escape") {
+              if (e.key === "Escape") {
+                setIsRenaming(false)
+                setRenameInput(node.name)
+              }
+              e.currentTarget.blur()
+            }
+          }}
+          onBlur={handleRenameSubmit}
+          onClick={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <span className="truncate flex-1">{node.name}</span>
+      )}
 
-      {!isFolder && onQuoteFile && (
+      {!isFolder && onQuoteFile && !isRenaming && (
         <Button
           variant="ghost"
           size="icon"
@@ -278,22 +471,86 @@ function FileTreeNode({
 
   return (
     <div>
-      {!isFolder && onQuoteFile ? (
-        <ContextMenu>
-          <ContextMenuTrigger asChild>{content}</ContextMenuTrigger>
-          <ContextMenuContent>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>{content}</ContextMenuTrigger>
+        <ContextMenuContent>
+          {!isFolder && (
+            <ContextMenuItem onClick={() => onSelectFile(node)}>
+              <Eye size={14} className="mr-2" />
+              {t("files.preview", { defaultValue: "预览" })}
+            </ContextMenuItem>
+          )}
+          {!isFolder && onQuoteFile && (
             <ContextMenuItem onClick={() => onQuoteFile(node)}>
               <Quote size={14} className="mr-2" />
               {t("chat.interface.quoteFile")}
             </ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
-      ) : (
-        content
-      )}
+          )}
+          {isFolder && (
+            <ContextMenuItem onClick={() => {
+              setIsOpen(true)
+              setIsCreatingChild(true)
+            }}>
+              <FolderPlus size={14} className="mr-2" />
+              {t("files.newFolder", { defaultValue: "新建文件夹" })}
+            </ContextMenuItem>
+          )}
+          {(onQuoteFile || isFolder) && <ContextMenuSeparator />}
+          <ContextMenuItem onClick={() => {
+            setRenameInput(node.name)
+            setIsRenaming(true)
+          }}>
+            <Edit2 size={14} className="mr-2" />
+            {t("files.rename", { defaultValue: "重命名" })}
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => setShowDeleteConfirm(true)} className="text-destructive focus:text-destructive">
+            <Trash2 size={14} className="mr-2" />
+            {t("common.delete", { defaultValue: "删除" })}
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("common.deleteConfirmTitle", { defaultValue: "确认删除" })}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("files.deleteConfirm", { defaultValue: `确定要删除 ${node.name} 吗？` })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel", { defaultValue: "取消" })}</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive hover:bg-destructive/90 text-destructive-foreground" onClick={handleDelete}>
+              {t("common.delete", { defaultValue: "删除" })}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {isFolder && isOpen && (
         <div className="border-l ml-4 pl-1 border-muted/20">
+          {isCreatingChild && (
+            <div className="flex items-center gap-1.5 py-1 px-2 rounded-sm whitespace-nowrap" style={{ paddingLeft: `${(level + 1) * 12 + 8}px` }}>
+              <span className="w-4 shrink-0" />
+              <Folder size={14} className="text-blue-400/80 shrink-0" />
+              <Input 
+                autoFocus
+                className="h-6 text-xs px-1.5 py-0 border-primary/50 focus-visible:ring-1 focus-visible:ring-offset-0 w-full max-w-[200px]"
+                value={childFolderInput}
+                onChange={(e) => setChildFolderInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === "Escape") {
+                    if (e.key === "Escape") {
+                      setIsCreatingChild(false)
+                      setChildFolderInput("")
+                    }
+                    e.currentTarget.blur()
+                  }
+                }}
+                onBlur={handleCreateChildSubmit}
+              />
+            </div>
+          )}
           <FileTree
             projectId={projectId}
             path={node.path}

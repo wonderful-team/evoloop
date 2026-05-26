@@ -15,6 +15,7 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"
 import rehypeRaw from "rehype-raw"
 import remarkGfm from "remark-gfm"
+import { toast } from "sonner"
 import { ProjectProfilesService } from "@/client/sdk.gen"
 import { DiscoverDialog } from "@/components/Projects/Modules/Overview/DiscoverDialog"
 

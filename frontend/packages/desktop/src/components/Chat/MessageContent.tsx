@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogTitle } from "@evoloop/shared/components/u
 import { Mermaid } from "@/components/Common/Mermaid"
 import { extractArtifactsFromContent } from "./Artifacts/utils"
 import { MessageReferences } from "./MessageReferences"
+import { EChartsArtifact } from "./Artifacts/EChartsArtifact"
+import { ChangesetSnapshot } from "./ChangesetSnapshotView"
 
 function ImageViewer({
   src,
@@ -205,6 +207,44 @@ export const MessageContent = memo(({ content, isUser }: MessageContentProps) =>
 
                       if (!inline && match && match[1] === "mermaid") {
                         return <Mermaid chart={codeString} />
+                      }
+
+                      if (!inline && match && match[1] === "echarts") {
+                        try {
+                          const option = JSON.parse(codeString)
+                          return <EChartsArtifact data={{ option }} />
+                        } catch (e) {
+                          return (
+                            <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
+                              Failed to parse ECharts JSON data
+                            </div>
+                          )
+                        }
+                      }
+
+                      if (!inline && match && match[1] === "json") {
+                        try {
+                          const jsonObj = JSON.parse(codeString)
+                          if (jsonObj && typeof jsonObj === "object" && jsonObj.type === "changeset") {
+                            // Map agent changeset format to ChangesetSnapshotView format
+                            const files = (jsonObj.changes || []).map((c: any) => {
+                              let op = 'modified'
+                              if (c.op === 'ADD') op = 'added'
+                              else if (c.op === 'DELETE') op = 'deleted'
+                              else if (c.op === 'RENAME') op = 'renamed'
+                              return { path: c.path || c.file || '', operation: op }
+                            })
+                            return (
+                              <ChangesetSnapshot 
+                                files={files} 
+                                totalCount={files.length} 
+                                onViewDetails={(path) => console.log('View details', path)} 
+                              />
+                            )
+                          }
+                        } catch (e) {
+                          // Fallback to normal rendering if JSON is invalid
+                        }
                       }
 
                       if (!inline && match) {
