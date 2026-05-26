@@ -28,9 +28,9 @@ class IdentityStore:
     - EMBEDDED_MODE=true  -> FileCache
     - EMBEDDED_MODE=false -> RedisCache
 
-    Device key is stored in a SEPARATE hash (evoloop:device:identity) so that
-    logout/clear() does NOT wipe the device identifier. The device key survives
-    across login sessions.
+    Device key is stored in a SEPARATE hash (evoloop:device:identity) but is now
+    cleared during logout to ensure proper account separation and prevent
+    DEVICE_NOT_BELONGS errors upon account switching.
     """
 
     # --- Token fields (survive in evoloop:tokens, cleared on logout) ---
@@ -109,6 +109,7 @@ class IdentityStore:
 
     @classmethod
     async def clear(cls) -> bool:
-        """Delete the entire token hash (device key is preserved)."""
+        """Delete the entire token hash and device identity."""
         await cache.delete(TOKEN_HASH_KEY)
+        await cache.delete(DEVICE_IDENTITY_HASH_KEY)
         return True
