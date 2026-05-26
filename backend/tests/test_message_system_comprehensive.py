@@ -74,7 +74,7 @@ async def run_comprehensive_audit():
         prompt = (
             "Create a file 'audit.txt' with 'Audit Log'. "
             "Then show a pie chart using ```echarts. "
-            "Finally, use [REF: type=image path=uploads/audit.png name='Audit Screenshot'] in your text."
+            "Finally, use ![Audit Screenshot](file:///uploads/audit.png) in your text."
         )
         
         logger.info("Executing Turn 1...")

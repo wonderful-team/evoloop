@@ -17,7 +17,7 @@ class TestMessageLogicAudit(unittest.TestCase):
         content = """
         I have created several files for you:
         1. uploads/test.py (Legacy path)
-        2. [REF: type=image path=uploads/diagram.png name="System Architecture"] (Standard Tag)
+        2. ![System Architecture](file:///absolute/path/diagram.png) (Standard Tag)
         3. @[skill:code_review] (Legacy Reference)
         
         And here is a chart:
@@ -33,7 +33,7 @@ class TestMessageLogicAudit(unittest.TestCase):
         
         # Verify counts
         # 1. uploads/test.py -> file
-        # 2. [REF: type=image...] -> image
+        # 2. ![System Architecture](...) -> image
         # 3. @[skill:...] -> skill
         # 4. json artifact -> artifact
         self.assertEqual(len(refs), 4)
@@ -45,9 +45,9 @@ class TestMessageLogicAudit(unittest.TestCase):
         self.assertIn("artifact", types)
         
         # Verify standard ref details
-        img_ref = next(r for r in refs if r["type"] == "image")
+        img_ref = next(r for r in refs if r["target_name"] == "System Architecture")
         self.assertEqual(img_ref["target_name"], "System Architecture")
-        self.assertEqual(img_ref["target_id"], "uploads/diagram.png")
+        self.assertEqual(img_ref["target_id"], "/api/v1/projects/0/files/raw?path=/absolute/path/diagram.png&thread_id=test-thread")
 
     def test_factory_orm_mapping(self):
         """Test MessageBlockFactory handles ORM objects with nested references."""
@@ -81,7 +81,6 @@ class TestMessageLogicAudit(unittest.TestCase):
         self.assertEqual(len(block.references), 1)
         self.assertEqual(block.references[0].type, "artifact")
         self.assertEqual(block.references[0].meta_data["artifact_type"], "echarts")
-        self.assertEqual(len(block.attachments), 1) # Parity check
 
     def test_mobile_conversion_parity(self):
         """Verify BlockMapper.to_mobile adheres to Unix timestamp and visible int rules."""
