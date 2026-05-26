@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
+import Editor from "@monaco-editor/react"
 import { renderAsync } from "docx-preview"
 import {
   ExternalLink,
@@ -42,12 +43,12 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
   const getLanguage = (name: string) => {
     const ext = name.split(".").pop()?.toLowerCase() || ""
     const map: Record<string, string> = {
-      js: "javascript", jsx: "jsx", ts: "typescript", tsx: "tsx",
-      py: "python", sh: "bash", bash: "bash", zsh: "bash",
-      yml: "yaml", yaml: "yaml", md: "markdown", html: "markup",
+      js: "javascript", jsx: "javascript", ts: "typescript", tsx: "typescript",
+      py: "python", sh: "shell", bash: "shell", zsh: "shell",
+      yml: "yaml", yaml: "yaml", md: "markdown", html: "html",
       css: "css", json: "json", java: "java", c: "c", cpp: "cpp",
       go: "go", rs: "rust", sql: "sql", php: "php", rb: "ruby",
-      xml: "markup", vue: "markup", svelte: "markup", toml: "toml",
+      xml: "xml", vue: "html", svelte: "html", toml: "ini",
       ini: "ini", env: "ini", dockerfile: "dockerfile"
     }
     return map[ext] || ext || "text"
@@ -200,35 +201,41 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
             {t("files.loadingContent", "Loading content...")}
           </div>
         ) : fileType === "markdown" ? (
-          <div key="markdown" className="p-8 prose prose-slate dark:prose-invert max-w-none overflow-auto h-full">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                code({ node: _node, className, children, ...props }) {
-                  const match = /language-(\w+)/.exec(className || "")
-                  return match ? (
-                    <SyntaxHighlighter
-                      // @ts-expect-error
-                      style={vscDarkPlus}
-                      language={match[1]}
-                      PreTag="div"
-                      {...props}
-                    >
-                      {String(children).replace(/\n$/, "")}
-                    </SyntaxHighlighter>
-                  ) : (
-                    <code className={className} {...props}>
-                      {children}
-                    </code>
-                  )
-                },
-              }}
-            >
-              {(fileContent as any)?.content || ""}
-            </ReactMarkdown>
-          </div>
+          (fileContent as any)?.content?.length > 50000 ? (
+            <div key="markdown-fallback" className="p-4 bg-[#1e1e1e] text-[#d4d4d4] font-mono text-[13px] whitespace-pre min-h-full overflow-auto">
+              {(fileContent as any).content}
+            </div>
+          ) : (
+            <div key="markdown" className="p-8 prose prose-slate dark:prose-invert max-w-none overflow-auto h-full">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  code({ node: _node, className, children, ...props }) {
+                    const match = /language-(\w+)/.exec(className || "")
+                    return match ? (
+                      <SyntaxHighlighter
+                        // @ts-expect-error
+                        style={vscDarkPlus}
+                        language={match[1]}
+                        PreTag="div"
+                        {...props}
+                      >
+                        {String(children).replace(/\n$/, "")}
+                      </SyntaxHighlighter>
+                    ) : (
+                      <code className={className} {...props}>
+                        {children}
+                      </code>
+                    )
+                  },
+                }}
+              >
+                {(fileContent as any)?.content || ""}
+              </ReactMarkdown>
+            </div>
+          )
         ) : (
-          <div key="text" className="h-full overflow-auto relative bg-[#1e1e1e]">
+          <div key="text" className="h-full overflow-hidden relative bg-[#1e1e1e]">
             {!(fileContent as any)?.content && !isContentLoading && (
               <div className="text-center text-muted-foreground mt-10">
                 {t("files.previewNotAvailable", "Preview not available")}
@@ -244,16 +251,29 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
               </div>
             )}
             {(fileContent as any)?.content && (
-              <SyntaxHighlighter
-                // @ts-expect-error
-                style={vscDarkPlus}
+              <Editor
+                height="100%"
                 language={file ? getLanguage(file.name) : "text"}
-                PreTag="div"
-                customStyle={{ margin: 0, padding: '1rem', background: 'transparent', minHeight: '100%', fontSize: '13px' }}
-                showLineNumbers
-              >
-                {(fileContent as any)?.content || ""}
-              </SyntaxHighlighter>
+                theme="vs-dark"
+                value={(fileContent as any).content}
+                options={{
+                  readOnly: true,
+                  minimap: { enabled: false },
+                  scrollBeyondLastLine: false,
+                  wordWrap: "on",
+                  fontSize: 13,
+                  fontFamily: "var(--font-mono)",
+                  lineNumbersMinChars: 3,
+                  folding: true,
+                  domReadOnly: true
+                }}
+                loading={
+                  <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    {t("files.loadingEditor", "Loading editor...")}
+                  </div>
+                }
+              />
             )}
           </div>
         )}

@@ -9,7 +9,7 @@ import {
   Pin,
   PinOff,
 } from "lucide-react"
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { ConversationsService } from "@/client"
 import { Button } from "@evoloop/shared/components/ui/button"
@@ -180,6 +180,10 @@ export function SidebarChatList({
       thread.title?.toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
+  // Memoize groupThreads: only re-runs when filteredThreads changes,
+  // not on every re-render caused by editingThreadId or other local state changes.
+  const groupedThreads = useMemo(() => groupThreads(filteredThreads), [filteredThreads])
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Search Input */}
@@ -207,7 +211,7 @@ export function SidebarChatList({
       {/* Chat List */}
       <div className="flex-1 overflow-y-auto p-2 space-y-4">
         {(() => {
-          const grouped = groupThreads(filteredThreads)
+          const grouped = groupedThreads
           const sections = [
             { key: "pinned", label: "置顶会话", items: grouped.pinned },
             { key: "today", label: "今天", items: grouped.today },

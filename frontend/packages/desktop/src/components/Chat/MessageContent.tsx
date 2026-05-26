@@ -1,5 +1,5 @@
 import { FileText, X, Music } from "lucide-react"
-import { memo, useState } from "react"
+import { memo, useState, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import ReactMarkdown from "react-markdown"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
@@ -61,29 +61,24 @@ export const MessageContent = memo(({ content, isUser }: MessageContentProps) =>
 
   if (!content) return null
 
-  // 0. Pre-process: Filter out technical XML tags (audit, report, thought, etc.)
-  let displayContent = content;
-
-  // A. If <report> exists, prioritize its content as the main message
-  const reportMatch = displayContent.match(/<report>([\s\S]*?)(?:<\/report>|$)/i);
-  if (reportMatch) {
-    displayContent = reportMatch[1].trim();
-  } else {
-    // B. Hide internal audit tags and their content
-    displayContent = displayContent
-      .replace(/<audit>[\s\S]*?(?:<\/audit>|$)/gi, "")
-      .replace(/<outcome>[\s\S]*?(?:<\/outcome>|$)/gi, "")
-      .replace(/<reason>[\s\S]*?(?:<\/reason>|$)/gi, "")
-      .replace(/<proof_points>[\s\S]*?(?:<\/proof_points>|$)/gi, "");
-    
-    // C. Peel any remaining report tags (e.g. if partial)
-    displayContent = displayContent.replace(/<\/?report>/gi, "");
-  }
-
-  displayContent = displayContent.trim();
+  const displayContent = useMemo(() => {
+    let result = content;
+    const reportMatch = result.match(/<report>([\s\S]*?)(?:<\/report>|$)/i);
+    if (reportMatch) {
+      result = reportMatch[1].trim();
+    } else {
+      result = result
+        .replace(/<audit>[\s\S]*?(?:<\/audit>|$)/gi, "")
+        .replace(/<outcome>[\s\S]*?(?:<\/outcome>|$)/gi, "")
+        .replace(/<reason>[\s\S]*?(?:<\/reason>|$)/gi, "")
+        .replace(/<proof_points>[\s\S]*?(?:<\/proof_points>|$)/gi, "");
+      result = result.replace(/<\/?report>/gi, "");
+    }
+    return result.trim();
+  }, [content]);
 
   // 1. Extract artifacts
-  const artifactParts = extractArtifactsFromContent(displayContent)
+  const artifactParts = useMemo(() => extractArtifactsFromContent(displayContent), [displayContent]);
 
   const handleFileClick = (url: string) => {
     window.open(url, "_blank")

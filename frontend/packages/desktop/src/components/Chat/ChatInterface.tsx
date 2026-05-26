@@ -692,13 +692,12 @@ export function ChatInterface() {
             <QuotaExhaustedBanner />
 
             <div
-              className="flex-1 overflow-y-auto min-h-0 min-w-0 w-full scroll-smooth"
-              ref={scrollRef}
-              onScroll={handleScroll}
+              className="flex-1 min-h-0 min-w-0 w-full flex flex-col relative"
               data-tour="chat-messages"
             >
-              <div ref={contentRef} className="space-y-3 px-3 sm:px-5 lg:px-6 pb-1 pt-3 min-w-0 w-full">
                 <MessageList
+                  scrollRef={scrollRef}
+                  onScroll={handleScroll as any}
                   messages={messages}
                   hasMoreHistory={hasMoreHistory}
                   isLoadingHistory={isLoadingHistory}
@@ -745,14 +744,17 @@ export function ChatInterface() {
                   }}
                   onQuote={(msg) => handleQuoteMessage(msg)}
                   onViewChangeset={handleViewChangeset}
+                  footerNode={
+                    <>
+                      {status === "interrupted" && humanRequest && (
+                        <HumanRequestCard request={humanRequest} />
+                      )}
+                      {status === "quota_exhausted" && (
+                        <QuotaExhaustedCard />
+                      )}
+                    </>
+                  }
                 />
-                {status === "interrupted" && humanRequest && (
-                  <HumanRequestCard request={humanRequest} />
-                )}
-                {status === "quota_exhausted" && (
-                  <QuotaExhaustedCard />
-                )}
-              </div>
             </div>
 
             {/* Input Area */}

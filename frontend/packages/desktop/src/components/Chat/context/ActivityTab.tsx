@@ -86,11 +86,33 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
   const plan = typedPlanData?.plan as Plan | null
   const planStatus = typedPlanData?.status
 
-  const stepGroups = useMemo(() => {
+  // Optimization: Split messages into stable "historical turns" and the "current active turn".
+  // Historical turns only change when a new human message arrives (rare).
+  // Current turn changes on every streaming token (frequent).
+  // This prevents the expensive full reverse-scan from running on every token.
+  const { historyTurnMessages, currentTurnMessages } = useMemo(() => {
+    // Find the index of the last human message
+    let lastHumanIdx = -1
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'human') {
+        lastHumanIdx = i
+        break
+      }
+    }
+    if (lastHumanIdx === -1) {
+      return { historyTurnMessages: [], currentTurnMessages: messages }
+    }
+    return {
+      historyTurnMessages: messages.slice(0, lastHumanIdx + 1), // includes the human message
+      currentTurnMessages: messages.slice(lastHumanIdx + 1),    // only the current AI/tool responses
+    }
+  }, [messages])
+
+  // Build step groups for HISTORICAL turns — runs only when a new human message arrives
+  const historyStepGroups = useMemo(() => {
     const groups: MessageGroup[] = []
     let bufferSteps: ToolStep[] = []
     let bufferAiIds: (string | number)[] = []
-    let bufferIsStreaming = false
     let turn = 1
 
     const deduplicateSteps = (steps: ToolStep[]) => {
@@ -103,52 +125,96 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
       })
     }
 
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i]
-      if (m.role === "human") {
+    for (let i = historyTurnMessages.length - 1; i >= 0; i--) {
+      const m = historyTurnMessages[i]
+      if (m.role === 'human') {
         if (bufferSteps.length > 0) {
           groups.unshift({
             turn,
             messageId: bufferAiIds[0] || m.id,
-            isStreaming: bufferIsStreaming,
+            isStreaming: false,
             steps: deduplicateSteps(bufferSteps),
           })
           turn++
         }
         bufferSteps = []
         bufferAiIds = []
-        bufferIsStreaming = false
-      } else if (m.role === "tool") {
+      } else if (m.role === 'tool') {
         const msgAny = m as any
         const toolCallId = msgAny.tool_call_id || msgAny.meta_data?.tool_call_id
-        const tName = msgAny.meta_data?.tool_name || m.tool_name || "unknown"
+        const tName = msgAny.meta_data?.tool_name || m.tool_name || 'unknown'
         bufferSteps.unshift({
           id: (toolCallId || m.id) as string,
           tool_call_id: toolCallId as string,
           tool: tName,
-          name: msgAny.meta_data?.tool_name || m.tool_name || t("chat.messageList.toolExecution"),
-          status: (m.status === "completed" ? "done" : m.status) as any,
+          name: msgAny.meta_data?.tool_name || m.tool_name || t('chat.messageList.toolExecution'),
+          status: (m.status === 'completed' ? 'done' : m.status) as any,
           input: msgAny.meta_data?.input || {},
           output: undefined,
           tool_meta: msgAny.meta_data?.tool_meta
         })
-      } else if (m.role === "ai") {
-        if (m.status === "streaming") bufferIsStreaming = true
+      } else if (m.role === 'ai') {
         if (m.id) bufferAiIds.unshift(m.id)
       }
     }
+    return groups
+  }, [historyTurnMessages, t])
 
-    if (bufferSteps.length > 0) {
-      groups.unshift({
-        turn,
-        messageId: bufferAiIds[0] || "start",
-        isStreaming: bufferIsStreaming,
-        steps: deduplicateSteps(bufferSteps),
+  // Build step group for CURRENT active turn — runs on every streaming token (cheap, only current turn)
+  const currentTurnStepGroup = useMemo((): MessageGroup | null => {
+    if (currentTurnMessages.length === 0) return null
+
+    const bufferSteps: ToolStep[] = []
+    const bufferAiIds: (string | number)[] = []
+    let isStreaming = false
+
+    const deduplicateSteps = (steps: ToolStep[]) => {
+      const seenIds = new Set<string>()
+      return steps.filter(s => {
+        const id = s.tool_call_id || s.id || `${s.name}-${s.tool_name}`
+        if (seenIds.has(id)) return false
+        seenIds.add(id)
+        return true
       })
     }
 
-    return groups
-  }, [messages, t])
+    for (const m of currentTurnMessages) {
+      if (m.role === 'tool') {
+        const msgAny = m as any
+        const toolCallId = msgAny.tool_call_id || msgAny.meta_data?.tool_call_id
+        const tName = msgAny.meta_data?.tool_name || m.tool_name || 'unknown'
+        bufferSteps.push({
+          id: (toolCallId || m.id) as string,
+          tool_call_id: toolCallId as string,
+          tool: tName,
+          name: msgAny.meta_data?.tool_name || m.tool_name || t('chat.messageList.toolExecution'),
+          status: (m.status === 'completed' ? 'done' : m.status) as any,
+          input: msgAny.meta_data?.input || {},
+          output: undefined,
+          tool_meta: msgAny.meta_data?.tool_meta
+        })
+      } else if (m.role === 'ai') {
+        if (m.status === 'streaming') isStreaming = true
+        if (m.id) bufferAiIds.push(m.id)
+      }
+    }
+
+    if (bufferSteps.length === 0 && !isStreaming) return null
+
+    const turnNumber = historyStepGroups.length + 1
+    return {
+      turn: turnNumber,
+      messageId: bufferAiIds[0] || 'current',
+      isStreaming,
+      steps: deduplicateSteps(bufferSteps),
+    }
+  }, [currentTurnMessages, historyStepGroups.length, t])
+
+  // Merge history groups + current turn group
+  const stepGroups = useMemo(() => {
+    if (currentTurnStepGroup) return [...historyStepGroups, currentTurnStepGroup]
+    return historyStepGroups
+  }, [historyStepGroups, currentTurnStepGroup])
 
   const [thinkingOpen, setThinkingOpen] = useState(true)
   const [planOpen, setPlanOpen] = useState(false)
