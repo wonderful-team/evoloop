@@ -188,12 +188,12 @@ def _parse_metrics_from_log(log_path: str) -> ExecutionMetrics:
         content = f.read()
 
     # Node runs
-    metrics.supervisor_runs = len(re.findall(r"\[Supervisor\] .+ run_react_loop START", content))
-    metrics.worker_runs = len(re.findall(r"\[Worker\] .+ run_react_loop START", content))
-    metrics.finish_runs = len(re.findall(r"\[Finish\] .+ run_react_loop START", content))
+    metrics.supervisor_runs = len(re.findall(r"\[.*?\] ▶️ run_react_loop START", content))
+    metrics.worker_runs = metrics.supervisor_runs
+    metrics.finish_runs = len(re.findall(r"\[Finish\]", content))
 
     # Tool calls
-    for match in re.finditer(r"🛠️ Call: ([a-z_]+)", content):
+    for match in re.finditer(r"\[.*?\] Result \(([a-zA-Z0-9_]+)\):", content):
         tool = match.group(1)
         metrics.tool_calls[tool] = metrics.tool_calls.get(tool, 0) + 1
 
