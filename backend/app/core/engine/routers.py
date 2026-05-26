@@ -69,7 +69,7 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
     if not blackboard:
         blackboard = BlackboardState()
 
-    # --- Phase 5: Resource Constraints Enforcement ---
+    # --- Resource Constraints Enforcement ---
     iteration_count = (state.iteration_count or 0)
     max_steps = settings.SUPERVISOR_AGENT_MAX_STEPS
     if blackboard and blackboard.metadata and blackboard.metadata.max_supervisor_steps:
@@ -79,12 +79,12 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
         logger.warning(f"[Router] Hard limit reached ({iteration_count}/{max_steps}). Forcing termination.")
         return RoutingTarget.FINISH
 
-    # --- Phase 4: Dynamic Subtask Spawning (Blackboard Driven) ---
+    # --- Dynamic Subtask Spawning (Blackboard Driven) ---
     spawn_plan = blackboard.spawn_plan
     if spawn_plan and spawn_plan.subtasks:
         return build_subtask_sends(state, blackboard)
 
-    # --- Phase 5: Routing Topology Whitelist ---
+    # --- Routing Topology Whitelist ---
     # These nodes can be reached directly from Supervisor without an execution ticket wrapper
     terminal_nodes = (
         RoutingTarget.CHAT,

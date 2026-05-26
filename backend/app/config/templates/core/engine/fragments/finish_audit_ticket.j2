@@ -54,7 +54,7 @@
 {%- endif %}
 
 {%- if blackboard.metadata %}
-{%- set excluded_keys = ["active_skills", "project_concepts", "cwd", "episodic_memory_raw", "core_memory_raw", "sys_info", "is_global_mode", "has_macos", "has_android"] %}
+{%- set excluded_keys = ["active_skills", "project_concepts", "cwd", "episodic_memory_raw", "core_memory_raw", "sys_info", "has_macos", "has_android"] %}
 {%- set has_visible_metadata = false %}
 {%- for k, v in blackboard.metadata.items() %}
 {%- if k not in excluded_keys %}

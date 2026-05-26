@@ -3,7 +3,6 @@ import logging
 import time
 from typing import Any
 
-from langchain_core.messages import BaseMessage, HumanMessage
 from pydantic import BaseModel, ConfigDict, Field
 
 # Callbacks
@@ -14,12 +13,12 @@ from app.core.context.thread_store import thread_context_store
 from app.core.engine.callbacks.database_logger import DatabaseCallbackHandler
 from app.core.engine.callbacks.transparent import TransparentCallbackHandler
 from app.core.engine.message.converter import EvoMessageConverter
-from app.core.evocloud import evocloud_manager
 from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
 # Graph
 from app.core.globals import get_graph
 from app.core.monitoring.activity import activity_monitor
-from app.utils.id import gen_uuid
+from app.core.engine.background_agent.errors import handle_task_exception
+from app.core.engine.background_agent.hitl import build_resume_command
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +75,6 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
             ctx = loaded_ctx
             working_dir = inputs.working_directory
             if not working_dir:
-                from app.core.context.thread_store import thread_context_store
                 working_dir = thread_context_store.get_working_directory(thread_id)
 
             if not ctx:
@@ -151,7 +149,7 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
             last_human_msg = get_last_human_message(raw_messages) or ""
 
             # Unified Context Hydration (Runs ONCE per session)
-            from app.core.engine.context_hydrator import AgentContextHydrator
+            from app.core.memory.hydrator import AgentContextHydrator
             await AgentContextHydrator.hydrate(
                 ctx=ctx,
                 blackboard=blackboard,
@@ -187,7 +185,6 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
             )
 
             if inputs.hitl_resume_response is not None:
-                from app.core.engine.background_agent.hitl import build_resume_command
                 input_payload = await build_resume_command(graph_instance, config, inputs.hitl_resume_response)
 
             # 6. Run Graph
@@ -210,7 +207,6 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
             # Let handle_task_exception deal with DB/UI reporting.
             # It already persists the error, pushes to UI/Mobile, and calls
             # activity_monitor.end_run with the appropriate status.
-            from app.core.engine.background_agent.errors import handle_task_exception
             handler = db_callback._handler if db_callback else None
             await handle_task_exception(thread_id, project_id, e, handler=handler)
 

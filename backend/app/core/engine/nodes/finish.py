@@ -21,6 +21,7 @@ from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.blackboard import AuditMeta, AuditInputData, ProgressMetrics, TaskDeliverable, AuditAnomaly, BlackboardState
 from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
 from app.core.events.schemas import SessionCompletedData
+from app.core.engine.checkpoint.pruner import auto_prune_on_completion
 
 logger = logging.getLogger(__name__)
 
@@ -400,7 +401,6 @@ class FinishNode(BaseNode):
 async def _safe_prune(thread_id: str) -> None:
     """Wrap auto_prune_on_completion so exceptions never leak."""
     try:
-        from app.core.engine.checkpoint.pruner import auto_prune_on_completion
         await auto_prune_on_completion(thread_id)
     except Exception:
         logger.exception(f"[Finish] auto_prune_on_completion failed for thread {thread_id}")

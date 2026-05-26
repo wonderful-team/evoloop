@@ -17,6 +17,9 @@ from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Message
 from app.models.schemas.events import QuotaExhaustedEvent, AuthExpiredEvent, LLMAuthErrorEvent
+from app.core.engine.message.mobile_notifier import MobileErrorNotifier
+from app.core.exceptions import AgentHumanInterruptException
+from app.core.engine.error_handler import LLMErrorHandler
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +30,6 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
     Args:
         handler: Optional MessageHandler instance for pushing errors to Mobile.
     """
-    from app.core.exceptions import AgentHumanInterruptException
-    from app.core.engine.error_handler import LLMErrorHandler
-
     # Check for human-interrupt or graph-interrupt using class checks
     # NOTE: langgraph.errors.GraphInterrupt may not be imported at module level
     # to avoid circular deps; we check by dotted name via getattr fallback.
@@ -48,7 +48,6 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
     async def _push_to_mobile_if_handler(classification_obj):
         if handler:
             try:
-                from app.core.engine.message.mobile_notifier import MobileErrorNotifier
                 await MobileErrorNotifier(handler).push(classification_obj)
             except (TypeError, ValueError, RuntimeError, OSError) as push_e:
                 logger.warning(f"[ErrorHandler] Mobile push failed: {push_e}")
@@ -128,7 +127,6 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
 
     # 4. Push error to Mobile (统一走 MobileErrorNotifier)
     if handler:
-        from app.core.engine.message.mobile_notifier import MobileErrorNotifier
         await MobileErrorNotifier(handler).push(classification)
 
 
