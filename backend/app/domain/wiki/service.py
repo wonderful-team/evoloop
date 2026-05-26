@@ -20,9 +20,12 @@ class WikiService:
     Write operations are performed by the Agent via write_wiki_page tool.
     """
 
-    def get_pages(self, project_id: int) -> list[WikiPage]:
+    def get_pages(self, project_id: int, member_id: int | None = None) -> list[WikiPage]:
         with Session(rm.sync_engine) as session:
-            statement = select(WikiPage).where(WikiPage.project_id == project_id).order_by(WikiPage.order)
+            statement = select(WikiPage).where(WikiPage.project_id == project_id)
+            if member_id is not None:
+                statement = statement.where(WikiPage.member_id == member_id)
+            statement = statement.order_by(WikiPage.order)
             results = session.exec(statement)
             return results.all()
 

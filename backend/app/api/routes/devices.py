@@ -15,7 +15,7 @@ router = APIRouter()
 async def get_devices(token: TokenDep):
     """List devices connected to account (Cloud + Local ADB)"""
     # 1. Fetch Cloud Devices
-    cloud_res = await evocloud_manager.api.get_devices()
+    cloud_res = await evocloud_manager.api.get_devices(token=token)
     devices = []
     if cloud_res and cloud_res.get("code") == 0:
         # Gateway returns {"devices": [...], "total": N}
@@ -71,7 +71,7 @@ async def get_devices(token: TokenDep):
 @router.post("/{device_key}/command", dependencies=[Depends(require_benefit("mobile_control"))])
 async def send_command(device_key: str, req: SendCommandRequest, token: TokenDep):
     """Send remote command"""
-    res = await evocloud_manager.api.send_command_to_device(device_key, req.model_dump())
+    res = await evocloud_manager.api.send_command_to_device(device_key, req.model_dump(), token=token)
     if res.get("code") != 0:
         raise HTTPException(500, res.get("message"))
     return res.get("data")
@@ -111,7 +111,7 @@ async def bind_client(device_key: str, req: BindClientRequest, _token: TokenDep)
     """Bind mobile client to device"""
     # This notifies the cloud that a mobile client is interested in this device
     # Or specifically, it binds the client_id to the device in EvoCloud.
-    res = await evocloud_manager.api.bind_client_id(device_key, req.client_id)
+    res = await evocloud_manager.api.bind_client_id(device_key, req.client_id, token=_token)
     return BindResponse(status="success", data=res)
 
 

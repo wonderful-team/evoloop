@@ -62,13 +62,14 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
 
     async def set_token(self, token: str, refresh_token: str | None = None):
         """Save tokens to cache-backed storage after stripping and fixing URL-decoding issues."""
-        if token:
-            # Fix common PHP/URL-decoding issue where '+' becomes ' '
-            token = token.strip().replace(" ", "+")
-            await identity_service.store.save_access_token(token)
-        if refresh_token:
-            refresh_token = refresh_token.strip().replace(" ", "+")
-            await identity_service.store.save_refresh_token(refresh_token)
+        if not settings.MULTI_TENANT_MODE:
+            if token:
+                # Fix common PHP/URL-decoding issue where '+' becomes ' '
+                token = token.strip().replace(" ", "+")
+                await identity_service.store.save_access_token(token)
+            if refresh_token:
+                refresh_token = refresh_token.strip().replace(" ", "+")
+                await identity_service.store.save_refresh_token(refresh_token)
 
         # Trigger callbacks
         for callback in self._token_change_callbacks:
@@ -141,10 +142,10 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             finally:
                 await lock.release()
 
-    async def get_member_id(self) -> int | None:
+    async def get_member_id(self, token: str | None = None) -> int | None:
         return await identity_service.get_member_id()
 
-    async def logout(self):
+    async def logout(self, token: str | None = None):
         await identity_service.logout()
 
     # --- Request Core ---
@@ -269,7 +270,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
                 # Member Center doesn't return member_id in login response
                 # Fetch it from /api/member/info
                 try:
-                    user_info = await self.get_user_info()
+                    user_info = await self.get_user_info(token=token)
                     if user_info.get("code") == 0:
                         member_id = user_info.get("data", {}).get("member_id", 0)
                     else:
@@ -278,7 +279,8 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
                     member_id = 0
 
                 # Update store with member_id
-                await identity_service.store.save_member_id(member_id)
+                if not settings.MULTI_TENANT_MODE:
+                    await identity_service.store.save_member_id(member_id)
 
                 return LoginResult(
                     success=True,
@@ -289,21 +291,21 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         return LoginResult(success=False, message=res.get("message", "Login failed"))
 
     # Project
-    async def get_projects(self, page=1, page_size=100) -> dict:
+    async def get_projects(self, page=1, page_size=100, token: str | None = None) -> dict:
         return await self.request(
             "GET",
             "/projectmanage/api/projectOpen/projects",
             params={"page": page, "page_size": page_size},
-        )
+        token=token)
 
-    async def create_project(self, name: str, description: str, path: str) -> dict:
+    async def create_project(self, name: str, description: str, path: str, token: str | None = None) -> dict:
         payload = {
             "name": name,
             "description": description,
             "path": path,
             "source": settings.SERVICE_NAME,
         }
-        return await self.request("POST", "/projectmanage/api/projectOpen/createProject", data=payload)
+        return await self.request("POST", "/projectmanage/api/projectOpen/createProject", data=payload, token=token)
 
     async def update_project(
         self,
@@ -311,7 +313,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         description: str = None,
         name: str = None,
         path: str = None,
-    ) -> dict:
+    token: str | None = None) -> dict:
         data = {"project_id": project_id}
         if description is not None:
             data["project_desc"] = description
@@ -319,14 +321,14 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             data["name"] = name
         if path is not None:
             data["path"] = path
-        return await self.request("POST", "/projectmanage/api/projectOpen/updateProject", data=data)
+        return await self.request("POST", "/projectmanage/api/projectOpen/updateProject", data=data, token=token)
 
-    async def delete_project(self, project_id: int) -> dict:
+    async def delete_project(self, project_id: int, token: str | None = None) -> dict:
         return await self.request(
             "POST",
             "/projectmanage/api/projectOpen/deleteProject",
             data={"project_id": project_id},
-        )
+        token=token)
 
     async def get_current_project(self, token: str | None = None) -> dict:
         return await self.request("GET", "/projectmanage/api/projectOpen/getCurrentProject", token=token)
@@ -395,33 +397,33 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         p = {"project_id": project_id} if project_id is not None else {}
         return await self.request("GET", "/projectmanage/api/project/statistics", params=p, token=token)
 
-    async def get_ai_global_config(self) -> dict:
-        return await self.request("GET", "/api/AI/globalConfig")
+    async def get_ai_global_config(self, token: str | None = None) -> dict:
+        return await self.request("GET", "/api/AI/globalConfig", token=token)
 
     # Cancellation
-    async def get_cancellation_info(self) -> EvoCloudProxyResponse:
-        return EvoCloudProxyResponse.model_validate(await self.request("GET", "/membercancel/api/membercancel/info"))
+    async def get_cancellation_info(self, token: str | None = None) -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(await self.request("GET", "/membercancel/api/membercancel/info", token=token))
 
-    async def apply_cancellation(self) -> EvoCloudProxyResponse:
-        return EvoCloudProxyResponse.model_validate(await self.request("POST", "/membercancel/api/membercancel/apply"))
+    async def apply_cancellation(self, token: str | None = None) -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(await self.request("POST", "/membercancel/api/membercancel/apply", token=token))
 
-    async def cancel_cancellation_apply(self) -> EvoCloudProxyResponse:
-        return EvoCloudProxyResponse.model_validate(await self.request("POST", "/membercancel/api/membercancel/cancelApply"))
+    async def cancel_cancellation_apply(self, token: str | None = None) -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(await self.request("POST", "/membercancel/api/membercancel/cancelApply", token=token))
 
     # Public / Auth
-    async def get_captcha_config(self) -> EvoCloudProxyResponse:
-        return EvoCloudProxyResponse.model_validate(await self.request("GET", "/api/captcha/config"))
+    async def get_captcha_config(self, token: str | None = None) -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(await self.request("GET", "/api/captcha/config", token=token))
 
-    async def get_captcha(self, captcha_id: str) -> EvoCloudProxyResponse:
-        return EvoCloudProxyResponse.model_validate(await self.request("GET", "/api/captcha/get", params={"id": captcha_id}))
+    async def get_captcha(self, captcha_id: str, token: str | None = None) -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(await self.request("GET", "/api/captcha/get", params={"id": captcha_id}, token=token))
 
-    async def get_register_config(self) -> EvoCloudProxyResponse:
-        return EvoCloudProxyResponse.model_validate(await self.request("GET", "/api/register/config"))
+    async def get_register_config(self, token: str | None = None) -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(await self.request("GET", "/api/register/config", token=token))
 
-    async def get_register_agreement(self, type: str = "SERVICE") -> EvoCloudProxyResponse:
-        return EvoCloudProxyResponse.model_validate(await self.request("GET", "/api/register/aggrement", params={"type": type}))
+    async def get_register_agreement(self, type: str = "SERVICE", token: str | None = None) -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(await self.request("GET", "/api/register/aggrement", params={"type": type}, token=token))
 
-    async def send_mobile_code(self, mobile: str, captcha_id: str, captcha_code: str, type: str = "login") -> EvoCloudProxyResponse:
+    async def send_mobile_code(self, mobile: str, captcha_id: str, captcha_code: str, type: str = "login", token: str | None = None) -> EvoCloudProxyResponse:
         return EvoCloudProxyResponse.model_validate(
             await self.request(
                 "POST",
@@ -432,21 +434,21 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
                     "captcha_code": captcha_code,
                     "type": type,
                 },
-            )
+            token=token)
         )
 
-    async def register_mobile(self, data: dict) -> EvoCloudProxyResponse:
-        return EvoCloudProxyResponse.model_validate(await self.request("POST", "/api/register/mobile", data=data))
+    async def register_mobile(self, data: dict, token: str | None = None) -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(await self.request("POST", "/api/register/mobile", data=data, token=token))
 
-    async def register_username(self, data: dict) -> EvoCloudProxyResponse:
-        return EvoCloudProxyResponse.model_validate(await self.request("POST", "/api/register/username", data=data))
+    async def register_username(self, data: dict, token: str | None = None) -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(await self.request("POST", "/api/register/username", data=data, token=token))
 
-    async def login_mobile(self, mobile: str, key: str, code: str) -> LoginResult:
+    async def login_mobile(self, mobile: str, key: str, code: str, token: str | None = None) -> LoginResult:
         res = await self.request(
             "POST",
             "/passport/api/login/mobile",
             data={"mobile": mobile, "key": key, "code": code},
-        )
+        token=token)
         if res.get("code", -1) >= 0:
             data = res.get("data", {})
             token = data.get("token")
@@ -457,7 +459,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
                 # Member Center doesn't return member_id in login response
                 # Fetch it from /api/member/info
                 try:
-                    user_info = await self.get_user_info()
+                    user_info = await self.get_user_info(token=token)
                     if user_info.get("code") == 0:
                         member_id = user_info.get("data", {}).get("member_id", 0)
                     else:
@@ -466,7 +468,8 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
                     member_id = 0
 
                 # Update store with member_id
-                await identity_service.store.save_member_id(member_id)
+                if not settings.MULTI_TENANT_MODE:
+                    await identity_service.store.save_member_id(member_id)
 
                 return LoginResult(
                     success=True,
@@ -476,16 +479,16 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
                 )
         return LoginResult(success=False, message=res.get("message", "Login failed"))
 
-    async def check_mobile_exist(self, mobile: str) -> EvoCloudProxyResponse:
-        return EvoCloudProxyResponse.model_validate(await self.request("GET", "/passport/api/mobile/check", params={"mobile": mobile}))
+    async def check_mobile_exist(self, mobile: str, token: str | None = None) -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(await self.request("GET", "/passport/api/mobile/check", params={"mobile": mobile}, token=token))
 
-    async def reset_password_by_mobile(self, mobile: str, code: str, key: str, password: str) -> EvoCloudProxyResponse:
+    async def reset_password_by_mobile(self, mobile: str, code: str, key: str, password: str, token: str | None = None) -> EvoCloudProxyResponse:
         return EvoCloudProxyResponse.model_validate(
             await self.request(
                 "POST",
                 "/passport/api/password/reset/mobile",
                 data={"mobile": mobile, "code": code, "key": key, "password": password},
-            )
+            token=token)
         )
 
     async def change_password(self, old_password: str, new_password: str, token: str | None = None) -> EvoCloudProxyResponse:
@@ -540,15 +543,15 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             params["project_id"] = project_id
         return await self.request("GET", "/evolooplink/api/log/search", params=params, token=token)
 
-    async def bind_client_id(self, device_key: str, client_id: str) -> dict:
+    async def bind_client_id(self, device_key: str, client_id: str, token: str | None = None) -> dict:
         """Bind a mobile client_id to a device."""
         return await self.request(
             "POST",
             "/api/v1/devices/bind",
             data={"device_key": device_key, "client_id": client_id},
-        )
+        token=token)
 
-    async def register_device(self, fingerprint: str, name: str, os_info: str) -> dict:
+    async def register_device(self, fingerprint: str, name: str, os_info: str, token: str | None = None) -> dict:
         """Claim a device from the server.
 
         The server will:
@@ -565,105 +568,105 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
                 "device_type": "desktop",
                 "os_info": os_info,
             },
-        )
+        token=token)
 
-    async def send_heartbeat(self, device_key: str):
-        await self.request("POST", f"/api/v1/devices/{device_key}/heartbeat")
+    async def send_heartbeat(self, device_key: str, token: str | None = None):
+        await self.request("POST", f"/api/v1/devices/{device_key}/heartbeat", token=token)
 
     # ==================== Subscription APIs ====================
 
-    async def get_subscription_status(self) -> dict:
+    async def get_subscription_status(self, token: str | None = None) -> dict:
         """获取会员订阅状态"""
-        return await self.request("GET", "/subscription/api/subscription/status")
+        return await self.request("GET", "/subscription/api/subscription/status", token=token)
 
-    async def get_subscription_permissions(self) -> dict:
+    async def get_subscription_permissions(self, token: str | None = None) -> dict:
         """获取会员功能权限"""
-        return await self.request("GET", "/subscription/api/subscription/permissions")
+        return await self.request("GET", "/subscription/api/subscription/permissions", token=token)
 
-    async def get_member_benefits(self) -> dict:
+    async def get_member_benefits(self, token: str | None = None) -> dict:
         """获取会员完整权益信息"""
-        return await self.request("GET", "/subscription/api/subscription/benefits")
+        return await self.request("GET", "/subscription/api/subscription/benefits", token=token)
 
-    async def check_benefit(self, code: str) -> dict:
+    async def check_benefit(self, code: str, token: str | None = None) -> dict:
         """检查单项权益"""
         return await self.request(
             "POST",
             "/subscription/api/subscription/checkBenefit",
             data={"code": code}
-        )
+        , token=token)
 
-    async def get_subscription_plans(self) -> dict:
+    async def get_subscription_plans(self, token: str | None = None) -> dict:
         """获取可用订阅计划列表"""
-        return await self.request("GET", "/subscription/api/subscription/plans")
+        return await self.request("GET", "/subscription/api/subscription/plans", token=token)
 
-    async def calculate_upgrade_price(self, target_level_id: int) -> dict:
+    async def calculate_upgrade_price(self, target_level_id: int, token: str | None = None) -> dict:
         """计算升级价格预览（支付前调用）"""
         return await self.request(
             "POST",
             "/subscription/api/plan/calculateUpgradePrice",
             data={"target_level_id": target_level_id}
-        )
+        , token=token)
 
-    async def create_subscription_order(self, level_id: int, auto_renew: bool = False) -> dict:
+    async def create_subscription_order(self, level_id: int, auto_renew: bool = False, token: str | None = None) -> dict:
         """创建订阅订单"""
         return await self.request(
             "POST",
             "/subscription/api/subscription/createOrder",
             data={"level_id": level_id, "auto_renew": 1 if auto_renew else 0, "app_type": "pc"}
-        )
+        , token=token)
 
-    async def check_subscription_order_status(self, order_id: str) -> dict:
+    async def check_subscription_order_status(self, order_id: str, token: str | None = None) -> dict:
         """检查订阅订单支付状态"""
         return await self.request(
             "GET",
             "/subscription/api/order/checkStatus",
             params={"order_id": order_id}
-        )
+        , token=token)
 
-    async def get_subscription_detail(self) -> dict:
+    async def get_subscription_detail(self, token: str | None = None) -> dict:
         """获取订阅详情"""
-        return await self.request("GET", "/subscription/api/subscription/getDetail")
+        return await self.request("GET", "/subscription/api/subscription/getDetail", token=token)
 
-    async def cancel_subscription(self, cancel_type: str = "expire", reason: str = "") -> dict:
+    async def cancel_subscription(self, cancel_type: str = "expire", reason: str = "", token: str | None = None) -> dict:
         """取消订阅"""
         return await self.request("POST", "/subscription/api/subscription/cancel", data={
             "cancel_type": cancel_type,
             "reason": reason
-        })
+        }, token=token)
 
-    async def get_ai_quota(self) -> dict:
+    async def get_ai_quota(self, token: str | None = None) -> dict:
         """获取 AI 配额（统一配额池）"""
-        return await self.request("GET", "/subscription/api/aiQuota/getQuota")
+        return await self.request("GET", "/subscription/api/aiQuota/getQuota", token=token)
 
-    async def get_all_ai_quotas(self) -> dict:
+    async def get_all_ai_quotas(self, token: str | None = None) -> dict:
         """获取所有 AI 配额 (目前与 get_ai_quota 相同)"""
         return await self.get_ai_quota()
 
-    async def consume_ai_quota(self, count: int = 1, metadata: dict | None = None) -> dict:
+    async def consume_ai_quota(self, count: int = 1, metadata: dict | None = None, token: str | None = None) -> dict:
         """消耗 AI 配额（统一配额池）"""
         return await self.request("POST", "/subscription/api/aiQuota/consumeQuota", data={
             "count": count
-        })
+        }, token=token)
 
-    async def get_ai_quota_history(self, page: int = 1, page_size: int = 20) -> dict:
+    async def get_ai_quota_history(self, page: int = 1, page_size: int = 20, token: str | None = None) -> dict:
         """获取 AI 配额使用历史"""
         params = {"page": page, "page_size": page_size}
-        return await self.request("GET", "/subscription/api/aiQuota/getUsageHistory", params=params)
+        return await self.request("GET", "/subscription/api/aiQuota/getUsageHistory", params=params, token=token)
 
     # ==================== LLM Platform APIs ====================
 
-    async def get_llm_models(self) -> dict:
+    async def get_llm_models(self, token: str | None = None) -> dict:
         """
         从 EvoLoop Gateway 获取 LLM 和 Embedding 模型列表
 
         Returns:
             {"code": 0, "data": {"models": [...]}, "message": "..."}
         """
-        return await self.request("GET", "/evolooplink/api/llm/getModels")
+        return await self.request("GET", "/evolooplink/api/llm/getModels", token=token)
 
     # ==================== Conversation Sync APIs (MC Storage) ====================
 
-    async def sync_conversation(self, device_key: str, conversation: dict) -> dict:
+    async def sync_conversation(self, device_key: str, conversation: dict, token: str | None = None) -> dict:
         """
         同步单个会话到 MC (Member Center)
 
@@ -688,9 +691,9 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             "POST",
             "/evolooplink/api/sync/conversation",
             data=data
-        )
+        , token=token)
 
-    async def sync_messages(self, device_key: str, thread_id: str, messages: list[dict]) -> dict:
+    async def sync_messages(self, device_key: str, thread_id: str, messages: list[dict], token: str | None = None) -> dict:
         """
         批量同步消息到 MC
 
@@ -712,9 +715,9 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             "POST",
             "/evolooplink/api/sync/messages",
             data=data
-        )
+        , token=token)
 
-    async def sync_full_conversations(self, device_key: str, data: dict) -> dict:
+    async def sync_full_conversations(self, device_key: str, data: dict, token: str | None = None) -> dict:
         """
         全量同步会话和消息 (首次同步或重建)
 
@@ -738,9 +741,9 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             "POST",
             "/evolooplink/api/sync/full",
             data=payload
-        )
+        , token=token)
 
-    async def check_sync_status(self, device_key: str, conversation_ids: list[str]) -> dict:
+    async def check_sync_status(self, device_key: str, conversation_ids: list[str], token: str | None = None) -> dict:
         """
         检查会话同步状态
 
@@ -763,9 +766,9 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             "GET",
             "/evolooplink/api/sync/status",
             params={"device_key": device_key, "conversation_ids": conversation_ids}
-        )
+        , token=token)
 
-    async def get_conversations(self, project_id: int = DEFAULT_PROJECT_ID, page: int = 1, page_size: int = 20) -> dict:
+    async def get_conversations(self, project_id: int = DEFAULT_PROJECT_ID, page: int = 1, page_size: int = 20, token: str | None = None) -> dict:
         """
         获取我的会话列表 (Mobile 也会用此方法)
 
@@ -788,14 +791,14 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             "GET",
             "/evolooplink/api/conversation/list",
             params=params
-        )
+        , token=token)
 
     async def get_conversation_messages(
         self,
         conversation_id: str,
         limit: int = 50,
         before_message_id: str | None = None
-    ) -> dict:
+    , token: str | None = None) -> dict:
         """
         获取会话消息历史
 
@@ -818,4 +821,4 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             "GET",
             "/evolooplink/api/conversation/messages",
             params=params
-        )
+        , token=token)

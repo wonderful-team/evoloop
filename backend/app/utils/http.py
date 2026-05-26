@@ -16,5 +16,6 @@ def create_client(timeout: float = 30.0, headers: dict[str, str] | None = None) 
     return httpx.AsyncClient(
         timeout=timeout,
         headers=default_headers,
-        follow_redirects=True
+        follow_redirects=True,
+        trust_env=False
     )

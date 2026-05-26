@@ -230,6 +230,7 @@ class GraphMemoryStorage(IMemoryStorage):
         privacy_filter: PrivacyLevel | None = None,
         project_id: int | None = None,
         limit: int | None = None,
+        member_id: int = 0,
     ) -> list[MemorySearchResult]:
         """List memories using high-level API."""
         if not self._driver:

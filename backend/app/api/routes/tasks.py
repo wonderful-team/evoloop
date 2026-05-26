@@ -57,7 +57,7 @@ async def get_task_detail(task_id: int, token: TokenDep):
     """
     Get details of a specific task.
     """
-    res = await evocloud_manager.api.get_task_detail(task_id)
+    res = await evocloud_manager.api.get_task_detail(task_id, token=token)
     if res.get("code") != 0:
         raise HTTPException(
             status_code=400, detail=res.get("message", "Failed to get task detail")

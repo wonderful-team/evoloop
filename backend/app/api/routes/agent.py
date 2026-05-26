@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import (
     CurrentUserOptional,
+    TokenDepOptional,
     verify_guest_access,
 )
 from app.api.schemas.agent import ChatRequest, WebhookRequest, ResumeRequest, CancelHITLRequest, StopChatResponse, \
@@ -44,7 +45,7 @@ router = APIRouter()
 # =============================================================================
 
 @router.post("/chat", dependencies=[Depends(verify_guest_access)])
-async def chat_endpoint(req: ChatRequest, bg_tasks: BackgroundTasks, _current_user: CurrentUserOptional):
+async def chat_endpoint(req: ChatRequest, bg_tasks: BackgroundTasks, _current_user: CurrentUserOptional, token: TokenDepOptional = None):
     """
     Unified entry point for User Chat (Local Background Task).
     """
@@ -56,7 +57,8 @@ async def chat_endpoint(req: ChatRequest, bg_tasks: BackgroundTasks, _current_us
         thread_id=req.thread_id,
         project_id=req.project_id,
         command_id=req.command_id,
-        active_model=req.model
+        active_model=req.model,
+        token=token
     )
     ContextManager.set(ctx)
 
@@ -100,6 +102,7 @@ async def chat_endpoint(req: ChatRequest, bg_tasks: BackgroundTasks, _current_us
         checkpoint_id=req.checkpoint_id,
         model=req.model,
         context=ctx,
+        member_id=_current_user.id if _current_user else 0,
     )
     if result.status == "failed":
         raise HTTPException(status_code=500, detail=result.error)
@@ -118,7 +121,7 @@ async def stop_chat(req: ChatRequest):
     return StopChatResponse(status="stopping", thread_id=req.thread_id)
 
 @router.post("/chat/retry", dependencies=[Depends(verify_guest_access)])
-async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Request = None):
+async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Request = None, _current_user: CurrentUserOptional = None, token: TokenDepOptional = None):
     """
     Retry a specific user message (Targeted Retry).
     Rolls back history (deletes messages after the target) and restarts generation.
@@ -239,7 +242,8 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Requ
     ctx = EvoContext(
         thread_id=req.thread_id,
         project_id=req.project_id,
-        active_model=req.model
+        active_model=req.model,
+        token=token
     )
     ContextManager.set(ctx)
 
@@ -259,6 +263,7 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Requ
         skip_message_persistence=True,
         goal_prefix="Retry: ",
         context=ctx,
+        member_id=_current_user.id if _current_user else 0,
     )
     if result.status == "failed":
         raise HTTPException(status_code=500, detail=result.error)
@@ -274,7 +279,7 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Requ
     }
 
 @router.post("/chat/resume")
-async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
+async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks, _current_user: CurrentUserOptional = None, token: TokenDepOptional = None):
     """
     Resume a paused/interrupted graph execution.
     Used after Human-in-the-Loop interrupts where user provides input.
@@ -314,6 +319,12 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
         except json.JSONDecodeError:
             inputs = {"messages": [HumanMessage(content=req.user_input)]}
 
+        # Context setup explicitly needed for persistence inside resume
+        ctx = ContextManager.current()
+        if not getattr(ctx, 'token', None):
+            ctx.token = token
+            ContextManager.set(ctx)
+
         # Persistence (shared with /chat and /retry via dispatch layer)
         from app.core.engine.dispatch import persist_user_message
         await persist_user_message(
@@ -321,6 +332,7 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
             content=req.user_input,
             project_id=req.project_id,
             command_id=req.command_id,
+            member_id=_current_user.id if _current_user else 0,
         )
 
     # [HITL Resume Fix]: Check if we need to auto-complete a Tool Call

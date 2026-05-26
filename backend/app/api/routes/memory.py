@@ -4,6 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.api.deps import CurrentUserOptional
 from app.api.schemas.memory import ConceptCreate, ConceptUpdate, ConceptResponse, EpisodeResponse, VectorSearchResult, \
     VectorSearchResponse, HybridResultItem, HybridSearchResponse, ConceptOperationResponse
 from app.core.memory.models import MemoryType
@@ -26,7 +27,7 @@ async def get_memory_manager():
 
 
 @router.get("/concepts", response_model=list[ConceptResponse])
-async def list_concepts(project_id: int, manager=Depends(get_memory_manager)):
+async def list_concepts(project_id: int, manager=Depends(get_memory_manager), current_user: CurrentUserOptional = None):
     """
     Get all concepts for a project.
     """
@@ -35,10 +36,11 @@ async def list_concepts(project_id: int, manager=Depends(get_memory_manager)):
         results = await manager.list_memories(
             type_filter=MemoryType.CONCEPT, 
             project_id=project_id,
-            limit=100
+            limit=100,
+            member_id=current_user.id if current_user else 0,
         )
         # Get counts in batch
-        counts = await manager.get_concept_episode_counts_batch(project_id)
+        counts = await manager.get_concept_episode_counts_batch(project_id, member_id=current_user.id if current_user else 0)
         
         return [
             ConceptResponse(
@@ -54,7 +56,10 @@ async def list_concepts(project_id: int, manager=Depends(get_memory_manager)):
 
 @router.get("/concepts/list", response_model=list[ConceptResponse])
 async def list_concepts_with_counts(
-    project_id: int, limit: int = 50, manager=Depends(get_memory_manager)
+    project_id: int | None = None,
+    limit: int = 50, 
+    manager=Depends(get_memory_manager), 
+    current_user: CurrentUserOptional = None
 ):
     """
     Get all concepts with episode counts.
@@ -64,10 +69,11 @@ async def list_concepts_with_counts(
         results = await manager.list_memories(
             type_filter=MemoryType.CONCEPT, 
             project_id=project_id,
-            limit=limit
+            limit=limit,
+            member_id=current_user.id if current_user else 0,
         )
         # Get counts in batch
-        counts = await manager.get_concept_episode_counts_batch(project_id)
+        counts = await manager.get_concept_episode_counts_batch(project_id, member_id=current_user.id if current_user else 0)
 
         return [
             ConceptResponse(
@@ -83,7 +89,7 @@ async def list_concepts_with_counts(
 
 @router.get("/concepts/{concept_name}", response_model=ConceptResponse)
 async def get_concept(
-    project_id: int, concept_name: str, manager=Depends(get_memory_manager)
+    project_id: int, concept_name: str, manager=Depends(get_memory_manager), current_user: CurrentUserOptional = None
 ):
     """
     Get a single concept by name with its episode count.
@@ -98,7 +104,7 @@ async def get_concept(
 
         # Get episode count
         episodes = await manager.find_episodes_by_concept(
-            concept_name, project_id, limit=99
+            concept_name, project_id, limit=99, member_id=current_user.id if current_user else 0
         )
         
         return ConceptResponse(
@@ -115,7 +121,7 @@ async def get_concept(
 
 @router.post("/concepts", response_model=ConceptOperationResponse)
 async def add_concept(
-    project_id: int, req: ConceptCreate, manager=Depends(get_memory_manager)
+    project_id: int, req: ConceptCreate, manager=Depends(get_memory_manager), current_user: CurrentUserOptional = None
 ):
     """
     Manually add a concept/memory.
@@ -125,7 +131,8 @@ async def add_concept(
             concept=req.name,
             description=req.description,
             project_id=project_id,
-            related_files=req.related_files
+            related_files=req.related_files,
+            member_id=current_user.id if current_user else 0,
         )
         return ConceptOperationResponse(status="success", name=req.name)
     except Exception as e:
@@ -138,7 +145,8 @@ async def search_memory(
     q: str, 
     project_id: int | None = None, 
     use_vector: bool = Query(False, description="Use vector similarity search if available"),
-    manager=Depends(get_memory_manager)
+    manager=Depends(get_memory_manager),
+    current_user: CurrentUserOptional = None,
 ):
     """
     Search memory concepts.
@@ -149,15 +157,13 @@ async def search_memory(
     if not q:
         return []
     
-    if not q:
-        return []
-    
     # Text search (unified)
     results = await manager.search_memories(
         query=q,
         types=[MemoryType.CONCEPT],
         project_id=project_id,
         limit=10,
+        member_id=current_user.id if current_user else 0,
     )
     return [
         ConceptResponse(
@@ -274,7 +280,8 @@ async def search_memory_hybrid(
     project_id: int | None = None,
     top_k: int = Query(10, ge=1, le=50),
     vector_weight: float = Query(0.7, ge=0, le=1),
-    manager=Depends(get_memory_manager)
+    manager=Depends(get_memory_manager),
+    current_user: CurrentUserOptional = None
 ):
     """
     Hybrid search combining vector similarity and text matching.
@@ -298,6 +305,7 @@ async def search_memory_hybrid(
             types=[MemoryType.CONCEPT],
             project_id=project_id,
             limit=top_k,
+            member_id=current_user.id if current_user else 0,
         )
         text_results = [
             {"name": r.title, "description": r.description} for r in results
@@ -345,7 +353,7 @@ async def search_memory_hybrid(
     except Exception as e:
         logger.error(f"Hybrid search failed: {e}")
         # Fallback to text search via facade
-        text_results = await manager.search_concepts_data(q, project_id)
+        text_results = await manager.search_concepts_data(q, project_id, member_id=current_user.id if current_user else 0)
         return HybridSearchResponse(
             results=[HybridResultItem(type="text", score=1.0, data=r) for r in text_results],
             total=len(text_results),
@@ -356,7 +364,7 @@ async def search_memory_hybrid(
 
 @router.delete("/concepts/{concept_name}", response_model=ConceptOperationResponse)
 async def delete_concept(
-    project_id: int, concept_name: str, manager=Depends(get_memory_manager)
+    project_id: int, concept_name: str, manager=Depends(get_memory_manager), current_user: CurrentUserOptional = None
 ):
     """
     Delete a concept/memory.
@@ -380,7 +388,8 @@ async def update_concept(
     project_id: int, 
     concept_name: str, 
     req: ConceptUpdate, 
-    manager=Depends(get_memory_manager)
+    manager=Depends(get_memory_manager),
+    current_user: CurrentUserOptional = None
 ):
     """
     Update an existing concept's description or metadata.
@@ -411,7 +420,7 @@ async def update_concept(
 
 @router.get("/episodes/by-concept", response_model=list[EpisodeResponse])
 async def get_episodes_by_concept(
-    project_id: int, concept: str, limit: int = 10, manager=Depends(get_memory_manager)
+    project_id: int, concept: str, limit: int = 10, manager=Depends(get_memory_manager), current_user: CurrentUserOptional = None
 ):
     """
     Find all episodes linked to a specific concept.
@@ -420,7 +429,7 @@ async def get_episodes_by_concept(
         return []
     try:
         results = await manager.find_episodes_by_concept(
-            concept, project_id, limit
+            concept, project_id, limit, member_id=current_user.id if current_user else 0
         )
         # results are already dicts matching EpisodeResponse mostly
         return [

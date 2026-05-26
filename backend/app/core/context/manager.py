@@ -30,6 +30,7 @@ class EvoContext(DynamicBaseModel):
     user_id: str | None = None
     project_id: int | None = None
     thread_id: str | None = None
+    token: str | None = None
 
     # Execution Environment
     working_directory: str | None = None

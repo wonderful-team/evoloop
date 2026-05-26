@@ -25,10 +25,11 @@ class MessageRepository:
     - SELECT (query tool inputs, history)
     """
 
-    def __init__(self, thread_id: str, project_id: int | None = None, run_id: str | None = None):
+    def __init__(self, thread_id: str, project_id: int | None = None, run_id: str | None = None, member_id: int = 0):
         self.thread_id = thread_id
         self.project_id = project_id
         self.run_id = run_id
+        self.member_id = member_id
 
     async def persist(
         self,
@@ -73,6 +74,7 @@ class MessageRepository:
                     id=str(uuid.uuid4()),
                     thread_id=self.thread_id,
                     project_id=self.project_id,
+                    member_id=self.member_id,
                     role=role,
                     content=content or "",
                     thinking=thinking,

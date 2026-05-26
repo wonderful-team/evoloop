@@ -42,3 +42,10 @@ class FileNameSearchResult(DynamicBaseModel):
 class CreateFileRequest(DynamicBaseModel):
     path: str
     content: str
+
+class MkdirRequest(DynamicBaseModel):
+    path: str
+
+class MoveFileRequest(DynamicBaseModel):
+    source_path: str
+    target_path: str

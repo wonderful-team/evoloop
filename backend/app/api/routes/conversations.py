@@ -3,6 +3,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import delete, select, func
 
+from app.api.deps import CurrentUserOptional
 from app.api.schemas.conversations import (
     MessageItem,
     ConversationSearchResult,
@@ -37,6 +38,7 @@ async def list_conversations(
     project_id: int | None = None,
     page: int = 1,
     page_size: int = 20,
+    current_user: CurrentUserOptional = None,
 ):
     """
     List conversations, optionally filtered by project, with pagination and pinning.
@@ -46,6 +48,8 @@ async def list_conversations(
         count_stmt = select(func.count(Conversation.id))
         if project_id is not None:
             count_stmt = count_stmt.where(Conversation.project_id == project_id)
+        if current_user is not None:
+            count_stmt = count_stmt.where(Conversation.member_id == current_user.id)
         total_count_result = await session.execute(count_stmt)
         total_count = total_count_result.scalar() or 0
 
@@ -53,6 +57,8 @@ async def list_conversations(
         stmt = select(Conversation).order_by(Conversation.is_pinned.desc(), Conversation.updated_at.desc())
         if project_id is not None:
             stmt = stmt.where(Conversation.project_id == project_id)
+        if current_user is not None:
+            stmt = stmt.where(Conversation.member_id == current_user.id)
 
         # Pagination
         stmt = stmt.offset((page - 1) * page_size).limit(page_size)
@@ -145,7 +151,11 @@ async def get_conversation_messages(
 
 
 @router.get("/search", response_model=list[ConversationSearchResult])
-async def search_conversations(q: str, project_id: int | None = None):
+async def search_conversations(
+    q: str,
+    project_id: int | None = None,
+    current_user: CurrentUserOptional = None,
+):
     if not q or len(q.strip()) < 2:
         return []
 
@@ -165,6 +175,8 @@ async def search_conversations(q: str, project_id: int | None = None):
 
         if project_id is not None:
             stmt = stmt.where(Message.project_id == project_id)
+        if current_user is not None:
+            stmt = stmt.where(Message.member_id == current_user.id)
 
         stmt = stmt.order_by(Message.created_at.desc()).limit(20)
 
@@ -185,11 +197,19 @@ async def search_conversations(q: str, project_id: int | None = None):
 
 
 @router.patch("/{thread_id}", response_model=ConversationUpdateResponse)
-async def update_conversation(thread_id: str, req: ConversationUpdateRequest):
+async def update_conversation(
+    thread_id: str,
+    req: ConversationUpdateRequest,
+    current_user: CurrentUserOptional = None,
+):
     async with get_db_session() as session:
         conversation = await session.get(Conversation, thread_id)
         if not conversation:
             raise HTTPException(404, "Conversation not found")
+
+        # Ownership check
+        if current_user is not None and conversation.member_id != 0 and conversation.member_id != current_user.id:
+            raise HTTPException(403, "Access denied")
 
         if req.title is not None:
             conversation.title = req.title
@@ -214,9 +234,19 @@ async def get_thread_activity(thread_id: str):
 
 
 @router.delete("/{thread_id}")
-async def delete_conversation(thread_id: str):
+async def delete_conversation(
+    thread_id: str,
+    current_user: CurrentUserOptional = None,
+):
     from app.infrastructure.database.resource_manager import db_resource_manager
     try:
+        # Ownership check
+        if current_user is not None:
+            async with get_db_session() as session:
+                conversation = await session.get(Conversation, thread_id)
+                if conversation and conversation.member_id != 0 and conversation.member_id != current_user.id:
+                    raise HTTPException(403, "Access denied")
+
         # 1. Delete Checkpoints via Checkpointer API (supports both Postgres and SQLite)
         checkpointer = db_resource_manager.checkpointer
         if checkpointer:
@@ -238,6 +268,8 @@ async def delete_conversation(thread_id: str):
             await session.execute(delete(Message).where(Message.thread_id == thread_id))
 
         return ConversationDeleteResponse(status="deleted", thread_id=thread_id)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to delete conversation: {e}")
         raise HTTPException(500, str(e))

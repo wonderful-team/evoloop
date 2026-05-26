@@ -134,8 +134,12 @@ class DynamicAppTriage(BaseExplorer):
         if "```json" in content:
             content = content.split("```json")[1].split("```")[0].strip()
 
-        data = json.loads(content)
-        return data.get("results", {})
+        try:
+            data = json.loads(content)
+            return data.get("results", {})
+        except json.JSONDecodeError as e:
+            logger.error(f"[DynamicAppTriage] Failed to parse LLM JSON output. Error: {e}. Raw content: {content}")
+            return {}
 
     @staticmethod
     async def get_dynamic_apps(platform: str = "android") -> set[str]:

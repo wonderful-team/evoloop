@@ -3,7 +3,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.api.deps import CurrentUser, TokenDep
+from app.api.deps import CurrentUser, TokenDep, TokenDepOptional
 from app.api.responses import BaseAPIResponse
 from app.api.schemas.member import ChangePasswordRequest, UpdateUserRequest, BatchCheckRequest, BatchCheckResponse
 from app.core.evocloud import evocloud_manager
@@ -94,13 +94,13 @@ def _map_mc_user_to_user(data: dict) -> User:
     )
 
 @router.get("/me", response_model=UserPublic)
-async def read_user_me(current_user: CurrentUser) -> Any:
+async def read_user_me(current_user: CurrentUser, token: TokenDepOptional = None) -> Any:
     """
     Get current user info from Member Center.
     Fields are aligned with Member Center /api/member/info response.
     """
     try:
-        result = await evocloud_manager.api.get_user_info()
+        result = await evocloud_manager.api.get_user_info(token=token)
         if result.get("code") == 0:
             data = result.get("data", {})
             return _map_mc_user_to_user(data)
@@ -123,6 +123,7 @@ async def read_user_me(current_user: CurrentUser) -> Any:
 async def change_password(
     data: ChangePasswordRequest,
     current_user: CurrentUser,
+    token: TokenDepOptional = None,
 ) -> EvoCloudProxyResponse:
     """
     Change current user's password (Transparent Proxy).
@@ -130,18 +131,20 @@ async def change_password(
     return await evocloud_manager.api.change_password(
         old_password=data.old_password,
         new_password=data.new_password,
+        token=token,
     )
 
 @router.put("/me", response_model=UserPublic)
 async def update_user_me(
     data: UpdateUserRequest,
     current_user: CurrentUser,
+    token: TokenDepOptional = None,
 ) -> EvoCloudProxyResponse:
     """
     Update current user information (Transparent Proxy).
     """
     update_data = data.model_dump(exclude_none=True)
-    return await evocloud_manager.api.update_user_info(update_data)
+    return await evocloud_manager.api.update_user_info(update_data, token=token)
 
 # --- Account Cancellation ---
 

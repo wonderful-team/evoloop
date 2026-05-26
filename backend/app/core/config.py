@@ -60,6 +60,10 @@ class Settings(BaseSettings):
 
     # Embedded Mode (No external dependencies)
     EMBEDDED_MODE: bool = False  # True: Use SQLite + LanceDB + LocalCelery, False: Use Postgres + Neo4j + Redis
+    
+    # SaaS / Multi-tenant Mode
+    MULTI_TENANT_MODE: bool = False  # True: Strict token isolation, no global session cache. False: Single-user mode (safe for global cache)
+
 
     # Memory System Settings
     AUTO_MEMORY_EXTRACTION: bool = True  # Enable automatic memory extraction at conversation end

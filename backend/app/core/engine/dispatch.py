@@ -64,6 +64,7 @@ async def dispatch_agent_run(
     skip_message_persistence: bool = False,
     context: EvoContext | None = None,
     metadata: dict[str, Any] | None = None,
+    member_id: int = 0,
 ) -> DispatchResult:
     """
     Unified dispatch preparation for an Agent run.
@@ -209,6 +210,7 @@ async def dispatch_agent_run(
                 conversation = Conversation(
                     id=thread_id,
                     project_id=project_id,
+                    member_id=member_id,
                     title=first_line[:200] or "未知话题",
                 )
                 session.add(conversation)
@@ -217,7 +219,7 @@ async def dispatch_agent_run(
 
             # New message: persist to DB via Repository to ensure parent_id linkage
             from app.core.engine.message.repository import MessageRepository
-            repo = MessageRepository(thread_id, project_id)
+            repo = MessageRepository(thread_id, project_id, member_id=member_id)
             msg_id, seq = await repo.persist(
                 role="human",
                 content=message_content,
@@ -262,6 +264,7 @@ async def persist_user_message(
     *,
     project_id: int | None = None,
     command_id: int | None = None,
+    member_id: int = 0,
 ) -> str | None:
     """
     Persist a user message to DB and sync to EvoCloud.
@@ -279,7 +282,11 @@ async def persist_user_message(
         conversation.updated_at = datetime.now(timezone.utc)
 
         from app.core.engine.message.repository import MessageRepository
-        repo = MessageRepository(thread_id, project_id if project_id is not None else conversation.project_id)
+        repo = MessageRepository(
+            thread_id,
+            project_id if project_id is not None else conversation.project_id,
+            member_id=member_id if member_id != 0 else conversation.member_id,
+        )
         msg_id, seq = await repo.persist(
             role="human",
             content=content,

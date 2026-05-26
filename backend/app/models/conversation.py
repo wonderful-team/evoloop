@@ -39,6 +39,7 @@ class Message(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     thread_id: Mapped[str] = mapped_column(String(255), index=True)
+    member_id: Mapped[int] = mapped_column(Integer, default=0, index=True)  # Owner member ID
     project_id: Mapped[int | None] = mapped_column(Integer, index=True)
     role: Mapped[str] = mapped_column(String(50))  # "human", "ai"
     content: Mapped[str] = mapped_column(Text)
@@ -125,7 +126,6 @@ class MessageReference(Base):
     message: Mapped["Message"] = relationship(back_populates="references")
 
 
-
 class Conversation(Base):
     """
     Metadata for a conversation thread.
@@ -135,6 +135,7 @@ class Conversation(Base):
 
     id: Mapped[str] = mapped_column(String(255), primary_key=True)  # thread_id (uuid)
     project_id: Mapped[int] = mapped_column(Integer, index=True)
+    member_id: Mapped[int] = mapped_column(Integer, default=0, index=True)  # Owner member ID
     title: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

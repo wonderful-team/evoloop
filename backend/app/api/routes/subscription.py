@@ -16,32 +16,32 @@ router = APIRouter(tags=["subscription"])
 @router.get("/subscription/plans")
 async def get_subscription_plans(_token: TokenDep):
     """获取可用订阅计划"""
-    return await evocloud_manager.api.get_subscription_plans()
+    return await evocloud_manager.api.get_subscription_plans(token=_token)
 
 @router.post("/subscription/upgrade-preview")
 async def calculate_upgrade_price(target_level_id: int, _token: TokenDep):
     """计算升级价格预览"""
-    return await evocloud_manager.api.calculate_upgrade_price(target_level_id)
+    return await evocloud_manager.api.calculate_upgrade_price(target_level_id, token=_token)
 
 @router.get("/subscription/status")
 async def get_subscription_status(_token: TokenDep):
     """获取订阅状态"""
-    return await evocloud_manager.api.get_subscription_status()
+    return await evocloud_manager.api.get_subscription_status(token=_token)
 
 @router.get("/subscription/detail")
 async def get_subscription_detail(_token: TokenDep):
     """获取订阅详情"""
-    return await evocloud_manager.api.get_subscription_detail()
+    return await evocloud_manager.api.get_subscription_detail(token=_token)
 
 @router.post("/subscription/order")
 async def create_subscription_order(req: CreateOrderRequest, _token: TokenDep):
     """创建订阅订单"""
-    return await evocloud_manager.api.create_subscription_order(req.level_id, req.auto_renew)
+    return await evocloud_manager.api.create_subscription_order(req.level_id, req.auto_renew, token=_token)
 
 @router.post("/subscription/cancel")
 async def cancel_subscription(cancel_type: str = "expire", reason: str = "", _token: TokenDep = None):
     """取消订阅"""
-    return await evocloud_manager.api.cancel_subscription(cancel_type, reason)
+    return await evocloud_manager.api.cancel_subscription(cancel_type, reason, token=_token)
 
 @router.get("/subscription/order/status")
 async def check_subscription_order_status(
@@ -51,24 +51,24 @@ async def check_subscription_order_status(
     """
     检查订阅订单状态
     """
-    return await evocloud_manager.api.check_subscription_order_status(order_id)
+    return await evocloud_manager.api.check_subscription_order_status(order_id, token=_token)
 
 # --- AI Quota ---
 
 @router.get("/quota")
 async def get_ai_quota(_token: TokenDep):
     """获取主要 AI 配额 (统一配额池)"""
-    return await evocloud_manager.api.get_ai_quota()
+    return await evocloud_manager.api.get_ai_quota(token=_token)
 
 @router.get("/quota/all")
 async def get_all_ai_quotas(_token: TokenDep):
     """获取所有 AI 配额"""
-    return await evocloud_manager.api.get_all_ai_quotas()
+    return await evocloud_manager.api.get_all_ai_quotas(token=_token)
 
 @router.get("/quota/history")
 async def get_ai_quota_history(page: int = 1, page_size: int = 20, _token: TokenDep = None):
     """获取配额使用历史"""
-    return await evocloud_manager.api.get_ai_quota_history(page, page_size=page_size)
+    return await evocloud_manager.api.get_ai_quota_history(page, page_size=page_size, token=_token)
 
 # --- Webhook for Benefits Update ---
 

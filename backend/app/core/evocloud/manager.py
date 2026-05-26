@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import Any
 
 from app.core.config import settings
+from app.core.context import ContextManager
 from app.core.evocloud.backends.http_client import EvoCloudHTTPClient
 from app.core.evocloud.backends.websocket_link import EvoCloudWebSocketLink
 from app.core.evocloud.schemas import EvoCloudConfig
@@ -190,9 +191,16 @@ class EvoCloudManager:
         return res
 
     async def get_token(self) -> str | None:
-        return await self.api.get_token() if self._api_pool else None
+        # 1. 在多租户模式下，严格要求 Token 必须存在于请求上下文中，拒绝全局兜底
+        if settings.MULTI_TENANT_MODE:
+            return ContextManager.get_var("token")
 
-    # --- Properties ---
+        # 2. 在单租户（桌面端/单机版）模式下，允许兜底到全局缓存的 Token
+        ctx_token = ContextManager.get_var("token")
+        if ctx_token:
+            return ctx_token
+            
+        return await self.api.get_token() if self._api_pool else None
 
     @property
     def config(self) -> EvoCloudConfig:

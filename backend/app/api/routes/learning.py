@@ -18,7 +18,7 @@ from app.constants import DEFAULT_PROJECT_ID
 from fastapi import Depends, APIRouter, BackgroundTasks, Body, File, HTTPException, Query, Response, UploadFile
 from sqlalchemy import or_, func, select
 
-from app.api.deps import require_benefit
+from app.api.deps import require_benefit, CurrentUserOptional
 from app.api.responses import BaseAPIResponse
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
@@ -108,13 +108,13 @@ router = APIRouter()
 
 
 @router.get("/capabilities/actions", response_model=list[ActionDef])
-async def get_action_registry():
+async def get_action_registry(current_user: CurrentUserOptional = None):
     """Export the centralized action registry for frontend sync."""
     return ActionRegistry.list_actions()
 
 
 @router.get("/human-requests", response_model=list[HumanInputRequestOut])
-async def list_pending_requests(thread_id: str | None = None):
+async def list_pending_requests(thread_id: str | None = None, current_user: CurrentUserOptional = None):
     """
     Get all pending human input requests.
     Optionally filter by thread_id.
@@ -195,7 +195,7 @@ def _normalize_skill_params(params_raw: str | list | dict | None) -> list[dict]:
 
 
 @router.get("/human-requests/{request_id}", response_model=HumanInputRequestOut)
-async def get_request(request_id: str):
+async def get_request(request_id: str, current_user: CurrentUserOptional = None):
     """
     Get a specific human input request by ID.
     """
@@ -217,7 +217,7 @@ async def get_request(request_id: str):
 
 
 @router.post("/human-requests/{request_id}/respond", response_model=BaseAPIResponse)
-async def respond_to_request(request_id: str, body: RespondRequest):
+async def respond_to_request(request_id: str, body: RespondRequest, current_user: CurrentUserOptional = None):
     """
     Submit a response to a pending human input request.
     This will resume the paused agent workflow.
@@ -242,7 +242,7 @@ async def respond_to_request(request_id: str, body: RespondRequest):
 
 
 @router.post("/human-requests/{request_id}/cancel", response_model=BaseAPIResponse)
-async def cancel_pending_request(request_id: str):
+async def cancel_pending_request(request_id: str, current_user: CurrentUserOptional = None):
     """
     Cancel a pending human input request.
     The agent will receive the default value if set.
@@ -265,7 +265,7 @@ async def cancel_pending_request(request_id: str):
 
 
 @router.post("/cleanup", response_model=BaseAPIResponse)
-async def cleanup_requests(max_age_hours: int = 24):
+async def cleanup_requests(max_age_hours: int = 24, current_user: CurrentUserOptional = None):
     """
     Clean up old completed/cancelled requests.
     """
@@ -300,7 +300,7 @@ async def start_recording(body: StartRecordingRequest):
 
 
 @router.post("/traces/stop", response_model=StopRecordingResponse)
-async def stop_recording(session_id: str):
+async def stop_recording(session_id: str, current_user: CurrentUserOptional = None):
     """
     Stop a recording session.
     """
@@ -317,7 +317,7 @@ async def stop_recording(session_id: str):
 
 
 @router.get("/traces/sessions", response_model=RecordingSessionsResponse)
-async def list_recording_sessions(thread_id: str | None = None):
+async def list_recording_sessions(thread_id: str | None = None, current_user: CurrentUserOptional = None):
     """
     List active recording sessions.
     """
@@ -338,7 +338,7 @@ async def list_recording_sessions(thread_id: str | None = None):
 
 
 @router.post("/skills/synthesize", response_model=SynthesizeSkillResponse, dependencies=[Depends(require_benefit("skill_learning"))])
-async def synthesize_skill(body: SynthesizeRequest):
+async def synthesize_skill(body: SynthesizeRequest, current_user: CurrentUserOptional = None):
     """
     Synthesize a new skill from a trace sequence.
     Uses LLM to analyze the trace and generate a reusable skill.
@@ -356,7 +356,7 @@ async def synthesize_skill(body: SynthesizeRequest):
 
             while True:
                 # Check if name exists
-                stmt = select(LearnedSkill).where(LearnedSkill.name == unique_name)
+                stmt = select(LearnedSkill).where(LearnedSkill.member_id == (current_user.id if current_user else 0)).where(LearnedSkill.name == unique_name)
                 existing = (await db.execute(stmt)).scalar_one_or_none()
                 if not existing:
                     break
@@ -367,7 +367,7 @@ async def synthesize_skill(body: SynthesizeRequest):
             if unique_name != base_name:
                 logger.info(f"Skill name collision: {base_name} -> {unique_name}")
 
-            db_skill = LearnedSkill(
+            db_skill = LearnedSkill(member_id=current_user.id if current_user else 0, 
                 name=unique_name,
                 description=skill.description,
                 trigger_patterns=json.dumps(skill.trigger_patterns),
@@ -420,7 +420,7 @@ async def list_skills(
     active_only: bool = True,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
-):
+    current_user: CurrentUserOptional = None):
     """
     List all learned skills with pagination.
     """
@@ -432,7 +432,7 @@ async def list_skills(
 
     async with session_scope() as db:
         # 1. Base Query
-        stmt = select(LearnedSkill)
+        stmt = select(LearnedSkill).where(LearnedSkill.member_id == (current_user.id if current_user else 0))
         if active_only:
             stmt = stmt.where(LearnedSkill.is_active == True)
 
@@ -480,12 +480,12 @@ async def list_skills(
 
 
 @router.get("/skills/{skill_id}", response_model=SkillDetailResponse)
-async def get_skill(skill_id: int):
+async def get_skill(skill_id: int, current_user: CurrentUserOptional = None):
     """
     Get full details of a specific skill.
     """
     async with session_scope() as db:
-        stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
+        stmt = select(LearnedSkill).where(LearnedSkill.member_id == (current_user.id if current_user else 0)).where(LearnedSkill.id == skill_id)
         result = await db.execute(stmt)
         skill = result.scalar_one_or_none()
 
@@ -518,14 +518,14 @@ async def get_skill(skill_id: int):
 
 
 @router.delete("/skills/{skill_id}", response_model=BaseAPIResponse)
-async def delete_skill(skill_id: int):
+async def delete_skill(skill_id: int, current_user: CurrentUserOptional = None):
     """
     Physically delete a skill and its resources.
     """
     try:
         async with session_scope() as db:
             # 1. Get Skill
-            stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
+            stmt = select(LearnedSkill).where(LearnedSkill.member_id == (current_user.id if current_user else 0)).where(LearnedSkill.id == skill_id)
             result = await db.execute(stmt)
             skill = result.scalar_one_or_none()
 
@@ -553,14 +553,14 @@ async def delete_skill(skill_id: int):
 
 
 @router.put("/skills/{skill_id}", response_model=UpdateSkillResponse)
-async def update_skill(skill_id: int, body: UpdateSkillRequest):
+async def update_skill(skill_id: int, body: UpdateSkillRequest, current_user: CurrentUserOptional = None):
     """
     Update a learned skill.
     """
     try:
         async with session_scope() as db:
             # 1. Get Skill
-            stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
+            stmt = select(LearnedSkill).where(LearnedSkill.member_id == (current_user.id if current_user else 0)).where(LearnedSkill.id == skill_id)
             result = await db.execute(stmt)
             skill = result.scalar_one_or_none()
 
@@ -571,7 +571,7 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
             if body.name:
                 # Check uniqueness if name changed
                 if body.name != skill.name:
-                    stmt_check = select(LearnedSkill).where(LearnedSkill.name == body.name)
+                    stmt_check = select(LearnedSkill).where(LearnedSkill.member_id == (current_user.id if current_user else 0)).where(LearnedSkill.name == body.name)
                     existing = (await db.execute(stmt_check)).scalar_one_or_none()
                     if existing:
                          raise HTTPException(status_code=400, detail=f"Skill name '{body.name}' already exists")
@@ -714,8 +714,7 @@ async def execute_macro_with_fallback(
 
 @router.post("/skills/{skill_id}/execute", response_model=ExecuteSkillResponse)
 async def execute_skill(
-    skill_id: int, body: ExecuteSkillRequest, bg_tasks: BackgroundTasks
-):
+    skill_id: int, body: ExecuteSkillRequest, bg_tasks: BackgroundTasks, current_user: CurrentUserOptional = None):
     """
     Execute a skill by injecting a directive into the agent's conversation.
     This ensures the skill runs with full project context and history.
@@ -786,7 +785,7 @@ async def execute_skill(
 
 
 @router.get("/mirror/devices", response_model=MirrorDevicesResponse)
-async def list_mirror_devices():
+async def list_mirror_devices(current_user: CurrentUserOptional = None):
     """List connected Android devices for mirroring."""
     devices = adb_driver.list_devices()
 
@@ -835,7 +834,7 @@ async def start_mirror_recording(body: StartMirrorRecordingRequest):
 
 
 @router.post("/mirror/stop", response_model=StopMirrorResponse)
-async def stop_mirror_session(body: StopMirrorRequest):
+async def stop_mirror_session(body: StopMirrorRequest, current_user: CurrentUserOptional = None):
     """
     Stop an active mirroring session.
 
@@ -866,7 +865,7 @@ async def stop_mirror_session(body: StopMirrorRequest):
 
 
 @router.get("/mirror/device/{device_id}/resolution", response_model=DeviceResolutionResponse)
-async def get_device_resolution(device_id: str):
+async def get_device_resolution(device_id: str, current_user: CurrentUserOptional = None):
     """Get Android device screen resolution via ADB."""
     from app.infrastructure.drivers.adb import adb_driver
     try:
@@ -880,7 +879,7 @@ async def get_device_resolution(device_id: str):
 
 
 @router.post("/mirror/events", response_model=MirrorPersistResponse)
-async def persist_mirror_events(body: PersistMirrorEventsRequest):
+async def persist_mirror_events(body: PersistMirrorEventsRequest, current_user: CurrentUserOptional = None):
     """
     [v3 Unified] Persist Android mirror events to backend.
 
@@ -898,7 +897,7 @@ async def persist_mirror_events(body: PersistMirrorEventsRequest):
 
     # Check if events are already in DB (real-time persistence succeeded)
     async with session_scope() as db:
-        stmt = select(TraceEvent).where(TraceEvent.recording_session_id == body.session_id)
+        stmt = select(TraceEvent).where(TraceEvent.member_id == (current_user.id if current_user else 0)).where(TraceEvent.recording_session_id == body.session_id)
         result = await db.execute(stmt)
         existing_count = len(result.scalars().all())
 
@@ -919,7 +918,7 @@ async def persist_mirror_events(body: PersistMirrorEventsRequest):
                 source = event_data.get("source") or "mobile"
                 thread_id = body.thread_id or "global"
 
-                trace_event = TraceEvent(
+                trace_event = TraceEvent(member_id=current_user.id if current_user else 0, 
                     session_id=body.session_id,
                     recording_session_id=body.session_id,
                     thread_id=thread_id,
@@ -954,7 +953,7 @@ async def persist_mirror_events(body: PersistMirrorEventsRequest):
 
 
 @router.post("/global/events", response_model=MirrorPersistResponse)
-async def persist_global_events(body: GlobalEventsRequest):
+async def persist_global_events(body: GlobalEventsRequest, current_user: CurrentUserOptional = None):
     """
     Persist global desktop events to backend (real-time/batched persistence).
     Unified with mirror events - all events go to TraceEvent table.
@@ -993,7 +992,7 @@ async def persist_global_events(body: GlobalEventsRequest):
                 if app_name:
                     payload["package_name"] = app_name
 
-                trace_event = TraceEvent(
+                trace_event = TraceEvent(member_id=current_user.id if current_user else 0, 
                     session_id=body.session_id,
                     recording_session_id=body.session_id,
                     thread_id=body.thread_id,
@@ -1026,7 +1025,7 @@ async def persist_global_events(body: GlobalEventsRequest):
 
 
 @router.post("/dom/events", response_model=MirrorPersistResponse)
-async def persist_dom_events(body: DomEventsRequest):
+async def persist_dom_events(body: DomEventsRequest, current_user: CurrentUserOptional = None):
     """
     Persist DOM events to backend (real-time/batched persistence).
     Unified with mirror events - all events go to TraceEvent table.
@@ -1053,7 +1052,7 @@ async def persist_dom_events(body: DomEventsRequest):
                 action_type = "region_extract" if is_region_extract else "user_interaction"
                 node_name = "region_marker" if is_region_extract else "dom_recorder"
 
-                trace_event = TraceEvent(
+                trace_event = TraceEvent(member_id=current_user.id if current_user else 0, 
                     session_id=body.session_id,
                     recording_session_id=body.session_id,
                     thread_id=body.thread_id,
@@ -1083,7 +1082,7 @@ async def persist_dom_events(body: DomEventsRequest):
 
 
 @router.post("/assets/upload-screenshot", response_model=UploadScreenshotResponse)
-async def upload_screenshot(file: UploadFile = File(...)):
+async def upload_screenshot(file: UploadFile = File(...), current_user: CurrentUserOptional = None):
     """
     Upload a screenshot for a skill step.
     Uses hierarchical storage (dataset category for training data).
@@ -1114,7 +1113,7 @@ async def upload_screenshot(file: UploadFile = File(...)):
 
 
 @router.get("/skills/{skill_id}/validate", response_model=ValidateSkillResponse)
-async def validate_skill(skill_id: int):
+async def validate_skill(skill_id: int, current_user: CurrentUserOptional = None):
     """
     Run the validator on a skill and return its health status.
     """
@@ -1139,7 +1138,7 @@ async def validate_skill(skill_id: int):
 
 
 @router.post("/skills/synthesize-from-recording", response_model=SynthesizeFromRecordingResponse)
-async def synthesize_from_recording(request: SynthesizeFromRecordingRequest):
+async def synthesize_from_recording(request: SynthesizeFromRecordingRequest, current_user: CurrentUserOptional = None):
     """
     从视频录制同步合成 Skill（多模态版本 - v3 统一版）
 
@@ -1198,7 +1197,7 @@ async def synthesize_from_recording(request: SynthesizeFromRecordingRequest):
             counter = 1
 
             while True:
-                stmt = select(LearnedSkill).where(LearnedSkill.name == unique_name)
+                stmt = select(LearnedSkill).where(LearnedSkill.member_id == (current_user.id if current_user else 0)).where(LearnedSkill.name == unique_name)
                 existing = (await db.execute(stmt)).scalar_one_or_none()
                 if not existing:
                     break
@@ -1210,7 +1209,7 @@ async def synthesize_from_recording(request: SynthesizeFromRecordingRequest):
                 skill_data["name"] = unique_name
 
             # 创建 Skill 记录
-            db_skill = LearnedSkill(
+            db_skill = LearnedSkill(member_id=current_user.id if current_user else 0, 
                 name=skill_data["name"],
                 description=skill_data["description"],
                 namespace=skill_data.get("namespace", "misc"),
@@ -1292,8 +1291,7 @@ parameters: {json.dumps(skill_data.get('parameters', []))}
 @router.get("/skills/synthesize-from-recording/preview", response_model=PreviewRecordingDataResponse)
 async def preview_recording_data(
     session_id: str,
-    video_path: str
-):
+    video_path: str, current_user: CurrentUserOptional = None):
     """
     预览录制数据（调试用）
 
@@ -1352,14 +1350,14 @@ async def preview_recording_data(
 # ============ Smart Replay Synthesis ============
 
 @router.get("/recordings/{session_id}/annotations", response_model=list[AnnotationResponse])
-async def list_annotations(session_id: str):
+async def list_annotations(session_id: str, current_user: CurrentUserOptional = None):
     """
     获取录制的所有标注 (从 TraceEvent 表中查询 region_extract 类型事件)
     [Scheme A] 废弃 RecordingAnnotation 表，统一使用 TraceEvent
     """
     async with session_scope() as db:
         # [Scheme A] Query TraceEvent for region_extract events instead of RecordingAnnotation
-        stmt = select(TraceEvent).where(
+        stmt = select(TraceEvent).where(TraceEvent.member_id == (current_user.id if current_user else 0)).where(
             TraceEvent.recording_session_id == session_id,
             TraceEvent.action_type == "region_extract"
         ).order_by(TraceEvent.timestamp)
@@ -1392,7 +1390,7 @@ async def list_annotations(session_id: str):
 
 
 @router.post("/mirror/extract-point", response_model=AndroidExtractPointResponse)
-async def create_android_extract_point(body: AndroidExtractPointRequest):
+async def create_android_extract_point(body: AndroidExtractPointRequest, current_user: CurrentUserOptional = None):
     """
     [Android Mirror] 实时标记数据提取点
     [Scheme A] 废弃 RecordingAnnotation 表，统一使用 TraceEvent
@@ -1413,7 +1411,7 @@ async def create_android_extract_point(body: AndroidExtractPointRequest):
         region_width = body.width if body.width is not None else 0.02  # 默认 2% 区域
         region_height = body.height if body.height is not None else 0.02
 
-        trace_event = TraceEvent(
+        trace_event = TraceEvent(member_id=current_user.id if current_user else 0, 
             session_id=body.session_id,
             recording_session_id=body.session_id,
             thread_id=body.thread_id,
@@ -1467,7 +1465,7 @@ async def create_android_extract_point(body: AndroidExtractPointRequest):
 
 
 @router.get("/mirror/{session_id}/extract-points", response_model=list[AndroidExtractPointResponse])
-async def list_android_extract_points(session_id: str):
+async def list_android_extract_points(session_id: str, current_user: CurrentUserOptional = None):
     """
     [Android Mirror] 获取指定会话的所有提取点
     [Scheme A] 从 TraceEvent 表查询 region_extract 类型事件
@@ -1475,7 +1473,7 @@ async def list_android_extract_points(session_id: str):
     from app.models import TraceEvent
 
     async with session_scope() as db:
-        stmt = select(TraceEvent).where(
+        stmt = select(TraceEvent).where(TraceEvent.member_id == (current_user.id if current_user else 0)).where(
             TraceEvent.recording_session_id == session_id,
             TraceEvent.action_type == "region_extract"
         ).order_by(TraceEvent.timestamp)
@@ -1507,8 +1505,7 @@ async def list_android_extract_points(session_id: str):
 async def start_smart_synthesis(
     session_id: str,
     body: SmartSynthesisRequest,
-    background_tasks: BackgroundTasks
-):
+    background_tasks: BackgroundTasks, current_user: CurrentUserOptional = None):
     """
     启动智能合成任务
 
@@ -1521,12 +1518,12 @@ async def start_smart_synthesis(
     async with session_scope() as db:
         # [Scheme A] 从 TraceEvent 获取区域提取事件作为标注
         if body.annotation_ids:
-            stmt = select(TraceEvent).where(
+            stmt = select(TraceEvent).where(TraceEvent.member_id == (current_user.id if current_user else 0)).where(
                 TraceEvent.id.in_(body.annotation_ids),
                 TraceEvent.action_type == "region_extract"
             )
         else:
-            stmt = select(TraceEvent).where(
+            stmt = select(TraceEvent).where(TraceEvent.member_id == (current_user.id if current_user else 0)).where(
                 TraceEvent.recording_session_id == session_id,
                 TraceEvent.action_type == "region_extract"
             )
@@ -1541,7 +1538,7 @@ async def start_smart_synthesis(
             )
 
         # 创建合成任务
-        job = SynthesisJob(
+        job = SynthesisJob(member_id=current_user.id if current_user else 0, 
             session_id=session_id,
             thread_id=body.thread_id,
             task_goal=body.task_goal,
@@ -1561,6 +1558,7 @@ async def start_smart_synthesis(
             thread_id=body.thread_id,
             task_goal=body.task_goal,
             annotation_ids=[a.id for a in annotations],
+            current_user=current_user,
         )
 
         return SmartSynthesisResponse(
@@ -1576,6 +1574,7 @@ async def run_smart_synthesis(
     thread_id: str | None,
     task_goal: str,
     annotation_ids: list[int],
+    current_user: CurrentUserOptional = None,
 ):
     """
     后台运行智能合成
@@ -1586,7 +1585,7 @@ async def run_smart_synthesis(
 
     async with session_scope() as db:
         # 更新任务状态为 processing
-        stmt = select(SynthesisJob).where(SynthesisJob.id == job_id)
+        stmt = select(SynthesisJob).where(SynthesisJob.member_id == (current_user.id if current_user else 0)).where(SynthesisJob.id == job_id)
         result = await db.execute(stmt)
         job = result.scalar_one()
         job.status = "processing"
@@ -1596,7 +1595,7 @@ async def run_smart_synthesis(
     try:
         # [Scheme A] 从 TraceEvent 获取标注详情
         async with session_scope() as db:
-            stmt = select(TraceEvent).where(
+            stmt = select(TraceEvent).where(TraceEvent.member_id == (current_user.id if current_user else 0)).where(
                 TraceEvent.id.in_(annotation_ids),
                 TraceEvent.action_type == "region_extract"
             )
@@ -1616,7 +1615,7 @@ async def run_smart_synthesis(
 
         # 保存结果
         async with session_scope() as db:
-            stmt = select(SynthesisJob).where(SynthesisJob.id == job_id)
+            stmt = select(SynthesisJob).where(SynthesisJob.member_id == (current_user.id if current_user else 0)).where(SynthesisJob.id == job_id)
             result = await db.execute(stmt)
             job = result.scalar_one()
 
@@ -1636,7 +1635,7 @@ async def run_smart_synthesis(
 
             # 保存到 LearnedSkill 表
             try:
-                new_skill = LearnedSkill(
+                new_skill = LearnedSkill(member_id=current_user.id if current_user else 0, 
                     name=skill_dict.get("name", "unnamed_skill"),
                     description=skill_dict.get("description", ""),
                     namespace=skill_dict.get("namespace", "misc"),
@@ -1663,7 +1662,7 @@ async def run_smart_synthesis(
         logger.exception(f"Smart synthesis failed for job {job_id}: {e}")
 
         async with session_scope() as db:
-            stmt = select(SynthesisJob).where(SynthesisJob.id == job_id)
+            stmt = select(SynthesisJob).where(SynthesisJob.member_id == (current_user.id if current_user else 0)).where(SynthesisJob.id == job_id)
             result = await db.execute(stmt)
             job = result.scalar_one()
 
@@ -1675,14 +1674,14 @@ async def run_smart_synthesis(
 
 
 @router.get("/synthesis-jobs/{job_id}", response_model=SynthesisJobResponse)
-async def get_synthesis_job(job_id: int):
+async def get_synthesis_job(job_id: int, current_user: CurrentUserOptional = None):
     """
     获取合成任务状态和结果
     """
     from sqlalchemy import select
 
     async with session_scope() as db:
-        stmt = select(SynthesisJob).where(SynthesisJob.id == job_id)
+        stmt = select(SynthesisJob).where(SynthesisJob.member_id == (current_user.id if current_user else 0)).where(SynthesisJob.id == job_id)
         result = await db.execute(stmt)
         job = result.scalar_one_or_none()
 
@@ -1711,14 +1710,14 @@ async def get_synthesis_job(job_id: int):
 
 
 @router.get("/recordings/{session_id}/synthesis-jobs", response_model=list[SynthesisJobResponse])
-async def list_session_synthesis_jobs(session_id: str):
+async def list_session_synthesis_jobs(session_id: str, current_user: CurrentUserOptional = None):
     """
     获取录制的所有合成任务
     """
     from sqlalchemy import select
 
     async with session_scope() as db:
-        stmt = select(SynthesisJob).where(
+        stmt = select(SynthesisJob).where(SynthesisJob.member_id == (current_user.id if current_user else 0)).where(
             SynthesisJob.session_id == session_id
         ).order_by(SynthesisJob.created_at.desc())
 
@@ -1746,8 +1745,7 @@ async def list_session_synthesis_jobs(session_id: str):
 @router.delete("/recordings/{session_id}", response_model=CleanupRecordingResponse)
 async def cleanup_recording_session(
     session_id: str,
-    video_path: str | None = None
-):
+    video_path: str | None = None, current_user: CurrentUserOptional = None):
     """
     清理录制会话的所有关联数据。
 
@@ -1770,7 +1768,7 @@ async def cleanup_recording_session(
     try:
         async with session_scope() as db:
             # 1. 删除 TraceEvent（包括所有事件和 region_extract 标注）
-            stmt = delete(TraceEvent).where(
+            stmt = delete(TraceEvent).where(TraceEvent.member_id == (current_user.id if current_user else 0)).where(
                 or_(
                     TraceEvent.recording_session_id == session_id,
                     TraceEvent.session_id == session_id
@@ -1780,7 +1778,7 @@ async def cleanup_recording_session(
             deleted_counts["events"] = getattr(result, "rowcount", 0)
 
             # 2. 删除 SynthesisJob
-            stmt = delete(SynthesisJob).where(SynthesisJob.session_id == session_id)
+            stmt = delete(SynthesisJob).where(SynthesisJob.member_id == (current_user.id if current_user else 0)).where(SynthesisJob.session_id == session_id)
             result = await db.execute(stmt)
             deleted_counts["jobs"] = getattr(result, "rowcount", 0)
 
@@ -1806,13 +1804,13 @@ async def cleanup_recording_session(
 
 
 @router.post("/skills/{skill_id}/confirm", response_model=BaseAPIResponse)
-async def confirm_learned_skill(skill_id: int):
+async def confirm_learned_skill(skill_id: int, current_user: CurrentUserOptional = None):
     """
     [NEW] 用户确认合成的技能。
     将状态从 pending_review 更新为 verified。
     """
     async with session_scope() as db:
-        stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
+        stmt = select(LearnedSkill).where(LearnedSkill.member_id == (current_user.id if current_user else 0)).where(LearnedSkill.id == skill_id)
         skill = (await db.execute(stmt)).scalar_one_or_none()
 
         if not skill:
@@ -1844,8 +1842,7 @@ async def confirm_learned_skill(skill_id: int):
 @router.post("/skills/from-yaml", response_model=CreateSkillFromYamlResponse)
 async def create_skill_from_yaml(
     body: CreateSkillFromYamlRequest,
-    bg_tasks: BackgroundTasks
-):
+    bg_tasks: BackgroundTasks, current_user: CurrentUserOptional = None):
     """
     Create a new skill from YAML macro definition.
     
@@ -1880,14 +1877,14 @@ async def create_skill_from_yaml(
             counter = 1
             
             while True:
-                stmt = select(LearnedSkill).where(LearnedSkill.name == unique_name)
+                stmt = select(LearnedSkill).where(LearnedSkill.member_id == (current_user.id if current_user else 0)).where(LearnedSkill.name == unique_name)
                 existing = (await db.execute(stmt)).scalar_one_or_none()
                 if not existing:
                     break
                 unique_name = f"{base_name}_{counter}"
                 counter += 1
             
-            skill = LearnedSkill(
+            skill = LearnedSkill(member_id=current_user.id if current_user else 0, 
                 name=unique_name,
                 description=body.description or f"Created from YAML ({len(macro_script)} steps)",
                 namespace=body.namespace,
@@ -1917,7 +1914,7 @@ async def create_skill_from_yaml(
 
 
 @router.post("/skills/validate-yaml", response_model=ValidateYamlResponse)
-async def validate_skill_yaml(body: ValidateYamlRequest):
+async def validate_skill_yaml(body: ValidateYamlRequest, current_user: CurrentUserOptional = None):
     """
     Validate YAML macro format without creating a skill.
     Useful for frontend validation before saving.
@@ -1944,7 +1941,7 @@ async def validate_skill_yaml(body: ValidateYamlRequest):
 
 
 @router.get("/skills/{skill_id}/yaml")
-async def get_skill_yaml(skill_id: int):
+async def get_skill_yaml(skill_id: int, current_user: CurrentUserOptional = None):
     """
     Get skill macro as YAML format.
     
@@ -1972,7 +1969,7 @@ async def get_skill_yaml(skill_id: int):
 async def update_skill_yaml(
     skill_id: int,
     yaml_content: str = Body(..., media_type="text/yaml"),
-):
+    current_user: CurrentUserOptional = None):
     """
     Update skill macro from YAML content.
     

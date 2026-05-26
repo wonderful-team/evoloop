@@ -62,6 +62,7 @@ nodes:
       - "list_app_atlas"
       - "search_native_tools"
       - "save_concepts"
+      - "execute_universal_sql"
       # Wiki (Project documentation authoring)
       - "write_wiki_page"
       - "edit_wiki_page"

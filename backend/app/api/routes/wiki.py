@@ -12,7 +12,7 @@ import time
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlmodel import Session
 
-from app.api.deps import TokenDep, require_benefit
+from app.api.deps import CurrentUserOptional, TokenDep, require_benefit
 from app.domain.wiki.schemas import WikiGenerationRequest, WikiGenerationResponse, WikiPageRead
 from app.domain.wiki.service import wiki_service
 from app.core.engine.background_agent import run_agent_background
@@ -66,9 +66,13 @@ async def _ensure_wiki_generation_skill():
 
 
 @router.get("/{project_id}", response_model=list[WikiPageRead])
-async def get_wiki_pages(project_id: int, _token: TokenDep):
+async def get_wiki_pages(
+    project_id: int,
+    _token: TokenDep,
+    current_user: CurrentUserOptional = None,
+):
     """Get all wiki pages for a project."""
-    return wiki_service.get_pages(project_id)
+    return wiki_service.get_pages(project_id, member_id=current_user.id if current_user else None)
 
 
 @router.post("/generate", dependencies=[Depends(require_benefit("wiki_generation"))])
@@ -76,6 +80,7 @@ async def generate_wiki(
     req: WikiGenerationRequest,
     bg_tasks: BackgroundTasks,
     _token: TokenDep,
+    current_user: CurrentUserOptional = None,
 ) -> WikiGenerationResponse:
     """
     Trigger Wiki generation via Agent + Skill system.
@@ -137,6 +142,7 @@ async def generate_wiki(
         project_id=req.project_id,
         goal_prefix="[Wiki Generation] ",
         skip_message_persistence=True,
+        member_id=current_user.id if current_user else None,
     )
 
     if result.status == "failed":

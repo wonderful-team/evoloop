@@ -26,6 +26,9 @@ class TraceEvent(Base):
     run_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
     step_number: Mapped[int] = mapped_column(Integer)
 
+    # Owner member ID for multi-user isolation
+    member_id: Mapped[int] = mapped_column(Integer, default=0, index=True)
+
     # State Context
     node_name: Mapped[str] = mapped_column(String(100))
     state_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # Unified JSON field
@@ -134,6 +137,9 @@ class LearnedSkill(Base):
     # New fields compatibility
     project_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
 
+    # Owner member ID for multi-user isolation
+    member_id: Mapped[int] = mapped_column(Integer, default=0, index=True)
+
     # Phase 5: External Skill Support
     resource_path: Mapped[str | None] = mapped_column(String(500), nullable=True)  # Path to external resource folder (SKILL.md)
     validation_report: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # JSON report from SkillValidator
@@ -180,6 +186,9 @@ class SynthesisJob(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     session_id: Mapped[str] = mapped_column(String(255), index=True)
     thread_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+
+    # Owner member ID for multi-user isolation
+    member_id: Mapped[int] = mapped_column(Integer, default=0, index=True)
 
     # User input
     task_goal: Mapped[str] = mapped_column(Text)  # User's stated goal

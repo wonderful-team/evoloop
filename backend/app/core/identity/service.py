@@ -1,6 +1,7 @@
 import logging
 import time
 
+from app.core.config import settings
 from app.models.schemas.auth import LoginResult
 from .store import IdentityStore
 
@@ -61,10 +62,14 @@ class IdentityService:
 
     async def get_access_token(self) -> str | None:
         """Retrieves the access token from cache-backed storage."""
+        if settings.MULTI_TENANT_MODE:
+            return None
         return await self.store.get_access_token()
 
     async def get_refresh_token(self) -> str | None:
         """Retrieves the refresh token from cache-backed storage."""
+        if settings.MULTI_TENANT_MODE:
+            return None
         return await self.store.get_refresh_token()
 
     async def resolve_member_id_from_token(self, token: str) -> int | None:
@@ -100,13 +105,13 @@ class IdentityService:
 
                     # Sync to store only if user changed (e.g. login on another device/client)
                     # or if the store is currently empty.
-                    # DO NOT sync if it's the same user to avoid overwriting a newly
-                    # refreshed backend session with an older token from the frontend.
-                    stored_mid = await self.store.get_member_id()
-                    if stored_mid is None or stored_mid != mid:
-                        logger.info(f"[Identity] Syncing session to store for new/different user (mid: {mid})")
-                        await self.store.save_access_token(token)
-                        await self.store.save_member_id(mid)
+                    # Sync to store only if user changed AND we are in single-user mode
+                    if not settings.MULTI_TENANT_MODE:
+                        stored_mid = await self.store.get_member_id()
+                        if stored_mid is None or stored_mid != mid:
+                            logger.info(f"[Identity] Syncing session to store for new/different user (mid: {mid})")
+                            await self.store.save_access_token(token)
+                            await self.store.save_member_id(mid)
                     return mid
         except Exception as e:
             logger.error(f"Failed to resolve member_id from token: {e}")
@@ -120,6 +125,10 @@ class IdentityService:
         """
         if token:
             return await self.resolve_member_id_from_token(token)
+
+        if settings.MULTI_TENANT_MODE:
+            return None
+
         return await self.store.get_member_id()
 
     async def is_logged_in(self) -> bool:

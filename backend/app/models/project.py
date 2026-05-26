@@ -30,6 +30,9 @@ class ProjectTask(Base):
     
     project_id: Mapped[int] = mapped_column(Integer, index=True)
 
+    # Owner member ID for multi-user isolation
+    member_id: Mapped[int] = mapped_column(Integer, default=0, index=True)
+
     # EvoCloud task ID (backfilled after sync)
     evocloud_task_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 

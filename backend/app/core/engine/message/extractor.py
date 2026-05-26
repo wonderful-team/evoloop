@@ -24,7 +24,6 @@ AUDIO_EXTENSIONS = {".mp3", ".wav", ".ogg", ".m4a", ".flac", ".aac"}
 
 # 代码块类型 → artifact_type 映射
 ARTIFACT_CODE_BLOCK_TYPES = {
-    "echarts": "echarts",
     "mermaid": "mermaid",
     "map": "map",
     "artifact": "html",
@@ -41,8 +40,8 @@ _CODE_BLOCK_PATTERN = re.compile(r"```(\w+)\s*\n(.*?)```", re.DOTALL)
 # 正则：匹配引用标记 @[type:id]（如 @[message:uuid] 或 @[skill:skill_id]）
 _REFERENCE_PATTERN = re.compile(r"@\[(message|skill):([\w\-]+)\]")
 
-# 正则：匹配标准引用标记 [REF: type=TYPE id=ID name=NAME]
-_REF_TAG_PATTERN = re.compile(r"\[REF:\s+type=(\w+)\s+(?:id|path)=([\w\-./]+)(?:\s+name=[\"']?([^\]\"']+)[\"']?)?\]")
+# 正则：匹配标准引用标记 [REF: type=TYPE id=ID name=NAME] 或简写 [REF: TYPE=ID]
+_REF_TAG_PATTERN = re.compile(r"\[REF:\s+(?:type=(\w+)\s+(?:id|path)=|(\w+)=)([\w\-./:]+)(?:\s+name=[\"']?([^\]\"']+)[\"']?)?\]")
 
 # 正则：匹配 JSON 风格的 artifact 块
 _JSON_BLOCK_PATTERN = re.compile(r"```json\s*\n?(.*?)\n?```", re.DOTALL)
@@ -124,9 +123,9 @@ class AttachmentExtractor:
 
         # --- 3. 扫描标准引用标记 [REF: ...] ---
         for match in _REF_TAG_PATTERN.finditer(content):
-            ref_type = match.group(1)
-            target_id = match.group(2)
-            target_name = match.group(3) or target_id.rsplit("/", 1)[-1]
+            ref_type = match.group(1) or match.group(2)
+            target_id = match.group(3)
+            target_name = match.group(4) or target_id.rsplit("/", 1)[-1]
 
             # Standardized key: type + target_id
             key = f"ref:{ref_type}:{target_id}"
@@ -137,7 +136,7 @@ class AttachmentExtractor:
             references.append({
                 "id": str(uuid.uuid4()),
                 "type": ref_type,
-                "target_id": target_id,
+                "target_id": final_target_id,
                 "target_name": target_name,
                 "metadata": {
                     "source_id": target_id,

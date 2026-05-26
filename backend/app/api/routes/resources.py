@@ -3,6 +3,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 
+from app.api.deps import CurrentUserOptional
 from app.api.schemas.resources import ResourceCreate, ResourceResponse, OperationResponse
 from app.infrastructure.database.sql.database import get_db_session
 from app.models import ProjectResource
@@ -11,11 +12,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects/{project_id}/resources", tags=["resources"])
 
 @router.get("", response_model=list[ResourceResponse])
-async def list_resources(project_id: int):
+async def list_resources(project_id: int, current_user: CurrentUserOptional = None):
     """List all pinned resources for a project."""
     try:
         async with get_db_session() as session:
-            stmt = select(ProjectResource).where(ProjectResource.project_id == project_id).order_by(ProjectResource.created_at.desc())
+            stmt = select(ProjectResource).where(ProjectResource.member_id == (current_user.id if current_user else 0)).where(ProjectResource.project_id == project_id).order_by(ProjectResource.created_at.desc())
             result = await session.execute(stmt)
             resources = result.scalars().all()
             return [
@@ -34,13 +35,13 @@ async def list_resources(project_id: int):
         return []
 
 @router.post("", response_model=ResourceResponse)
-async def create_resource(project_id: int, req: ResourceCreate):
+async def create_resource(project_id: int, req: ResourceCreate, current_user: CurrentUserOptional = None):
     """Add a new resource (Pin a file or add a link)."""
     try:
         async with get_db_session() as session:
             # Idempotency check for files: don't double pin
             if req.type == "file":
-                stmt = select(ProjectResource).where(
+                stmt = select(ProjectResource).where(ProjectResource.member_id == (current_user.id if current_user else 0)).where(
                     ProjectResource.project_id == project_id,
                     ProjectResource.type == "file",
                     ProjectResource.content == req.content,
@@ -58,7 +59,7 @@ async def create_resource(project_id: int, req: ResourceCreate):
                         created_at=existing.created_at.isoformat(),
                     )
 
-            resource = ProjectResource(
+            resource = ProjectResource(member_id=current_user.id if current_user else 0, 
                 project_id=project_id,
                 type=req.type,
                 name=req.name,
@@ -81,7 +82,7 @@ async def create_resource(project_id: int, req: ResourceCreate):
         raise HTTPException(500, str(e))
 
 @router.delete("/{resource_id}", response_model=OperationResponse)
-async def delete_resource(project_id: int, resource_id: int):
+async def delete_resource(project_id: int, resource_id: int, current_user: CurrentUserOptional = None):
     """Remove a resource."""
     try:
         async with get_db_session() as session:

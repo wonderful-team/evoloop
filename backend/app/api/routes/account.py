@@ -4,13 +4,16 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
-from app.api.schemas.account import MobileCodeRequest, MobileLoginRequest, MobileCodeResponse, WeChatConfigResponse, \
-    WeChatQRResponse, WeChatStatusResponse, LogoutResponse
+from app.api.schemas.account import (
+    MobileCodeRequest, MobileLoginRequest, MobileCodeResponse, WeChatConfigResponse,
+    WeChatQRResponse, WeChatStatusResponse, LogoutResponse,
+)
 from app.core.evocloud import evocloud_manager
 from app.core.events.publishers import publish_user_logged_in, publish_user_logged_out
 from app.core.identity import identity_service
 from app.models import Token
 from app.models.schemas.auth import EvoCloudProxyResponse
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +50,11 @@ async def login_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Dep
     if not token:
         raise HTTPException(status_code=500, detail="Session missing token")
 
-    # Save access token and member_id to local store
-    await identity_service.login_with_cloud_result(result)
-
-    # Notify all modules that user has logged in
-    await publish_user_logged_in(token=token, member_id=member_id)
+    # Save access token and member_id to local store (Only in single-user mode)
+    if not settings.MULTI_TENANT_MODE:
+        await identity_service.login_with_cloud_result(result)
+        # Notify all modules that user has logged in
+        await publish_user_logged_in(token=token, member_id=member_id)
 
     return Token(access_token=token, token_type="bearer")
 
@@ -104,11 +107,11 @@ async def login_mobile(req: MobileLoginRequest):
     if not token:
         raise HTTPException(status_code=500, detail="Session missing token")
 
-    # Save access token to local store
-    await identity_service.login_with_cloud_result(result)
-
-    # Notify all modules that user has logged in
-    await publish_user_logged_in(token=token, member_id=result.get("member_id"))
+    # Save access token to local store (Only in single-user mode)
+    if not settings.MULTI_TENANT_MODE:
+        await identity_service.login_with_cloud_result(result)
+        # Notify all modules that user has logged in
+        await publish_user_logged_in(token=token, member_id=result.get("member_id"))
 
     return Token(access_token=token, token_type="bearer")
 
@@ -231,11 +234,13 @@ async def wechat_direct_login(
         if not member_id:
             raise HTTPException(status_code=500, detail="Cloud session missing member_id")
 
-        # Save access token to local store
+        # Save access token to local store (Only in single-user mode)
         from app.models.schemas.auth import LoginResult
-        await identity_service.login_with_cloud_result(
-            LoginResult(success=True, token=member_center_token, member_id=int(member_id), data=data)
-        )
+        if not settings.MULTI_TENANT_MODE:
+            await identity_service.login_with_cloud_result(
+                LoginResult(success=True, token=member_center_token, member_id=int(member_id), data=data)
+            )
+            await publish_user_logged_in(token=member_center_token, member_id=int(member_id))
         return Token(access_token=member_center_token, token_type="bearer")
 
     except HTTPException:

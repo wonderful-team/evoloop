@@ -23,6 +23,9 @@ class AutonomousTask(Base):
     # Intent Context
     intent_description: Mapped[str] = mapped_column(Text)  # High-level goal (e.g. "Monitor iPhone 15 prices daily")
     project_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
+
+    # Owner member ID for multi-user isolation
+    member_id: Mapped[int] = mapped_column(Integer, default=0, index=True)
     
     # Execution Blueprint
     skill_id: Mapped[int] = mapped_column(Integer, ForeignKey("learned_skills.id"), index=True)

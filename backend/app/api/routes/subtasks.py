@@ -1,15 +1,9 @@
-"""
-Subtask API Routes.
-
-Provides hierarchical task management for Agent task planning.
-"""
-
 import logging
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 
-from app.api.deps import TokenDep
+from app.api.deps import CurrentUserOptional, TokenDep
 from app.api.responses import BaseAPIResponse
 from app.api.schemas.subtasks import TaskWithSubtasksCreate, TaskProgressUpdate, TaskCreateResponse, \
     TaskTreeWrapperResponse, NextTaskResponse, TaskFlatResponse, TaskListItem, TaskListResponse
@@ -25,7 +19,8 @@ router = APIRouter(prefix="/projects/{project_id}/subtasks", tags=["subtasks"])
 async def create_task_with_subtasks(
     project_id: int,
     req: TaskWithSubtasksCreate,
-    token: TokenDep = None
+    token=None,
+    current_user: CurrentUserOptional = None,
 ):
     """
     Create a parent task with optional subtasks.
@@ -48,6 +43,7 @@ async def create_task_with_subtasks(
     try:
         # Generate dummy analysis_id if not provided
         analysis_id = req.analysis_id or f"direct-{gen_uuid()}"
+        member_id = current_user.id if current_user else 0
         
         task = await subtask_service.create_task_with_subtasks(
             project_id=project_id,
@@ -57,7 +53,8 @@ async def create_task_with_subtasks(
             priority=req.priority,
             estimated_hours=req.estimated_hours,
             subtasks=[s.model_dump() for s in req.subtasks],
-            created_by="api"
+            created_by="api",
+            member_id=member_id,
         )
         
         # Get full tree
@@ -170,7 +167,8 @@ async def list_root_tasks(
     project_id: int,
     status: Optional[str] = None,
     limit: int = 50,
-    token: TokenDep = None
+    token=None,
+    current_user: CurrentUserOptional = None,
 ):
     """List root tasks (parent tasks) for a project."""
     from sqlalchemy import select
@@ -185,6 +183,8 @@ async def list_root_tasks(
         
         if status:
             query = query.where(ProjectTask.status == status)
+        if current_user is not None:
+            query = query.where(ProjectTask.member_id == current_user.id)
             
         result = await session.execute(query)
         tasks = result.scalars().all()

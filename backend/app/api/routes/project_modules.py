@@ -23,12 +23,12 @@ def get_token(authorization: str | None = Header(None)):
 
 @router.get("/budget/list")
 async def get_budget_list(project_id: int, page: int = 1, page_size: int = 50, token: TokenDep = None):
-    return await evocloud_manager.api.get_budget_list(project_id, page, page_size)
+    return await evocloud_manager.api.get_budget_list(project_id, page, page_size, token=token)
 
 
 @router.get("/budget/overview")
 async def get_budget_overview(project_id: int, token: TokenDep = None):
-    return await evocloud_manager.api.get_budget_overview(project_id)
+    return await evocloud_manager.api.get_budget_overview(project_id, token=token)
 
 
 @router.get("/timesheet/list", dependencies=[Depends(require_benefit("timesheet"))])

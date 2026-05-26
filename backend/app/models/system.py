@@ -81,6 +81,7 @@ class ProjectResource(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     project_id: Mapped[int] = mapped_column(Integer, index=True)
+    member_id: Mapped[int] = mapped_column(Integer, default=0, index=True)  # Owner member ID
     type: Mapped[str] = mapped_column(String(50))  # 'file', 'link'
     name: Mapped[str] = mapped_column(String(255))
     content: Mapped[str] = mapped_column(Text)  # Relative Path or URL

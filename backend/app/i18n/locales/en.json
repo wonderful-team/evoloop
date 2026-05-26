@@ -173,6 +173,7 @@
       "list_app_atlas": "Listing app atlas",
       "save_concepts": "Saving concepts",
       "query_excel_sql": "Querying Excel '{file_path}'",
+      "execute_universal_sql": "Executing DB Query (SQL: {sql_query})",
       "wait_for": "Waiting for {seconds}s",
       "auto_harvest_from_git": "Auto harvesting from Git",
       "search_native_tools": "Searching native tools '{query}'",

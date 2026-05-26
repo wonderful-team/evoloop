@@ -6,7 +6,7 @@ import os
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 
-from app.api.deps import TokenDep, TokenDepOptional
+from app.api.deps import TokenDep, TokenDepOptional, CurrentUserOptional
 from app.api.responses import ListResponse
 from app.api.schemas.projects import (
     IndexingRequest,
@@ -94,7 +94,7 @@ async def get_projects(
     _token: TokenDepOptional = None
 ):
     # 1. Fetch from Cloud and extract projects
-    res = await evocloud_manager.api.get_projects(page, page_size)
+    res = await evocloud_manager.api.get_projects(page, page_size, token=_token)
     projects, container = _extract_projects(res)
 
     # 2. Scan WORKSPACE_ROOT for actual local projects
@@ -415,7 +415,7 @@ async def get_current_project(_token: TokenDep):
     Get current project from Cloud (User's focus on Web/Mobile).
     Also returns Local Focus if configured.
     """
-    cloud_res = await evocloud_manager.api.get_current_project()
+    cloud_res = await evocloud_manager.api.get_current_project(token=_token)
     # Add local context if needed
     # ...
     return cloud_res
@@ -441,7 +441,7 @@ async def create_project(req: CreateProjectRequest, _token: TokenDep):
             f.write(f'{{"name": "{req.name}", "description": "Created via EvoLoop"}}')
 
         # Sync with Member Center
-        res = await evocloud_manager.api.create_project(req.name, "Created via EvoLoop", project_path)
+        res = await evocloud_manager.api.create_project(req.name, "Created via EvoLoop", project_path, token=_token)
         if res.get("code") != 0:
             logger.warning(f"Failed to sync project creation to Member Center: {res}")
 
@@ -495,11 +495,11 @@ async def get_project_status(project_id: int):
 
 
 @router.delete("/{project_id}", response_model=ProjectDeleteResponse)
-async def delete_project(project_id: int):
+async def delete_project(project_id: int, _token: TokenDep):
     """Delete a project from Cloud and clean up all local associated data."""
     try:
         # 1. Delete from Cloud
-        res = await evocloud_manager.api.delete_project(project_id)
+        res = await evocloud_manager.api.delete_project(project_id, token=_token)
         if res.get("code") != 0:
             raise HTTPException(500, f"Failed to delete project: {res.get('message')}")
     except HTTPException:
@@ -620,7 +620,11 @@ async def scan_workspace_projects_endpoint(_token: TokenDep):
 
 
 @router.get("/detected", response_model=ListResponse[DetectedProjectItem])
-async def get_detected_projects(force: bool = False, _token: TokenDepOptional = None):
+async def get_detected_projects(
+    force: bool = False,
+    _token: TokenDepOptional = None,
+    current_user: CurrentUserOptional = None,
+):
     """
     Get all newly detected projects awaiting user confirmation.
 
@@ -640,7 +644,8 @@ async def get_detected_projects(force: bool = False, _token: TokenDepOptional = 
             return {"data": []}
 
     try:
-        repos = await project_sync_service.get_detected_projects()
+        member_id = current_user.id if current_user else None
+        repos = await project_sync_service.get_detected_projects(member_id=member_id)
         return ListResponse[DetectedProjectItem](
             data=[
                 DetectedProjectItem(
@@ -704,7 +709,10 @@ async def ignore_detected_project(repo_id: int, _token: TokenDep):
 
 
 @router.get("/ignored", response_model=ListResponse[DetectedProjectItem])
-async def get_ignored_projects(_token: TokenDep):
+async def get_ignored_projects(
+    _token: TokenDep,
+    current_user: CurrentUserOptional = None,
+):
     """
     Get all ignored projects.
 
@@ -713,7 +721,8 @@ async def get_ignored_projects(_token: TokenDep):
     from app.domain.project.sync_service import project_sync_service
 
     try:
-        repos = await project_sync_service.get_ignored_projects()
+        member_id = current_user.id if current_user else None
+        repos = await project_sync_service.get_ignored_projects(member_id=member_id)
         return ListResponse[DetectedProjectItem](
             data=[
                 DetectedProjectItem(

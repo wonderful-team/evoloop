@@ -175,6 +175,7 @@
       "list_app_atlas": "列出应用图谱",
       "save_concepts": "保存概念",
       "query_excel_sql": "查询 Excel '{file_path}'[[ (SQL: {query}) ]]",
+      "execute_universal_sql": "查询数据库[[ (SQL: {sql_query}) ]]",
       "wait_for": "等待 {seconds} 秒",
       "auto_harvest_from_git": "自动从 Git 收获知识",
       "search_native_tools": "搜索原生工具 '{query}'[[ (限制: {limit}) ]]",

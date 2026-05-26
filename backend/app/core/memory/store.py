@@ -480,6 +480,7 @@ class _FileEngine:
         privacy_filter: PrivacyLevel | None = None,
         project_id: int | None = None,
         limit: int | None = None,
+        member_id: int = 0,
     ) -> list[MemorySearchResult]:
         if not self._initialized:
             await self.initialize()
@@ -490,6 +491,8 @@ class _FileEngine:
             sql_filters["privacy"] = privacy_filter.value
         if project_id is not None:
             sql_filters["project_id"] = project_id
+        if member_id is not None:
+            sql_filters["member_id"] = member_id
 
         rows = await self._sqlite_search(sql_filters, limit=limit or 1000)
         return [
@@ -653,6 +656,7 @@ class _FileEngine:
                     description TEXT,
                     path TEXT NOT NULL,
                     project_id INTEGER,
+                    member_id INTEGER,
                     user_id TEXT,
                     source TEXT,
                     source_message_id TEXT,
@@ -684,14 +688,14 @@ class _FileEngine:
             await db.execute("""
                 INSERT OR REPLACE INTO memory_index (
                     id, type, tier, privacy, title, description, path,
-                    project_id, user_id, source, source_message_id, run_id,
+                    project_id, member_id, user_id, source, source_message_id, run_id,
                     content_hash, confidence, utility_score, version,
                     created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 entry.id, entry.type.value, entry.tier.value, entry.privacy.value,
                 entry.title, entry.description, str(file_path),
-                entry.project_id, entry.user_id, entry.source,
+                entry.project_id, entry.member_id, entry.user_id, entry.source,
                 entry.source_message_id, entry.run_id,
                 entry.content_hash, entry.confidence, entry.utility_score,
                 entry.version, entry.created_at.isoformat(),
@@ -741,7 +745,7 @@ class _FileEngine:
 
         ALLOWED_COLUMNS = {
             "id", "type", "tier", "privacy", "title", "description", "path",
-            "project_id", "user_id", "source", "source_message_id", "run_id",
+            "project_id", "member_id", "user_id", "source", "source_message_id", "run_id",
             "content_hash", "confidence", "utility_score", "version",
             "created_at", "updated_at",
         }
@@ -911,6 +915,7 @@ class _GraphEngine:
         privacy_filter: PrivacyLevel | None = None,
         project_id: int | None = None,
         limit: int | None = None,
+        member_id: int = 0,
     ) -> list[MemorySearchResult]:
         if not self._driver:
             raise RuntimeError("Graph driver not initialized")
@@ -1163,9 +1168,10 @@ class MemoryStore:
         privacy_filter: PrivacyLevel | None = None,
         project_id: int | None = None,
         limit: int | None = None,
+        member_id: int = 0,
     ) -> list[MemorySearchResult]:
         return await self._engine.list_all(
-            type_filter, privacy_filter, project_id, limit
+            type_filter, privacy_filter, project_id, limit, member_id
         )
 
     async def get_recent(

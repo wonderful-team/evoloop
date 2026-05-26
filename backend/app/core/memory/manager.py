@@ -190,7 +190,8 @@ class MemoryManager:
         concept: Concept | str,
         description: str | None = None,
         project_id: int | None = DEFAULT_PROJECT_ID,
-        related_files: list[str] | None = None
+        related_files: list[str] | None = None,
+        member_id: int = 0,
     ) -> None:
         """
         Store a domain concept.
@@ -221,11 +222,12 @@ class MemoryManager:
             content=concept_obj.description,
             description=concept_obj.description[:200],
             project_id=concept_obj.project_id,
+            member_id=member_id,
             tags=["concept"] + concept_obj.related_files,
         )
         await self.save_memory(entry)
 
-    async def search_concepts(self, query: str, project_id: int | None = None, limit: int = 10) -> list[Concept]:
+    async def search_concepts(self, query: str, project_id: int | None = None, limit: int = 10, member_id: int = 0) -> list[Concept]:
         """
         Search for domain concepts.
         Delegates to specialized storage if available, otherwise falls back to semantic search.
@@ -240,18 +242,19 @@ class MemoryManager:
             query=query,
             types=[MemoryType.CONCEPT],
             project_id=project_id,
+            member_id=member_id,
             limit=limit,
         )
         return [Concept(name=e.title, description=e.content, related_files=e.tags) for e in entries]
 
-    async def search_concepts_data(self, query: str, project_id: int | None = None, limit: int = 10) -> list[dict]:
+    async def search_concepts_data(self, query: str, project_id: int | None = None, limit: int = 10, member_id: int = 0) -> list[dict]:
         """
         Search for domain concepts and return raw data.
         """
         if hasattr(self._storage, "search_concepts_data"):
             return await self._storage.search_concepts_data(query, project_id)
         
-        concepts = await self.search_concepts(query, project_id, limit)
+        concepts = await self.search_concepts(query, project_id, limit, member_id)
         return [{"name": c.name, "description": c.description, "project_id": c.project_id} for c in concepts]
 
     async def get_project_concepts(self, project_id: int) -> list[str]:
@@ -264,13 +267,13 @@ class MemoryManager:
         results = await self.list_memories(type_filter=MemoryType.CONCEPT, limit=100)
         return [f"{m.title}: {m.description}" for m in results]
 
-    async def find_episodes_by_concept(self, concept_name: str, project_id: int | None = None, limit: int = 10) -> list[dict]:
+    async def find_episodes_by_concept(self, concept_name: str, project_id: int | None = None, limit: int = 10, member_id: int = 0) -> list[dict]:
         """Find all episodes linked to a specific concept."""
         if hasattr(self._storage, "find_episodes_by_concept"):
             return await self._storage.find_episodes_by_concept(concept_name, limit)
         return []
 
-    async def get_concept_episode_counts_batch(self, project_id: int | None = None) -> dict[str, int]:
+    async def get_concept_episode_counts_batch(self, project_id: int | None = None, member_id: int = 0) -> dict[str, int]:
         """Efficiently get counts for all concepts in one go."""
         if hasattr(self._storage, "get_all_concept_counts"):
             return await self._storage.get_all_concept_counts()
@@ -307,6 +310,7 @@ class MemoryManager:
             content=f"Goal: {goal}\nOutcome: {outcome}",
             description=outcome[:200],
             project_id=project_id,
+            member_id=getattr(episode, "member_id", 0),
             source_message_id=source_message_id,
             source="episode_recording",
             tags=["episode"],
@@ -314,7 +318,7 @@ class MemoryManager:
         await self.save_memory(entry)
         return entry_id
 
-    async def search_episodes(self, query: str, project_id: int | None = None, limit: int = 5) -> list[dict]:
+    async def search_episodes(self, query: str, project_id: int | None = None, limit: int = 5, member_id: int = 0) -> list[dict]:
         """Search for execution episodes."""
         # 1. Try specialized storage (using retrieve_experience conceptually)
         if hasattr(self._storage, "search_episodes"):
@@ -325,6 +329,7 @@ class MemoryManager:
             query=query,
             types=[MemoryType.EPISODE],
             project_id=project_id,
+            member_id=member_id,
             limit=limit,
         )
         return [{
@@ -334,13 +339,13 @@ class MemoryManager:
             'timestamp': r.updated_at.isoformat() if r.updated_at else '',
         } for r in results]
 
-    async def retrieve_experience(self, goal: str, project_id: int, top_k: int = 3) -> str:
+    async def retrieve_experience(self, goal: str, project_id: int, top_k: int = 3, member_id: int = 0) -> str:
         """Find past episodes similar to the current goal."""
         if hasattr(self._storage, "retrieve_experience"):
             return await self._storage.retrieve_experience(goal, project_id, top_k=top_k)
         
         # Fallback to simple episode search and formatting
-        episodes = await self.search_episodes(goal, project_id, limit=top_k)
+        episodes = await self.search_episodes(goal, project_id, limit=top_k, member_id=member_id)
         if not episodes:
             return ""
         
@@ -411,6 +416,7 @@ class MemoryManager:
         project_id: int | None = None,
         filters: dict[str, Any] | None = None,
         limit: int = 10,
+        member_id: int = 0,
     ) -> list[MemoryEntry]:
         """
         Search long-term memories.
@@ -517,6 +523,7 @@ class MemoryManager:
         privacy_filter: PrivacyLevel | None = None,
         project_id: int | None = None,
         limit: int | None = None,
+        member_id: int = 0,
     ) -> list[MemorySearchResult]:
         """
         List memories (lightweight).
@@ -534,7 +541,8 @@ class MemoryManager:
             type_filter=type_filter,
             privacy_filter=privacy_filter,
             project_id=project_id,
-            limit=limit
+            limit=limit,
+            member_id=member_id
         )
 
     async def get_recent_memories(

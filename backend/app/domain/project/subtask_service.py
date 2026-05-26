@@ -76,7 +76,8 @@ class SubtaskService:
         priority: str = "medium",
         estimated_hours: int = 0,
         subtasks: list[dict] = None,
-        created_by: str = "agent"
+        created_by: str = "agent",
+        member_id: int = 0,
     ) -> ProjectTask:
         """
         Create a parent task with optional subtasks.
@@ -90,6 +91,7 @@ class SubtaskService:
             estimated_hours: Estimated hours
             subtasks: List of subtask dicts [{"title": ..., "description": ..., ...}]
             created_by: Creator identifier
+            member_id: Owner member ID (0 = legacy/unknown)
             
         Returns:
             Created parent task with subtasks loaded
@@ -100,6 +102,7 @@ class SubtaskService:
                 id=gen_uuid(),
                 analysis_id=analysis_id,
                 project_id=project_id,
+                member_id=member_id,
                 parent_id=None,  # Root task
                 status="pending",
                 progress=0,
@@ -123,6 +126,7 @@ class SubtaskService:
                         id=gen_uuid(),
                         analysis_id=analysis_id,
                         project_id=project_id,
+                        member_id=member_id,
                         parent_id=parent_task.id,
                         status="pending",
                         progress=0,

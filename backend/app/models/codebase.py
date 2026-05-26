@@ -16,6 +16,9 @@ class Repository(Base):
     # We index it for faster lookups, but DO NOT enforce foreign key constraint to a local table
     project_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
 
+    # Owner member ID for multi-user isolation
+    member_id: Mapped[int] = mapped_column(Integer, default=0, index=True)
+
     # Sync Status:
     # - "DETECTED": Newly detected, awaiting user confirmation
     # - "IGNORED": User chose to ignore

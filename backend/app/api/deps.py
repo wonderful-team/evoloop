@@ -63,22 +63,23 @@ TokenDepOptional = Annotated[str | None, Depends(oauth2_scheme_optional)]
 async def _get_authenticated_user(token: str | None = None) -> User | None:
     """
     Core authentication logic:
-    1. Check backend local session.
-    2. Check provided token.
+    1. Check provided token (Primary for SaaS/Multi-user).
+    2. Check backend local session (Fallback for Embedded/Desktop mode).
     """
     try:
-        # 1. Try resolving from the backend's own session store first (Source of Truth)
-        member_id = await identity_service.get_member_id()
-        if member_id:
-            active_token = await identity_service.get_access_token()
-            if active_token:
-                return User(id=member_id, is_active=True)
-
-        # 2. Fallback to token from frontend (if backend store is empty)
+        # 1. 优先使用请求中的 Token（SaaS 多用户模式）
         if token:
             member_id = await identity_service.resolve_member_id_from_token(token)
             if member_id:
                 return User(id=member_id, is_active=True)
+
+        # 2. 回退：单用户模式（无 Header Token 场景）
+        if not settings.MULTI_TENANT_MODE:
+            member_id = await identity_service.get_member_id()
+            if member_id:
+                active_token = await identity_service.get_access_token()
+                if active_token:
+                    return User(id=member_id, is_active=True)
 
         return None
     except Exception as e:

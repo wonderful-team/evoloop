@@ -17,8 +17,11 @@ from app.api.schemas.files import (
     FileUploadResponse,
     FileSearchResult,
     FileNameSearchResult,
-    CreateFileRequest
+    CreateFileRequest,
+    MkdirRequest,
+    MoveFileRequest
 )
+from app.api.schemas.responses import BaseAPIResponse
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.domain.project.utils import get_project_path
@@ -320,3 +323,86 @@ async def search_files_by_name(project_id: int, q: str):
                 break
 
     return results
+
+@router.post("/mkdir", response_model=FileNode)
+async def create_directory(project_id: int, req: MkdirRequest):
+    """
+    Create an empty directory.
+    """
+    root_path = await get_project_path(project_id)
+    if not root_path:
+        raise HTTPException(status_code=404, detail="Project path invalid")
+
+    target_dir = os.path.join(root_path, req.path.lstrip("/"))
+
+    # Security check
+    if not os.path.commonpath([root_path, target_dir]) == root_path:
+        raise HTTPException(403, "Access denied")
+
+    try:
+        os.makedirs(target_dir, exist_ok=True)
+        return FileNode(name=os.path.basename(target_dir), path=req.path, type="directory")
+    except Exception as e:
+        logger.error(f"Failed to create directory {target_dir}: {e}")
+        raise HTTPException(500, f"Failed to create directory: {str(e)}")
+
+@router.post("/move", response_model=FileNode)
+async def move_file(project_id: int, req: MoveFileRequest):
+    """
+    Move or rename a file or directory.
+    """
+    root_path = await get_project_path(project_id)
+    if not root_path:
+        raise HTTPException(status_code=404, detail="Project path invalid")
+
+    source_file = os.path.join(root_path, req.source_path.lstrip("/"))
+    target_file = os.path.join(root_path, req.target_path.lstrip("/"))
+
+    # Security check
+    if not os.path.commonpath([root_path, source_file]) == root_path or \
+       not os.path.commonpath([root_path, target_file]) == root_path:
+        raise HTTPException(403, "Access denied")
+
+    if not os.path.exists(source_file):
+        raise HTTPException(404, "Source not found")
+
+    if os.path.exists(target_file):
+        raise HTTPException(409, "Target already exists")
+
+    try:
+        os.makedirs(os.path.dirname(target_file), exist_ok=True)
+        shutil.move(source_file, target_file)
+        
+        is_dir = os.path.isdir(target_file)
+        return FileNode(name=os.path.basename(target_file), path=req.target_path, type="directory" if is_dir else "file")
+    except Exception as e:
+        logger.error(f"Failed to move {source_file} to {target_file}: {e}")
+        raise HTTPException(500, f"Failed to move: {str(e)}")
+
+@router.delete("", response_model=BaseAPIResponse)
+async def delete_file(project_id: int, path: str = Query(..., min_length=1)):
+    """
+    Delete a file or directory.
+    """
+    root_path = await get_project_path(project_id)
+    if not root_path:
+        raise HTTPException(status_code=404, detail="Project path invalid")
+
+    target_file = os.path.join(root_path, path.lstrip("/"))
+
+    # Security check
+    if not os.path.commonpath([root_path, target_file]) == root_path:
+        raise HTTPException(403, "Access denied")
+
+    if not os.path.exists(target_file):
+        return BaseAPIResponse(status="success", message="File already deleted")
+
+    try:
+        if os.path.isdir(target_file):
+            shutil.rmtree(target_file)
+        else:
+            os.remove(target_file)
+        return BaseAPIResponse(status="success", message="File deleted")
+    except Exception as e:
+        logger.error(f"Failed to delete {target_file}: {e}")
+        raise HTTPException(500, f"Failed to delete: {str(e)}")

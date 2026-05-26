@@ -39,5 +39,8 @@ class TodoItem(Base):
     # Project Context
     project_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # Owner member ID for multi-user isolation
+    member_id: Mapped[int] = mapped_column(Integer, default=0, index=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

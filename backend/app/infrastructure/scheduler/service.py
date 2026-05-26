@@ -112,6 +112,7 @@ class SchedulerService:
                 raise ValueError(f"Skill ID {skill_id} not found.")
 
             task = AutonomousTask(
+                member_id=0,
                 intent_description=intent_description,
                 skill_id=skill_id,
                 trigger_spec=trigger_spec,
