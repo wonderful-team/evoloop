@@ -110,6 +110,96 @@ async def chat_endpoint(req: ChatRequest, bg_tasks: BackgroundTasks, _current_us
     bg_tasks.add_task(run_agent_background, req.thread_id, result.inputs)
     return {"status": "queued", "thread_id": req.thread_id, "message_id": result.message_id}
 
+@router.post("/chat/mock", dependencies=[Depends(verify_guest_access)])
+async def mock_chat(req: ChatRequest):
+    """
+    Simulate a mock chat execution by publishing directly to the event bus.
+    """
+    if not req.thread_id:
+        raise HTTPException(status_code=400, detail="thread_id is required")
+
+    from app.core.engine.message.event_bus import get_event_bus
+    from app.utils import json as utils_json
+    import asyncio
+    import datetime
+
+    bus = get_event_bus()
+    target_channel = f"chat:{req.thread_id}:events"
+    now_str = datetime.datetime.utcnow().isoformat() + "Z"
+
+    async def mock_publish():
+        # 1. Activity
+        await bus.publish(target_channel, utils_json.dumps({
+            "type": "activity",
+            "status": "running", 
+            "artifacts": [], 
+            "active_memories": [], 
+            "agent_state": None
+        }))
+        await asyncio.sleep(0.5)
+
+        # 2. Run Start
+        await bus.publish(target_channel, utils_json.dumps({
+            "type": "run_start",
+            "run_id": f"mock-{uuid.uuid4().hex[:6]}",
+            "goal": "Mock Request"
+        }))
+
+        # 3. Agent State
+        await bus.publish(target_channel, utils_json.dumps({
+            "type": "agent_state",
+            "mode": "EXECUTING", 
+            "task_status": "Generating response..."
+        }))
+        await asyncio.sleep(0.5)
+
+        # 4. Thinking
+        thinking = "正在生成模拟消息...\n"
+        for char in thinking:
+            await bus.publish(target_channel, utils_json.dumps({
+                "type": "thinking",
+                "content": char
+            }))
+            await asyncio.sleep(0.05)
+
+        # 5. Token
+        msg_text = "这是一条来自后端的 **Mock 模拟流式消息**！"
+        for char in msg_text:
+            await bus.publish(target_channel, utils_json.dumps({
+                "type": "token",
+                "content": char
+            }))
+            await asyncio.sleep(0.05)
+
+        # 6. Final Message
+        final_msg = {
+            "type": "message",
+            "action": "create",
+            "data": {
+                "id": f"msg-mock-{uuid.uuid4().hex[:6]}",
+                "role": "ai",
+                "type": "text",
+                "content": msg_text,
+                "thinking": thinking,
+                "created_at": now_str,
+                "status": "completed"
+            }
+        }
+        await bus.publish(target_channel, utils_json.dumps(final_msg))
+        await asyncio.sleep(0.5)
+
+        # 7. Run End
+        await bus.publish(target_channel, utils_json.dumps({
+            "type": "run_end",
+            "status": "done",
+            "final_outcome": "Mock Success"
+        }))
+
+    # Run the mock publication in background so we don't block the HTTP request
+    asyncio.create_task(mock_publish())
+    return {"status": "mocking", "thread_id": req.thread_id}
+
+
 @router.post("/chat/stop", response_model=StopChatResponse)
 async def stop_chat(req: ChatRequest):
     """

@@ -14,6 +14,7 @@ import { useChatStore } from "@/stores/chatStore";
 import { generateMockMessages, simulateStreaming } from "./debug/mockData";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from 'uuid';
+import { OpenAPI } from "@/client/core/OpenAPI";
 
 export function DebugManager() {
   const { messages, clearContent } = useChatStore();
@@ -27,34 +28,44 @@ export function DebugManager() {
 
   const startStreamingSimulation = async () => {
     if (isStreaming) return;
+    
+    const threadId = useChatStore.getState().threadId;
+    if (!threadId) {
+      toast.error("请先在左侧选中或创建一个对话");
+      return;
+    }
+
     setIsStreaming(true);
     
-    const msgId = uuidv4();
-    const newMsg: any = {
-      id: msgId,
-      role: "ai",
-      content: "",
-      thinking: "正在启动流式输出模拟...",
-      status: "streaming",
-      timestamp: new Date().toISOString(),
-    };
-    useChatStore.setState((s) => ({ messages: [...s.messages, newMsg] }));
-
     try {
-      await simulateStreaming((content) => {
-        useChatStore.setState((s) => ({
-          messages: s.messages.map((m) => m.id === msgId ? { ...m, content } : m)
-        }));
+      let token = "";
+      if (typeof OpenAPI.TOKEN === "function") {
+          const res = OpenAPI.TOKEN();
+          token = res instanceof Promise ? await res : res;
+      } else {
+          token = OpenAPI.TOKEN || "";
+      }
+
+      const response = await fetch(`${OpenAPI.BASE}/api/v1/agent/chat/mock`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          thread_id: threadId,
+          message: "Mock Stream Request"
+        })
       });
-      useChatStore.setState((s) => ({
-        messages: s.messages.map((m) => m.id === msgId ? { ...m, status: "completed" } : m)
-      }));
-      toast.success("流式输出完成");
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      toast.success("真实后端流式输出模拟已启动");
     } catch (err) {
-      useChatStore.setState((s) => ({
-        messages: s.messages.map((m) => m.id === msgId ? { ...m, status: "failed" } : m)
-      }));
-      toast.error("流式输出失败");
+      toast.error("请求后端模拟流失败");
+      console.error(err);
     } finally {
       setIsStreaming(false);
     }
