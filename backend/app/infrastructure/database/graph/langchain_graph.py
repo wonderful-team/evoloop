@@ -61,7 +61,7 @@ def create_langchain_graph() -> Any | None:
         logger.info("[LangchainGraphAdapter] Neo4jGraph initialized with manual schema")
         return graph
     except Exception as e:
-        logger.error(f"[LangchainGraphAdapter] Failed to initialize Neo4jGraph: {e}")
+        logger.warning(f"[LangchainGraphAdapter] Failed to initialize Neo4jGraph (falling back): {e}")
         return None
 
 
