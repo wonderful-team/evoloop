@@ -149,7 +149,7 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
             last_human_msg = get_last_human_message(raw_messages) or ""
 
             # Unified Context Hydration (Runs ONCE per session)
-            from app.core.memory.hydrator import AgentContextHydrator
+            from app.core.engine.context_hydrator import AgentContextHydrator
             await AgentContextHydrator.hydrate(
                 ctx=ctx,
                 blackboard=blackboard,
