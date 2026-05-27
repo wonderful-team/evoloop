@@ -2354,6 +2354,15 @@ export type AgentChatEndpointData = {
 
 export type AgentChatEndpointResponse = (unknown);
 
+export type AgentMockChatData = {
+    guestId?: (string | null);
+    requestBody: ChatRequest;
+    token?: (string | null);
+    xGuestId?: (string | null);
+};
+
+export type AgentMockChatResponse = (unknown);
+
 export type AgentStopChatData = {
     requestBody: ChatRequest;
 };

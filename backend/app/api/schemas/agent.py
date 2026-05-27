@@ -19,6 +19,7 @@ class ChatRequest(ScopedRequest):
     references: list[dict[str, Any]] | None = None
     skill_ids: list[int] | None = None
     revert_files: bool = True
+    scenario: str | None = None
 
 
 class WebhookRequest(ScopedRequest):

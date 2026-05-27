@@ -15,10 +15,12 @@ import { generateMockMessages, simulateStreaming } from "./debug/mockData";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from 'uuid';
 import { OpenAPI } from "@/client/core/OpenAPI";
+import { AgentService } from "@/client/sdk.gen";
 
 export function DebugManager() {
   const { messages, clearContent } = useChatStore();
   const [isStreaming, setIsStreaming] = React.useState(false);
+  const [currentScenario, setCurrentScenario] = React.useState<string | null>(null);
   
   const injectMocks = () => {
     const mocks = generateMockMessages();
@@ -26,7 +28,7 @@ export function DebugManager() {
     toast.success("5大类21种形态全域消息块已注入");
   };
 
-  const startStreamingSimulation = async () => {
+  const startStreamingSimulation = async (scenario: string = "happy_path") => {
     if (isStreaming) return;
     
     const threadId = useChatStore.getState().threadId;
@@ -36,31 +38,16 @@ export function DebugManager() {
     }
 
     setIsStreaming(true);
+    setCurrentScenario(scenario);
     
     try {
-      let token = "";
-      if (typeof OpenAPI.TOKEN === "function") {
-          const res = OpenAPI.TOKEN();
-          token = res instanceof Promise ? await res : res;
-      } else {
-          token = OpenAPI.TOKEN || "";
-      }
-
-      const response = await fetch(`${OpenAPI.BASE}/api/v1/agent/chat/mock`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
+      await AgentService.mockChat({
+        requestBody: {
           thread_id: threadId,
-          message: "Mock Stream Request"
-        })
+          message: "Mock Stream Request",
+          scenario: scenario
+        }
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
 
       toast.success("真实后端流式输出模拟已启动");
     } catch (err) {
@@ -68,6 +55,7 @@ export function DebugManager() {
       console.error(err);
     } finally {
       setIsStreaming(false);
+      setCurrentScenario(null);
     }
   };
 
@@ -129,18 +117,51 @@ export function DebugManager() {
         <div className="space-y-1">
           <DebugButton 
             icon={<Layers className="h-3.5 w-3.5" />} 
-            label="注入全能消息块" 
+            label="注入全域消息块 (本地)" 
             onClick={injectMocks}
             variant="primary"
           />
+
+          <div className="text-[9px] text-zinc-500 font-bold px-2 py-1 mt-1 border-t border-white/5 uppercase tracking-wide">
+            后端流式场景模拟
+          </div>
           
           <DebugButton 
             icon={<Play className="h-3.5 w-3.5" />} 
-            label="模拟 AI 流式输出" 
-            onClick={startStreamingSimulation}
+            label="模拟：正常流程" 
+            onClick={() => startStreamingSimulation("happy_path")}
             disabled={isStreaming}
-            loading={isStreaming}
+            loading={isStreaming && currentScenario === "happy_path"}
           />
+
+          <DebugButton 
+            icon={<CheckCircle2 className="h-3.5 w-3.5" />} 
+            label="模拟：交互拦截 (HITL)" 
+            onClick={() => startStreamingSimulation("hitl")}
+            disabled={isStreaming}
+            loading={isStreaming && currentScenario === "hitl"}
+          />
+
+          <DebugButton 
+            icon={<Database className="h-3.5 w-3.5" />} 
+            label="模拟：长程任务/文件" 
+            onClick={() => startStreamingSimulation("long_task")}
+            disabled={isStreaming}
+            loading={isStreaming && currentScenario === "long_task"}
+          />
+
+          <DebugButton 
+            icon={<Zap className="h-3.5 w-3.5" />} 
+            label="模拟：配额耗尽" 
+            onClick={() => startStreamingSimulation("quota_exhausted")}
+            disabled={isStreaming}
+            loading={isStreaming && currentScenario === "quota_exhausted"}
+            variant="danger"
+          />
+
+          <div className="text-[9px] text-zinc-500 font-bold px-2 py-1 border-t border-white/5 uppercase tracking-wide">
+            本地组件注入
+          </div>
 
           <div className="grid grid-cols-3 gap-1">
             <DebugButton 
