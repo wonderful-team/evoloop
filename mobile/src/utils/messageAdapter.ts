@@ -165,8 +165,6 @@ export function parseHITLRequest(msg: AgentSyncMessage): HumanRequest | null {
 export function adaptAgentMessages(
   rawMessages: AgentSyncMessage[],
 ): ChatMessage[] {
-  return rawMessages
-    .filter((m) => m.is_visible !== 0)
-    .map(adaptAgentMessage);
+  return rawMessages.map(adaptAgentMessage);
 }
 
