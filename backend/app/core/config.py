@@ -111,7 +111,7 @@ class Settings(BaseSettings):
     # "meilisearch": Force Meilisearch (external service)
     SEARCH_ENGINE: Literal["auto", "sqlite_fts", "meilisearch"] = "auto"
     SEARCH_DB_PATH: Annotated[str, BeforeValidator(expand_path)] = Field(
-        default_factory=lambda: os.path.expanduser("~/.evoloop/knowledge/search.db")
+        default_factory=lambda: os.path.expanduser("~/.evoloop/database/search.db")
     )
     # Meilisearch settings (used when SEARCH_ENGINE=meilisearch)
     MEILISEARCH_URL: str = "http://localhost:7700"
@@ -121,13 +121,13 @@ class Settings(BaseSettings):
     # Allow override via env var for dev/prod isolation
     SQLITE_PATH: Annotated[str, BeforeValidator(expand_path)] = Field(
         default_factory=lambda: os.path.expanduser(
-            os.getenv("SQLITE_DB_PATH", "~/.evoloop/backend.db")
+            os.getenv("SQLITE_DB_PATH", "~/.evoloop/database/backend.db")
         ),
     )
 
     # LanceDB (for embedded vector storage)
     LANCEDB_PATH: Annotated[str, BeforeValidator(expand_path)] = Field(
-        default_factory=lambda: os.path.expanduser("~/.evoloop/lancedb"),
+        default_factory=lambda: os.path.expanduser("~/.evoloop/database/lancedb"),
     )
 
     # Knowledge Base Storage
