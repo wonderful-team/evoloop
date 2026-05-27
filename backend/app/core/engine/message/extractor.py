@@ -2,7 +2,7 @@
 AttachmentExtractor — AI 回复产出物自动提取器。
 
 职责：
-1. 扫描 AI 回复文本，检测代码块类型（echarts/mermaid/map/artifact/react）和引用语法（[REF: ...] 或 uploads/）
+1. 扫描 AI 回复文本，检测代码块类型（echarts/mermaid/map/artifact/react）和标准 Markdown 引用（[链接](file://...) 或 uploads/）
 2. 将检测结果结构化为 ReferenceBlock 数据，自动挂载到 AI 消息的引用列表
 3. 无副作用：仅做数据提取，不操作数据库或文件系统
 """
@@ -40,8 +40,8 @@ _CODE_BLOCK_PATTERN = re.compile(r"```(\w+)\s*\n(.*?)```", re.DOTALL)
 # 正则：匹配引用标记 @[type:id]（如 @[message:uuid] 或 @[skill:skill_id]）
 _REFERENCE_PATTERN = re.compile(r"@\[(message|skill):([\w\-]+)\]")
 
-# 正则：匹配标准引用标记 [REF: type=TYPE id=ID name=NAME] 或简写 [REF: TYPE=ID]
-_REF_TAG_PATTERN = re.compile(r"\[REF:\s+(?:type=(\w+)\s+(?:id|path)=|(\w+)=)([\w\-./:]+)(?:\s+name=[\"']?([^\]\"']+)[\"']?)?\]")
+# 正则：匹配标准 Markdown 链接和图片：[text](file:///path) 或 ![text](/uploads/...)
+_MD_LINK_PATTERN = re.compile(r"!?\[([^\]]+)\]\((file://[^\)]+|/[^\)]+|\./[^\)]+|uploads/[^\)]+)\)")
 
 # 正则：匹配 JSON 风格的 artifact 块
 _JSON_BLOCK_PATTERN = re.compile(r"```json\s*\n?(.*?)\n?```", re.DOTALL)
@@ -121,17 +121,33 @@ class AttachmentExtractor:
             except (json.JSONDecodeError, TypeError):
                 continue
 
-        # --- 3. 扫描标准引用标记 [REF: ...] ---
-        for match in _REF_TAG_PATTERN.finditer(content):
-            ref_type = match.group(1) or match.group(2)
-            target_id = match.group(3)
-            target_name = match.group(4) or target_id.rsplit("/", 1)[-1]
+        # --- 3. 扫描标准 Markdown 链接 ---
+        for match in _MD_LINK_PATTERN.finditer(content):
+            target_name = match.group(1).strip()
+            target_id = match.group(2).strip()
+
+            # 按扩展名推断类型
+            lower_path = target_id.lower()
+            ext = "." + lower_path.rsplit(".", 1)[-1] if "." in lower_path else ""
+            if ext in IMAGE_EXTENSIONS:
+                ref_type = "image"
+            elif ext in AUDIO_EXTENSIONS:
+                ref_type = "audio"
+            else:
+                ref_type = "file"
+
+            # 移除 file:// 前缀，方便统一处理
+            clean_target_id = target_id.replace("file://", "")
 
             # Standardized key: type + target_id
-            key = f"ref:{ref_type}:{target_id}"
+            key = f"ref:{ref_type}:{clean_target_id}"
             if key in seen_targets:
                 continue
             seen_targets.add(key)
+
+            final_target_id = target_id
+            if not target_id.startswith(("http", "/api/")):
+                final_target_id = f"/api/v1/projects/{project_id}/files/raw?path={clean_target_id}&thread_id={thread_id}"
 
             references.append({
                 "id": str(uuid.uuid4()),
@@ -139,8 +155,8 @@ class AttachmentExtractor:
                 "target_id": final_target_id,
                 "target_name": target_name,
                 "metadata": {
-                    "source_id": target_id,
-                    "is_standard_ref": True
+                    "source_id": clean_target_id,
+                    "is_standard_md_link": True
                 },
             })
 
