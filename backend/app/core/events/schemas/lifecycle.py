@@ -55,7 +55,7 @@ class SessionCompletedEvent(BaseEvent):
             "type": "session_completed",
             "thread_id": self.thread_id,
             "timestamp": self.timestamp.isoformat(),
-            "data": self.data.model_dump()
+            "data": self.data.model_dump(exclude={"messages", "blackboard_dict"})
         }
 
 

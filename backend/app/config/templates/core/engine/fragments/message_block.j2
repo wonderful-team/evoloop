@@ -8,12 +8,10 @@ You MUST output your response using the following standardized block types. Use 
 - `mermaid`: Inline diagrams using ```mermaid block.
 
 ### Category 2: Resources (Reference Chips)
-Use the format: `[REF: type=ID name=DISPLAY_NAME]` or within a JSON block.
-- `file`: Reference to a workspace file.
-- `image`: Reference to an uploaded image or generated asset.
-- `audio`: Reference to a voice recording or audio file.
-- `message`: Reference to an earlier conversation turn.
-- `skill`: Reference to a learned SOP or tool behavior.
+You MUST use STANDARD MARKDOWN LINKS to reference generated files, uploaded images, or audio assets.
+- For files: `[Display Name](file://<absolute_path>)`
+- For images: `![Image Name](file://<absolute_path>)`
+- For audio: `[Audio Name](file://<absolute_path>)`
 
 ### Category 3: Artifacts (Interactive UI)
 Output these as JSON blocks with `type: "artifact"`.
@@ -42,7 +40,7 @@ Triggered when you are BLOCKED and need user input.
 **Output Formatting Example (Standard JSON-augmented Markdown):**
 "I have analyzed the logs and found an issue. 
 [BLACKBOARD: issue_found=true]
-[REF: file=src/main.py name=main.py]
+[main.py](file:///src/main.py)
 
 ```json
 {

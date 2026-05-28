@@ -55,7 +55,7 @@ class ActivityMonitor:
         return cls._instance
 
     @asynccontextmanager
-    async def run_scope(self, thread_id: str, main_goal: str = "处理用户请求", task_type: str = None) -> AsyncGenerator[str, None]:
+    async def run_scope(self, thread_id: str, main_goal: str = "处理用户请求", task_type: str = None, project_id: int | None = None) -> AsyncGenerator[str, None]:
         """
         Unified Agent Lifecycle Context Manager.
 
@@ -78,7 +78,7 @@ class ActivityMonitor:
         run_id = f"run-{gen_uuid()[:8]}"
 
         # 1. Start Run
-        await self.start_run(thread_id, main_goal, run_id=run_id)
+        await self.start_run(thread_id, main_goal, run_id=run_id, project_id=project_id)
         logger.info(f"[ActivityMonitor] 🚀 Starting lifecycle for thread {thread_id} (Run: {run_id})")
 
         # 2. Sync Metadata to Context
@@ -111,13 +111,13 @@ class ActivityMonitor:
             await self.end_run(thread_id, status="failed", run_id=run_id, task_type=task_type)
             raise
 
-    async def start_run(self, thread_id: str, main_goal: str = "处理用户请求", run_id: str = None):
+    async def start_run(self, thread_id: str, main_goal: str = "处理用户请求", run_id: str = None, project_id: int | None = None):
         """Initialize activity state for a new run."""
         await self._state_service.start_run(thread_id, main_goal)
 
         # Publish internal AgentSessionStartedEvent (automated bridge will handle UI RunStartEvent)
         from app.core.engine.event.publishers import publish_agent_session_started
-        await publish_agent_session_started(thread_id=thread_id)
+        await publish_agent_session_started(thread_id=thread_id, project_id=project_id)
 
     async def end_run(self, thread_id: str, status="done", final_outcome: str = None, run_id: str = None, task_type: str = None):
         """Mark run as ended and publish status change."""

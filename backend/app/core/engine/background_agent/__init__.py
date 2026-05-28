@@ -62,7 +62,7 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
 
     # 1. Lifecycle & Context Management
     task_type = inputs.metadata.get("task_type") if inputs.metadata else None
-    async with activity_monitor.run_scope(thread_id, inputs.goal, task_type=task_type) as run_id:
+    async with activity_monitor.run_scope(thread_id, inputs.goal, task_type=task_type, project_id=project_id) as run_id:
         _final_status = "done"  # Track final status for command_complete signal
         try:
             # 2. Deserialize & Prepare
@@ -97,10 +97,6 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                 
             ContextManager.set(ctx)
 
-            # Trigger Event-Driven Context Hydration
-            from app.core.engine.event.publishers import publish_agent_session_started
-            await publish_agent_session_started(thread_id=thread_id, project_id=project_id)
-            
             # The hydrator might have updated the working_dir in context
             ctx = ContextManager.current()
             working_dir = ctx.working_directory
