@@ -98,7 +98,7 @@ class MessageBlockFactory:
         elif role == "tool":
             tool_name = cls._get_val(msg, "tool_name")
             tool_call_id = cls._get_val(msg, "tool_call_id") or msg_id
-            
+
             input_args = cls._get_val(msg, "input") or cls._get_val(msg, "args") or meta_data.get("input") or {}
             output = meta_data.get("output", content)
 
@@ -106,7 +106,7 @@ class MessageBlockFactory:
             metadata_registry = get_tool_metadata(tool_name) if tool_name else None
             summary_args = {**input_args} # Simple fallback for now
             display_name = metadata_registry.get_display_name(tool_name, summary_args) if metadata_registry and tool_name else (tool_name or "Unknown").replace("_", " ").title()
-            
+
             tool_meta = {
                 "display_name": display_name,
                 "affected_path_keys": metadata_registry.affected_path_keys if metadata_registry else [],
@@ -156,13 +156,14 @@ class MessageBlockFactory:
         parent_id: str | None = None,
         run_id: str | None = None,
         references: list | None = None,
+        message_id: str | None = None,
     ) -> MessageBlock:
         """
         Creates a MessageBlock directly from streaming event parameters.
         Ensures strict structural parity with from_orm.
         """
         metadata = metadata or {}
-        
+
         # Resolve Input
         input_args = metadata.get("input", {})
         if not isinstance(input_args, dict):
@@ -172,7 +173,7 @@ class MessageBlockFactory:
         tool_meta = metadata.get("tool_meta")
         if not tool_meta and role == "tool" and tool_name:
             metadata_registry = get_tool_metadata(tool_name)
-            
+
             # Try to extract result meta from content if role is tool and status is completed
             result_meta = {}
             output = content or metadata.get("output", "")
@@ -183,10 +184,10 @@ class MessageBlockFactory:
                         result_meta = {k.lower(): v for k, v in parsed.items()}
                 except (json.JSONDecodeError, ValueError):
                     pass
-            
+
             summary_args = {**input_args, **result_meta}
             display_name = metadata_registry.get_display_name(tool_name, summary_args)
-            
+
             tool_meta = {
                 "display_name": display_name,
                 "affected_path_keys": metadata_registry.affected_path_keys,
@@ -198,7 +199,7 @@ class MessageBlockFactory:
             "tool_call_id": tool_call_id,
             **{k: v for k, v in metadata.items() if k not in ["input", "tool_meta"]},
         }
-        
+
         if role == "tool":
             clean_meta["input"] = input_args
             clean_meta["tool_meta"] = tool_meta
@@ -216,13 +217,16 @@ class MessageBlockFactory:
         if references:
             for ref in references:
                 if isinstance(ref, dict):
+                    # Ensure metadata is mapped to meta_data for Pydantic schema validation
+                    if "metadata" in ref and "meta_data" not in ref:
+                        ref = {**ref, "meta_data": ref["metadata"]}
                     rb = ReferenceBlock(**ref)
                     ref_blocks.append(rb)
                 elif isinstance(ref, ReferenceBlock):
                     ref_blocks.append(ref)
 
         return MessageBlock(
-            id=f"msg-{thread_id}-{sequence_number}",
+            id=message_id or f"msg-{thread_id}-{sequence_number}",
             thread_id=thread_id,
             run_id=run_id,
             role=role,  # type: ignore[arg-type]

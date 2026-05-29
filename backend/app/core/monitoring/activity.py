@@ -374,6 +374,70 @@ class ActivityMonitor:
 
         return activity_map
 
+    async def record_task_update(self, task: Any):
+        """Record a background task update in the agent activity state.
+
+        Maps background task lifecycle changes into the agent_state so the
+        frontend activity indicator reflects ongoing background work (e.g.
+        long-running shell commands, file operations).
+        """
+        from app.core.tools.schemas import TaskStatus
+
+        thread_id = getattr(task, 'thread_id', '')
+        if not thread_id:
+            return
+
+        task_status = getattr(task, 'status', None)
+        if task_status is None:
+            return
+
+        title = getattr(task, 'title', 'Unknown Task')
+        elapsed = getattr(task, 'elapsed_seconds', 0)
+
+        if task_status == TaskStatus.PENDING:
+            await self.update_agent_state(
+                thread_id=thread_id,
+                mode="Background Task",
+                task_name=title,
+                task_status="Pending...",
+            )
+        elif task_status == TaskStatus.RUNNING:
+            await self.update_agent_state(
+                thread_id=thread_id,
+                mode="Background Task",
+                task_name=title,
+                task_status=f"Running... ({elapsed}s)",
+            )
+        elif task_status == TaskStatus.COMPLETED:
+            await self.update_agent_state(
+                thread_id=thread_id,
+                mode="Background Task",
+                task_name=title,
+                task_status=f"Completed ({elapsed}s)",
+            )
+        elif task_status == TaskStatus.FAILED:
+            await self.update_agent_state(
+                thread_id=thread_id,
+                mode="Background Task",
+                task_name=title,
+                task_status=f"Failed ({elapsed}s)",
+                details={"error": getattr(task, 'error_message', '')},
+            )
+        elif task_status == TaskStatus.CANCELLED:
+            await self.update_agent_state(
+                thread_id=thread_id,
+                mode="Background Task",
+                task_name=title,
+                task_status="Cancelled",
+            )
+        elif task_status == TaskStatus.TIMEOUT:
+            await self.update_agent_state(
+                thread_id=thread_id,
+                mode="Background Task",
+                task_name=title,
+                task_status=f"Timed out after {elapsed}s",
+            )
+
 
 # Global Instance
 activity_monitor = ActivityMonitor.get_instance()

@@ -46,6 +46,7 @@ class BaseStreamEvent(BaseEvent):
 class TokenEvent(BaseStreamEvent):
     type: Literal["token"] = "token"
     content: str
+    message_id: Optional[str] = None
 
 
 # --- 2. 思考过程流：Reasoning/Thinking ---
@@ -53,6 +54,7 @@ class ThinkingEvent(BaseStreamEvent):
     type: Literal["thinking"] = "thinking"
     content: str
     is_delta: bool = True
+    message_id: Optional[str] = None
 
 
 # --- 3. 进度与工具执行流 ---

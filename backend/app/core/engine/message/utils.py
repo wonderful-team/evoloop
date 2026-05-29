@@ -29,7 +29,7 @@ def parse_tool_input(input_str: str | None) -> dict:
     """
     if not input_str or not input_str.strip():
         return {}
-        
+
     input_str = input_str.strip()
     if not input_str.startswith("{"):
         return {}
@@ -76,7 +76,7 @@ def to_base_message(msg: Any) -> BaseMessage | None:
         additional_kwargs["created_at"] = created_at
     if thinking_raw:
         additional_kwargs["thinking"] = thinking_raw
-    
+
     # Preserve status for folder/mapping logic
     status = getattr(msg, "status", None)
     if status:
@@ -86,6 +86,11 @@ def to_base_message(msg: Any) -> BaseMessage | None:
     meta_data = getattr(msg, "meta_data", None)
     if meta_data:
         additional_kwargs["metadata"] = meta_data
+
+    # Preserve node_source for diagnostics
+    node_source = getattr(msg, "node_source", None)
+    if node_source:
+        additional_kwargs["node_source"] = node_source
 
     try:
         if role == "human":
@@ -162,13 +167,13 @@ def normalize_tool_call(tc: Any) -> dict[str, Any]:
         "name": res_name,
         "args": res_args,
     }
-    
+
     # Preserve type and index if present
     if "type" in tc:
         result["type"] = tc["type"]
     if "index" in tc:
         result["index"] = tc["index"]
-        
+
     return result
 
 

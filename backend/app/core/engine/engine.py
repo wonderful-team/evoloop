@@ -18,6 +18,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.blackboard_parser import BlackboardParser
+from app.core.engine.callbacks.database_logger import current_node_source
 from app.core.engine.context_trimmer import ContextTrimmer
 from app.core.engine.inference_engine import InferenceEngine
 from app.core.engine.schemas import EngineResult, NodeOutcome
@@ -124,7 +125,10 @@ class AgentEngine:
         # 5. Build interceptors from SignalRegistry
         interceptors = self._signal_registry.build_interceptors()
 
-        # 6. Run inference
+        # 6. Propagate node_source to DatabaseCallbackHandler via contextvar
+        current_node_source.set(node_source or name.lower())
+
+        # 7. Run inference
         if is_subtask:
             inference_result = await self._inference_engine.run_single_shot(
                 llm_with_tools=llm_with_tools,
@@ -150,7 +154,7 @@ class AgentEngine:
                 iteration_count=state.iteration_count,
             )
 
-        # 7. Parse blackboard updates from final response content
+        # 8. Parse blackboard updates from final response content
         last_response = inference_result.get("last_response")
         blackboard = state.blackboard
         if last_response and last_response.content:
@@ -160,7 +164,7 @@ class AgentEngine:
                 name=name,
             )
 
-        # 8. Determine structured outcome
+        # 9. Determine structured outcome
         outcome_status = "success"
         if inference_result.get("is_truncated"):
             outcome_status = "truncated"
@@ -172,7 +176,7 @@ class AgentEngine:
 
         outcome = NodeOutcome(status=outcome_status)
 
-        # 9. Build EngineResult
+        # 10. Build EngineResult
         # Extract routing_target from last_response metadata if signal is not present
         routing_target = None
         if not inference_result.get("signal") and last_response and last_response.additional_kwargs is not None:

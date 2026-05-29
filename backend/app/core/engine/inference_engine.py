@@ -151,15 +151,18 @@ class InferenceEngine:
                         # Create a new message with appended dashboard to avoid side effects on the original history
                         original_msg = loop_messages[i]
                         original_content = original_msg.content
-                        if not isinstance(original_content, str):
-                            # Skip dashboard injection for non-string content (e.g., Anthropic-style blocks)
+                        if isinstance(original_content, str):
+                            new_content = original_content + dashboard
+                        elif isinstance(original_content, list):
+                            new_content = list(original_content) + [{"type": "text", "text": dashboard.strip()}]
+                        else:
+                            # Skip dashboard injection for other non-string/non-list content
                             # to avoid corrupting message format expected by the LLM provider
                             logger.debug(
                                 f"[{name}] Skipping dashboard injection: "
-                                f"HumanMessage content is {type(original_content).__name__}, not str"
+                                f"HumanMessage content is {type(original_content).__name__}, not str or list"
                             )
                             break
-                        new_content = original_content + dashboard
                         loop_messages[i] = HumanMessage(
                             content=new_content,
                             name=original_msg.name,

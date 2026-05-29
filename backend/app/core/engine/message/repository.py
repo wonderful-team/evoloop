@@ -47,6 +47,8 @@ class MessageRepository:
         metadata: dict | None = None,
         parent_id: str | None = None,
         references: list[dict] | None = None,
+        message_id: str | None = None,
+        node_source: str | None = None,
     ) -> tuple[str | None, int]:
         """
         Persist a message to the database.
@@ -61,17 +63,17 @@ class MessageRepository:
 
         try:
             seq = await SequenceService.next_sequence(self.thread_id)
-            
+
             # Resolve parent_id if not provided
             effective_parent_id = parent_id
             if not effective_parent_id:
                 effective_parent_id = await self.get_last_message_id()
-                
+
             logger.info(f"[MessageRepository] Persisting {role} message (seq={seq}, cat={category}, parent={effective_parent_id})")
 
             async with session_scope() as session:
                 log = Message(
-                    id=str(uuid.uuid4()),
+                    id=message_id or str(uuid.uuid4()),
                     thread_id=self.thread_id,
                     project_id=self.project_id,
                     member_id=self.member_id,
@@ -89,23 +91,31 @@ class MessageRepository:
                     tool_call_id=tool_call_id,
                     tool_name=tool_name,
                     meta_data=metadata,
+                    node_source=node_source,
                     parent_id=effective_parent_id,
                 )
                 session.add(log)
-                
-                # Persistence of MessageReferences (attachments, skills, etc.)
+
                 if references:
                     for ref_data in references:
+                        # Normalize to dict if it is a ReferenceBlock or other Pydantic model
+                        if not isinstance(ref_data, dict) and hasattr(ref_data, "model_dump"):
+                            ref_dict = ref_data.model_dump()
+                        elif isinstance(ref_data, dict):
+                            ref_dict = ref_data
+                        else:
+                            ref_dict = {}
+
                         ref = MessageReference(
-                            id=ref_data.get("id", str(uuid.uuid4())),
+                            id=ref_dict.get("id") or str(uuid.uuid4()),
                             message_id=log.id,
-                            type=ref_data.get("type", "file"),
-                            target_id=ref_data.get("target_id"),
-                            target_name=ref_data.get("target_name"),
-                            meta_data=ref_data.get("metadata", {}),
+                            type=ref_dict.get("type") or "file",
+                            target_id=ref_dict.get("target_id") or "",
+                            target_name=ref_dict.get("target_name") or "Unnamed Reference",
+                            meta_data=ref_dict.get("metadata") or ref_dict.get("meta_data") or {},
                         )
                         session.add(ref)
-                
+
                 await session.flush()
 
             return log.id, seq
@@ -114,7 +124,7 @@ class MessageRepository:
             logger.error(f"[MessageRepository] Failed to persist message: {e}")
             raise
 
-    async def update(self, sequence_number: int, **fields) -> bool:
+    async def update(self, sequence_number: int, **fields) -> str | None:
         """
         Update an existing message by sequence_number.
 
@@ -123,7 +133,7 @@ class MessageRepository:
             **fields: Fields to update (e.g. status="completed", content="...")
 
         Returns:
-            True if updated, False if message not found
+            The message ID (UUID string) if updated, None if message not found
         """
         try:
             async with session_scope() as session:
@@ -136,7 +146,7 @@ class MessageRepository:
                 msg = result.scalar_one_or_none()
                 if not msg:
                     logger.warning(f"[MessageRepository] Message not found for update: thread={self.thread_id}, seq={sequence_number}")
-                    return False
+                    return None
 
                 for key, value in fields.items():
                     if key == "content" and value is None:
@@ -148,7 +158,7 @@ class MessageRepository:
 
                 await session.flush()
                 logger.info(f"[MessageRepository] Updated message seq={sequence_number}: {fields.keys()}")
-                return True
+                return msg.id
 
         except Exception as e:
             logger.error(f"[MessageRepository] Failed to update message: {e}")
@@ -169,7 +179,7 @@ class MessageRepository:
         try:
             async with session_scope() as session:
                 target_msg_id = message_id
-                
+
                 # 1. 如果提供了 tool_call_id，尝试找回准确的消息 ID (解决回调与执行器 ID 不一致问题)
                 if tool_call_id:
                     stmt_msg = select(Message.id).where(
@@ -196,7 +206,7 @@ class MessageRepository:
                     # 3. 更新现有引用
                     meta = ref.meta_data or {}
                     files = meta.get("files", [])
-                    
+
                     # 去重检查
                     if not any(f["path"] == file_path for f in files):
                         files.append(new_file_entry)
@@ -240,7 +250,7 @@ class MessageRepository:
         """
         if not tool_call_id and not tool_name:
             return {}
-            
+
         try:
             async with session_scope() as session:
                 # 1. Try to find the pre-inserted tool message itself first (Best for exact matches)
@@ -273,14 +283,14 @@ class MessageRepository:
                 ai_msg = result_ai.scalar_one_or_none()
                 if not ai_msg or not ai_msg.tool_calls:
                     return {}
-                    
+
                 from app.core.engine.message.utils import normalize_tool_calls
                 tool_calls = normalize_tool_calls(ai_msg.tool_calls)
-                
+
                 for tc in tool_calls:
                     if tc.get("id") == tool_call_id:
                         return tc.get("args") or {}
-                            
+
         except Exception as e:
             logger.error(f"[MessageRepository] resolve_tool_input failed: {e}")
             raise
@@ -299,7 +309,7 @@ class MessageRepository:
                     .values(status=status)
                 )
                 result = await session.execute(stmt)
-                # No flush needed here as update() returns rowcount directly in some dialects, 
+                # No flush needed here as update() returns rowcount directly in some dialects,
                 # but session.execute with update statement is fine.
                 logger.info(f"[MessageRepository] Updated status to {status} for tool_call_id {tool_call_id}")
                 return result.rowcount > 0
@@ -364,7 +374,7 @@ class MessageRepository:
 
             # 2. Fetch associated invisible messages for these runs
             run_ids = {m.run_id for m in visible_messages if m.run_id}
-            
+
             # Special case: include current active run even if its messages are invisible
             if not before_id:
                 latest_run_id = (await session.execute(

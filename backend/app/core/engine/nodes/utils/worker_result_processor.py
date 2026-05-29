@@ -96,6 +96,9 @@ async def process_worker_result(
     if not (agent_config and agent_config.is_subtask):
         blackboard.worker_outcome = worker_outcome
 
+    # Update tool history in metadata
+    blackboard.metadata.tool_history = (blackboard.metadata.tool_history or []) + tool_history
+
     # --- Subtask Result Collection ---
     if agent_config and agent_config.is_subtask:
         subtask_id = execution_ticket.subtask_id or "unknown"
@@ -176,7 +179,7 @@ async def process_worker_result(
         for t_sig in tool_history:
             t_name = t_sig.split(":")[0] if ":" in t_sig else t_sig
             tool_counts[t_name] = tool_counts.get(t_name, 0) + 1
-        
+
         touched_files = set()
         if engine_result.messages:
             for msg in engine_result.messages:
@@ -187,18 +190,18 @@ async def process_worker_result(
                             path = args.get("path", "") or args.get("TargetFile", "")
                             if path:
                                 touched_files.add(path)
-        
+
         trace_lines.append("\n\n--- 🛠️ Technical Execution Trace ---")
         trace_lines.append(f"Tools executed ({len(tool_history)} total): " + ", ".join([f"{k} ({v})" for k, v in tool_counts.items()]))
         if touched_files:
             trace_lines.append(f"Files modified: {', '.join(list(touched_files)[:5])}")
             if len(touched_files) > 5:
                 trace_lines[-1] += f" (+{len(touched_files)-5} more)"
-        
+
         if worker_outcome == "truncated":
             trace_lines.append("⚠️ Execution was forcefully TRUNCATED due to max_steps timeout.")
         elif worker_outcome == "failed":
-            trace_lines.append(f"❌ Execution FAILED. Check recent tool errors.")
+            trace_lines.append("❌ Execution FAILED. Check recent tool errors.")
 
     technical_trace = "\n".join(trace_lines) if trace_lines else ""
     worker_content = worker_content + technical_trace

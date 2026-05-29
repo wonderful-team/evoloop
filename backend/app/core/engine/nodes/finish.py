@@ -14,14 +14,20 @@ from langchain_core.messages import AIMessage, RemoveMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
+from app.core.engine.checkpoint.pruner import auto_prune_on_completion
+from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
 from app.core.engine.nodes.base import BaseNode
 from app.core.engine.routers import RoutingTarget
-from app.core.engine.services.audit_service import AuditService, AuditResult
+from app.core.engine.services.audit_service import AuditResult, AuditService
 from app.core.engine.state import AgentState, StateUpdate
-from app.core.engine.state.blackboard import AuditMeta, AuditInputData, ProgressMetrics, TaskDeliverable, AuditAnomaly, BlackboardState
-from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
+from app.core.engine.state.blackboard import (
+    AuditAnomaly,
+    AuditInputData,
+    AuditMeta,
+    BlackboardState,
+    ProgressMetrics,
+)
 from app.core.events.schemas import SessionCompletedData
-from app.core.engine.checkpoint.pruner import auto_prune_on_completion
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +54,10 @@ class FinishNode(BaseNode):
     async def _prepare_audit_input(self, state: "AgentState", blackboard: "BlackboardState") -> None:
         # Build structured progress from memory (no DB required)
         plan_progress = blackboard.metadata.plan_progress
-        
+
         effective_completed = plan_progress.completed_steps if plan_progress else 0
         effective_total = plan_progress.total_steps if plan_progress else 0
-        
+
         # Fallback to subtasks if no formal plan
         subtask_results = blackboard.subtask_results
         pending_agg = blackboard.pending_aggregation
@@ -214,10 +220,8 @@ class FinishNode(BaseNode):
         audit_tier = audit_result.tier
         audit_meta = AuditMeta(**audit_result.meta)
 
-        # Comprehensive audit already updated messages/blackboard
+        # Comprehensive audit updates blackboard and summary
         if audit_tier == "comprehensive":
-            if audit_result.messages:
-                messages = list(audit_result.messages)
             if audit_result.blackboard:
                 blackboard = audit_result.blackboard
             summary = audit_result.summary
@@ -226,8 +230,9 @@ class FinishNode(BaseNode):
                 duration_ms=(time.time() - start_time) * 1000,
             )
 
-        # Extract outcome tag
-        full_text = "".join([str(m.content) for m in messages if isinstance(m, AIMessage)])
+        # Extract outcome tag from audit result messages
+        audit_messages = audit_result.messages or []
+        full_text = "".join([str(m.content) for m in audit_messages if isinstance(m, AIMessage)])
         outcome_match = re.search(
             r"<evoloop_audit_outcome>(.*?)</evoloop_audit_outcome>",
             full_text,
@@ -242,7 +247,7 @@ class FinishNode(BaseNode):
         # NEW: Enforce audit verdict — INCOMPLETE routes back to Supervisor
         if final_outcome.upper() == "INCOMPLETE":
             if iteration_count < max_steps:
-                logger.warning(f"[Finish] 🔄 Audit verdict: INCOMPLETE. Routing back to Supervisor.")
+                logger.warning("[Finish] 🔄 Audit verdict: INCOMPLETE. Routing back to Supervisor.")
                 blackboard.worker_outcome = "incomplete"
                 return StateUpdate(
                     messages=messages,
@@ -252,20 +257,8 @@ class FinishNode(BaseNode):
             else:
                 logger.warning(f"[Finish] ⚠️ Audit verdict: INCOMPLETE, but iteration limit ({max_steps}) reached. Forcing completion.")
 
-        # Apply summary ONLY for comprehensive tiers to avoid technical log pollution
-        if audit_tier == "comprehensive":
-            for i in range(len(messages) - 1, -1, -1):
-                m = messages[i]
-                if isinstance(m, AIMessage) and m.content:
-                    messages[i] = AIMessage(
-                        content=summary,
-                        id=m.id,
-                        name=m.name,
-                        metadata=m.additional_kwargs,
-                    )
-                    break
-        else:
-            logger.debug(f"[Finish] Silent audit (tier={audit_tier}) - not updating message content.")
+        # Audit complete - do not overwrite conversation message content with the internal audit summary
+        logger.debug(f"[Finish] Audit complete (tier={audit_tier}) - not updating message content.")
 
         # Persist audit metadata
         blackboard.metadata.audit_tier = audit_tier
@@ -378,12 +371,12 @@ class FinishNode(BaseNode):
         # we return the delta.
         # NOTE: Returning the full list 'messages_to_return' causes duplication in LangGraph
         # because it appends everything to the state.
-        
+
         # We only return messages that are NOT already in the original state.messages list
         # OR if they are RemoveMessage / placeholder messages.
         existing_ids = {m.id for m in state.messages if m.id}
         delta_messages = [
-            m for m in messages_to_return 
+            m for m in messages_to_return
             if not m.id or m.id not in existing_ids or isinstance(m, RemoveMessage)
         ]
 

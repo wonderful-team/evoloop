@@ -202,7 +202,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         try:
             resp = await client.request(method, url, params=request_params, json=data, headers=req_headers)
             # Handle token expiration (401 or specific error code)
-            resp_json = resp.json() if resp.status_code == 200 else {}
+            resp_json = (resp.json() if resp.status_code == 200 else None) or {}
             is_token_expired = (
                 resp.status_code == 401 or 
                 resp_json.get("code") in [-10009, -10010] or

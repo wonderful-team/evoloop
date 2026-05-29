@@ -67,12 +67,12 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     # Streaming Helpers
     # --------------------------------------------------------------------------
 
-    async def emit_thinking(self, content: str):
+    async def emit_thinking(self, content: str, message_id: str | None = None):
         """发送 AI 思考过程片段"""
         if not self.thread_id:
             return
 
-        await MessageHandler.stream_thinking(self.thread_id, content)
+        await MessageHandler.stream_thinking(self.thread_id, content, message_id=message_id)
 
     # ==============================================================================
     # LangChain Callback Methods
@@ -129,7 +129,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             if delta_reasoning:
                 self._thinking_buffer += delta_reasoning
                 # 直接通过 Handler 流式推送思考片段
-                await self.emit_thinking(delta_reasoning)
+                await self.emit_thinking(delta_reasoning, message_id=run_id)
 
         # 2. Defensive: normalize structured tokens
         if not isinstance(token, str):
@@ -157,7 +157,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         # NEW: Publish the filtered token to the frontend
         if filtered:
-            await MessageHandler.stream_token(self.thread_id, filtered)
+            await MessageHandler.stream_token(self.thread_id, filtered, message_id=run_id)
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         """Run when LLM ends running."""

@@ -77,12 +77,15 @@ class Message(Base):
 
     # Threading support for message branching
     parent_id: Mapped[str | None] = mapped_column(ForeignKey("messages.id"), nullable=True)
-    
+
     # Tool execution attribution
     tool_call_id: Mapped[str | None] = mapped_column(String(255), index=True)
     tool_name: Mapped[str | None] = mapped_column(String(255)) # Tool name or user name
-    
+
     parent: Mapped[Optional["Message"]] = relationship("Message", remote_side="[Message.id]", backref="children")
+
+    # Node source tracking — identifies which graph node produced this message
+    node_source: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
     # Cloud Sync State
     # values: 'pending', 'synced', 'failed'

@@ -55,7 +55,7 @@ class ProjectSyncService:
                 logger.warning(f"[ProjectSync] Failed to fetch current project: {res.get('message') if res else 'Empty response'}")
                 return
 
-            project_data = res.get("data", {})
+            project_data = res.get("data") or {}
             cloud_path = project_data.get("external_path")
             if not cloud_path or not os.path.exists(cloud_path):
                 return

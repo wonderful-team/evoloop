@@ -53,7 +53,7 @@ class BlockMapper:
 
         # 1. 处理引用（标准化 ReferenceBlock）
         references: list[ReferenceBlock] = []
-        
+
         # 变更集相关顶层字段
         has_file_ops = False
         changeset_count = 0

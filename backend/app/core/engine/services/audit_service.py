@@ -126,8 +126,8 @@ class LayeredAuditor:
         self,
         tool_history: list,
         messages: list,
-        blackboard: "BlackboardState",
-        state: "AgentState",
+        blackboard: BlackboardState,
+        state: AgentState,
     ) -> AuditDecision:
         """Classify which audit tier is appropriate."""
         used_tools = set()
@@ -199,7 +199,7 @@ class LayeredAuditor:
     async def audit_minimal(
         self,
         messages: list,
-        blackboard: "BlackboardState",
+        blackboard: BlackboardState,
     ) -> tuple[str, dict]:
         last_content = ""
         tool_usage = []
@@ -233,9 +233,9 @@ class LayeredAuditor:
     async def audit_standard(
         self,
         messages: list,
-        blackboard: "BlackboardState",
-        state: "AgentState",
-        config: "RunnableConfig",
+        blackboard: BlackboardState,
+        state: AgentState,
+        config: RunnableConfig,
     ) -> tuple[str, dict]:
         start = time.time()
 
@@ -297,7 +297,7 @@ class LayeredAuditor:
     # Helpers for structured audit input
     # ------------------------------------------------------------------
 
-    def _build_audit_input(self, state: "AgentState") -> dict:
+    def _build_audit_input(self, state: AgentState) -> dict:
         """Build structured audit input from blackboard instead of full messages."""
         blackboard = state.blackboard
         metadata = blackboard.metadata if blackboard else None
@@ -343,8 +343,8 @@ class LayeredAuditor:
 
     async def audit_comprehensive(
         self,
-        state: "AgentState",
-        config: "RunnableConfig",
+        state: AgentState,
+        config: RunnableConfig,
     ) -> AuditResult:
         """Run the full engine-driven comprehensive audit.
 
@@ -352,8 +352,8 @@ class LayeredAuditor:
         reducing context from ~18K tokens (full messages) to ~500 tokens.
         Falls back to legacy full-message mode if structured data is absent.
         """
-        from app.core.engine.prompts import FinishPromptBuilder
         from app.core.config import settings
+        from app.core.engine.prompts import FinishPromptBuilder
 
         ctx = ContextManager.current()
         messages = list(state.messages)
@@ -418,23 +418,30 @@ class LayeredAuditor:
             logger.info(f"[AuditService] 📉 Truncated audit context: {len(messages)} → {len(preserved)} msgs (structured input available)")
             messages = preserved
 
+        # Clone and sanitize config to avoid database logging and SSE stream leaks from audit
+        clean_config = dict(config or {})
+        if "callbacks" in clean_config:
+            callbacks = clean_config["callbacks"]
+            if isinstance(callbacks, list):
+                clean_config["callbacks"] = [
+                    cb for cb in callbacks
+                    if cb.__class__.__name__ not in ("DatabaseCallbackHandler", "TransparentCallbackHandler")
+                ]
+
         execution_state = state.model_copy(update={"messages": messages})
-        model = config.get("configurable", {}).get("model")
+        model = clean_config.get("configurable", {}).get("model")
 
         from app.core.engine.engine import get_default_engine
         engine = get_default_engine()
         result = await engine.run_node(
             state=execution_state,
-            config=config,
+            config=clean_config,
             system_prompt=system_prompt,
             tools=tools,
             model=model,
             name="Session Reviewer",
             max_steps=settings.FINISH_AGENT_MAX_STEPS,
             node_source="finish",
-            # Note: Comprehensive audit by default runs through the engine loop.
-            # In Phase 1 hardening, we allow this to record to the DB for traceability.
-            # The duplication is fixed in FinishNode's delta return logic.
         )
 
         summary = _extract_final_summary(result.messages or [])
@@ -481,8 +488,8 @@ class AuditService:
 
     async def execute(
         self,
-        state: "AgentState",
-        config: "RunnableConfig",
+        state: AgentState,
+        config: RunnableConfig,
         tool_history: list,
         is_shadow_mode: bool = False,
     ) -> AuditResult:

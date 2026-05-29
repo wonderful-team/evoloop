@@ -8,6 +8,7 @@ DatabaseCallbackHandler - 数据库日志回调处理器（重构版）
 
 不再包含复杂的过滤逻辑！
 """
+import contextvars
 import json
 import logging
 from typing import Any, Dict, List, Optional
@@ -19,6 +20,9 @@ from langchain_core.outputs import LLMResult
 from app.core.engine.message import MessageHandler
 from app.core.engine.message.reasoning import extract_reasoning_from_kwargs
 from app.core.engine.message.utils import parse_tool_input
+
+
+current_node_source: contextvars.ContextVar[str | None] = contextvars.ContextVar('db_node_source', default=None)
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +60,29 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
         # 消息父子关系追踪
         self._last_ai_message_id: str | None = None
+
+    async def on_llm_start(
+        self,
+        serialized: dict[str, Any],
+        prompts: list[str],
+        *,
+        run_id: UUID,
+        parent_run_id: UUID | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """LLM 开始执行时调用"""
+        message_id = str(run_id)
+        self._last_ai_message_id = message_id
+
+        from app.core.context.manager import ContextManager
+        try:
+            ctx = ContextManager.current()
+            ctx.last_ai_message_id = message_id
+        except Exception:
+            pass
+        logger.debug(f"[DatabaseCallback] LLM started. Pre-allocated message_id={message_id}")
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> Any:
         """
@@ -96,13 +123,20 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         if additional_kwargs.get("reasoning_content"):
             metadata = {**metadata, "reasoning_content": additional_kwargs["reasoning_content"]}
 
+        # 提取 node_source（优先从 ContextVar，兜底从 additional_kwargs）
+        node_source = current_node_source.get()
+        if not node_source:
+            node_source = additional_kwargs.get("node_source")
+
         # 委托给统一处理器
         result = await self._handler.handle_ai_message(
             content=content,
             tool_calls=tool_calls,
             thinking=thinking,
             metadata=metadata,
+            node_source=node_source,
             parent_id=None, # AI messages usually parents of previous turn's last message (resolved in repo)
+            message_id=self._last_ai_message_id,
         )
 
         # Store the message_id for subsequent tools/HITL in this turn
@@ -160,6 +194,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             output=output,
             tool_call_id=tool_call_id,
             sequence_number=seq,
+            node_source=current_node_source.get(),
         )
         logger.debug(
             f"[DatabaseCallback] Tool output handled: "
@@ -221,6 +256,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             tool_call_id=tool_call_id,
             input_data=input_data,
             parent_id=self._last_ai_message_id,
+            node_source=current_node_source.get(),
         )
 
         # Store in context for HITL tools to access
@@ -257,5 +293,6 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             error=error,
             tool_call_id=tool_call_id,
             sequence_number=seq,
+            node_source=current_node_source.get(),
         )
         logger.debug(f"[DatabaseCallback] Tool error tracked: {tool_name} (seq={seq})")
