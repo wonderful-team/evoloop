@@ -177,18 +177,12 @@ class AgentEngine:
         outcome = NodeOutcome(status=outcome_status)
 
         # 10. Build EngineResult
-        # Extract routing_target from last_response metadata if signal is not present
-        routing_target = None
-        if not inference_result.get("signal") and last_response and last_response.additional_kwargs is not None:
-            routing_target = (last_response.additional_kwargs or {}).get("routing_target")
-
         result = EngineResult(
             messages=inference_result.get("messages", []),
             tool_history=inference_result.get("tool_history", []),
             blackboard=blackboard,
             is_truncated=inference_result.get("is_truncated", False),
             signal=inference_result.get("signal"),
-            routing_target=routing_target,
             outcome=outcome,
             queued_signals=inference_result.get("queued_signals", []),
         )

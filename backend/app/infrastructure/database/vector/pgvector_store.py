@@ -11,7 +11,7 @@ from datetime import datetime
 from app.utils.time import utcnow
 from typing import Any
 
-from sqlalchemy import BigInteger, DateTime, Index, String, Text, create_engine, text
+from sqlalchemy import BigInteger, DateTime, Index, String, Text, create_engine, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
@@ -200,13 +200,13 @@ class PgVectorStore:
         query_text: str,
         top_k: int = 10,
     ) -> list[dict[str, Any]]:
-        # Fallback to a simple ILIKE match.  For production FTS consider
-        # a PostgreSQL tsvector column + GIN index.
         with self._session() as session:
             rows = (
                 session.query(VectorEmbedding)
                 .filter(VectorEmbedding.source_type == "code_chunk")
-                .filter(VectorEmbedding.content.ilike(f"%{query_text}%"))
+                .filter(
+                    VectorEmbedding.content_tsv.op("@@")(func.plainto_tsquery("simple", query_text))
+                )
                 .limit(top_k)
                 .all()
             )

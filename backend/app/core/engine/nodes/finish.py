@@ -319,6 +319,7 @@ class FinishNode(BaseNode):
             outcome=final_outcome,
             audit_tier=audit_tier,
             duration_ms=total_duration,
+            turn_summary_message_id=None,
             model=ctx.active_model,
             original_skill_id=metadata.get("original_skill_id"),
             ticket_topic=blackboard.ticket.topic if blackboard.ticket else None,

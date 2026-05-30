@@ -175,8 +175,7 @@ class AutoMemoryExtractor:
         logger.info(f"[AutoExtract] Starting extraction for thread {thread_id}")
 
         try:
-            # Standardize source_message_id using msg-{thread_id}-{sequence_number}
-            # This is critical for atomic cleanup during session rewinds.
+            # Use DB UUID as source_message_id for atomic cleanup during session rewinds.
             last_msg = messages[-1]
             last_msg_id = None
             seq = None
@@ -191,20 +190,7 @@ class AutoMemoryExtractor:
             if seq is None and hasattr(last_msg, "sequence_number"):
                 seq = last_msg.sequence_number
             
-            # 2. Fallback: If sequence is missing but we have a standardized ID string, parse it
-            # This handles cases where LangChain ID was updated but metadata was lost.
-            if seq is None and last_msg.id:
-                msg_id_str = str(last_msg.id)
-                if msg_id_str.startswith("msg-"):
-                    parts = msg_id_str.split("-")
-                    if len(parts) >= 3:
-                        try:
-                            seq = int(parts[-1])
-                        except (ValueError, TypeError):
-                            pass
-
-            # 3. Final Fallback: If still missing but we have a UUID, query DB
-            # This handles cases where LangGraph state lost all in-memory updates.
+            # 2. Fallback: If sequence is missing, try DB query by UUID
             if seq is None and last_msg.id:
                 msg_uuid = str(last_msg.id)
                 try:
@@ -225,7 +211,7 @@ class AutoMemoryExtractor:
                     logger.debug(f"[AutoExtract] DB sequence lookup failed: {db_err}")
 
             if seq is not None:
-                last_msg_id = f"msg-{thread_id}-{seq}"
+                last_msg_id = str(last_msg.id)
             elif last_msg.id:
                 # Last resort fallback to raw ID
                 last_msg_id = str(last_msg.id)

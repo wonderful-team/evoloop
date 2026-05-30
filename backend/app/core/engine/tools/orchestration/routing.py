@@ -20,6 +20,7 @@ def route_to(
     authorized_tools: list[str] | None = None,
     skill_ids: list[int] | None = None,
     workflow_mode: str = "single",
+    session_goal: str | None = None,
 ) -> str:
     """
     [MANDATORY] Hand off the current task to a specialist node.
@@ -45,6 +46,7 @@ def route_to(
                           For documenter: ["read_file", "write_file", "list_directory", ...]
         skill_ids: List of skill IDs for multi-step workflows (executed in order).
         workflow_mode: "single" for one skill, "sequential" for step-by-step execution.
+        session_goal: Optional session-level goal to establish or refine the active goal on the UI.
     """
     target_val = target.value
 

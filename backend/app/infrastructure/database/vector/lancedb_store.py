@@ -201,11 +201,8 @@ class LanceVectorStore(BaseVectorStore):
         #    (avoids LanceDB merge_insert concurrency bugs)
         file_paths = {c["file_path"] for c in chunks}
         for fp in file_paths:
-            try:
-                safe_fp = fp.replace("'", "''")
-                self.code_table.delete(f"file_path = '{safe_fp}'")
-            except Exception:
-                pass
+            safe_fp = fp.replace("'", "''")
+            self.code_table.delete(f"file_path = '{safe_fp}'")
 
         # 2. Generate IDs from content hash
         ids = [
@@ -291,39 +288,16 @@ class LanceVectorStore(BaseVectorStore):
         Full-text search on code content.
         Requires LanceDB FTS index.
         """
-        try:
-            results = self.code_table.search(query_text, query_type="fts").limit(top_k).to_list()
-            return [
-                {
-                    "id": r["id"],
-                    "content": r["content"],
-                    "file_path": r["file_path"],
-                    "identifier": r["identifier"],
-                    "score": r.get("_score", 0),
-                }
-                for r in results
-            ]
-        except Exception as e:
-            logger.warning(f"[LanceVectorStore] FTS search failed: {e}, falling back to content filter")
-            # Fallback: simple string matching
-            return self._fallback_text_search(query_text, top_k)
-
-    def _fallback_text_search(self, query_text: str, top_k: int) -> list[dict[str, Any]]:
-        """Fallback text search using simple filtering."""
-        # This is a naive implementation - in production, use proper FTS
-        all_data = self.code_table.to_pandas()
-        matches = all_data[all_data["content"].str.contains(query_text, case=False, na=False)]
-        matches = matches.head(top_k)
-
+        results = self.code_table.search(query_text, query_type="fts").limit(top_k).to_list()
         return [
             {
-                "id": row["id"],
-                "content": row["content"],
-                "file_path": row["file_path"],
-                "identifier": row["identifier"],
-                "score": 1.0,  # No scoring in fallback
+                "id": r["id"],
+                "content": r["content"],
+                "file_path": r["file_path"],
+                "identifier": r["identifier"],
+                "score": r.get("_score", 0),
             }
-            for _, row in matches.iterrows()
+            for r in results
         ]
 
     def delete_by_repository(self, repository_id: str) -> int:
@@ -471,22 +445,14 @@ class LanceVectorStore(BaseVectorStore):
 
     def delete_memory_by_id(self, memory_id: str) -> bool:
         """Remove a specific memory entry by its ID."""
-        try:
-            self.memory_table.delete(f"id = '{memory_id.replace(chr(39), chr(39)+chr(39))}'")
-            return True
-        except Exception as e:
-            logger.warning(f"[LanceVectorStore] Memory delete failed for {memory_id}: {e}")
-            return False
+        self.memory_table.delete(f"id = '{memory_id.replace(chr(39), chr(39)+chr(39))}'")
+        return True
 
     def delete_all_memories(self) -> int:
         """Wipe all memory entries."""
-        try:
-            count = self.memory_table.count_rows()
-            self.memory_table.delete("true")
-            return count
-        except Exception as e:
-            logger.warning(f"[LanceVectorStore] Failed to clear memories: {e}")
-            return 0
+        count = self.memory_table.count_rows()
+        self.memory_table.delete("true")
+        return count
 
     # -- skills -----------------------------------------------------------
 

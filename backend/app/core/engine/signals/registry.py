@@ -90,12 +90,15 @@ class RouteToInterceptor(ToolCallInterceptor):
         if not skill_ids and args.get("skill_id"):
             skill_ids = [args.get("skill_id")]
 
+        session_goal = args.get("session_goal")
+
         signal = RouteToSignal(
             target=target,
             reason=reason,
             context=context,
             authorized_tools=authorized_tools,
             skill_ids=skill_ids,
+            session_goal=session_goal,
         )
 
         output_msg = f"Routing to {target}"

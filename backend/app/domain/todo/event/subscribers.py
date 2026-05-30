@@ -66,7 +66,6 @@ class TodoLifecycleSubscriber:
         """Internal background method for deep analysis and storage."""
         thread_id = data.thread_id
         project_id = data.project_id
-        model = data.model
 
         # 1. Check feature flags / settings
         auto_extract = SystemConfigService.get_value("AUTO_TODO_EXTRACTION", "true").lower() == "true"
@@ -104,6 +103,7 @@ class TodoLifecycleSubscriber:
                 purpose="todo_extraction",
                 output_schema=TodoHarvestingResult,
                 temperature=0.0,
+                max_tokens=4000,
                 model_name=model_name
             )
 

@@ -25,7 +25,6 @@ class SessionCompletedData(BaseModel):
     outcome: Optional[str] = None
     audit_tier: Optional[str] = None
     duration_ms: float = 0.0
-    
     # Extra context for learning and domain modules
     model: str | None = None
     original_skill_id: Optional[Any] = None

@@ -6,6 +6,7 @@ MessageBlockFactory - 统一视图层出厂转换器
 """
 import json
 import logging
+import uuid
 from datetime import datetime
 from typing import Any, Union
 
@@ -226,7 +227,7 @@ class MessageBlockFactory:
                     ref_blocks.append(ref)
 
         return MessageBlock(
-            id=message_id or f"msg-{thread_id}-{sequence_number}",
+            id=message_id or str(uuid.uuid4()),
             thread_id=thread_id,
             run_id=run_id,
             role=role,  # type: ignore[arg-type]

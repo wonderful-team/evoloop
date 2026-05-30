@@ -9,5 +9,4 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 class DecomposeTaskResult(DynamicBaseModel):
     status: str
     error: str | None = None
-    routing_target: str | None = None
     spawn_plan: SpawnPlan | None = None

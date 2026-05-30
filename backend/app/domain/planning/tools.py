@@ -157,7 +157,8 @@ async def create_plan(
                 lines.append(f"| `{s.id}` | {s.title} | {s.status} |")
             
             lines.append("\n*Tip: Use `update_step_status` with the Step ID to track progress.*")
-            return "\n".join(lines), meta
+            return_text = "\n".join(lines)
+        return return_text, meta
 
     except Exception as e:
         logger.error(f"Failed to create plan in DB: {e}")

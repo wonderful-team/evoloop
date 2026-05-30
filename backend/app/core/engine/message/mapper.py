@@ -89,7 +89,7 @@ class BlockMapper:
             tool_meta = msg.meta_data["tool_meta"]
 
         return MessageBlock(
-            id=f"msg-{msg.thread_id}-{msg.sequence_number}",
+            id=str(msg.id),
             thread_id=msg.thread_id,
             run_id=msg.run_id,
             role=msg.role,  # type: ignore[arg-type]

@@ -67,40 +67,19 @@ def create_task_scheduler(
     logger.info(f"[QueueFactory] Creating scheduler: mode={mode}")
     
     if mode == "celery":
-        # Full Celery mode with Redis
-        try:
-            from app.infrastructure.queue.celery import create_celery_app
-            _scheduler = create_celery_app()
-            logger.info("[QueueFactory] Created Celery scheduler")
-        except Exception as e:
-            logger.error(f"[QueueFactory] Failed to create Celery scheduler: {e}")
-            logger.warning("[QueueFactory] Falling back to Huey scheduler")
-            mode = "huey"
+        from app.infrastructure.queue.celery import create_celery_app
+        _scheduler = create_celery_app()
+        logger.info("[QueueFactory] Created Celery scheduler")
     
     if mode == "huey":
-        # Huey mode with SQLite
-        try:
-            from app.infrastructure.queue.huey_queue import HueyTaskScheduler
-            _scheduler = HueyTaskScheduler()
-            logger.info("[QueueFactory] Created Huey scheduler")
-        except ImportError as e:
-            logger.error(f"[QueueFactory] Huey not installed: {e}")
-            logger.error("Install with: pip install huey[sqlite]")
-            raise
-        except Exception as e:
-            logger.error(f"[QueueFactory] Failed to create Huey scheduler: {e}")
-            logger.warning("[QueueFactory] Falling back to LocalCelery")
-            mode = "local"
+        from app.infrastructure.queue.huey_queue import HueyTaskScheduler
+        _scheduler = HueyTaskScheduler()
+        logger.info("[QueueFactory] Created Huey scheduler")
     
     if mode == "local":
-        # Legacy LocalCelery mode (in-memory, deprecated)
-        try:
-            from app.infrastructure.queue.celery import LocalCelery
-            _scheduler = LocalCelery("evoloop_local")
-            logger.warning("[QueueFactory] Using deprecated LocalCelery scheduler")
-        except Exception as e:
-            logger.error(f"[QueueFactory] Failed to create LocalCelery: {e}")
-            raise RuntimeError("No task scheduler available")
+        from app.infrastructure.queue.celery import LocalCelery
+        _scheduler = LocalCelery("evoloop_local")
+        logger.warning("[QueueFactory] Using deprecated LocalCelery scheduler")
     
     return _scheduler
 

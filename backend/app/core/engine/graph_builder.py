@@ -108,6 +108,8 @@ class GraphBuilder:
                     # Python Router Function
                     router_func = self._import_obj(edge.router)
                     mapping = edge.map.copy() if edge.map else {}
+                    if edge.default:
+                        mapping[edge.default] = edge.default
                     for k, v in mapping.items():
                         if v == "END":
                             mapping[k] = END

@@ -74,13 +74,13 @@ class MessageBlock(DynamicBaseModel):
     原则：
     1. 字段名全系统统一，变更需走版本升级流程
     2. 时间戳统一使用 ISO 8601 字符串（时区敏感）
-    3. ID 统一使用 "msg-{thread_id}-{seq}"，与数据库 sequence_number 绑定
+    3. ID 统一使用 DB UUID（主键），sequence_number 仅用于排序/分页
     4. 思考过程统一为结构化数组，支持多段推理
     5. 禁止在结构中直接嵌入裸字典
     """
 
     # === 核心标识 ===
-    id: str                                        # "msg-{thread_id}-{sequence_number}"
+    id: str                                        # DB primary key UUID
     thread_id: str
     run_id: str | None = None
 

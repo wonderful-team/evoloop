@@ -174,7 +174,7 @@ class ActivityStateService:
         from app.infrastructure.database.sql.database import session_scope
         return session_scope
 
-    async def start_run(self, thread_id: str, main_goal: str = "处理用户请求") -> bool:
+    async def start_run(self, thread_id: str, main_goal: str = "") -> bool:
         """Initialize activity state for a new run."""
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)

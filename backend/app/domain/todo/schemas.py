@@ -124,4 +124,4 @@ class ExtractedTodo(BaseModel):
 class TodoHarvestingResult(BaseModel):
     """The full result of a todo extraction run."""
     todos: list[ExtractedTodo] = Field(default_factory=list)
-    summary: str = Field(..., description="Brief summary of the extraction process")
+    summary: str = Field(default="", description="Brief summary of the extraction process")

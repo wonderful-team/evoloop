@@ -100,7 +100,6 @@ class KnowledgeHarvestingSubscriber:
         """Background process for deep knowledge extraction and ingestion."""
         thread_id = data.thread_id
         project_id = data.project_id
-        model = data.model
 
         # 1. Check feature flags / settings
         auto_extract = SystemConfigService.get_value("AUTO_KNOWLEDGE_EXTRACTION", "true").lower() == "true"
@@ -139,6 +138,7 @@ class KnowledgeHarvestingSubscriber:
                 purpose="knowledge_extraction",
                 output_schema=KnowledgeHarvestingResult,
                 temperature=0.0,
+                max_tokens=4000,
                 model_name=model_name
             )
 

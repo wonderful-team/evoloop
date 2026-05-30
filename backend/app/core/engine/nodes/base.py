@@ -267,6 +267,6 @@ class BaseAgentNode(BaseNode, ABC):
         )
         return StateUpdate(
             messages=new_messages,
-            next_node=engine_result.routing_target or RoutingTarget.FINISH,
+            next_node=RoutingTarget.FINISH,
             blackboard=engine_result.blackboard or original_state.blackboard,
         )

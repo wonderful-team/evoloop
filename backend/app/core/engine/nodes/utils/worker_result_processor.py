@@ -46,7 +46,6 @@ async def process_worker_result(
         content = get_message_text(last_msg) if isinstance(last_msg, AIMessage) else ""
 
     tool_history = engine_result.tool_history or []
-    routing_target = engine_result.routing_target
 
     # Single-shot subtasks may have empty AIMessage content after tool calls.
     # Fallback to the last ToolMessage content so aggregation has usable data.
@@ -56,7 +55,7 @@ async def process_worker_result(
                 content = str(msg.content)
                 break
 
-    logger.info(f"[Worker][{role_name}] Loop finished. Content len: {len(content)}, Tools used: {len(tool_history)}, Target: {routing_target}")
+    logger.info(f"[Worker][{role_name}] Loop finished. Content len: {len(content)}, Tools used: {len(tool_history)}")
 
     # Determine structured outcome using EngineResult.outcome if available
     outcome = engine_result.outcome
@@ -227,7 +226,7 @@ async def process_worker_result(
 
     return StateUpdate(
         messages=preserved_messages,
-        next_node=routing_target or RoutingTarget.SUPERVISOR,
+        next_node=None,
         blackboard=blackboard,
         workspace_context=workspace_context,
     )

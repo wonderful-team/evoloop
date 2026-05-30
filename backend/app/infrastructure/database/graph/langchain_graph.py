@@ -48,21 +48,17 @@ def create_langchain_graph() -> Any | None:
     if settings.EMBEDDED_MODE:
         return None
 
-    try:
-        from langchain_neo4j import Neo4jGraph
+    from langchain_neo4j import Neo4jGraph
 
-        graph = Neo4jGraph(
-            url=settings.NEO4J_URI,
-            username=settings.NEO4J_USER,
-            password=settings.NEO4J_PASSWORD,
-            refresh_schema=False,
-        )
-        graph.schema = _MANUAL_SCHEMA
-        logger.info("[LangchainGraphAdapter] Neo4jGraph initialized with manual schema")
-        return graph
-    except Exception as e:
-        logger.warning(f"[LangchainGraphAdapter] Failed to initialize Neo4jGraph (falling back): {e}")
-        return None
+    graph = Neo4jGraph(
+        url=settings.NEO4J_URI,
+        username=settings.NEO4J_USER,
+        password=settings.NEO4J_PASSWORD,
+        refresh_schema=False,
+    )
+    graph.schema = _MANUAL_SCHEMA
+    logger.info("[LangchainGraphAdapter] Neo4jGraph initialized with manual schema")
+    return graph
 
 
 def create_cypher_qa_chain(llm: Any, graph: Any, prompt: Any) -> Any:

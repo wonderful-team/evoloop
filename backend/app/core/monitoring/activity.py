@@ -55,7 +55,7 @@ class ActivityMonitor:
         return cls._instance
 
     @asynccontextmanager
-    async def run_scope(self, thread_id: str, main_goal: str = "处理用户请求", task_type: str = None, project_id: int | None = None) -> AsyncGenerator[str, None]:
+    async def run_scope(self, thread_id: str, main_goal: str = "", task_type: str = None, project_id: int | None = None) -> AsyncGenerator[str, None]:
         """
         Unified Agent Lifecycle Context Manager.
 
@@ -111,7 +111,7 @@ class ActivityMonitor:
             await self.end_run(thread_id, status="failed", run_id=run_id, task_type=task_type)
             raise
 
-    async def start_run(self, thread_id: str, main_goal: str = "处理用户请求", run_id: str = None, project_id: int | None = None):
+    async def start_run(self, thread_id: str, main_goal: str = "", run_id: str = None, project_id: int | None = None):
         """Initialize activity state for a new run."""
         await self._state_service.start_run(thread_id, main_goal)
 
@@ -350,6 +350,26 @@ class ActivityMonitor:
     async def get_activity(self, thread_id: str):
         """Get full activity state for a thread."""
         return await self._state_service.get_state(thread_id)
+
+    async def update_goal(self, thread_id: str, new_goal: str):
+        """Update the main goal for a thread and publish the update to the UI."""
+        # 1. Update SQLite/database state
+        await self._state_service.update_field(thread_id, "main_goal", new_goal)
+        
+        # 2. Publish to the event bus so the frontend updates in real time
+        from app.core.engine.message.event_bus import get_event_bus
+        bus = get_event_bus()
+        channel = f"chat:{thread_id}:events"
+        
+        activity = await self.get_activity(thread_id)
+        if activity:
+            snapshot = activity.model_dump() if hasattr(activity, "model_dump") else activity
+            snapshot["type"] = "activity"
+            try:
+                await bus.publish(channel, json.dumps(snapshot, ensure_ascii=False))
+                logger.info(f"[ActivityMonitor] Session goal updated for thread {thread_id}: {new_goal}")
+            except Exception as e:
+                logger.warning(f"[ActivityMonitor] Failed to publish goal update event: {e}")
 
     async def get_statuses(self, thread_ids: list[str]) -> dict[str, dict[str, str]]:
         """Batch fetch statuses and goals for multiple threads efficiently."""

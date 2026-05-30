@@ -131,13 +131,12 @@ edges:
       # spawning.  This is handled directly by LangGraph (not via this map).
       # See app.core.engine.routers._build_subtask_sends for details.
 
-  # 2. Worker -> Supervisor/SequentialWorkflow (Conditional)
+  # 2. Worker -> Supervisor/Finish (outcome-based)
   - from: "worker"
     type: "conditional"
-    router: "app.core.engine.routers.route_by_next_node"
+    router: "app.core.engine.routers.route_worker_by_outcome"
     map:
       supervisor: "supervisor"
-      sequential_workflow: "sequential_workflow"
       finish: "finish"
 
   # 3. SequentialWorkflow -> SequentialWorkflow/Finish/Supervisor (Conditional)

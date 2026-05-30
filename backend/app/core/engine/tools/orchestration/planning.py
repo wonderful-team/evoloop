@@ -64,6 +64,5 @@ async def decompose_task(
 
     return DecomposeTaskResult(
         status="success",
-        routing_target="spawn_subtasks",
         spawn_plan=plan
     )

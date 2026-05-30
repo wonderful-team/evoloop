@@ -120,8 +120,9 @@ class MessagePublisher:
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """推送系统错误消息（复用 publish 入口）"""
+        import uuid
         block = MessageBlock(
-            id=f"msg-{self.thread_id}-error-{int(time.time() * 1000)}",
+            id=str(uuid.uuid4()),
             thread_id=self.thread_id,
             role="system",
             category="error_system",

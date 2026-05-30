@@ -337,6 +337,7 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
             purpose="memory_extraction",
             output_schema=GitConceptExtractionResult,
             temperature=0.0,
+            max_tokens=4000,
             model_name=model_name,
         )
 

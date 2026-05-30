@@ -143,30 +143,25 @@ class MeilisearchBackend:
 
         filter_str = " AND ".join(filters) if filters else None
 
-        try:
-            result = index.search(
-                query,
-                {
-                    "limit": limit,
-                    "offset": offset,
-                    "filter": filter_str,
-                    "attributesToHighlight": ["content", "title"],
-                    "highlightPreTag": "<mark>",
-                    "highlightPostTag": "</mark>",
-                    "attributesToRetrieve": [
-                        "id",
-                        "path",
-                        "collection",
-                        "title",
-                        "content",
-                        "tags",
-                    ],
-                },
-            )
-        except Exception as e:
-            logger.error(f"[MeilisearchBackend] Search failed: {e}")
-            return SearchResults(query=query, total=0, results=[], facets={})
-
+        result = index.search(
+            query,
+            {
+                "limit": limit,
+                "offset": offset,
+                "filter": filter_str,
+                "attributesToHighlight": ["content", "title"],
+                "highlightPreTag": "<mark>",
+                "highlightPostTag": "</mark>",
+                "attributesToRetrieve": [
+                    "id",
+                    "path",
+                    "collection",
+                    "title",
+                    "content",
+                    "tags",
+                ],
+            },
+        )
         results = []
         for hit in result.get("hits", []):
             highlights = hit.get("_formatted", {})
@@ -199,20 +194,17 @@ class MeilisearchBackend:
     ) -> dict:
         _, index = self._get_client()
         facets: dict = {"collections": {}, "tags": {}}
-        try:
-            # Meilisearch facet search
-            facet_result = index.search(
-                query,
-                {
-                    "limit": 0,
-                    "facets": ["collection"],
-                    "filter": f"collection = '{project_filter}'" if project_filter else None,
-                },
-            )
-            facet_distribution = facet_result.get("facetDistribution", {})
-            facets["collections"] = facet_distribution.get("collection", {})
-        except Exception:
-            pass
+        # Meilisearch facet search
+        facet_result = index.search(
+            query,
+            {
+                "limit": 0,
+                "facets": ["collection"],
+                "filter": f"collection = '{project_filter}'" if project_filter else None,
+            },
+        )
+        facet_distribution = facet_result.get("facetDistribution", {})
+        facets["collections"] = facet_distribution.get("collection", {})
         return facets
 
     async def suggest(
@@ -223,26 +215,23 @@ class MeilisearchBackend:
     ) -> list[SearchSuggestion]:
         _, index = self._get_client()
         suggestions: list[SearchSuggestion] = []
-        try:
-            filter_str = f"collection = '{collection}'" if collection else None
-            result = index.search(
-                prefix,
-                {
-                    "limit": limit,
-                    "filter": filter_str,
-                    "attributesToRetrieve": ["title", "path"],
-                },
-            )
-            for hit in result.get("hits", []):
-                suggestions.append(
-                    SearchSuggestion(
-                        text=hit.get("title", ""),
-                        path=hit.get("path"),
-                        type="title",
-                    )
+        filter_str = f"collection = '{collection}'" if collection else None
+        result = index.search(
+            prefix,
+            {
+                "limit": limit,
+                "filter": filter_str,
+                "attributesToRetrieve": ["title", "path"],
+            },
+        )
+        for hit in result.get("hits", []):
+            suggestions.append(
+                SearchSuggestion(
+                    text=hit.get("title", ""),
+                    path=hit.get("path"),
+                    type="title",
                 )
-        except Exception as e:
-            logger.warning(f"[MeilisearchBackend] Suggest failed: {e}")
+            )
         return suggestions[:limit]
 
     async def list_tags(
@@ -254,24 +243,21 @@ class MeilisearchBackend:
         # Fallback to aggregation via search.
         _, index = self._get_client()
         tags: list[dict] = []
-        try:
-            filter_str = f"collection = '{collection}'" if collection else None
-            result = index.search(
-                "",
-                {
-                    "limit": 1000,
-                    "filter": filter_str,
-                    "facets": ["tags"],
-                },
-            )
-            facet_distribution = result.get("facetDistribution", {})
-            tags = [
-                {"name": tag, "count": count}
-                for tag, count in facet_distribution.get("tags", {}).items()
-            ]
-            tags.sort(key=lambda x: x["count"], reverse=True)
-        except Exception as e:
-            logger.warning(f"[MeilisearchBackend] list_tags failed: {e}")
+        filter_str = f"collection = '{collection}'" if collection else None
+        result = index.search(
+            "",
+            {
+                "limit": 1000,
+                "filter": filter_str,
+                "facets": ["tags"],
+            },
+        )
+        facet_distribution = result.get("facetDistribution", {})
+        tags = [
+            {"name": tag, "count": count}
+            for tag, count in facet_distribution.get("tags", {}).items()
+        ]
+        tags.sort(key=lambda x: x["count"], reverse=True)
         return tags[:limit], len(tags)
 
     async def get_tag_config(self) -> list[dict]:
@@ -292,22 +278,17 @@ class MeilisearchBackend:
 
     async def get_stats(self) -> SearchIndexStats:
         _, index = self._get_client()
-        try:
-            stats = index.get_stats()
-            total_documents = stats.get("numberOfDocuments", 0)
-            # Collections are not directly available in Meilisearch stats
-            # We could scan all documents, but that's expensive.
-            return SearchIndexStats(
-                total_documents=total_documents,
-                total_terms=0,
-                collections=[],
-                recent_searches=[],
-            )
-        except Exception as e:
-            logger.warning(f"[MeilisearchBackend] get_stats failed: {e}")
-            return SearchIndexStats(
-                total_documents=0, total_terms=0, collections=[], recent_searches=[]
-            )
+        stats = index.get_stats()
+        total_documents = stats.get("numberOfDocuments", 0)
+        # Collections are not directly available in Meilisearch stats
+        # We could scan all documents, but that's expensive.
+        return SearchIndexStats(
+            total_documents=total_documents,
+            total_terms=0,
+            collections=[],
+            recent_searches=[],
+        )
+
 
     async def reindex_all(self, store_service) -> ReindexResult:
         _, index = self._get_client()

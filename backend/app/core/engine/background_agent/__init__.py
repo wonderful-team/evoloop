@@ -174,11 +174,7 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
             input_payload = inputs_dict
             
             # 5.5 Authoritative session_goal distillation
-            from app.core.engine.message.goal_distiller import GoalDistiller
-            input_payload["session_goal"] = GoalDistiller.resolve(
-                explicit_goal=inputs.session_goal,
-                messages=raw_messages
-            )
+            input_payload["session_goal"] = inputs.session_goal or ""
 
             if inputs.hitl_resume_response is not None:
                 input_payload = await build_resume_command(graph_instance, config, inputs.hitl_resume_response)

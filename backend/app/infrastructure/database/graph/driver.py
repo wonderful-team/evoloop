@@ -115,24 +115,16 @@ class GraphManager:
             return cls._drivers[loop]
 
         # Initialize Neo4j Driver
-        try:
-            from app.infrastructure.database.graph.neo4j import Neo4jDriver
+        from app.infrastructure.database.graph.neo4j import Neo4jDriver
 
-            driver = Neo4jDriver(
-                uri=settings.NEO4J_URI or "bolt://localhost:7687",
-                user=settings.NEO4J_USER or "neo4j",
-                password=settings.NEO4J_PASSWORD
-            )
-            cls._drivers[loop] = driver
-            logger.info(f"Connected to Neo4j (Loop: {id(loop)})")
-            return driver
-        except Exception as e:
-            logger.error(f"Failed to connect to Neo4j: {e}. Falling back to FileGraph.")
-            # Explicitly fallback to FileGraph to avoid infinite recursion
-            from app.infrastructure.database.graph.file_graph import FileGraphDriver
-            driver = FileGraphDriver()
-            cls._drivers[loop] = driver
-            return driver
+        driver = Neo4jDriver(
+            uri=settings.NEO4J_URI or "bolt://localhost:7687",
+            user=settings.NEO4J_USER or "neo4j",
+            password=settings.NEO4J_PASSWORD
+        )
+        cls._drivers[loop] = driver
+        logger.info(f"Connected to Neo4j (Loop: {id(loop)})")
+        return driver
 
     @classmethod
     async def close_driver(cls):

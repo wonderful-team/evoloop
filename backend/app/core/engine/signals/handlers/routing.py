@@ -113,9 +113,22 @@ class RouteToHandler(SignalHandler[RouteToSignal]):
             visited_nodes = visited_nodes + [target]
         blackboard.visited_nodes = visited_nodes
 
+        # 4. Update session goal in database and publish event if provided
+        session_goal = signal.session_goal
+        if session_goal:
+            from app.core.engine.message.goal_distiller import GoalDistiller
+            session_goal = GoalDistiller.from_explicit(session_goal) or ""
+            if session_goal:
+                try:
+                    from app.core.monitoring.activity import activity_monitor
+                    await activity_monitor.update_goal(state.thread_id, session_goal)
+                except Exception as e:
+                    logger.warning(f"Failed to update session goal in RouteToHandler: {e}")
+
         return StateUpdate(
             next_node=target,
             blackboard=blackboard,
+            session_goal=session_goal if session_goal is not None else state.session_goal,
         )
 
 
@@ -142,4 +155,5 @@ def create_route_to_signal(args: dict) -> RouteToSignal:
         context=RoutingContext.model_validate(context_data) if context_data else RoutingContext(),
         authorized_tools=args.get("authorized_tools"),
         skill_ids=raw_skill_ids,
+        session_goal=args.get("session_goal"),
     )

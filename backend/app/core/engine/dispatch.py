@@ -180,18 +180,9 @@ async def dispatch_agent_run(
     # ------------------------------------------------------------------
     # 3. Build goal for activity monitor and session tracking
     # ------------------------------------------------------------------
-    from app.core.engine.message.goal_distiller import GoalDistiller
-    
-    # Authoritative session_goal (full or long-truncated)
-    session_goal = GoalDistiller.from_explicit(message_content)
-    # Display-optimized goal for activity monitor (shorter)
-    display_goal = GoalDistiller.for_display(session_goal)
-    
-    has_images = references and any(ref.get("type") == "image" for ref in references)
-    if has_images:
-        display_goal = f"[Image] {display_goal}"
-    if goal_prefix:
-        display_goal = f"{goal_prefix}{display_goal}"
+    # Authoritative session_goal is empty by default (only set when Supervisor delegates tasks)
+    session_goal = ""
+    display_goal = ""
 
     # ... (rest of the code logic remains same, but using display_goal for persistence where appropriate)
     # Actually, the existing code used 'goal' for inputs and persistence.

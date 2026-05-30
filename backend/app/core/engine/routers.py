@@ -33,24 +33,18 @@ class RoutingTarget(str, Enum):
 
 
 def route_by_next_node(state: AgentState) -> str:
-    """Generic router that follows state.next_node if set."""
-    target = state.next_node
-    if target:
-        # Define the set of allowed targets for general conditional edges
-        # mapping in agent_main.yaml. 
-        allowed_targets = {
-            RoutingTarget.SUPERVISOR,
-            RoutingTarget.SEQUENTIAL_WORKFLOW,
-            RoutingTarget.FINISH,
-            RoutingTarget.END,
-        }
-        if target not in allowed_targets:
-            logger.error(f"[Router] 🚨 Invalid next_node '{target}'. Not in YAML map. Falling back to supervisor.")
-            return RoutingTarget.SUPERVISOR
-            
-        logger.info(f"[Router] Dynamic next_node: {target}")
-        return target
-    return RoutingTarget.SUPERVISOR
+    """Pure mapper: reads state.next_node, falls back to finish."""
+    return state.next_node or "finish"
+
+
+def route_worker_by_outcome(state: AgentState) -> str:
+    """Worker 的路由由执行结果决定，LLM 不参与。"""
+    outcome = None
+    if state.blackboard:
+        outcome = getattr(state.blackboard, "worker_outcome", None)
+    if outcome in ("truncated", "failed", "error"):
+        return "supervisor"
+    return "finish"
 
 
 def route_supervisor(state: AgentState) -> str | list[Send]:
@@ -86,17 +80,7 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
 
     # --- Routing Topology Whitelist ---
     # These nodes can be reached directly from Supervisor without an execution ticket wrapper
-    terminal_nodes = (
-        RoutingTarget.CHAT,
-        RoutingTarget.FINISH,
-        RoutingTarget.SUPERVISOR,
-        RoutingTarget.AGGREGATOR,
-        RoutingTarget.SPAWN_SUBTASKS,
-        RoutingTarget.SEQUENTIAL_WORKFLOW,
-    )
     if next_node:
-        # Define the set of allowed terminal targets for the supervisor's conditional edge
-        # mapping in agent_main.yaml. 
         terminal_targets = {
             RoutingTarget.CHAT,
             RoutingTarget.FINISH,

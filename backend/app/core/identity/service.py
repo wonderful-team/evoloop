@@ -114,7 +114,13 @@ class IdentityService:
                             await self.store.save_member_id(mid)
                     return mid
         except Exception as e:
-            logger.error(f"Failed to resolve member_id from token: {e}")
+            logger.warning(f"[Identity] Failed to resolve member_id from token, falling back to cached value: {e}")
+
+        # 3. Fallback to stale cache when Member Center is unreachable
+        if cached:
+            member_id, ts = cached
+            logger.info(f"[Identity] Using stale cached member_id={member_id} (cached {int(time.time() - ts)}s ago)")
+            return member_id
 
         return None
 

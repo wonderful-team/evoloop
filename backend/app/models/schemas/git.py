@@ -9,4 +9,4 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 
 class GitConceptExtractionResult(DynamicBaseModel):
     """Result of extracting concepts from git diff."""
-    concepts: list[Concept] = Field(description="List of extracted concepts")
+    concepts: list[Concept] = Field(default_factory=list, description="List of extracted concepts")

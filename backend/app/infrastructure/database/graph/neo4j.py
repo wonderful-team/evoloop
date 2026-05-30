@@ -209,11 +209,7 @@ class Neo4jDriver(IGraphDriver):
         RETURN node, score
         """
         
-        try:
-            async with self.session() as session:
-                result = await session.run(query, **params)
-                data = await result.data()
-                return [record["node"] for record in data if "node" in record]
-        except Exception as e:
-            logger.warning(f"[Neo4j] Native vector search failed for {label}: {e}")
-            return []
+        async with self.session() as session:
+            result = await session.run(query, **params)
+            data = await result.data()
+            return [record["node"] for record in data if "node" in record]

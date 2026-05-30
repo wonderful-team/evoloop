@@ -34,6 +34,7 @@ class RouteToSignal(AgentSignal):
     context: RoutingContext = Field(default_factory=RoutingContext)
     authorized_tools: list[str] | None = None
     skill_ids: list[int] | None = None
+    session_goal: str | None = None
 
     @model_validator(mode="after")
     def _normalize_skills(self):

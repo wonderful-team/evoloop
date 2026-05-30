@@ -9,6 +9,7 @@ Eliminates separate EnhancedStreamManager module by integrating its capabilities
 import ast
 import json
 import logging
+import time
 from typing import Any
 
 from langchain_core.callbacks import AsyncCallbackHandler
@@ -23,6 +24,7 @@ from app.core.tools.registry import (
     is_state_mutating_tool,
 )
 from app.i18n.service import i18n
+from app.utils.token import estimate_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,10 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     2. Cancellation checking and special tool notifications
     3. Structured stream event publishing (thinking only)
     """
+
+    # Dual-limit flush: time window (s) or token count threshold
+    _FLUSH_INTERVAL = 1.0
+    _FLUSH_TOKEN_LIMIT = 100
 
     def __init__(self, thread_id: str = ""):
         super().__init__()
@@ -55,6 +61,9 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         self._token_filter = TokenFilter()
         self._publisher: MessagePublisher | None = None
         self._thinking_buffer: str = ""  # Accumulated reasoning content for real-time streaming
+
+        # Dual-limit flush state
+        self._flush_start_time: float | None = None  # time.time() when current batch started
 
         # Node-level streaming control: run_id -> metadata mapping
         self._run_metadata: dict[str, dict] = {}
@@ -105,9 +114,9 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     async def on_llm_new_token(self, token: str, **kwargs: Any) -> None:
         """Run on new LLM token.
 
-        Strategy:
-        - THINKING (reasoning_content): stream per-chunk in real-time
-        - CONTENT: batch through TokenFilter (flush on \n or 50 chars)
+        Uses dual-limit flush strategy:
+        - Time window (1s): guarantees frontend sees content promptly
+        - Token count (100): batches aggressively during steady output
         """
         run_id = str(kwargs.get("run_id", ""))
         if self._is_streaming_disabled(run_id):
@@ -121,15 +130,27 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if not (self.llm_task_id and run_id == str(self.active_llm_run_id)):
             return
 
-        # 1. Extract and stream reasoning_content in real-time (accumulated)
+        now = time.time()
+        if self._flush_start_time is None:
+            self._flush_start_time = now
+
+        def _should_flush(buffer: str) -> bool:
+            return bool(buffer) and (
+                estimate_tokens(buffer) >= self._FLUSH_TOKEN_LIMIT
+                or (now - self._flush_start_time) >= self._FLUSH_INTERVAL
+            )
+
+        # 1. Extract and stream reasoning_content (dual-limit flush)
         generation_chunk = kwargs.get("chunk")
         if generation_chunk and hasattr(generation_chunk, "message"):
             msg_chunk = generation_chunk.message
             delta_reasoning = extract_reasoning_from_kwargs(msg_chunk.additional_kwargs)
             if delta_reasoning:
                 self._thinking_buffer += delta_reasoning
-                # 直接通过 Handler 流式推送思考片段
-                await self.emit_thinking(delta_reasoning, message_id=run_id)
+                if _should_flush(self._thinking_buffer):
+                    await self.emit_thinking(self._thinking_buffer, message_id=run_id)
+                    self._thinking_buffer = ""
+                    self._flush_start_time = now
 
         # 2. Defensive: normalize structured tokens
         if not isinstance(token, str):
@@ -149,26 +170,34 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             else:
                 token = str(token)
 
-        # Content goes through TokenFilter (hidden-tag suppression)
+        # 3. Content goes through TokenFilter (hidden-tag suppression + buffer)
         filtered, _ = self._token_filter.process(token)
         if filtered is None:
-            # Inside hidden tag — don't publish
             return
 
-        # NEW: Publish the filtered token to the frontend
-        if filtered:
-            await MessageHandler.stream_token(self.thread_id, filtered, message_id=run_id)
+        # Dual-limit flush: size check via should_flush(), time check externally
+        if self._token_filter.should_flush() or (
+            self._flush_start_time and (now - self._flush_start_time) >= self._FLUSH_INTERVAL
+        ):
+            batch = self._token_filter.flush()
+            if batch:
+                await MessageHandler.stream_token(self.thread_id, batch, message_id=run_id)
+                self._flush_start_time = now
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         """Run when LLM ends running."""
         run_id = str(kwargs.get("run_id", ""))
         self._run_metadata.pop(run_id, None)
 
-        # FLUSH REMAINING PUBLISH BUFFER
-        self._token_filter.flush()
+        # FLUSH REMAINING THINKING BUFFER
+        if self._thinking_buffer:
+            await self.emit_thinking(self._thinking_buffer, message_id=run_id)
+            self._thinking_buffer = ""
 
-        # Reset accumulated thinking buffer for the next LLM call
-        self._thinking_buffer = ""
+        # FLUSH REMAINING TOKEN BUFFER
+        remaining = self._token_filter.flush()
+        if remaining:
+            await MessageHandler.stream_token(self.thread_id, remaining, message_id=run_id)
 
         # Note: We no longer record "Thinking..." steps, so no update needed
         if run_id == str(self.active_llm_run_id):
@@ -180,8 +209,15 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         run_id = str(kwargs.get("run_id", ""))
         logger.error(f"LLM Error in thread {self.thread_id}: {error}", exc_info=True)
 
-        # Flush any buffered tokens before cleanup
-        self._token_filter.flush()
+        # FLUSH REMAINING THINKING BUFFER
+        if self._thinking_buffer:
+            await self.emit_thinking(self._thinking_buffer, message_id=run_id)
+            self._thinking_buffer = ""
+
+        # FLUSH REMAINING TOKEN BUFFER
+        remaining = self._token_filter.flush()
+        if remaining:
+            await MessageHandler.stream_token(self.thread_id, remaining, message_id=run_id)
 
         if run_id == str(self.active_llm_run_id):
             self.active_llm_run_id = None

@@ -123,7 +123,6 @@ class EngineResult(DynamicBaseModel):
     blackboard: BlackboardState | None = None
     is_truncated: bool = False
     signal: Any | None = None
-    routing_target: str | None = None
     outcome: NodeOutcome | None = None
     # Additional signals that arrived in the same Supervisor turn and were queued.
     # Persisted into blackboard.pending_signals by handle_outcome so SupervisorNode

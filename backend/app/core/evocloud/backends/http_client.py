@@ -27,6 +27,11 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
     Standardized HTTP Client for EvoCloud.
     """
 
+    # Circuit breaker for connection errors
+    _circuit_open = False
+    _circuit_last_error: float = 0
+    CIRCUIT_RETRY_AFTER = 30  # seconds
+
     def __init__(self, config: EvoCloudConfig):
         self.config = config
         self.base_url = str(config.api_url).rstrip("/")
@@ -201,6 +206,8 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
 
         try:
             resp = await client.request(method, url, params=request_params, json=data, headers=req_headers)
+            # Close circuit breaker on any successful response
+            EvoCloudHTTPClient._circuit_open = False
             # Handle token expiration (401 or specific error code)
             resp_json = (resp.json() if resp.status_code == 200 else None) or {}
             is_token_expired = (
@@ -238,6 +245,33 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
 
         except httpx.RequestError as e:
             logger.error(f"Request connection error to {url}: {type(e).__name__}: {e} (repr: {repr(e)}, cause: {repr(e.__cause__)})")
+
+            # DNS resolution failure → host unreachable, don't retry
+            cause = e.__cause__ if hasattr(e, '__cause__') else None
+            is_dns_error = (
+                isinstance(e, httpx.RemoteProtocolError)
+                and (isinstance(cause, ConnectionError) and "NameResolutionError" in type(cause).__name__)
+            ) or (
+                isinstance(cause, OSError) and getattr(cause, 'errno', None) == 8
+            ) or (
+                "nodename nor servname" in str(e) or "Name or service not known" in str(e)
+            )
+            if is_dns_error:
+                logger.warning(f"[EvoCloud] DNS resolution failed for {url}, not retrying")
+                return {"code": -1, "message": f"DNS resolution failed: {e}"}
+
+            # Circuit breaker: skip retry if we just failed recently
+            now = time.time()
+            if EvoCloudHTTPClient._circuit_open:
+                if now - EvoCloudHTTPClient._circuit_last_error < EvoCloudHTTPClient.CIRCUIT_RETRY_AFTER:
+                    logger.debug(f"[EvoCloud] Circuit open for {endpoint}, skipping retry")
+                    return {"code": -1, "message": str(e)}
+                else:
+                    EvoCloudHTTPClient._circuit_open = False
+
+            EvoCloudHTTPClient._circuit_open = True
+            EvoCloudHTTPClient._circuit_last_error = now
+
             # Recreate HTTP client on connection errors (stale pool) and retry once
             if _retry_count < 1:
                 logger.info(f"[EvoCloud] Recreating HTTP client and retrying {endpoint}...")

@@ -254,4 +254,4 @@ class ExtractedKnowledge(BaseModel):
 class KnowledgeHarvestingResult(BaseModel):
     """The full result of a knowledge extraction run."""
     items: list[ExtractedKnowledge] = Field(default_factory=list)
-    summary: str = Field(..., description="Brief summary of the knowledge discovered")
+    summary: str = Field(default="", description="Brief summary of the knowledge discovered")

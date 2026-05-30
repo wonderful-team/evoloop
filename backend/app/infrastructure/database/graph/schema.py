@@ -9,6 +9,7 @@ from app.infrastructure.database.graph.driver import GraphManager, IGraphDriver
 
 logger = logging.getLogger(__name__)
 
+
 class GraphSchemaManager:
     """
     Manages Neo4j indexes and constraints to ensure data integrity
@@ -62,34 +63,26 @@ class GraphSchemaManager:
 
     async def _create_constraint(self, session, name: str, label: str, prop: str):
         """Create a uniqueness constraint if it doesn't exist."""
-        try:
-            query = f"CREATE CONSTRAINT {name} IF NOT EXISTS FOR (n:{label}) REQUIRE n.{prop} IS UNIQUE"
-            await session.run(query)
-        except Exception as e:
-            logger.debug(f"Constraint {name} skipped: {e}")
+        query = f"CREATE CONSTRAINT {name} IF NOT EXISTS FOR (n:{label}) REQUIRE n.{prop} IS UNIQUE"
+        await session.run(query)
 
     async def _create_index(self, session, name: str, label: str, prop: str):
         """Create a range index if it doesn't exist."""
-        try:
-            query = f"CREATE INDEX {name} IF NOT EXISTS FOR (n:{label}) ON (n.{prop})"
-            await session.run(query)
-        except Exception as e:
-            logger.debug(f"Index {name} skipped: {e}")
+        query = f"CREATE INDEX {name} IF NOT EXISTS FOR (n:{label}) ON (n.{prop})"
+        await session.run(query)
 
     async def _create_vector_index(self, session, name: str, label: str, prop: str, dimensions: int):
         """Create a vector index if it doesn't exist."""
-        try:
-            query = f"""
-                CREATE VECTOR INDEX {name} IF NOT EXISTS
-                FOR (n:{label}) ON (n.{prop})
-                OPTIONS {{indexConfig: {{
-                    `vector.dimensions`: {dimensions},
-                    `vector.similarity_function`: 'cosine'
-                }}}}
-            """
-            await session.run(query)
-        except Exception as e:
-            logger.debug(f"Vector Index {name} skipped: {e}")
+        query = f"""
+            CREATE VECTOR INDEX {name} IF NOT EXISTS
+            FOR (n:{label}) ON (n.{prop})
+            OPTIONS {{indexConfig: {{
+                `vector.dimensions`: {dimensions},
+                `vector.similarity_function`: 'cosine'
+            }}}}
+        """
+        await session.run(query)
+
 
 # Global Instance
 schema_manager = GraphSchemaManager()

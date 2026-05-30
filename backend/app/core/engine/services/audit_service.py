@@ -171,60 +171,24 @@ class LayeredAuditor:
         if anomalies:
             triggers.append("anomalies_detected")
 
-        # NEW: User/system explicitly requested comprehensive audit
-        if blackboard and blackboard.metadata and blackboard.metadata.force_comprehensive_audit:
-            triggers.append("user_requested")
+        # Worker 使用了技能（通过路由下发的 skill_ids）
+        if blackboard and blackboard.ticket and blackboard.ticket.skill_ids:
+            triggers.append("skill_used")
+
+        # Supervisor 定义过规划
+        has_plan = bool(state.current_plan or state.structured_plan)
+        has_plan_progress = (
+            blackboard and blackboard.metadata and blackboard.metadata.plan_progress
+            and blackboard.metadata.plan_progress.total_steps > 0
+        )
+        if has_plan or has_plan_progress:
+            triggers.append("plan_defined")
 
         if triggers:
             logger.info(f"[AuditService] 🚩 Comprehensive triggers: {triggers}")
             return AuditDecision(tier="comprehensive", reason=f"safety: {', '.join(triggers)}", confidence=1.0)
 
-        minimal_ok = [
-            used_tools.issubset(self.READONLY_TOOLS),
-            len(last_content) > 50,
-            len(last_content) < 3000,
-            not any(re.search(p, last_content) for p in self.ERROR_PATTERNS),
-            not state.is_subtask,
-        ]
-
-        if all(minimal_ok):
-            return AuditDecision(tier="minimal", reason="readonly_safe", confidence=0.95)
-
         return AuditDecision(tier="standard", reason="default", confidence=0.90)
-
-    # ------------------------------------------------------------------
-    # Minimal audit — rule-based, <10 ms
-    # ------------------------------------------------------------------
-
-    async def audit_minimal(
-        self,
-        messages: list,
-        blackboard: BlackboardState,
-    ) -> tuple[str, dict]:
-        last_content = ""
-        tool_usage = []
-
-        for msg in reversed(messages):
-            if isinstance(msg, AIMessage) and msg.content:
-                last_content = str(msg.content)
-                break
-
-        if not last_content:
-            for msg in reversed(messages):
-                if isinstance(msg, ToolMessage) and msg.content:
-                    last_content = str(msg.content)
-                    break
-
-        for msg in messages:
-            for tc in extract_tool_calls(msg):
-                name = tc.get("name")
-                if name:
-                    tool_usage.append(name)
-
-        max_len = 2000
-        summary = last_content[:max_len] if len(last_content) <= max_len else last_content[:max_len] + "\n\n[Truncated]"
-
-        return summary, {"tier": "minimal", "duration_ms": 5, "tools": list(set(tool_usage))}
 
     # ------------------------------------------------------------------
     # Standard audit — lightweight LLM, ~500–800 ms
@@ -510,10 +474,6 @@ class AuditService:
         tier = decision.tier
 
         logger.info(f"[AuditService] Audit tier: {tier.upper()} ({decision.reason})")
-
-        if tier == "minimal":
-            summary, meta = await self._auditor.audit_minimal(state.messages, state.blackboard)
-            return AuditResult(summary=summary, tier=tier, meta=meta)
 
         if tier == "standard":
             summary, meta = await self._auditor.audit_standard(

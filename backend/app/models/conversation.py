@@ -34,7 +34,6 @@ class Message(Base):
         # NOTE: For PostgreSQL deployments, a GIN index on content would help
         # full-text search. SQLite (embedded mode) does not support GIN;
         # consider FTS5 virtual table for large local message volumes.
-        Index("ix_messages_content", "content"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
