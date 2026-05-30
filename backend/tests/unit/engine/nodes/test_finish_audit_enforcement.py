@@ -43,14 +43,17 @@ class TestFinishAuditEnforcement:
         """INCOMPLETE audit outcome must route to SUPERVISOR, not END."""
         state = self._make_state_with_outcome("INCOMPLETE")
 
-        # Mock AuditService.execute to avoid real LLM calls
+        # Outcome tag comes from comprehensive audit result messages
+        outcome_msg = AIMessage(
+            content="Audit review complete.\n<evoloop_audit_outcome>INCOMPLETE</evoloop_audit_outcome>"
+        )
         mock_service = MagicMock()
         mock_service.execute = AsyncMock(return_value=MagicMock(
-            tier="minimal",
-            summary="",
-            messages=[],
+            tier="comprehensive",
+            summary="Task incomplete.",
+            messages=[outcome_msg],
             blackboard=None,
-            meta={"tier": "minimal"},
+            meta={"tier": "comprehensive"},
         ))
         finish_node._audit_service = mock_service
 
@@ -67,13 +70,16 @@ class TestFinishAuditEnforcement:
         """COMPLETE audit outcome should route to END normally."""
         state = self._make_state_with_outcome("COMPLETE")
 
+        outcome_msg = AIMessage(
+            content="Audit review complete.\n<evoloop_audit_outcome>COMPLETE</evoloop_audit_outcome>"
+        )
         mock_service = MagicMock()
         mock_service.execute = AsyncMock(return_value=MagicMock(
-            tier="minimal",
-            summary="",
-            messages=[],
+            tier="comprehensive",
+            summary="Task complete.",
+            messages=[outcome_msg],
             blackboard=None,
-            meta={"tier": "minimal"},
+            meta={"tier": "comprehensive"},
         ))
         finish_node._audit_service = mock_service
 
@@ -106,7 +112,7 @@ class TestFinishAuditEnforcement:
 
     @pytest.mark.asyncio
     async def test_blocked_by_hook_overrides_incomplete(self, finish_node, config):
-        """If blocked_by_hook is True, it should still route to SUPERVISOR."""
+        """INCOMPLETE outcome routes to SUPERVISOR even with blocked_by_hook flag set."""
         content = "<evoloop_audit_outcome>INCOMPLETE</evoloop_audit_outcome>"
         msg = AIMessage(content=content)
         blackboard = BlackboardState(
@@ -114,20 +120,20 @@ class TestFinishAuditEnforcement:
         )
         state = AgentState(messages=[msg], blackboard=blackboard)
 
+        outcome_msg = AIMessage(content=content)
         mock_service = MagicMock()
         mock_service.execute = AsyncMock(return_value=MagicMock(
-            tier="minimal",
+            tier="comprehensive",
             summary="",
-            messages=[],
+            messages=[outcome_msg],
             blackboard=None,
-            meta={"tier": "minimal"},
+            meta={"tier": "comprehensive"},
         ))
         finish_node._audit_service = mock_service
 
         result = await finish_node(state, config)
 
-        # FinishNode itself checks INCOMPLETE first, so it routes to SUPERVISOR.
-        # route_finish also checks blocked_by_hook first, so either way it's SUPERVISOR.
+        # FinishNode checks INCOMPLETE first and routes to SUPERVISOR
         assert result.next_node == RoutingTarget.SUPERVISOR
 
     @pytest.mark.asyncio
@@ -136,13 +142,16 @@ class TestFinishAuditEnforcement:
         for variant in ["incomplete", "Incomplete", "INCOMPLETE", "InCoMpLeTe"]:
             state = self._make_state_with_outcome(variant)
 
+            outcome_msg = AIMessage(
+                content=f"<evoloop_audit_outcome>{variant}</evoloop_audit_outcome>"
+            )
             mock_service = MagicMock()
             mock_service.execute = AsyncMock(return_value=MagicMock(
-                tier="minimal",
+                tier="comprehensive",
                 summary="",
-                messages=[],
+                messages=[outcome_msg],
                 blackboard=None,
-                meta={"tier": "minimal"},
+                meta={"tier": "comprehensive"},
             ))
             finish_node._audit_service = mock_service
 

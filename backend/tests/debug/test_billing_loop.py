@@ -5,8 +5,9 @@ import logging
 import time
 
 backend_dir = os.path.dirname(os.path.abspath(__file__))
-if backend_dir not in sys.path:
-    sys.path.insert(0, backend_dir)
+project_dir = os.path.dirname(os.path.dirname(backend_dir))  # evoloop/backend/
+if project_dir not in sys.path:
+    sys.path.insert(0, project_dir)
 
 # Override environment to prevent trying to start web server stuff
 os.environ["ENVIRONMENT"] = "local"
@@ -27,38 +28,29 @@ async def run_test():
 
     client = evocloud_manager.api
 
-    # First perform Login to retrieve the authentic member_id
-    logger.info("Attempting to login with provided test credentials to obtain member_id...")
-    login_res = await client.login("preterchan", "hellomylife")
+    # Step 0: Login to MC and verify token with Gateway
+    logger.info("Attempting to login with local test credentials...")
+    login_res = await client.login("peter1", "hellomylife")
     if not login_res.get("success"):
-        logger.error(f"Failed to login to identify member ID: {login_res}")
+        logger.error(f"Failed to login: {login_res}")
         return
-        
-    # Fetch user info to get the actual member_id (because login doesn't return it)
-    logger.info("Fetching authentic user info from PHP backend...")
-    token = login_res["token"]
-    user_info_resp = await client.request("GET", "/api/member/info", token=token)
-    real_member_id = user_info_resp.get("data", {}).get("member_id", user_info_resp.get("data", {}).get("id"))
-    
-    if not real_member_id:
-        logger.error(f"Failed to fetch member ID from user info: {user_info_resp}")
-        return
-        
-    logger.info(f"Retrieved authentic Member ID from user info: {real_member_id}")
 
-    logger.info(f"Authentic PHP Token captured, setting to client natively: {token[:20]}...")
-    client.set_token(token)
-    await identity_service.store.save_member_id(real_member_id)
-        
-    
-    # Fetch identity from Gateway to handle local sqlite missing state
+    token = login_res["token"]
+    await client.set_token(token)
+    logger.info(f"Login success, token: {token[:30]}...")
+
+    # Verify token with Gateway (Gateway returns user_id which equals member_id)
+    logger.info("Verifying token with local Gateway...")
     auth_res = await client.request("POST", "/api/v1/auth/verify", data={"token": token})
     if "user_id" not in auth_res:
-        logger.error(f"Failed to verify token: {auth_res}")
+        logger.error(f"Gateway token verification failed: {auth_res}")
         return
-        
+
     member_id = auth_res["user_id"]
-    logger.info(f"Loaded credentials for Member ID: {member_id}")
+    logger.info(f"Gateway verified. Member ID: {member_id}")
+
+    # Save member_id to identity store
+    await identity_service.store.save_member_id(member_id)
 
     # [COMMENTED OUT] Initialize Gateway Quota Memory via Webhook
     # To test with zero quota, this auto-recharge is disabled.

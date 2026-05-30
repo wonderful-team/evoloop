@@ -3,7 +3,7 @@ import ReactECharts from 'echarts-for-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@evoloop/shared/components/ui/card";
 import { Button } from "@evoloop/shared/components/ui/button";
 import { useTranslation } from 'react-i18next';
-import { Download, AlertCircle } from 'lucide-react';
+import { Copy, Check, Download, AlertCircle } from 'lucide-react';
 import { toast } from "sonner";
 import { isTauri } from "@/lib/tauri";
 
@@ -70,6 +70,7 @@ function validateOption(option: any): { valid: boolean; reason?: string } {
 export const EChartsArtifact: React.FC<EChartsArtifactProps> = ({ data }) => {
   const { t } = useTranslation();
   const [isDark, setIsDark] = useState(false);
+  const [copied, setCopied] = useState(false);
   const chartRef = useRef<ReactECharts>(null);
 
   // Sync with system or app theme
@@ -199,15 +200,30 @@ export const EChartsArtifact: React.FC<EChartsArtifactProps> = ({ data }) => {
                 {data.title || t('chat.artifact.chart', 'Statistical Analysis')}
             </h3>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 rounded-full bg-background/50 hover:bg-background shadow-sm transition-all opacity-0 group-hover/chart:opacity-100"
-            onClick={handleSaveImage}
-            title={t('chat.artifact.saveImage', 'Save as image')}
-          >
-            <Download className="w-4 h-4 text-muted-foreground hover:text-primary transition-colors" />
-          </Button>
+          <div className="flex items-center gap-2 opacity-0 group-hover/chart:opacity-100 transition-opacity">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full bg-background/50 hover:bg-background shadow-sm"
+              onClick={() => {
+                navigator.clipboard.writeText(JSON.stringify(data.option, null, 2));
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              }}
+              title={t('common.copy')}
+            >
+              {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-muted-foreground" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full bg-background/50 hover:bg-background shadow-sm"
+              onClick={handleSaveImage}
+              title={t('chat.artifact.saveImage', 'Save as image')}
+            >
+              <Download className="w-4 h-4 text-muted-foreground hover:text-primary transition-colors" />
+            </Button>
+          </div>
         </div>
         <div className="p-4 bg-background/40 backdrop-blur-sm">
           <div className="w-full" style={{ height: `${chartHeight}px` }}>

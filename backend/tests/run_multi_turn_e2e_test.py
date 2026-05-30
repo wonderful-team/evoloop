@@ -167,8 +167,8 @@ async def main():
         # In Turn 2, we specifically ask the Agent to recall information 
         # from Turn 1 without restating what the file was.
         turn_2_msg = (
-            "这是测试的第二轮。你还记得在上一轮对话中，你在当前目录发现了什么文件吗？"
-            "请基于你上一轮的总结记忆，在当前目录下创建一个名为 memory_test_result.md 的文件，"
+            "这是测试的第二轮。你还记得在上一轮对话中，你在 /tmp/evoloop_multi_turn_test 目录发现了什么文件吗？"
+            "请基于你上一轮的总结记忆，在该目录下创建一个名为 memory_test_result.md 的文件，"
             "将你发现的那个文件名写在这个新文件里。"
             "注意：不要去重新用工具探索环境，请直接依赖上一轮对话总结出来的短时记忆（LangGraph State）。"
         )

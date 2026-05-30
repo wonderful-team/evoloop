@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@evoloop/shared/components/ui/card";
+import { Button } from "@evoloop/shared/components/ui/button";
 import { useTranslation } from 'react-i18next';
-import { MapPin, AlertCircle } from 'lucide-react';
+import { Copy, Check, MapPin, AlertCircle } from 'lucide-react';
 
 declare global {
   interface Window {
@@ -68,6 +68,7 @@ export const MapArtifact: React.FC<MapArtifactProps> = ({ data }) => {
   const mapRef = useRef<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     let isCancelled = false;
@@ -217,14 +218,31 @@ export const MapArtifact: React.FC<MapArtifactProps> = ({ data }) => {
 
   return (
     <div className="w-full my-6 border border-[var(--doc-border)] bg-muted/5 rounded-xl overflow-hidden transition-all duration-500 animate-in fade-in slide-in-from-top-2">
-      <div className="py-3 px-5 border-b border-[var(--doc-border)] bg-muted/10 flex flex-row items-center gap-3 group/map">
-        <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
-            <MapPin className="w-4 h-4" />
+      <div className="py-3 px-5 border-b border-[var(--doc-border)] bg-muted/10 flex flex-row items-center justify-between group/map">
+        <div className="flex flex-row items-center gap-3">
+          <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+              <MapPin className="w-4 h-4" />
+          </div>
+          <div className="flex flex-col">
+              <h3 className="text-sm font-bold tracking-tight">
+                  {data.title || t('chat.artifact.map', 'Location Map')}
+              </h3>
+          </div>
         </div>
-        <div className="flex flex-col">
-            <h3 className="text-sm font-bold tracking-tight">
-                {data.title || t('chat.artifact.map', 'Location Map')}
-            </h3>
+        <div className="opacity-0 group-hover/map:opacity-100 transition-opacity">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-full hover:bg-muted/50"
+            onClick={() => {
+              navigator.clipboard.writeText(JSON.stringify({ center: data.center, zoom: data.zoom, markers: data.markers, route: data.route }, null, 2));
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }}
+            title={t('common.copy')}
+          >
+            {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-muted-foreground" />}
+          </Button>
         </div>
       </div>
       <div className="p-0 relative bg-background/40 backdrop-blur-sm">

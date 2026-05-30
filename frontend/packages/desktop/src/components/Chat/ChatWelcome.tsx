@@ -3,7 +3,7 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { motion, useAnimationControls } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   LayoutGrid,
   ListTodo,
@@ -141,13 +141,11 @@ export function WoodenRobot({ primaryColor = '#109C8F', mood = 'neutral' }: Wood
   };
 
   return (
-    // robotContainer: width:160 height:180 alignItems:center justifyContent:center
-    // floatAnim: translateY 0 → -8 → 0, duration 2000ms each
-    <motion.div
-      style={{ width: 160, height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}
-      animate={{ y: [0, -8, 0] }}
-      transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-    >
+    <>
+      <style>{`@keyframes robot-float { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-8px) } }`}</style>
+      <div
+        style={{ width: 160, height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', animation: 'robot-float 4s ease-in-out infinite' }}
+      >
       {/* robotGlow: position:absolute w:140 h:140 borderRadius:70 top:10 */}
       <div style={{
         position: 'absolute', width: 140, height: 140, borderRadius: 70,
@@ -260,11 +258,9 @@ export function WoodenRobot({ primaryColor = '#109C8F', mood = 'neutral' }: Wood
               border: '1.5px solid #6B4423',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              {/* coreLight: w:14 h:14 borderRadius:7 + pulse */}
-              <motion.div
+              <div
+                className="animate-pulse"
                 style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: primaryColor }}
-                animate={{ opacity: [0.6, 1, 0.6] }}
-                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
               />
             </div>
             {/* torsoWoodGrain: absoluteFill opacity:0.2 borderRadius:4 */}
@@ -293,7 +289,8 @@ export function WoodenRobot({ primaryColor = '#109C8F', mood = 'neutral' }: Wood
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
+    </>
   );
 }
 
@@ -304,32 +301,16 @@ export function WoodenRobot({ primaryColor = '#109C8F', mood = 'neutral' }: Wood
 export const ChatWelcome: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  // Mirror mobile WelcomeView exactly:
-  // mood cycles through 'neutral' | 'happy' | 'thinking' — all fall into
-  // WoodenRobot's `default` branch (eyeWithBlink + mouthNeutral). 'speaking' is never used here.
-  const [mood, setMood] = useState<'neutral' | 'speaking'>('neutral');
-
-  useEffect(() => {
-    const moods: Array<'neutral' | 'speaking'> = ['neutral', 'neutral', 'neutral'];
-    const interval = setInterval(() => {
-      setMood(moods[Math.floor(Math.random() * moods.length)]);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
 
   return (
     <div className="flex flex-col items-center justify-between min-h-[600px] py-20 px-4 max-w-4xl mx-auto text-center h-full">
       {/* Top: Title & Subtitle */}
-      <motion.div
-        initial={{ opacity: 0, y: -16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        {/* Title — headlineSmall(24px) + fontWeight:bold + marginTop:16 + primary color */}
+      <div>
+        {/* Title */}
         <h1 style={{ fontSize: 24, fontWeight: 'bold', marginTop: 16, lineHeight: '32px' }} className="text-primary text-center">
           EvoLoop AI
         </h1>
-        {/* Subtitle — bodyMedium base + fontSize:16 + fontWeight:500 + onSurfaceVariant */}
+        {/* Subtitle */}
         <p style={{ fontSize: 16, fontWeight: 250, marginTop: 16 }} className="text-muted-foreground text-center">
           {t('chat.welcome.mobileSubtitle')}
         </p>
@@ -337,7 +318,7 @@ export const ChatWelcome: React.FC = () => {
         <p style={{ fontSize: 12, marginTop: 12, opacity: 0.6 }} className="text-muted-foreground text-center">
           {t('chat.welcome.mobileHint')}
         </p>
-      </motion.div>
+      </div>
 
       {/* Middle: Robot */}
       <motion.div
@@ -346,7 +327,7 @@ export const ChatWelcome: React.FC = () => {
         transition={{ delay: 0.2, duration: 0.5 }}
         className="flex-1 flex items-center justify-center py-20"
       >
-        <WoodenRobot mood={mood} />
+        <WoodenRobot />
       </motion.div>
 
       {/* Bottom: Navigation Cards */}

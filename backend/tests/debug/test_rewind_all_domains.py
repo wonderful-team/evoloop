@@ -52,7 +52,7 @@ class MockAgentEngine(AgentEngine):
             if c % 2 == 1:
                 return EngineResult(signal=RouteToSignal(target="chat", context=RoutingContext(topic=f"topic{c}")))
             else:
-                return EngineResult(routing_target="finish")
+                return EngineResult()
 
         if name == "Chat":
             return EngineResult(messages=[AIMessage(content=f"AI reply round {c}")])

@@ -89,31 +89,35 @@ export const ChatSidebar = memo(
             value="chats"
             className="flex-1 flex flex-col min-h-0 data-[state=inactive]:hidden mt-0"
           >
-            <SidebarChatList
-              threads={threads}
-              activeThreadId={activeThreadId}
-              setActiveThreadId={setActiveThreadId}
-              onDeleteThread={onDeleteThread}
-              onStopThread={onStopThread}
-              onNewChat={onNewChat}
-              fetchNextPage={fetchNextPage}
-              hasNextPage={hasNextPage}
-              isFetchingNextPage={isFetchingNextPage}
-              onTogglePin={onTogglePin}
-            />
+            {activeTab === "chats" && (
+              <SidebarChatList
+                threads={threads}
+                activeThreadId={activeThreadId}
+                setActiveThreadId={setActiveThreadId}
+                onDeleteThread={onDeleteThread}
+                onStopThread={onStopThread}
+                onNewChat={onNewChat}
+                fetchNextPage={fetchNextPage}
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+                onTogglePin={onTogglePin}
+              />
+            )}
           </TabsContent>
 
           <TabsContent
             value="files"
             className="flex-1 flex flex-col min-h-0 data-[state=inactive]:hidden mt-0"
           >
-            <SidebarFilesTab
-              projectId={projectId}
-              activeThreadId={activeThreadId}
-              onSelectDiff={onSelectDiff}
-              onQuoteFile={onQuoteFile}
-              expandChanges={expandAgentChanges}
-            />
+            {activeTab === "files" && (
+              <SidebarFilesTab
+                projectId={projectId}
+                activeThreadId={activeThreadId}
+                onSelectDiff={onSelectDiff}
+                onQuoteFile={onQuoteFile}
+                expandChanges={expandAgentChanges}
+              />
+            )}
           </TabsContent>
         </Tabs>
       </div>

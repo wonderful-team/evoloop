@@ -42,7 +42,7 @@ async def run_verification():
         await initialize_system()
         
         project_id = 99
-        thread_id = f"analytics-test-{uuid.uuid4().hex[:6]}"
+        thread_id = "reproduction-test-thread"
         target_file = "/Users/xujin/Projects/develop-assistant.cn/抖音本地样本数据.xlsx"
         
         user_input = (

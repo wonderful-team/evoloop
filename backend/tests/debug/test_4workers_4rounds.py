@@ -64,11 +64,11 @@ class MockAgentEngine(AgentEngine):
             if c == 3:
                 return EngineResult(signal=RouteToSignal(target="worker", context=RoutingContext(topic="project")))
             if c == 4:
-                return EngineResult(routing_target="finish")
+                return EngineResult()
             if c == 5:
                 return EngineResult(signal=RouteToSignal(target="worker", context=RoutingContext(topic="PTE")))
             if c == 6:
-                return EngineResult(routing_target="finish")
+                return EngineResult()
 
         if name == "Chat":
             if c == 1:

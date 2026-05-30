@@ -51,7 +51,6 @@ export function normalizeMessage(rawMsg: any): any {
         changeset_files: changesetFiles,
         category: rawMsg.category,
         status: rawMsg.status,
-        node_source: rawMsg.node_source,
         run_id: rawMsg.run_id,
         parent_id: rawMsg.parent_id,
         

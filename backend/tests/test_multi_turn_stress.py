@@ -37,7 +37,7 @@ async def initialize_system():
     await MemoryLifespanManager.ainitialize()
     auto_discover_handlers()
     builder = GraphBuilder()
-    config_path = os.path.join(os.path.dirname(__file__), "app/core/engine/config/agent_main.yaml")
+    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "app/core/engine/config/agent_main.yaml")
     graph = builder.build(config_path, checkpointer=db_resource_manager.checkpointer)
     set_graph(graph)
     logger.info("--- System Ready ---")

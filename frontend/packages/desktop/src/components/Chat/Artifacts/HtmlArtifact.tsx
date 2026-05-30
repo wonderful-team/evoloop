@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
-import { Card, CardHeader, CardTitle, CardContent } from "@evoloop/shared/components/ui/card";
-import { Code2, ExternalLink, Maximize2, Minimize2 } from 'lucide-react';
+import { useInView } from 'framer-motion';
+import { Copy, Check, ExternalLink, Maximize2, Minimize2 } from 'lucide-react';
 import { Button } from "@evoloop/shared/components/ui/button";
 import { useTranslation } from 'react-i18next';
 
@@ -18,6 +18,9 @@ interface HtmlArtifactProps {
 export const HtmlArtifact: React.FC<HtmlArtifactProps> = ({ data }) => {
   const { t } = useTranslation();
   const [isFullscreen, setIsFullscreen] = React.useState(false);
+  const [copied, setCopied] = React.useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const inView = useInView(containerRef, { margin: "200px" });
 
   const fullHtml = React.useMemo(() => {
     return `
@@ -38,6 +41,12 @@ export const HtmlArtifact: React.FC<HtmlArtifactProps> = ({ data }) => {
       </html>
     `;
   }, [data.html, data.css, data.js]);
+
+  const handleCopy = React.useCallback(() => {
+    navigator.clipboard.writeText(data.html || '');
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [data.html]);
 
   const handleOpenNewWindow = React.useCallback(() => {
     const blob = new Blob([fullHtml], { type: 'text/html' });
@@ -94,7 +103,7 @@ export const HtmlArtifact: React.FC<HtmlArtifactProps> = ({ data }) => {
 
   return (
     <>
-      <div className="w-full my-6 border border-[var(--doc-border)] bg-muted/5 rounded-xl overflow-hidden transition-all duration-500 animate-in fade-in slide-in-from-top-2">
+      <div ref={containerRef} className="w-full my-6 border border-[var(--doc-border)] bg-muted/5 rounded-xl overflow-hidden transition-all duration-500 animate-in fade-in slide-in-from-top-2">
         <div className="py-3 px-5 border-b border-[var(--doc-border)] bg-muted/10 flex flex-row items-center justify-between group/html">
           <div className="flex flex-col">
             <h3 className="text-sm font-bold tracking-tight">
@@ -102,6 +111,15 @@ export const HtmlArtifact: React.FC<HtmlArtifactProps> = ({ data }) => {
             </h3>
           </div>
           <div className="flex items-center gap-2 opacity-0 group-hover/html:opacity-100 transition-opacity">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full hover:bg-muted/50"
+              onClick={handleCopy}
+              title={t('common.copy')}
+            >
+              {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-muted-foreground" />}
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -122,13 +140,17 @@ export const HtmlArtifact: React.FC<HtmlArtifactProps> = ({ data }) => {
             </Button>
           </div>
         </div>
-        <div className="bg-white dark:bg-zinc-900 overflow-hidden relative" style={{ height: `${data.height || 400}px` }}>
-          <iframe
-            title="HTML Preview"
-            srcDoc={fullHtml}
-            className="w-full h-full border-none"
-            sandbox="allow-scripts allow-same-origin"
-          />
+        <div className="bg-white dark:bg-zinc-900 overflow-hidden relative flex items-center justify-center" style={{ height: `${data.height || 400}px` }}>
+          {inView ? (
+            <iframe
+              title="HTML Preview"
+              srcDoc={fullHtml}
+              className="w-full h-full border-none"
+              sandbox="allow-scripts allow-same-origin"
+            />
+          ) : (
+            <span className="text-xs text-muted-foreground/40">{t('chat.artifact.scrollToPreview', 'Scroll to preview')}</span>
+          )}
         </div>
       </div>
       {renderFullscreenModal()}

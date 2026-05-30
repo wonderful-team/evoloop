@@ -22,7 +22,7 @@ export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn
   const {
     wakeWord = '你好 Evo',
     onWake,
-    enabled = true,
+    enabled = false,
     language = 'zh-CN'
   } = options
 
@@ -174,12 +174,7 @@ export function useWakeWordSettings() {
     return '你好 Evo'
   })
 
-  const [wakeWordEnabled, setWakeWordEnabled] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('evoloop_wake_word_enabled') === 'true'
-    }
-    return false
-  })
+  const [wakeWordEnabled, setWakeWordEnabled] = useState(false)
 
   const updateWakeWord = useCallback((newWord: string) => {
     setWakeWord(newWord)

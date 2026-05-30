@@ -23,7 +23,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     changeset: [],
     viewedChanges: new Set<string>(),
     changesetLastUpdated: null,
-    hasMoreHistory: true,
+    hasMoreHistory: false,
     isLoadingHistory: false,
     firstMessageId: null,
     totalMessageCount: null,
@@ -72,19 +72,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const store = get()
             ChatConnection.getInstance().setCallbacks({
                 onConnectionChange: store._setConnectionStatus,
-                onToken: store._appendToken,
+                onToken: (token, messageId) => store._appendToken(token, messageId),
                 onActivity: store._setActivitySnapshot,
                 onArtifact: store._addArtifact,
                 onStatus: store._updateStatus,
                 onHumanRequest: store._setHumanRequest,
                 onMessage: store._appendMessage,
-                onThinking: (ev) => store._appendThinking(ev.content),
+                onThinking: (ev) => store._appendThinking(ev.content, ev.message_id),
                 onProgress: (ev) => store._updateProgress(ev),
                 onAgentState: (ev) => store._setAgentState(ev),
                 onQuotaExhausted: store._setQuotaExhausted,
                 onLLMAuthError: store._setLLMAuthError,
                 onRunStart: store._handleRunStart,
                 onRunEnd: store._handleRunEnd,
+                onSessionCompleted: store._handleSessionCompleted,
                 onAuthExpired: (ev) => toast.error(ev.message),
                 onError: store._setError,
                 onUnauthorized: () => {
@@ -120,6 +121,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             })
         } catch (e) {
             console.error("[ChatStore] Fetch history failed", e)
+            toast.error(i18n.t("chat.errors.fetchHistoryFailed", "加载历史消息失败"))
         } finally {
             set({ isLoadingHistory: false })
         }
@@ -147,8 +149,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     },
 
     loadMoreHistory: async () => {
-        const { threadId, firstMessageId, hasMoreHistory, isLoadingHistory } = get()
-        if (!threadId || !hasMoreHistory || isLoadingHistory || !firstMessageId) return
+        const { threadId, firstMessageId: cursorId, hasMoreHistory, isLoadingHistory, messages } = get()
+        if (!threadId || !hasMoreHistory || isLoadingHistory) return
+        // Fallback: use oldest message ID as cursor if firstMessageId is null
+        const firstMessageId = cursorId || (messages.length > 0 ? String(messages[0].id) : null)
+        if (!firstMessageId) return
 
         set({ isLoadingHistory: true })
         try {
@@ -165,6 +170,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }))
         } catch (e) {
             console.error("[ChatStore] Load more history failed", e)
+            toast.error(i18n.t("chat.errors.loadMoreHistoryFailed", "加载更多历史消息失败"))
         } finally {
             set({ isLoadingHistory: false })
         }
@@ -243,10 +249,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 }
             })
 
-            // If this was a new thread, sync the ID and re-init state/SSE
-            if (res && res.thread_id && !threadId) {
-                console.log(`[ChatStore] Syncing new threadId: ${res.thread_id}`)
-                await get().setThread(res.thread_id, projectId, activeSkillIds)
+            if (res) {
+                if (res.thread_id && !threadId) {
+                    // New thread: sync ID and re-init state/SSE
+                    console.log(`[ChatStore] Syncing new threadId: ${res.thread_id}`)
+                    await get().setThread(res.thread_id, projectId, activeSkillIds)
+                } else if (res.message_id) {
+                    // Existing thread: replace optimistic temp ID with real backend ID
+                    set((state) => ({
+                        messages: state.messages.map(m =>
+                            m.id === tempId ? { ...m, id: res.message_id } : m
+                        )
+                    }))
+                }
             }
         } catch (e: any) {
             toast.error(i18n.t("chat.errors.sendFailed"))
@@ -365,32 +380,45 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const threadId = get().threadId
             if (threadId) {
                 console.log("[ChatStore] SSE Reconnected, fetching latest history and activity...")
-                get().fetchHistory(threadId)
+                // Only re-fetch history on initial load, don't wipe already-loaded paginated history
+                if (get().messages.length === 0) {
+                    get().fetchHistory(threadId)
+                }
                 get().fetchActivity(threadId)
             }
         }
     },
 
-    _appendThinking: (text) => {
+    _appendThinking: (text, messageId) => {
         set((state) => {
             const msgs = [...state.messages]
-            let last = msgs[msgs.length - 1]
+            let targetIdx = messageId ? msgs.findIndex(m => String(m.id) === String(messageId)) : -1
 
-            // Auto-create AI placeholder if not present or not currently streaming
-            if (!last || (last.role !== "ai" && last.status !== "streaming")) {
-                const placeholder: Message = {
-                    id: `streaming-${Date.now()}`,
-                    role: "ai",
-                    content: "",
-                    thinking: text,
-                    status: "streaming",
-                    timestamp: new Date().toISOString(),
-                    changeset_count: 0
-                }
-                msgs.push(placeholder)
+            if (targetIdx >= 0) {
+                const target = { ...msgs[targetIdx] }
+                target.thinking = (target.thinking || "") + text
+                target.status = "streaming"
+                msgs[targetIdx] = target
             } else {
-                last.thinking = (last.thinking || "") + text
-                last.status = "streaming"
+                let last = msgs[msgs.length - 1]
+                // Auto-create AI placeholder if not present or not currently streaming
+                if (!last || last.role !== "ai" || last.status !== "streaming") {
+                    const placeholder: Message = {
+                        id: messageId || `placeholder-${Date.now()}`,
+                        role: "ai",
+                        content: "",
+                        thinking: text,
+                        status: "streaming",
+                        timestamp: new Date().toISOString(),
+                        changeset_count: 0
+                    }
+                    msgs.push(placeholder)
+                } else {
+                    const lastUpdated = { ...last }
+                    lastUpdated.thinking = (lastUpdated.thinking || "") + text
+                    lastUpdated.status = "streaming"
+                    msgs[msgs.length - 1] = lastUpdated
+                }
             }
 
             return {
@@ -400,36 +428,58 @@ export const useChatStore = create<ChatState>((set, get) => ({
         })
     },
 
-    _appendToken: (tokens) => {
-        set((state) => {
-            const msgs = [...state.messages]
-            let last = msgs[msgs.length - 1]
+    _appendToken: (tokens, messageId) => {
+        const state = get();
+        const newBuffer = (state._streamBuffer || "") + tokens;
 
-            // Auto-create AI placeholder if not present or not currently streaming
-            if (!last || (last.role !== "ai" && last.status !== "streaming")) {
-                const placeholder: Message = {
-                    id: `streaming-${Date.now()}`,
-                    role: "ai",
-                    content: tokens,
-                    thinking: state.streamingThinking || "",
-                    status: "streaming",
-                    timestamp: new Date().toISOString(),
-                    changeset_count: 0
-                }
-                msgs.push(placeholder)
-            } else {
-                if (state.streamingThinking) {
-                    last.thinking = (last.thinking || "") + state.streamingThinking
-                }
-                last.content = (last.content || "") + tokens
-                last.status = "streaming"
-            }
+        if (state._flushTimeout) {
+            set({ _streamBuffer: newBuffer });
+            return;
+        }
 
-            return {
-                messages: msgs,
-                streamingThinking: ""
-            }
-        })
+        const timeout = setTimeout(() => {
+            set((currentState) => {
+                const bufferToFlush = currentState._streamBuffer;
+                if (!bufferToFlush) return { _flushTimeout: null };
+
+                const msgs = [...currentState.messages];
+                let targetIdx = messageId ? msgs.findIndex(m => String(m.id) === String(messageId)) : -1;
+
+                if (targetIdx >= 0) {
+                    const target = { ...msgs[targetIdx] }
+                    target.content = (target.content || "") + bufferToFlush
+                    target.status = "streaming"
+                    msgs[targetIdx] = target
+                } else {
+                    let last = msgs[msgs.length - 1]
+                    if (!last || last.role !== "ai" || last.status !== "streaming") {
+                        msgs.push({
+                            id: messageId || `placeholder-${Date.now()}`,
+                            role: "ai",
+                            content: bufferToFlush,
+                            thinking: currentState.streamingThinking || "",
+                            status: "streaming",
+                            timestamp: new Date().toISOString(),
+                            changeset_count: 0
+                        });
+                    } else {
+                        const lastUpdated = { ...last }
+                        lastUpdated.content = (lastUpdated.content || "") + bufferToFlush
+                        lastUpdated.status = "streaming"
+                        msgs[msgs.length - 1] = lastUpdated
+                    }
+                }
+
+                return {
+                    messages: msgs,
+                    streamingThinking: "",
+                    _streamBuffer: "",
+                    _flushTimeout: null
+                };
+            });
+        }, 50); // 50ms debounce/throttle
+
+        set({ _streamBuffer: newBuffer, _flushTimeout: timeout });
     },
 
     _setHumanRequest: (req) => {
@@ -559,6 +609,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
 
         const msg = normalizeMessage(raw)
+
+        // Replace optimistic human message (temp-*) with real backend ID
+        if (msg.role === "human" && !msg.id.toString().startsWith("temp-")) {
+            const tempIdx = messages.findIndex(m => m.role === "human" && String(m.id).startsWith("temp-"))
+            if (tempIdx >= 0) {
+                set(state => {
+                    const msgs = [...state.messages]
+                    msgs[tempIdx] = {
+                        ...msgs[tempIdx],
+                        ...msg,
+                        id: msg.id,
+                        references: (msg.references && msg.references.length > 0) ? msg.references : msgs[tempIdx].references,
+                    }
+                    return { messages: msgs }
+                })
+                return
+            }
+        }
+
         const existIdx = messages.findIndex(m => m.id === msg.id)
         if (existIdx >= 0) {
             set(state => {
@@ -580,8 +649,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         let streamIdx = -1;
         for (let i = messages.length - 1; i >= 0; i--) {
             if (messages[i].role === msg.role && messages[i].status === "streaming") {
-                streamIdx = i;
-                break;
+                streamIdx = i;  // fallback: remember the last streaming message
+                if (String(messages[i].id) === String(msg.id)) {
+                    break;  // exact match found
+                }
             }
         }
 
@@ -632,6 +703,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         set(updates)
         console.log(`[ChatStore] Run ended: ${ev.run_id}, status: ${ev.status}`)
+    },
+
+    _handleSessionCompleted: (ev) => {
+        const state = get()
+        const updates: Partial<ChatState> = {
+            status: "idle",
+            finalOutcome: ev.data?.outcome || state.finalOutcome,
+            sessionGoal: ev.data?.summary || state.sessionGoal,
+        }
+
+        // 防御性状态清理：将会话中处于 streaming 状态的消息重置为 completed
+        const messages: Message[] = state.messages.map(m =>
+            m.status === "streaming" ? { ...m, status: "completed" as const } : m
+        )
+        updates.messages = messages
+
+        set(updates)
+        console.log(`[ChatStore] Session completed - final state cleaned and finalized: run_id=${ev.data?.run_id}`)
     },
 
     _setError: (err) => {

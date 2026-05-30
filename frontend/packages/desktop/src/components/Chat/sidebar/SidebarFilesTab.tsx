@@ -42,7 +42,8 @@ interface SidebarFilesTabProps {
 export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuoteFile, expandChanges = false }: SidebarFilesTabProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const { currentProject, fetchProjects } = useProjectStore()
+  const currentProject = useProjectStore(s => s.currentProject)
+  const fetchProjects = useProjectStore(s => s.fetchProjects)
   const [isProjectOpen, setIsProjectOpen] = useState(true)
   const [isChangesOpen, setIsChangesOpen] = useState(expandChanges)
   const [discoverOpen, setDiscoverOpen] = useState(false)

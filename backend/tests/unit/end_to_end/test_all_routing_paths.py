@@ -56,7 +56,36 @@ def test_route_by_next_node_follows_state():
     assert route_by_next_node(state) == "supervisor"
 
     state = AgentState(messages=[], next_node=None)
-    assert route_by_next_node(state) == "supervisor"
+    assert route_by_next_node(state) == "finish"
+
+
+def test_route_worker_by_outcome():
+    """route_worker_by_outcome 根据 worker_outcome 路由"""
+    from app.core.engine.routers import route_worker_by_outcome
+    from app.core.engine.state import AgentState
+    from app.core.engine.state.blackboard import BlackboardState
+
+    # success → finish
+    blackboard = BlackboardState()
+    blackboard.worker_outcome = "success"
+    state = AgentState(messages=[], blackboard=blackboard.model_dump())
+    assert route_worker_by_outcome(state) == "finish"
+
+    # truncated → supervisor
+    blackboard = BlackboardState()
+    blackboard.worker_outcome = "truncated"
+    state = AgentState(messages=[], blackboard=blackboard.model_dump())
+    assert route_worker_by_outcome(state) == "supervisor"
+
+    # failed → supervisor
+    blackboard = BlackboardState()
+    blackboard.worker_outcome = "failed"
+    state = AgentState(messages=[], blackboard=blackboard.model_dump())
+    assert route_worker_by_outcome(state) == "supervisor"
+
+    # no outcome → finish (safe fallback)
+    state = AgentState(messages=[])
+    assert route_worker_by_outcome(state) == "finish"
 
 
 def test_route_finish_blocked_by_hook():
@@ -236,7 +265,7 @@ async def test_chat_node_fallback():
 
 @pytest.mark.asyncio
 async def test_worker_node_fallback():
-    """Worker 节点 fallback 返回 SUPERVISOR（以便 Supervisor 继续决策）"""
+    """Worker 节点 fallback 不设 next_node（由 route_worker_by_outcome 决定路由）"""
     from app.core.engine.nodes.worker import WorkerNode
     from app.core.engine.engine import EngineResult
     from app.core.engine.state import AgentState
@@ -250,7 +279,7 @@ async def test_worker_node_fallback():
     engine_result = EngineResult(messages=[])
 
     outcome = await node._build_fallback_outcome(state, engine_result, RunnableConfig())
-    assert outcome.next_node == "supervisor"
+    assert outcome.next_node is None
 
 
 @pytest.mark.asyncio
@@ -346,7 +375,6 @@ def test_worker_node_edge_map_has_all_targets():
     targets = {e[1] for e in worker_edges}
 
     assert "supervisor" in targets, "worker -> supervisor 边缺失"
-    assert "sequential_workflow" in targets, "worker -> sequential_workflow 边缺失"
     assert "finish" in targets, "worker -> finish 边缺失"
 
 
@@ -483,7 +511,7 @@ async def test_supervisor_prepare_state_drains_pending_signals():
 async def test_supervisor_prepare_state_empty_queue_routes_normally():
     """
     T3: pending_signals 为空 + worker_outcome=success 时，
-    Supervisor 走正常路径路由到 FINISH，不因空队列触发异常行为。
+    Supervisor 清除 ticket 后返回 None，让 LLM 自行决策下一步路由。
     """
     from app.core.engine.nodes.supervisor import SupervisorNode
     from app.core.engine.state import AgentState
@@ -498,7 +526,6 @@ async def test_supervisor_prepare_state_empty_queue_routes_normally():
 
     result = await node.prepare_state(state, RunnableConfig())
 
-    # 队列空 + worker_outcome=success → 应路由到 FINISH
-    assert result is not None
-    assert result.next_node == "finish"
+    # 队列空 + worker_outcome=success → 清 ticket 并让 LLM 决策
+    assert result is None
 

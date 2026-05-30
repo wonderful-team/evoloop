@@ -95,7 +95,7 @@ class MockInferenceEngine(InferenceEngine):
         if name == "Worker":
             return {
                 "content": "```python\ndef quicksort(arr):\n    if len(arr) <= 1:\n        return arr\n    pivot = arr[0]\n    left = [x for x in arr[1:] if x < pivot]\n    right = [x for x in arr[1:] if x >= pivot]\n    return quicksort(left) + [pivot] + quicksort(right)\n```",
-                "metadata": {"routing_target": "finish"},
+                "metadata": {},
             }
         if name == "Finish":
             return {

@@ -18,7 +18,8 @@ import { OpenAPI } from "@/client/core/OpenAPI";
 import { AgentService } from "@/client/sdk.gen";
 
 export function DebugManager() {
-  const { messages, clearContent } = useChatStore();
+  const messages = useChatStore(s => s.messages);
+  const clearContent = useChatStore(s => s.clearContent);
   const [isStreaming, setIsStreaming] = React.useState(false);
   const [currentScenario, setCurrentScenario] = React.useState<string | null>(null);
   

@@ -42,6 +42,10 @@ function findMatchingBraceEnd(text: string, startIndex: number): number {
  *
  * Returns an array of text/artifact parts in order.
  */
+const CODE_BLOCK_ARTIFACT_TYPES: Record<string, string> = {
+  artifact: "html",
+}
+
 export function extractArtifactsFromContent(content: string): ExtractedPart[] {
   const trimmed = content.trim();
   if (!trimmed) return [{ type: 'text', content: '' }];
@@ -79,7 +83,10 @@ export function extractArtifactsFromContent(content: string): ExtractedPart[] {
   const codeBlockArtifacts: Array<{ start: number; end: number; part: ExtractedPart }> = [];
 
   while ((cbMatch = codeBlockRegex.exec(trimmed)) !== null) {
-    const jsonStr = cbMatch[1].trim();
+    const rawContent = cbMatch[1];
+    const jsonStr = rawContent.trim();
+
+    // 1. Try JSON artifact (existing behavior)
     if (jsonStr.startsWith('{') && jsonStr.endsWith('}')) {
       try {
         const obj = JSON.parse(jsonStr);
@@ -99,9 +106,29 @@ export function extractArtifactsFromContent(content: string): ExtractedPart[] {
               data: obj.data,
             },
           });
+          continue;
         }
       } catch {
         // not a valid artifact JSON
+      }
+    }
+
+    // 2. Try non-JSON artifact code blocks (e.g. ```artifact\n<html>...)
+    const firstLineEnd = rawContent.indexOf('\n');
+    if (firstLineEnd !== -1) {
+      const lang = rawContent.slice(0, firstLineEnd).trim().toLowerCase();
+      const artifactType = CODE_BLOCK_ARTIFACT_TYPES[lang];
+      if (artifactType) {
+        const blockContent = rawContent.slice(firstLineEnd + 1).trim();
+        codeBlockArtifacts.push({
+          start: cbMatch.index,
+          end: cbMatch.index + cbMatch[0].length,
+          part: {
+            type: 'artifact',
+            artifactType,
+            data: { html: blockContent },
+          },
+        });
       }
     }
   }

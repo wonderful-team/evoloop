@@ -63,13 +63,13 @@ class MockAgentEngine(AgentEngine):
                 if c % 2 == 1:
                     return EngineResult(signal=RouteToSignal(target="chat", context=RoutingContext(topic=f"topic{c}")))
                 else:
-                    return EngineResult(routing_target="finish")
+                    return EngineResult()
             if c <= 40:
                 if c % 2 == 1:
                     return EngineResult(signal=RouteToSignal(target="worker", context=RoutingContext(topic=f"topic{c}")))
                 else:
-                    return EngineResult(routing_target="finish")
-            return EngineResult(routing_target="finish")
+                    return EngineResult()
+            return EngineResult()
 
         if name == "Chat":
             return EngineResult(messages=[AIMessage(content=f"AI 回复第 {c} 条")])

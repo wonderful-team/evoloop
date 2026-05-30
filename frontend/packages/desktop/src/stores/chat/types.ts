@@ -101,8 +101,8 @@ export interface ChatState {
 
     // Internal Handlers
     _setConnectionStatus: (connected: boolean, status: string) => void
-    _appendToken: (tokens: string) => void
-    _appendThinking: (text: string) => void
+    _appendToken: (tokens: string, messageId?: string) => void
+    _appendThinking: (text: string, messageId?: string) => void
     _setActivitySnapshot: (snapshot: any) => void
     _addArtifact: (artifact: any) => void
     _updateStatus: (status: any) => void
@@ -115,5 +115,6 @@ export interface ChatState {
     _truncateMessages: (index: number) => void
     _handleRunStart: (ev: any) => void
     _handleRunEnd: (ev: any) => void
+    _handleSessionCompleted: (ev: any) => void
     _setError: (error: string) => void
 }

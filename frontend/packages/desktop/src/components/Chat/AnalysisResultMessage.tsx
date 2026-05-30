@@ -29,7 +29,7 @@ export function AnalysisResultMessage({
 }: AnalysisResultMessageProps) {
   const { t } = useTranslation()
   const { confirmAnalysis, requestAnalysisChanges } = useRequirementStore()
-  const { sendMessage } = useChatStore()
+  const sendMessage = useChatStore(s => s.sendMessage)
 
   const handleConfirm = async (modifications?: Partial<AnalysisData>) => {
     // First, confirm the analysis via API

@@ -1,9 +1,8 @@
 import { FileText, X, Music } from "lucide-react"
-import { memo, useState, useMemo } from "react"
+import { memo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import ReactMarkdown from "react-markdown"
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
-import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"
+// TEMP: syntax-highlighter disabled for performance profiling
 import remarkGfm from "remark-gfm"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@evoloop/shared/components/ui/dialog"
@@ -58,27 +57,33 @@ interface MessageContentProps {
 export const MessageContent = memo(({ content, isUser }: MessageContentProps) => {
   const { t } = useTranslation()
   const [viewerImage, setViewerImage] = useState<string | null>(null)
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null)
 
   if (!content) return null
 
-  const displayContent = useMemo(() => {
-    let result = content;
-    const reportMatch = result.match(/<report>([\s\S]*?)(?:<\/report>|$)/i);
-    if (reportMatch) {
-      result = reportMatch[1].trim();
-    } else {
-      result = result
-        .replace(/<audit>[\s\S]*?(?:<\/audit>|$)/gi, "")
-        .replace(/<outcome>[\s\S]*?(?:<\/outcome>|$)/gi, "")
-        .replace(/<reason>[\s\S]*?(?:<\/reason>|$)/gi, "")
-        .replace(/<proof_points>[\s\S]*?(?:<\/proof_points>|$)/gi, "");
-      result = result.replace(/<\/?report>/gi, "");
-    }
-    return result.trim();
-  }, [content]);
+  // 0. Pre-process: Filter out technical XML tags (audit, report, thought, etc.)
+  let displayContent = content;
+
+  // A. If <report> exists, prioritize its content as the main message
+  const reportMatch = displayContent.match(/<report>([\s\S]*?)(?:<\/report>|$)/i);
+  if (reportMatch) {
+    displayContent = reportMatch[1].trim();
+  } else {
+    // B. Hide internal audit tags and their content
+    displayContent = displayContent
+      .replace(/<audit>[\s\S]*?(?:<\/audit>|$)/gi, "")
+      .replace(/<outcome>[\s\S]*?(?:<\/outcome>|$)/gi, "")
+      .replace(/<reason>[\s\S]*?(?:<\/reason>|$)/gi, "")
+      .replace(/<proof_points>[\s\S]*?(?:<\/proof_points>|$)/gi, "");
+    
+    // C. Peel any remaining report tags (e.g. if partial)
+    displayContent = displayContent.replace(/<\/?report>/gi, "");
+  }
+
+  displayContent = displayContent.trim();
 
   // 1. Extract artifacts
-  const artifactParts = useMemo(() => extractArtifactsFromContent(displayContent), [displayContent]);
+  const artifactParts = extractArtifactsFromContent(displayContent)
 
   const handleFileClick = (url: string) => {
     window.open(url, "_blank")
@@ -207,14 +212,43 @@ export const MessageContent = memo(({ content, isUser }: MessageContentProps) =>
                       if (!inline && match && match[1] === "echarts") {
                         try {
                           const option = JSON.parse(codeString)
-                          return <EChartsArtifact data={{ option }} />
-                        } catch (e) {
-                          return (
-                            <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
-                              Failed to parse ECharts JSON data
-                            </div>
-                          )
+                          if (option && option.series) {
+                            return <EChartsArtifact data={{ option }} />
+                          }
+                        } catch {
+                          // incomplete JSON during streaming, fall through to code block
                         }
+                      }
+
+                      if (!inline && match && match[1] === "html") {
+                        return (
+                          <div className="my-2 rounded-md overflow-hidden bg-[#1e1e1e] border border-[#3e3e3e] max-w-full">
+                            <div className="flex items-center justify-between px-3 py-1 bg-[#252526] text-[10px] text-gray-400 border-b border-[#3e3e3e] w-full overflow-hidden">
+                              <span>
+                                html {isLong && `(${lineCount} lines)`}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewHtml(codeString)}
+                                  className="hover:text-white transition-colors"
+                                >
+                                  {t("chat.messageList.preview", "Preview")}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => navigator.clipboard.writeText(codeString)}
+                                  className="hover:text-white transition-colors"
+                                >
+                                  {t("chat.messageList.copy", "Copy")}
+                                </button>
+                              </div>
+                            </div>
+                            <pre className="p-3 text-[12px] overflow-auto" style={{ margin: 0, maxHeight: isLong ? "200px" : "none" }}>
+                              <code>{codeString}</code>
+                            </pre>
+                          </div>
+                        )
                       }
 
                       if (!inline && match && match[1] === "json") {
@@ -257,21 +291,9 @@ export const MessageContent = memo(({ content, isUser }: MessageContentProps) =>
                                 {t("chat.messageList.copy", "Copy")}
                               </button>
                             </div>
-                            <SyntaxHighlighter
-                              style={vscDarkPlus as any}
-                              language={match[1]}
-                              PreTag="div"
-                              customStyle={{
-                                margin: 0,
-                                borderRadius: 0,
-                                fontSize: "12px",
-                                maxHeight: isLong ? "200px" : "none",
-                                overflow: "auto",
-                              }}
-                              {...props}
-                            >
-                              {codeString}
-                            </SyntaxHighlighter>
+                            <pre className="p-3 text-[12px] overflow-auto" style={{ margin: 0, maxHeight: isLong ? "200px" : "none" }}>
+                              <code>{codeString}</code>
+                            </pre>
                           </div>
                         )
                       }
@@ -314,7 +336,7 @@ export const MessageContent = memo(({ content, isUser }: MessageContentProps) =>
                       </th>
                     ),
                     td: ({ children }) => <td className="px-4 py-2 border-b border-r last:border-r-0">{children}</td>,
-                    img: ({ src, alt }) => <img src={src} alt={alt} className="max-w-full rounded-lg my-2" />,
+                    img: ({ src, alt }) => src ? <img src={src} alt={alt} className="max-w-full rounded-lg my-2" /> : null,
                     li: ({ children }) => <li className="mb-0.5">{children}</li>,
                     hr: () => <hr className="my-2 border-border/30" />,
                   }}
@@ -332,6 +354,21 @@ export const MessageContent = memo(({ content, isUser }: MessageContentProps) =>
         isOpen={!!viewerImage}
         onClose={() => setViewerImage(null)}
       />
+
+      <Dialog open={!!previewHtml} onOpenChange={() => setPreviewHtml(null)}>
+        <DialogContent className="max-w-full sm:max-w-full h-full p-0 bg-black/90 border-none sm:rounded-none flex flex-col">
+          <DialogTitle className="sr-only">
+            {t("chat.artifact.htmlPreview", "HTML Preview")}
+          </DialogTitle>
+          <div className="relative w-full h-full flex-1">
+            <iframe
+              srcDoc={previewHtml || ""}
+              className="w-full h-full border-none"
+              sandbox="allow-scripts"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 })

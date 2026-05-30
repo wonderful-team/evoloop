@@ -2,7 +2,7 @@ import { OpenAPI } from "@/client/core/OpenAPI";
 
 export interface ChatConnectionCallbacks {
     onConnectionChange: (connected: boolean, status: string) => void;
-    onToken: (token: string) => void;
+    onToken: (token: string, messageId?: string) => void;
     onActivity: (activity: any) => void;  // Lightweight run metadata only (no steps)
     onArtifact: (artifact: any) => void;  // Incremental artifact update
     onStatus: (status: any) => void;      // Incremental status update
@@ -16,6 +16,7 @@ export interface ChatConnectionCallbacks {
     onAuthExpired: (event: any) => void;
     onRunStart: (event: any) => void;
     onRunEnd: (event: any) => void;
+    onSessionCompleted?: (event: any) => void;
     onError: (error: string) => void;
     onUnauthorized?: () => void;
 }
@@ -25,6 +26,7 @@ export class ChatConnection {
     private eventSource: EventSource | null = null;
     private currentThreadId: string | null = null;
     private callbacks: ChatConnectionCallbacks | null = null;
+    private _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
     private constructor() { }
 
@@ -108,6 +110,10 @@ export class ChatConnection {
             this.eventSource.close();
             this.eventSource = null;
         }
+        if (this._reconnectTimer) {
+            clearTimeout(this._reconnectTimer);
+            this._reconnectTimer = null;
+        }
         this.currentThreadId = null;
         this.notifyConnectionChange(false, 'disconnected');
     }
@@ -115,18 +121,29 @@ export class ChatConnection {
     private setupListeners(sse: EventSource) {
         sse.onopen = () => {
             console.log("[ChatConnection] Connected");
+            if (this._reconnectTimer) {
+                clearTimeout(this._reconnectTimer);
+                this._reconnectTimer = null;
+            }
             this.notifyConnectionChange(true, 'connected');
         };
 
         sse.onerror = (e) => {
-            // EventSource usually auto-reconnects, but 'error' event fires on network issues
-            console.warn("[ChatConnection] Connection Error", e);
+            console.warn("[ChatConnection] Connection Error", e, "readyState:", sse.readyState);
 
-            // Check readyState
             if (sse.readyState === EventSource.CLOSED) {
-                // Desktop uses Cookie Session; auth errors are handled via stream events.
                 this.notifyConnectionChange(false, 'disconnected');
             } else if (sse.readyState === EventSource.CONNECTING) {
+                // EventSource auto-retries on its own; only notify once per attempt.
+                // If this fires repeatedly, the endpoint likely returns a non-200 status.
+                // Stop retrying after 30s to avoid infinite reconnect loops.
+                if (!this._reconnectTimer) {
+                    this._reconnectTimer = setTimeout(() => {
+                        console.warn("[ChatConnection] Giving up on reconnection");
+                        this.disconnect();
+                        this._reconnectTimer = null;
+                    }, 30000);
+                }
                 this.notifyConnectionChange(false, 'reconnecting');
             }
         };
@@ -137,8 +154,9 @@ export class ChatConnection {
                 const data = JSON.parse(e.data);
                 // Backend sends structured token events
                 const content = data?.content;
+                const messageId = data?.message_id;
                 if (typeof content === 'string') {
-                    this.callbacks?.onToken(content);
+                    this.callbacks?.onToken(content, messageId);
                 } else if (typeof data === 'string') {
                     // Fallback for raw legacy
                     this.callbacks?.onToken(data);
@@ -257,6 +275,15 @@ export class ChatConnection {
                 this.callbacks?.onRunEnd(data);
             } catch (err) {
                 console.error("[ChatConnection] Failed to parse run_end event", err);
+            }
+        });
+
+        sse.addEventListener("session_completed", (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                this.callbacks?.onSessionCompleted?.(data);
+            } catch (err) {
+                console.error("[ChatConnection] Failed to parse session_completed event", err);
             }
         });
 

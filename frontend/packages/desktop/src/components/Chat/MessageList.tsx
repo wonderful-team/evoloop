@@ -1,8 +1,8 @@
-import { useMemo, useState, useEffect, forwardRef, useRef } from "react"
-import { Virtuoso } from "react-virtuoso"
+import { useMemo, useState, useEffect, useCallback, memo, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { Loader2, Layers, ChevronRight } from "lucide-react"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion } from "framer-motion"
+import { Virtuoso } from "react-virtuoso"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
     Collapsible,
@@ -16,14 +16,13 @@ interface MessageListProps {
     messages: Message[]
     hasMoreHistory?: boolean
     isLoadingHistory?: boolean
+    loadMoreHistory?: () => void
     onAddToMemory?: (text: string) => void
     onRewind?: (msg: Message) => void
     onRetry?: (msg: Message) => void
     onQuote?: (msg: Message) => void
     onViewChangeset?: (messageId: string | number, path?: string) => void
-    scrollRef?: React.RefObject<HTMLDivElement | null>
-    onScroll?: (e: React.UIEvent<HTMLDivElement>) => void
-    footerNode?: React.ReactNode
+    footer?: React.ReactNode
 }
 
 type RenderItem =
@@ -55,10 +54,7 @@ function mergeAiMessages(msgs: Message[]): Message | null {
     }
 }
 
-const groupExpandedState = new Map<string, boolean>()
-
 function TurnStepsGroupView({
-    id,
     steps,
     isTurnActive,
     onAddToMemory,
@@ -67,7 +63,6 @@ function TurnStepsGroupView({
     onQuote,
     onViewChangeset,
 }: {
-    id: string
     steps: (Message & { showDate?: boolean })[]
     isTurnActive?: boolean
     onAddToMemory?: (text: string) => void
@@ -77,41 +72,16 @@ function TurnStepsGroupView({
     onViewChangeset?: (messageId: string | number, path?: string) => void
 }) {
     const { t } = useTranslation()
-    
-    // Initialize state from global map if it exists, otherwise default to active state
-    const [isOpen, setIsOpen] = useState(() => {
-        if (groupExpandedState.has(id)) {
-            return groupExpandedState.get(id)!
-        }
-        return !!isTurnActive
-    })
-
-    // Track the previous active state to detect when SSE generation starts/finishes
-    const prevIsTurnActive = useRef(isTurnActive)
+    const [isOpen, setIsOpen] = useState(!!isTurnActive)
 
     useEffect(() => {
-        // Detect transitions in isTurnActive
-        if (prevIsTurnActive.current && !isTurnActive) {
-            // Generation just finished -> Auto collapse
-            setIsOpen(false)
-            groupExpandedState.set(id, false)
-        } else if (!prevIsTurnActive.current && isTurnActive) {
-            // Generation just started -> Auto expand
-            setIsOpen(true)
-            groupExpandedState.set(id, true)
-        }
-        prevIsTurnActive.current = isTurnActive
-    }, [isTurnActive, id])
-
-    const handleOpenChange = (open: boolean) => {
-        setIsOpen(open)
-        groupExpandedState.set(id, open)
-    }
+        setIsOpen(!!isTurnActive)
+    }, [isTurnActive])
 
     return (
         <Collapsible
             open={isOpen}
-            onOpenChange={handleOpenChange}
+            onOpenChange={setIsOpen}
             className="w-full my-2 transition-all"
         >
             <CollapsibleTrigger asChild>
@@ -127,7 +97,7 @@ function TurnStepsGroupView({
                     <ChevronRight className="w-3.5 h-3.5 transition-transform duration-200 group-data-[state=open]:rotate-90 text-muted-foreground/50 ml-0.5" />
                 </Button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="pl-1 my-1 border-l-1 border-border/40 space-y-1 overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+            <CollapsibleContent className="pl-1 my-1 border-l-1 border-border/40 space-y-1">
                 {steps.map((stepMsg) => (
                     <SmartChatMessageItem
                         key={stepMsg.id}
@@ -146,145 +116,205 @@ function TurnStepsGroupView({
     )
 }
 
-function computeRenderItems(messages: Message[]): RenderItem[] {
-    const items: ({ type: "message"; data: Message & { showDate?: boolean; isFirstInTurn?: boolean; isLastInTurn?: boolean; turnDuration?: string } })[] = []
-    let prevTimestamp: string | undefined
-    let currentAiGroup: Message[] = []
+export const MessageList = memo(function MessageList({
+    messages,
+    hasMoreHistory = false,
+    isLoadingHistory = false,
+    loadMoreHistory,
+    onAddToMemory,
+    onRewind,
+    onRetry,
+    onQuote,
+    onViewChangeset,
+    footer,
+}: MessageListProps) {
+    const { t } = useTranslation()
 
-    const flushAiGroup = () => {
-        if (currentAiGroup.length > 0) {
-            const merged = mergeAiMessages(currentAiGroup)
-            if (merged) {
-                const showDate = !!merged.timestamp &&
-                    (!prevTimestamp || new Date(merged.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
-                items.push({ type: "message", data: { ...merged, showDate } })
-                prevTimestamp = merged.timestamp
-            }
-            currentAiGroup = []
+    // Use refs to avoid stale closures in Virtuoso callbacks
+    const callbacksRef = useRef({ hasMoreHistory, isLoadingHistory, loadMoreHistory })
+    useEffect(() => {
+        callbacksRef.current = { hasMoreHistory, isLoadingHistory, loadMoreHistory }
+    })
+
+    const handleReachStart = useCallback(() => {
+        const { hasMoreHistory, isLoadingHistory, loadMoreHistory } = callbacksRef.current
+        if (hasMoreHistory && !isLoadingHistory && loadMoreHistory) {
+            loadMoreHistory()
         }
-    }
+    }, [])
 
-    let isNewAiTurn = true
+    const renderItems = useMemo(() => {
+        // ─── 第一步：把消息列表拍平成 items ───────────────────────────────────────
+        // 规则：
+        //   human  → 直接入 items
+        //   ai     → 连续多条 ai 合并成一条（mergeAiMessages），遇到 tool/human 才 flush
+        //   tool   → 直接入 items（不触发 ai 组 flush，让 ai 组跨越 tool 边界）
+        //
+        // 注意：ai 组 flush 只在 human 或结束时触发，tool 消息不打断 ai 合并，
+        // 这样就避免了"每次 AI→tool→AI 边界产生新分组"的问题。
+        const items: ({ type: "message"; data: Message & { showDate?: boolean; isFirstInTurn?: boolean; isLastInTurn?: boolean; turnDuration?: string } })[] = []
+        let prevTimestamp: string | undefined
 
-    for (let i = 0; i < messages.length; i++) {
-        const msg = messages[i]
+        // 收集当前轮次中所有待处理的消息（包括 ai 和 tool 交替）
+        // 我们改为按"turn"（两个 human 之间）来处理，而不是按 ai 分组
+        let turnMsgs: Message[] = []
 
-        if (msg.role === "human") {
-            flushAiGroup()
-            const showDate = !!msg.timestamp &&
-                (!prevTimestamp || new Date(msg.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
-            items.push({ type: "message", data: { ...msg, showDate } })
-            prevTimestamp = msg.timestamp
-            isNewAiTurn = true
-        } else if (msg.role === "ai") {
-            currentAiGroup.push(msg)
-            const nextMsg = messages[i + 1]
-            if (!nextMsg || nextMsg.role !== "ai") {
-                const merged = mergeAiMessages(currentAiGroup)
+        const flushTurn = () => {
+            if (turnMsgs.length === 0) return
+
+            let isFirstAiInTurn = true
+            let pendingAiGroup: Message[] = []
+
+            const flushPendingAi = (isFinalInTurn: boolean) => {
+                if (pendingAiGroup.length === 0) return
+                const merged = mergeAiMessages(pendingAiGroup)
                 if (merged) {
                     const showDate = !!merged.timestamp &&
                         (!prevTimestamp || new Date(merged.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
                     items.push({
                         type: "message",
-                        data: { ...merged, showDate, isFirstInTurn: isNewAiTurn } as any
+                        data: {
+                            ...merged,
+                            showDate,
+                            isFirstInTurn: isFirstAiInTurn,
+                            // 只有 turn 内最后一段 AI 才标记 isLastInTurn
+                            ...(isFinalInTurn ? { isLastInTurn: true } : {}),
+                        } as any
                     })
                     prevTimestamp = merged.timestamp
+                    isFirstAiInTurn = false
+                }
+                pendingAiGroup = []
+            }
+
+            for (let j = 0; j < turnMsgs.length; j++) {
+                const m = turnMsgs[j]
+                if (m.role === "ai") {
+                    pendingAiGroup.push(m)
+                    // 如果下一条不是 ai（tool 或结束），先 flush
+                    const nextM = turnMsgs[j + 1]
+                    if (!nextM || nextM.role !== "ai") {
+                        const hasMoreAiAfter = turnMsgs.slice(j + 1).some(m => m.role === "ai")
+                        flushPendingAi(!hasMoreAiAfter)
+                    }
+                } else if (m.role === "tool") {
+                    // tool 消息直接入 items，不打断 ai 组
+                    const showDate = !!m.timestamp &&
+                        (!prevTimestamp || new Date(m.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
+                    items.push({
+                        type: "message",
+                        data: { ...m, showDate, isFirstInTurn: false } as any
+                    })
+                    prevTimestamp = m.timestamp
+                }
+            }
+
+            turnMsgs = []
+        }
+
+        let isNewAiTurn = true
+
+        for (let i = 0; i < messages.length; i++) {
+            const msg = messages[i]
+
+            if (msg.role === "human") {
+                flushTurn()
+                const showDate = !!msg.timestamp &&
+                    (!prevTimestamp || new Date(msg.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
+                items.push({ type: "message", data: { ...msg, showDate } })
+                prevTimestamp = msg.timestamp
+                isNewAiTurn = true
+            } else if (msg.role === "ai" || msg.role === "tool") {
+                if (isNewAiTurn && msg.role === "ai") {
+                    // 标记 turn 内第一条 AI（用于决定是否显示 avatar）
+                    turnMsgs.push({ ...msg, isFirstInTurn: true } as any)
                     isNewAiTurn = false
-                }
-                currentAiGroup = []
-            }
-        } else if (msg.role === "tool") {
-            flushAiGroup()
-            const showDate = !!msg.timestamp &&
-                (!prevTimestamp || new Date(msg.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
-            items.push({
-                type: "message",
-                data: { ...msg, showDate, isFirstInTurn: isNewAiTurn } as any
-            })
-            prevTimestamp = msg.timestamp
-        }
-    }
-
-    flushAiGroup()
-
-    // Turn-level pass
-    const getItemTimestamp = (itm: any): string | undefined => {
-        if (!itm) return undefined
-        if (itm.data?.timestamp) return itm.data.timestamp
-        if (itm.data?.steps?.[0]?.timestamp) return itm.data.steps[0].timestamp
-        return undefined
-    }
-
-    let turnStartIndex = 0
-    let turnFirstAiIndex = -1
-    let turnLastAiIndex = -1
-    let lastAiContentInTurn = ""
-
-    const closeTurn = () => {
-        if (turnFirstAiIndex !== -1 && lastAiContentInTurn) {
-            (items[turnFirstAiIndex].data as any).effective_content = lastAiContentInTurn
-        }
-        if (turnLastAiIndex !== -1) {
-            const lastAiItem = items[turnLastAiIndex]
-            ;(lastAiItem.data as any).isLastInTurn = true
-
-            const firstItem = items[turnStartIndex]
-            const firstTs = getItemTimestamp(firstItem)
-            const lastTs = getItemTimestamp(lastAiItem)
-            if (firstTs && lastTs) {
-                const startMs = new Date(firstTs).getTime()
-                const endMs = new Date(lastTs).getTime()
-                if (!isNaN(startMs) && !isNaN(endMs) && endMs >= startMs) {
-                    const diffSec = (endMs - startMs) / 1000
-                    ;(lastAiItem.data as any).turnDuration = diffSec >= 1 ? `${diffSec.toFixed(1)}s` : `${Math.round((endMs - startMs))}ms`
+                } else {
+                    turnMsgs.push(msg)
                 }
             }
         }
-    }
+        flushTurn()
 
-    for (let i = 0; i < items.length; i++) {
-        const item = items[i]
-        if (item.data.role === "human") {
-            closeTurn()
-            turnStartIndex = i
-            turnFirstAiIndex = -1
-            turnLastAiIndex = -1
-            lastAiContentInTurn = ""
-        } else if (item.data.role === "ai") {
-            if (item.data.isFirstInTurn) {
+        // ─── 第二步：计算每个 turn 的 duration 并标记 ─────────────────────────────
+        const getItemTimestamp = (itm: any): string | undefined => {
+            if (!itm) return undefined
+            if (itm.data?.timestamp) return itm.data.timestamp
+            return undefined
+        }
+
+        let turnStartIndex = 0
+        let turnFirstAiIndex = -1
+        let turnLastAiIndex = -1
+        let lastAiContentInTurn = ""
+
+        const closeTurn = () => {
+            if (turnFirstAiIndex !== -1 && lastAiContentInTurn) {
+                (items[turnFirstAiIndex].data as any).effective_content = lastAiContentInTurn
+            }
+            if (turnLastAiIndex !== -1) {
+                const lastAiItem = items[turnLastAiIndex]
+
+                const firstItem = items[turnStartIndex]
+                const firstTs = getItemTimestamp(firstItem)
+                const lastTs = getItemTimestamp(lastAiItem)
+                if (firstTs && lastTs) {
+                    const startMs = new Date(firstTs).getTime()
+                    const endMs = new Date(lastTs).getTime()
+                    if (!isNaN(startMs) && !isNaN(endMs) && endMs >= startMs) {
+                        const diffSec = (endMs - startMs) / 1000
+                        ;(lastAiItem.data as any).turnDuration = diffSec >= 1 ? `${diffSec.toFixed(1)}s` : `${Math.round((endMs - startMs))}ms`
+                    }
+                }
+            }
+        }
+
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i]
+            if (item.data.role === "human") {
                 closeTurn()
                 turnStartIndex = i
-                turnFirstAiIndex = i
-                turnLastAiIndex = i
-                lastAiContentInTurn = item.data.content || ""
-            } else {
-                turnLastAiIndex = i
-                if (item.data.content && item.data.content.trim() !== "") {
-                    lastAiContentInTurn = item.data.content
+                turnFirstAiIndex = -1
+                turnLastAiIndex = -1
+                lastAiContentInTurn = ""
+            } else if (item.data.role === "ai") {
+                if ((item.data as any).isFirstInTurn) {
+                    closeTurn()
+                    turnStartIndex = i
+                    turnFirstAiIndex = i
+                    turnLastAiIndex = i
+                    lastAiContentInTurn = item.data.content || ""
+                } else if ((item.data as any).isLastInTurn) {
+                    turnLastAiIndex = i
+                    if (item.data.content && item.data.content.trim() !== "") {
+                        lastAiContentInTurn = item.data.content
+                    }
                 }
             }
         }
-    }
-    closeTurn()
+        closeTurn()
 
-    const groupedItems: RenderItem[] = []
-    let currentTurnSteps: any[] = []
+        // ─── 第三步：把中间步骤归入 turn_steps_group ─────────────────────────────
+        // isLastInTurn=true 的 AI 消息触发 group 提交；其余全部进 currentTurnSteps。
+        // 整个 turn 内所有中间步骤（多次 AI tool_call + tool_output）共享一个 group，
+        // 页面上只呈现一个"思考与执行过程"区域。
+        const groupedItems: RenderItem[] = []
+        let currentTurnSteps: any[] = []
 
-    for (let i = 0; i < items.length; i++) {
-        const item = items[i]
-        if (item.data.role === "human") {
-            if (currentTurnSteps.length > 0) {
-                groupedItems.push({
-                    type: "turn_steps_group",
-                    id: `steps_group_before_${item.data.id}`,
-                    steps: currentTurnSteps,
-                    isTurnActive: false,
-                })
-                currentTurnSteps = []
-            }
-            groupedItems.push(item)
-        } else {
-            if (item.data.isLastInTurn) {
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i]
+            if (item.data.role === "human") {
+                if (currentTurnSteps.length > 0) {
+                    groupedItems.push({
+                        type: "turn_steps_group",
+                        id: `steps_group_before_${item.data.id}`,
+                        steps: currentTurnSteps,
+                        isTurnActive: false,
+                    })
+                    currentTurnSteps = []
+                }
+                groupedItems.push(item)
+            } else if ((item.data as any).isLastInTurn) {
                 const isStreaming = item.data.status === "streaming" || item.data.status === "running" || item.data.status === "pending"
 
                 if (item.data.thinking) {
@@ -309,94 +339,96 @@ function computeRenderItems(messages: Message[]): RenderItem[] {
 
                 groupedItems.push({
                     ...item,
-                    data: {
-                        ...item.data,
-                        thinking: undefined,
-                    },
+                    data: { ...item.data, thinking: undefined },
                 })
             } else {
+                // 中间步骤（AI tool_call、tool_output、未标 isLastInTurn 的 AI 消息）全进 steps
                 currentTurnSteps.push(item.data)
             }
         }
-    }
 
-    if (currentTurnSteps.length > 0) {
-        groupedItems.push({
-            type: "turn_steps_group",
-            id: `steps_group_tail_${currentTurnSteps[0].id}`,
-            steps: currentTurnSteps,
-            isTurnActive: true,
-        })
-    }
+        if (currentTurnSteps.length > 0) {
+            // 检查最后一项：如果最后一个是 human，说明剩余步骤属于新的一轮，
+            // 不应该合并到上一轮的分组中
+            const lastItem = groupedItems[groupedItems.length - 1]
+            const isNewTurn = lastItem && lastItem.type === "message" && lastItem.data.role === "human"
 
-    return groupedItems
-}
-
-export function MessageList({
-    messages,
-    hasMoreHistory = false,
-    isLoadingHistory = false,
-    onAddToMemory,
-    onRewind,
-    onRetry,
-    onQuote,
-    onViewChangeset,
-    scrollRef,
-    onScroll,
-    footerNode,
-}: MessageListProps) {
-    const { t } = useTranslation()
-
-    // 找到最后一个 human message 的索引，拆分 stable 和 streaming
-    const lastHumanIndex = useMemo(() => {
-        for (let i = messages.length - 1; i >= 0; i--) {
-            if (messages[i].role === "human") {
-                return i;
+            if (!isNewTurn) {
+                for (let k = groupedItems.length - 1; k >= 0; k--) {
+                    const last = groupedItems[k]
+                    if (last.type === "turn_steps_group") {
+                        last.steps.push(...currentTurnSteps)
+                        return groupedItems
+                    }
+                }
             }
+
+            groupedItems.push({
+                type: "turn_steps_group",
+                id: `steps_group_tail_${currentTurnSteps[0].id}`,
+                steps: currentTurnSteps,
+                isTurnActive: true,
+            })
         }
-        return 0; // 如果没找到 human，就全部当作 streaming 处理，或者按 0
-    }, [messages.length]);
 
-    // 使用长度、最后一个元素的ID和状态作为 stableMessages 的缓存依赖，避免 O(N) 重复执行
-    const stableRenderItems = useMemo(() => {
-        const stableMessages = messages.slice(0, lastHumanIndex);
-        return computeRenderItems(stableMessages);
-    }, [
-        lastHumanIndex, 
-        messages[lastHumanIndex - 1]?.id, 
-        messages[lastHumanIndex - 1]?.status
-    ]);
+        return groupedItems
+    }, [messages])
 
-    const currentTurnRenderItems = useMemo(() => {
-        const streamingMessages = messages.slice(lastHumanIndex);
-        return computeRenderItems(streamingMessages);
-    }, [messages, lastHumanIndex]);
+    // Build flat item list for Virtuoso data
+    interface VirtItem {
+        key: string
+        type: "message" | "turn_steps_group"
+        data?: Message & { showDate?: boolean; isFirstInTurn?: boolean; isLastInTurn?: boolean; turnDuration?: string }
+        steps?: (Message & { showDate?: boolean })[]
+        isTurnActive?: boolean
+    }
 
-    const renderItems = useMemo(() => {
-        return [...stableRenderItems, ...currentTurnRenderItems];
-    }, [stableRenderItems, currentTurnRenderItems]);
+    const virtItems = useMemo<VirtItem[]>(() => {
+        if (messages.length === 0) return []
+        return renderItems.map((item) => {
+            if (item.type === "message") {
+                return { key: String(item.data.id), type: "message" as const, data: item.data }
+            }
+            // "turn_steps_group" is the only other type produced by the render logic
+            if (item.type === "turn_steps_group") {
+                return { key: item.id, type: "turn_steps_group" as const, steps: item.steps, isTurnActive: item.isTurnActive }
+            }
+            return null
+        }).filter(Boolean) as VirtItem[]
+    }, [renderItems, messages.length])
 
-    const renderItemContent = (index: number, item: RenderItem) => {
-        if (item.type === "message") {
+    const VirtuosoItem = useCallback(({ children, ...props }: any) => (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.2 }}
+            {...props}
+        >
+            {children}
+        </motion.div>
+    ), [])
+
+    const itemContent = useCallback((_index: number, item: VirtItem) => {
+        if (item.type === "message" && item.data) {
             return (
-                <div className="pb-3">
+                <div className="px-3 sm:px-5 lg:px-6">
                     <SmartChatMessageItem
                         msg={item.data}
                         isGrouped={!(item.data as any).isFirstInTurn && item.data.role !== "human"}
                         showAvatar={item.data.role === "human" || (item.data as any).isFirstInTurn}
                         onAddToMemory={onAddToMemory}
-                        onRewind={() => onRewind?.(item.data)}
-                        onRetry={() => onRetry?.(item.data)}
-                        onQuote={() => onQuote?.(item.data)}
+                        onRewind={() => onRewind?.(item.data!)}
+                        onRetry={() => onRetry?.(item.data!)}
+                        onQuote={() => onQuote?.(item.data!)}
                         onViewChangeset={onViewChangeset}
                     />
                 </div>
             )
-        } else if (item.type === "turn_steps_group") {
+        }
+        if (item.type === "turn_steps_group" && item.steps) {
             return (
-                <div className="pb-3">
+                <div className="px-3 sm:px-5 lg:px-6">
                     <TurnStepsGroupView
-                        id={item.id}
                         steps={item.steps}
                         isTurnActive={item.isTurnActive}
                         onAddToMemory={onAddToMemory}
@@ -408,54 +440,46 @@ export function MessageList({
                 </div>
             )
         }
-        return null;
-    };
+        return null
+    }, [onAddToMemory, onRewind, onRetry, onQuote, onViewChangeset])
+
+    if (messages.length === 0 && !isLoadingHistory) {
+        return <ChatWelcome />
+    }
 
     return (
         <Virtuoso
-            data={renderItems}
-            itemContent={renderItemContent}
-            initialTopMostItemIndex={renderItems.length - 1}
-            followOutput="smooth"
-            overscan={2000}
-            className="w-full"
-            style={{ flex: 1 }}
-            scrollerRef={(ref) => {
-                if (scrollRef) {
-                    // Type assertion to bypass readonly ref
-                    (scrollRef as any).current = ref;
-                }
+            style={{ height: "100%" }}
+            data={virtItems}
+            itemContent={itemContent}
+            followOutput={(_isAtBottom) => {
+                if (isLoadingHistory) return false
+                return 'auto'
             }}
-            onScroll={onScroll as any}
+            startReached={handleReachStart}
             components={{
-                List: forwardRef((props, ref) => (
-                    <div {...props} ref={ref as any} className="px-3 sm:px-5 lg:px-6 pb-1 pt-3 min-w-0 w-full" />
-                )),
+                Item: VirtuosoItem,
                 Header: () => (
-                    <div className="px-1 pb-2 min-w-0">
+                    <>
                         {isLoadingHistory && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                className="py-4 text-center text-muted-foreground"
-                            >
+                            <div className="py-4 text-center text-muted-foreground">
                                 <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
                                 <span className="text-xs">{t("chat.loadingHistory")}</span>
-                            </motion.div>
+                            </div>
                         )}
                         {hasMoreHistory && !isLoadingHistory && messages.length > 0 && (
                             <div className="py-3 text-center text-muted-foreground/50 text-xs">
                                 {t("chat.scrollToLoadMore")}
                             </div>
                         )}
-                        {messages.length === 0 && !isLoadingHistory && (
-                            <ChatWelcome />
-                        )}
+                    </>
+                ),
+                Footer: () => (
+                    <div className="pb-2 px-3 sm:px-5 lg:px-6">
+                        {footer}
                     </div>
                 ),
-                Footer: () => <div className="min-w-0 w-full">{footerNode}</div>
             }}
         />
     )
-}
-
+})

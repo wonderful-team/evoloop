@@ -269,6 +269,8 @@
     "linkNamePlaceholder": "例如：API 文档",
     "linkUrlPlaceholder": "https://...",
     "liveStepsTitle": "执行步骤",
+    "usedSkillsTitle": "使用技能",
+    "noUsedSkills": "未启动附加技能",
     "llmAuthError": "LLM API 认证失败",
     "llmAuthErrorDesc": "API 密钥无效或已过期，请检查 LLM 设置",
     "loadingHistory": "加载历史消息...",
@@ -276,6 +278,7 @@
       "audioNotSupported": "不支持音频播放",
       "clickToOpen": "点击打开",
       "copy": "复制",
+      "preview": "预览",
       "imageViewer": "图片查看器",
       "toolExecution": "工具执行"
     },

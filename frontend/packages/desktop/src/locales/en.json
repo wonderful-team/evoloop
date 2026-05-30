@@ -269,6 +269,8 @@
     "linkNamePlaceholder": "e.g. API Docs",
     "linkUrlPlaceholder": "https://...",
     "liveStepsTitle": "Execution Steps",
+    "usedSkillsTitle": "Used Skills",
+    "noUsedSkills": "No skills utilized",
     "llmAuthError": "LLM API Authentication Failed",
     "llmAuthErrorDesc": "API key is invalid or expired, please check LLM settings",
     "loadingHistory": "Loading history...",
@@ -276,6 +278,7 @@
       "audioNotSupported": "Audio playback not supported",
       "clickToOpen": "Click to open",
       "copy": "Copy",
+      "preview": "Preview",
       "imageViewer": "Image Viewer",
       "toolExecution": "Tool Execution"
     },

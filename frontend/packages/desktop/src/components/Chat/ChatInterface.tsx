@@ -48,27 +48,26 @@ import { HumanRequestCard } from "./HumanRequestCard"
 import { QuotaExhaustedCard } from "./QuotaExhaustedCard"
 
 export function ChatInterface() {
-  // --- Store State ---
-  const { 
-    threadId: activeThreadId,
-    messages,
-    status,
-    humanRequest,
-    projectId: storeProjectId,
-    hasMoreHistory,
-    isLoadingHistory,
-    loadMoreHistory,
-    setThread,
-    sendMessage,
-    stopAgent,
-    _truncateMessages,
-    markChangeAsViewed,
-    markAllChangesAsViewed,
-    selectedModel
-  } = useChatStore()
+  // --- Store State (selective subscriptions to avoid unnecessary re-renders) ---
+  const activeThreadId = useChatStore(s => s.threadId)
+  const messages = useChatStore(s => s.messages)
+  const status = useChatStore(s => s.status)
+  const humanRequest = useChatStore(s => s.humanRequest)
+  const storeProjectId = useChatStore(s => s.projectId)
+  const hasMoreHistory = useChatStore(s => s.hasMoreHistory)
+  const isLoadingHistory = useChatStore(s => s.isLoadingHistory)
+  const loadMoreHistory = useChatStore(s => s.loadMoreHistory)
+  const setThread = useChatStore(s => s.setThread)
+  const sendMessage = useChatStore(s => s.sendMessage)
+  const stopAgent = useChatStore(s => s.stopAgent)
+  const _truncateMessages = useChatStore(s => s._truncateMessages)
+  const markChangeAsViewed = useChatStore(s => s.markChangeAsViewed)
+  const markAllChangesAsViewed = useChatStore(s => s.markAllChangesAsViewed)
+  const selectedModel = useChatStore(s => s.selectedModel)
 
   const { t } = useTranslation()
-  const { currentProject, isGlobalMode } = useProjectStore()
+  const currentProject = useProjectStore(s => s.currentProject)
+  const isGlobalMode = useProjectStore(s => s.isGlobalMode)
   const queryClient = useQueryClient()
 
   // --- UI State ---
@@ -88,13 +87,9 @@ export function ChatInterface() {
   // But respect user's manual preference stored in localStorage
   const [showContextPanel, setShowContextPanel] = useState(() => {
     const saved = localStorage.getItem("chat.contextPanel.hidden")
-    // If user manually closed it before, respect that
     if (saved === "true") return false
-    // Otherwise show by default
     return true
   })
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const contentRef = useRef<HTMLDivElement>(null)
   const chatInputRef = useRef<ChatInputAreaHandle | null>(null)
 
   // Compact window detection (< 1024px, matching lg breakpoint of left sidebar)
@@ -107,22 +102,10 @@ export function ChatInterface() {
 
   useEffect(() => {
     const mql = window.matchMedia("(max-width: 1023px)")
-    const onChange = () => setIsCompactWindow(mql.matches)
-    mql.addEventListener("change", onChange)
-    setIsCompactWindow(mql.matches)
-    return () => mql.removeEventListener("change", onChange)
+    const handler = (e: MediaQueryListEvent) => setIsCompactWindow(e.matches)
+    mql.addEventListener("change", handler)
+    return () => mql.removeEventListener("change", handler)
   }, [])
-
-  // Auto-close context panel when entering compact mode
-  useEffect(() => {
-    if (isCompactWindow) {
-      setShowContextPanel(false)
-    }
-  }, [isCompactWindow])
-
-  // Smart Scroll State
-  const [isUserScrolled, setIsUserScrolled] = useState(false)
-  const isInitialLoad = useRef(true)
 
   // Auto-show context panel when switching from global to project mode
   // But only if user hasn't manually closed it
@@ -499,93 +482,6 @@ export function ChatInterface() {
     }
   }
 
-  // --- Auto Scroll Logic ---
-  // Auto-scroll logic
-
-  // Handle User Scroll Interaction
-  const handleScroll = useCallback(() => {
-    if (!scrollRef.current) return
-    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
-    
-    // During initial load protection, we don't update isUserScrolled 
-    // to avoid layout shifts marking user as 'scrolled up'
-    if (isInitialLoad.current) return
-
-    // If user is not at the bottom (tighter threshold), mark as user scrolled
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 20
-    setIsUserScrolled(!isAtBottom)
-
-    // Trigger load more history when near top
-    if (scrollTop < 100 && hasMoreHistory && !isLoadingHistory) {
-      console.log('[ChatInterface] Near top, triggering loadMoreHistory')
-      loadMoreHistory()
-    }
-  }, [hasMoreHistory, isLoadingHistory, loadMoreHistory])
-
-  const scrollToBottom = useCallback((smooth = false) => {
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: smooth ? "smooth" : "auto",
-    })
-  }, [])
-
-  // --- ResizeObserver to keep anchored to bottom ---
-  useEffect(() => {
-    if (!contentRef.current || !scrollRef.current) return
-
-    const resizeObserver = new ResizeObserver(() => {
-      // Whenever content height changes, stay at bottom if:
-      // 1. It's the initial load of a thread
-      // 2. Or the user hasn't manually scrolled up
-      if (isInitialLoad.current || !isUserScrolled) {
-        scrollToBottom(false)
-      }
-    })
-
-    resizeObserver.observe(contentRef.current)
-    return () => resizeObserver.disconnect()
-  }, [isUserScrolled, scrollToBottom])
-
-  // 1. Initial Jump & Reset on Thread Switch
-  useEffect(() => {
-    if (activeThreadId) {
-      setIsUserScrolled(false)
-      isInitialLoad.current = true
-      
-      // Use requestAnimationFrame to ensure the container is ready
-      requestAnimationFrame(() => {
-        scrollToBottom(false)
-      })
-
-      // After a short period, we allow user scroll detection again
-      const timer = setTimeout(() => {
-        isInitialLoad.current = false
-      }, 1000) // 1s protection period for initial rendering/animations
-      return () => clearTimeout(timer)
-    }
-  }, [activeThreadId, scrollToBottom])
-
-  // 2. Content-driven scrolling (on messages or loading state change)
-  useEffect(() => {
-    // Only auto-scroll if user hasn't manually scrolled up
-    if (!isUserScrolled && messages.length > 0) {
-      // Small delay to account for potential rendering of images/markdown
-      const timer = setTimeout(() => {
-        scrollToBottom(false) // Use auto for content updates to feel responsive
-      }, 50)
-      return () => clearTimeout(timer)
-    }
-  }, [messages, isLoadingHistory, isUserScrolled, scrollToBottom])
-
-  // 3. Post-Loading stabilization
-  useEffect(() => {
-    if (!isLoadingHistory && messages.length > 0 && !isUserScrolled) {
-      requestAnimationFrame(() => {
-        scrollToBottom(false)
-      })
-    }
-  }, [isLoadingHistory, messages.length, isUserScrolled, scrollToBottom])
-
   // Auto-focus input when agent finishes
   useEffect(() => {
     if (status === "idle" || status === "interrupted") {
@@ -597,11 +493,9 @@ export function ChatInterface() {
   useEffect(() => {
     const handleScrollToRun = (e: CustomEvent<{ runId: string }>) => {
       const runId = e.detail.runId
-      // Find DOM element within scroll container
-      const el = scrollRef.current?.querySelector(`[data-run-id= "${runId}"]`)
+      const el = document.querySelector(`[data-run-id="${runId}"]`)
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "start" })
-        // Visual indicator
         el.classList.add("ring-2", "ring-primary/20", "rounded-lg")
         setTimeout(() => el.classList.remove("ring-2", "ring-primary/20", "rounded-lg"), 2000)
       } else {
@@ -639,6 +533,7 @@ export function ChatInterface() {
           maxSize={40}
           className="hidden lg:block min-w-[100px] overflow-hidden"
         >
+          <div style={{ contain: 'content', height: '100%', width: '100%', minWidth: 0 }}>
           <ChatSidebar
             threads={threads.map(t => ({
               ...t,
@@ -664,13 +559,14 @@ export function ChatInterface() {
             isFetchingNextPage={isFetchingNextPage}
             onTogglePin={handleTogglePin}
           />
+          </div>
         </ResizablePanel>
 
         <ResizableHandle withHandle />
 
         {/* Center Chat Panel */}
         <ResizablePanel defaultSize={showContextPanel ? 64 : 84} minSize={20} className="min-w-0 overflow-hidden">
-          <div className="flex flex-col h-full relative min-h-0 min-w-0 w-full overflow-hidden">
+          <div className="flex flex-col h-full relative min-h-0 min-w-0 w-full overflow-hidden" style={{ contain: 'content' }}>
             {/* Top Right Controls */}
             <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
               {/* Toggle Context Panel Button */}
@@ -691,70 +587,63 @@ export function ChatInterface() {
             <HITLBanner />
             <QuotaExhaustedBanner />
 
-            <div
-              className="flex-1 min-h-0 min-w-0 w-full flex flex-col relative"
-              data-tour="chat-messages"
-            >
-                <MessageList
-                  scrollRef={scrollRef}
-                  onScroll={handleScroll as any}
-                  messages={messages}
-                  hasMoreHistory={hasMoreHistory}
-                  isLoadingHistory={isLoadingHistory}
-                  onAddToMemory={(txt) => {
-                    setMemoryContent(txt)
-                    setIsMemoryDialogOpen(true)
-                  }}
-                  onRewind={(msg) => {
-                    // Check if any message from this point forward has file operations
-                    const index = messages.findIndex(m => m.id === msg.id)
-                    const subMessages = messages.slice(index)
-                    const hasFiles = subMessages.some(m => m.has_file_operations)
+            <div className="flex-1 min-h-0 min-w-0 w-full" data-tour="chat-messages">
+              <MessageList
+                messages={messages}
+                hasMoreHistory={hasMoreHistory}
+                isLoadingHistory={isLoadingHistory}
+                loadMoreHistory={loadMoreHistory}
+                onAddToMemory={(txt) => {
+                  setMemoryContent(txt)
+                  setIsMemoryDialogOpen(true)
+                }}
+                onRewind={(msg) => {
+                  const index = messages.findIndex(m => m.id === msg.id)
+                  const subMessages = messages.slice(index)
+                  const hasFiles = subMessages.some(m => m.has_file_operations)
 
-                    setSelectedMessageId(msg.id.toString())
+                  setSelectedMessageId(msg.id.toString())
 
-                    // Capure content if it's a human message to refill later
-                    if (msg.role === "human") {
-                      setRewindContent(msg.content)
-                    } else {
-                      setRewindContent("")
-                    }
-
-                    if (hasFiles) {
-                      setConfirmMode("rewind")
-                      setIsRewindDialogOpen(true)
-                    } else {
-                      rewindMutation.mutate({ revertFiles: false, messageId: msg.id.toString() })
-                    }
-                  }}
-                  onRetry={(msg) => {
-                    // Targeted Retry starting from the specific user message
-                    const index = messages.findIndex(m => m.id === msg.id)
-                    const subMessages = messages.slice(index + 1)
-
-                    const hasFiles = subMessages.some(m => m.has_file_operations)
-
-                    setSelectedMessageId(msg.id.toString())
-                    if (hasFiles) {
-                      setConfirmMode("retry")
-                      setIsRewindDialogOpen(true)
-                    } else {
-                      retryMutation.mutate({ revertFiles: false, messageId: msg.id.toString() })
-                    }
-                  }}
-                  onQuote={(msg) => handleQuoteMessage(msg)}
-                  onViewChangeset={handleViewChangeset}
-                  footerNode={
-                    <>
-                      {status === "interrupted" && humanRequest && (
-                        <HumanRequestCard request={humanRequest} />
-                      )}
-                      {status === "quota_exhausted" && (
-                        <QuotaExhaustedCard />
-                      )}
-                    </>
+                  if (msg.role === "human") {
+                    setRewindContent(msg.content)
+                  } else {
+                    setRewindContent("")
                   }
-                />
+
+                  if (hasFiles) {
+                    setConfirmMode("rewind")
+                    setIsRewindDialogOpen(true)
+                  } else {
+                    rewindMutation.mutate({ revertFiles: false, messageId: msg.id.toString() })
+                  }
+                }}
+                onRetry={(msg) => {
+                  const index = messages.findIndex(m => m.id === msg.id)
+                  const subMessages = messages.slice(index + 1)
+
+                  const hasFiles = subMessages.some(m => m.has_file_operations)
+
+                  setSelectedMessageId(msg.id.toString())
+                  if (hasFiles) {
+                    setConfirmMode("retry")
+                    setIsRewindDialogOpen(true)
+                  } else {
+                    retryMutation.mutate({ revertFiles: false, messageId: msg.id.toString() })
+                  }
+                }}
+                onQuote={(msg) => handleQuoteMessage(msg)}
+                onViewChangeset={handleViewChangeset}
+                footer={
+                  <>
+                    {status === "interrupted" && humanRequest && (
+                      <HumanRequestCard request={humanRequest} />
+                    )}
+                    {status === "quota_exhausted" && (
+                      <QuotaExhaustedCard />
+                    )}
+                  </>
+                }
+              />
             </div>
 
             {/* Input Area */}
@@ -782,7 +671,7 @@ export function ChatInterface() {
               maxSize={40}
               className="min-w-0 overflow-hidden"
             >
-              <div data-tour="chat-context" className="h-full w-full min-w-0 overflow-hidden flex flex-col">
+              <div data-tour="chat-context" className="h-full w-full min-w-0 overflow-hidden flex flex-col" style={{ contain: 'content' }}>
                 <ContextPanel
                   projectId={currentProject?.id}
                   activeThreadId={activeThreadId || ""}

@@ -35,7 +35,6 @@ export interface Message {
   timestamp?: string
   status?: "pending" | "streaming" | "running" | "completed" | "failed" | "waiting_human"
   run_id?: string
-  node_source?: string
   tool_name?: string
   input?: any
   output?: any
@@ -46,6 +45,7 @@ export interface Message {
   }
   changeset_count?: number
   isLastInTurn?: boolean
+
   changeset_files?: Array<{
     path: string
     operation: 'added' | 'modified' | 'deleted' | 'renamed'
@@ -194,7 +194,7 @@ const ChatMessageItem = memo(
           <div className="doc-message-content w-full prose-compact transition-opacity leading-relaxed">
             <MessageContent content={msg.content} />
             <MessageReferences
-              references={msg.references || []}
+              references={(msg.references || []).filter(r => r.type !== 'artifact')}
               onReferenceClick={(ref) => {
                 if (ref.type === 'changeset') {
                   onViewChangeset?.(msg.id)
@@ -302,8 +302,7 @@ const SmartChatMessageItem = memo((props: ChatMessageItemProps) => {
       msg.role === "ai" &&
       speakContent &&
       (!msg.status || msg.status === "completed") &&
-      !isSpeaking &&
-      (msg.node_source === "chat" || msg.node_source === "finish" || !msg.node_source)
+      !isSpeaking
     ) {
       const timer = setTimeout(() => {
         speak(speakContent)
@@ -311,7 +310,7 @@ const SmartChatMessageItem = memo((props: ChatMessageItemProps) => {
       }, 500)
       return () => clearTimeout(timer)
     }
-  }, [autoSpeak, msg.role, msg.content, msg.effective_content, msg.status, isSpeaking, speak, msg.node_source, msg.id, msg.timestamp])
+  }, [autoSpeak, msg.role, msg.content, msg.effective_content, msg.status, isSpeaking, speak, msg.id, msg.timestamp])
 
   return <ChatMessageItem {...props} />
 })

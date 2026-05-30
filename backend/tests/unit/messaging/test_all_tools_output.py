@@ -6,11 +6,13 @@ import sys
 import os
 
 # Override app data directory to avoid permission issues with ~/.evoloop
-os.environ["EVOLOOP_APP_DATA_DIR"] = "/Users/huangjinhuan/项目/develop-assistant.cn/evoloop/backend/temp_test_data"
-os.environ["SQLITE_DB_PATH"] = "/Users/huangjinhuan/项目/develop-assistant.cn/evoloop/backend/temp_test_data/test.db"
+temp_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../temp_test_data")
+os.environ["EVOLOOP_APP_DATA_DIR"] = os.environ.get("EVOLOOP_APP_DATA_DIR") or temp_dir
+os.environ["SQLITE_DB_PATH"] = os.environ.get("SQLITE_DB_PATH") or os.path.join(os.environ["EVOLOOP_APP_DATA_DIR"], "test.db")
 os.makedirs(os.environ["EVOLOOP_APP_DATA_DIR"], exist_ok=True)
 
-sys.path.insert(0, '/Users/huangjinhuan/项目/develop-assistant.cn/evoloop/backend')
+backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(0, backend_dir)
 
 import asyncio
 import json
