@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import json
 import logging
 import weakref
 from typing import Any
@@ -338,6 +339,14 @@ class LLMFactory:
             )
         else:
             # openai, deepseek, moonshot, ollama, vllm, etc.
+            # 1. Load custom headers from database
+            from app.infrastructure.config.service import SystemConfigService
+            db_headers_str = SystemConfigService.get_value("LLM_HEADERS", "{}")
+            try:
+                final_headers = json.loads(db_headers_str) if db_headers_str else {}
+            except Exception:
+                final_headers = {}
+
             return AdaptiveChatOpenAI(
                 api_key=api_key,
                 base_url=base_url.rstrip("/"),
@@ -347,6 +356,7 @@ class LLMFactory:
                 max_tokens=max_tokens,
                 http_async_client=_HTTP_CLIENT_POOL.get(),
                 extra_body=merged_extra,
+                default_headers=final_headers if final_headers else None,
             )
 
     @staticmethod

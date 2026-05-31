@@ -12,6 +12,8 @@ Features:
 import logging
 from datetime import datetime, timezone
 from typing import Optional
+from fastapi.concurrency import run_in_threadpool
+import functools
 
 from app.core.config import settings
 from app.infrastructure.search.base import (
@@ -56,27 +58,31 @@ class MeilisearchBackend:
         client, index = self._get_client()
         try:
             # Check if index exists
-            client.get_index(INDEX_NAME)
+            await run_in_threadpool(client.get_index, INDEX_NAME)
             logger.info(f"[MeilisearchBackend] Index '{INDEX_NAME}' already exists")
         except Exception:
             # Create index
-            client.create_index(INDEX_NAME, {"primaryKey": "id"})
+            await run_in_threadpool(client.create_index, INDEX_NAME, {"primaryKey": "id"})
             logger.info(f"[MeilisearchBackend] Created index '{INDEX_NAME}'")
 
         # Update searchable attributes
-        index.update_searchable_attributes(
+        await run_in_threadpool(
+            index.update_searchable_attributes,
             ["title", "content", "tags", "path"]
         )
         # Update filterable attributes
-        index.update_filterable_attributes(
+        await run_in_threadpool(
+            index.update_filterable_attributes,
             ["collection", "tags"]
         )
         # Update sortable attributes
-        index.update_sortable_attributes(
+        await run_in_threadpool(
+            index.update_sortable_attributes,
             ["indexed_at"]
         )
         # Update ranking rules (BM25 is default)
-        index.update_ranking_rules(
+        await run_in_threadpool(
+            index.update_ranking_rules,
             [
                 "words",
                 "typo",
@@ -104,7 +110,9 @@ class MeilisearchBackend:
                 "word_count": request.word_count or 0,
                 "indexed_at": datetime.now(timezone.utc).isoformat(),
             }
-            index.add_documents([doc], primary_key="id")
+            await run_in_threadpool(
+                functools.partial(index.add_documents, [doc], primary_key="id")
+            )
             return True
         except Exception as e:
             logger.error(f"[MeilisearchBackend] Failed to index {request.doc_id}: {e}")
@@ -113,7 +121,7 @@ class MeilisearchBackend:
     async def remove_document(self, doc_id: str) -> bool:
         try:
             _, index = self._get_client()
-            index.delete_document(doc_id)
+            await run_in_threadpool(index.delete_document, doc_id)
             return True
         except Exception as e:
             logger.error(f"[MeilisearchBackend] Failed to remove {doc_id}: {e}")
@@ -143,7 +151,8 @@ class MeilisearchBackend:
 
         filter_str = " AND ".join(filters) if filters else None
 
-        result = index.search(
+        result = await run_in_threadpool(
+            index.search,
             query,
             {
                 "limit": limit,
@@ -160,7 +169,7 @@ class MeilisearchBackend:
                     "content",
                     "tags",
                 ],
-            },
+            }
         )
         results = []
         for hit in result.get("hits", []):
@@ -195,13 +204,14 @@ class MeilisearchBackend:
         _, index = self._get_client()
         facets: dict = {"collections": {}, "tags": {}}
         # Meilisearch facet search
-        facet_result = index.search(
+        facet_result = await run_in_threadpool(
+            index.search,
             query,
             {
                 "limit": 0,
                 "facets": ["collection"],
                 "filter": f"collection = '{project_filter}'" if project_filter else None,
-            },
+            }
         )
         facet_distribution = facet_result.get("facetDistribution", {})
         facets["collections"] = facet_distribution.get("collection", {})
@@ -216,13 +226,14 @@ class MeilisearchBackend:
         _, index = self._get_client()
         suggestions: list[SearchSuggestion] = []
         filter_str = f"collection = '{collection}'" if collection else None
-        result = index.search(
+        result = await run_in_threadpool(
+            index.search,
             prefix,
             {
                 "limit": limit,
                 "filter": filter_str,
                 "attributesToRetrieve": ["title", "path"],
-            },
+            }
         )
         for hit in result.get("hits", []):
             suggestions.append(
@@ -244,13 +255,14 @@ class MeilisearchBackend:
         _, index = self._get_client()
         tags: list[dict] = []
         filter_str = f"collection = '{collection}'" if collection else None
-        result = index.search(
+        result = await run_in_threadpool(
+            index.search,
             "",
             {
                 "limit": 1000,
                 "filter": filter_str,
                 "facets": ["tags"],
-            },
+            }
         )
         facet_distribution = result.get("facetDistribution", {})
         tags = [
@@ -278,7 +290,7 @@ class MeilisearchBackend:
 
     async def get_stats(self) -> SearchIndexStats:
         _, index = self._get_client()
-        stats = index.get_stats()
+        stats = await run_in_threadpool(index.get_stats)
         total_documents = stats.get("numberOfDocuments", 0)
         # Collections are not directly available in Meilisearch stats
         # We could scan all documents, but that's expensive.
@@ -294,7 +306,7 @@ class MeilisearchBackend:
         _, index = self._get_client()
         # Delete all existing documents
         try:
-            index.delete_all_documents()
+            await run_in_threadpool(index.delete_all_documents)
         except Exception as e:
             logger.warning(f"[MeilisearchBackend] Failed to clear index: {e}")
 
@@ -323,7 +335,9 @@ class MeilisearchBackend:
                     }
                 )
                 if len(batch) >= BATCH_SIZE:
-                    index.add_documents(batch, primary_key="id")
+                    await run_in_threadpool(
+                        functools.partial(index.add_documents, batch, primary_key="id")
+                    )
                     indexed += len(batch)
                     batch = []
             except Exception as e:
@@ -331,7 +345,9 @@ class MeilisearchBackend:
                 failed += 1
 
         if batch:
-            index.add_documents(batch, primary_key="id")
+            await run_in_threadpool(
+                functools.partial(index.add_documents, batch, primary_key="id")
+            )
             indexed += len(batch)
 
         return ReindexResult(indexed=indexed, failed=failed, total=len(documents))

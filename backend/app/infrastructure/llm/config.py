@@ -1,3 +1,4 @@
+import json
 import logging
 
 from langchain_openai import ChatOpenAI
@@ -9,12 +10,30 @@ logger = logging.getLogger(__name__)
 
 class LLMConfigService:
     @staticmethod
-    async def validate_connection(provider: str, base_url: str, model: str, api_key: str = None) -> tuple[bool, str]:
+    async def validate_connection(
+        provider: str,
+        base_url: str,
+        model: str,
+        api_key: str = None,
+        headers: dict[str, str] | None = None
+    ) -> tuple[bool, str]:
         """
         Pre-flight check: Validates that the LLM can actually generate text.
         """
         try:
-            if provider in ["anthropic", "kimi"] or "api/anthropic" in (base_url or ""):
+            # 1. Load custom headers from database
+            from app.infrastructure.config.service import SystemConfigService
+            db_headers_str = SystemConfigService.get_value("LLM_HEADERS", "{}")
+            try:
+                final_headers = json.loads(db_headers_str) if db_headers_str else {}
+            except Exception:
+                final_headers = {}
+
+            # 2. Merge with explicit headers passed to validation (e.g. from UI testing form)
+            if headers:
+                final_headers.update(headers)
+
+            if provider == "anthropic" or "api/anthropic" in (base_url or ""):
                 from app.infrastructure.llm.anthropic_adapter import CompatibleChatAnthropic
 
                 llm = CompatibleChatAnthropic(
@@ -35,15 +54,27 @@ class LLMConfigService:
                     model=model,
                     temperature=0,
                     max_tokens=5,
+                    default_headers=final_headers if final_headers else None,
                 )
 
             # Test invocation
-            # Use invoke instead of predict for modern LangChain
-            response = await llm.ainvoke("Ping")
-            if not response or not response.content:
+            # For thinking/reasoning models, the content might be empty if max_tokens is small 
+            # and it only generated thinking/reasoning tokens.
+            # We use stream to confirm connectivity by checking if any chunk contains text/reasoning.
+            content = ""
+            async for chunk in llm.astream("Ping"):
+                content += chunk.content
+                # Capture reasoning_content from patched additional_kwargs if present
+                reasoning = chunk.additional_kwargs.get("reasoning_content") or chunk.additional_kwargs.get("thinking")
+                if reasoning:
+                    content += reasoning
+                if len(content) > 100:
+                    break
+
+            if not content:
                 raise ValueError("Empty response from LLM")
 
-            return True, response.content
+            return True, content
         except Exception as e:
             logger.error(f"LLM Validation Failed: {e}")
             raise e

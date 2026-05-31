@@ -17,6 +17,8 @@ TASK_MODULE_MAP = {
     "engine_reconcile_skill_macro": "app.core.engine.tasks",
     "engine_scheduler_tick": "app.core.engine.tasks",
     "run_autonomous_task_execution": "app.core.engine.tasks",
+    "engine_run_agent_background": "app.core.engine.tasks",
+    "engine_resume_graph_background": "app.core.engine.tasks",
     # Atlas tasks
     "atlas_explore_app": "app.core.atlas.tasks",
     "atlas_execute_exploration": "app.core.atlas.tasks",

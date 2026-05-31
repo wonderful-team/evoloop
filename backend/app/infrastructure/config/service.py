@@ -15,9 +15,6 @@ _change_handlers: dict[str, list[Callable[[str, str], Awaitable[None]]]] = {}
 class SystemConfigService:
     @staticmethod
     def get_value(key: str, default: str | None = None) -> str | None:
-        if key in _cache:
-            return _cache[key]
-
         # Safety: Check if database is initialized
         if not db_resource_manager.sync_engine:
             return default
@@ -25,9 +22,7 @@ class SystemConfigService:
         with Session(db_resource_manager.sync_engine) as session:
             config = session.get(SystemConfig, key)
             if config:
-                val = config.value
-                _cache[key] = val
-                return val
+                return config.value
             return default
 
     @staticmethod

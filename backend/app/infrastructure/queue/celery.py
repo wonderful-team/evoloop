@@ -313,6 +313,8 @@ def _register_local_tasks(app: LocalCelery):
             ("engine_reconcile_skill_macro", getattr(engine_tasks, 'reconcile_skill_macro_task', None), False),
             ("engine_scheduler_tick", getattr(engine_tasks, 'engine_scheduler_tick', None), False),
             ("run_autonomous_task_execution", getattr(engine_tasks, 'run_autonomous_task_execution', None), False),
+            ("engine_run_agent_background", getattr(engine_tasks, 'run_agent_background_task', None), False),
+            ("engine_resume_graph_background", getattr(engine_tasks, 'resume_graph_background_task', None), False),
         ]
 
         registered_count = 0

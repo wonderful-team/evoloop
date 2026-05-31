@@ -154,7 +154,26 @@ def shared_task(
         if asyncio.iscoroutinefunction(f) and type(scheduler).__name__ == "Celery":
             @functools.wraps(f)
             def _celery_async_wrapper(*args, **kwargs):
-                return asyncio.run(f(*args, **kwargs))
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                
+                async def _execute():
+                    from app.infrastructure.database.resource_manager import db_resource_manager
+                    await db_resource_manager.initialize(create_tables=False, seed_data=False)
+                    return await f(*args, **kwargs)
+
+                try:
+                    return loop.run_until_complete(_execute())
+                finally:
+                    try:
+                        from app.utils.async_utils import flush_loop_bound_resources
+                        loop.run_until_complete(flush_loop_bound_resources())
+                    except Exception as e:
+                        logger.warning(f"[Celery] Failed to flush resources in task {f.__name__}: {e}")
+                        
             target_f = _celery_async_wrapper
 
         return scheduler.task(

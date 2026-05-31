@@ -1,7 +1,7 @@
 """
 Redis implementation of Cache interface.
 """
-
+import asyncio
 import json
 import logging
 from typing import Any
@@ -13,6 +13,7 @@ from app.infrastructure.cache.abstract import (
     CachePipeline,
     PubSubBackend,
 )
+from app.utils.async_utils import LoopBoundResource
 
 logger = logging.getLogger(__name__)
 
@@ -109,17 +110,18 @@ class RedisCache(Cache):
     """
 
     def __init__(self):
-        self._redis = None
-        self._pool = None
+        async def cleanup_redis(client):
+            await client.close()
+            
+        self._redis_pool = LoopBoundResource(
+            factory=self._create_redis,
+            cleanup=cleanup_redis
+        )
 
-    async def _ensure_connected(self):
-        """Lazy connection to Redis."""
-        if self._redis is not None:
-            return
-
+    def _create_redis(self):
         import redis.asyncio as redis_lib
 
-        self._pool = redis_lib.ConnectionPool.from_url(
+        pool = redis_lib.ConnectionPool.from_url(
             settings.REDIS_URL or "redis://localhost:6379/0",
             encoding="utf-8",
             decode_responses=True,
@@ -128,8 +130,23 @@ class RedisCache(Cache):
             socket_connect_timeout=5.0,
             retry_on_timeout=True
         )
-        self._redis = redis_lib.Redis(connection_pool=self._pool)
-        logger.info("[RedisCache] Connected to Redis")
+        client = redis_lib.Redis(connection_pool=pool)
+        
+        try:
+            loop_id = id(asyncio.get_running_loop())
+        except RuntimeError:
+            loop_id = "none"
+            
+        logger.info(f"[RedisCache] Connected to Redis (loop={loop_id})")
+        return client
+
+    async def _ensure_connected(self):
+        """Lazy connection to Redis (now handled by LoopBoundResource)."""
+        pass
+
+    @property
+    def _redis(self):
+        return self._redis_pool.get()
 
     # ========== Key-Value Operations ==========
 
@@ -274,30 +291,20 @@ class RedisCache(Cache):
         return await self._redis.publish(channel, message)
 
     def pubsub(self) -> PubSubBackend:
-        # Note: pubsub needs a separate connection, caller must ensure_connected
-        if self._redis is None:
-            raise RuntimeError("Redis not connected. Call async method first or use pubsub in async context.")
         return RedisPubSubAdapter(self._redis.pubsub())
 
     # ========== Locks ==========
 
     def lock(self, name: str, timeout: float = None, blocking: bool = True, blocking_timeout: float = None) -> CacheLock:
-        if self._redis is None:
-            raise RuntimeError("Redis not connected")
         redis_lock = self._redis.lock(name, timeout=timeout, blocking=blocking, blocking_timeout=blocking_timeout)
         return RedisLockAdapter(redis_lock)
 
     # ========== Pipeline ==========
 
     def pipeline(self) -> CachePipeline:
-        if self._redis is None:
-            raise RuntimeError("Redis not connected")
         return RedisPipelineAdapter(self._redis.pipeline())
 
     # ========== Lifecycle ==========
 
     async def close(self) -> None:
-        if self._redis is not None:
-            await self._redis.close()
-            self._redis = None
-            self._pool = None
+        await self._redis_pool.flush_all()
