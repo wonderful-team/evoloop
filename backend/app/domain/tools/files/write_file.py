@@ -64,11 +64,10 @@ async def handle_write(
 async def write_file(
     path: str | None = None,
     content: str | None = None,
-    overwrite: bool = False,
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
-    Create a new file or overwrite an existing file.
+    Create a new file.
 
     Args:
         path: Target file path. **REQUIRED**
@@ -76,22 +75,21 @@ async def write_file(
                  Must contain ONLY the real file text. Do NOT include metadata
                  headers (e.g. [File: ... | Lines ... | Hash: ...]) from
                  read_file output.
-        overwrite: If True, replaces existing file. If False, fails if file exists.
 
     Example:
-        write_file(path="src/main.py", content="print('hello')", overwrite=False)
+        write_file(path="src/main.py", content="print('hello')")
     """
     if not path or content is None:
         return (
             "SYSTEM ERROR: You called 'write_file' with EMPTY arguments. "
             "You MUST provide 'path' AND 'content'.\n"
-            "CORRECT USAGE: write_file(path='path/to/file.ext', content='file content', overwrite=True)\n"
+            "CORRECT USAGE: write_file(path='path/to/file.ext', content='file content')\n"
             "ACTION: Retry the tool call immediately with correct arguments."
         )
 
     # Note: handle_write needs standard args. We rely on global config resolution.
     return await handle_write(
-        action="overwrite" if overwrite else "create",
+        action="create",
         path=path,
         content=content,
         config=config,
