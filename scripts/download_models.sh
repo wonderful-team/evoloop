@@ -10,8 +10,8 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Default models to download
-DEFAULT_MODELS="paraformer-zh"
-ALL_MODELS="paraformer-zh paraformer-zh-en paraformer-zh-plus paraformer-zh-streaming"
+DEFAULT_MODELS="paraformer-zh nomic-embed"
+ALL_MODELS="paraformer-zh paraformer-zh-en paraformer-zh-plus paraformer-zh-streaming nomic-embed"
 
 # Parse arguments
 MODELS_TO_DOWNLOAD=""
@@ -49,6 +49,7 @@ while [[ $# -gt 0 ]]; do
             echo "  paraformer-zh-en           (Chinese + English mixed)"
             echo "  paraformer-zh-plus         (with VAD & punctuation)"
             echo "  paraformer-zh-streaming    (streaming recognition)"
+            echo "  nomic-embed                (default, text embeddings for semantic search)"
             exit 0
             ;;
         *)
@@ -78,20 +79,33 @@ echo ""
 # Check Python environment (ARM64)
 echo -e "${YELLOW}🐍 Checking Python environment (arm64)...${NC}"
 
-# Force arm64 Python
-PYTHON_CMD="arch -arm64 python3"
+# Detect native architecture
+NATIVE_ARCH=$(uname -m)
+
+if [ "$NATIVE_ARCH" = "x86_64" ]; then
+    # On Intel Macs or Linux x86_64, just use python3
+    PYTHON_CMD="python3"
+else
+    # On Apple Silicon, force arm64 (in case we are in Rosetta)
+    PYTHON_CMD="arch -arm64 python3"
+fi
 
 # Check if we can use backend venv
 if [ -f "backend/.venv/bin/python" ]; then
-    PYTHON_CMD="arch -arm64 backend/.venv/bin/python"
-    echo -e "${GREEN}✅ Using backend virtual environment (arm64)${NC}"
+    if [ "$NATIVE_ARCH" = "x86_64" ]; then
+        PYTHON_CMD="backend/.venv/bin/python"
+        echo -e "${GREEN}✅ Using backend virtual environment (x86_64)${NC}"
+    else
+        PYTHON_CMD="arch -arm64 backend/.venv/bin/python"
+        echo -e "${GREEN}✅ Using backend virtual environment (arm64)${NC}"
+    fi
 else
     echo -e "${YELLOW}⚠️  Using system Python (arm64)${NC}"
 fi
 
 # Verify Python works
 if ! $PYTHON_CMD -c "import platform; print(platform.machine())" &> /dev/null; then
-    echo -e "${RED}❌ Python (arm64) not found or not working${NC}"
+    echo -e "${RED}❌ Python not found or not working ($PYTHON_CMD)${NC}"
     exit 1
 fi
 
@@ -105,22 +119,33 @@ fi
 
 # Check Python architecture
 PYTHON_ARCH=$($PYTHON_CMD -c "import platform; print(platform.machine())")
-if [ "$PYTHON_ARCH" = "arm64" ]; then
-    echo -e "${GREEN}✅ Python is running natively on Apple Silicon${NC}"
+if [ "$PYTHON_ARCH" = "arm64" ] || [ "$PYTHON_ARCH" = "x86_64" ]; then
+    echo -e "${GREEN}✅ Python architecture is $PYTHON_ARCH${NC}"
 else
-    echo -e "${YELLOW}⚠️  Python is running under Rosetta (x86_64), forcing arm64...${NC}"
-    PYTHON_CMD="arch -arm64 $PYTHON_CMD"
+    if [ "$IS_APPLE_SILICON" = true ] && [ "$PYTHON_ARCH" != "arm64" ]; then
+        echo -e "${YELLOW}⚠️  Python is running under Rosetta, forcing arm64...${NC}"
+        PYTHON_CMD="arch -arm64 $PYTHON_CMD"
+    fi
 fi
 
 # Install modelscope first (required for downloading)
 echo ""
 echo -e "${YELLOW}📦 Checking dependencies...${NC}"
 
+# Function to handle pip installs with uv fallback
+pip_install() {
+    if command -v uv &> /dev/null; then
+        uv pip install --python "$PYTHON_CMD" "$@"
+    else
+        $PYTHON_CMD -m pip install "$@"
+    fi
+}
+
 # Function to install package with fallback
 install_package() {
     local pkg=$1
-    $PYTHON_CMD -m pip install --only-binary :all: "$pkg" 2>/dev/null || \
-        $PYTHON_CMD -m pip install "$pkg"
+    pip_install --only-binary :all: "$pkg" 2>/dev/null || \
+        pip_install "$pkg"
 }
 
 # Check NumPy version (modelscope and torch require NumPy 1.x)
@@ -130,7 +155,7 @@ if [ -n "$NUMPY_VERSION" ]; then
     NUMPY_MAJOR=$(echo "$NUMPY_VERSION" | cut -d. -f1)
     if [ "$NUMPY_MAJOR" = "2" ]; then
         echo -e "${YELLOW}⚠️  NumPy 2.x detected, downgrading to 1.26.4...${NC}"
-        $PYTHON_CMD -m pip install "numpy==1.26.4" --force-reinstall -q
+        pip_install "numpy==1.26.4" --force-reinstall -q
         echo -e "${GREEN}✅ NumPy downgraded to 1.26.4${NC}"
     else
         echo -e "${GREEN}✅ NumPy 1.x already installed (${NUMPY_VERSION})${NC}"
@@ -158,10 +183,10 @@ if [ "$SKIP_FUNASR_CHECK" = false ]; then
         echo -e "${CYAN}   Note: This may take a while on Apple Silicon${NC}"
         
         # Try to install funasr with torch
-        $PYTHON_CMD -m pip install torch torchaudio 2>/dev/null || true
+        pip_install torch torchaudio 2>/dev/null || true
         
         # Try funasr installation (may fail on llvmlite, that's OK)
-        $PYTHON_CMD -m pip install funasr 2>/dev/null && FUNASR_AVAILABLE=true || {
+        pip_install funasr 2>/dev/null && FUNASR_AVAILABLE=true || {
             echo -e "${YELLOW}⚠️  FunASR installation incomplete (this is OK for downloading)${NC}"
             if [ "$IS_APPLE_SILICON" = true ]; then
                 echo ""
@@ -204,6 +229,18 @@ for model_name in $MODELS_TO_DOWNLOAD; do
             ;;
         paraformer-zh-streaming)
             model_id="damo/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online"
+            ;;
+        nomic-embed)
+            echo -e "${YELLOW}📦 Installing sentence-transformers if needed...${NC}"
+            pip_install sentence-transformers 2>/dev/null || true
+            $PYTHON_CMD backend/scripts/download_models.py
+            if [ $? -eq 0 ]; then
+                echo -e "${GREEN}✅ $model_name downloaded successfully${NC}"
+            else
+                echo -e "${RED}❌ $model_name download failed${NC}"
+            fi
+            echo ""
+            continue
             ;;
         *)
             echo -e "${RED}❌ Unknown model: $model_name${NC}"
