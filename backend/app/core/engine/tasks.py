@@ -555,3 +555,33 @@ async def engine_audit_structured_extraction(
             await system_bus.publish(event)
     except Exception as e:
         logger.error(f"[Celery] engine_audit_structured_extraction failed for thread {thread_id}: {e!r}")
+
+
+@shared_task(name="engine_run_agent_background")
+async def run_agent_background_task(thread_id: str, inputs: dict):
+    """
+    Execute an agent run in the background (within Celery/Huey worker).
+    """
+    from app.core.engine.background_agent import run_agent_background
+    await run_agent_background(thread_id, inputs)
+
+
+@shared_task(name="engine_resume_graph_background")
+async def resume_graph_background_task(
+    thread_id: str,
+    inputs: dict,
+    config: dict,
+    run_label: str = "Resuming...",
+    clear_human_request_flag: bool = False,
+):
+    """
+    Execute graph resumption in the background (within Celery/Huey worker).
+    """
+    from app.core.engine.graph_runner import resume_graph_background
+    await resume_graph_background(
+        thread_id=thread_id,
+        inputs=inputs,
+        config=config,
+        run_label=run_label,
+        clear_human_request_flag=clear_human_request_flag,
+    )

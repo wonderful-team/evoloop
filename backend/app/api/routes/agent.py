@@ -14,8 +14,11 @@ from app.api.deps import (
     TokenDepOptional,
     verify_guest_access,
 )
-from app.api.schemas.agent import ChatRequest, WebhookRequest, ResumeRequest, CancelHITLRequest, StopChatResponse, \
-    ResumeChatResponse, CancelHITLResponse, WebhookResponse
+from app.api.schemas.agent import (
+    ChatRequest, WebhookRequest, ResumeRequest, CancelHITLRequest,
+    StopChatResponse, ResumeChatResponse, CancelHITLResponse, WebhookResponse
+)
+from app.core.config import settings
 from app.core.context import thread_context_store
 from app.core.context.manager import ContextManager, EvoContext
 from app.constants import DEFAULT_PROJECT_ID
@@ -107,8 +110,14 @@ async def chat_endpoint(req: ChatRequest, bg_tasks: BackgroundTasks, _current_us
     if result.status == "failed":
         raise HTTPException(status_code=500, detail=result.error)
 
-    bg_tasks.add_task(run_agent_background, req.thread_id, result.inputs)
+    if settings.EMBEDDED_MODE:
+        bg_tasks.add_task(run_agent_background, req.thread_id, result.inputs)
+    else:
+        from app.infrastructure.queue.factory import get_scheduler
+        get_scheduler().send_task("engine_run_agent_background", args=(req.thread_id, result.inputs))
+        
     return {"status": "queued", "thread_id": req.thread_id, "message_id": result.message_id}
+
 
 @router.post("/chat/mock", dependencies=[Depends(verify_guest_access)])
 async def mock_chat(req: ChatRequest):
@@ -791,7 +800,11 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Requ
     if result.status == "failed":
         raise HTTPException(status_code=500, detail=result.error)
 
-    bg_tasks.add_task(run_agent_background, req.thread_id, result.inputs)
+    if settings.EMBEDDED_MODE:
+        bg_tasks.add_task(run_agent_background, req.thread_id, result.inputs)
+    else:
+        from app.infrastructure.queue.factory import get_scheduler
+        get_scheduler().send_task("engine_run_agent_background", args=(req.thread_id, result.inputs))
 
     return {
         "status": "queued",
@@ -800,6 +813,7 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Requ
         "action": "retry",
         "files_reverted": files_reverted,
     }
+
 
 @router.post("/chat/resume")
 async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks, _current_user: CurrentUserOptional = None, token: TokenDepOptional = None):
@@ -888,14 +902,26 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks, _current_us
     }
 
     # Resume in background (unified resumption loop)
-    bg_tasks.add_task(
-        resume_graph_background,
-        req.thread_id,
-        inputs,
-        config,
-        run_label="Resuming...",
-        clear_human_request_flag=True,
-    )
+    if settings.EMBEDDED_MODE:
+        bg_tasks.add_task(
+            resume_graph_background,
+            req.thread_id,
+            inputs,
+            config,
+            run_label="Resuming...",
+            clear_human_request_flag=True,
+        )
+    else:
+        from app.core.engine.message.converter import EvoMessageConverter
+        serialized_inputs = inputs.copy() if inputs else {}
+        if "messages" in serialized_inputs:
+            serialized_inputs["messages"] = EvoMessageConverter.from_langchain(serialized_inputs["messages"])
+            
+        from app.infrastructure.queue.factory import get_scheduler
+        get_scheduler().send_task(
+            "engine_resume_graph_background",
+            args=(req.thread_id, serialized_inputs, config, "Resuming...", True)
+        )
 
     return ResumeChatResponse(status="resuming", thread_id=req.thread_id)
 
@@ -949,13 +975,25 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
     }
 
     # Resume in background with cancellation signal (unified resumption loop)
-    bg_tasks.add_task(
-        resume_graph_background,
-        req.thread_id,
-        inputs,
-        config,
-        run_label="Resuming after cancellation...",
-    )
+    if settings.EMBEDDED_MODE:
+        bg_tasks.add_task(
+            resume_graph_background,
+            req.thread_id,
+            inputs,
+            config,
+            run_label="Resuming after cancellation...",
+        )
+    else:
+        from app.core.engine.message.converter import EvoMessageConverter
+        serialized_inputs = inputs.copy() if inputs else {}
+        if "messages" in serialized_inputs:
+            serialized_inputs["messages"] = EvoMessageConverter.from_langchain(serialized_inputs["messages"])
+            
+        from app.infrastructure.queue.factory import get_scheduler
+        get_scheduler().send_task(
+            "engine_resume_graph_background",
+            args=(req.thread_id, serialized_inputs, config, "Resuming after cancellation...", False)
+        )
 
     return CancelHITLResponse(
         status="cancelled",
@@ -1010,6 +1048,10 @@ async def webhook_endpoint(req: WebhookRequest, bg_tasks: BackgroundTasks):
     if result.status == "failed":
         raise HTTPException(status_code=500, detail=result.error)
 
-    bg_tasks.add_task(run_agent_background, tid, result.inputs)
+    if settings.EMBEDDED_MODE:
+        bg_tasks.add_task(run_agent_background, tid, result.inputs)
+    else:
+        from app.infrastructure.queue.factory import get_scheduler
+        get_scheduler().send_task("engine_run_agent_background", args=(tid, result.inputs))
 
     return WebhookResponse(status="accepted", thread_id=tid)
