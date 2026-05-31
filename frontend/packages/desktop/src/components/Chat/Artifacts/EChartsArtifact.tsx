@@ -1,5 +1,10 @@
 import React, { useMemo, useEffect, useState, useRef, Component, type ReactNode } from 'react';
+import * as echarts from 'echarts';
 import ReactECharts from 'echarts-for-react';
+import chinaMapData from '@/assets/maps/china.json';
+
+// 注册中国地图数据，解决 "Map china not exists" 报错
+echarts.registerMap('china', chinaMapData as any);
 import { Card, CardContent, CardHeader, CardTitle } from "@evoloop/shared/components/ui/card";
 import { Button } from "@evoloop/shared/components/ui/button";
 import { useTranslation } from 'react-i18next';
