@@ -99,7 +99,7 @@ class AttachmentExtractor:
             try:
                 data = json.loads(match.group(1).strip())
                 if data.get("type") == "artifact":
-                    a_type = data.get("category") or data.get("artifact_type")
+                    a_type = data.get("artifact_type")
                     if a_type:
                         # Key for deduplication: artifact + type + data hash
                         content_str = json.dumps(data.get("data", {}), sort_keys=True)

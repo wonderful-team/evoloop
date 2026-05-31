@@ -30,7 +30,6 @@ class SessionCompletedData(BaseModel):
     original_skill_id: Optional[Any] = None
     ticket_topic: Optional[str] = None
     ticket_reason: Optional[str] = None
-    extracted_data: dict = Field(default_factory=dict, description="Pre-extracted structured items by plugins")
 
 
 class SessionCompletedEvent(BaseEvent):
@@ -55,8 +54,33 @@ class SessionCompletedEvent(BaseEvent):
             "type": "session_completed",
             "thread_id": self.thread_id,
             "timestamp": self.timestamp.isoformat(),
-            "data": self.data.model_dump(exclude={"messages", "blackboard_dict", "extracted_data"})
+            "data": self.data.model_dump(exclude={"messages", "blackboard_dict"})
         }
+
+
+class ExtractionRequest(BaseModel):
+    name: str
+    description: str
+    schema_dict: dict = Field(..., description="The pydantic output_schema as a dict, or raw json schema dict")
+    
+    
+class ExtractionRequestedEvent(BaseEvent):
+    """Event published to gather schemas from domains before running extraction LLM."""
+    event_type: str = SystemEventType.EXTRACTION_REQUESTED
+    requests: List[ExtractionRequest] = Field(default_factory=list)
+    thread_id: str
+    is_public: bool = False
+
+
+class ExtractionCompletedEvent(BaseEvent):
+    """Event published by background worker after LLM structured extraction finishes."""
+    event_type: str = SystemEventType.EXTRACTION_COMPLETED
+    thread_id: str
+    run_id: str | None = None
+    project_id: int | None = None
+    user_id: Optional[str] = None
+    extracted_data: dict = Field(default_factory=dict, description="The raw structured output from LLM")
+    is_public: bool = False
 
 
 class SystemStatusEvent(BaseEvent):

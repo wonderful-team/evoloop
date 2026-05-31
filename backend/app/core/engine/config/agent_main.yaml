@@ -97,7 +97,14 @@ nodes:
     tools:
       - "read_file"
       - "list_directory"
+      - "search_files"
+      - "find_symbol"
+      - "ask_codebase"
+      - "search_history"
+      - "search_skills"
+      - "run_macro"
       - "synthesize_skill"
+      - "verify_ui_state"
 
   - id: "chat"
     path: "app.core.engine.nodes.chat.ChatNode"

@@ -11,14 +11,8 @@ prompt section from all registered plugins, then dispatches parsed results
 to each plugin's handler — all in a single LLM call.
 """
 
-from app.core.engine.extraction.registry import (
-    ExtractionContext,
-    ExtractionPlugin,
-    ExtractionRegistry,
-)
+from app.core.engine.extraction.schema import build_dynamic_schema
 
 __all__ = [
-    "ExtractionPlugin",
-    "ExtractionRegistry",
-    "ExtractionContext",
+    "build_dynamic_schema",
 ]

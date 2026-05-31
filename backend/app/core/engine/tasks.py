@@ -10,6 +10,7 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.learning.trace_recorder import sync_thread_to_graph
+from app.infrastructure.config import SystemConfigService
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.queue.factory import shared_task
 from app.models import FileOperation, Message
@@ -476,3 +477,81 @@ async def run_autonomous_task_execution(task_id: int, project_id: int | None = N
                 await run_agent_background(thread_id, result.inputs)
     finally:
         await DevicePool.release_device(device_id, task_id=f"task-{task_id}")
+
+
+@shared_task(name="engine_audit_structured_extraction")
+async def engine_audit_structured_extraction(
+    thread_id: str,
+    project_id: int,
+    user_id: str | None,
+    run_id: str | None,
+    summary: str,
+    messages_dicts: list[dict],
+    collected_schemas: list[dict],
+):
+    """
+    Background Celery task that performs the heavy reasoning extraction (kimi-k2-thinking-turbo).
+    """
+    from app.core.engine.extraction.schema import build_dynamic_schema
+    from app.core.events.schemas.lifecycle import ExtractionRequest, ExtractionCompletedEvent
+    from app.core.events.base import system_bus
+    from app.core.llm import InternalLLMService
+    from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
+    if not collected_schemas:
+        logger.info(f"[Celery] No extraction schemas requested for thread {thread_id}, skipping extraction.")
+        return
+
+    requests = [ExtractionRequest(**s) for s in collected_schemas]
+    DynamicVerdict = build_dynamic_schema(requests, include_base_fields=False)
+    if not DynamicVerdict:
+        return
+
+    # Reconstruct messages
+    messages = []
+    for m in messages_dicts:
+        if m.get("type") == "human":
+            messages.append(HumanMessage(**m))
+        elif m.get("type") == "ai":
+            messages.append(AIMessage(**m))
+        elif m.get("type") == "system":
+            messages.append(SystemMessage(**m))
+
+    model_name = SystemConfigService.get_value("LLM_MODEL")
+
+    extract_prompt = (
+        f"You are extracting structured information from a completed session.\n\n"
+        f"Session Summary:\n{summary}\n\n"
+        f"Please extract information according to the requested schemas."
+    )
+
+    try:
+        import asyncio
+        response = await asyncio.wait_for(
+            InternalLLMService.invoke_structured(
+                messages=messages + [{"role": "system", "content": extract_prompt}],
+                output_schema=DynamicVerdict,
+                purpose="audit_extraction",
+                temperature=0.1,
+                max_tokens=4000,
+                model_name=model_name,
+                structured_output_method="json_mode",
+            ),
+            timeout=300.0,
+        )
+        if response:
+            extracted_data = response.model_dump()
+            extracted_data.pop("summary", None)
+            extracted_data.pop("is_completed", None)
+
+            event = ExtractionCompletedEvent(
+                thread_id=thread_id,
+                project_id=project_id,
+                user_id=user_id,
+                run_id=run_id,
+                extracted_data=extracted_data,
+            )
+            logger.info(f"[Celery] 🚀 Publishing ExtractionCompletedEvent for thread {thread_id}")
+            await system_bus.publish(event)
+    except Exception as e:
+        logger.error(f"[Celery] engine_audit_structured_extraction failed for thread {thread_id}: {e!r}")

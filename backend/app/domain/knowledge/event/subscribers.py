@@ -9,7 +9,7 @@ import logging
 
 from app.core.events import SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
-from app.core.events.schemas import SessionCompletedEvent
+from app.core.events.schemas.lifecycle import ExtractionRequestedEvent, ExtractionCompletedEvent, ExtractionRequest
 from app.domain.knowledge.models import DocumentMetadata, MarkdownDocument
 
 logger = logging.getLogger(__name__)
@@ -67,14 +67,57 @@ class KnowledgeHarvestingSubscriber:
     Handles automatic Knowledge harvesting from session history.
     """
 
-    @event_subscribe(SystemEventType.SESSION_COMPLETED)
-    async def on_session_completed(self, event: SessionCompletedEvent):
+    @event_subscribe(SystemEventType.EXTRACTION_REQUESTED)
+    async def on_extraction_requested(self, event: ExtractionRequestedEvent):
+        """Register the knowledge extraction schema to the event."""
+        event.requests.append(
+            ExtractionRequest(
+                name="knowledge",
+                description=(
+                    "Extract architectural decisions, design patterns, business rules, "
+                    "environment configuration, and reusable technical references from "
+                    "the conversation."
+                ),
+                schema_dict={
+                    "type": "object",
+                    "properties": {
+                        "title": {
+                            "type": "string",
+                            "description": "Short descriptive title of the knowledge",
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "The actual knowledge content in Markdown",
+                        },
+                        "category": {
+                            "type": "string",
+                            "enum": [
+                                "technical_rule",
+                                "business_logic",
+                                "workflow",
+                                "architecture",
+                                "environment",
+                            ],
+                            "description": "Category of the knowledge",
+                        },
+                        "tags": {"type": "array", "items": {"type": "string"}},
+                        "source_context": {
+                            "type": "string",
+                            "description": "Excerpt from conversation for tracing",
+                        },
+                    },
+                    "required": ["title", "content", "category"],
+                }
+            )
+        )
+
+    @event_subscribe(SystemEventType.EXTRACTION_COMPLETED)
+    async def on_extraction_completed(self, event: ExtractionCompletedEvent):
         """
-        Triggered when a session finishes successfully.
+        Triggered when background extraction finishes.
         Extracts documentation and architectural decisions.
         """
-        data = event.data
-        extracted_data = getattr(data, "extracted_data", {}) or {}
+        extracted_data = getattr(event, "extracted_data", {}) or {}
         items = extracted_data.get("knowledge")
         if not items:
             return
@@ -95,12 +138,10 @@ class KnowledgeHarvestingSubscriber:
             )
 
         count = await persist_knowledge_extractions(
-            knowledge_items, "", data.thread_id, data.project_id
+            knowledge_items, "", event.thread_id, event.project_id
         )
         if count:
-            logger.info(
-                f"[Knowledge] ✅ Persisted {count} knowledge items from audit extraction"
-            )
+            logger.info(f"[Knowledge] ✅ Automatically harvested and indexed {count} items from session")
 
 
 async def persist_knowledge_extractions(
@@ -148,73 +189,3 @@ async def persist_knowledge_extractions(
         count += 1
 
     return count
-
-
-def _register_knowledge_extraction_plugin():
-    """Register the knowledge extraction plugin."""
-    from app.core.engine.extraction import ExtractionPlugin, ExtractionRegistry
-
-    async def handler(data: dict, ctx):
-        from app.domain.knowledge.schemas import ExtractedKnowledge
-
-        item = ExtractedKnowledge(
-            title=data.get("title", ""),
-            content=data.get("content", ""),
-            category=data.get("category", "technical_rule"),
-            tags=data.get("tags", []),
-            confidence=data.get("confidence", 0.7),
-            source_context=data.get("source_context"),
-        )
-        await persist_knowledge_extractions(
-            [item],
-            "",
-            ctx.thread_id,
-            ctx.project_id,
-        )
-
-    ExtractionRegistry.register(
-        ExtractionPlugin(
-            name="knowledge",
-            description=(
-                "Extract architectural decisions, design patterns, business rules, "
-                "environment configuration, and reusable technical references from "
-                "the conversation."
-            ),
-            output_schema={
-                "type": "object",
-                "properties": {
-                    "title": {
-                        "type": "string",
-                        "description": "Short descriptive title of the knowledge",
-                    },
-                    "content": {
-                        "type": "string",
-                        "description": "The actual knowledge content in Markdown",
-                    },
-                    "category": {
-                        "type": "string",
-                        "enum": [
-                            "technical_rule",
-                            "business_logic",
-                            "workflow",
-                            "architecture",
-                            "environment",
-                        ],
-                        "description": "Category of the knowledge",
-                    },
-                    "tags": {"type": "array", "items": {"type": "string"}},
-                    "source_context": {
-                        "type": "string",
-                        "description": "Excerpt from conversation for tracing",
-                    },
-                },
-                "required": ["title", "content", "category"],
-            },
-            confidence_threshold=0.7,
-            handler=handler,
-        )
-    )
-
-
-# Register at import time
-_register_knowledge_extraction_plugin()

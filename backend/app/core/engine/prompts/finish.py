@@ -1,13 +1,10 @@
 import json
 import logging
 
-from app.core.context import ContextManager
 from app.core.engine.state.blackboard import BlackboardState, VerificationStatus
 from app.core.engine.state.config import ExecutionTicket
 from app.infrastructure.config.service import SystemConfigService
 from app.utils import render_template
-from .utils import get_mapped_cwd, get_sandbox_mode
-from ...extraction import ExtractionRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -38,31 +35,29 @@ class FinishPromptBuilder:
         self.blackboard = blackboard or BlackboardState()
         self.session_goal = session_goal
 
-    def _prepare_common_context(self) -> tuple:
-        """Shared context preparation for both static prompt and dynamic audit ticket."""
-        ctx = ContextManager.current()
-        actual_cwd = get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", ""))
-        mode = get_sandbox_mode()
-        project_concepts = ctx.metadata.get("project_concepts", "")
-
-        return ctx, actual_cwd, mode, project_concepts
-
     def build(self) -> str:
         """Builds the STATIC Reviewer system prompt."""
         try:
-            ctx, actual_cwd, mode, project_concepts = self._prepare_common_context()
-            extraction_section = ExtractionRegistry.build_prompt_section()
+            from app.core.context.manager import ContextManager
+            from app.core.engine.prompts.utils import get_mapped_cwd, get_sandbox_mode, read_project_profile
+            
+            ctx = ContextManager.current()
+            mode = get_sandbox_mode()
+            project_profile = read_project_profile(ctx.working_directory, "[FinishPrompt]")
+            
+            sys_info = {
+                "project_concepts": ctx.metadata.get("project_concepts", ""),
+                "project_profile": project_profile,
+                "cwd": get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", "")),
+            }
+            
             template_vars = {
                 "user_lang": SystemConfigService.get_language_preference(),
                 "project_id": self.project_id,
                 "iteration_count": self.iteration_count,
-                "sandbox_mode": mode,
-                "sys_info": {
-                    "cwd": actual_cwd,
-                    "project_concepts": project_concepts,
-                },
                 "audit_context": self.action_context,
-                "extraction_section": extraction_section,
+                "sys_info": sys_info,
+                "sandbox_mode": mode,
             }
 
             return render_template("core/engine/finish.prompt.j2", **template_vars)
@@ -75,8 +70,6 @@ class FinishPromptBuilder:
 
     def build_audit_ticket(self) -> str:
         """Builds the DYNAMIC audit ticket to be injected as a HumanMessage."""
-        ctx, actual_cwd, mode, project_concepts = self._prepare_common_context()
-
         plan_data = self.current_plan
         if isinstance(plan_data, str) and plan_data.strip():
             try:
@@ -94,10 +87,6 @@ class FinishPromptBuilder:
                 "verification": self.verification_status,
                 "metadata": self.blackboard.metadata,
                 "subtask_results": self.blackboard.subtask_results if self.blackboard else [],
-            },
-            "memory": {
-                "episodic_raw": ctx.metadata.get("episodic_memory_raw", ""),
-                "core_raw": ctx.metadata.get("core_memory_raw", ""),
             },
             "audit_context": self.action_context,
             "telemetry": self.telemetry,

@@ -1,14 +1,4 @@
-"""
-AuditService — Three-tier finish auditing extracted from FinishNode.
-
-Encapsulates:
-  - Tier classification (minimal / standard / comprehensive)
-  - Rule-based minimal audit
-  - LLM-based standard audit
-  - Full engine-driven comprehensive audit
-
-This module has NO runtime side effects at import time (lazy-init pattern).
-"""
+"""Unified audit — engine-driven Session Reviewer agent (no tier classification)."""
 
 from __future__ import annotations
 
@@ -26,7 +16,6 @@ from pydantic import Field
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager
 from app.core.engine.engine import get_default_engine
-from app.core.engine.extraction import ExtractionRegistry
 from app.core.engine.message.reasoning import extract_tool_calls
 from app.core.engine.state import AgentState
 from app.core.engine.state.blackboard import BlackboardState, VerificationStatus
@@ -37,30 +26,13 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Domain objects
-# ---------------------------------------------------------------------------
-
-class AuditDecision(DynamicBaseModel):
-    """Decision for audit tier selection."""
-    tier: str
-    reason: str
-    confidence: float
-
-
 class AuditResult(DynamicBaseModel):
     """Result of an audit execution."""
     summary: str
-    tier: str
-    meta: dict
+    meta: dict = Field(default_factory=dict)
     messages: list = Field(default_factory=list)
     blackboard: BlackboardState | None = None
-    extracted_data: dict = Field(default_factory=dict)
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def _extract_tool_usage(messages: list) -> str:
     """Extract structured tool usage summary from messages."""
@@ -92,333 +64,90 @@ def _extract_final_summary(messages: list) -> str:
     return "Task completed."
 
 
-# ---------------------------------------------------------------------------
-# LayeredAuditor
-# ---------------------------------------------------------------------------
+def _build_audit_input(state: AgentState) -> dict:
+    blackboard = state.blackboard
+    metadata = blackboard.metadata if blackboard else None
+    audit_input_data = metadata.audit_input_data if metadata else None
 
-class LayeredAuditor:
-    """Three-tier finish auditor with quality preservation."""
+    if audit_input_data:
+        return audit_input_data.model_dump()
 
-    READONLY_TOOLS = frozenset({
-        "read_file", "list_directory", "get_file_info", "search_files",
-        "analyze_image", "search_web", "read_url_content",
-        "search_history", "search_skills",
-    })
+    plan_progress = metadata.plan_progress if metadata else None
 
-    FILE_WRITE_TOOLS = frozenset({
-        "write_file", "edit_file", "delete_file", "move_file", "create_directory",
-    })
+    # Build tool stats from tool_history
+    tool_stats: dict[str, int] = {}
+    for sig in metadata.tool_history or []:
+        tool_name = sig.split(":")[0] if ":" in sig else sig
+        tool_stats[tool_name] = tool_stats.get(tool_name, 0) + 1
 
-    EXECUTION_TOOLS = frozenset({
-        "execute_command", "bash", "shell", "python",
-    })
+    progress = {
+        "total_steps": plan_progress.total_steps if plan_progress else 0,
+        "completed_steps": plan_progress.completed_steps if plan_progress else 0,
+        "total_deliverables": len(metadata.audit_input_data.deliverables) if metadata and metadata.audit_input_data else 0,
+        "completed_deliverables": 0,
+    }
 
-    AUTOMATION_TOOLS = frozenset({
-        "mobile_control", "browser_control", "desktop_control",
-        "open_app", "click_at", "type_text", "press_key",
-    })
+    return {
+        "original_goal": state.session_goal or "",
+        "plan_summary": {
+            "total": plan_progress.total_steps if plan_progress else 0,
+            "completed": plan_progress.completed_steps if plan_progress else 0,
+            "remaining": (plan_progress.total_steps - plan_progress.completed_steps) if plan_progress else 0,
+        },
+        "progress": progress,
+        "deliverables": [],
+        "tool_stats": tool_stats,
+        "anomalies": [a.model_dump() for a in (metadata.audit_anomalies if metadata else [])],
+        "key_messages_digest": "",
+    }
 
-    ERROR_PATTERNS = [
-        r"\[ERROR:", r"^Error:", r"Exception:", r"Traceback",
-        r"Failed to", r"Permission denied", r"File not found",
-    ]
 
-    # ------------------------------------------------------------------
-    # Tier classification
-    # ------------------------------------------------------------------
+class AuditService:
+    """Unified engine-driven audit — Session Reviewer agent with tools + background extraction."""
 
-    def classify_tier(
+    def __init__(self):
+        pass
+
+    async def execute(
         self,
+        state: AgentState,
+        config: RunnableConfig,
         tool_history: list,
-        messages: list,
-        blackboard: BlackboardState,
-        state: AgentState,
-    ) -> AuditDecision:
-        """Classify which audit tier is appropriate."""
-        used_tools = set()
-        for sig in tool_history:
-            tool_name = sig.split(":")[0] if ":" in sig else sig
-            used_tools.add(tool_name)
-
-        last_content = ""
-        for msg in reversed(messages):
-            if isinstance(msg, AIMessage) and msg.content:
-                last_content = str(msg.content)
-                break
-
-        triggers = []
-
-        if used_tools & self.FILE_WRITE_TOOLS:
-            triggers.append("file_modification")
-        if used_tools & self.EXECUTION_TOOLS:
-            triggers.append("code_execution")
-        if used_tools & self.AUTOMATION_TOOLS:
-            triggers.append("ui_automation")
-
-        for pattern in self.ERROR_PATTERNS:
-            if re.search(pattern, last_content, re.MULTILINE):
-                triggers.append("error_detected")
-                break
-
-        verification = blackboard.verification
-        if verification and verification.status in ("failed", "error"):
-            triggers.append("verification_failed")
-
-        # NEW: Check for audit anomalies flagged by intermediate layers
-        anomalies = blackboard.metadata.audit_anomalies if blackboard and blackboard.metadata else []
-        if anomalies:
-            triggers.append("anomalies_detected")
-
-        # Worker 使用了技能（通过路由下发的 skill_ids）
-        if blackboard and blackboard.ticket and blackboard.ticket.skill_ids:
-            triggers.append("skill_used")
-
-        # Supervisor 定义过规划
-        has_plan = bool(state.current_plan or state.structured_plan)
-        has_plan_progress = (
-            blackboard and blackboard.metadata and blackboard.metadata.plan_progress
-            and blackboard.metadata.plan_progress.total_steps > 0
-        )
-        if has_plan or has_plan_progress:
-            triggers.append("plan_defined")
-
-        if blackboard and blackboard.metadata and blackboard.metadata.force_comprehensive_audit:
-            triggers.append("user_requested")
-
-        if triggers:
-            logger.info(f"[AuditService] 🚩 Comprehensive triggers: {triggers}")
-            return AuditDecision(tier="comprehensive", reason=f"safety: {', '.join(triggers)}", confidence=1.0)
-
-        if not tool_history:
-            return AuditDecision(tier="minimal", reason="no_tools_used", confidence=0.95)
-
-        return AuditDecision(tier="standard", reason="default", confidence=0.90)
-
-    # ------------------------------------------------------------------
-    # Standard audit — lightweight LLM, ~500–800 ms
-    # ------------------------------------------------------------------
-
-    async def audit_standard(
-        self,
-        messages: list,
-        blackboard: BlackboardState,
-        state: AgentState,
-        config: RunnableConfig,
-    ) -> tuple[str, dict, dict]:
-        start = time.time()
-
-        tool_usage = []
-        for msg in messages:
-            for tc in extract_tool_calls(msg):
-                name = tc.get("name")
-                if name:
-                    tool_usage.append(name)
-
-        last_content = ""
-        for msg in reversed(messages):
-            if isinstance(msg, AIMessage) and msg.content:
-                last_content = str(msg.content)
-                break
-
-        from app.core.engine.prompts import FinishPromptBuilder
-        builder = FinishPromptBuilder(
-            current_plan=state.current_plan or "",
-            execution_ticket=blackboard.ticket,
-            verification_status=blackboard.verification,
-            action_context=_extract_tool_usage(messages),
-            iteration_count=state.iteration_count or 0,
-            project_id=state.project_id if state.project_id is not None else DEFAULT_PROJECT_ID,
-            blackboard=blackboard,
-            session_goal=state.session_goal,
-        )
-        prompt = builder.build_standard_prompt(last_content, list(set(tool_usage)))
-
-        from app.core.llm import InternalLLMService
-        from app.infrastructure.config.service import SystemConfigService
-
-        model_name = SystemConfigService.get_value("LLM_MODEL")
-        
-        # Build dynamic extraction schema and instructions
-        DynamicVerdict = ExtractionRegistry.build_dynamic_schema()
-        active_regs = ExtractionRegistry.get_active_plugins()
-        if DynamicVerdict and active_regs:
-            instruction_segments = []
-            for reg in active_regs:
-                instr = getattr(reg, "instructions", None) or reg.description
-                schema_desc = ""
-                if isinstance(reg.output_schema, dict):
-                    props = reg.output_schema.get("properties", {})
-                    if props:
-                        fields_desc = []
-                        for prop_name, prop_schema in props.items():
-                            desc = prop_schema.get('description', '')
-                            p_type = prop_schema.get('type', 'string')
-                            fields_desc.append(f"    - {prop_name} ({p_type}): {desc}")
-                        schema_desc = "Expected fields for each item:\n" + "\n".join(fields_desc)
-                elif hasattr(reg.output_schema, "model_json_schema"):
-                    try:
-                        props = reg.output_schema.model_json_schema().get("properties", {})
-                        if props:
-                            fields_desc = []
-                            for prop_name, prop_schema in props.items():
-                                desc = prop_schema.get('description', '')
-                                p_type = prop_schema.get('type', 'string')
-                                fields_desc.append(f"    - {prop_name} ({p_type}): {desc}")
-                            schema_desc = "Expected fields for each item:\n" + "\n".join(fields_desc)
-                    except Exception:
-                        pass
-                        
-                instruction_segments.append(
-                    f"### Extraction Instructions for '{reg.name}':\n"
-                    f"{reg.description}\n"
-                    f"{schema_desc}\n"
-                    f"Instructions: {instr}"
-                )
-            extra_instructions = "\n\n".join(instruction_segments)
-            prompt = (
-                f"{prompt}\n\n"
-                f"### Optional: Extractions requested\n"
-                f"You should also extract the following lists if any information matches. "
-                f"For each list, if no matching item is found in the conversation history, return an empty list.\n\n"
-                f"{extra_instructions}"
-            )
-
-        extracted_data = {}
-        try:
-            if DynamicVerdict:
-                logger.debug(f"[AuditService] Calling structured LLM for standard audit with DynamicVerdict")
-                response = await asyncio.wait_for(
-                    InternalLLMService.invoke_structured(
-                        messages=[{"role": "system", "content": prompt}],
-                        output_schema=DynamicVerdict,
-                        purpose="audit_summary",
-                        temperature=0.1,
-                        max_tokens=4000,
-                        model_name=model_name,
-                        structured_output_method="json_mode",
-                    ),
-                    timeout=90.0,
-                )
-                if response:
-                    summary = getattr(response, "summary", "Task completed.")
-                    extracted_data = response.model_dump()
-                    extracted_data.pop("summary", None)
-                    extracted_data.pop("is_completed", None)
-                else:
-                    summary = "Task completed."
-            else:
-                response = await asyncio.wait_for(
-                    InternalLLMService.invoke(
-                        messages=[{"role": "system", "content": prompt}],
-                        purpose="audit_summary",
-                        temperature=0.1,
-                        max_tokens=500,
-                        model_name=model_name,
-                    ),
-                    timeout=90.0,
-                )
-                summary = response.content.strip()
-        except asyncio.TimeoutError:
-            logger.warning("[AuditService] Standard audit LLM call timed out. Using fallback summary.")
-            summary = "Task completed (audit timed out)."
-        except Exception as e:
-            logger.error(f"[AuditService] Standard audit LLM call failed: {e!r}")
-            summary = "Task completed (audit failed)."
-            
-        if len(summary) < 20:
-            summary = f"Task completed. {summary}"
-
-        duration = (time.time() - start) * 1000
-        return summary, {"tier": "standard", "duration_ms": duration}, extracted_data
-
-    # ------------------------------------------------------------------
-    # Helpers for structured audit input
-    # ------------------------------------------------------------------
-
-    def _build_audit_input(self, state: AgentState) -> dict:
-        """Build structured audit input from blackboard instead of full messages."""
-        blackboard = state.blackboard
-        metadata = blackboard.metadata if blackboard else None
-        audit_input_data = metadata.audit_input_data if metadata else None
-
-        if audit_input_data:
-            # Use pre-built structured audit input if available
-            return audit_input_data.model_dump()
-
-        # Fallback: build from blackboard metadata
-        plan_progress = metadata.plan_progress if metadata else None
-
-        # Build tool stats from tool_history
-        tool_stats: dict[str, int] = {}
-        for sig in metadata.tool_history or []:
-            tool_name = sig.split(":")[0] if ":" in sig else sig
-            tool_stats[tool_name] = tool_stats.get(tool_name, 0) + 1
-
-        progress = {
-            "total_steps": plan_progress.total_steps if plan_progress else 0,
-            "completed_steps": plan_progress.completed_steps if plan_progress else 0,
-            "total_deliverables": len(metadata.audit_input_data.deliverables) if metadata and metadata.audit_input_data else 0,
-            "completed_deliverables": 0,
-        }
-
-        return {
-            "original_goal": state.session_goal or "",
-            "plan_summary": {
-                "total": plan_progress.total_steps if plan_progress else 0,
-                "completed": plan_progress.completed_steps if plan_progress else 0,
-                "remaining": (plan_progress.total_steps - plan_progress.completed_steps) if plan_progress else 0,
-            },
-            "progress": progress,
-            "deliverables": [],
-            "tool_stats": tool_stats,
-            "anomalies": [a.model_dump() for a in (metadata.audit_anomalies if metadata else [])],
-            "key_messages_digest": "",
-        }
-
-    # ------------------------------------------------------------------
-    # Comprehensive audit — full engine-driven
-    # ------------------------------------------------------------------
-
-    async def audit_comprehensive(
-        self,
-        state: AgentState,
-        config: RunnableConfig,
+        is_shadow_mode: bool = False,
     ) -> AuditResult:
-        """Run the full engine-driven comprehensive audit.
+        if is_shadow_mode:
+            summary = _extract_final_summary(state.messages)
+            return AuditResult(summary=summary, meta={"duration_ms": 10})
 
-        Phase 1 improvement: Uses structured AuditInputData when available,
-        reducing context from ~18K tokens (full messages) to ~500 tokens.
-        Falls back to legacy full-message mode if structured data is absent.
-        """
         from app.core.config import settings
         from app.core.engine.prompts import FinishPromptBuilder
+
+        start = time.time()
 
         ctx = ContextManager.current()
         messages = list(state.messages)
         blackboard = state.blackboard
 
         current_plan = state.current_plan or ""
-        execution_ticket = state.blackboard.ticket
+        execution_ticket = blackboard.ticket
         verification_status = blackboard.verification or VerificationStatus(status="unverified")
         action_context = _extract_tool_usage(messages)
         iteration_count = state.iteration_count or 0
-        project_id = ctx.project_id if ctx.project_id is not None else (state.project_id if state.project_id is not None else DEFAULT_PROJECT_ID)
+        project_id = (
+            ctx.project_id
+            if ctx.project_id is not None
+            else (state.project_id if state.project_id is not None else DEFAULT_PROJECT_ID)
+        )
 
         awakened_state = get_awakened_state()
         telemetry: dict[str, Any] = {}
         if awakened_state:
             try:
-                telemetry_snapshot = awakened_state.get_telemetry_snapshot()
-                if telemetry_snapshot:
-                    telemetry = telemetry_snapshot.model_dump()
+                snapshot = awakened_state.get_telemetry_snapshot()
+                if snapshot:
+                    telemetry = snapshot.model_dump()
             except Exception as e:
                 logger.warning(f"[AuditService] Telemetry snapshot failed: {e}")
-
-        # Phase 1: Build structured audit input
-        audit_input = self._build_audit_input(state)
-        has_structured_input = bool(
-            blackboard.metadata and blackboard.metadata.audit_input_data
-        )
 
         builder = FinishPromptBuilder(
             current_plan=current_plan,
@@ -434,7 +163,11 @@ class LayeredAuditor:
         system_prompt = builder.build()
         audit_ticket = builder.build_audit_ticket()
 
-        # Phase 1: Inject structured audit input into audit ticket if available
+        # Build structured audit input to inject into audit ticket
+        audit_input = _build_audit_input(state)
+        has_structured_input = bool(
+            blackboard.metadata and blackboard.metadata.audit_input_data
+        )
         if has_structured_input and audit_ticket:
             audit_input_json = json.dumps(audit_input, indent=2, ensure_ascii=False)
             audit_ticket = f"{audit_ticket}\n\n---\n📊 Structured Audit Input:\n{audit_input_json}"
@@ -442,19 +175,34 @@ class LayeredAuditor:
         from app.core.tools.manager import tool_manager
         tools = await tool_manager.get_node_tools("finish", state)
 
-        logger.info("[AuditService] 🕵️ Starting Comprehensive Audit")
+        logger.info("[AuditService] 🕵️ Starting engine-driven audit")
 
         if audit_ticket:
             messages = [HumanMessage(content=audit_ticket, name="audit_ticket")] + messages
 
-        # Phase 1: If structured input is available, truncate older messages to reduce context
-        if has_structured_input and len(messages) > 25:
-            # Keep audit_ticket + last 10 messages + first 2 messages (for context)
-            preserved = messages[:3] + messages[-12:]
-            logger.info(f"[AuditService] 📉 Truncated audit context: {len(messages)} → {len(preserved)} msgs (structured input available)")
-            messages = preserved
+        model = config.get("configurable", {}).get("model")
 
-        # Clone and sanitize config to avoid database logging and SSE stream leaks from audit
+        # 1. Prepare Extraction Messages (Deep Semantic History)
+        # We use ContextTrimmer to replace fat ToolMessages with placeholders, while keeping all reasoning.
+        from app.core.engine.context_trimmer import ContextTrimmer
+        trimmer = ContextTrimmer()
+        # model parameter isn't strict here since we just want the semantic compaction, we use the active model
+        extraction_trim_result = trimmer.trim(
+            messages=messages,
+            model=model,
+            node_source="finish",
+            stages={"window"}
+        )
+        extraction_messages = extraction_trim_result.messages
+
+        # 2. Prepare Audit Messages (Fast Synchronous Context)
+        audit_messages = list(extraction_messages)
+        if has_structured_input and len(audit_messages) > 25:
+            preserved = audit_messages[:3] + audit_messages[-12:]
+            logger.info(f"[AuditService] 📉 Truncated audit context: {len(audit_messages)} → {len(preserved)} msgs (structured input available)")
+            audit_messages = preserved
+
+        # Sanitize config: remove callbacks that leak audit to DB/SSE
         clean_config = dict(config or {})
         if "callbacks" in clean_config:
             callbacks = clean_config["callbacks"]
@@ -464,8 +212,7 @@ class LayeredAuditor:
                     if cb.__class__.__name__ not in ("DatabaseCallbackHandler", "TransparentCallbackHandler")
                 ]
 
-        execution_state = state.model_copy(update={"messages": messages})
-        model = clean_config.get("configurable", {}).get("model")
+        execution_state = state.model_copy(update={"messages": audit_messages})
 
         engine = get_default_engine()
         result = await engine.run_node(
@@ -481,156 +228,90 @@ class LayeredAuditor:
 
         summary = _extract_final_summary(result.messages or [])
 
-        # --- Comprehensive Audit structured extraction and dispatch ---
-        from app.core.llm import InternalLLMService
+        # Parse outcome from audit messages
+        audit_messages = result.messages or []
+        full_text = "".join(
+            str(m.content) for m in audit_messages if isinstance(m, AIMessage)
+        )
+        outcome_match = re.search(
+            r"<evoloop_audit_outcome>(.*?)</evoloop_audit_outcome>",
+            full_text,
+            re.IGNORECASE | re.DOTALL,
+        )
+        final_outcome = outcome_match.group(1).strip() if outcome_match else "COMPLETED"
+        if result.blackboard:
+            result.blackboard.metadata.final_outcome = final_outcome
+            
+            # Append Finish node tool calls to global tool_history with finish: prefix
+            if result.tool_history:
+                prefixed = [f"finish:{t}" for t in result.tool_history]
+                result.blackboard.metadata.tool_history = (result.blackboard.metadata.tool_history or []) + prefixed
 
-        DynamicVerdict = ExtractionRegistry.build_dynamic_schema(include_base_fields=False)
-        extracted_data = {}
-        if DynamicVerdict:
-            try:
-                model_name = SystemConfigService.get_value("LLM_MODEL")
-                active_regs = ExtractionRegistry.get_active_plugins()
-                instruction_segments = []
-                for reg in active_regs:
-                    instr = getattr(reg, "instructions", None) or reg.description
-                    schema_desc = ""
-                    if isinstance(reg.output_schema, dict):
-                        props = reg.output_schema.get("properties", {})
-                        if props:
-                            fields_desc = []
-                            for prop_name, prop_schema in props.items():
-                                desc = prop_schema.get('description', '')
-                                p_type = prop_schema.get('type', 'string')
-                                fields_desc.append(f"    - {prop_name} ({p_type}): {desc}")
-                            schema_desc = "Expected fields for each item:\n" + "\n".join(fields_desc)
-                    elif hasattr(reg.output_schema, "model_json_schema"):
-                        try:
-                            props = reg.output_schema.model_json_schema().get("properties", {})
-                            if props:
-                                fields_desc = []
-                                for prop_name, prop_schema in props.items():
-                                    desc = prop_schema.get('description', '')
-                                    p_type = prop_schema.get('type', 'string')
-                                    fields_desc.append(f"    - {prop_name} ({p_type}): {desc}")
-                                schema_desc = "Expected fields for each item:\n" + "\n".join(fields_desc)
-                        except Exception:
-                            pass
-                            
-                    instruction_segments.append(
-                        f"### Extraction Instructions for '{reg.name}':\n"
-                        f"{reg.description}\n"
-                        f"{schema_desc}\n"
-                        f"Instructions: {instr}"
-                    )
-                extra_instructions = "\n\n".join(instruction_segments)
+        duration = (time.time() - start) * 1000
 
-                history_text = ""
-                for msg in messages[-15:]:
-                    if msg.content:
-                        history_text += f"{msg.type}: {msg.content}\n"
-
-                extract_prompt = (
-                    f"You are an expert data extractor. Based on the conversation summary and the recent conversation history below, "
-                    f"extract all relevant items according to the requested schemas.\n\n"
-                    f"Conversation Summary:\n{summary}\n\n"
-                    f"Recent Conversation History:\n{history_text}\n\n"
-                    f"### Optional: Extractions requested\n"
-                    f"For each list field in the schema, if no matching item is found in the history, return an empty list.\n\n"
-                    f"{extra_instructions}"
-                )
-
-                logger.info("[AuditService] Calling structured LLM for comprehensive audit extraction")
-                response = await asyncio.wait_for(
-                    InternalLLMService.invoke_structured(
-                        messages=[{"role": "system", "content": extract_prompt}],
-                        output_schema=DynamicVerdict,
-                        purpose="audit_extraction",
-                        temperature=0.1,
-                        max_tokens=4000,
-                        model_name=model_name,
-                        structured_output_method="json_mode",
-                    ),
-                    timeout=90.0,
-                )
-                if response:
-                    extracted_data = response.model_dump()
-                    extracted_data.pop("summary", None)
-                    extracted_data.pop("is_completed", None)
-            except Exception as e:
-                logger.error(f"[AuditService] Comprehensive audit structured extraction failed: {e!r}")
+        # Background extraction
+        await self._dispatch_extraction(
+            state=state,
+            config=config,
+            project_id=project_id,
+            summary=summary,
+            messages=extraction_messages,
+        )
 
         return AuditResult(
             summary=summary,
-            tier="comprehensive",
-            meta={"tier": "comprehensive", "duration_ms": 0},
+            meta={"duration_ms": duration, "outcome": final_outcome},
             messages=result.messages or [],
             blackboard=result.blackboard,
-            extracted_data=extracted_data,
         )
 
-
-# ---------------------------------------------------------------------------
-# Singleton accessor (lazy)
-# ---------------------------------------------------------------------------
-
-_auditor_instance: LayeredAuditor | None = None
-
-
-def get_auditor() -> LayeredAuditor:
-    global _auditor_instance
-    if _auditor_instance is None:
-        _auditor_instance = LayeredAuditor()
-    return _auditor_instance
-
-
-def reset_auditor() -> None:
-    """Reset the global auditor singleton (useful in tests)."""
-    global _auditor_instance
-    _auditor_instance = None
-
-
-# ---------------------------------------------------------------------------
-# Service facade
-# ---------------------------------------------------------------------------
-
-class AuditService:
-    """
-    High-level facade for the three-tier audit system.
-    """
-
-    def __init__(self, auditor: LayeredAuditor | None = None):
-        self._auditor = auditor or get_auditor()
-
-    async def execute(
+    async def _dispatch_extraction(
         self,
         state: AgentState,
         config: RunnableConfig,
-        tool_history: list,
-        is_shadow_mode: bool = False,
-    ) -> AuditResult:
-        """
-        Run the full audit pipeline and return an AuditResult.
-        """
-        if is_shadow_mode:
-            summary = _extract_final_summary(state.messages)
-            return AuditResult(
-                summary=summary,
-                tier="shadow",
-                meta={"tier": "shadow", "duration_ms": 10},
-            )
+        project_id: int,
+        summary: str,
+        messages: list,
+    ) -> None:
+        from app.core.events.base import system_bus
+        from app.core.events.schemas.lifecycle import ExtractionRequestedEvent
+        from app.core.engine.tasks import engine_audit_structured_extraction
 
-        decision = self._auditor.classify_tier(
-            tool_history, state.messages, state.blackboard, state
+        thread_id = state.thread_id or config.get("configurable", {}).get("thread_id")
+        if not thread_id:
+            logger.warning("[AuditService] No thread_id available, skipping background extraction.")
+            return
+
+        req_event = ExtractionRequestedEvent(thread_id=thread_id)
+        await system_bus.publish(req_event, sequential=True)
+
+        if not req_event.requests:
+            logger.info("[AuditService] No extraction schemas requested, skipping background extraction.")
+            return
+
+        logger.info(
+            f"[AuditService] Dispatched extraction to background worker "
+            f"with {len(req_event.requests)} schemas"
         )
-        tier = decision.tier
 
-        logger.info(f"[AuditService] Audit tier: {tier.upper()} ({decision.reason})")
+        run_id = config.get("configurable", {}).get("run_id")
+        user_id = config.get("configurable", {}).get("user_id")
 
-        if tier == "standard":
-            summary, meta, extracted_data = await self._auditor.audit_standard(
-                state.messages, state.blackboard, state, config
-            )
-            return AuditResult(summary=summary, tier=tier, meta=meta, extracted_data=extracted_data)
+        msg_dicts = []
+        for m in messages:
+            if hasattr(m, "dict"):
+                msg_dicts.append(m.dict())
+            else:
+                msg_dicts.append({"type": m.type, "content": str(m.content)})
 
-        # comprehensive
-        return await self._auditor.audit_comprehensive(state, config)
+        schema_dicts = [req.model_dump() for req in req_event.requests]
+
+        engine_audit_structured_extraction.delay(
+            thread_id=thread_id,
+            project_id=project_id,
+            user_id=user_id,
+            run_id=run_id,
+            summary=summary,
+            messages_dicts=msg_dicts,
+            collected_schemas=schema_dicts,
+        )

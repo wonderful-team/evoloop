@@ -25,6 +25,8 @@ class SystemEventType(str, Enum):
     # Engine Lifecycle
     SESSION_STARTED = "system.session_started"
     SESSION_COMPLETED = "system.session_completed"
+    EXTRACTION_REQUESTED = "system.extraction_requested"
+    EXTRACTION_COMPLETED = "system.extraction_completed"
 
     # Configuration Handlers
     CONFIG_CHANGED = "system.config_changed"

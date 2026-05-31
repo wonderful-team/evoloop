@@ -7,17 +7,14 @@ This module only orchestrates: audit → hook check → event publish → state 
 
 import asyncio
 import logging
-import re
 import time
 
 from langchain_core.messages import AIMessage, RemoveMessage
 from langchain_core.runnables import RunnableConfig
 
-from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.engine.checkpoint.pruner import auto_prune_on_completion
 from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
-from app.core.engine.extraction import ExtractionRegistry, ExtractionContext
 from app.core.engine.nodes.base import BaseNode
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.services.audit_service import AuditResult, AuditService
@@ -25,7 +22,6 @@ from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.blackboard import (
     AuditAnomaly,
     AuditInputData,
-    AuditMeta,
     BlackboardState,
     ProgressMetrics,
 )
@@ -56,7 +52,6 @@ class FinishNode(BaseNode):
     async def _prepare_audit_input(self, state: "AgentState", blackboard: "BlackboardState") -> None:
         # Build structured progress from memory (no DB required)
         plan_progress = blackboard.metadata.plan_progress
-
         effective_completed = plan_progress.completed_steps if plan_progress else 0
         effective_total = plan_progress.total_steps if plan_progress else 0
 
@@ -204,7 +199,7 @@ class FinishNode(BaseNode):
         is_shadow_mode = blackboard.metadata.shadow_audit or False
         tool_history = blackboard.metadata.tool_history
 
-        # Phase 1: Sync plan progress + prepare audit input before calling AuditService
+        # Sync plan progress + prepare audit input before calling AuditService
         await self._prepare_audit_input(state, blackboard)
 
         # --------------------------------------------------------------
@@ -219,34 +214,15 @@ class FinishNode(BaseNode):
         )
 
         summary = audit_result.summary
-        audit_tier = audit_result.tier
-        audit_meta = AuditMeta(**audit_result.meta)
 
-        # Comprehensive audit updates blackboard and summary
-        if audit_tier == "comprehensive":
-            if audit_result.blackboard:
-                blackboard = audit_result.blackboard
-            summary = audit_result.summary
-            audit_meta = AuditMeta(
-                tier="comprehensive",
-                duration_ms=(time.time() - start_time) * 1000,
-            )
+        # Engine may return updated blackboard
+        if audit_result.blackboard:
+            blackboard = audit_result.blackboard
 
-        # Extract outcome tag from audit result messages
-        audit_messages = audit_result.messages or []
-        full_text = "".join([str(m.content) for m in audit_messages if isinstance(m, AIMessage)])
-        outcome_match = re.search(
-            r"<evoloop_audit_outcome>(.*?)</evoloop_audit_outcome>",
-            full_text,
-            re.IGNORECASE | re.DOTALL,
-        )
-        final_outcome = ""
-        if outcome_match:
-            final_outcome = outcome_match.group(1).strip()
-            blackboard.metadata.final_outcome = final_outcome
-            logger.info(f"[Finish] 🎯 Outcome: {final_outcome}")
+        final_outcome = audit_result.meta.get("outcome", "")
+        blackboard.metadata.final_outcome = final_outcome
 
-        # NEW: Enforce audit verdict — INCOMPLETE routes back to Supervisor
+        # Enforce audit verdict — INCOMPLETE routes back to Supervisor
         if final_outcome.upper() == "INCOMPLETE":
             if iteration_count < max_steps:
                 logger.warning("[Finish] 🔄 Audit verdict: INCOMPLETE. Routing back to Supervisor.")
@@ -259,39 +235,8 @@ class FinishNode(BaseNode):
             else:
                 logger.warning(f"[Finish] ⚠️ Audit verdict: INCOMPLETE, but iteration limit ({max_steps}) reached. Forcing completion.")
 
-        # Mark thread handled in ExtractionRegistry to prevent redundant background extractions
-        ExtractionRegistry.mark_thread_handled(effective_thread_id)
-
-        # --------------------------------------------------------------
-        # 1b. Parse & dispatch extractions (only from comprehensive audit)
-        # --------------------------------------------------------------
-        if audit_tier == "comprehensive" and audit_result.messages and not ExtractionRegistry.is_thread_handled(effective_thread_id):
-            try:
-                project_id = ctx.project_id if ctx.project_id is not None else (state.project_id if state.project_id is not None else DEFAULT_PROJECT_ID)
-                
-                meta_run_id = config.get("configurable", {}).get("run_id")
-                extraction_ctx = ExtractionContext(
-                    thread_id=effective_thread_id,
-                    project_id=project_id,
-                    user_id=ctx.user_id,
-                    run_id=meta_run_id,
-                    summary=summary,
-                )
-                handled = await ExtractionRegistry.parse_and_dispatch_from_messages(
-                    audit_result.messages,
-                    extraction_ctx,
-                )
-                if handled:
-                    logger.info(f"[Finish] 📦 Dispatched {handled} extraction(s) to registered plugins")
-            except Exception as e:
-                logger.warning(f"[Finish] Extraction dispatch failed (non-fatal): {e}")
-
-        # Audit complete - do not overwrite conversation message content with the internal audit summary
-        logger.debug(f"[Finish] Audit complete (tier={audit_tier}) - not updating message content.")
-
         # Persist audit metadata
-        blackboard.metadata.audit_tier = audit_tier
-        blackboard.metadata.audit_meta = audit_meta
+        blackboard.metadata.audit_tier = "unified"
         blackboard.summary = summary
 
         total_duration = (time.time() - start_time) * 1000
@@ -308,7 +253,7 @@ class FinishNode(BaseNode):
                 blackboard=blackboard,
                 metadata=HookMetadata(
                     summary=summary,
-                    audit_tier=audit_tier,
+                    audit_tier="unified",
                     final_outcome=final_outcome,
                     duration_ms=total_duration,
                 ),
@@ -332,14 +277,10 @@ class FinishNode(BaseNode):
         # --------------------------------------------------------------
         # 3. Publish completion event
         # --------------------------------------------------------------
-        logger.info(f"[Finish] ✅ {audit_tier.upper()} audit complete: {total_duration:.0f}ms. Finalizing session...")
+        logger.info(f"[Finish] ✅ Audit complete: {total_duration:.0f}ms. Finalizing session...")
 
         metadata = config.get("metadata", {})
         run_id = config.get("configurable", {}).get("run_id")
-
-        extracted_data = getattr(audit_result, "extracted_data", {})
-        if not isinstance(extracted_data, dict):
-            extracted_data = {}
 
         event_data = SessionCompletedData(
             thread_id=effective_thread_id,
@@ -350,14 +291,13 @@ class FinishNode(BaseNode):
             blackboard_dict=blackboard.model_dump(),
             summary=summary,
             outcome=final_outcome,
-            audit_tier=audit_tier,
+            audit_tier="unified",
             duration_ms=total_duration,
             turn_summary_message_id=None,
             model=ctx.active_model,
             original_skill_id=metadata.get("original_skill_id"),
             ticket_topic=blackboard.ticket.topic if blackboard.ticket else None,
             ticket_reason=blackboard.ticket.reason if blackboard.ticket else None,
-            extracted_data=extracted_data,
         )
 
         from app.core.events.publishers import publish_session_completed

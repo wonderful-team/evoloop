@@ -43,16 +43,6 @@
 {%- endif %}
 {%- endif %}
 
-{%- if memory.episodic_raw or memory.core_raw %}
-### Memory References
-{%- if memory.episodic_raw %}
-- **Episodic**: {{ memory.episodic_raw }}
-{%- endif %}
-{%- if memory.core_raw %}
-- **Core**: {{ memory.core_raw }}
-{%- endif %}
-{%- endif %}
-
 {%- if blackboard.metadata %}
 {%- set excluded_keys = ["active_skills", "project_concepts", "cwd", "episodic_memory_raw", "core_memory_raw", "sys_info", "has_macos", "has_android"] %}
 {%- set has_visible_metadata = false %}

@@ -12,12 +12,11 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.core.config import settings
-from app.core.engine.extraction import ExtractionRegistry, ExtractionPlugin
+from app.core.events.decorators import event_register, event_subscribe, register_instance_handlers
+from app.core.events.schemas.lifecycle import ExtractionRequestedEvent, ExtractionCompletedEvent, ExtractionRequest
 from app.core.engine.rewind.event import RewindEventType, RewindRequestedEvent
 from app.core.events import SystemEventType
 from app.core.events.base import AsyncEventBus
-from app.core.events.decorators import event_register, event_subscribe, register_instance_handlers
-from app.core.events.schemas import SessionCompletedEvent
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Message
 
@@ -40,15 +39,62 @@ class MemoryLifecycleSubscriber:
         except Exception as e:
             logger.warning(f"[Memory] Failed to shutdown memory container: {e}")
 
+    @event_subscribe(SystemEventType.EXTRACTION_REQUESTED)
+    async def on_extraction_requested(self, event: ExtractionRequestedEvent):
+        """Register the memory extraction schema to the event."""
+        event.requests.append(
+            ExtractionRequest(
+                name="memory",
+                description=(
+                    "Extract user preferences, personal facts, project-specific concepts, "
+                    "contextual information about the user's workflow, and important decisions "
+                    "that should be remembered across sessions."
+                ),
+                schema_dict={
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "enum": [
+                                "user",
+                                "feedback",
+                                "project",
+                                "reference",
+                                "concept",
+                                "episode",
+                            ],
+                            "description": "Memory type classification",
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "The actual memory content",
+                        },
+                        "title": {
+                            "type": "string",
+                            "description": "A short, descriptive title",
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "A brief explanation of why this memory is relevant",
+                        },
+                        "confidence": {
+                            "type": "number",
+                            "description": "Confidence score from 0.0 to 1.0",
+                        },
+                        "tags": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "List of relevant tags",
+                        },
+                    },
+                    "required": ["type", "content", "title", "confidence"],
+                }
+            )
+        )
 
-@event_register()
-class MemoryHarvestingSubscriber:
-    """Persists memory items pre-extracted by Finish audit."""
-
-    @event_subscribe(SystemEventType.SESSION_COMPLETED)
-    async def on_session_completed(self, event: SessionCompletedEvent):
-        data = event.data
-        extracted_data = getattr(data, "extracted_data", {}) or {}
+    @event_subscribe(SystemEventType.EXTRACTION_COMPLETED)
+    async def on_extraction_completed(self, event: ExtractionCompletedEvent):
+        extracted_data = getattr(event, "extracted_data", {}) or {}
         items = extracted_data.get("memory")
         if not items:
             return
@@ -69,18 +115,17 @@ class MemoryHarvestingSubscriber:
                 content=item.get("content", ""),
                 description=item.get("description", ""),
                 tags=item.get("tags", []),
-                project_id=data.project_id,
-                user_id=data.user_id,
+                project_id=event.project_id,
+                user_id=event.user_id,
                 source="harvest:finish",
+                run_id=event.run_id,
                 confidence=item.get("confidence", 0.7),
             )
             await memory_manager.save_memory(entry)
             count += 1
 
         if count:
-            logger.info(
-                f"[Memory] ✅ Persisted {count} memories from audit extraction"
-            )
+            logger.info(f"[Memory] ✅ Persisted {count} memories from audit extraction")
 
 
 @event_register()
@@ -309,84 +354,3 @@ class MemoryRewind:
     def get_deleted_count(self) -> int:
         """Get the count of memories deleted in the last operation."""
         return self._deleted_count
-
-
-def _register_memory_extraction_plugin():
-    """Register the memory extraction plugin."""
-    from app.core.memory.models import MemoryEntry, MemoryType
-
-    async def handler(data: dict, ctx):
-        from app.core.memory.lifespan import MemoryLifespanManager
-
-        if not MemoryLifespanManager.is_initialized():
-            await MemoryLifespanManager.ainitialize()
-        container = MemoryLifespanManager.get_container()
-        memory_manager = container.memory_manager
-
-        entry = MemoryEntry(
-            type=MemoryType(data.get("type", "project")),
-            title=data.get("title", data.get("content", "")[:60]),
-            content=data.get("content", ""),
-            description=data.get("description", ""),
-            tags=data.get("tags", []),
-            project_id=ctx.project_id,
-            user_id=ctx.user_id,
-            source="harvest:finish",
-            run_id=ctx.run_id,
-            confidence=data.get("confidence", 0.7),
-            extra={"extraction_context": ctx.extra},
-        )
-        await memory_manager.save_memory(entry)
-        logger.debug(f"[Memory] Saved memory via Finish extraction: {entry.id}")
-
-    ExtractionRegistry.register(
-        ExtractionPlugin(
-            name="memory",
-            description=(
-                "Extract user preferences, personal facts, project-specific concepts, "
-                "contextual information about the user's workflow, and important decisions "
-                "that should be remembered across sessions."
-            ),
-            output_schema={
-                "type": "object",
-                "properties": {
-                    "type": {
-                        "type": "string",
-                        "enum": [
-                            "user",
-                            "feedback",
-                            "project",
-                            "reference",
-                            "concept",
-                            "episode",
-                        ],
-                        "description": "Memory type classification",
-                    },
-                    "content": {
-                        "type": "string",
-                        "description": "The actual memory content",
-                    },
-                    "title": {
-                        "type": "string",
-                        "description": "Short descriptive title",
-                    },
-                    "description": {
-                        "type": "string",
-                        "description": "Optional longer description",
-                    },
-                    "tags": {"type": "array", "items": {"type": "string"}},
-                    "confidence": {
-                        "type": "number",
-                        "description": "Confidence score 0-1",
-                    },
-                },
-                "required": ["content"],
-            },
-            confidence_threshold=0.7,
-            handler=handler,
-        )
-    )
-
-
-# Register at import time
-_register_memory_extraction_plugin()

@@ -13,7 +13,7 @@ from app.core.engine.rewind.event import RewindEventType, RewindRequestedEvent
 from app.core.events import SystemEventType
 from app.core.events.base import AsyncEventBus
 from app.core.events.decorators import event_register, event_subscribe, register_instance_handlers
-from app.core.events.schemas import SessionCompletedEvent
+from app.core.events.schemas.lifecycle import ExtractionRequestedEvent, ExtractionCompletedEvent, ExtractionRequest
 from app.core.memory.event import (
     MEMORY_CONTEXT_GATHER_EVENT_TYPE,
     MemoryContextGatherEvent,
@@ -33,14 +33,54 @@ class TodoLifecycleSubscriber:
     Handles automatic Todo extraction from session history.
     """
 
-    @event_subscribe(SystemEventType.SESSION_COMPLETED)
-    async def on_session_completed(self, event: SessionCompletedEvent):
+    @event_subscribe(SystemEventType.EXTRACTION_REQUESTED)
+    async def on_extraction_requested(self, event: ExtractionRequestedEvent):
+        """Register the todo extraction schema to the event."""
+        event.requests.append(
+            ExtractionRequest(
+                name="todo",
+                description=(
+                    "Extract action items, pending tasks, follow-ups, and coordination "
+                    "needs that should be tracked from the conversation."
+                ),
+                schema_dict={
+                    "type": "object",
+                    "properties": {
+                        "title": {
+                            "type": "string",
+                            "description": "Short title of the task",
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "Detailed description of what needs to be done",
+                        },
+                        "priority": {
+                            "type": "string",
+                            "enum": ["high", "medium", "low"],
+                            "description": "Priority level",
+                        },
+                        "category": {"type": "string", "description": "Task category"},
+                        "confidence": {
+                            "type": "number",
+                            "description": "Confidence score 0-1",
+                        },
+                        "reasoning": {
+                            "type": "string",
+                            "description": "Why this task is necessary",
+                        },
+                    },
+                    "required": ["title", "description", "priority"],
+                }
+            )
+        )
+
+    @event_subscribe(SystemEventType.EXTRACTION_COMPLETED)
+    async def on_extraction_completed(self, event: ExtractionCompletedEvent):
         """
-        Triggered when a session finishes successfully.
+        Triggered when background extraction finishes.
         Extracts future tasks and coordination items.
         """
-        data = event.data
-        extracted_data = getattr(data, "extracted_data", {}) or {}
+        extracted_data = getattr(event, "extracted_data", {}) or {}
         items = extracted_data.get("todo")
         if not items:
             return
@@ -61,7 +101,7 @@ class TodoLifecycleSubscriber:
             )
 
         count = await persist_todo_extractions(
-            todo_items, data.thread_id, data.project_id
+            todo_items, event.thread_id, event.project_id
         )
         if count:
             logger.info(f"[Todo] ✅ Persisted {count} todos from audit extraction")
@@ -91,68 +131,6 @@ async def persist_todo_extractions(
             )
             count += 1
     return count
-
-
-def _register_todo_extraction_plugin():
-    """Register the todo extraction plugin."""
-    from app.core.engine.extraction import ExtractionPlugin, ExtractionRegistry
-
-    async def handler(data: dict, ctx):
-        from app.domain.todo.schemas import ExtractedTodo
-
-        item = ExtractedTodo(
-            title=data.get("title", ""),
-            description=data.get("description", ""),
-            priority=data.get("priority", "medium"),
-            category=data.get("category", "general"),
-            confidence=data.get("confidence", 0.7),
-            reasoning=data.get("reasoning"),
-        )
-        await persist_todo_extractions([item], ctx.thread_id, ctx.project_id)
-
-    ExtractionRegistry.register(
-        ExtractionPlugin(
-            name="todo",
-            description=(
-                "Extract action items, pending tasks, follow-ups, and coordination "
-                "needs that should be tracked from the conversation."
-            ),
-            output_schema={
-                "type": "object",
-                "properties": {
-                    "title": {
-                        "type": "string",
-                        "description": "Short title of the task",
-                    },
-                    "description": {
-                        "type": "string",
-                        "description": "Detailed description of what needs to be done",
-                    },
-                    "priority": {
-                        "type": "string",
-                        "enum": ["high", "medium", "low"],
-                        "description": "Priority level",
-                    },
-                    "category": {"type": "string", "description": "Task category"},
-                    "confidence": {
-                        "type": "number",
-                        "description": "Confidence score 0-1",
-                    },
-                    "reasoning": {
-                        "type": "string",
-                        "description": "Why this was identified as a task",
-                    },
-                },
-                "required": ["title", "description", "priority"],
-            },
-            confidence_threshold=0.7,
-            handler=handler,
-        )
-    )
-
-
-# Register at import time
-_register_todo_extraction_plugin()
 
 
 @event_register()

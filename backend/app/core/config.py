@@ -64,7 +64,6 @@ class Settings(BaseSettings):
     # SaaS / Multi-tenant Mode
     MULTI_TENANT_MODE: bool = False  # True: Strict token isolation, no global session cache. False: Single-user mode (safe for global cache)
 
-
     # Memory System Settings
     AUTO_MEMORY_EXTRACTION: bool = True  # Enable automatic memory extraction at conversation end
     AUTO_MEMORY_EXTRACTION_INTERVAL: int = 1  # Extract every N turns (1 = every turn, 2 = every other turn, etc.)
