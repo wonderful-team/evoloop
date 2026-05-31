@@ -1,3 +1,4 @@
+import json
 import time
 
 import psutil
@@ -112,6 +113,7 @@ async def test_llm_connection(req: LLMConfigRequest) -> LLMTestResponse:
         base_url=req.base_url,
         model=req.model,
         api_key=req.api_key,
+        headers=req.headers,
     )
     return LLMTestResponse(success=success, reply=reply)
 
@@ -143,6 +145,10 @@ async def apply_llm_config(req: LLMConfigRequest) -> LLMApplyResponse:
     
     # Save Custom Model Name (always save the model name provided in the config card)
     SystemConfigService.set_value("CUSTOM_LLM_MODEL", req.model)
+
+    # Save Custom HTTP Headers
+    headers_str = json.dumps(req.headers) if req.headers else "{}"
+    SystemConfigService.set_value("LLM_HEADERS", headers_str)
 
     # Clear LLM Factory cache
     from app.infrastructure.llm.factory import LLMFactory
