@@ -80,6 +80,10 @@ async def _init_backend():
     logger.info("[Test] Awakening agent environment...")
     await awaken()
 
+    # Register event handlers (normally done by main.py:auto_discover_handlers)
+    from app.core.events.discovery import auto_discover_handlers
+    auto_discover_handlers()
+
     from app.core.engine.graph_builder import GraphBuilder
     from app.core.globals import set_graph
     
@@ -136,8 +140,8 @@ async def main():
     parser.add_argument("--timeout", type=int, default=TEST_TIMEOUT, help="Agent timeout in seconds")
     args = parser.parse_args()
 
-    sys.stdout = open(TEST_LOG_FILE, "w", buffering=1)
-    sys.stderr = sys.stdout
+    # sys.stdout = open(TEST_LOG_FILE, "w", buffering=1)
+    # sys.stderr = sys.stdout
     timeout = args.timeout
 
     logger.info("=" * 60)
@@ -174,12 +178,64 @@ async def main():
         )
         logger.info("\n>>> STARTING TURN 2")
         await _run_agent_turn(thread_id, turn_2_msg, "Turn-2", timeout)
-        
+
+        # ---------------------------------------------------------
+        # TURN 2 RETRY (NEW STAGE)
+        # ---------------------------------------------------------
+        # 1. Get the last human message from DB (which is the Turn 2 query)
+        from app.models.conversation import Message
+        from app.infrastructure.database.sql.database import session_scope
+        from sqlalchemy import select
+
+        logger.info("\n>>> FETCHING TURN 2 MESSAGE FOR RETRY")
+        async with session_scope() as session:
+            stmt = (
+                select(Message)
+                .where(Message.thread_id == thread_id)
+                .where(Message.role == "human")
+                .order_by(Message.sequence_number.desc())
+                .limit(1)
+            )
+            res = await session.execute(stmt)
+            last_human_msg = res.scalar_one_or_none()
+            if not last_human_msg:
+                raise AssertionError("Could not find Turn 2 human message in DB to retry")
+            turn_2_msg_id = last_human_msg.id
+            turn_2_msg_content = last_human_msg.content
+            logger.info(f"Targeting message {turn_2_msg_id} for retry: {turn_2_msg_content}")
+
+        # 2. Trigger rewind orchestrator
+        logger.info("\n>>> TRIGGERING RETRY REWIND")
+        from app.core.events import system_bus
+        from app.core.engine.rewind import RewindOrchestrator
+
+        orchestrator = RewindOrchestrator(event_bus=system_bus)
+        rewind_res = await orchestrator.perform_rewind(
+            thread_id=thread_id,
+            target_message_id=str(turn_2_msg_id),
+            include_target=False,  # Keep the human query
+            revert_files=False,
+            reset_state=True,
+            reason="retry"
+        )
+        logger.info(f"Rewind completed: status={rewind_res.status}, removed_messages={rewind_res.removed_message_count}, errors={rewind_res.errors}")
+        if rewind_res.status != "success":
+            raise AssertionError(f"Rewind failed: {rewind_res.errors}")
+
+        # 3. Clean up the file created by Turn-2 to ensure we test Turn-2-Retry creating it fresh
+        result_file = os.path.join(TEST_PROJECT_PATH, "memory_test_result.md")
+        if os.path.exists(result_file):
+            os.remove(result_file)
+            logger.info("[Test] Cleaned up Turn-2 result file for clean retry run")
+
+        # 4. Run Turn 2 Retry
+        logger.info("\n>>> STARTING TURN 2 RETRY RUN")
+        await _run_agent_turn(thread_id, turn_2_msg_content, "Turn-2-Retry", timeout)
+
         # ---------------------------------------------------------
         # VERIFICATION
         # ---------------------------------------------------------
-        logger.info("\n>>> VERIFYING MEMORY")
-        result_file = os.path.join(TEST_PROJECT_PATH, "memory_test_result.md")
+        logger.info("\n>>> VERIFYING MEMORY AFTER RETRY")
         if not os.path.exists(result_file):
             raise AssertionError(f"Agent did not create the result file: {result_file}")
             
@@ -188,7 +244,7 @@ async def main():
             logger.info(f"Result file content:\n{content}")
             
             if "dummy_data.txt" not in content.lower():
-                logger.error("❌ TEST FAILED: Agent failed to recall 'dummy_data.txt' from Turn 1 memory.")
+                logger.error("❌ TEST FAILED: Agent failed to recall 'dummy_data.txt' from Turn 1 memory during Retry.")
                 sys.exit(1)
         
         logger.info("✅ MULTI-TURN MEMORY TEST COMPLETED SUCCESSFULLY!")

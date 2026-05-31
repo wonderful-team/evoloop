@@ -42,7 +42,7 @@ async def run_verification():
         await initialize_system()
         
         project_id = 99
-        thread_id = "reproduction-test-thread"
+        thread_id = f"analytics-test-{uuid.uuid4().hex[:6]}"
         target_file = "/Users/xujin/Projects/develop-assistant.cn/抖音本地样本数据.xlsx"
         
         user_input = (
@@ -57,11 +57,14 @@ async def run_verification():
             logger.warning(f"[Test] Initialization notice: {e}")
 
         client = evocloud_manager.api
+        login_res = await client.login("preterchan", "hellomylife")
+        if not login_res.get("success"):
+            raise RuntimeError(f"Login failed: {login_res}")
 
-        logger.info("Using unthrottled local Gateway as test user...")
-        TOKEN = "test-token"
-        await identity_service.set_token(TOKEN, "test-refresh")
-        member_id = 1
+        TOKEN = login_res["token"]
+        refresh_token = login_res.get("refresh_token", "")
+        await identity_service.set_token(TOKEN, refresh_token)
+        member_id = await identity_service.get_member_id(TOKEN) or 1
         logger.info(f"Login successful. member_id={member_id}")
 
         mock_project = {
