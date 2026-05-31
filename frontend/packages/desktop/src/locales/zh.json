@@ -1482,6 +1482,7 @@
       "apiKey": "API 密钥",
       "baseUrl": "API 地址",
       "dimensions": "向量维度",
+      "headers": "自定义请求头 (JSON 格式)",
       "modelName": "模型名称",
       "provider": "提供商",
       "providerHint": "例如：openai、anthropic 或任何自定义提供商",

@@ -985,6 +985,9 @@ export type LLMConfigRequest = {
      * Selected Default Model ID
      */
     default_model_id?: (string | null);
+    headers?: ({
+        [key: string]: (string);
+    } | null);
     [key: string]: unknown | string;
 };
 

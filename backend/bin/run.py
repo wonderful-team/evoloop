@@ -109,7 +109,7 @@ Note:
         help="Command to execute",
     )
 
-    args = parser.parse_args()
+    args, unknown = parser.parse_known_args()
 
     try:
         if args.command == "api":

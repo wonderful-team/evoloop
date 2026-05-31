@@ -40,6 +40,32 @@ error() {
     echo -e "${RED}✗${NC} $1"
 }
 
+# 解析 workers 参数，支持 --workers=N, --workers N, -w N
+WORKERS=1
+NEW_ARGS=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --workers=*)
+            WORKERS="${1#*=}"
+            shift
+            ;;
+        --workers|-w)
+            if [[ -n "$2" && "$2" =~ ^[0-9]+$ ]]; then
+                WORKERS="$2"
+                shift 2
+            else
+                error "错误: --workers 需要指定一个数字"
+                exit 1
+            fi
+            ;;
+        *)
+            NEW_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+set -- "${NEW_ARGS[@]}"
+
 # 脚本目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -220,14 +246,14 @@ case "${1:-help}" in
         ;;
 
     dev)
-        info "启动开发服务器..."
-        RELOAD=false .venv/bin/python bin/run.py api
+        info "启动开发服务器 ($WORKERS Workers)..."
+        WORKERS=$WORKERS RELOAD=false .venv/bin/python bin/run.py api
         ;;
 
     worker)
-        info "启动 Task Queue Worker (独立进程)..."
+        info "启动 Task Queue Worker ($WORKERS Workers)..."
         info "Backend: 根据 TASK_QUEUE_BACKEND 环境变量 (huey/celery/auto)"
-        .venv/bin/python bin/run.py worker
+        .venv/bin/python bin/run.py worker --workers=$WORKERS
         ;;
 
     beat)
@@ -248,8 +274,8 @@ case "${1:-help}" in
         if pgrep -f "python bin/run.py api" > /dev/null; then
             warning "API 服务已在运行"
         else
-            info "启动 API 服务..."
-            nohup .venv/bin/python bin/run.py api > "$LOG_DIR/api.log" 2>&1 &
+            info "启动 API 服务 ($WORKERS Workers)..."
+            WORKERS=$WORKERS nohup .venv/bin/python bin/run.py api > "$LOG_DIR/api.log" 2>&1 &
             echo $! > "$LOG_DIR/api.pid"
             sleep 2
             if pgrep -f "python bin/run.py api" > /dev/null; then
@@ -262,8 +288,8 @@ case "${1:-help}" in
         if pgrep -f "python bin/run.py worker" > /dev/null; then
             warning "Worker 服务已在运行"
         else
-            info "启动 Worker 服务..."
-            nohup .venv/bin/python bin/run.py worker > "$LOG_DIR/worker.log" 2>&1 &
+            info "启动 Worker 服务 ($WORKERS Workers)..."
+            nohup .venv/bin/python bin/run.py worker --workers=$WORKERS > "$LOG_DIR/worker.log" 2>&1 &
             echo $! > "$LOG_DIR/worker.pid"
             sleep 2
             if pgrep -f "python bin/run.py worker" > /dev/null; then

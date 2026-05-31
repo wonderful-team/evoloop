@@ -70,6 +70,7 @@ export function LLMSettings() {
   const [model, setModel] = useState("")
   const [visionModel, setVisionModel] = useState("")
   const [apiKey, setApiKey] = useState("")
+  const [headers, setHeaders] = useState("")
   
   const [initialState, setInitialState] = useState<any>(null)
 
@@ -98,6 +99,7 @@ export function LLMSettings() {
         model: configMap.CUSTOM_LLM_MODEL || "",
         visionModel: configMap.VISION_MODEL || "",
         apiKey: configMap.LLM_API_KEY || "",
+        headers: configMap.LLM_HEADERS || "{}",
       }
       
       setDefaultModelId(state.defaultModelId)
@@ -107,6 +109,7 @@ export function LLMSettings() {
       setModel(state.model)
       setVisionModel(state.visionModel)
       setApiKey(state.apiKey)
+      setHeaders(state.headers)
       setInitialState(state)
     } catch (error) {
       toast.error(t("settings.llm.loadError"))
@@ -125,10 +128,11 @@ export function LLMSettings() {
       baseUrl !== initialState.baseUrl ||
       model !== initialState.model ||
       visionModel !== initialState.visionModel ||
-      apiKey !== initialState.apiKey
+      apiKey !== initialState.apiKey ||
+      headers !== initialState.headers
       
     setComponentDirty("llm", isDirty)
-  }, [defaultModelId, provider, providerType, baseUrl, model, visionModel, apiKey, initialState, setComponentDirty])
+  }, [defaultModelId, provider, providerType, baseUrl, model, visionModel, apiKey, headers, initialState, setComponentDirty])
 
   useEffect(() => {
     fetchConfig()
@@ -138,6 +142,19 @@ export function LLMSettings() {
     setTesting(true)
     setTestResult(null)
 
+    let parsedHeaders = null
+    try {
+      if (headers && headers.trim()) {
+        parsedHeaders = JSON.parse(headers)
+      }
+    } catch (e) {
+      const msg = "Headers must be a valid JSON object"
+      setTestResult({ success: false, msg })
+      toast.error(msg)
+      setTesting(false)
+      return false
+    }
+
     try {
       const res: any = await SystemService.testLlmConnection({
         requestBody: {
@@ -146,6 +163,7 @@ export function LLMSettings() {
           base_url: baseUrl,
           model,
           api_key: apiKey,
+          headers: parsedHeaders,
         },
       })
       if (res.success) {
@@ -178,13 +196,24 @@ export function LLMSettings() {
       providerType !== initialState?.providerType ||
       baseUrl !== initialState?.baseUrl ||
       model !== initialState?.model ||
-      apiKey !== initialState?.apiKey
+      apiKey !== initialState?.apiKey ||
+      headers !== initialState?.headers
 
     if (configChanged) {
       const isOk = await handleTestConnection()
       if (!isOk) {
         throw new Error("LLM Connection test failed")
       }
+    }
+
+    let parsedHeaders = null
+    try {
+      if (headers && headers.trim()) {
+        parsedHeaders = JSON.parse(headers)
+      }
+    } catch (e) {
+      toast.error("Headers must be a valid JSON object")
+      throw e
     }
 
     setLoading(true)
@@ -198,6 +227,7 @@ export function LLMSettings() {
           vision_model: visionModel,
           api_key: apiKey,
           default_model_id: defaultModelId,
+          headers: parsedHeaders,
         },
       })
       // Update initial state to current values
@@ -209,6 +239,7 @@ export function LLMSettings() {
         model,
         visionModel,
         apiKey,
+        headers,
       })
       toast.success(t("settings.llm.saved"))
     } catch (error) {
@@ -224,7 +255,7 @@ export function LLMSettings() {
     registerSaveHandler("llm", handleSave)
     registerResetHandler("llm", () => fetchConfig())
     return () => unregisterSaveHandler("llm")
-  }, [registerSaveHandler, unregisterSaveHandler, registerResetHandler, provider, providerType, baseUrl, model, visionModel, apiKey, defaultModelId, initialState])
+  }, [registerSaveHandler, unregisterSaveHandler, registerResetHandler, provider, providerType, baseUrl, model, visionModel, apiKey, defaultModelId, headers, initialState])
 
   return (
     <div className="space-y-4">
@@ -383,6 +414,16 @@ export function LLMSettings() {
                 {showApiKey ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
               </Button>
             </div>
+          </div>
+
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">{t("settings.modelFields.headers")}</Label>
+            <Input
+              placeholder='{"User-Agent": "KimiCLI/1.5"}'
+              value={headers || ""}
+              onChange={(e) => setHeaders(e.target.value)}
+              className="h-10 transition-colors focus:border-primary font-mono text-xs"
+            />
           </div>
 
           <div className="flex flex-col gap-4">

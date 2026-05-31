@@ -3482,6 +3482,21 @@ export const LLMConfigRequestSchema = {
             ],
             title: 'Default Model Id',
             description: 'Selected Default Model ID'
+        },
+        headers: {
+            anyOf: [
+                {
+                    additionalProperties: {
+                        type: 'string'
+                    },
+                    type: 'object'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Headers',
+            description: '自定义请求头 (JSON 字典)'
         }
     },
     additionalProperties: true,

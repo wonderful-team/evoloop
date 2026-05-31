@@ -1482,6 +1482,7 @@
       "apiKey": "API Key",
       "baseUrl": "Base URL",
       "dimensions": "Embedding Dimensions",
+      "headers": "Custom Headers (JSON)",
       "modelName": "Model Name",
       "provider": "Provider",
       "providerHint": "e.g. openai, anthropic, or any custom provider",
