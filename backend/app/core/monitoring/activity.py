@@ -353,6 +353,9 @@ class ActivityMonitor:
 
     async def update_goal(self, thread_id: str, new_goal: str):
         """Update the main goal for a thread and publish the update to the UI."""
+        if not thread_id:
+            logger.warning("[ActivityMonitor] update_goal called with empty/None thread_id — skipping.")
+            return
         # 1. Update SQLite/database state
         await self._state_service.update_field(thread_id, "main_goal", new_goal)
         

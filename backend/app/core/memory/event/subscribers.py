@@ -5,20 +5,14 @@ Memory Module Event Subscribers
 Handles application-level shutdown, session completion, and rewind cleanup
 for the memory domain.
 """
-import asyncio
 import logging
-
-import json
-import os
-import shutil
 from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import select
 
 from app.core.config import settings
-from app.core.engine.event import AgentEventType
-from app.core.engine.event.schemas import AgentRunCompletedEvent
+from app.core.engine.extraction import ExtractionRegistry, ExtractionPlugin
 from app.core.engine.rewind.event import RewindEventType, RewindRequestedEvent
 from app.core.events import SystemEventType
 from app.core.events.base import AsyncEventBus
@@ -34,95 +28,7 @@ logger = logging.getLogger(__name__)
 class MemoryLifecycleSubscriber:
     """
     Handles application-level lifecycle events for the Memory domain.
-    
-    Includes:
-    - Auto-extraction of conversation history on session completion
-    - Graceful shutdown of memory container on app stop
     """
-
-    # Track in-flight extractions to avoid spawning duplicate background tasks
-    # for the same thread_id. Complements the per-thread lock in AutoMemoryExtractor.
-    _inflight_tasks: set[str] = set()
-
-    @event_subscribe(AgentEventType.RUN_COMPLETED)
-    async def on_agent_run_completed(self, event: AgentRunCompletedEvent):
-        """
-        Trigger automatic memory extraction after each successful run attempt.
-        """
-        if event.status != "done":
-            return
-            
-        thread_id = event.thread_id
-        project_id = event.project_id
-        run_id = event.payload.get("run_id") or ""
-        
-        # Skip if an extraction is already in flight for this thread
-        if thread_id in self._inflight_tasks:
-            logger.debug(f"[Memory] Extraction already in flight for {thread_id}, skipping")
-            return
-        
-        logger.info(f"[Memory] 🧠 Run completed for thread {thread_id}. Triggering auto-extraction...")
-
-        try:
-            from app.core.context.manager import ContextManager, EvoContext
-            from app.core.memory.auto_extraction import trigger_auto_extraction
-            from app.core.engine.message.repository import MessageRepository
-            from app.core.engine.message.converter import EvoMessageConverter
-
-            # Load history for extraction
-            repo = MessageRepository(thread_id=thread_id, project_id=project_id)
-            db_messages, _, _ = await repo.get_full_history()
-            # Convert ORM Message objects to LangChain BaseMessage for the extractor
-            messages = EvoMessageConverter.to_langchain(db_messages)
-
-            # Create a dedicated context for the background extraction task
-            ctx = EvoContext(
-                thread_id=thread_id,
-                project_id=project_id,
-                run_id=run_id
-            )
-
-            self._inflight_tasks.add(thread_id)
-
-            async def _run_extraction_background():
-                try:
-                    token = ContextManager.set(ctx)
-                    try:
-                        await trigger_auto_extraction(
-                            thread_id=thread_id,
-                            messages=messages,
-                            project_id=project_id,
-                            run_id=run_id,
-                            force=False  # Don't force if already extracted for this content
-                        )
-                    finally:
-                        ContextManager.reset(token)
-                finally:
-                    self._inflight_tasks.discard(thread_id)
-
-            task = asyncio.create_task(_run_extraction_background())
-            # Attach a done callback to catch unhandled exceptions and ensure cleanup
-            def _on_task_done(t):
-                self._inflight_tasks.discard(thread_id)
-                if t.cancelled():
-                    return
-                exc = t.exception()
-                if exc:
-                    logger.error(f"[Memory] Auto-extraction task failed for {thread_id}: {exc}")
-            task.add_done_callback(_on_task_done)
-            logger.debug(f"[Memory] ✓ Auto-extraction background task started for {thread_id}")
-        except Exception as e:
-            self._inflight_tasks.discard(thread_id)
-            logger.error(f"[Memory] Failed to trigger auto-extraction: {e}")
-
-    @event_subscribe(SystemEventType.SESSION_COMPLETED)
-    async def on_session_completed(self, event: SessionCompletedEvent):
-        """
-        Handle final session completion archiving if needed.
-        """
-        data = event.data
-        logger.info(f"[Memory] 🏁 Session completed for thread {data.thread_id}.")
-        # Optional: Add final session-level summary or cleanup here
 
     @event_subscribe(SystemEventType.APP_STOPPING)
     async def on_application_stopping(self, event):
@@ -136,6 +42,48 @@ class MemoryLifecycleSubscriber:
 
 
 @event_register()
+class MemoryHarvestingSubscriber:
+    """Persists memory items pre-extracted by Finish audit."""
+
+    @event_subscribe(SystemEventType.SESSION_COMPLETED)
+    async def on_session_completed(self, event: SessionCompletedEvent):
+        data = event.data
+        extracted_data = getattr(data, "extracted_data", {}) or {}
+        items = extracted_data.get("memory")
+        if not items:
+            return
+
+        from app.core.memory.lifespan import MemoryLifespanManager
+        from app.core.memory.models import MemoryEntry, MemoryType
+
+        if not MemoryLifespanManager.is_initialized():
+            await MemoryLifespanManager.ainitialize()
+        container = MemoryLifespanManager.get_container()
+        memory_manager = container.memory_manager
+
+        count = 0
+        for item in items:
+            entry = MemoryEntry(
+                type=MemoryType(item.get("type", "project")),
+                title=item.get("title", item.get("content", "")[:60]),
+                content=item.get("content", ""),
+                description=item.get("description", ""),
+                tags=item.get("tags", []),
+                project_id=data.project_id,
+                user_id=data.user_id,
+                source="harvest:finish",
+                confidence=item.get("confidence", 0.7),
+            )
+            await memory_manager.save_memory(entry)
+            count += 1
+
+        if count:
+            logger.info(
+                f"[Memory] ✅ Persisted {count} memories from audit extraction"
+            )
+
+
+@event_register()
 class MemoryRewind:
     """Event-driven memory cleanup handler for rewind operations."""
 
@@ -146,10 +94,10 @@ class MemoryRewind:
     def register(cls, bus: AsyncEventBus) -> "MemoryRewind":
         """
         Register this handler to the event bus.
-        
+
         Args:
             bus: The event bus to subscribe to
-            
+
         Returns:
             The handler instance
         """
@@ -175,7 +123,7 @@ class MemoryRewind:
 
             if message_ids or event.affected_run_ids:
                 logger.info(f"[MemoryRewind] Identified {len(message_ids)} affected messages and {len(event.affected_run_ids)} run_ids for thread {event.thread_id}")
-                
+
                 # Perform deletion directly to capture count for aggregation
                 count = await self._delete_memories(
                     source_message_ids=message_ids,
@@ -201,7 +149,6 @@ class MemoryRewind:
             event.errors.append(error_msg)
             event.success = False
 
-
     async def _find_message_ids(
         self,
         thread_id: str,
@@ -210,12 +157,12 @@ class MemoryRewind:
     ) -> list[str]:
         """
         Find message IDs to clean up for the given thread.
-        
+
         Args:
             thread_id: The thread ID
             target_message_id: The message to rewind to
             include_target: Whether to include the target message
-            
+
         Returns:
             List of message IDs as strings
         """
@@ -228,7 +175,7 @@ class MemoryRewind:
                 stmt_target = select(Message.sequence_number).where(Message.id == target_message_id)
                 res_target = await session.execute(stmt_target)
                 target_seq = res_target.scalar_one_or_none()
-                
+
                 if target_seq is None:
                     logger.warning(f"[MemoryRewind] Target message {target_message_id} not found")
                     return []
@@ -248,11 +195,11 @@ class MemoryRewind:
     ) -> int:
         """
         Delete memories linked to the given message IDs and run IDs.
-        
+
         Args:
             source_message_ids: List of source message IDs
             run_ids: List of run IDs
-            
+
         Returns:
             Number of memories deleted
         """
@@ -318,7 +265,6 @@ class MemoryRewind:
         """
         async with session_scope() as session:
             if event.target_message_id:
-                from sqlalchemy import select
                 stmt = select(Message.created_at).where(Message.id == event.target_message_id)
                 res = await session.execute(stmt)
                 target_time = res.scalar_one_or_none()
@@ -335,7 +281,7 @@ class MemoryRewind:
             target_time = target_time.replace(tzinfo=None)
 
         memory_root = Path(settings.BRAIN_MEMORY_ROOT)
-        
+
         # 1. Cleanup context snapshots (*.md in context/)
         context_dir = memory_root / "context"
         if context_dir.exists():
@@ -352,7 +298,7 @@ class MemoryRewind:
             from app.core.memory.lifespan import MemoryLifespanManager
             if not MemoryLifespanManager.is_initialized():
                 await MemoryLifespanManager.ainitialize()
-            
+
             container = MemoryLifespanManager.get_container()
             # This will pull from the newly cleaned cold memory (Vector DB)
             await container.memory_manager.regenerate_memory_md()
@@ -363,3 +309,84 @@ class MemoryRewind:
     def get_deleted_count(self) -> int:
         """Get the count of memories deleted in the last operation."""
         return self._deleted_count
+
+
+def _register_memory_extraction_plugin():
+    """Register the memory extraction plugin."""
+    from app.core.memory.models import MemoryEntry, MemoryType
+
+    async def handler(data: dict, ctx):
+        from app.core.memory.lifespan import MemoryLifespanManager
+
+        if not MemoryLifespanManager.is_initialized():
+            await MemoryLifespanManager.ainitialize()
+        container = MemoryLifespanManager.get_container()
+        memory_manager = container.memory_manager
+
+        entry = MemoryEntry(
+            type=MemoryType(data.get("type", "project")),
+            title=data.get("title", data.get("content", "")[:60]),
+            content=data.get("content", ""),
+            description=data.get("description", ""),
+            tags=data.get("tags", []),
+            project_id=ctx.project_id,
+            user_id=ctx.user_id,
+            source="harvest:finish",
+            run_id=ctx.run_id,
+            confidence=data.get("confidence", 0.7),
+            extra={"extraction_context": ctx.extra},
+        )
+        await memory_manager.save_memory(entry)
+        logger.debug(f"[Memory] Saved memory via Finish extraction: {entry.id}")
+
+    ExtractionRegistry.register(
+        ExtractionPlugin(
+            name="memory",
+            description=(
+                "Extract user preferences, personal facts, project-specific concepts, "
+                "contextual information about the user's workflow, and important decisions "
+                "that should be remembered across sessions."
+            ),
+            output_schema={
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "user",
+                            "feedback",
+                            "project",
+                            "reference",
+                            "concept",
+                            "episode",
+                        ],
+                        "description": "Memory type classification",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "The actual memory content",
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Short descriptive title",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Optional longer description",
+                    },
+                    "tags": {"type": "array", "items": {"type": "string"}},
+                    "confidence": {
+                        "type": "number",
+                        "description": "Confidence score 0-1",
+                    },
+                },
+                "required": ["content"],
+            },
+            confidence_threshold=0.7,
+            handler=handler,
+        )
+    )
+
+
+# Register at import time
+_register_memory_extraction_plugin()

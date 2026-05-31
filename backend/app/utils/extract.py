@@ -37,7 +37,7 @@ def extract_code_block(text: str, lang: str | None = None) -> str | None:
         marker = f"```{lang}"
         if marker in text:
             try:
-                return text.split(marker, 1)[1].split("```", 1)[0].strip()
+                return text.split(marker, 1)[1].rsplit("```", 1)[0].strip()
             except IndexError:
                 pass
     
@@ -128,36 +128,136 @@ def extract_section(text: str, markers: list[str]) -> str:
     return text
 
 
+def _extract_json_bounds(text: str) -> str | None:
+    """Extract the outermost JSON object/array using brace matching.
+
+    Handles cases where the LLM output has extra text or truncation.
+    """
+    text = text.strip()
+    start = -1
+    for i, c in enumerate(text):
+        if c in '{[':
+            start = i
+            break
+    if start < 0:
+        return None
+
+    stack = []
+    end = -1
+    for i in range(start, len(text)):
+        c = text[i]
+        if c in '{[':
+            stack.append(c)
+        elif c == '}':
+            if stack and stack[-1] == '{':
+                stack.pop()
+                if not stack:
+                    end = i + 1
+                    break
+            else:
+                return None  # mismatched
+        elif c == ']':
+            if stack and stack[-1] == '[':
+                stack.pop()
+                if not stack:
+                    end = i + 1
+                    break
+            else:
+                return None  # mismatched
+
+    if end < 0:
+        return None
+
+    return text[start:end]
+
+
+def _repair_json(text: str) -> str | None:
+    """Attempt to repair common JSON issues in LLM output using regex.
+
+    Fixes applied:
+      1. Strip control characters (except \\n, \\r, \\t)
+      2. Remove trailing commas before ] or }
+      3. Replace single-quoted field names with double-quoted
+      4. Replace single-quoted string values with double-quoted
+      5. Replace unquoted field names (no quotes, only word chars before colon)
+    """
+    import regex
+
+    if not text:
+        return None
+
+    # 1. Strip control characters
+    text = regex.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', text)
+
+    # 2. Trailing commas
+    text = regex.sub(r',\s*([}\]])', r'\1', text)
+
+    # 3. Single-quoted field names → "key":
+    text = regex.sub(r"'([^']+)'(?=\s*:)", r'"\1"', text)
+
+    # 4. Single-quoted string values after colon → "value"
+    #    (only where the surrounding structure is likely valid)
+    text = regex.sub(r"(:\s*)'([^']*?)'(\s*[,}\]])", r'\1"\2"\3', text)
+
+    # 5. Unquoted field names (word chars before colon, not inside a string)
+    text = regex.sub(r'(?<=[\{,]\s*)([A-Za-z_]\w*)\s*:', r'"\1":', text)
+
+    return text
+
+
 def safe_parse_json(text: str) -> dict | None:
     """
-    Safely parse JSON with fallback to Python literal eval.
-    
+    Safely parse JSON with multiple fallback strategies.
+
+    Order:
+      1. Fast path: json.loads
+      2. Brace-matched extraction + json.loads
+      3. JSON repair (regex) + retry
+      4. Python literal eval (for single-quoted dicts)
+
     Args:
         text: JSON string or Python dict literal
-    
+
     Returns:
-        Parsed dict, or None if both methods fail
+        Parsed dict, or None if all methods fail
     """
     if not text or not isinstance(text, str):
         return None
-    
+
     text = text.strip()
     if not text:
         return None
-    
-    # Try JSON first
+
+    # Strategy 1: Fast path
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
-    
-    # Try Python literal eval (for single-quoted dicts)
+
+    # Strategy 2: Brace-matched extraction (handles surrounding noise, truncation)
+    bounded = _extract_json_bounds(text)
+    if bounded and bounded != text:
+        try:
+            return json.loads(bounded)
+        except json.JSONDecodeError:
+            pass
+
+    # Strategy 3: Repair and retry
+    candidate = bounded or text
+    repaired = _repair_json(candidate)
+    if repaired and repaired != candidate:
+        try:
+            return json.loads(repaired)
+        except json.JSONDecodeError:
+            pass
+
+    # Strategy 4: Python literal eval (for single-quoted dicts)
     if (text.startswith("{") or text.startswith("[")) and "'" in text:
         try:
             return ast.literal_eval(text)
         except (ValueError, SyntaxError) as e:
             logger.debug(f"Failed to parse as Python literal: {e}")
-    
+
     return None
 
 

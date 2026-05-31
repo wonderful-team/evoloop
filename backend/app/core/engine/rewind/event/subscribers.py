@@ -210,7 +210,7 @@ class CheckpointRewind:
 
     def get_deleted_counts(self) -> tuple[int, int]:
         """Get the counts of deleted checkpoints and writes."""
-        return (self._deleted_checkpoints, self._deleted_writes)
+        return self._deleted_checkpoints, self._deleted_writes
 
 
 @event_register()
@@ -644,7 +644,7 @@ class StateRewind:
                 select(Message)
                 .where(Message.thread_id == thread_id)
                 .where(Message.role == "human")
-                .order_by(Message.id.asc())
+                .order_by(Message.sequence_number.asc())
             )
 
             if target_message_id:
@@ -652,7 +652,7 @@ class StateRewind:
                 stmt_target = select(Message.sequence_number).where(Message.id == target_message_id)
                 res_target = await session.execute(stmt_target)
                 target_seq = res_target.scalar_one_or_none()
-                
+
                 if target_seq is None:
                     # Fallback or error
                     logger.warning(f"[StateRewind] Could not resolve sequence for message {target_message_id}")

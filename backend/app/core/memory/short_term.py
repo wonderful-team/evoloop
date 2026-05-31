@@ -98,7 +98,7 @@ class SqlShortTermMemory(IShortTermMemory):
                     Message.thread_id == thread_id,
                     Message.is_visible == False,
                     Message.run_id.in_(recent_run_ids)
-                ).order_by(Message.id.asc())
+                ).order_by(Message.sequence_number.asc())
 
                 invisible_result = await db.execute(invisible_stmt)
                 invisible_messages = invisible_result.scalars().all()

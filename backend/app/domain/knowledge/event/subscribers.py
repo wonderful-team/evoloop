@@ -5,17 +5,12 @@ Knowledge Event Subscribers
 Event subscribers for knowledge initialization and harvesting.
 """
 
-import asyncio
 import logging
 
 from app.core.events import SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.events.schemas import SessionCompletedEvent
-from app.infrastructure.config.service import SystemConfigService
-from app.core.llm import InternalLLMService
-from app.domain.knowledge.schemas import KnowledgeHarvestingResult
-from app.domain.knowledge.models import MarkdownDocument, DocumentMetadata
-from app.utils import render_template
+from app.domain.knowledge.models import DocumentMetadata, MarkdownDocument
 
 logger = logging.getLogger(__name__)
 
@@ -79,113 +74,147 @@ class KnowledgeHarvestingSubscriber:
         Extracts documentation and architectural decisions.
         """
         data = event.data
-        logger.info(f"[Knowledge] 📚 Session completed for {data.thread_id}. Auditing for knowledge artifacts...")
-
-        # Initialize background context for auditing
-        from app.core.context.manager import ContextManager, EvoContext
-        ctx = EvoContext(
-            thread_id=data.thread_id,
-            project_id=data.project_id,
-            active_model=data.model
-        )
-        token = ContextManager.set(ctx)
-
-        try:
-            # Trigger background harvesting process
-            asyncio.create_task(self._process_harvesting(data))
-        finally:
-            ContextManager.reset(token)
-
-    async def _process_harvesting(self, data):
-        """Background process for deep knowledge extraction and ingestion."""
-        thread_id = data.thread_id
-        project_id = data.project_id
-
-        # 1. Check feature flags / settings
-        auto_extract = SystemConfigService.get_value("AUTO_KNOWLEDGE_EXTRACTION", "true").lower() == "true"
-        if not auto_extract:
-            logger.debug(f"[Knowledge] Auto-extraction disabled for thread {thread_id}")
+        extracted_data = getattr(data, "extracted_data", {}) or {}
+        items = extracted_data.get("knowledge")
+        if not items:
             return
 
-        logger.info(f"[Knowledge] 🧠 Harvesting knowledge from thread {thread_id}...")
+        from app.domain.knowledge.schemas import ExtractedKnowledge
 
-        try:
-            # 2. Prepare context and history
-            from app.core.engine.message.repository import MessageRepository
-            repo = MessageRepository(thread_id=thread_id, project_id=project_id)
-            db_messages, _, _ = await repo.get_full_history()
-            
-            if not db_messages:
-                logger.debug(f"[Knowledge] No messages found for thread {thread_id}, skipping")
-                return
-
-            user_lang = SystemConfigService.get_language_preference()
-            
-            # 3. Render prompt
-            prompt_text = render_template(
-                "core/knowledge/extraction.prompt.j2",
-                thread_id=thread_id,
-                project_id=project_id,
-                user_language=user_lang,
-                messages=[{"role": m.role, "content": m.content} for m in db_messages],
-                summary_needed=True
+        knowledge_items = []
+        for item in items:
+            knowledge_items.append(
+                ExtractedKnowledge(
+                    title=item.get("title", ""),
+                    content=item.get("content", ""),
+                    category=item.get("category", "technical_rule"),
+                    tags=item.get("tags", []),
+                    confidence=item.get("confidence", 0.7),
+                    source_context=item.get("source_context"),
+                )
             )
 
-            # 4. Call InternalLLMService
-            model_name = SystemConfigService.get_value("LLM_MODEL")
-            result = await InternalLLMService.invoke_structured(
-                messages=[{"role": "system", "content": prompt_text}],
-                purpose="knowledge_extraction",
-                output_schema=KnowledgeHarvestingResult,
-                temperature=0.0,
-                max_tokens=4000,
-                model_name=model_name
+        count = await persist_knowledge_extractions(
+            knowledge_items, "", data.thread_id, data.project_id
+        )
+        if count:
+            logger.info(
+                f"[Knowledge] ✅ Persisted {count} knowledge items from audit extraction"
             )
 
-            if not result.items:
-                logger.info(f"[Knowledge] No valuable knowledge identified for thread {thread_id}")
-                return
 
-            # 5. Persist valid extractions
-            from app.domain.knowledge.services.store import get_store_service
-            store = get_store_service()
-            
-            count = 0
-            for item in result.items:
-                if item.confidence < 0.7:
-                    continue
-                
-                # Create domain objects
-                doc = MarkdownDocument(
-                    source=f"harvest:{thread_id}",
-                    content=item.content,
-                    mime_type="text/markdown",
-                    metadata={"title": item.title}
-                )
-                
-                meta = DocumentMetadata(
-                    source_file=f"harvest:{thread_id}",
-                    source_mime_type="text/markdown",
-                    file_size_bytes=len(item.content),
-                    title=item.title,
-                    summary=result.summary,
-                    keywords=item.tags
-                )
-                
-                # Path construction: harvests/{category}/{title}
-                safe_title = "".join([c if c.isalnum() else "_" for c in item.title]).lower()
-                kb_path = f"{item.category}/{safe_title}"
-                
-                store.save_document(
-                    document=doc,
-                    metadata=meta,
-                    collection="harvests",
-                    path=kb_path,
-                    source_project_id=project_id
-                )
-                count += 1
-            
-            logger.info(f"[Knowledge] ✅ Successfully harvested {count} knowledge items for thread {thread_id}")
+async def persist_knowledge_extractions(
+    items: list,
+    summary: str,
+    thread_id: str,
+    project_id: int | None,
+) -> int:
+    """Persist extracted knowledge items (no LLM calls)."""
+    from app.domain.knowledge.services.store import get_store_service
 
-        except Exception as e:
-            logger.error(f"[Knowledge] Harvesting failed for thread {thread_id}: {e}")
+    store = get_store_service()
+
+    count = 0
+    for item in items:
+        if item.confidence < 0.7:
+            continue
+
+        doc = MarkdownDocument(
+            source=f"harvest:{thread_id}",
+            content=item.content,
+            mime_type="text/markdown",
+            metadata={"title": item.title},
+        )
+
+        meta = DocumentMetadata(
+            source_file=f"harvest:{thread_id}",
+            source_mime_type="text/markdown",
+            file_size_bytes=len(item.content),
+            title=item.title,
+            summary=summary,
+            keywords=item.tags,
+        )
+
+        safe_title = "".join([c if c.isalnum() else "_" for c in item.title]).lower()
+        kb_path = f"{item.category}/{safe_title}"
+
+        store.save_document(
+            document=doc,
+            metadata=meta,
+            collection="harvests",
+            path=kb_path,
+            source_project_id=project_id,
+        )
+        count += 1
+
+    return count
+
+
+def _register_knowledge_extraction_plugin():
+    """Register the knowledge extraction plugin."""
+    from app.core.engine.extraction import ExtractionPlugin, ExtractionRegistry
+
+    async def handler(data: dict, ctx):
+        from app.domain.knowledge.schemas import ExtractedKnowledge
+
+        item = ExtractedKnowledge(
+            title=data.get("title", ""),
+            content=data.get("content", ""),
+            category=data.get("category", "technical_rule"),
+            tags=data.get("tags", []),
+            confidence=data.get("confidence", 0.7),
+            source_context=data.get("source_context"),
+        )
+        await persist_knowledge_extractions(
+            [item],
+            "",
+            ctx.thread_id,
+            ctx.project_id,
+        )
+
+    ExtractionRegistry.register(
+        ExtractionPlugin(
+            name="knowledge",
+            description=(
+                "Extract architectural decisions, design patterns, business rules, "
+                "environment configuration, and reusable technical references from "
+                "the conversation."
+            ),
+            output_schema={
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "Short descriptive title of the knowledge",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "The actual knowledge content in Markdown",
+                    },
+                    "category": {
+                        "type": "string",
+                        "enum": [
+                            "technical_rule",
+                            "business_logic",
+                            "workflow",
+                            "architecture",
+                            "environment",
+                        ],
+                        "description": "Category of the knowledge",
+                    },
+                    "tags": {"type": "array", "items": {"type": "string"}},
+                    "source_context": {
+                        "type": "string",
+                        "description": "Excerpt from conversation for tracing",
+                    },
+                },
+                "required": ["title", "content", "category"],
+            },
+            confidence_threshold=0.7,
+            handler=handler,
+        )
+    )
+
+
+# Register at import time
+_register_knowledge_extraction_plugin()

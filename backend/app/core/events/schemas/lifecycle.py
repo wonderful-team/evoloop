@@ -30,6 +30,7 @@ class SessionCompletedData(BaseModel):
     original_skill_id: Optional[Any] = None
     ticket_topic: Optional[str] = None
     ticket_reason: Optional[str] = None
+    extracted_data: dict = Field(default_factory=dict, description="Pre-extracted structured items by plugins")
 
 
 class SessionCompletedEvent(BaseEvent):
@@ -54,7 +55,7 @@ class SessionCompletedEvent(BaseEvent):
             "type": "session_completed",
             "thread_id": self.thread_id,
             "timestamp": self.timestamp.isoformat(),
-            "data": self.data.model_dump(exclude={"messages", "blackboard_dict"})
+            "data": self.data.model_dump(exclude={"messages", "blackboard_dict", "extracted_data"})
         }
 
 

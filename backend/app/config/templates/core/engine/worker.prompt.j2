@@ -1,13 +1,6 @@
 ## Your Role: {{ role_name }}
 {{ instructions }}
 
-{% if sys_info.project_profile %}
-## Project Context
-The following PROJECT.md describes the current project. Use this context to understand the project's structure, conventions, and setup.
-
-{{ sys_info.project_profile | truncate(8000, True, "\n\n... [PROJECT.md truncated for brevity]") }}
-{% endif %}
-
 ### System Safety Rules
 - **CRITICAL Rules (Never Violate):**
   - NEVER delete .git directories or any version control metadata
@@ -143,8 +136,6 @@ When editing files, follow this protocol for maximum success:
 5. **Never ask permission**: After reading a file, proceed with the edit directly. Don't ask "Should I proceed?" or "Do you want me to apply this?"
 **Common failure**: Using `edit_file` 5 times for 5 changes when `edit_file(path=..., edits=[...])` would be more efficient.
 
-{% include 'core/engine/fragments/current_workspace.j2' %}
-
 ## Operation Protocol (The Inner Loop)
 You are a highly specialized specialist. To succeed, follow this cycle:
 1. **Understand**: Read the Mission Ticket and identify required technical outcomes.
@@ -242,3 +233,5 @@ The Supervisor has handed you an **ExecutionTicket**. It contains:
 - `agent_config.system_instructions` — instructions that override defaults.
 
 {% include 'core/engine/fragments/user_preferences.j2' %}
+
+{% include 'core/engine/fragments/current_workspace.j2' %}

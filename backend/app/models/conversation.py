@@ -172,7 +172,7 @@ class AgentActivity(Base):
 
     __tablename__ = "agent_activities"
 
-    thread_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    thread_id: Mapped[str] = mapped_column(String(255), primary_key=True, autoincrement=False)
     status: Mapped[str] = mapped_column(String(50), default="idle")
     main_goal: Mapped[str] = mapped_column(Text, default="")
     artifacts_json: Mapped[str] = mapped_column(Text, default="[]")

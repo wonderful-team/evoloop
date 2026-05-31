@@ -70,13 +70,30 @@ class VisionLLMFactory:
         )
         coro = LLMFactory.create_llm(config)
 
-        # Execute the async factory synchronously, handling both sync and async contexts
+        # NOTE: Both fallback paths use ``asyncio.run()`` which creates a *new*
+        # event loop. Since ``LLMFactory._instance_cache`` is keyed by event loop
+        # (``WeakKeyDictionary``), the cached instance is never visible to
+        # subsequent ``create_vision_llm()`` calls — every invocation creates a
+        # fresh LLM instance.
+        # Prefer ``create_vision_llm_async()`` in async contexts so the cache can
+        # serve repeated calls with the same configuration.
         try:
             import asyncio
+            logger.warning(
+                "[VisionLLMFactory] Using asyncio.run() — "
+                "LLM instance cache is bypassed (new event loop). "
+                "Prefer create_vision_llm_async() for cache reuse."
+            )
             return asyncio.run(coro)
         except RuntimeError:
             # Inside a running event loop (e.g., FastAPI request handler).
             # Run in a separate thread with its own event loop to avoid conflicts.
+            logger.warning(
+                "[VisionLLMFactory] Running in separate thread with new event loop — "
+                "LLM instance cache is bypassed. "
+                "Prefer create_vision_llm_async() for cache reuse."
+            )
+
             def _run_coro_in_new_loop(c):
                 import asyncio
                 return asyncio.run(c)

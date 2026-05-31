@@ -77,12 +77,29 @@ async def prune_checkpoints(
                 await conn.execute("PRAGMA foreign_keys = ON")
                 await conn.commit()
             else:
-                blob_del_query = """
-                    DELETE FROM checkpoint_blobs 
-                    WHERE version NOT IN (SELECT checkpoint_id FROM checkpoints)
-                """
-                async with conn.cursor() as cur:
-                    await cur.execute(blob_del_query)
+                if thread_id:
+                    blob_del_query = """
+                        DELETE FROM checkpoint_blobs 
+                        WHERE thread_id = %s AND version NOT IN (
+                            SELECT DISTINCT val 
+                            FROM checkpoints, 
+                                 jsonb_each_text(checkpoint->'channel_versions') AS j(key, val)
+                            WHERE thread_id = %s
+                        )
+                    """
+                    async with conn.cursor() as cur:
+                        await cur.execute(blob_del_query, (thread_id, thread_id))
+                else:
+                    blob_del_query = """
+                        DELETE FROM checkpoint_blobs 
+                        WHERE version NOT IN (
+                            SELECT DISTINCT val 
+                            FROM checkpoints, 
+                                 jsonb_each_text(checkpoint->'channel_versions') AS j(key, val)
+                        )
+                    """
+                    async with conn.cursor() as cur:
+                        await cur.execute(blob_del_query)
 
             logger.info(f"✅ Pruning complete. Removed {total_pruned} old checkpoints.")
 

@@ -1,13 +1,13 @@
 import json
 import logging
 
-from app.constants import DEFAULT_PROJECT_ID
 from app.core.context import ContextManager
 from app.core.engine.state.blackboard import BlackboardState, VerificationStatus
 from app.core.engine.state.config import ExecutionTicket
 from app.infrastructure.config.service import SystemConfigService
 from app.utils import render_template
 from .utils import get_mapped_cwd, get_sandbox_mode
+from ...extraction import ExtractionRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,7 @@ class FinishPromptBuilder:
         """Builds the STATIC Reviewer system prompt."""
         try:
             ctx, actual_cwd, mode, project_concepts = self._prepare_common_context()
+            extraction_section = ExtractionRegistry.build_prompt_section()
             template_vars = {
                 "user_lang": SystemConfigService.get_language_preference(),
                 "project_id": self.project_id,
@@ -60,7 +61,8 @@ class FinishPromptBuilder:
                     "cwd": actual_cwd,
                     "project_concepts": project_concepts,
                 },
-                "audit_context": self.action_context
+                "audit_context": self.action_context,
+                "extraction_section": extraction_section,
             }
 
             return render_template("core/engine/finish.prompt.j2", **template_vars)

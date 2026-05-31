@@ -2,12 +2,12 @@ import asyncio
 import hashlib
 import logging
 import weakref
-from typing import Dict, Any
+from typing import Any
 
 import httpx
 
 from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
-from app.infrastructure.schemas import LLMCacheStats, ThinkingConfig, LLMConfig
+from app.infrastructure.schemas import LLMCacheStats, LLMConfig, ThinkingConfig
 from app.utils.async_utils import LoopBoundResource
 
 logger = logging.getLogger(__name__)
@@ -60,11 +60,11 @@ class EvoCloudPlatformAuth(httpx.Auth):
 
     async def async_auth_flow(self, request):
         from app.core.evocloud import evocloud_manager
-        
+
         # 1. Identify if this is a platform request
         gateway_url = evocloud_manager.api.root_url if evocloud_manager.api else ""
         is_platform = gateway_url and str(request.url).startswith(gateway_url)
-        
+
         if not is_platform:
             # Not a platform request (e.g. direct OpenAI/Anthropic), pass through
             yield request
@@ -75,7 +75,7 @@ class EvoCloudPlatformAuth(httpx.Auth):
         token = await evocloud_manager.get_token()
         if token:
             request.headers["Authorization"] = f"Bearer {token}"
-        
+
         # 3. Send request
         response = yield request
 
@@ -110,11 +110,11 @@ class LLMFactory:
       redundant initialization overhead (~8ms per call).
     - Thread-safe with asyncio.Lock for concurrent access.
     """
-    
+
     # Cache: per-event-loop dict of (cache_key) -> LLM instance
     # WeakKeyDictionary ensures entries are auto-removed when the loop is GC'd,
     # preventing stale references across asyncio.run() boundaries in worker tasks.
-    _instance_cache: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, Dict[str, Any]] = weakref.WeakKeyDictionary()
+    _instance_cache: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, dict[str, Any]] = weakref.WeakKeyDictionary()
     _cache_lock = asyncio.Lock()
     _cache_hits = 0
     _cache_misses = 0
@@ -132,6 +132,13 @@ class LLMFactory:
         """
         Create a standard LLM instance using structured configuration.
         Includes instance caching to avoid redundant initialization.
+
+        Performance notes:
+        - Fast-path cache check without lock for the common case (cache hit).
+        - Instance creation (which may involve I/O like token retrieval) happens
+          OUTSIDE the lock so it never blocks creation of other cache keys.
+        - Double-checked locking prevents redundant creation for the same key
+          when two coroutines race past the fast-path check.
         """
         # 兼容性处理：如果第一个参数是 None，尝试从 kwargs 提取 model_name
         if config is None:
@@ -139,16 +146,16 @@ class LLMFactory:
             if not model_name:
                 raise ValueError("[LLMFactory] model_name or LLMConfig must be specified.")
             config = LLMConfig(model_name=model_name, **kwargs)
-        
+
         # 将字符串类型的 model_name 转换为 LLMConfig
         if isinstance(config, str):
             config = LLMConfig(model_name=config, **kwargs)
-            
+
         # Determine mode for cache key
         config_type = "standard"
         provider = "platform"
         base_url = ""
-        
+
         if config.model_name.startswith("custom-"):
             config_type = "custom"
             provider = config.model_name.split("-")[1]
@@ -160,7 +167,23 @@ class LLMFactory:
         cache_key = LLMFactory._generate_cache_key(
             config_type, provider, base_url, config.model_name, config.temperature, **config.extra_body
         )
-        
+
+        # ---------- Fast path: check cache without lock ----------
+        loop = asyncio.get_running_loop()
+        loop_cache = LLMFactory._instance_cache.get(loop)
+        if loop_cache and cache_key in loop_cache:
+            LLMFactory._cache_hits += 1
+            return loop_cache[cache_key]
+
+        # ---------- Instance creation (outside lock) ----------
+        if config_type == "custom":
+            instance = await LLMFactory._create_custom_llm(config)
+        elif config_type == "direct":
+            instance = await LLMFactory._create_direct_llm(config)
+        else:
+            instance = await LLMFactory._create_platform_llm(config)
+
+        # ---------- Store in cache with double-checked locking ----------
         async with LLMFactory._cache_lock:
             loop = asyncio.get_running_loop()
             loop_cache = LLMFactory._instance_cache.get(loop)
@@ -169,20 +192,16 @@ class LLMFactory:
                 LLMFactory._instance_cache[loop] = loop_cache
 
             if cache_key in loop_cache:
+                # Another coroutine stored it while we were creating — use the cached one
                 LLMFactory._cache_hits += 1
                 return loop_cache[cache_key]
-            
-            LLMFactory._cache_misses += 1
-            logger.debug(f"[LLMFactory] Creating new LLM instance: {config.model_name} (type={config_type})")
 
-            # Detect Mode and Instantiate
-            if config_type == "custom":
-                instance = await LLMFactory._create_custom_llm(config)
-            elif config_type == "direct":
-                instance = await LLMFactory._create_direct_llm(config)
-            else:
-                instance = await LLMFactory._create_platform_llm(config)
-            
+            LLMFactory._cache_misses += 1
+            logger.debug(
+                f"[LLMFactory] Creating new LLM instance: {config.model_name} "
+                f"(type={config_type}, temp={config.temperature}, key={cache_key})"
+            )
+
             loop_cache[cache_key] = instance
             return instance
 
@@ -204,7 +223,7 @@ class LLMFactory:
         }
 
         # Use the current token for initialization.
-        # Note: EvoCloudPlatformAuth will automatically replace it with 
+        # Note: EvoCloudPlatformAuth will automatically replace it with
         # the latest token at request-time if it changes in the background.
         token = await evocloud_manager.get_token() or ""
 
@@ -228,22 +247,22 @@ class LLMFactory:
         parts = config.model_name.split("-", 2)
         if len(parts) < 3:
             raise ValueError(f"Invalid custom model ID: {config.model_name}")
-        
+
         custom_provider = parts[1]
         actual_model = parts[2]
-        
+
         # Use explicit overrides if provided, otherwise fall back to global config
         if not config.base_url or not config.api_key or not config.provider_type:
             from app.infrastructure.config.service import SystemConfigService
             config.provider_type = config.provider_type or SystemConfigService.get_value("LLM_PROVIDER_TYPE")
             config.base_url = config.base_url or SystemConfigService.get_value("LLM_BASE_URL")
             config.api_key = config.api_key or SystemConfigService.get_value("LLM_API_KEY")
-        
+
         if not config.base_url or not config.api_key:
             raise ValueError(f"Custom model '{actual_model}' requires LLM_BASE_URL and LLM_API_KEY")
-        
+
         logger.info(f"[LLMFactory] Custom mode: provider={custom_provider}, model={actual_model}")
-        
+
         return LLMFactory._build_llm_instance(
             api_key=config.api_key,
             base_url=config.base_url,
@@ -262,13 +281,13 @@ class LLMFactory:
         """
         if not config.base_url:
             raise ValueError(f"Direct model '{config.model_name}' requires base_url")
-        
+
         # Use explicit provider_type or detect from URL
         if not config.provider_type:
             config.provider_type = LLMFactory._detect_provider_from_url(config.base_url)
-        
+
         logger.info(f"[LLMFactory] Direct mode: model={config.model_name}, base_url={config.base_url}")
-        
+
         return LLMFactory._build_llm_instance(
             api_key=config.api_key or "",
             base_url=config.base_url,
@@ -373,10 +392,21 @@ class LLMFactory:
 
 # Global instance for easy import if needed, or prefer using Factory.create()
 def get_default_llm(model_name: str | None = None, temperature: float = 0.3, **kwargs):
-    """Get default LLM (async wrapper for backward compatibility)."""
+    """Get default LLM (async wrapper for backward compatibility).
+
+    NOTE: The ``asyncio.run()`` fallback (line 408) creates a *new* event loop,
+    which means the LLM instance cannot be cached by
+    ``LLMFactory._instance_cache`` (a ``WeakKeyDictionary`` keyed by event loop).
+    Every call to this fallback path will create a fresh LLM instance and then
+    discard the loop, guaranteeing a cache miss for subsequent calls.
+    If you see repeated \"Creating new LLM instance\" log entries for the same
+    configuration, check whether this fallback is being triggered and convert
+    the caller to use ``await get_default_llm(...)`` or
+    ``await LLMFactory.create_llm(...)`` directly instead.
+    """
     import asyncio
     config = LLMConfig(model_name=model_name or "gpt-3.5-turbo", temperature=temperature, **kwargs)
-    
+
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():
@@ -384,4 +414,9 @@ def get_default_llm(model_name: str | None = None, temperature: float = 0.3, **k
         else:
             return loop.run_until_complete(LLMFactory.create_llm(config))
     except RuntimeError:
+        logger.warning(
+            f"[LLMFactory] get_default_llm falling back to asyncio.run() — "
+            f"new event loop will bypass the instance cache. "
+            f"model={config.model_name}, temp={config.temperature}"
+        )
         return asyncio.run(LLMFactory.create_llm(config))

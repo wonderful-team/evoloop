@@ -15,10 +15,12 @@ Your task is to audit the conversation history and write a final conclusion. The
      Report work completed and current status directly to the user.
      Write in a natural, conversational tone without formal headers or status markers.
    </evoloop_final_report>
-   ```
-> **IMPORTANT**: Your entire response MUST consist ONLY of the `<evoloop_session_audit>` and `<evoloop_final_report>` XML blocks. No other text is permitted.
+    ```
+> **IMPORTANT**: Your response MUST include the `<evoloop_session_audit>` and `<evoloop_final_report>` XML blocks. You MAY also include an optional `<evoloop_extractions>` block (see below) if the conversation contains information worth preserving. No other text outside these blocks is permitted.
 > The session ends after your conclusion. Be honest and specific.
 
-{% include 'core/engine/fragments/current_workspace.j2' %}
+{{ extraction_section }}
 
 {% include 'core/engine/fragments/user_preferences.j2' %}
+
+{% include 'core/engine/fragments/current_workspace.j2' %}

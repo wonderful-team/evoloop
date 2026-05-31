@@ -5,12 +5,9 @@ Todo Module Event Subscribers
 Handles todo lifecycle (harvesting), memory context provision, and rewind cleanup.
 """
 
-import asyncio
 import logging
-from typing import List
 
-from pydantic import Field
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, or_
 
 from app.core.engine.rewind.event import RewindEventType, RewindRequestedEvent
 from app.core.events import SystemEventType
@@ -22,12 +19,10 @@ from app.core.memory.event import (
     MemoryContextGatherEvent,
 )
 from app.domain.todo.event.schemas import TodoCleanupEvent
+from app.domain.todo.schemas import TodoCreate
+from app.domain.todo.service import TodoService
 from app.infrastructure.database.sql.database import session_scope
 from app.utils import render_template
-from app.domain.todo.service import TodoService
-from app.domain.todo.schemas import TodoHarvestingResult, TodoCreate
-from app.infrastructure.config.service import SystemConfigService
-from app.core.llm import InternalLLMService
 
 logger = logging.getLogger(__name__)
 
@@ -45,96 +40,119 @@ class TodoLifecycleSubscriber:
         Extracts future tasks and coordination items.
         """
         data = event.data
-        logger.info(f"[Todo] 📝 Session completed for {data.thread_id}. Checking for pending actions...")
-
-        # Initialize background context for extraction
-        from app.core.context.manager import ContextManager, EvoContext
-        ctx = EvoContext(
-            thread_id=data.thread_id,
-            project_id=data.project_id,
-            active_model=data.model
-        )
-        token = ContextManager.set(ctx)
-
-        try:
-            # Trigger background harvesting task
-            asyncio.create_task(self._harvest_todos(data))
-        finally:
-            ContextManager.reset(token)
-
-    async def _harvest_todos(self, data):
-        """Internal background method for deep analysis and storage."""
-        thread_id = data.thread_id
-        project_id = data.project_id
-
-        # 1. Check feature flags / settings
-        auto_extract = SystemConfigService.get_value("AUTO_TODO_EXTRACTION", "true").lower() == "true"
-        if not auto_extract:
-            logger.debug(f"[Todo] Auto-extraction disabled for thread {thread_id}")
+        extracted_data = getattr(data, "extracted_data", {}) or {}
+        items = extracted_data.get("todo")
+        if not items:
             return
 
-        logger.info(f"[Todo] 🧠 Harvesting todos for thread {thread_id}...")
+        from app.domain.todo.schemas import ExtractedTodo
 
-        try:
-            # 2. Prepare context and history
-            from app.core.engine.message.repository import MessageRepository
-            repo = MessageRepository(thread_id=thread_id, project_id=project_id)
-            db_messages, _, _ = await repo.get_full_history()
-            
-            if not db_messages:
-                logger.debug(f"[Todo] No messages found for thread {thread_id}, skipping")
-                return
-
-            user_lang = SystemConfigService.get_language_preference()
-            
-            # 3. Render prompt
-            prompt_text = render_template(
-                "core/todo/extraction.prompt.j2",
-                thread_id=thread_id,
-                user_language=user_lang,
-                messages=[{"role": m.role, "content": m.content} for m in db_messages],
-                summary_needed=True
+        todo_items = []
+        for item in items:
+            todo_items.append(
+                ExtractedTodo(
+                    title=item.get("title", ""),
+                    description=item.get("description", ""),
+                    priority=item.get("priority", "medium"),
+                    category=item.get("category", "general"),
+                    confidence=item.get("confidence", 0.7),
+                    reasoning=item.get("reasoning"),
+                )
             )
 
-            # 4. Call InternalLLMService
-            model_name = SystemConfigService.get_value("LLM_MODEL")
-            result = await InternalLLMService.invoke_structured(
-                messages=[{"role": "system", "content": prompt_text}],
-                purpose="todo_extraction",
-                output_schema=TodoHarvestingResult,
-                temperature=0.0,
-                max_tokens=4000,
-                model_name=model_name
+        count = await persist_todo_extractions(
+            todo_items, data.thread_id, data.project_id
+        )
+        if count:
+            logger.info(f"[Todo] ✅ Persisted {count} todos from audit extraction")
+
+
+async def persist_todo_extractions(
+    todos: list,
+    thread_id: str,
+    project_id: int | None,
+) -> int:
+    """Persist extracted todo items (no LLM calls)."""
+    async with session_scope() as session:
+        service = TodoService(session)
+        count = 0
+        for ext in todos:
+            if ext.confidence < 0.7:
+                continue
+            await service.create(
+                TodoCreate(
+                    title=ext.title,
+                    description=ext.description,
+                    priority=ext.priority,
+                    category=ext.category,
+                    project_id=project_id,
+                ),
+                source_conversation_id=thread_id,
             )
+            count += 1
+    return count
 
-            if not result.todos:
-                logger.info(f"[Todo] No pending tasks identified for thread {thread_id}")
-                return
 
-            # 5. Persist valid extractions
-            async with session_scope() as session:
-                service = TodoService(session)
-                count = 0
-                for ext in result.todos:
-                    if ext.confidence < 0.7:
-                        continue
-                    
-                    await service.create(
-                        TodoCreate(
-                            title=ext.title,
-                            description=ext.description,
-                            priority=ext.priority,
-                            category=ext.category,
-                            project_id=project_id
-                        ),
-                        source_conversation_id=thread_id
-                    )
-                    count += 1
-                
-                logger.info(f"[Todo] ✅ Successfully harvested {count} todos for thread {thread_id}")
+def _register_todo_extraction_plugin():
+    """Register the todo extraction plugin."""
+    from app.core.engine.extraction import ExtractionPlugin, ExtractionRegistry
 
-        except Exception as e:
-            logger.error(f"[Todo] Harvesting failed for thread {thread_id}: {e}")
+    async def handler(data: dict, ctx):
+        from app.domain.todo.schemas import ExtractedTodo
+
+        item = ExtractedTodo(
+            title=data.get("title", ""),
+            description=data.get("description", ""),
+            priority=data.get("priority", "medium"),
+            category=data.get("category", "general"),
+            confidence=data.get("confidence", 0.7),
+            reasoning=data.get("reasoning"),
+        )
+        await persist_todo_extractions([item], ctx.thread_id, ctx.project_id)
+
+    ExtractionRegistry.register(
+        ExtractionPlugin(
+            name="todo",
+            description=(
+                "Extract action items, pending tasks, follow-ups, and coordination "
+                "needs that should be tracked from the conversation."
+            ),
+            output_schema={
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "Short title of the task",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Detailed description of what needs to be done",
+                    },
+                    "priority": {
+                        "type": "string",
+                        "enum": ["high", "medium", "low"],
+                        "description": "Priority level",
+                    },
+                    "category": {"type": "string", "description": "Task category"},
+                    "confidence": {
+                        "type": "number",
+                        "description": "Confidence score 0-1",
+                    },
+                    "reasoning": {
+                        "type": "string",
+                        "description": "Why this was identified as a task",
+                    },
+                },
+                "required": ["title", "description", "priority"],
+            },
+            confidence_threshold=0.7,
+            handler=handler,
+        )
+    )
+
+
+# Register at import time
+_register_todo_extraction_plugin()
 
 
 @event_register()
@@ -186,10 +204,10 @@ class TodoRewind:
     def register(cls, bus: AsyncEventBus) -> "TodoRewind":
         """
         Register this handler to the event bus.
-        
+
         Args:
             bus: The event bus to subscribe to
-            
+
         Returns:
             The handler instance
         """
@@ -201,16 +219,16 @@ class TodoRewind:
     async def _handle_rewind_requested(self, event: RewindRequestedEvent) -> None:
         """
         Handle main rewind event - prepare todo cleanup.
-        
+
         Uses event.affected_message_ids (pre-computed by RewindOrchestrator)
         to avoid race conditions with other handlers querying the messages table.
         """
         message_ids = event.affected_message_ids or await self._find_message_ids(
             thread_id=event.thread_id,
             target_message_id=event.target_message_id,
-            include_target=event.include_target
+            include_target=event.include_target,
         )
-        
+
         if message_ids or event.affected_run_ids:
             count = await self._delete_todos(
                 message_ids=message_ids,
@@ -223,7 +241,7 @@ class TodoRewind:
             await publish_todo_cleanup(
                 thread_id=event.thread_id,
                 source_message_ids=message_ids,
-                affected_run_ids=event.affected_run_ids
+                affected_run_ids=event.affected_run_ids,
             )
             logger.info(f"[TodoRewind] Deleted {count} todo items for thread {event.thread_id}")
         else:
@@ -233,7 +251,7 @@ class TodoRewind:
     async def _handle_todo_cleanup(self, event: "TodoCleanupEvent") -> None:
         """
         Handle specific todo cleanup event.
-        
+
         This performs the actual todo deletion.
         """
         try:
@@ -255,16 +273,16 @@ class TodoRewind:
     ) -> list[str]:
         """Find message IDs to clean up for the given thread."""
         from app.models import Message
-        
+
         async with session_scope() as session:
             stmt = select(Message.id).where(Message.thread_id == thread_id)
-            
+
             if target_message_id:
                 # Resolve sequence from UUID
                 stmt_target = select(Message.sequence_number).where(Message.id == target_message_id)
                 res_target = await session.execute(stmt_target)
                 target_seq = res_target.scalar_one_or_none()
-                
+
                 if target_seq is None:
                     logger.warning(f"[TodoRewind] Target message {target_message_id} not found")
                     return []
@@ -286,25 +304,24 @@ class TodoRewind:
         Delete todo items by message IDs or run IDs.
         """
         from app.models.todo import TodoItem
-        
+
         if not message_ids and not run_ids:
             return 0
-            
+
         async with session_scope() as session:
             stmt = delete(TodoItem)
-            
+
             conditions = []
             if message_ids:
                 conditions.append(TodoItem.source_message_id.in_(message_ids))
             if run_ids:
                 conditions.append(TodoItem.run_id.in_(run_ids))
-                
+
             if len(conditions) > 1:
-                from sqlalchemy import or_
                 stmt = stmt.where(or_(*conditions))
             else:
                 stmt = stmt.where(conditions[0])
-                
+
             result = await session.execute(stmt)
             count = result.rowcount
             logger.info(f"[TodoRewind] Deleted {count} todo items")

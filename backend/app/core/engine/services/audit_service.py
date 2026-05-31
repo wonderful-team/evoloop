@@ -19,15 +19,19 @@ import re
 import time
 from typing import Any
 
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import Field
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager
+from app.core.engine.engine import get_default_engine
+from app.core.engine.extraction import ExtractionRegistry
 from app.core.engine.message.reasoning import extract_tool_calls
 from app.core.engine.state import AgentState
 from app.core.engine.state.blackboard import BlackboardState, VerificationStatus
+from app.core.environment import get_awakened_state
+from app.infrastructure.config import SystemConfigService
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
@@ -51,6 +55,7 @@ class AuditResult(DynamicBaseModel):
     meta: dict
     messages: list = Field(default_factory=list)
     blackboard: BlackboardState | None = None
+    extracted_data: dict = Field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -155,16 +160,9 @@ class LayeredAuditor:
                 triggers.append("error_detected")
                 break
 
-        ticket = state.blackboard.ticket
-        if ticket and ticket.complexity == "high":
-            triggers.append("high_complexity")
-
         verification = blackboard.verification
         if verification and verification.status in ("failed", "error"):
             triggers.append("verification_failed")
-
-        if len(messages) > 50:
-            triggers.append("long_conversation")
 
         # NEW: Check for audit anomalies flagged by intermediate layers
         anomalies = blackboard.metadata.audit_anomalies if blackboard and blackboard.metadata else []
@@ -184,9 +182,15 @@ class LayeredAuditor:
         if has_plan or has_plan_progress:
             triggers.append("plan_defined")
 
+        if blackboard and blackboard.metadata and blackboard.metadata.force_comprehensive_audit:
+            triggers.append("user_requested")
+
         if triggers:
             logger.info(f"[AuditService] 🚩 Comprehensive triggers: {triggers}")
             return AuditDecision(tier="comprehensive", reason=f"safety: {', '.join(triggers)}", confidence=1.0)
+
+        if not tool_history:
+            return AuditDecision(tier="minimal", reason="no_tools_used", confidence=0.95)
 
         return AuditDecision(tier="standard", reason="default", confidence=0.90)
 
@@ -200,7 +204,7 @@ class LayeredAuditor:
         blackboard: BlackboardState,
         state: AgentState,
         config: RunnableConfig,
-    ) -> tuple[str, dict]:
+    ) -> tuple[str, dict, dict]:
         start = time.time()
 
         tool_usage = []
@@ -217,7 +221,6 @@ class LayeredAuditor:
                 break
 
         from app.core.engine.prompts import FinishPromptBuilder
-
         builder = FinishPromptBuilder(
             current_plan=state.current_plan or "",
             execution_ticket=blackboard.ticket,
@@ -232,30 +235,101 @@ class LayeredAuditor:
 
         from app.core.llm import InternalLLMService
         from app.infrastructure.config.service import SystemConfigService
+
         model_name = SystemConfigService.get_value("LLM_MODEL")
-        try:
-            response = await asyncio.wait_for(
-                InternalLLMService.invoke(
-                    messages=[{"role": "system", "content": prompt}],
-                    purpose="audit_summary",
-                    temperature=0.1,
-                    max_tokens=500,
-                    model_name=model_name,
-                ),
-                timeout=30.0
+        
+        # Build dynamic extraction schema and instructions
+        DynamicVerdict = ExtractionRegistry.build_dynamic_schema()
+        active_regs = ExtractionRegistry.get_active_plugins()
+        if DynamicVerdict and active_regs:
+            instruction_segments = []
+            for reg in active_regs:
+                instr = getattr(reg, "instructions", None) or reg.description
+                schema_desc = ""
+                if isinstance(reg.output_schema, dict):
+                    props = reg.output_schema.get("properties", {})
+                    if props:
+                        fields_desc = []
+                        for prop_name, prop_schema in props.items():
+                            desc = prop_schema.get('description', '')
+                            p_type = prop_schema.get('type', 'string')
+                            fields_desc.append(f"    - {prop_name} ({p_type}): {desc}")
+                        schema_desc = "Expected fields for each item:\n" + "\n".join(fields_desc)
+                elif hasattr(reg.output_schema, "model_json_schema"):
+                    try:
+                        props = reg.output_schema.model_json_schema().get("properties", {})
+                        if props:
+                            fields_desc = []
+                            for prop_name, prop_schema in props.items():
+                                desc = prop_schema.get('description', '')
+                                p_type = prop_schema.get('type', 'string')
+                                fields_desc.append(f"    - {prop_name} ({p_type}): {desc}")
+                            schema_desc = "Expected fields for each item:\n" + "\n".join(fields_desc)
+                    except Exception:
+                        pass
+                        
+                instruction_segments.append(
+                    f"### Extraction Instructions for '{reg.name}':\n"
+                    f"{reg.description}\n"
+                    f"{schema_desc}\n"
+                    f"Instructions: {instr}"
+                )
+            extra_instructions = "\n\n".join(instruction_segments)
+            prompt = (
+                f"{prompt}\n\n"
+                f"### Optional: Extractions requested\n"
+                f"You should also extract the following lists if any information matches. "
+                f"For each list, if no matching item is found in the conversation history, return an empty list.\n\n"
+                f"{extra_instructions}"
             )
-            summary = response.content.strip()
+
+        extracted_data = {}
+        try:
+            if DynamicVerdict:
+                logger.debug(f"[AuditService] Calling structured LLM for standard audit with DynamicVerdict")
+                response = await asyncio.wait_for(
+                    InternalLLMService.invoke_structured(
+                        messages=[{"role": "system", "content": prompt}],
+                        output_schema=DynamicVerdict,
+                        purpose="audit_summary",
+                        temperature=0.1,
+                        max_tokens=4000,
+                        model_name=model_name,
+                        structured_output_method="json_mode",
+                    ),
+                    timeout=90.0,
+                )
+                if response:
+                    summary = getattr(response, "summary", "Task completed.")
+                    extracted_data = response.model_dump()
+                    extracted_data.pop("summary", None)
+                    extracted_data.pop("is_completed", None)
+                else:
+                    summary = "Task completed."
+            else:
+                response = await asyncio.wait_for(
+                    InternalLLMService.invoke(
+                        messages=[{"role": "system", "content": prompt}],
+                        purpose="audit_summary",
+                        temperature=0.1,
+                        max_tokens=500,
+                        model_name=model_name,
+                    ),
+                    timeout=90.0,
+                )
+                summary = response.content.strip()
         except asyncio.TimeoutError:
-            logger.warning("[AuditService] Standard audit LLM call timed out after 30s. Using fallback summary.")
+            logger.warning("[AuditService] Standard audit LLM call timed out. Using fallback summary.")
             summary = "Task completed (audit timed out)."
         except Exception as e:
-            logger.error(f"[AuditService] Standard audit LLM call failed: {e}")
+            logger.error(f"[AuditService] Standard audit LLM call failed: {e!r}")
             summary = "Task completed (audit failed)."
+            
         if len(summary) < 20:
             summary = f"Task completed. {summary}"
 
         duration = (time.time() - start) * 1000
-        return summary, {"tier": "standard", "duration_ms": duration}
+        return summary, {"tier": "standard", "duration_ms": duration}, extracted_data
 
     # ------------------------------------------------------------------
     # Helpers for structured audit input
@@ -330,7 +404,6 @@ class LayeredAuditor:
         iteration_count = state.iteration_count or 0
         project_id = ctx.project_id if ctx.project_id is not None else (state.project_id if state.project_id is not None else DEFAULT_PROJECT_ID)
 
-        from app.core.environment import get_awakened_state
         awakened_state = get_awakened_state()
         telemetry: dict[str, Any] = {}
         if awakened_state:
@@ -372,7 +445,6 @@ class LayeredAuditor:
         logger.info("[AuditService] 🕵️ Starting Comprehensive Audit")
 
         if audit_ticket:
-            from langchain_core.messages import HumanMessage
             messages = [HumanMessage(content=audit_ticket, name="audit_ticket")] + messages
 
         # Phase 1: If structured input is available, truncate older messages to reduce context
@@ -395,7 +467,6 @@ class LayeredAuditor:
         execution_state = state.model_copy(update={"messages": messages})
         model = clean_config.get("configurable", {}).get("model")
 
-        from app.core.engine.engine import get_default_engine
         engine = get_default_engine()
         result = await engine.run_node(
             state=execution_state,
@@ -409,12 +480,92 @@ class LayeredAuditor:
         )
 
         summary = _extract_final_summary(result.messages or [])
+
+        # --- Comprehensive Audit structured extraction and dispatch ---
+        from app.core.llm import InternalLLMService
+
+        DynamicVerdict = ExtractionRegistry.build_dynamic_schema(include_base_fields=False)
+        extracted_data = {}
+        if DynamicVerdict:
+            try:
+                model_name = SystemConfigService.get_value("LLM_MODEL")
+                active_regs = ExtractionRegistry.get_active_plugins()
+                instruction_segments = []
+                for reg in active_regs:
+                    instr = getattr(reg, "instructions", None) or reg.description
+                    schema_desc = ""
+                    if isinstance(reg.output_schema, dict):
+                        props = reg.output_schema.get("properties", {})
+                        if props:
+                            fields_desc = []
+                            for prop_name, prop_schema in props.items():
+                                desc = prop_schema.get('description', '')
+                                p_type = prop_schema.get('type', 'string')
+                                fields_desc.append(f"    - {prop_name} ({p_type}): {desc}")
+                            schema_desc = "Expected fields for each item:\n" + "\n".join(fields_desc)
+                    elif hasattr(reg.output_schema, "model_json_schema"):
+                        try:
+                            props = reg.output_schema.model_json_schema().get("properties", {})
+                            if props:
+                                fields_desc = []
+                                for prop_name, prop_schema in props.items():
+                                    desc = prop_schema.get('description', '')
+                                    p_type = prop_schema.get('type', 'string')
+                                    fields_desc.append(f"    - {prop_name} ({p_type}): {desc}")
+                                schema_desc = "Expected fields for each item:\n" + "\n".join(fields_desc)
+                        except Exception:
+                            pass
+                            
+                    instruction_segments.append(
+                        f"### Extraction Instructions for '{reg.name}':\n"
+                        f"{reg.description}\n"
+                        f"{schema_desc}\n"
+                        f"Instructions: {instr}"
+                    )
+                extra_instructions = "\n\n".join(instruction_segments)
+
+                history_text = ""
+                for msg in messages[-15:]:
+                    if msg.content:
+                        history_text += f"{msg.type}: {msg.content}\n"
+
+                extract_prompt = (
+                    f"You are an expert data extractor. Based on the conversation summary and the recent conversation history below, "
+                    f"extract all relevant items according to the requested schemas.\n\n"
+                    f"Conversation Summary:\n{summary}\n\n"
+                    f"Recent Conversation History:\n{history_text}\n\n"
+                    f"### Optional: Extractions requested\n"
+                    f"For each list field in the schema, if no matching item is found in the history, return an empty list.\n\n"
+                    f"{extra_instructions}"
+                )
+
+                logger.info("[AuditService] Calling structured LLM for comprehensive audit extraction")
+                response = await asyncio.wait_for(
+                    InternalLLMService.invoke_structured(
+                        messages=[{"role": "system", "content": extract_prompt}],
+                        output_schema=DynamicVerdict,
+                        purpose="audit_extraction",
+                        temperature=0.1,
+                        max_tokens=4000,
+                        model_name=model_name,
+                        structured_output_method="json_mode",
+                    ),
+                    timeout=90.0,
+                )
+                if response:
+                    extracted_data = response.model_dump()
+                    extracted_data.pop("summary", None)
+                    extracted_data.pop("is_completed", None)
+            except Exception as e:
+                logger.error(f"[AuditService] Comprehensive audit structured extraction failed: {e!r}")
+
         return AuditResult(
             summary=summary,
             tier="comprehensive",
             meta={"tier": "comprehensive", "duration_ms": 0},
             messages=result.messages or [],
             blackboard=result.blackboard,
+            extracted_data=extracted_data,
         )
 
 
@@ -476,10 +627,10 @@ class AuditService:
         logger.info(f"[AuditService] Audit tier: {tier.upper()} ({decision.reason})")
 
         if tier == "standard":
-            summary, meta = await self._auditor.audit_standard(
+            summary, meta, extracted_data = await self._auditor.audit_standard(
                 state.messages, state.blackboard, state, config
             )
-            return AuditResult(summary=summary, tier=tier, meta=meta)
+            return AuditResult(summary=summary, tier=tier, meta=meta, extracted_data=extracted_data)
 
         # comprehensive
         return await self._auditor.audit_comprehensive(state, config)

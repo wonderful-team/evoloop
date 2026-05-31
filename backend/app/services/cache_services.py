@@ -279,8 +279,12 @@ class ActivityStateService:
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:
-                activity = AgentActivity(thread_id=thread_id)
-                session.add(activity)
+                logger.warning(
+                    f"[ActivityStateService] update_field('{field}') skipped: "
+                    f"no AgentActivity record for thread_id='{thread_id}'. "
+                    "Records must be created via start_run, not lazily on update."
+                )
+                return False
             setattr(activity, db_field, value)
         return True
 

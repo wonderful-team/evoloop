@@ -13,9 +13,11 @@ import time
 from langchain_core.messages import AIMessage, RemoveMessage
 from langchain_core.runnables import RunnableConfig
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.engine.checkpoint.pruner import auto_prune_on_completion
 from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
+from app.core.engine.extraction import ExtractionRegistry, ExtractionContext
 from app.core.engine.nodes.base import BaseNode
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.services.audit_service import AuditResult, AuditService
@@ -257,6 +259,33 @@ class FinishNode(BaseNode):
             else:
                 logger.warning(f"[Finish] ⚠️ Audit verdict: INCOMPLETE, but iteration limit ({max_steps}) reached. Forcing completion.")
 
+        # Mark thread handled in ExtractionRegistry to prevent redundant background extractions
+        ExtractionRegistry.mark_thread_handled(effective_thread_id)
+
+        # --------------------------------------------------------------
+        # 1b. Parse & dispatch extractions (only from comprehensive audit)
+        # --------------------------------------------------------------
+        if audit_tier == "comprehensive" and audit_result.messages and not ExtractionRegistry.is_thread_handled(effective_thread_id):
+            try:
+                project_id = ctx.project_id if ctx.project_id is not None else (state.project_id if state.project_id is not None else DEFAULT_PROJECT_ID)
+                
+                meta_run_id = config.get("configurable", {}).get("run_id")
+                extraction_ctx = ExtractionContext(
+                    thread_id=effective_thread_id,
+                    project_id=project_id,
+                    user_id=ctx.user_id,
+                    run_id=meta_run_id,
+                    summary=summary,
+                )
+                handled = await ExtractionRegistry.parse_and_dispatch_from_messages(
+                    audit_result.messages,
+                    extraction_ctx,
+                )
+                if handled:
+                    logger.info(f"[Finish] 📦 Dispatched {handled} extraction(s) to registered plugins")
+            except Exception as e:
+                logger.warning(f"[Finish] Extraction dispatch failed (non-fatal): {e}")
+
         # Audit complete - do not overwrite conversation message content with the internal audit summary
         logger.debug(f"[Finish] Audit complete (tier={audit_tier}) - not updating message content.")
 
@@ -308,6 +337,10 @@ class FinishNode(BaseNode):
         metadata = config.get("metadata", {})
         run_id = config.get("configurable", {}).get("run_id")
 
+        extracted_data = getattr(audit_result, "extracted_data", {})
+        if not isinstance(extracted_data, dict):
+            extracted_data = {}
+
         event_data = SessionCompletedData(
             thread_id=effective_thread_id,
             run_id=run_id,
@@ -324,6 +357,7 @@ class FinishNode(BaseNode):
             original_skill_id=metadata.get("original_skill_id"),
             ticket_topic=blackboard.ticket.topic if blackboard.ticket else None,
             ticket_reason=blackboard.ticket.reason if blackboard.ticket else None,
+            extracted_data=extracted_data,
         )
 
         from app.core.events.publishers import publish_session_completed

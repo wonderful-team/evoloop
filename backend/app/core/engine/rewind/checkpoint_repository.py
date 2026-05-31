@@ -81,12 +81,19 @@ class CheckpointRepository:
 
             # Cleanup blobs (best effort)
             try:
-                if settings.EMBEDDED_MODE:
-                    await conn.execute("DELETE FROM checkpoint_blobs")
-                else:
+                if not settings.EMBEDDED_MODE:
+                    blob_del_sql = """
+                        DELETE FROM checkpoint_blobs 
+                        WHERE thread_id = %s AND version NOT IN (
+                            SELECT DISTINCT val 
+                            FROM checkpoints, 
+                                 jsonb_each_text(checkpoint->'channel_versions') AS j(key, val)
+                            WHERE thread_id = %s
+                        )
+                    """
                     async with conn.cursor() as cur:
-                        await cur.execute("DELETE FROM checkpoint_blobs")
-            except Exception:
-                pass
+                        await cur.execute(blob_del_sql, (thread_id, thread_id))
+            except Exception as e:
+                logger.error(f"[CheckpointRepository] Failed to cleanup blobs: {e}")
 
             return deleted_checkpoints, deleted_writes

@@ -119,11 +119,17 @@ class RouteToHandler(SignalHandler[RouteToSignal]):
             from app.core.engine.message.goal_distiller import GoalDistiller
             session_goal = GoalDistiller.from_explicit(session_goal) or ""
             if session_goal:
-                try:
-                    from app.core.monitoring.activity import activity_monitor
-                    await activity_monitor.update_goal(state.thread_id, session_goal)
-                except Exception as e:
-                    logger.warning(f"Failed to update session goal in RouteToHandler: {e}")
+                if not state.thread_id:
+                    logger.warning(
+                        "[Routing] Skipping session goal update: state.thread_id is None. "
+                        f"goal='{session_goal[:80]}'"
+                    )
+                else:
+                    try:
+                        from app.core.monitoring.activity import activity_monitor
+                        await activity_monitor.update_goal(state.thread_id, session_goal)
+                    except Exception as e:
+                        logger.warning(f"Failed to update session goal in RouteToHandler: {e}")
 
         return StateUpdate(
             next_node=target,
