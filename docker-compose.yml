@@ -61,6 +61,7 @@ services:
     env_file:
       - .env
     environment:
+      - EVOLOOP_APP_DATA_DIR=/root/.evoloop
       - DOMAIN=${DOMAIN}
       - FRONTEND_HOST=${FRONTEND_HOST?Variable not set}
       - ENVIRONMENT=${ENVIRONMENT}
@@ -96,6 +97,7 @@ services:
     env_file:
       - .env
     environment:
+      - EVOLOOP_APP_DATA_DIR=/root/.evoloop
       - DOMAIN=${DOMAIN}
       - ENVIRONMENT=${ENVIRONMENT}
       - SECRET_KEY=${SECRET_KEY?Variable not set}
