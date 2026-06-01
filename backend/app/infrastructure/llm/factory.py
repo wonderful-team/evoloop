@@ -1,12 +1,12 @@
 import asyncio
 import hashlib
+import httpx
 import json
 import logging
 import weakref
 from typing import Any
 
-import httpx
-
+from app.infrastructure.config import SystemConfigService
 from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
 from app.infrastructure.schemas import LLMCacheStats, LLMConfig, ThinkingConfig
 from app.utils.async_utils import LoopBoundResource
@@ -105,7 +105,7 @@ _HTTP_CLIENT_POOL = LoopBoundResource(
 class LLMFactory:
     """
     Factory for creating LLM instances with consistent configuration.
-    
+
     Optimization:
     - Instance caching: Reuses LLM instances with same config to avoid
       redundant initialization overhead (~8ms per call).
@@ -163,6 +163,20 @@ class LLMFactory:
         elif config.base_url or config.api_key:
             config_type = "direct"
             base_url = config.base_url or ""
+        else:
+            # Fallback: check if custom LLM is configured in the database.
+            # If LLM_BASE_URL is set, treat as direct mode with DB values.
+            db_base_url = SystemConfigService.get_value("LLM_BASE_URL")
+            db_api_key = SystemConfigService.get_value("LLM_API_KEY")
+            if db_base_url:
+                config_type = "direct"
+                base_url = db_base_url
+                db_provider_type = SystemConfigService.get_value("LLM_PROVIDER_TYPE") or "openai"
+                provider = db_provider_type
+                # Inject DB values into config so _create_direct_llm uses them
+                config.base_url = db_base_url
+                config.api_key = config.api_key or db_api_key
+                config.provider_type = db_provider_type
 
         # Generate cache key
         cache_key = LLMFactory._generate_cache_key(
@@ -254,7 +268,6 @@ class LLMFactory:
 
         # Use explicit overrides if provided, otherwise fall back to global config
         if not config.base_url or not config.api_key or not config.provider_type:
-            from app.infrastructure.config.service import SystemConfigService
             config.provider_type = config.provider_type or SystemConfigService.get_value("LLM_PROVIDER_TYPE")
             config.base_url = config.base_url or SystemConfigService.get_value("LLM_BASE_URL")
             config.api_key = config.api_key or SystemConfigService.get_value("LLM_API_KEY")
@@ -339,8 +352,6 @@ class LLMFactory:
             )
         else:
             # openai, deepseek, moonshot, ollama, vllm, etc.
-            # 1. Load custom headers from database
-            from app.infrastructure.config.service import SystemConfigService
             db_headers_str = SystemConfigService.get_value("LLM_HEADERS", "{}")
             try:
                 final_headers = json.loads(db_headers_str) if db_headers_str else {}
@@ -381,10 +392,7 @@ class LLMFactory:
 
     @staticmethod
     def create_completion_client(
-        base_url: str,
-        api_key: str,
-        model_name: str,
-        temperature: float = 0.7
+        base_url: str, api_key: str, model_name: str, temperature: float = 0.7
     ):
         """
         Create a raw Completion client (Legacy/Text-Generation) for SSM/Flash Brain.
@@ -414,8 +422,7 @@ def get_default_llm(model_name: str | None = None, temperature: float = 0.3, **k
     the caller to use ``await get_default_llm(...)`` or
     ``await LLMFactory.create_llm(...)`` directly instead.
     """
-    import asyncio
-    config = LLMConfig(model_name=model_name or "gpt-3.5-turbo", temperature=temperature, **kwargs)
+    config = LLMConfig(model_name=model_name, temperature=temperature, **kwargs)
 
     try:
         loop = asyncio.get_event_loop()

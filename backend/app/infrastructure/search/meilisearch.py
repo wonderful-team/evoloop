@@ -42,10 +42,7 @@ class MeilisearchBackend:
             try:
                 from meilisearch import Client
             except ImportError:
-                raise ImportError(
-                    "meilisearch-python is not installed. "
-                    "Install with: pip install meilisearch"
-                )
+                raise ImportError("meilisearch-python is not installed. Install with: pip install meilisearch")
             self._client = Client(
                 settings.MEILISEARCH_URL,
                 settings.MEILISEARCH_API_KEY or None,

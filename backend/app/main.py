@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI):
     await db_resource_manager.initialize(create_tables=True, seed_data=True)
     checkpointer = db_resource_manager.checkpointer
 
-    # 2. Memory System Init
+    # Memory System Init
     try:
         from app.core.memory.lifespan import MemoryLifespanManager
         memory_container = await MemoryLifespanManager.ainitialize()
@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to initialize Memory Service: {e}")
 
-    # 2.5 Agent Awakening - Discovery & Lifecycle Handlers
+    # Agent Awakening - Discovery & Lifecycle Handlers
     try:
         from app.core.events.discovery import auto_discover_handlers
         auto_discover_handlers()
@@ -53,7 +53,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Agent Awakening/Discovery failed (non-critical): {e}")
 
-    # 4. Engine Graph (Dynamic Build)
+    # Engine Graph (Dynamic Build)
     try:
         builder = GraphBuilder()
         config_path = os.path.join(os.path.dirname(__file__), "core/engine/config/agent_main.yaml")
@@ -64,10 +64,7 @@ async def lifespan(app: FastAPI):
         logger.critical(f"Failed to build Agent Graph: {e}")
         raise
 
-    # 5. Domain Cleanup/Setup - Now managed by LifecycleHandlers
-    # (EvoCloud bridge, Discovery, Indexing, MCP, Knowledge Base)
-
-    # 11. Publish Application Started Event
+    # Publish Application Started Event
     from app.core.events.publishers import publish_app_started
     await publish_app_started(startup_time)
     logger.info("[Startup] APP_STARTED event published")
@@ -88,7 +85,6 @@ async def lifespan(app: FastAPI):
     
     # 2. Cleanup Core Infrastructure (Infrastructure MUST be last)
     await db_resource_manager.shutdown()
-    logger.info("Database resources closed")
 
     logger.info("EvoLoop shutdown complete.")
 

@@ -110,7 +110,9 @@ class Settings(BaseSettings):
     # "meilisearch": Force Meilisearch (external service)
     SEARCH_ENGINE: Literal["auto", "sqlite_fts", "meilisearch"] = "auto"
     SEARCH_DB_PATH: Annotated[str, BeforeValidator(expand_path)] = Field(
-        default_factory=lambda: os.path.expanduser("~/.evoloop/database/search.db")
+        default_factory=lambda: os.path.expanduser(
+            os.path.join(os.getenv("EVOLOOP_APP_DATA_DIR", "~/.evoloop"), "database/search.db")
+        )
     )
     # Meilisearch settings (used when SEARCH_ENGINE=meilisearch)
     MEILISEARCH_URL: str = "http://localhost:7700"
@@ -120,18 +122,24 @@ class Settings(BaseSettings):
     # Allow override via env var for dev/prod isolation
     SQLITE_PATH: Annotated[str, BeforeValidator(expand_path)] = Field(
         default_factory=lambda: os.path.expanduser(
-            os.getenv("SQLITE_DB_PATH", "~/.evoloop/database/backend.db")
+            os.getenv("SQLITE_DB_PATH", os.path.join(
+                os.getenv("EVOLOOP_APP_DATA_DIR", "~/.evoloop"), "database/backend.db")
+            )
         ),
     )
 
     # LanceDB (for embedded vector storage)
     LANCEDB_PATH: Annotated[str, BeforeValidator(expand_path)] = Field(
-        default_factory=lambda: os.path.expanduser("~/.evoloop/database/lancedb"),
+        default_factory=lambda: os.path.expanduser(
+            os.path.join(os.getenv("EVOLOOP_APP_DATA_DIR", "~/.evoloop"), "database/lancedb")
+        ),
     )
 
     # Knowledge Base Storage
     KNOWLEDGE_BASE_PATH: Annotated[str, BeforeValidator(expand_path)] = Field(
-        default_factory=lambda: os.path.expanduser("~/.evoloop/knowledge"),
+        default_factory=lambda: os.path.expanduser(
+            os.path.join(os.getenv("EVOLOOP_APP_DATA_DIR", "~/.evoloop"), "knowledge")
+        ),
     )
 
     @computed_field  # type: ignore[prop-decorator]
@@ -219,7 +227,9 @@ class Settings(BaseSettings):
 
     # AI Models Storage Configuration
     MODELS_DIR: Annotated[str, BeforeValidator(expand_path)] = Field(
-        default_factory=lambda: os.path.expanduser("~/.evoloop/models"),
+        default_factory=lambda: os.path.expanduser(
+            os.path.join(os.getenv("EVOLOOP_APP_DATA_DIR", "~/.evoloop"), "models")
+        ),
     )  # Directory for storing AI models (FunASR, embeddings, etc.)
 
     # Embedding Configuration

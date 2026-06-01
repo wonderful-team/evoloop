@@ -5,16 +5,28 @@ import psutil
 from fastapi import APIRouter, Depends
 
 from app.api.deps import get_current_user
-from app.api.schemas.system import EmbeddingConfigRequest, SystemStatusResponse, HealthCheckResponse, \
-    EmbeddingTestResponse, EmbeddingApplyResponse, LLMTestResponse, LLMApplyResponse, ResetKnowledgeResponse, \
-    CloudStatusResponse, ModelsListResponse, ProjectDiscoveryConfigUpdateResponse, LLMConfigRequest, \
-    ProjectDiscoveryConfigResponse, ProjectDiscoveryConfigRequest
+from app.api.schemas.system import (
+    CloudStatusResponse,
+    EmbeddingApplyResponse,
+    EmbeddingConfigRequest,
+    EmbeddingTestResponse,
+    HealthCheckResponse,
+    LLMApplyResponse,
+    LLMConfigRequest,
+    LLMTestResponse,
+    ModelsListResponse,
+    ProjectDiscoveryConfigRequest,
+    ProjectDiscoveryConfigResponse,
+    ProjectDiscoveryConfigUpdateResponse,
+    ResetKnowledgeResponse,
+    SystemStatusResponse,
+)
 from app.infrastructure.config import EmbeddingConfigService
 from app.infrastructure.config.service import SystemConfigService
-from app.infrastructure.llm import LLMConfigService
+from app.infrastructure.llm import LLMConfigService, LLMFactory
 from app.infrastructure.llm.platform_service import (
-    get_available_llm_models,
     get_available_embedding_models,
+    get_available_llm_models,
 )
 from app.models.system import SystemConfig
 
@@ -28,7 +40,7 @@ def get_system_status() -> SystemStatusResponse:
     """
     cpu_percent = psutil.cpu_percent(interval=None)
     ram = psutil.virtual_memory()
-    
+
     return SystemStatusResponse(
         cpu_percent=cpu_percent,
         ram_percent=ram.percent,
@@ -84,16 +96,16 @@ async def apply_embedding_config(req: EmbeddingConfigRequest) -> EmbeddingApplyR
         dimensions=req.dimensions,
         current_project_id=req.project_id,
     )
-    
+
     # Save Custom Model Name (always save the model name provided in the config card)
     SystemConfigService.set_value("CUSTOM_EMBEDDING_MODEL", req.model)
-    
+
     # Save Default Model ID for Embedding
     default_id = req.default_model_id or req.model
     if not default_id.startswith("embedding-"):
         # Auto-prefix platform models if needed, but usually frontend sends the ID
         pass
-    
+
     SystemConfigService.set_value("EMBEDDING_MODEL", default_id)
     return EmbeddingApplyResponse(
         status="applied",
@@ -123,11 +135,15 @@ async def apply_llm_config(req: LLMConfigRequest) -> LLMApplyResponse:
     """
     Apply new LLM config.
     """
+    # Determine config type based on whether a custom base URL is provided
+    config_type = "custom" if req.base_url else "platform"
+    SystemConfigService.set_value("LLM_CONFIG_TYPE", config_type)
+
     # Save provider details (used for Custom mode)
     SystemConfigService.set_value("LLM_PROVIDER", req.provider)
     SystemConfigService.set_value("LLM_PROVIDER_TYPE", req.provider_type)
     SystemConfigService.set_value("LLM_BASE_URL", req.base_url or "")
-    
+
     # Save the Default Model ID
     default_id = req.default_model_id or req.model
     SystemConfigService.set_value("LLM_MODEL", default_id)
@@ -142,7 +158,7 @@ async def apply_llm_config(req: LLMConfigRequest) -> LLMApplyResponse:
         SystemConfigService.set_value("VISION_PROVIDER_TYPE", req.vision_provider_type)
     if req.api_key:
         SystemConfigService.set_value("LLM_API_KEY", req.api_key)
-    
+
     # Save Custom Model Name (always save the model name provided in the config card)
     SystemConfigService.set_value("CUSTOM_LLM_MODEL", req.model)
 
@@ -151,7 +167,6 @@ async def apply_llm_config(req: LLMConfigRequest) -> LLMApplyResponse:
     SystemConfigService.set_value("LLM_HEADERS", headers_str)
 
     # Clear LLM Factory cache
-    from app.infrastructure.llm.factory import LLMFactory
     LLMFactory.clear_cache()
 
     return LLMApplyResponse(status="applied", message="LLM Configuration applied successfully.")
@@ -189,21 +204,18 @@ async def get_cloud_status() -> CloudStatusResponse:
 async def get_llm_models(config_type: str = None) -> ModelsListResponse:
     """
     获取可用的 LLM 模型列表
-    
+
     Args:
         config_type: 配置类型过滤 (platform/custom)
                     platform - 只返回平台提供的模型
                     custom - 只返回自定义模型
                     不传则根据系统配置自动过滤
-    
+
     返回:
         符合条件的模型列表
     """
     models = await get_available_llm_models(config_type=config_type)
-    return ModelsListResponse(
-        models=models,
-        last_updated=time.strftime("%Y-%m-%d")
-    )
+    return ModelsListResponse(models=models, last_updated=time.strftime("%Y-%m-%d"))
 
 
 @router.get("/embedding/models")
@@ -212,10 +224,7 @@ async def get_embedding_models() -> ModelsListResponse:
     获取可用的 Embedding 模型列表（包含平台模型和自定义模型）
     """
     models = await get_available_embedding_models()
-    return ModelsListResponse(
-        models=models,
-        last_updated=time.strftime("%Y-%m-%d")
-    )
+    return ModelsListResponse(models=models, last_updated=time.strftime("%Y-%m-%d"))
 
 
 # --- Project Discovery Config ---
@@ -224,7 +233,7 @@ async def get_embedding_models() -> ModelsListResponse:
 async def get_project_discovery_config():
     """
     获取项目自动发现功能的配置状态。
-    
+
     Returns:
         enabled: 是否启用项目发现
         source: 配置来源 (env-环境变量, config-系统配置, default-默认值)
@@ -234,7 +243,7 @@ async def get_project_discovery_config():
     if config_value is not None:
         enabled = config_value.lower() in ("true", "1", "yes", "on")
         return ProjectDiscoveryConfigResponse(enabled=enabled, source="config")
-    
+
     # Default: enabled
     return ProjectDiscoveryConfigResponse(enabled=True, source="default")
 
@@ -243,16 +252,16 @@ async def get_project_discovery_config():
 async def set_project_discovery_config(req: ProjectDiscoveryConfigRequest) -> ProjectDiscoveryConfigUpdateResponse:
     """
     设置项目自动发现功能的启用/禁用状态。
-    
+
     Note: 如果通过环境变量 DISABLED，此处设置将无效（环境变量优先级最高）
     """
     from app.domain.project.discovery_manager import discovery_manager
-    
+
     # Set the configuration
     success = await discovery_manager.set_discovery_enabled(req.enabled)
-    
+
     return ProjectDiscoveryConfigUpdateResponse(
         success=success,
         enabled=req.enabled,
-        message=f"Project discovery {'enabled' if req.enabled else 'disabled'} successfully"
+        message=f"Project discovery {'enabled' if req.enabled else 'disabled'} successfully",
     )
