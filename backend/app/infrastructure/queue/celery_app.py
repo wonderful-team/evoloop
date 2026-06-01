@@ -8,17 +8,31 @@ connected to Redis broker. Used by factory.py for distributed task execution.
 import logging
 from pathlib import Path
 
+from celery.signals import setup_logging
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 
+@setup_logging.connect
+def config_loggers(*args, **kwargs):
+    """
+    Hook into Celery's logging setup to ensure our app's custom logging configuration
+    is applied to both the main Celery process and any spawned worker processes.
+    """
+    from app.logging import setup_logging as app_setup_logging
+    app_setup_logging()
+    
+    # Also ensure celery task logger propagates or we configure root
+    # setup_logging() already sets the root logger, which handles everything.
+
+
 def create_celery_app():
     """Create and return a configured Celery application instance."""
     from celery import Celery
+    import os
 
-    db_dir = Path.home() / ".evoloop" / "database"
-    db_dir.mkdir(parents=True, exist_ok=True)
+    os.makedirs(os.path.dirname(settings.CELERY_SCHEDULE_DB_PATH), exist_ok=True)
 
     from app.infrastructure.queue.discovery import discover_task_modules
 
@@ -35,7 +49,7 @@ def create_celery_app():
         result_serializer="json",
         timezone="UTC",
         enable_utc=True,
-        beat_schedule_filename=str(db_dir / "celerybeat-schedule.db"),
+        beat_schedule_filename=settings.CELERY_SCHEDULE_DB_PATH,
         beat_schedule={
             "cleanup-screenshots-daily": {
                 "task": "app.core.vision.cleanup_screenshots",
@@ -60,3 +74,4 @@ def create_celery_app():
 
 # Module-level app for Celery CLI (-A app.infrastructure.queue.celery_app) and tests
 celery_app = create_celery_app()
+

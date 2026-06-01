@@ -26,6 +26,7 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.engine.graph_runner import resume_graph_background
+from app.core.engine.tasks import run_agent_background_task
 from app.core.evocloud import evocloud_manager
 from app.core.globals import get_graph
 from app.core.monitoring.activity import activity_monitor
@@ -113,9 +114,8 @@ async def chat_endpoint(req: ChatRequest, bg_tasks: BackgroundTasks, _current_us
     if settings.EMBEDDED_MODE:
         bg_tasks.add_task(run_agent_background, req.thread_id, result.inputs)
     else:
-        from app.infrastructure.queue.factory import get_scheduler
-        get_scheduler().send_task("engine_run_agent_background", args=(req.thread_id, result.inputs))
-        
+        run_agent_background_task.delay(req.thread_id, result.inputs)
+
     return {"status": "queued", "thread_id": req.thread_id, "message_id": result.message_id}
 
 
@@ -652,6 +652,7 @@ async def stop_chat(req: ChatRequest):
     await activity_monitor.stop_run(req.thread_id)
     return StopChatResponse(status="stopping", thread_id=req.thread_id)
 
+
 @router.post("/chat/retry", dependencies=[Depends(verify_guest_access)])
 async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Request = None, _current_user: CurrentUserOptional = None, token: TokenDepOptional = None):
     """
@@ -753,8 +754,7 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Requ
             from app.core.engine.rewind.exceptions import RewindError
             raise RewindError(error_msg, thread_id=req.thread_id)
 
-        logger.info(f"[Retry] Rewind completed: {result.removed_message_count} messages removed, "
-                   f"{result.reverted_file_count} files reverted")
+        logger.info(f"[Retry] Rewind completed: {result.removed_message_count} messages removed, {result.reverted_file_count} files reverted")
 
     except MessageNotFoundError:
         raise HTTPException(status_code=404, detail="Target message not found for retry")
@@ -803,8 +803,7 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Requ
     if settings.EMBEDDED_MODE:
         bg_tasks.add_task(run_agent_background, req.thread_id, result.inputs)
     else:
-        from app.infrastructure.queue.factory import get_scheduler
-        get_scheduler().send_task("engine_run_agent_background", args=(req.thread_id, result.inputs))
+        run_agent_background_task.delay(req.thread_id, result.inputs)
 
     return {
         "status": "queued",
@@ -924,6 +923,7 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks, _current_us
         )
 
     return ResumeChatResponse(status="resuming", thread_id=req.thread_id)
+
 
 @router.post("/hitl/cancel")
 async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks):
@@ -1051,7 +1051,6 @@ async def webhook_endpoint(req: WebhookRequest, bg_tasks: BackgroundTasks):
     if settings.EMBEDDED_MODE:
         bg_tasks.add_task(run_agent_background, tid, result.inputs)
     else:
-        from app.infrastructure.queue.factory import get_scheduler
-        get_scheduler().send_task("engine_run_agent_background", args=(tid, result.inputs))
+        run_agent_background_task.delay(tid, result.inputs)
 
     return WebhookResponse(status="accepted", thread_id=tid)

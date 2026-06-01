@@ -370,7 +370,7 @@ case "${1:-help}" in
         # 兜底：强制终止可能残留的子进程（例如多进程 Worker fork 出来的进程）
         pkill -f "python.*bin/run.py api" 2>/dev/null || true
         pkill -f "python.*bin/run.py worker" 2>/dev/null || true
-        pkill -f "python.*scripts.run_worker" 2>/dev/null || true
+        pkill -f "python.*bin.run_worker" 2>/dev/null || true
         pkill -f "celery.*beat" 2>/dev/null || true
         
         success "所有服务已彻底停止"

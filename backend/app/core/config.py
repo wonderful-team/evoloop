@@ -135,6 +135,13 @@ class Settings(BaseSettings):
         ),
     )
 
+    # Celery Beat Schedule DB
+    CELERY_SCHEDULE_DB_PATH: Annotated[str, BeforeValidator(expand_path)] = Field(
+        default_factory=lambda: os.path.expanduser(
+            os.path.join(os.getenv("EVOLOOP_APP_DATA_DIR", "~/.evoloop"), "database/celerybeat-schedule.db")
+        ),
+    )
+
     # Knowledge Base Storage
     KNOWLEDGE_BASE_PATH: Annotated[str, BeforeValidator(expand_path)] = Field(
         default_factory=lambda: os.path.expanduser(

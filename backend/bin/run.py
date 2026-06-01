@@ -40,13 +40,9 @@ def run_api():
 def run_worker():
     """启动任务队列 Worker（独立进程）。"""
     import subprocess
-    
-    # Run worker as separate process using scripts/run_worker.py
-    # This avoids issues with signal handling and thread safety
-    worker_script = PROJECT_DIR / "scripts" / "run_worker.py"
-    
+
     # Pass through command line arguments
-    cmd = [sys.executable, "-m", "scripts.run_worker"] + sys.argv[2:]
+    cmd = [sys.executable, "-m", "bin.run_worker"] + sys.argv[2:]
     
     print("Starting Task Queue Worker (separate process)...")
     print(f"Command: {' '.join(cmd)}")

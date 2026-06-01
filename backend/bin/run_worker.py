@@ -3,8 +3,8 @@
 Standalone Huey Worker Process.
 
 Usage:
-    python -m scripts.run_worker
-    python -m scripts.run_worker --workers=4 --verbose
+    python -m bin.run_worker
+    python -m bin.run_worker --workers=4 --verbose
 
 Environment:
     EMBEDDED_MODE=true|false  true→Huey, false→Celery
@@ -113,15 +113,6 @@ def run_celery_worker(workers: int = 2, verbose: bool = False):
     """Run Celery worker as standalone process."""
     from app.infrastructure.queue.factory import get_scheduler
     
-    # Ensure Python root logger has a handler before Celery hijacks it.
-    # Celery defaults to hijacking root logger; we disable that so our
-    # basicConfig handler (set at module level) survives and forwards all
-    # application loggers (app.core.engine.*, etc.) to the worker output.
-    root = logging.getLogger()
-    if not root.handlers:
-        logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO,
-                            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    
     logger.info("=" * 60)
     logger.info("EvoLoop Celery Worker")
     logger.info("=" * 60)
@@ -136,8 +127,6 @@ def run_celery_worker(workers: int = 2, verbose: bool = False):
     
     logger.info(f"[Worker] Starting Celery with args: {argv}")
     scheduler = get_scheduler()
-    # Prevent Celery from removing our root logger handler
-    scheduler.conf.worker_hijack_root_logger = False
     scheduler.worker_main(argv=argv)
 
 
@@ -148,9 +137,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python -m scripts.run_worker              # Start with default settings
-  python -m scripts.run_worker --workers=4  # Start with 4 workers
-  python -m scripts.run_worker --verbose    # Enable debug logging
+  python -m bin.run_worker              # Start with default settings
+  python -m bin.run_worker --workers=4  # Start with 4 workers
+  python -m bin.run_worker --verbose    # Enable debug logging
 
 Based on EMBEDDED_MODE setting:
   EMBEDDED_MODE=true  → Huey worker (in-process, SQLite)
