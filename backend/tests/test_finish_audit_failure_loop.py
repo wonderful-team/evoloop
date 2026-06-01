@@ -122,7 +122,7 @@ async def main():
         await _init_backend()
         
         # Force Celery eager
-        import app.infrastructure.queue.celery as celery_mod
+        import app.infrastructure.queue.celery_app as celery_mod
         from app.core.engine.tasks import engine_audit_structured_extraction
         celery_mod.celery_app.conf.task_always_eager = True
         

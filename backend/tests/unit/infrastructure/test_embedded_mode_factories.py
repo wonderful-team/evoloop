@@ -178,19 +178,17 @@ class TestQueueFactory:
     the factory's internal mode selection.
     """
 
-    def test_embedded_auto_selects_huey(self):
+    def test_embedded_selects_huey(self):
         with patch.object(settings, "EMBEDDED_MODE", True):
-            with patch.object(settings, "TASK_QUEUE_BACKEND", "auto"):
-                with patch("app.infrastructure.queue.huey_queue.HueyTaskScheduler") as MockHuey:
-                    from app.infrastructure.queue.factory import create_task_scheduler
+            with patch("app.infrastructure.queue.huey_queue.HueyTaskScheduler") as MockHuey:
+                from app.infrastructure.queue.factory import create_task_scheduler
 
-                    create_task_scheduler.__globals__["_scheduler"] = None
-                    create_task_scheduler()
-                    MockHuey.assert_called_once()
+                create_task_scheduler.__globals__["_scheduler"] = None
+                create_task_scheduler()
+                MockHuey.assert_called_once()
 
-    def test_production_auto_selects_celery(self):
+    def test_production_selects_celery(self):
         with patch.object(settings, "EMBEDDED_MODE", False):
-            with patch.object(settings, "TASK_QUEUE_BACKEND", "auto"):
                 # Patch the real celery.Celery class (imported inside create_celery_app)
                 with patch("celery.Celery") as MockCelery:
                     from app.infrastructure.queue.factory import create_task_scheduler

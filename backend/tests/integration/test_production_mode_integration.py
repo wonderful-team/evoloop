@@ -51,7 +51,6 @@ POSTGRES_SKIP = pytest.mark.skipif(not POSTGRES_AVAILABLE, reason="PostgreSQL no
 def production_settings(monkeypatch):
     """Force production mode for every test in this module."""
     monkeypatch.setenv("EMBEDDED_MODE", "false")
-    monkeypatch.setenv("TASK_QUEUE_BACKEND", "celery")
     yield
 
 

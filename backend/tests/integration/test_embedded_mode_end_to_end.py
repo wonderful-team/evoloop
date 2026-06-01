@@ -24,14 +24,12 @@ import pytest
 
 # Ensure EMBEDDED_MODE is active for these tests
 os.environ.setdefault("EMBEDDED_MODE", "true")
-os.environ.setdefault("TASK_QUEUE_BACKEND", "huey")
 
 
 @pytest.fixture(autouse=True)
 def embedded_settings(monkeypatch):
     """Force embedded mode for every test in this module."""
     monkeypatch.setenv("EMBEDDED_MODE", "true")
-    monkeypatch.setenv("TASK_QUEUE_BACKEND", "huey")
     # Use a temporary directory for all file-based backends
     with tempfile.TemporaryDirectory() as tmp:
         monkeypatch.setenv("EVOLOOP_APP_DATA_DIR", tmp)

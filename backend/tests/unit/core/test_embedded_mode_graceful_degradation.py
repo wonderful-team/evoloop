@@ -17,49 +17,25 @@ from app.core.config import settings
 class TestQueueFactoryFallback:
     """Validate task scheduler fallback when Celery is unavailable."""
 
-    def test_celery_import_error_falls_back_to_huey(self):
-        """Production mode + Celery import failure → Huey scheduler."""
+    def test_production_mode_creates_celery(self):
+        """EMBEDDED_MODE=false → Celery scheduler."""
         with patch.object(settings, "EMBEDDED_MODE", False):
-            with patch.object(settings, "TASK_QUEUE_BACKEND", "auto"):
-                # Simulate Celery being unavailable
+            with patch("celery.Celery") as MockCelery:
                 import app.infrastructure.queue.factory as _factory_mod
 
-                # Force re-evaluation
                 _factory_mod._scheduler = None
+                _factory_mod.create_task_scheduler()
+                MockCelery.assert_called_once()
 
-                with patch.object(_factory_mod, "create_task_scheduler") as mock_create:
-                    # First call (celery) raises ImportError, second call (huey) succeeds
-                    def side_effect(mode="auto"):
-                        if mode == "celery" or (mode == "auto" and not settings.EMBEDDED_MODE):
-                            # Simulate celery import failure by jumping to huey
-                            from app.infrastructure.queue.huey_queue import HueyTaskScheduler
+    def test_embedded_mode_creates_huey(self):
+        """EMBEDDED_MODE=true → Huey scheduler."""
+        with patch.object(settings, "EMBEDDED_MODE", True):
+            with patch("app.infrastructure.queue.huey_queue.HueyTaskScheduler") as MockHuey:
+                import app.infrastructure.queue.factory as _factory_mod
 
-                            _factory_mod._scheduler = HueyTaskScheduler()
-                            _factory_mod._scheduler._test_mock = True
-                            return _factory_mod._scheduler
-                        from app.infrastructure.queue.huey_queue import HueyTaskScheduler
-
-                        _factory_mod._scheduler = HueyTaskScheduler()
-                        return _factory_mod._scheduler
-
-                    mock_create.side_effect = side_effect
-                    result = _factory_mod.create_task_scheduler()
-
-                # In real code, celery failure triggers mode="huey" and returns HueyTaskScheduler
-                # We verify the factory *attempts* to handle the failure path
-                assert result is not None
-
-    def test_explicit_huey_overrides_production_default(self):
-        """Production mode + explicit TASK_QUEUE_BACKEND=huey → Huey scheduler."""
-        with patch.object(settings, "EMBEDDED_MODE", False):
-            with patch.object(settings, "TASK_QUEUE_BACKEND", "huey"):
-                with patch("app.infrastructure.queue.huey_queue.HueyTaskScheduler") as MockHuey:
-                    import app.infrastructure.queue.factory as _factory_mod
-
-                    _factory_mod._scheduler = None
-                    # Pass explicit mode to bypass auto-detection
-                    _factory_mod.create_task_scheduler("huey")
-                    MockHuey.assert_called_once()
+                _factory_mod._scheduler = None
+                _factory_mod.create_task_scheduler()
+                MockHuey.assert_called_once()
 
 
 class TestEmbedderFactoryFallback:

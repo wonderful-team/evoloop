@@ -384,8 +384,7 @@ def _create_mock_modules():
     sys.modules["PyJWT"] = mock_jwt
     sys.modules["tiktoken"] = mock_tiktoken
 
-    # Handle celery import - use our local implementation
-    # Don't mock celery, let the real LocalCelery be used
+    # Don't mock celery - tests run in embedded mode and use Huey, not Celery
 
     return {
         "langchain_core": mock_langchain_core,

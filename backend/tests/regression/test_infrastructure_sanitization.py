@@ -12,7 +12,6 @@ from app.infrastructure.database.vector import get_vector_store
 from app.infrastructure.database.vector.lancedb_store import LanceVectorStore
 from app.infrastructure.queue.factory import get_scheduler
 from app.infrastructure.queue.huey_queue import HueyTaskScheduler
-from app.infrastructure.queue.celery import LocalCelery
 from app.infrastructure.database.resource_manager import db_resource_manager
 
 @pytest.mark.asyncio
@@ -38,8 +37,8 @@ async def test_vector_store_functional():
 async def test_scheduler_functional():
     """Verify that get_scheduler returns a functional scheduler, not a NoOp."""
     scheduler = get_scheduler()
-    # In embedded mode, it should be Huey or LocalCelery
-    assert isinstance(scheduler, (HueyTaskScheduler, LocalCelery))
+    # In embedded mode, it should be Huey
+    assert isinstance(scheduler, HueyTaskScheduler)
     assert hasattr(scheduler, "task")
     assert hasattr(scheduler, "send_task")
     print(f"✅ Scheduler resolved to functional {type(scheduler).__name__}")

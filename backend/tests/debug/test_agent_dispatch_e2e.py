@@ -138,10 +138,14 @@ class SyncTaskScheduler:
         await asyncio.gather(*pending, return_exceptions=True)
 
     def _load_task_module(self, name):
-        from app.infrastructure.queue.celery import TASK_MODULE_MAP
-        if name in TASK_MODULE_MAP:
-            __import__(TASK_MODULE_MAP[name])
-        elif "." in name:
+        from app.infrastructure.queue.discovery import discover_task_modules
+        for mod in discover_task_modules():
+            try:
+                __import__(mod)
+                return
+            except Exception:
+                continue
+        if "." in name:
             parts = name.rsplit(".", 1)
             if len(parts) == 2:
                 try:
