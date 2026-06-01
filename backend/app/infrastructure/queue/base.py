@@ -2,7 +2,7 @@
 Task Scheduler Abstractions for EvoLoop.
 
 Provides Protocol and ABC definitions for task scheduling implementations.
-This allows for both distributed (Celery + Redis) and embedded (LocalCelery)
+This allows for both distributed (Celery + Redis) and embedded (Huey + SQLite)
 modes to share a common interface.
 """
 
@@ -97,7 +97,7 @@ class TaskScheduler(ABC):
     
     Implementations:
     - Celery: Distributed task queue with Redis broker
-    - LocalCelery: In-process task execution for embedded mode
+    - Huey: In-process task queue with SQLite persistence for embedded mode
     
     Usage:
         scheduler = create_celery_app()  # Returns appropriate implementation
@@ -166,7 +166,7 @@ class TaskScheduler(ABC):
         Start the scheduler/worker.
         
         For Celery: Start the worker process
-        For LocalCelery: No-op (in-process)
+        For Huey: Start the consumer
         """
         pass
     
@@ -176,7 +176,7 @@ class TaskScheduler(ABC):
         Run as a worker process.
         
         For Celery: Start consuming tasks
-        For LocalCelery: No-op (in-process)
+        For Huey: Start the consumer
         """
         pass
 

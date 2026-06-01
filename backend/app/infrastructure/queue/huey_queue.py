@@ -1,7 +1,7 @@
 """
 Huey Task Queue Implementation for EvoLoop (Embedded Mode).
 
-Replaces LocalCelery with Huey + SQLite for persistent task execution
+In-process task queue with SQLite persistence for embedded mode
 without external dependencies like Redis.
 
 Features:
@@ -334,29 +334,18 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
             raise
 
     def _load_task_module(self, task_name: str) -> bool:
-        """Load task module dynamically."""
-        from app.infrastructure.queue.registry import TASK_MODULE_MAP
-        
-        if task_name in TASK_MODULE_MAP:
-            module_path = TASK_MODULE_MAP[task_name]
+        """Load task module dynamically by importing every known task module."""
+        from app.infrastructure.queue.discovery import discover_task_modules
+
+        for module_path in discover_task_modules():
             try:
                 __import__(module_path)
+            except Exception:
+                continue
+            # Check if the task name is now registered
+            if task_name in self._tasks:
                 logger.debug(f"[Huey] Loaded module for {task_name}: {module_path}")
                 return True
-            except Exception as e:
-                logger.warning(f"[Huey] Failed to load {module_path}: {e}")
-                return False
-        
-        # Try to infer from task name
-        if "." in task_name:
-            parts = task_name.rsplit(".", 1)
-            if len(parts) == 2:
-                module_path, _ = parts
-                try:
-                    __import__(module_path)
-                    return True
-                except Exception:
-                    pass
         return False
 
     def start(self, **kwargs):
@@ -399,39 +388,19 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
     
     def _preload_task_modules(self):
         """Pre-load all task modules to register tasks in worker process."""
-        from app.infrastructure.queue.registry import TASK_MODULE_MAP
+        from app.infrastructure.queue.discovery import discover_task_modules
         
         logger.info("[Huey] Pre-loading task modules...")
+        task_modules = discover_task_modules()
         loaded_count = 0
         
-        # Load all modules from TASK_MODULE_MAP
-        for task_name, module_path in TASK_MODULE_MAP.items():
+        for module_path in task_modules:
             try:
                 __import__(module_path)
                 loaded_count += 1
                 logger.debug(f"[Huey] Loaded module: {module_path}")
             except Exception as e:
                 logger.warning(f"[Huey] Failed to load {module_path}: {e}")
-        
-        # Also try to load common task modules
-        common_modules = [
-            'app.core.engine.tasks',
-            'app.core.atlas.tasks',
-            'app.domain.wiki.tasks',
-            'app.domain.codebase.indexing.tasks',
-            'app.domain.project.sync_tasks',
-            'app.core.memory.maintenance',
-            'app.core.evocloud.bridge.sync_tasks',
-        ]
-        
-        for module_path in common_modules:
-            try:
-                if module_path not in [m for m in TASK_MODULE_MAP.values()]:
-                    __import__(module_path)
-                    loaded_count += 1
-                    logger.debug(f"[Huey] Loaded common module: {module_path}")
-            except Exception as e:
-                logger.debug(f"[Huey] Optional module not loaded: {module_path}: {e}")
         
         logger.info(f"[Huey] Pre-loaded {loaded_count} task modules")
 

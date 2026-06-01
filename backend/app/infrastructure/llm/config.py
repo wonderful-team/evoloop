@@ -36,9 +36,15 @@ class LLMConfigService:
             if provider == "anthropic" or "api/anthropic" in (base_url or ""):
                 from app.infrastructure.llm.anthropic_adapter import CompatibleChatAnthropic
 
+                # Anthropic SDK automatically appends /v1/messages.
+                # Strip trailing /v1 to avoid double path (e.g. /coding/v1/v1/messages).
+                normalized = base_url.rstrip("/")
+                if normalized.endswith("/v1"):
+                    normalized = normalized[:-3]
+
                 llm = CompatibleChatAnthropic(
                     api_key=api_key,
-                    base_url=base_url,
+                    base_url=normalized,
                     model_name=model,
                     temperature=0,
                     max_tokens=5,

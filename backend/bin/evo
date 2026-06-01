@@ -252,15 +252,15 @@ case "${1:-help}" in
 
     worker)
         info "启动 Task Queue Worker ($WORKERS Workers)..."
-        info "Backend: 根据 TASK_QUEUE_BACKEND 环境变量 (huey/celery/auto)"
-        .venv/bin/python bin/run.py worker --workers=$WORKERS
+        info "Backend: 根据 EMBEDDED_MODE 环境变量 (true→Huey / false→Celery)"
+        .venv/bin/python bin/run.py worker --workers=$WORKERS "${@:2}"
         ;;
 
     beat)
         info "启动 Celery Beat（定时任务调度）..."
         echo " Beat 用于周期性任务调度（如定时清理、检查）"
         echo " 注意：Beat 只负责调度，任务执行仍需 Worker"
-        .venv/bin/celery -A app.infrastructure.queue.celery beat -l info
+        .venv/bin/celery -A app.infrastructure.queue.celery_app beat -l info
         ;;
 
     start)
@@ -303,7 +303,7 @@ case "${1:-help}" in
             warning "Beat 服务已在运行"
         else
             info "启动 Beat 服务..."
-            nohup .venv/bin/celery -A app.infrastructure.queue.celery beat -l info > "$LOG_DIR/beat.log" 2>&1 &
+            nohup .venv/bin/celery -A app.infrastructure.queue.celery_app beat -l info > "$LOG_DIR/beat.log" 2>&1 &
             echo $! > "$LOG_DIR/beat.pid"
             sleep 2
             if pgrep -f "celery.*beat" > /dev/null; then

@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     SANDBOX_IMAGE: str = "evoloop-sandbox"
 
     # Embedded Mode (No external dependencies)
-    EMBEDDED_MODE: bool = False  # True: Use SQLite + LanceDB + LocalCelery, False: Use Postgres + Neo4j + Redis
+    EMBEDDED_MODE: bool = False  # True: Use SQLite + LanceDB + Huey, False: Use Postgres + Neo4j + Celery
     
     # SaaS / Multi-tenant Mode
     MULTI_TENANT_MODE: bool = False  # True: Strict token isolation, no global session cache. False: Single-user mode (safe for global cache)
@@ -208,13 +208,6 @@ class Settings(BaseSettings):
     # Cache backend (Redis in production, FileCache in embedded mode)
     REDIS_URL: str | None = "redis://localhost:6379/0"
     REDIS_MAX_CONNECTIONS: int = Field(120, validation_alias="REDIS_MAX_CONNECTIONS")
-
-    # Task Queue Backend (celery | huey | local | auto)
-    # - celery: Full Celery with Redis (requires Redis, not available in embedded mode)
-    # - huey: Huey with SQLite (recommended for embedded mode, no external deps)
-    # - local: In-memory LocalCelery (deprecated, tasks lost on restart)
-    # - auto: Auto-detect based on EMBEDDED_MODE (huey for embedded, celery otherwise)
-    TASK_QUEUE_BACKEND: Literal["celery", "huey", "local", "auto"] = "auto"
 
     # Voice/TTS Configuration
     TTS_PROVIDER: str = "auto"  # auto | system-tts | edge-tts

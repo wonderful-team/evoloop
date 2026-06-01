@@ -95,7 +95,7 @@ Environment Variables:
   PORT                  API port (default: 8123)
   WORKERS               Number of API workers (default: 1)
   RELOAD                Enable auto-reload (default: false)
-  TASK_QUEUE_BACKEND    Task queue backend (huey/celery/local/auto)
+  EMBEDDED_MODE         true→Huey / false→Celery
 
 Note:
   Worker now runs as separate process for better stability.

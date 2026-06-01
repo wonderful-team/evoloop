@@ -12,9 +12,6 @@ from starlette.middleware.cors import CORSMiddleware
 from app.api.main import api_router
 from app.core.config import settings
 from app.core.context.middleware import ContextMiddleware
-# EvoLoop Imports
-from app.core.engine.graph_builder import GraphBuilder
-from app.core.globals import set_graph
 from app.infrastructure.database.resource_manager import db_resource_manager
 
 logging.basicConfig(level=logging.INFO)
@@ -34,7 +31,6 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing EvoLoop resources...")
 
     await db_resource_manager.initialize(create_tables=True, seed_data=True)
-    checkpointer = db_resource_manager.checkpointer
 
     # Memory System Init
     try:
@@ -55,11 +51,9 @@ async def lifespan(app: FastAPI):
 
     # Engine Graph (Dynamic Build)
     try:
-        builder = GraphBuilder()
-        config_path = os.path.join(os.path.dirname(__file__), "core/engine/config/agent_main.yaml")
-        graph = builder.build(config_path, checkpointer=checkpointer)
-        set_graph(graph, config_path=config_path, checkpointer=checkpointer)
-        logger.info(f"Agent Graph built successfully from {config_path}")
+        from app.core.globals import init_agent_graph
+        init_agent_graph()
+        logger.info(f"Agent Graph built successfully")
     except Exception as e:
         logger.critical(f"Failed to build Agent Graph: {e}")
         raise
@@ -73,7 +67,7 @@ async def lifespan(app: FastAPI):
 
     # --- Shutdown ---
     logger.info("Shutting down EvoLoop resources...")
-    
+
     # 1. Publish Application Stopping Event
     # This triggers all decentalized LifecycleHandlers (EvoCloud, Memory, Indexing, MCP, etc.)
     try:

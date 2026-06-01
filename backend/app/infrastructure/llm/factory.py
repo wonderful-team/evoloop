@@ -342,9 +342,18 @@ class LLMFactory:
 
         if provider_type == "anthropic":
             from app.infrastructure.llm.anthropic_adapter import CompatibleChatAnthropic
+
+            # Anthropic SDK automatically appends /v1/messages to the base_url.
+            # If the user's URL already contains /v1 (e.g. https://api.kimi.com/coding/v1),
+            # the SDK would produce https://api.kimi.com/coding/v1/v1/messages → 404.
+            # Strip trailing /v1 or /v1/ so the SDK constructs the correct path.
+            normalized = base_url.rstrip("/")
+            if normalized.endswith("/v1"):
+                normalized = normalized[:-3]
+
             return CompatibleChatAnthropic(
                 api_key=api_key,
-                base_url=base_url.rstrip("/"),
+                base_url=normalized,
                 model_name=model_name,
                 temperature=temperature,
                 streaming=streaming,

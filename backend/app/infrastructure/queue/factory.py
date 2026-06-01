@@ -1,30 +1,25 @@
 """
 Task Queue Factory for EvoLoop.
 
-Provides unified interface to switch between:
-- Full Mode: Celery + Redis (distributed)
-- Embedded Mode: Huey + SQLite (standalone)
-- Legacy Mode: LocalCelery (in-memory, deprecated)
+Switches between Celery (full mode) and Huey (embedded mode)
+based on ``EMBEDDED_MODE`` setting.
 
 Usage:
-    from app.infrastructure.queue.factory import create_task_scheduler, get_scheduler
+    from app.infrastructure.queue.factory import get_scheduler
     
-    # Get appropriate scheduler based on configuration
     scheduler = get_scheduler()
     
-    # Register tasks
     @scheduler.task(name="my_task")
     async def my_task(x, y):
         return x + y
     
-    # Dispatch tasks
     result = scheduler.send_task("my_task", args=(1, 2))
     value = await result.get(timeout=30)
 """
 import asyncio
 import functools
 import logging
-from typing import Optional, Literal
+from typing import Optional
 
 from app.core.config import settings
 from app.infrastructure.queue.base import TaskScheduler
@@ -35,51 +30,23 @@ logger = logging.getLogger(__name__)
 _scheduler: Optional[TaskScheduler] = None
 
 
-def create_task_scheduler(
-    mode: Literal["celery", "huey", "local", "auto"] = "auto"
-) -> TaskScheduler:
+def create_task_scheduler() -> TaskScheduler:
     """
-    Create appropriate task scheduler based on mode.
+    Create appropriate task scheduler based on EMBEDDED_MODE.
     
-    Args:
-        mode: Scheduler mode
-            - "celery": Full Celery with Redis
-            - "huey": Huey with SQLite (recommended for embedded)
-            - "local": LocalCelery (in-memory, deprecated)
-            - "auto": Auto-detect based on configuration
-            
     Returns:
         TaskScheduler instance
-        
-    Raises:
-        ImportError: If required dependencies are not installed
-        ValueError: If invalid mode specified
     """
     global _scheduler
     
-    if mode == "auto":
-        # Auto-detect based on configuration
-        if settings.EMBEDDED_MODE:
-            mode = "huey"  # Default to Huey for embedded mode
-        else:
-            mode = "celery"  # Use Celery for full mode
-    
-    logger.info(f"[QueueFactory] Creating scheduler: mode={mode}")
-    
-    if mode == "celery":
-        from app.infrastructure.queue.celery import create_celery_app
-        _scheduler = create_celery_app()
-        logger.info("[QueueFactory] Created Celery scheduler")
-    
-    if mode == "huey":
+    if settings.EMBEDDED_MODE:
         from app.infrastructure.queue.huey_queue import HueyTaskScheduler
         _scheduler = HueyTaskScheduler()
-        logger.info("[QueueFactory] Created Huey scheduler")
-    
-    if mode == "local":
-        from app.infrastructure.queue.celery import LocalCelery
-        _scheduler = LocalCelery("evoloop_local")
-        logger.warning("[QueueFactory] Using deprecated LocalCelery scheduler")
+        logger.info("[QueueFactory] Created Huey scheduler (embedded mode)")
+    else:
+        from app.infrastructure.queue.celery_app import create_celery_app
+        _scheduler = create_celery_app()
+        logger.info("[QueueFactory] Created Celery scheduler (full mode)")
     
     return _scheduler
 
@@ -88,17 +55,14 @@ def get_scheduler() -> TaskScheduler:
     """
     Get global scheduler instance (singleton).
     
-    Creates scheduler on first call based on configuration.
-    Uses TASK_QUEUE_BACKEND setting from config (defaults to "auto").
+    Creates scheduler on first call based on EMBEDDED_MODE.
     
     Returns:
         TaskScheduler instance
     """
     global _scheduler
     if _scheduler is None:
-        backend = settings.TASK_QUEUE_BACKEND
-        logger.info(f"[QueueFactory] Using configured backend: {backend}")
-        _scheduler = create_task_scheduler(backend)
+        _scheduler = create_task_scheduler()
     return _scheduler
 
 
@@ -122,7 +86,7 @@ def shared_task(
     """
     Universal shared_task decorator.
     
-    Works with any scheduler (Celery/Huey/LocalCelery).
+    Works with any scheduler (Celery/Huey).
     
     Args:
         func: Function to decorate
@@ -150,7 +114,7 @@ def shared_task(
         target_f = f
 
         # If the scheduler is real Celery and the function is async, wrap it.
-        # LocalCelery and HueyTaskScheduler handle async natively, so we only wrap for real Celery.
+        # HueyTaskScheduler handles async natively, so we only wrap for real Celery.
         if asyncio.iscoroutinefunction(f) and type(scheduler).__name__ == "Celery":
             @functools.wraps(f)
             def _celery_async_wrapper(*args, **kwargs):

@@ -7,8 +7,7 @@ Usage:
     python -m scripts.run_worker --workers=4 --verbose
 
 Environment:
-    TASK_QUEUE_BACKEND=huey|celery|local|auto
-    EMBEDDED_MODE=true|false
+    EMBEDDED_MODE=true|false  true→Huey, false→Celery
 """
 
 import argparse
@@ -44,7 +43,6 @@ def setup_signal_handlers(consumer):
 
 def run_huey_worker(workers: int = 2, verbose: bool = False):
     """Run Huey worker as standalone process."""
-    from app.core.config import settings
     from app.infrastructure.queue.huey_queue import get_huey_scheduler
     from huey.consumer import Consumer
     
@@ -61,7 +59,7 @@ def run_huey_worker(workers: int = 2, verbose: bool = False):
     logger.info("=" * 60)
     logger.info("EvoLoop Task Queue Worker")
     logger.info("=" * 60)
-    logger.info(f"Backend: {settings.TASK_QUEUE_BACKEND}")
+    logger.info(f"Backend: huey (embedded mode)")
     logger.info(f"Workers: {workers}")
     logger.info(f"Worker Type: thread (SQLite compatible)")
     logger.info("=" * 60)
@@ -113,7 +111,16 @@ def run_huey_worker(workers: int = 2, verbose: bool = False):
 
 def run_celery_worker(workers: int = 2, verbose: bool = False):
     """Run Celery worker as standalone process."""
-    from app.infrastructure.queue.celery import celery_app
+    from app.infrastructure.queue.factory import get_scheduler
+    
+    # Ensure Python root logger has a handler before Celery hijacks it.
+    # Celery defaults to hijacking root logger; we disable that so our
+    # basicConfig handler (set at module level) survives and forwards all
+    # application loggers (app.core.engine.*, etc.) to the worker output.
+    root = logging.getLogger()
+    if not root.handlers:
+        logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO,
+                            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     
     logger.info("=" * 60)
     logger.info("EvoLoop Celery Worker")
@@ -128,7 +135,10 @@ def run_celery_worker(workers: int = 2, verbose: bool = False):
     ]
     
     logger.info(f"[Worker] Starting Celery with args: {argv}")
-    celery_app.worker_main(argv=argv)
+    scheduler = get_scheduler()
+    # Prevent Celery from removing our root logger handler
+    scheduler.conf.worker_hijack_root_logger = False
+    scheduler.worker_main(argv=argv)
 
 
 def main():
@@ -142,9 +152,9 @@ Examples:
   python -m scripts.run_worker --workers=4  # Start with 4 workers
   python -m scripts.run_worker --verbose    # Enable debug logging
 
-Environment Variables:
-  TASK_QUEUE_BACKEND    Task queue backend (huey/celery/local/auto)
-  EMBEDDED_MODE         Embedded mode flag (true/false)
+Based on EMBEDDED_MODE setting:
+  EMBEDDED_MODE=true  → Huey worker (in-process, SQLite)
+  EMBEDDED_MODE=false → Celery worker (requires Redis)
         """
     )
     
@@ -166,25 +176,12 @@ Environment Variables:
     # Import settings after setting up logging
     from app.core.config import settings
     
-    backend = settings.TASK_QUEUE_BACKEND
-    
-    # Auto-detect backend
-    if backend == "auto":
-        backend = "huey" if settings.EMBEDDED_MODE else "celery"
-        logger.info(f"[Worker] Auto-detected backend: {backend}")
-    
-    # Run appropriate worker
-    if backend == "huey":
+    if settings.EMBEDDED_MODE:
+        logger.info("[Worker] Embedded mode: starting Huey worker")
         run_huey_worker(args.workers, args.verbose)
-    elif backend == "celery":
-        run_celery_worker(args.workers, args.verbose)
-    elif backend == "local":
-        logger.error("[Worker] Local backend does not support standalone worker")
-        logger.error("[Worker] Tasks will be executed synchronously in the main process")
-        sys.exit(1)
     else:
-        logger.error(f"[Worker] Unknown backend: {backend}")
-        sys.exit(1)
+        logger.info("[Worker] Full mode: starting Celery worker")
+        run_celery_worker(args.workers, args.verbose)
 
 
 if __name__ == "__main__":
