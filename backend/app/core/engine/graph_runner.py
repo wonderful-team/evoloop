@@ -30,6 +30,11 @@ async def resume_graph_background(
 
     Used by ``/chat/resume`` and ``/hitl/cancel``.
     """
+    if inputs and "messages" in inputs:
+        from app.core.engine.message.converter import EvoMessageConverter
+        inputs = inputs.copy()
+        inputs["messages"] = EvoMessageConverter.to_langchain(inputs["messages"])
+
     graph = get_graph()
     if not graph:
         logger.error(f"[Dispatch] Cannot resume {thread_id}: graph not initialized")
