@@ -125,9 +125,22 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
     # Persist the failure message to DB for visibility and future learning (if applicable)
     await persist_system_error(thread_id, project_id, user_message, action_type=action_type, run_id=handler.run_id if handler else None)
 
-    # 4. Push error to Mobile (统一走 MobileErrorNotifier)
+    # 4. Push error to Mobile and SSE
     if handler:
         await MobileErrorNotifier(handler).push(classification)
+        try:
+            await handler._dispatch_block(
+                role="ai",
+                content=user_message,
+                category=action_type,
+                status="failed",
+                sequence_number=handler._stream_seq + 1,
+                metadata={"is_error": True, "error_type": action_type},
+                channels={"sse"},
+                message_id=str(uuid.uuid4())
+            )
+        except Exception as sse_err:
+            logger.warning(f"[ErrorHandler] SSE push failed: {sse_err}")
 
 
 async def persist_system_error(

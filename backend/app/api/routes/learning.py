@@ -356,7 +356,8 @@ async def synthesize_skill(body: SynthesizeRequest, current_user: CurrentUserOpt
 
             while True:
                 # Check if name exists
-                stmt = select(LearnedSkill).where(LearnedSkill.member_id == (current_user.id if current_user else 0)).where(LearnedSkill.name == unique_name)
+                # TODO: 后续接入云端 Skill 市场，需扩展共享技能查询范围
+                stmt = select(LearnedSkill).where(or_(LearnedSkill.member_id == 0, LearnedSkill.member_id == (current_user.id if current_user else 0))).where(LearnedSkill.name == unique_name)
                 existing = (await db.execute(stmt)).scalar_one_or_none()
                 if not existing:
                     break
@@ -432,7 +433,8 @@ async def list_skills(
 
     async with session_scope() as db:
         # 1. Base Query
-        stmt = select(LearnedSkill).where(LearnedSkill.member_id == (current_user.id if current_user else 0))
+        # TODO: 后续接入云端 Skill 市场，需扩展共享技能查询范围
+        stmt = select(LearnedSkill).where(or_(LearnedSkill.member_id == 0, LearnedSkill.member_id == (current_user.id if current_user else 0)))
         if active_only:
             stmt = stmt.where(LearnedSkill.is_active == True)
 
@@ -485,7 +487,8 @@ async def get_skill(skill_id: int, current_user: CurrentUserOptional = None):
     Get full details of a specific skill.
     """
     async with session_scope() as db:
-        stmt = select(LearnedSkill).where(LearnedSkill.member_id == (current_user.id if current_user else 0)).where(LearnedSkill.id == skill_id)
+        # TODO: 后续接入云端 Skill 市场，需扩展共享技能查询范围
+        stmt = select(LearnedSkill).where(or_(LearnedSkill.member_id == 0, LearnedSkill.member_id == (current_user.id if current_user else 0))).where(LearnedSkill.id == skill_id)
         result = await db.execute(stmt)
         skill = result.scalar_one_or_none()
 
@@ -571,7 +574,8 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest, current_user: Cu
             if body.name:
                 # Check uniqueness if name changed
                 if body.name != skill.name:
-                    stmt_check = select(LearnedSkill).where(LearnedSkill.member_id == (current_user.id if current_user else 0)).where(LearnedSkill.name == body.name)
+                    # TODO: 后续接入云端 Skill 市场，需扩展共享技能查询范围
+                    stmt_check = select(LearnedSkill).where(or_(LearnedSkill.member_id == 0, LearnedSkill.member_id == (current_user.id if current_user else 0))).where(LearnedSkill.name == body.name)
                     existing = (await db.execute(stmt_check)).scalar_one_or_none()
                     if existing:
                          raise HTTPException(status_code=400, detail=f"Skill name '{body.name}' already exists")
@@ -1197,7 +1201,8 @@ async def synthesize_from_recording(request: SynthesizeFromRecordingRequest, cur
             counter = 1
 
             while True:
-                stmt = select(LearnedSkill).where(LearnedSkill.member_id == (current_user.id if current_user else 0)).where(LearnedSkill.name == unique_name)
+                # TODO: 后续接入云端 Skill 市场，需扩展共享技能查询范围
+                stmt = select(LearnedSkill).where(or_(LearnedSkill.member_id == 0, LearnedSkill.member_id == (current_user.id if current_user else 0))).where(LearnedSkill.name == unique_name)
                 existing = (await db.execute(stmt)).scalar_one_or_none()
                 if not existing:
                     break
@@ -1877,7 +1882,8 @@ async def create_skill_from_yaml(
             counter = 1
             
             while True:
-                stmt = select(LearnedSkill).where(LearnedSkill.member_id == (current_user.id if current_user else 0)).where(LearnedSkill.name == unique_name)
+                # TODO: 后续接入云端 Skill 市场，需扩展共享技能查询范围
+                stmt = select(LearnedSkill).where(or_(LearnedSkill.member_id == 0, LearnedSkill.member_id == (current_user.id if current_user else 0))).where(LearnedSkill.name == unique_name)
                 existing = (await db.execute(stmt)).scalar_one_or_none()
                 if not existing:
                     break
