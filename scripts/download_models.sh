@@ -71,6 +71,15 @@ echo -e "${BLUE}║             EvoLoop Model Downloader (ARM64)                
 echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
+# Get project root to locate .env
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Load .env if exists to get EVOLOOP_APP_DATA_DIR
+if [ -f "$PROJECT_ROOT/.env" ]; then
+    export $(grep '^EVOLOOP_APP_DATA_DIR=' "$PROJECT_ROOT/.env" | xargs) 2>/dev/null || true
+fi
+APP_DATA_DIR="${EVOLOOP_APP_DATA_DIR:-$HOME/.evoloop}"
+
 # Show configuration
 echo -e "${CYAN}Configuration:${NC}"
 echo -e "  Models: ${GREEN}$MODELS_TO_DOWNLOAD${NC}"
@@ -204,7 +213,7 @@ else
 fi
 
 # Set up model directory
-MODEL_DIR="$HOME/.evoloop/models"
+MODEL_DIR="$APP_DATA_DIR/models"
 echo ""
 echo -e "${YELLOW}📁 Model directory: ${CYAN}$MODEL_DIR${NC}"
 mkdir -p "$MODEL_DIR"

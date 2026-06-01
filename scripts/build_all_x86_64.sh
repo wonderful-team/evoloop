@@ -56,7 +56,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Examples:"
             echo "  $0                                    # Standard x86_64 build without models"
-            echo "  $0 --with-models                      # Build with existing models in ~/.evoloop/models"
+            echo "  $0 --with-models                      # Build with existing models in \${EVOLOOP_APP_DATA_DIR:-~/.evoloop}/models"
             echo "  $0 --download-models                  # Download default model and build with it"
             echo "  $0 --download-models paraformer-zh,paraformer-zh-plus --with-models"
             echo "  $0 --dev                              # Run development server"
@@ -73,6 +73,12 @@ done
 # Get project root
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
+
+# Load .env if exists to get EVOLOOP_APP_DATA_DIR
+if [ -f ".env" ]; then
+    export $(grep '^EVOLOOP_APP_DATA_DIR=' .env | xargs) 2>/dev/null || true
+fi
+APP_DATA_DIR="${EVOLOOP_APP_DATA_DIR:-$HOME/.evoloop}"
 
 # Fix: Ensure system xattr is used instead of Python xattr
 # Tauri requires system xattr with -r flag support
@@ -218,7 +224,7 @@ if [ "$WITH_MODELS" = true ]; then
     echo -e "${YELLOW}│ Step 2/4: Preparing Models for Bundling                     │${NC}"
     echo -e "${YELLOW}└─────────────────────────────────────────────────────────────┘${NC}"
     
-    MODELS_SOURCE="$HOME/.evoloop/models"
+    MODELS_SOURCE="$APP_DATA_DIR/models"
     MODELS_DEST="frontend/src-tauri/models"
     
     if [ ! -d "$MODELS_SOURCE" ]; then
