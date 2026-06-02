@@ -105,14 +105,14 @@ class DatabaseResourceManager:
                     db_uri,
                     echo=settings.DB_ECHO,
                     future=True,
-                    pool_size=5,
-                    max_overflow=10,
+                    pool_size=settings.DB_POOL_SIZE,
+                    max_overflow=settings.DB_MAX_OVERFLOW,
                     connect_args={"connect_timeout": settings.DB_CONNECT_TIMEOUT},
                 )
                 self._sync_engine = create_sync_engine(
                     sync_db_uri,
-                    pool_size=5,
-                    max_overflow=10,
+                    pool_size=settings.DB_POOL_SIZE,
+                    max_overflow=settings.DB_MAX_OVERFLOW,
                     connect_args={"connect_timeout": settings.DB_CONNECT_TIMEOUT},
                 )
 
@@ -181,7 +181,7 @@ class DatabaseResourceManager:
 
             self._db_pool = AsyncConnectionPool(
                 conninfo=str(settings.SQLALCHEMY_DATABASE_URI).replace("+psycopg", ""),
-                max_size=5,
+                max_size=settings.DB_CHECKPOINTER_POOL_SIZE,
                 kwargs={"autocommit": True, "connect_timeout": settings.DB_CONNECT_TIMEOUT},
                 open=False
             )

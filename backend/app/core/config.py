@@ -41,6 +41,33 @@ def expand_path(v: Any) -> str:
     return v
 
 
+def _default_chrome_executable() -> str:
+    import sys
+    if sys.platform == "darwin":
+        return "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    elif sys.platform == "win32":
+        return "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+    return "/usr/bin/google-chrome"
+
+
+def _default_chrome_user_data() -> str:
+    import sys
+    if sys.platform == "darwin":
+        return os.path.expanduser("~/Library/Application Support/Google/Chrome")
+    elif sys.platform == "win32":
+        return os.path.expanduser("~\\AppData\\Local\\Google\\Chrome\\User Data")
+    return os.path.expanduser("~/.config/google-chrome")
+
+
+def _default_chrome_automation_data() -> str:
+    import sys
+    if sys.platform == "darwin":
+        return os.path.expanduser("~/Library/Application Support/Google/Chrome-Automation")
+    elif sys.platform == "win32":
+        return os.path.expanduser("~\\AppData\\Local\\Google\\Chrome\\Chrome-Automation")
+    return os.path.expanduser("~/.config/google-chrome-automation")
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         # Use top level .env file (one level above ./backend/)
@@ -95,6 +122,9 @@ class Settings(BaseSettings):
     POSTGRES_DB: str = ""
     DB_ECHO: bool = False  # Added for EvoLoop compatibility
     DB_CONNECT_TIMEOUT: float = 99.5  # Strategic: unified timeout for unstable networks
+    DB_POOL_SIZE: int = 5  # Base connection pool size per engine
+    DB_MAX_OVERFLOW: int = 10  # Max overflow connections per pool beyond pool_size
+    DB_CHECKPOINTER_POOL_SIZE: int = 5  # Max connections for the checkpointer pool
 
     # --- Vector Database Configuration (PostgreSQL + pgvector, separate instance) ---
     # Defaults to the same server as the main database, but with a different DB name.
@@ -293,15 +323,15 @@ class Settings(BaseSettings):
     # Browser Control (Native CDP)
     CHROME_CDP_URL: str = Field("http://localhost:9222", validation_alias="EVOLOOP_CHROME_CDP_URL")
     CHROME_EXECUTABLE: str = Field(
-        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        default_factory=_default_chrome_executable,
         validation_alias="EVOLOOP_CHROME_EXECUTABLE",
     )
     CHROME_USER_DATA: Annotated[str, BeforeValidator(expand_path)] = Field(
-        default_factory=lambda: os.path.expanduser("~/Library/Application Support/Google/Chrome"),
+        default_factory=_default_chrome_user_data,
         validation_alias="EVOLOOP_CHROME_USER_DATA",
     )
     CHROME_AUTOMATION_USER_DATA: Annotated[str, BeforeValidator(expand_path)] = Field(
-        default_factory=lambda: os.path.expanduser("~/Library/Application Support/Google/Chrome-Automation"),
+        default_factory=_default_chrome_automation_data,
         validation_alias="EVOLOOP_CHROME_AUTOMATION_USER_DATA",
     )
     CHROME_PROFILE: str = Field("Default", validation_alias="EVOLOOP_CHROME_PROFILE")

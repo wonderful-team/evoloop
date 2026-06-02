@@ -77,8 +77,8 @@ class PgVectorStore:
         self._db_uri = db_uri
         self._engine = create_engine(
             db_uri,
-            pool_size=5,
-            max_overflow=10,
+            pool_size=settings.DB_POOL_SIZE,
+            max_overflow=settings.DB_MAX_OVERFLOW,
             connect_args={"connect_timeout": settings.DB_CONNECT_TIMEOUT},
         )
         self._embedding_dim = EMBEDDING_DIM

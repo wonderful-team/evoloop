@@ -33,12 +33,14 @@ class LoopBoundResource(Generic[R]):
     Manages an async resource (like an HTTP client, Lock, or Queue) that is bound to a specific asyncio event loop.
     Ensures that Celery tasks (which create new event loops) get their own isolated resources, preventing "Event loop is closed" errors.
     """
-    def __init__(self, factory: Callable[[], R], cleanup: Callable[[R], Awaitable[None]] | None = None):
+    def __init__(self, factory: Callable[[], R], cleanup: Callable[[R], Awaitable[None]] | None = None, skip_flush: bool = False):
         self._factory = factory
         self._cleanup = cleanup
+        self._skip_flush = skip_flush
         # WeakKeyDictionary ensures that when an event loop is garbage collected, the entry is automatically removed.
         self._resources: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, R] = weakref.WeakKeyDictionary()
-        _ALL_LOOP_BOUND_RESOURCES.append(weakref.ref(self))
+        if not skip_flush:
+            _ALL_LOOP_BOUND_RESOURCES.append(weakref.ref(self))
 
     def get(self) -> R:
         """Get or create the resource for the current event loop."""
