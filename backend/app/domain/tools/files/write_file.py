@@ -25,6 +25,7 @@ async def handle_write(
     action: str,
     path: str,
     content: str | None = None,
+    overwrite: bool = False,
     config: RunnableConfig | None = None,
 ) -> str:
     """Handle file write operation using core.file module."""
@@ -36,7 +37,7 @@ async def handle_write(
 
         # Check overwrite constraint using RESOLVED path (not raw path)
         # This fixes the bug where os.path.exists(path) checked CWD instead of WORKSPACE_ROOT
-        if action == "create" and os.path.exists(target_path):
+        if action == "create" and os.path.exists(target_path) and not overwrite:
             return (
                 f"Error: File '{path}' already exists. "
                 "Use overwrite=True to replace it, or choose a different path."
@@ -64,10 +65,11 @@ async def handle_write(
 async def write_file(
     path: str | None = None,
     content: str | None = None,
+    overwrite: bool = False,
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
-    Create a new file.
+    Create a new file or overwrite an existing one.
 
     Args:
         path: Target file path. **REQUIRED**
@@ -75,9 +77,11 @@ async def write_file(
                  Must contain ONLY the real file text. Do NOT include metadata
                  headers (e.g. [File: ... | Lines ... | Hash: ...]) from
                  read_file output.
+        overwrite: Set to True to overwrite an existing file. Defaults to False.
 
-    Example:
-        write_file(path="src/main.py", content="print('hello')")
+    Examples:
+        write_file(path="src/main.py", content="print('hello')")  # Create new
+        write_file(path="src/main.py", content="print('world')", overwrite=True)  # Override existing
     """
     if not path or content is None:
         return (
@@ -92,5 +96,6 @@ async def write_file(
         action="create",
         path=path,
         content=content,
+        overwrite=overwrite,
         config=config,
     )
