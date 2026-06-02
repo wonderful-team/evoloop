@@ -36,7 +36,7 @@ class BackgroundAgentInputs(BaseModel):
     messages: list[dict] = Field(default_factory=list)
     project_id: int | None = None
     model: str | None = None
-    goal: str = "处理用户请求"
+    goal: str = ""
     command_id: str | int | None = None
     checkpoint_id: str | None = None
     is_retry: bool = False

@@ -40,7 +40,7 @@ class AgentSessionStartedEvent(AgentEvent):
             "type": "run_start",
             "thread_id": self.thread_id,
             "run_id": None, # Session start doesn't have a run_id yet
-            "goal": "Initializing session..."
+            "goal": ""
         }
 
 
