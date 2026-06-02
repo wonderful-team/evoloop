@@ -156,8 +156,22 @@ _apply_reasoning_patch()
 
 
 def extract_reasoning_from_message(message: BaseMessage) -> str | None:
-    """从完整的 LangChain 消息中提取推理内容 (支持 Kimi/OpenAI 格式)"""
-    return extract_reasoning_from_kwargs(message.additional_kwargs)
+    """从完整的 LangChain 消息中提取推理内容 (支持 Kimi/OpenAI/Anthropic 格式)"""
+    # 1. Try additional_kwargs first
+    reasoning = extract_reasoning_from_kwargs(message.additional_kwargs)
+    if reasoning:
+        return reasoning
+        
+    # 2. Extract Anthropic native thinking from content list
+    if isinstance(message.content, list):
+        anthropic_thinking = []
+        for block in message.content:
+            if isinstance(block, dict) and block.get("type") == "thinking" and "thinking" in block:
+                anthropic_thinking.append(block["thinking"])
+        if anthropic_thinking:
+            return "".join(anthropic_thinking)
+            
+    return None
 
 
 def extract_reasoning_from_kwargs(additional_kwargs: dict | None) -> str | None:

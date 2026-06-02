@@ -42,11 +42,9 @@ class InferenceEngine:
         self._llm_factory = llm_factory or LLMFactory
         self._context_trimmer = context_trimmer or ContextTrimmer()
 
-    async def create_llm(self, model: str | None, temperature: float):
+    async def create_llm(self, model: str | None, temperature: float, streaming: bool = True):
         """Initialize LLM and detect provider."""
-        llm = await self._llm_factory.create_llm(
-            model_name=model, temperature=temperature
-        )
+        llm = await self._llm_factory.create_llm(model_name=model, temperature=temperature, streaming=streaming)
         provider = self._detect_provider(llm)
         return llm, provider
 
@@ -232,16 +230,12 @@ class InferenceEngine:
         """Executes LLM call and extracts reasoning."""
         try:
             start_perf = time.perf_counter()
-            response = await self._stream_llm_response(
-                llm_with_tools, loop_messages, config
-            )
+            response = await self._stream_llm_response(llm_with_tools, loop_messages, config)
             latency = time.perf_counter() - start_perf
             logger.info(f"[{name}] ⏱️ LLM Latency: {latency:.2f}s")
 
             if is_single_shot and sys_hash:
-                logger.warning(
-                    f"[{name}] PROMPT CACHE DIAGNOSTIC: SystemPromptHash={sys_hash} | Latency={latency:.2f}s"
-                )
+                logger.warning(f"[{name}] PROMPT CACHE DIAGNOSTIC: SystemPromptHash={sys_hash} | Latency={latency:.2f}s")
 
             # [DIAGNOSTIC] Deep inspection of raw response
             logger.debug(

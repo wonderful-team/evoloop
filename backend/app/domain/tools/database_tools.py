@@ -3,6 +3,7 @@ import logging
 from typing import Any, Dict, List
 
 from sqlalchemy import create_engine, text
+from sqlalchemy.pool import NullPool
 
 from app.core.tools.base import evoloop_tool
 
@@ -27,7 +28,7 @@ def execute_universal_sql(db_uri: str, sql_query: str) -> str:
     """
     try:
         # Create engine
-        engine = create_engine(db_uri)
+        engine = create_engine(db_uri, poolclass=NullPool)
         
         # Connect and execute
         with engine.connect() as connection:

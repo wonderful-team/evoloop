@@ -142,15 +142,32 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         # 1. Extract and stream reasoning_content (dual-limit flush)
         generation_chunk = kwargs.get("chunk")
+        is_tool_call = False
         if generation_chunk and hasattr(generation_chunk, "message"):
             msg_chunk = generation_chunk.message
+            is_tool_call = bool(getattr(msg_chunk, "tool_call_chunks", None))
+            
+            # Extract standard reasoning content
             delta_reasoning = extract_reasoning_from_kwargs(msg_chunk.additional_kwargs)
             if delta_reasoning:
                 self._thinking_buffer += delta_reasoning
-                if _should_flush(self._thinking_buffer):
-                    await self.emit_thinking(self._thinking_buffer, message_id=run_id)
-                    self._thinking_buffer = ""
-                    self._flush_start_time = now
+                
+            # Extract Anthropic native thinking if present
+            if isinstance(msg_chunk.content, list):
+                for block in msg_chunk.content:
+                    if isinstance(block, dict) and block.get("type") == "thinking" and "thinking" in block:
+                        self._thinking_buffer += block["thinking"]
+            elif isinstance(msg_chunk.content, dict) and msg_chunk.content.get("type") == "thinking" and "thinking" in msg_chunk.content:
+                self._thinking_buffer += msg_chunk.content["thinking"]
+
+            if _should_flush(self._thinking_buffer):
+                await self.emit_thinking(self._thinking_buffer, message_id=run_id)
+                self._thinking_buffer = ""
+                self._flush_start_time = now
+
+        # Prevent tool call JSON arguments from leaking into the plain text stream
+        if is_tool_call:
+            return
 
         # 2. Defensive: normalize structured tokens
         if not isinstance(token, str):

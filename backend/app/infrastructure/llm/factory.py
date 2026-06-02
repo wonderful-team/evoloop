@@ -98,7 +98,17 @@ _HTTP_CLIENT_POOL = LoopBoundResource(
         timeout=httpx.Timeout(300.0, connect=10.0), # Increased from 60s to 300s for reasoning models
         limits=httpx.Limits(max_connections=100, max_keepalive_connections=20)
     ),
-    cleanup=_close_client
+    cleanup=_close_client,
+    # NOTE: This pool is intentionally excluded from flush_loop_bound_resources()
+    # because its httpx clients are shared with cached LLM instances. If the pool
+    # is flushed mid-request (e.g. by a BackgroundTask or Celery task running on
+    # the same loop), the shared clients are closed permanently, causing
+    # "Cannot send a request, as the client has been closed" errors on all
+    # subsequent LLM calls until the server is restarted.
+    # LLMFactory manages the lifecycle: when the event loop is GC'd, the
+    # WeakKeyDictionary entries for both the LLM cache and the httpx pool are
+    # cleaned up automatically.
+    skip_flush=True,
 )
 
 
@@ -277,6 +287,12 @@ class LLMFactory:
 
         logger.info(f"[LLMFactory] Custom mode: provider={custom_provider}, model={actual_model}")
 
+        # Merge standard thinking config into extra_body
+        merged_extra = {
+            **ThinkingConfig().to_extra_body(),
+            **config.extra_body
+        }
+
         return LLMFactory._build_llm_instance(
             api_key=config.api_key,
             base_url=config.base_url,
@@ -285,7 +301,7 @@ class LLMFactory:
             provider_type=config.provider_type,
             streaming=config.streaming,
             max_tokens=config.max_tokens,
-            extra_body=config.extra_body,
+            extra_body=merged_extra,
         )
 
     @staticmethod
@@ -302,6 +318,12 @@ class LLMFactory:
 
         logger.info(f"[LLMFactory] Direct mode: model={config.model_name}, base_url={config.base_url}")
 
+        # Merge standard thinking config into extra_body
+        merged_extra = {
+            **ThinkingConfig().to_extra_body(),
+            **config.extra_body
+        }
+
         return LLMFactory._build_llm_instance(
             api_key=config.api_key or "",
             base_url=config.base_url,
@@ -310,7 +332,7 @@ class LLMFactory:
             provider_type=config.provider_type,
             streaming=config.streaming,
             max_tokens=config.max_tokens,
-            extra_body=config.extra_body,
+            extra_body=merged_extra,
         )
 
     @staticmethod
@@ -351,12 +373,20 @@ class LLMFactory:
             if normalized.endswith("/v1"):
                 normalized = normalized[:-3]
 
+            # Construct Anthropic-native thinking params if enabled
+            anthropic_kwargs = {}
+            if merged_extra.get("enable_thinking"):
+                # Anthropic Claude 3.7 requires a budget_tokens parameter > 1024
+                # We use a default of 4000 for reasoning.
+                anthropic_kwargs["thinking"] = {"type": "enabled", "budget_tokens": 4000}
+
             return CompatibleChatAnthropic(
                 api_key=api_key,
                 base_url=normalized,
                 model_name=model_name,
                 temperature=temperature,
                 streaming=streaming,
+                model_kwargs=anthropic_kwargs if anthropic_kwargs else None,
                 http_async_client=_HTTP_CLIENT_POOL.get(),
             )
         else:
@@ -446,3 +476,21 @@ def get_default_llm(model_name: str | None = None, temperature: float = 0.3, **k
             f"model={config.model_name}, temp={config.temperature}"
         )
         return asyncio.run(LLMFactory.create_llm(config))
+
+
+async def shutdown_http_pool():
+    """Close all cached httpx clients in the shared HTTP client pool.
+
+    Called during application shutdown to properly close connections.
+    Iterates all event-loop entries since each loop has its own client.
+    """
+    logger.info("[LLMFactory] Shutting down HTTP client pool...")
+    count = 0
+    for loop, client in list(_HTTP_CLIENT_POOL._resources.items()):
+        try:
+            await client.aclose()
+            count += 1
+        except Exception:
+            pass
+    _HTTP_CLIENT_POOL._resources.clear()
+    logger.info(f"[LLMFactory] HTTP client pool closed ({count} client(s))")
