@@ -6,6 +6,31 @@
 
 set -e
 
+show_help() {
+  echo "EvoLoop CentOS / RHEL 一键部署脚本"
+  echo ""
+  echo "用法:"
+  echo "  sudo bash $0 [options]"
+  echo ""
+  echo "选项:"
+  echo "  --help, -h        显示此帮助"
+  echo ""
+  echo "说明:"
+  echo "  交互式脚本，将引导您完成以下步骤："
+  echo "    1. 检查操作系统与 Docker 环境"
+  echo "    2. 配置 .env 环境变量 (域名、密钥、数据库等)"
+  echo "    3. 选择部署模式 (Docker Compose / Systemd / Baota)"
+  echo "    4. 启动服务"
+  echo ""
+  echo "配置模板: config/server/.env.example"
+  echo "参考文档: 项目根目录的 README.md"
+  exit 0
+}
+
+for arg in "$@"; do
+  [ "$arg" = "--help" ] || [ "$arg" = "-h" ] && show_help
+done
+
 # --- 颜色输出 ---
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -105,11 +130,14 @@ echo -e "\n${YELLOW}[3/4] 环境参数配置向导 (强管控环节)...${NC}"
 ENV_FILE=".env"
 SKIP_CONFIG=false
 if [ ! -f "$ENV_FILE" ]; then
-    if [ -f ".env.example" ]; then
+    if [ -f "config/server/.env.example" ]; then
+        cp config/server/.env.example "$ENV_FILE"
+        echo -e "${GREEN}✓ 已从 config/server/.env.example 复制服务器配置。${NC}"
+    elif [ -f ".env.example" ]; then
         cp .env.example "$ENV_FILE"
-        echo -e "${GREEN}✓ 已从 .env.example 复制默认配置。${NC}"
+        echo -e "${GREEN}✓ 已从 .env.example 复制默认配置（旧模板）。${NC}"
     else
-        echo -e "${RED}✗ 找不到 .env.example，请确保在项目根目录下运行此脚本！${NC}"
+        echo -e "${RED}✗ 找不到 config/server/.env.example，请确保在项目根目录下运行此脚本！${NC}"
         exit 1
     fi
 else

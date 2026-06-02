@@ -9,8 +9,9 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# Default models to download
-DEFAULT_MODELS="paraformer-zh nomic-embed"
+# Default models to download (embedding only — required for all deployments)
+# Speech models (paraformer-*) only needed for Tauri desktop client builds
+DEFAULT_MODELS="nomic-embed"
 ALL_MODELS="paraformer-zh paraformer-zh-en paraformer-zh-plus paraformer-zh-streaming nomic-embed"
 
 # Parse arguments
@@ -45,11 +46,11 @@ while [[ $# -gt 0 ]]; do
             echo "  --help, -h         Show this help"
             echo ""
             echo "Available models:"
-            echo "  paraformer-zh              (default, Chinese + English)"
+            echo "  nomic-embed                (default, text embeddings — required for all deployments)"
+            echo "  paraformer-zh              (Chinese + English ASR — for desktop client only)"
             echo "  paraformer-zh-en           (Chinese + English mixed)"
             echo "  paraformer-zh-plus         (with VAD & punctuation)"
             echo "  paraformer-zh-streaming    (streaming recognition)"
-            echo "  nomic-embed                (default, text embeddings for semantic search)"
             exit 0
             ;;
         *)
@@ -73,6 +74,9 @@ echo ""
 
 # Get project root to locate .env
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Ensure consistent CWD for relative path lookups (e.g. backend/.venv)
+cd "$PROJECT_ROOT"
 
 # Load .env if exists to get EVOLOOP_APP_DATA_DIR
 if [ -f "$PROJECT_ROOT/.env" ]; then
@@ -144,7 +148,11 @@ echo -e "${YELLOW}📦 Checking dependencies...${NC}"
 # Function to handle pip installs with uv fallback
 pip_install() {
     if command -v uv &> /dev/null; then
-        uv pip install --python "$PYTHON_CMD" "$@"
+        if [ -n "$VIRTUAL_ENV" ] || [ -f "$PROJECT_ROOT/backend/.venv/pyvenv.cfg" ]; then
+            uv pip install --python "$PYTHON_CMD" "$@"
+        else
+            uv pip install --system "$@"
+        fi
     else
         $PYTHON_CMD -m pip install "$@"
     fi
@@ -242,7 +250,7 @@ for model_name in $MODELS_TO_DOWNLOAD; do
         nomic-embed)
             echo -e "${YELLOW}📦 Installing sentence-transformers if needed...${NC}"
             pip_install sentence-transformers 2>/dev/null || true
-            $PYTHON_CMD backend/scripts/download_models.py
+            $PYTHON_CMD backend/bin/scripts/download_models.py
             if [ $? -eq 0 ]; then
                 echo -e "${GREEN}✅ $model_name downloaded successfully${NC}"
             else

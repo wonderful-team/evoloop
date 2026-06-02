@@ -7,6 +7,28 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+show_help() {
+  echo "EvoLoop Development Mode"
+  echo ""
+  echo "Usage: $0 [options]"
+  echo ""
+  echo "Options:"
+  echo "  --help, -h    Show this help message"
+  echo ""
+  echo "Description:"
+  echo "  Starts the backend (FastAPI) and frontend (Vite) development servers"
+  echo "  simultaneously with hot-reload enabled."
+  echo ""
+  echo "  Backend:  http://localhost:8000"
+  echo "  Frontend: http://localhost:5173"
+  echo "  API docs: http://localhost:8000/docs"
+  exit 0
+}
+
+for arg in "$@"; do
+  [ "$arg" = "--help" ] || [ "$arg" = "-h" ] && show_help
+done
+
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║          EvoLoop Development Mode                            ║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"

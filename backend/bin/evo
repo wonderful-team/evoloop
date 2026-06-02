@@ -479,11 +479,11 @@ case "${1:-help}" in
                 ;;
             brain)
                 info "运行 Brain 模块测试..."
-                .venv/bin/python scripts/test_brain_full.py
+                .venv/bin/python bin/scripts/test_brain_full.py
                 ;;
             atlas)
                 info "运行 Atlas 模块测试..."
-                .venv/bin/python scripts/test_atlas_e2e.py
+                .venv/bin/python bin/scripts/test_atlas_e2e.py
                 ;;
             *)
                 info "运行测试套件..."
@@ -497,7 +497,7 @@ case "${1:-help}" in
         case "${2:-}" in
             init)
                 info "初始化数据库..."
-                .venv/bin/python scripts/init_test_db.py
+                .venv/bin/python bin/scripts/init_test_db.py
                 ;;
             migrate)
                 info "运行数据库迁移..."
@@ -511,7 +511,7 @@ case "${1:-help}" in
                 ;;
             seed)
                 info "填充测试数据..."
-                .venv/bin/python scripts/seed_test_data.py
+                .venv/bin/python bin/scripts/seed_test_data.py
                 ;;
             *)
                 error "未知数据库命令: ${2:-}"
@@ -526,19 +526,19 @@ case "${1:-help}" in
         case "${2:-}" in
             reset)
                 info "清空并重建知识库索引..."
-                .venv/bin/python scripts/reset_and_rebuild.py
+                .venv/bin/python bin/scripts/reset_and_rebuild.py
                 ;;
             clean)
                 info "仅清空知识库..."
-                .venv/bin/python scripts/reset_and_rebuild.py --clean-only
+                .venv/bin/python bin/scripts/reset_and_rebuild.py --clean-only
                 ;;
             rebuild)
                 info "仅重建知识库索引..."
-                .venv/bin/python scripts/reset_and_rebuild.py --rebuild-only
+                .venv/bin/python bin/scripts/reset_and_rebuild.py --rebuild-only
                 ;;
             reindex)
                 info "重新索引所有项目..."
-                .venv/bin/python scripts/reindex_all.py
+                .venv/bin/python bin/scripts/reindex_all.py
                 ;;
             *)
                 error "未知知识库命令: ${2:-}"
@@ -555,37 +555,37 @@ case "${1:-help}" in
                 warning "即将执行完整系统清理（包括数据库和文件）"
                 read -p "确定继续? (yes/no): " confirm
                 if [ "$confirm" = "yes" ]; then
-                    .venv/bin/python scripts/cleanup_system.py --all --confirm
+                    .venv/bin/python bin/scripts/cleanup_system.py --all --confirm
                 else
                     info "已取消"
                 fi
                 ;;
             dry)
                 info "预览清理内容..."
-                .venv/bin/python scripts/cleanup_system.py --dry-run --all
+                .venv/bin/python bin/scripts/cleanup_system.py --dry-run --all
                 ;;
             redis)
                 info "清理 Redis 缓存..."
-                .venv/bin/python scripts/cleanup_system.py --redis
+                .venv/bin/python bin/scripts/cleanup_system.py --redis
                 ;;
             cache)
                 info "清理 FileCache 缓存 (Embedded Mode)..."
-                .venv/bin/python scripts/cleanup_system.py --cache
+                .venv/bin/python bin/scripts/cleanup_system.py --cache
                 ;;
             sqlite)
                 info "清理 SQLite 表 (Embedded Mode)..."
-                .venv/bin/python scripts/cleanup_system.py --sqlite
+                .venv/bin/python bin/scripts/cleanup_system.py --sqlite
                 ;;
             neo4j)
                 info "清理 Neo4j 文件索引..."
-                .venv/bin/python scripts/cleanup_system.py --neo4j
+                .venv/bin/python bin/scripts/cleanup_system.py --neo4j
                 ;;
             memory)
                 info "清理记忆数据..."
                 warning "这将删除所有概念、执行历史和用户偏好"
                 read -p "确定继续? (yes/no): " confirm
                 if [ "$confirm" = "yes" ]; then
-                    .venv/bin/python scripts/cleanup_system.py --memory
+                    .venv/bin/python bin/scripts/cleanup_system.py --memory
                 else
                     info "已取消"
                 fi
@@ -595,64 +595,64 @@ case "${1:-help}" in
                 warning "这将删除 cloud_token, device_key, member_id"
                 read -p "确定继续? (yes/no): " confirm
                 if [ "$confirm" = "yes" ]; then
-                    .venv/bin/python scripts/cleanup_system.py --keychain
+                    .venv/bin/python bin/scripts/cleanup_system.py --keychain
                 else
                     info "已取消"
                 fi
                 ;;
             skills)
                 info "清理技能数据..."
-                .venv/bin/python scripts/cleanup_system.py --skills
+                .venv/bin/python bin/scripts/cleanup_system.py --skills
                 ;;
             index)
                 info "清理文件索引..."
-                .venv/bin/python scripts/cleanup_system.py --index
+                .venv/bin/python bin/scripts/cleanup_system.py --index
                 ;;
             messages)
                 info "清理消息历史..."
-                .venv/bin/python scripts/cleanup_system.py --messages
+                .venv/bin/python bin/scripts/cleanup_system.py --messages
                 ;;
             jobs)
                 info "清理任务队列..."
-                .venv/bin/python scripts/cleanup_system.py --jobs
+                .venv/bin/python bin/scripts/cleanup_system.py --jobs
                 ;;
             screenshots|sc)
                 info "清理截图..."
-                .venv/bin/python scripts/cleanup_system.py --screenshots
+                .venv/bin/python bin/scripts/cleanup_system.py --screenshots
                 ;;
             recordings|rec)
                 info "清理屏幕录制..."
-                .venv/bin/python scripts/cleanup_system.py --recordings
+                .venv/bin/python bin/scripts/cleanup_system.py --recordings
                 ;;
             knowledge|kb)
                 info "清理知识库文件..."
-                .venv/bin/python scripts/cleanup_system.py --knowledge
+                .venv/bin/python bin/scripts/cleanup_system.py --knowledge
                 ;;
             brain)
                 info "清理 Brain Memory..."
-                .venv/bin/python scripts/cleanup_system.py --brain
+                .venv/bin/python bin/scripts/cleanup_system.py --brain
                 ;;
             todos)
                 info "清理待办事项..."
-                .venv/bin/python scripts/cleanup_system.py --todos
+                .venv/bin/python bin/scripts/cleanup_system.py --todos
                 ;;
             conversations|conv)
                 info "清理对话及相关数据..."
                 warning "这将删除 conversations, messages, plans, file_operations, checkpoints 等10张表数据"
                 read -p "确定继续? (yes/no): " confirm
                 if [ "$confirm" = "yes" ]; then
-                    .venv/bin/python scripts/cleanup_system.py --conversations
+                    .venv/bin/python bin/scripts/cleanup_system.py --conversations
                 else
                     info "已取消"
                 fi
                 ;;
             expired)
                 info "清理过期截图和录制..."
-                .venv/bin/python scripts/cleanup_system.py --expired-only --screenshots --recordings
+                .venv/bin/python bin/scripts/cleanup_system.py --expired-only --screenshots --recordings
                 ;;
             runtime|"")
                 info "清理运行时缓存..."
-                .venv/bin/python scripts/cleanup_runtime.py 2>/dev/null || .venv/bin/python scripts/cleanup_system.py --cache
+                .venv/bin/python bin/scripts/cleanup_runtime.py 2>/dev/null || .venv/bin/python bin/scripts/cleanup_system.py --cache
                 ;;
             help|-h|--help)
                 echo "╔══════════════════════════════════════════════════════════════╗"
@@ -711,13 +711,13 @@ case "${1:-help}" in
     storage)
         case "${2:-}" in
             stats)
-                .venv/bin/python scripts/manage_screenshots.py stats
+                .venv/bin/python bin/scripts/manage_screenshots.py stats
                 ;;
             clean)
-                .venv/bin/python scripts/manage_screenshots.py cleanup
+                .venv/bin/python bin/scripts/manage_screenshots.py cleanup
                 ;;
             test)
-                .venv/bin/python scripts/manage_screenshots.py test
+                .venv/bin/python bin/scripts/manage_screenshots.py test
                 ;;
             *)
                 error "未知存储命令: ${2:-}"
@@ -731,13 +731,13 @@ case "${1:-help}" in
     atlas)
         case "${2:-}" in
             test)
-                .venv/bin/python scripts/test_atlas_e2e.py
+                .venv/bin/python bin/scripts/test_atlas_e2e.py
                 ;;
             mobile)
-                .venv/bin/python scripts/test_atlas_mobile.py
+                .venv/bin/python bin/scripts/test_atlas_mobile.py
                 ;;
             clear)
-                .venv/bin/python scripts/clear_atlas.py
+                .venv/bin/python bin/scripts/clear_atlas.py
                 ;;
             *)
                 error "未知 Atlas 命令: ${2:-}"
@@ -751,13 +751,13 @@ case "${1:-help}" in
     brain)
         case "${2:-}" in
             test)
-                .venv/bin/python scripts/test_brain_full.py
+                .venv/bin/python bin/scripts/test_brain_full.py
                 ;;
             real)
-                .venv/bin/python scripts/test_brain_real.py
+                .venv/bin/python bin/scripts/test_brain_real.py
                 ;;
             letta)
-                .venv/bin/python scripts/test_brain_letta.py
+                .venv/bin/python bin/scripts/test_brain_letta.py
                 ;;
             *)
                 error "未知 Brain 命令: ${2:-}"
@@ -771,16 +771,16 @@ case "${1:-help}" in
     verify)
         case "${2:-}" in
             skill)
-                .venv/bin/python scripts/verification/verify_skill_execution.py
+                .venv/bin/python bin/scripts/verification/verify_skill_execution.py
                 ;;
             storage)
-                .venv/bin/python scripts/verify_storage.py
+                .venv/bin/python bin/scripts/verify_storage.py
                 ;;
             vector)
-                .venv/bin/python scripts/verify_vector_opt.py
+                .venv/bin/python bin/scripts/verify_vector_opt.py
                 ;;
             peekaboo)
-                .venv/bin/python scripts/verify_peekaboo.py
+                .venv/bin/python bin/scripts/verify_peekaboo.py
                 ;;
             *)
                 error "未知验证命令: ${2:-}"
@@ -794,13 +794,13 @@ case "${1:-help}" in
     demo)
         case "${2:-}" in
             final)
-                .venv/bin/python scripts/demo_final.py
+                .venv/bin/python bin/scripts/demo_final.py
                 ;;
             phase3)
-                .venv/bin/python scripts/demo_phase3.py
+                .venv/bin/python bin/scripts/demo_phase3.py
                 ;;
             mobile)
-                .venv/bin/python scripts/demo_mobile_reactor.py
+                .venv/bin/python bin/scripts/demo_mobile_reactor.py
                 ;;
             *)
                 error "未知演示命令: ${2:-}"
@@ -822,7 +822,7 @@ case "${1:-help}" in
             download)
                 shift 2
                 info "预下载 embedding 模型到本地缓存..."
-                .venv/bin/python scripts/download_models.py "$@"
+                .venv/bin/python bin/scripts/download_models.py "$@"
                 ;;
             *)
                 error "未知模型命令: ${2:-}"
@@ -997,11 +997,11 @@ case "${1:-help}" in
 
     # ==================== 工具 ====================
     debug)
-        .venv/bin/python scripts/debug_messages.py
+        .venv/bin/python bin/scripts/debug_messages.py
         ;;
 
     analyze)
-        .venv/bin/python scripts/analyze_loop.py
+        .venv/bin/python bin/scripts/analyze_loop.py
         ;;
 
     # ==================== 未知命令 ====================

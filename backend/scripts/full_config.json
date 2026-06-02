@@ -1,0 +1,200 @@
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "version": 1778861342,
+    "providers": [
+      {
+        "name": "moonshot-coding",
+        "display_name": "Kimi",
+        "base_url": "https://api.kimi.com/coding/v1",
+        "api_key": "sk-kimi-pZPcvecDfE4oIWQlDxvf5FYShrV7Yx2iSUK9dtoWlYwBWNC3kzVo2WWDdYFwO9j3",
+        "provider_type": "anthropic",
+        "priority": 20,
+        "weight": 100,
+        "timeout": 60,
+        "max_retries": 3,
+        "rate_limit_rpm": 60,
+        "rate_limit_tpm": 100000,
+        "is_enabled": true,
+        "is_healthy": true,
+        "headers": {
+          "User-Agent": "KimiCLI/1.5"
+        }
+      }
+    ],
+    "models": {
+      "kimi-k2-thinking-turbo": {
+        "model_id": "kimi-k2-thinking-turbo",
+        "display_name": "Kimi K2.5 Turbo",
+        "provider_name": "moonshot-coding",
+        "provider_type": "anthropic",
+        "model_type": "llm",
+        "config_type": "evoloop",
+        "context_window": 200000,
+        "max_tokens": 20000,
+        "supports_streaming": true,
+        "supports_vision": true,
+        "supports_functions": true,
+        "input_price": 0,
+        "output_price": 0,
+        "is_enabled": true,
+        "is_public": true
+      },
+      "gpt-4-turbo": {
+        "model_id": "gpt-4-turbo",
+        "display_name": "GPT-4 Turbo",
+        "provider_name": "openai",
+        "provider_type": "openai",
+        "model_type": "llm",
+        "config_type": "evoloop",
+        "context_window": 128000,
+        "max_tokens": 4096,
+        "supports_streaming": true,
+        "supports_vision": true,
+        "supports_functions": true,
+        "input_price": 10,
+        "output_price": 30,
+        "is_enabled": true,
+        "is_public": true
+      },
+      "claude-4-6-sonnet": {
+        "model_id": "claude-4-6-sonnet",
+        "display_name": "Claude 4.6 Sonnet",
+        "provider_name": "anthropic",
+        "provider_type": "anthropic",
+        "model_type": "llm",
+        "config_type": "evoloop",
+        "context_window": 500000,
+        "max_tokens": 16384,
+        "supports_streaming": true,
+        "supports_vision": true,
+        "supports_functions": true,
+        "input_price": 5,
+        "output_price": 20,
+        "is_enabled": true,
+        "is_public": true
+      },
+      "claude-4-6-opus": {
+        "model_id": "claude-4-6-opus",
+        "display_name": "Claude 4.6 Opus",
+        "provider_name": "anthropic",
+        "provider_type": "anthropic",
+        "model_type": "llm",
+        "config_type": "evoloop",
+        "context_window": 500000,
+        "max_tokens": 16384,
+        "supports_streaming": true,
+        "supports_vision": true,
+        "supports_functions": true,
+        "input_price": 25,
+        "output_price": 100,
+        "is_enabled": true,
+        "is_public": true
+      },
+      "gemini-3-0-flash": {
+        "model_id": "gemini-3-0-flash",
+        "display_name": "Gemini 3.0 Flash",
+        "provider_name": "google",
+        "provider_type": "openai",
+        "model_type": "llm",
+        "config_type": "evoloop",
+        "context_window": 1048576,
+        "max_tokens": 8192,
+        "supports_streaming": true,
+        "supports_vision": true,
+        "supports_functions": true,
+        "input_price": 0.075,
+        "output_price": 0.3,
+        "is_enabled": true,
+        "is_public": true
+      },
+      "gemini-3-0-pro": {
+        "model_id": "gemini-3-0-pro",
+        "display_name": "Gemini 3.0 Pro",
+        "provider_name": "google",
+        "provider_type": "openai",
+        "model_type": "llm",
+        "config_type": "evoloop",
+        "context_window": 2097152,
+        "max_tokens": 8192,
+        "supports_streaming": true,
+        "supports_vision": true,
+        "supports_functions": true,
+        "input_price": 1.25,
+        "output_price": 5,
+        "is_enabled": true,
+        "is_public": true
+      },
+      "deepseek-chat": {
+        "model_id": "deepseek-chat",
+        "display_name": "DeepSeek Chat",
+        "provider_name": "deepseek",
+        "provider_type": "openai",
+        "model_type": "llm",
+        "config_type": "evoloop",
+        "context_window": 64000,
+        "max_tokens": 8192,
+        "supports_streaming": true,
+        "supports_vision": false,
+        "supports_functions": true,
+        "input_price": 0.14,
+        "output_price": 0.28,
+        "is_enabled": true,
+        "is_public": true
+      },
+      "deepseek-reasoner": {
+        "model_id": "deepseek-reasoner",
+        "display_name": "DeepSeek Reasoner",
+        "provider_name": "deepseek",
+        "provider_type": "openai",
+        "model_type": "llm",
+        "config_type": "evoloop",
+        "context_window": 64000,
+        "max_tokens": 8192,
+        "supports_streaming": true,
+        "supports_vision": false,
+        "supports_functions": true,
+        "input_price": 0.55,
+        "output_price": 2.19,
+        "is_enabled": true,
+        "is_public": true
+      },
+      "qwen-turbo": {
+        "model_id": "qwen-turbo",
+        "display_name": "Qwen Turbo",
+        "provider_name": "qwen",
+        "provider_type": "openai",
+        "model_type": "llm",
+        "config_type": "evoloop",
+        "context_window": 131072,
+        "max_tokens": 8192,
+        "supports_streaming": true,
+        "supports_vision": false,
+        "supports_functions": true,
+        "input_price": 0.3,
+        "output_price": 0.6,
+        "is_enabled": true,
+        "is_public": true
+      }
+    },
+    "settings": {
+      "gateway": {
+        "enable_caching": true,
+        "config_ttl_seconds": 300,
+        "health_check_interval": 60
+      },
+      "llm": {
+        "default_timeout": 60,
+        "max_timeout": 300,
+        "enable_streaming": true,
+        "default_model": "kimi-k2-thinking-turbo"
+      },
+      "quota": {
+        "enable_direct_deduction": true,
+        "sync_interval_seconds": 60
+      }
+    }
+  },
+  "timestamp": 1778861342
+}

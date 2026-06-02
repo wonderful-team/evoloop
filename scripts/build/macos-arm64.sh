@@ -1,0 +1,126 @@
+#!/bin/bash
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+
+DEV_MODE=false
+WITH_MODELS=false
+DOWNLOAD_MODELS=false
+MODELS_LIST="paraformer-zh"
+ARCH="aarch64-apple-darwin"
+
+# Validate: this script requires Apple Silicon (arm64)
+HOST_ARCH=$(uname -m)
+if [ "$HOST_ARCH" != "arm64" ] && [ "$HOST_ARCH" != "aarch64" ]; then
+  warn "Host CPU is ${HOST_ARCH}, but this script builds for Apple Silicon (arm64/aarch64)."
+  warn "The resulting Rust binary will be cross-compiled and may not run natively."
+  warn ""
+  warn "  ✓ Use 'macos-x86_64' for Intel Macs"
+  warn "  ✓ Use 'current' for auto-detection"
+  echo ""
+fi
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --dev|-d) DEV_MODE=true; shift ;;
+    --with-models|-m) WITH_MODELS=true; shift ;;
+    --download-models)
+      DOWNLOAD_MODELS=true
+      if [[ $2 != --* ]] && [[ -n $2 ]]; then MODELS_LIST="$2"; shift 2; else shift; fi
+      ;;
+    --clean|-c) clean_artifacts; shift ;;
+    --help|-h)
+      echo "Usage: $0 [options]"
+      echo "  --dev, -d                 Development mode"
+      echo "  --with-models, -m         Bundle pre-downloaded models"
+      echo "  --download-models [LIST]  Download models before build"
+      echo "  --clean, -c               Clean artifacts before build"
+      exit 0
+      ;;
+    *) err "Unknown: $1"; exit 1 ;;
+  esac
+done
+
+init_config "desktop"
+load_env
+ensure_xattr
+
+header "Building EvoLoop for macOS (Apple Silicon)"
+
+echo "  Target:     ${ARCH}"
+echo "  Dev Mode:   ${DEV_MODE}"
+echo "  With Models: ${WITH_MODELS}"
+echo ""
+
+step "Step 0: Ensuring embedding model (required)"
+ensure_embedding
+
+if [ "$DOWNLOAD_MODELS" = true ]; then
+  step "Step 0b: Downloading speech models (for desktop client)"
+  download_speech_models "$MODELS_LIST"
+fi
+
+step "Pre-build: Checking Python environment"
+check_numpy "python3"
+
+step "Step 1: Building Backend Sidecar"
+bash "$SCRIPT_DIR/sidecar.sh" "arm64" "$ARCH"
+
+step "Step 2: Installing Frontend Dependencies"
+install_frontend_deps
+
+cd "$PROJECT_ROOT/frontend"
+
+if [ "$WITH_MODELS" = true ]; then
+  step "Step 3: Bundling Models"
+  bundle_models "$APP_DATA_DIR/models" "src-tauri/models"
+  patch_tauri_config_for_models
+fi
+
+step "Step 4: Building Tauri Application"
+if [ "$DEV_MODE" = true ]; then
+  info "Starting dev server..."
+  npm run tauri dev
+else
+  rustup target add "$ARCH" 2>/dev/null || true
+  info "Building for distribution..."
+  npm run tauri build -- --target "$ARCH" --bundles app || {
+    warn "Tauri build failed"
+    exit 1
+  }
+
+  APP_BUNDLE="src-tauri/target/${ARCH}/release/bundle/macos/EvoLoop.app"
+  DMG_PATH="src-tauri/target/${ARCH}/release/bundle/dmg/EvoLoop_0.1.0_aarch64.dmg"
+
+  if [ ! -d "$APP_BUNDLE" ]; then
+    if [ -d "src-tauri/target/release/EvoLoop.app" ]; then
+      mkdir -p "src-tauri/target/${ARCH}/release/bundle/macos"
+      mv "src-tauri/target/release/EvoLoop.app" "$APP_BUNDLE"
+    fi
+  fi
+
+  if [ -d "$APP_BUNDLE" ]; then
+    fix_libvosk "$APP_BUNDLE"
+
+    if [ "$WITH_MODELS" = true ] && [ -d "src-tauri/models" ]; then
+      mkdir -p "$APP_BUNDLE/Contents/Resources/models"
+      cp -R "src-tauri/models/"* "$APP_BUNDLE/Contents/Resources/models/"
+    fi
+
+    sign_bundle "$APP_BUNDLE"
+    create_dmg "$APP_BUNDLE" "$DMG_PATH"
+    show_output "$APP_BUNDLE" "${DMG_PATH}"
+  else
+    err "App bundle not found"
+    exit 1
+  fi
+fi
+
+cd "$PROJECT_ROOT"
+if [ "$WITH_MODELS" = true ]; then
+  restore_tauri_config
+  rm -rf "$PROJECT_ROOT/frontend/src-tauri/models"
+fi
+
+ok "Build complete!"
