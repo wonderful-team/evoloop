@@ -45,7 +45,7 @@ function EChartsErrorFallback({ data }: { data: EChartsArtifactProps['data'] }) 
     <div className="w-full my-6 border border-destructive/20 bg-destructive/5 rounded-xl overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-3 bg-destructive/10 border-b border-destructive/10 text-destructive text-sm font-bold">
           <AlertCircle className="w-4 h-4" />
-          {data.title || t('chat.artifact.chartError', 'Chart Rendering Error')}
+          {typeof data.title === 'string' ? data.title : t('chat.artifact.chartError', 'Chart Rendering Error')}
         </div>
       <div className="p-4">
         <p className="text-xs text-muted-foreground mb-3 font-medium">
@@ -202,7 +202,7 @@ export const EChartsArtifact: React.FC<EChartsArtifactProps> = ({ data }) => {
         <div className="py-3 px-5 border-b border-[var(--doc-border)] bg-muted/10 flex flex-row items-center justify-between group/chart">
           <div className="flex flex-col">
             <h3 className="text-sm font-bold tracking-tight">
-                {data.title || t('chat.artifact.chart', 'Statistical Analysis')}
+                {typeof data.title === 'string' ? data.title : t('chat.artifact.chart', 'Statistical Analysis')}
             </h3>
           </div>
           <div className="flex items-center gap-2 opacity-0 group-hover/chart:opacity-100 transition-opacity">

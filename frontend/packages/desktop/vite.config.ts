@@ -11,6 +11,7 @@ const __dirname = path.dirname(__filename)
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, path.resolve(__dirname, "../../"), "")
     return {
+        envDir: path.resolve(__dirname, "../../"),
         resolve: {
             alias: {
                 "@": path.resolve(__dirname, "./src"),

@@ -90,7 +90,11 @@ export const MessageReferences: React.FC<MessageReferencesProps> = ({
 
             switch (artType) {
               case "echarts":
-                return <EChartsArtifact key={art.id} data={data} />
+                const echartsData = {
+                  title: typeof data.title === 'string' ? data.title : art.target_name,
+                  option: data.option || data,
+                }
+                return <EChartsArtifact key={art.id} data={echartsData} />
               case "map":
                 return <MapArtifact key={art.id} data={data} />
               case "html":

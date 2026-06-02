@@ -136,7 +136,20 @@ export const MessageList = memo(function MessageList({
         callbacksRef.current = { hasMoreHistory, isLoadingHistory, loadMoreHistory }
     })
 
-    const handleReachStart = useCallback(() => {
+    const handleFollowOutput = useCallback((isAtBottom: boolean) => {
+        if (isLoadingHistory) return false
+        if (!isAtBottom) return false
+        return 'auto'
+    }, [isLoadingHistory])
+
+    const handleScroll = useCallback((event: React.UIEvent) => {
+        const target = event.target as HTMLElement
+        const { scrollTop, scrollHeight, clientHeight } = target
+        const scrollableHeight = scrollHeight - clientHeight
+        if (scrollableHeight <= 0) return
+
+        if (scrollTop / scrollableHeight > 0.2) return
+
         const { hasMoreHistory, isLoadingHistory, loadMoreHistory } = callbacksRef.current
         if (hasMoreHistory && !isLoadingHistory && loadMoreHistory) {
             loadMoreHistory()
@@ -452,11 +465,8 @@ export const MessageList = memo(function MessageList({
             style={{ height: "100%" }}
             data={virtItems}
             itemContent={itemContent}
-            followOutput={(_isAtBottom) => {
-                if (isLoadingHistory) return false
-                return 'auto'
-            }}
-            startReached={handleReachStart}
+            followOutput={handleFollowOutput}
+            onScroll={handleScroll}
             components={{
                 Item: VirtuosoItem,
                 Header: () => (
