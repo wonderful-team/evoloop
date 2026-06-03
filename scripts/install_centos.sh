@@ -6,6 +6,8 @@
 
 set -e
 
+DEPLOY_DIR=""
+
 show_help() {
   echo "EvoLoop CentOS / RHEL 一键部署脚本"
   echo ""
@@ -13,7 +15,10 @@ show_help() {
   echo "  sudo bash $0 [options]"
   echo ""
   echo "选项:"
-  echo "  --help, -h        显示此帮助"
+  echo "  --help, -h            显示此帮助"
+  echo "  --deploy-dir=PATH     部署目标目录 (默认: 当前目录)"
+  echo "                        指定后仅复制服务器所需文件到目标目录，"
+  echo "                        排除 mobile/、frontend/src-tauri/ 等"
   echo ""
   echo "说明:"
   echo "  交互式脚本，将引导您完成以下步骤："
@@ -22,20 +27,60 @@ show_help() {
   echo "    3. 选择部署模式 (Docker Compose / Systemd / Baota)"
   echo "    4. 启动服务"
   echo ""
+  echo "示例:"
+  echo "  sudo bash $0                              # 当前目录部署"
+  echo "  sudo bash $0 --deploy-dir=/opt/evoloop    # 部署到 /opt/evoloop"
+  echo ""
   echo "配置模板: config/server/.env.example"
   echo "参考文档: 项目根目录的 README.md"
   exit 0
 }
-
-for arg in "$@"; do
-  [ "$arg" = "--help" ] || [ "$arg" = "-h" ] && show_help
-done
 
 # --- 颜色输出 ---
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
+
+for arg in "$@"; do
+  case "$arg" in
+    --help|-h) show_help; exit 0 ;;
+    --deploy-dir=*) DEPLOY_DIR="${arg#*=}" ;;
+  esac
+done
+
+if [ -n "$DEPLOY_DIR" ]; then
+  echo -e "${YELLOW}→ 部署到目标目录: $DEPLOY_DIR${NC}"
+  EXCLUDE_RSYNC=(
+    --exclude='mobile'
+    --exclude='frontend/src-tauri'
+    --exclude='frontend/node_modules'
+    --exclude='backend/.venv'
+    --exclude='backend/dist'
+    --exclude='backend/build'
+    --exclude='backend/evoloop-backend.spec'
+    --exclude='backend/entry_point.py'
+    --exclude='dist'
+    --exclude='Makefile'
+    --exclude='.git'
+    --exclude='.gitignore'
+    --exclude='.pre-commit-config.yaml'
+    --exclude='scripts/build'
+    --exclude='scripts/dev.sh'
+    --exclude='scripts/check_arch.sh'
+    --exclude='scripts/update-version.sh'
+    --exclude='scripts/generate-client.sh'
+    --exclude='scripts/install_funasr.sh'
+    --exclude='config/desktop'
+    --exclude='config/mobile'
+    --exclude='frontend/playwright.config.ts'
+    --exclude='frontend/vitest.config.ts'
+  )
+  mkdir -p "$DEPLOY_DIR"
+  rsync -av --delete "${EXCLUDE_RSYNC[@]}" ./ "$DEPLOY_DIR/"
+  cd "$DEPLOY_DIR"
+  echo -e "${GREEN}✓ 已复制服务器所需文件到 $DEPLOY_DIR${NC}"
+fi
 
 echo -e "${GREEN}================================================================${NC}"
 echo -e "${GREEN}             EvoLoop 生产环境自动化部署脚本 (CentOS)            ${NC}"

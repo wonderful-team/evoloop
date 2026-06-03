@@ -10,6 +10,8 @@
 
 set -e
 
+DEPLOY_DIR=""
+
 show_help() {
   echo "EvoLoop 一键安装脚本"
   echo ""
@@ -20,6 +22,9 @@ show_help() {
   echo "  --help, -h            显示此帮助"
   echo "  --version VERSION     指定版本 (默认: latest)"
   echo "  --dir PATH            安装目录 (默认: \$HOME/evoloop)"
+  echo "  --deploy-dir=PATH     部署目标目录 (默认: 当前目录)"
+  echo "                        指定后仅复制服务器所需文件到目标目录，"
+  echo "                        排除 mobile/、frontend/src-tauri/ 等"
   echo "  --compose-url URL     Docker Compose 文件地址"
   echo ""
   echo "环境变量:"
@@ -30,11 +35,15 @@ show_help() {
   echo "  bash $0"
   echo "  bash $0 --version v0.2.0"
   echo "  bash $0 --dir /opt/evoloop"
+  echo "  bash $0 --deploy-dir=/opt/evoloop"
   exit 0
 }
 
 for arg in "$@"; do
-  [ "$arg" = "--help" ] || [ "$arg" = "-h" ] && show_help
+  case "$arg" in
+    --help|-h) show_help; exit 0 ;;
+    --deploy-dir=*) DEPLOY_DIR="${arg#*=}" ;;
+  esac
 done
 
 # 颜色定义
@@ -195,6 +204,42 @@ setup_environment() {
     # 创建安装目录
     mkdir -p "$INSTALL_DIR"
     cd "$INSTALL_DIR"
+
+    # 如果指定了 --deploy-dir，从本地仓库 rsync 仅服务器所需文件
+    if [ -n "$DEPLOY_DIR" ]; then
+        info "从 $PROJECT_ROOT 同步服务器所需文件到 $DEPLOY_DIR..."
+        EXCLUDE_RSYNC=(
+            --exclude='mobile'
+            --exclude='frontend/src-tauri'
+            --exclude='node_modules'
+            --exclude='.venv'
+            --exclude='backend/.venv'
+            --exclude='backend/dist'
+            --exclude='backend/build'
+            --exclude='backend/evoloop-backend.spec'
+            --exclude='backend/entry_point.py'
+            --exclude='dist'
+            --exclude='Makefile'
+            --exclude='.git'
+            --exclude='.pre-commit-config.yaml'
+            --exclude='scripts/build'
+            --exclude='scripts/dev.sh'
+            --exclude='scripts/check_arch.sh'
+            --exclude='scripts/update-version.sh'
+            --exclude='scripts/generate-client.sh'
+            --exclude='scripts/install_funasr.sh'
+            --exclude='config/desktop'
+            --exclude='config/mobile'
+            --exclude='frontend/playwright.config.ts'
+            --exclude='frontend/vitest.config.ts'
+        )
+        PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "$(dirname "$0")/..")
+        mkdir -p "$DEPLOY_DIR"
+        rsync -av --delete "${EXCLUDE_RSYNC[@]}" "$PROJECT_ROOT/" "$DEPLOY_DIR/"
+        cd "$DEPLOY_DIR"
+        INSTALL_DIR="$DEPLOY_DIR"
+        success "已复制服务器所需文件到 $DEPLOY_DIR"
+    fi
 
     # 下载 docker-compose.yml
     if [ -f "docker-compose.yml" ]; then
