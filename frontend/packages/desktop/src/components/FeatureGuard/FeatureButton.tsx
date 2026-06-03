@@ -43,7 +43,7 @@ export function FeatureButton({
         size={size}
         className={cn("opacity-60 hover:opacity-80", className)}
         onClick={() => {
-          window.location.href = "/subscription"
+          window.location.hash = "#/subscription"
         }}
         title={t('subscription.upgradeRequired', { plan: t(`subscription.plans.${requiredPlan}`) })}
       >

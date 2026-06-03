@@ -58,7 +58,7 @@ const handleApiError = (error: Error) => {
     
     // 延迟跳转，让用户看到提示
     setTimeout(() => {
-      window.location.href = "/login"
+      window.location.hash = "#/login"
     }, 500)
     return
   }

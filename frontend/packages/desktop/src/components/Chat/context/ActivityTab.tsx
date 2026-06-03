@@ -10,7 +10,7 @@ import {
 } from "lucide-react"
 import { MessageContent } from "../MessageContent"
 import { useTranslation } from "react-i18next"
-import { PlanningService, LearningService } from "@/client"
+import { PlanningService } from "@/client"
 import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
 import {
   Collapsible,
@@ -46,7 +46,7 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
   const { t } = useTranslation()
   const messages = useChatStore((state) => state.messages)
   const status = useChatStore((state) => state.status)
-  const skillIds = useChatStore((state) => state.skillIds)
+  const agentState = useChatStore((state) => state.agentState)
 
   const isAgentActive =
     status === "running" || status === "interrupted" || status === "summarizing"
@@ -79,40 +79,16 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
   const plan = typedPlanData?.plan as Plan | null
   const planStatus = typedPlanData?.status
 
-  // Extract all used skill IDs from store and message references
-  const usedSkillIds = useMemo(() => {
-    const ids = new Set<number>()
-    // Add skillIds from store
-    for (const id of skillIds) {
-      ids.add(Number(id))
-    }
-    // Add skillIds from message references
-    for (const msg of messages) {
-      if (msg.references) {
-        for (const ref of msg.references) {
-          if (ref.type === "skill" && ref.target_id) {
-            ids.add(Number(ref.target_id))
-          }
-        }
-      }
-    }
-    return Array.from(ids)
-  }, [skillIds, messages])
-
-  // Fetch all active skills
-  const { data: skillsCatalog, isLoading: isLoadingSkills } = useQuery({
-    queryKey: ["activeSkillsCatalog"],
-    queryFn: async () => {
-      const res = await LearningService.listSkills({ activeOnly: true, pageSize: 100 }) as any
-      return res?.data || res?.skills || []
-    }
-  })
-
-  // Filter skills matching usedSkillIds
+  /**
+   * Active skills shown in the panel.
+   * Driven ONLY by backend via AgentStateEvent.active_skills or persisted ActivitySnapshot.
+   * No client-side fallback/deduction to ensure 100% strict alignment with backend.
+   */
   const matchingSkills = useMemo(() => {
-    if (!skillsCatalog || usedSkillIds.length === 0) return []
-    return skillsCatalog.filter((skill: any) => usedSkillIds.includes(Number(skill.id)))
-  }, [skillsCatalog, usedSkillIds])
+    return agentState?.activeSkills ?? []
+  }, [agentState?.activeSkills])
+
+  const isLoadingSkills = false
 
   const [thinkingOpen, setThinkingOpen] = useState(true)
   const [planOpen, setPlanOpen] = useState(false)

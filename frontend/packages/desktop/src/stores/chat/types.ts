@@ -61,7 +61,7 @@ export interface ChatState {
         hint: string
         actionText: string
     } | null
-    agentState: { mode: string; task_name: string; task_status: string; details?: any } | null
+    agentState: { mode: string; task_name: string; task_status: string; details?: any; activeSkills?: Array<{ id: number; name: string; description: string }> | null } | null
 
     // --- Live Buffer (For Right Panel) ---
     streamingThinking: string

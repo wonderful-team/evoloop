@@ -40,7 +40,7 @@ export function UpgradePrompt({
   const planName = t(`subscription.plans.${requiredPlan}`)
 
   const handleUpgrade = () => {
-    window.location.href = "/subscription"
+    window.location.hash = "#/subscription"
   }
 
   return (

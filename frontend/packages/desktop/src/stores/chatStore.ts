@@ -62,6 +62,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 firstMessageId: null,
                 totalMessageCount: null,
                 isLoadingHistory: false,
+                agentState: null,
             } : {}),
         })
 
@@ -234,7 +235,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set((state) => ({ 
             messages: [...state.messages, userMsg],
             status: "running",
-            quotaExhaustedInfo: null
+            quotaExhaustedInfo: null,
+            // Reset active skills immediately on send:
+            // - If user explicitly selected skills this turn → optimistic pre-fill with id stubs
+            //   (backend will overwrite with full data once Worker fires)
+            // - If no skills selected → clear to null so stale skills from last run don't linger
+            agentState: state.agentState
+                ? {
+                    ...state.agentState,
+                    activeSkills: activeSkillIds.length > 0
+                        ? activeSkillIds.map(id => ({ id, name: "", description: "" }))
+                        : null
+                }
+                : state.agentState
         }))
 
         try {
@@ -582,7 +595,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         agentState: {
             mode: ev.mode,
             task_name: ev.task_name,
-            task_status: ev.task_status
+            task_status: ev.task_status,
+            activeSkills: ev.active_skills ?? null  // null = clear (e.g. during PLANNING)
         }
     }),
 
@@ -695,7 +709,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         const updates: Partial<ChatState> = {
             status: normalized,
-            finalOutcome: ev.final_outcome || state.finalOutcome
+            finalOutcome: ev.final_outcome || state.finalOutcome,
+            // Clear activeSkills when run ends — skills are per-run context, not persistent UI state
+            agentState: state.agentState
+                ? { ...state.agentState, activeSkills: null }
+                : state.agentState
         }
 
         // Finalize any lingering streaming messages
