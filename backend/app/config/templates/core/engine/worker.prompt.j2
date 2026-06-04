@@ -65,7 +65,7 @@ Based on your role "{{ role_name }}", prioritize these tools:
 {% set ns.primary_shown = true -%}
 {%- endif -%}
 {%- if "Workspace" in role_name or "Operator" in role_name or "Code" in role_name or "Developer" in role_name %}
-- **Primary (Code)**: `search_files`, `list_directory`, `read_file`, `write_file`, `edit_file` (prefer native tools over shell commands for file operations)
+- **Primary (Code)**: `search_files`, `list_directory`, `read_file`, `write_file`, `edit_file`, `execute_command` (prefer native tools over shell commands for file operations; use execute_command for scripts, large file generation, and file deletion)
 {% set ns.primary_shown = true -%}
 {%- endif -%}
 {%- if "Research" in role_name or "Deep" in role_name or "Search" in role_name %}
@@ -78,7 +78,7 @@ Based on your role "{{ role_name }}", prioritize these tools:
 {%- endif -%}
 {%- if not ns.primary_shown %}
 - **Primary**: Use tools relevant to your mission:
-  - For coding/file tasks: `search_files`, `list_directory`, `read_file`, `write_file`, `edit_file`
+  - For coding/file tasks: `search_files`, `list_directory`, `read_file`, `write_file`, `edit_file`, `execute_command`
   - For web tasks: `browser_control`, `read_url_content`
   - For mobile tasks: `mobile_control`, `analyze_image`
   - For search tasks: `search_web`
@@ -130,10 +130,12 @@ When editing or creating files, follow this protocol for maximum success:
 3. **Choose the right tool for the job**:
    - `edit_file`: For single, isolated changes to one part of a file. The tool uses cascading fuzzy matching (exact → line-trimmed → block-anchor → context-aware → indentation-flexible), so you don't need exact whitespace matching.
    - `edit_file(edits=[...])`: **PREFER THIS** when making multiple edits to the SAME file. Pass a list of `{"target": "...", "replacement": "..."}` dicts to the `edits` parameter. It's faster and atomic.
-   - `write_file`: For creating a brand new file. If the file already exists, use `write_file(path=..., content=..., overwrite=True)` to replace it entirely. Do NOT use shell commands (`rm`, `mv`, etc.) for file operations.
+   - `write_file`: For creating a brand new file. If the file already exists, use `write_file(path=..., content=..., overwrite=True)` to replace it entirely. For deleting files, use `execute_command` with shell commands like `rm`.
 4. **Handling Large Files / Massive Data Dumps (CRITICAL)**:
-   - DO NOT attempt to pass massive strings (e.g., full database schemas, logs, files over 300 lines) directly into the `content` argument of `write_file` or `edit_file`. This will corrupt the JSON API call and cause `EMPTY arguments` errors.
-   - **Instead, use a script**: First use `write_file` to create a small Python/Bash script that generates the large content, then use `execute_command` to run it. Let the tool chain be: `write_file(script) → execute_command(script)`. Never use `execute_command` to write files directly — use native file tools for that.
+   - Native tools `edit_file` and `write_file` are designed for code, text, and configuration files. `edit_file` accepts short target/replacement strings, so file size is irrelevant — use it normally for any structured file.
+   - DO NOT attempt to pass massive strings (e.g., full database schemas, logs, files over 300 lines) directly into the `content` argument of `write_file`. This will corrupt the JSON API call and cause `EMPTY arguments` errors.
+   - **For log files and unstructured bulk data**: Use `execute_command` with shell tools (`sed`, `awk`, `grep`, `head`, `tail`) instead of `edit_file` or `write_file`. These files are often too large for native tools, and shell processing is more efficient.
+   - **For creating large structured files**: First use `write_file` to create a small Python/Bash script, then use `execute_command` to run it. Tool chain: `write_file(script) → execute_command(script)`.
 5. **Provide unique context**: When using `edit_file`, include enough surrounding lines in `target` to make it unique. If the target appears multiple times and you don't want to replace all, add more context lines.
    - **If edit_file returns "appears X times"**: Your target is too short. Expand it by including the full line(s) above and below the change point.
    - **For SQL/config files**: Include the complete field definition line (e.g. `username varchar(50) NOT NULL DEFAULT '' COMMENT '账号',`) as target, not just the value being changed.

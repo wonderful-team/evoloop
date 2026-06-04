@@ -26,7 +26,7 @@ parameters:
     description: Domain-specific context (e.g., marketing, finance, SaaS).
 requires:
   mcp: [rube, database]
-  tools: [execute_command, read_file, write_file]
+  tools: [execute_command, read_file, write_file, edit_file, browser_control, analyze_image, search_web]
 ---
 
 # 📊 Universal Data Analytics Agent
