@@ -220,7 +220,7 @@ class WorkerNode(BaseAgentNode):
         is_multi_skill_workflow = workflow_mode == "sequential" and len(skill_ids) > 1
 
         # Hydrate SOPs (Load early for both modes)
-        if is_multi_skill_workflow:
+        if skill_ids:
             relevant_sops = await SkillResolver.load_skills_by_ids(skill_ids)
         else:
             relevant_sops = await SkillHydrator.get_node_skills(state, "worker")
@@ -240,7 +240,16 @@ class WorkerNode(BaseAgentNode):
             thread_id=thread_id,
             mode="EXECUTING",
             task_name=task_label,
-            task_status="Initializing..."
+            task_status="Initializing...",
+            active_skills=[
+                {
+                    "id": sop.id,
+                    "name": getattr(sop, "name", ""),
+                    "description": getattr(sop, "description", ""),
+                }
+                for sop in relevant_sops
+                if hasattr(sop, "id")
+            ] or None
         )
 
         if is_multi_skill_workflow:

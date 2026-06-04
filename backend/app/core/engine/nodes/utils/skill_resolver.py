@@ -53,5 +53,5 @@ class SkillResolver:
             if skill:
                 skills.append(skill)
             else:
-                logger.warning(f"[Worker] Skill ID {sid} not found or inactive")
+                raise ValueError(f"Required Skill ID {sid} is not found or inactive. Execution aborted.")
         return skills

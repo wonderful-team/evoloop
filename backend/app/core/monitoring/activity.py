@@ -269,14 +269,17 @@ class ActivityMonitor:
             await cache.hset(key, "active_memories", json.dumps([]))
 
     async def update_agent_state(
-        self, thread_id: str, mode: str, task_name: str, task_status: str, details: dict[str, Any] | None = None
+        self, thread_id: str, mode: str, task_name: str, task_status: str,
+        details: dict[str, Any] | None = None,
+        active_skills: list[dict] | None = None
     ):
         """Update agent state and publish event."""
         state = AgentActivityState(
             mode=mode,
             task_name=task_name,
             task_status=task_status,
-            details=details or {}
+            details=details or {},
+            active_skills=active_skills
         )
 
         await self._state_service.update_agent_state(thread_id, state.model_dump())
@@ -287,7 +290,8 @@ class ActivityMonitor:
                 thread_id=thread_id,
                 mode=mode,
                 task_name=task_name,
-                task_status=task_status
+                task_status=task_status,
+                active_skills=active_skills
             )
         )
 

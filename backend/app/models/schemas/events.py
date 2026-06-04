@@ -90,6 +90,7 @@ class AgentStateEvent(BaseStreamEvent):
     mode: str                                        # PLANNING, EXECUTING
     task_name: Optional[str] = None
     task_status: Optional[str] = None
+    active_skills: Optional[list[dict]] = None       # [{id, name, description}] — Worker 实际挂载的技能
 
 
 # --- 7. 消息块同步流：同步全量 MessageBlock ---

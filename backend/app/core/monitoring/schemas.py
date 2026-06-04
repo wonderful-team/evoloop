@@ -40,6 +40,7 @@ class AgentActivityState(DynamicBaseModel):
     task_name: str
     task_status: str
     details: dict | None = None
+    active_skills: list[dict] | None = None
 
 
 class HumanRequestData(DynamicBaseModel):
