@@ -9,6 +9,7 @@ BUILD_IOS=false
 DOWNLOAD_MODELS=false
 GENERATE_ICONS=false
 RELEASE=false
+BUILD_AAB=false
 CLEAN=false
 ENVIRONMENT="production"
 
@@ -20,6 +21,8 @@ while [[ $# -gt 0 ]]; do
     --download-models|-m) DOWNLOAD_MODELS=true; shift ;;
     --generate-icons|-g) GENERATE_ICONS=true; shift ;;
     --release|-r) RELEASE=true; shift ;;
+    --apk) RELEASE=true; BUILD_AAB=false; shift ;;
+    --aab) RELEASE=true; BUILD_AAB=true; shift ;;
     --env) ENVIRONMENT="$2"; shift 2 ;;
     --clean|-c) CLEAN=true; shift ;;
     --help|-h)
@@ -30,6 +33,8 @@ while [[ $# -gt 0 ]]; do
       echo "  --download-models, -m Download Sherpa-ONNX ASR model"
       echo "  --generate-icons, -g  Generate app icons"
       echo "  --release, -r         Release build (signed)"
+      echo "  --apk                 Build APK (default for release)"
+      echo "  --aab                 Build AAB (Google Play)"
       echo "  --env ENV             Environment: development|production"
       echo "  --clean, -c           Clean before build"
       exit 0
@@ -97,13 +102,21 @@ if [ "$BUILD_ANDROID" = true ]; then
   fi
   aab_path=""
   if [ "$RELEASE" = true ]; then
-    info "Building release AAB..."
-    ./gradlew bundleRelease
-    aab_path=$(find app/build/outputs/bundle/release -name "*.aab" 2>/dev/null | head -1)
-    if [ -n "$aab_path" ]; then
+    if [ "$BUILD_AAB" = true ]; then
+      info "Building release AAB..."
+      ./gradlew bundleRelease
+      artifact_path=$(find app/build/outputs/bundle/release -name "*.aab" 2>/dev/null | head -1)
+      artifact_type="AAB"
+    else
+      info "Building release APK..."
+      ./gradlew assembleRelease
+      artifact_path=$(find app/build/outputs/apk/release -name "*.apk" 2>/dev/null | head -1)
+      artifact_type="APK"
+    fi
+    if [ -n "$artifact_path" ]; then
       mkdir -p "$PROJECT_ROOT/dist"
-      cp "$aab_path" "$PROJECT_ROOT/dist/"
-      ok "AAB: $PROJECT_ROOT/dist/$(basename "$aab_path")"
+      cp "$artifact_path" "$PROJECT_ROOT/dist/"
+      ok "$artifact_type: $PROJECT_ROOT/dist/$(basename "$artifact_path")"
     fi
   else
     info "Building debug APK..."
