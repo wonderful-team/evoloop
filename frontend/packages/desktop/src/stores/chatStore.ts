@@ -728,7 +728,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const updates: Partial<ChatState> = {
             status: "idle",
             finalOutcome: ev.data?.outcome || state.finalOutcome,
-            sessionGoal: ev.data?.summary || state.sessionGoal,
         }
 
         // 防御性状态清理：将会话中处于 streaming 状态的消息重置为 completed

@@ -278,6 +278,27 @@ export function MessageContent({ content, isUser = false }: MessageContentProps)
 
     // 禁用默认表格规则，我们目前使用手动解析和自定义组件
     table: () => null,
+
+    // 处理标准 Markdown 链接中的 file:// 协议，仅做文本高亮显示，由底部的引用卡片负责点击打开
+    link: (node: any, children: any, parent: any, styles: any) => {
+      const url = node.attributes?.href || '';
+      if (url.startsWith('file://') || url.startsWith('/') || url.startsWith('./')) {
+        return (
+          <Text key={node.key} style={{ color: '#007acc', fontWeight: '500' }}>
+            {children}
+          </Text>
+        );
+      }
+      return (
+        <Text
+          key={node.key}
+          style={styles.link}
+          onPress={() => Linking.openURL(url).catch(err => console.error('打开链接失败:', err))}
+        >
+          {children}
+        </Text>
+      );
+    },
   }), []);
 
   return (

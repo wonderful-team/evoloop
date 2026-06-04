@@ -18,7 +18,7 @@ from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
 
 from app.core.engine.message import MessageHandler
-from app.core.engine.message.reasoning import extract_reasoning_from_kwargs
+from app.core.engine.message.reasoning import extract_reasoning_from_message
 from app.core.engine.message.utils import parse_tool_input
 
 
@@ -118,7 +118,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
         # 提取思考内容（native reasoning_content）
         additional_kwargs = message.additional_kwargs or {}
-        thinking = extract_reasoning_from_kwargs(additional_kwargs)
+        thinking = extract_reasoning_from_message(message)
         # 传递 reasoning_content 信息，供 handler 正确标记 thinking_type
         if additional_kwargs.get("reasoning_content"):
             metadata = {**metadata, "reasoning_content": additional_kwargs["reasoning_content"]}

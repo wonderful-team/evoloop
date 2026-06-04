@@ -3,6 +3,7 @@ import { View, StyleSheet, Image, TouchableOpacity, Linking, useWindowDimensions
 import { Text } from 'react-native-paper';
 import { MessageReference } from '@/types/conversation';
 import { useTheme } from '@/theme';
+import { BASE_URL } from '@/constants/config';
 import { ResourceChip } from './ResourceChip';
 import { ImageViewer } from './MessageContent';
 
@@ -25,15 +26,24 @@ export function MessageReferences({ references, isUser }: MessageReferencesProps
   const imageWidth = (screenWidth - 48 - 16) / 3; // 48 for paddings/margins (12*2 margin in ChatScreen + 12*2 padding in MessageList), 16 for gaps
 
   const handleOpenReference = (url: string) => {
-    if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
-      Linking.openURL(url).catch(err => console.error('Failed to open URL:', err));
+    if (!url) return;
+    let finalUrl = url;
+    if (url.startsWith('/api/')) {
+      finalUrl = `${BASE_URL}${url}`;
+    }
+    if (finalUrl.startsWith('http://') || finalUrl.startsWith('https://')) {
+      Linking.openURL(finalUrl).catch(err => console.error('Failed to open URL:', err));
     } else {
-      console.log('Ignore opening non-HTTP reference:', url);
+      console.log('Ignore opening non-HTTP reference:', finalUrl);
     }
   };
 
   const handleOpenImage = (url: string) => {
-    setActiveImageUrl(url);
+    let finalUrl = url;
+    if (url && url.startsWith('/api/')) {
+      finalUrl = `${BASE_URL}${url}`;
+    }
+    setActiveImageUrl(finalUrl);
     setViewerVisible(true);
   };
 
@@ -49,7 +59,7 @@ export function MessageReferences({ references, isUser }: MessageReferencesProps
               activeOpacity={0.9}
             >
               <Image 
-                source={{ uri: img.target_id }} 
+                source={{ uri: img.target_id?.startsWith('/api/') ? `${BASE_URL}${img.target_id}` : img.target_id }} 
                 style={[styles.imageThumbnail, { width: imageWidth, height: imageWidth }]}
                 resizeMode="cover"
               />

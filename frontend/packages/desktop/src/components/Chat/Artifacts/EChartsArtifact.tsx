@@ -72,7 +72,7 @@ function validateOption(option: any): { valid: boolean; reason?: string } {
   return { valid: true };
 }
 
-export const EChartsArtifact: React.FC<EChartsArtifactProps> = ({ data }) => {
+const EChartsArtifactInner: React.FC<EChartsArtifactProps> = ({ data }) => {
   const { t } = useTranslation();
   const [isDark, setIsDark] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -247,3 +247,16 @@ export const EChartsArtifact: React.FC<EChartsArtifactProps> = ({ data }) => {
     </EChartsErrorBoundary>
   );
 };
+
+/**
+ * Stable memo wrapper: only re-render when data.option reference or data.title changes.
+ * Combined with Object.freeze + cache in MessageContent, this prevents the chart
+ * from re-mounting / re-rendering while SSE is still streaming text after the chart block.
+ */
+export const EChartsArtifact = React.memo(
+  EChartsArtifactInner,
+  (prev, next) =>
+    prev.data.option === next.data.option &&
+    prev.data.title === next.data.title &&
+    prev.data.height === next.data.height
+);

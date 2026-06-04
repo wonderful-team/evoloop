@@ -213,6 +213,25 @@ class InferenceEngine:
 
         return loop_messages, None
 
+    @staticmethod
+    def _format_llm_endpoint(llm) -> str:
+        """Extract the API endpoint URL and model name from an LLM instance for logging."""
+        raw = getattr(llm, "bound", llm)
+
+        # OpenAI-compatible
+        base_url = getattr(raw, "openai_api_base", None)
+        model = getattr(raw, "model", None) or getattr(raw, "model_name", None) or "?"
+        if base_url:
+            return f"POST {base_url}/chat/completions  model={model}"
+
+        # Anthropic-compatible
+        client_params = getattr(raw, "_client_params", None) or {}
+        base_url = client_params.get("base_url") or getattr(raw, "base_url", "")
+        if base_url:
+            return f"POST {base_url}/v1/messages  model={model}"
+
+        return f"model={model}"
+
     async def _execute_llm_call(
         self,
         llm_with_tools,
@@ -228,6 +247,8 @@ class InferenceEngine:
         sys_hash: str | None = None,
     ) -> AIMessage:
         """Executes LLM call and extracts reasoning."""
+        endpoint = self._format_llm_endpoint(llm_with_tools)
+        logger.info(f"[{name}] ▶️ LLM call (turn={turn_id}) {endpoint}")
         try:
             start_perf = time.perf_counter()
             response = await self._stream_llm_response(llm_with_tools, loop_messages, config)

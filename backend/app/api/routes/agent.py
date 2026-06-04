@@ -114,7 +114,10 @@ async def chat_endpoint(req: ChatRequest, bg_tasks: BackgroundTasks, _current_us
     if settings.EMBEDDED_MODE:
         bg_tasks.add_task(run_agent_background, req.thread_id, result.inputs)
     else:
-        run_agent_background_task.delay(req.thread_id, result.inputs)
+        # Use jsonable_encoder to ensure Pydantic models (like MessageBlock) with UUIDs/datetimes are fully JSON serializable
+        from fastapi.encoders import jsonable_encoder
+        serialized_inputs = jsonable_encoder(result.inputs.model_dump())
+        run_agent_background_task.delay(req.thread_id, serialized_inputs)
 
     return {"status": "queued", "thread_id": req.thread_id, "message_id": result.message_id}
 
@@ -800,10 +803,11 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Requ
     if result.status == "failed":
         raise HTTPException(status_code=500, detail=result.error)
 
-    if settings.EMBEDDED_MODE:
-        bg_tasks.add_task(run_agent_background, req.thread_id, result.inputs)
-    else:
-        run_agent_background_task.delay(req.thread_id, result.inputs)
+    bg_tasks.add_task(run_agent_background, req.thread_id, result.inputs)
+    # if settings.EMBEDDED_MODE:
+    #     bg_tasks.add_task(run_agent_background, req.thread_id, result.inputs)
+    # else:
+    #     run_agent_background_task.delay(req.thread_id, result.inputs)
 
     return {
         "status": "queued",
@@ -1048,9 +1052,10 @@ async def webhook_endpoint(req: WebhookRequest, bg_tasks: BackgroundTasks):
     if result.status == "failed":
         raise HTTPException(status_code=500, detail=result.error)
 
-    if settings.EMBEDDED_MODE:
-        bg_tasks.add_task(run_agent_background, tid, result.inputs)
-    else:
-        run_agent_background_task.delay(tid, result.inputs)
+    bg_tasks.add_task(run_agent_background, tid, result.inputs)
+    # if settings.EMBEDDED_MODE:
+    #     bg_tasks.add_task(run_agent_background, tid, result.inputs)
+    # else:
+    #     run_agent_background_task.delay(tid, result.inputs)
 
     return WebhookResponse(status="accepted", thread_id=tid)

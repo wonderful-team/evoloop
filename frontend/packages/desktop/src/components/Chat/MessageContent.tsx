@@ -1,5 +1,5 @@
 import { FileText, X, Music } from "lucide-react"
-import { memo, useState } from "react"
+import { memo, useState, useRef, useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import ReactMarkdown from "react-markdown"
 // TEMP: syntax-highlighter disabled for performance profiling
@@ -58,6 +58,16 @@ export const MessageContent = memo(({ content, isUser }: MessageContentProps) =>
   const { t } = useTranslation()
   const [viewerImage, setViewerImage] = useState<string | null>(null)
   const [previewHtml, setPreviewHtml] = useState<string | null>(null)
+
+  // Cache for successfully parsed code-block artifacts (ECharts, etc.)
+  // Key: stable hash string from code content. Value: frozen parsed option.
+  // This prevents re-parsing (and re-mounting) charts while SSE is still streaming
+  // text that comes AFTER the chart block.
+  const parsedCodeCache = useRef<Map<string, any>>(new Map())
+
+  // Stable hash for a code string: length + first 80 chars is sufficient
+  // to uniquely identify a complete ECharts JSON block.
+  const cacheKey = useCallback((code: string) => `${code.length}:${code.slice(0, 80)}`, [])
 
   if (!content) return null
 
@@ -211,9 +221,18 @@ export const MessageContent = memo(({ content, isUser }: MessageContentProps) =>
 
                       if (!inline && match && match[1] === "echarts") {
                         try {
-                          const option = JSON.parse(codeString)
-                          if (option && option.series) {
-                            return <EChartsArtifact data={{ option }} />
+                          const ck = cacheKey(codeString)
+                          let option = parsedCodeCache.current.get(ck)
+                          if (!option) {
+                            const parsed = JSON.parse(codeString)
+                            if (parsed && parsed.series) {
+                              // Freeze the option so React.memo can do a stable reference check
+                              option = Object.freeze(parsed)
+                              parsedCodeCache.current.set(ck, option)
+                            }
+                          }
+                          if (option) {
+                            return <EChartsArtifact key={ck} data={{ option }} />
                           }
                         } catch {
                           // incomplete JSON during streaming, fall through to code block
