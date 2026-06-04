@@ -10,6 +10,7 @@ DOWNLOAD_MODELS=false
 GENERATE_ICONS=false
 RELEASE=false
 CLEAN=false
+ENVIRONMENT="production"
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -19,6 +20,7 @@ while [[ $# -gt 0 ]]; do
     --download-models|-m) DOWNLOAD_MODELS=true; shift ;;
     --generate-icons|-g) GENERATE_ICONS=true; shift ;;
     --release|-r) RELEASE=true; shift ;;
+    --env) ENVIRONMENT="$2"; shift 2 ;;
     --clean|-c) CLEAN=true; shift ;;
     --help|-h)
       echo "Usage: $0 [options]"
@@ -28,6 +30,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --download-models, -m Download Sherpa-ONNX ASR model"
       echo "  --generate-icons, -g  Generate app icons"
       echo "  --release, -r         Release build (signed)"
+      echo "  --env ENV             Environment: development|production"
       echo "  --clean, -c           Clean before build"
       exit 0
       ;;
@@ -46,6 +49,13 @@ load_env
 MOBILE_DIR="$PROJECT_ROOT/mobile"
 
 header "Building EvoLoop Mobile"
+
+# 选择移动端环境配置
+case "$ENVIRONMENT" in
+  development) cp "$MOBILE_DIR/.env.development" "$MOBILE_DIR/.env" ;;
+  production)  cp "$MOBILE_DIR/.env.production" "$MOBILE_DIR/.env" ;;
+esac
+info "环境: $ENVIRONMENT"
 
 echo "  Android:    ${BUILD_ANDROID}"
 echo "  iOS:        ${BUILD_IOS}"

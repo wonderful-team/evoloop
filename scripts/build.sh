@@ -20,6 +20,7 @@ show_usage() {
   echo ""
   echo "Options:"
   echo "  --dev, -d                 Run in development mode"
+  echo "  --env ENV                 Build environment: development|production"
   echo "  --with-models, -m         Include pre-downloaded models in the bundle"
   echo "  --download-models [LIST]  Download models before building"
   echo "  --clean, -c               Clean build artifacts before building"

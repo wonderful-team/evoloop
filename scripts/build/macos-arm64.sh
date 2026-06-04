@@ -9,6 +9,7 @@ WITH_MODELS=false
 DOWNLOAD_MODELS=false
 MODELS_LIST="paraformer-zh"
 ARCH="aarch64-apple-darwin"
+ENVIRONMENT="production"
 
 # Validate: this script requires Apple Silicon (arm64)
 HOST_ARCH=$(uname -m)
@@ -23,7 +24,8 @@ fi
 
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --dev|-d) DEV_MODE=true; shift ;;
+    --dev|-d) DEV_MODE=true; ENVIRONMENT="development"; shift ;;
+    --env) ENVIRONMENT="$2"; shift 2 ;;
     --with-models|-m) WITH_MODELS=true; shift ;;
     --download-models)
       DOWNLOAD_MODELS=true
@@ -33,6 +35,7 @@ while [[ $# -gt 0 ]]; do
     --help|-h)
       echo "Usage: $0 [options]"
       echo "  --dev, -d                 Development mode"
+      echo "  --env ENV                 Build environment: development|production"
       echo "  --with-models, -m         Bundle pre-downloaded models"
       echo "  --download-models [LIST]  Download models before build"
       echo "  --clean, -c               Clean artifacts before build"
@@ -71,6 +74,13 @@ step "Step 2: Installing Frontend Dependencies"
 install_frontend_deps
 
 cd "$PROJECT_ROOT/frontend"
+
+# 选择前端环境配置
+case "$ENVIRONMENT" in
+  development) cp .env.development .env ;;
+  production)  cp .env.production .env ;;
+esac
+info "前端环境: $ENVIRONMENT"
 
 if [ "$WITH_MODELS" = true ]; then
   step "Step 3: Bundling Models"
