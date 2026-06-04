@@ -37,7 +37,7 @@ interface UpdateCheckRecord {
 
 /** 默认配置 */
 const DEFAULT_CONFIG: UpdateCheckConfig = {
-  baseUrl: 'https://member.evoloop.cn',
+  baseUrl: import.meta.env.VITE_EVOCLOUD_MEMBER_BASE_URL || 'https://evoloop.cn/member',
   checkInterval: 24 * 60 * 60 * 1000, // 24 小时
   startupDelay: 3000, // 3 秒
   enableStartupCheck: true,

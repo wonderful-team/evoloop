@@ -92,8 +92,8 @@ export function useVersion() {
 
     try {
       // 这里应该调用 MC 的版本检查 API
-      // POST https://member.evoloop.cn/api/evoloop/version/check
-      const response = await fetch('https://member.evoloop.cn/api/evoloop/version/check', {
+      const MEMBER_BASE_URL = import.meta.env.VITE_EVOCLOUD_MEMBER_BASE_URL || 'https://evoloop.cn/member';
+      const response = await fetch(`${MEMBER_BASE_URL}/api/evoloop/version/check`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

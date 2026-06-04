@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "cd packages/desktop && vite",
-    "build": "tsc -p tsconfig.build.json && vite build",
+    "build": "vite build",
+    "build:dev": "cp .env.development .env && vite build --mode development",
+    "build:prod": "cp .env.production .env && vite build --mode production",
     "lint": "biome check --write --unsafe --no-errors-on-unmatched --files-ignore-unknown=true ./",
     "lint:mobile": "npx eslint src/mobile --config eslint.mobile.config.mjs",
     "preview": "cd packages/desktop && vite preview",

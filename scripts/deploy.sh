@@ -14,6 +14,7 @@ set -e
 HOST=""; USER="root"; PORT=22; KEY=""; PASSWORD=""
 DEPLOY_DIR="/www/wwwroot/evoloop"
 ENV_FILE=""; SYNC_ONLY=false; SKIP_BUILD=false; SKIP_FE=false
+BUILD_ENV="production"
 
 # ============================================================
 # 颜色输出
@@ -52,6 +53,7 @@ EvoLoop 远程部署脚本
   --sync-only       仅同步，不部署
   --skip-build      跳过后端 Python 环境部署
   --skip-fe         跳过前端构建与同步
+  --env=ENV         构建环境: development|production (默认: production)
 
 示例:
   bash \$0 --host=149.88.92.19 --env-file=.env
@@ -77,6 +79,7 @@ for arg in "$@"; do
     --sync-only) SYNC_ONLY=true ;;
     --skip-build) SKIP_BUILD=true ;;
     --skip-fe) SKIP_FE=true ;;
+    --env=*) BUILD_ENV="${arg#*=}" ;;
   esac
 done
 [ -z "$HOST" ] && { error "必须指定 --host=HOST"; exit 1; }
@@ -317,8 +320,9 @@ deploy_frontend() {
   fi
 
   # 构建
-  info "构建前端 (npm run build)..."
-  (cd "$FE_DIR" && npm run build 2>/dev/null) || {
+  local BUILD_CMD="$PROJECT_ROOT/scripts/build/server-frontend.sh --env $BUILD_ENV"
+  info "构建前端 ($BUILD_ENV)..."
+  bash "$BUILD_CMD" || {
     warning "前端构建失败，跳过"; return
   }
   success "前端构建完成"
@@ -427,6 +431,7 @@ print_summary() {
   echo "║           EvoLoop 远程部署完成                          ║"
   echo "╠══════════════════════════════════════════════════════════╣"
   echo "║"
+  echo "║  环境:     ${BUILD_ENV}"
   echo "║  服务器: ${SSH_TARGET}"
   echo "║  部署目录: ${DEPLOY_DIR}"
   echo "║  后端:     添加至宝塔 Python 项目管理 (evoloop-api + evoloop-worker)"

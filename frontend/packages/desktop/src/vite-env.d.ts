@@ -2,7 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_API_URL: string
-  readonly VITE_EVOCLOUD_MEMBER_URL: string
+  readonly VITE_EVOCLOUD_MEMBER_BASE_URL: string
   /**
    * 启动页面调试模式
    * - "true": 显示终端窗口（带日志输出）
