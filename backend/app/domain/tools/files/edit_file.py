@@ -93,7 +93,7 @@ async def handle_edit(request: EditFileRequest) -> str:
         return str(e)
 
     # Convert single edit to multi-edit list for service
-    edits = [FileEditOperation(target=request.target, replacement=request.content, allow_multiple=request.allow_multiple)]
+    edits = [FileEditOperation(target=request.target or "", replacement=request.content, allow_multiple=request.allow_multiple, mode=request.mode)]
 
     result = await FileEditorService.apply_edits(
         absolute_path=target_path,
@@ -163,6 +163,8 @@ async def edit_file(
     path: str | None = None,
     target: str | None = None,
     replacement: str | None = None,
+    append: str | None = None,
+    prepend: str | None = None,
     edits: list[dict] | None = None,
     allow_multiple: bool = False,
     expected_hash: str | None = None,
@@ -171,8 +173,24 @@ async def edit_file(
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
-    Performs string replacements in files with automatic cascading fuzzy matching.
-    [Documentation truncated for brevity but remains same in real file]
+    Performs string replacements in files with automatic cascading fuzzy matching, or appends/prepends content.
+    
+    Args:
+        path: Path to the file to edit.
+        target: The text to find and replace. Optional if append/prepend is provided.
+        replacement: The new text to replace the target. Optional if append/prepend is provided.
+        append: Content to append to the end of the file.
+        prepend: Content to prepend to the beginning of the file.
+        edits: A list of dicts for multiple edits. Each dict can have 'target', 'replacement', 'allow_multiple', and optionally 'mode' ('replace', 'append', 'prepend').
+        allow_multiple: Replace all occurrences of the target.
+        expected_hash: Optional hash for optimistic concurrency.
+        dry_run: If True, returns a preview without making changes.
+        verify_types: If True, performs type checking after edit.
+        
+    Examples:
+        edit_file(path="file.txt", target="old", replacement="new")
+        edit_file(path="file.txt", append="\\nnew line at the end")
+        edit_file(path="file.txt", edits=[{"target": "old1", "replacement": "new1"}, {"mode": "append", "replacement": "end"}])
     """
     # Multi-edit mode
     if edits:
@@ -189,8 +207,21 @@ async def edit_file(
         )
 
     # Single-edit mode
-    if not path or target is None or replacement is None:
-        return "SYSTEM ERROR: You MUST provide 'path', 'target', and 'replacement'."
+    mode = "replace"
+    final_target = target
+    final_replacement = replacement
+
+    if append is not None:
+        mode = "append"
+        final_replacement = append
+        final_target = ""
+    elif prepend is not None:
+        mode = "prepend"
+        final_replacement = prepend
+        final_target = ""
+
+    if not path or final_replacement is None:
+        return "SYSTEM ERROR: You MUST provide 'path' and either 'replacement' (with 'target'), 'append', or 'prepend'."
 
     # If dry_run, use preview functionality
     if dry_run:
@@ -209,9 +240,10 @@ async def edit_file(
     return await handle_edit(
         EditFileRequest(
             path=path,
-            target=target,
-            content=replacement,
+            target=final_target,
+            content=final_replacement,
             allow_multiple=allow_multiple,
+            mode=mode,
             expected_hash=expected_hash,
             verify_types=verify_types,
             config=config,

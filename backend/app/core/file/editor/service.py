@@ -140,13 +140,22 @@ class FileEditorService:
             logs = []
 
             for i, edit in enumerate(edits):
-                # Try to apply this edit to current content
-                success, new_content, log = EditEngine.apply_replacement(
-                    current_content,
-                    edit.target,
-                    edit.replacement,
-                    replace_all=edit.allow_multiple
-                )
+                if getattr(edit, "mode", "replace") == "append":
+                    new_content = current_content + edit.replacement
+                    success = True
+                    log = "Appended to end of file"
+                elif getattr(edit, "mode", "replace") == "prepend":
+                    new_content = edit.replacement + current_content
+                    success = True
+                    log = "Prepended to beginning of file"
+                else:
+                    # Try to apply this edit to current content
+                    success, new_content, log = EditEngine.apply_replacement(
+                        current_content,
+                        edit.target,
+                        edit.replacement,
+                        replace_all=edit.allow_multiple
+                    )
 
                 if not success:
                     return {
