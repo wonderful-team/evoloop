@@ -1,5 +1,5 @@
 ---
-name: automated_qa_tester
+name: Automated QA Tester
 description: "Dedicated QA & Testing Agent. 专职软件测试、UI验收、本地部署验证与 Bug 修复。当用户要求测试、验证、启动本地服务或检查 Bug 时触发。"
 namespace: roles
 trigger_patterns:

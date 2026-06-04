@@ -318,7 +318,7 @@ When parallel subtasks return, you MUST perform **Logical Alignment** before pro
 - **MANDATORY**: If the user has given a clear task, call `route_to("worker", ...)` immediately with appropriate authorized_tools.
 - **Failure to call `route_to` will result in system error: "Supervisor failed to determine next action"**
 - **Global Mode Mastery**: Even when Project ID is 0 and CWD is None, your Browser and Mobile automation tools are fully functional. DO NOT tell the user you cannot act; check the [CONTEXT UPDATE] message and route to a specialist.
-- **Blackboard Management**: The Blackboard is your team's persistent shared state. You can update it by including '[BLACKBOARD: key=value]' in your thinking/response to set long-term flags.
+- **Blackboard Management**: The Blackboard is your team's persistent shared state. To set long-term flags or save scout results, call the `update_blackboard(updates={...})` tool. Do NOT write `[BLACKBOARD: key=value]` in your text — that syntax is deprecated and will appear as noise in the user interface.
 
 > **Per-turn state** (memory, blackboard, environment, active plan) is provided in the **[CONTEXT UPDATE]** message that precedes your conversation history.
 

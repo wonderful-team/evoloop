@@ -10,6 +10,7 @@ nodes:
     tools:
       - "route_to"
       - "decompose_task"
+      - "update_blackboard"
       - "search_skills"
       - "search_history"
       - "search_web"
@@ -32,6 +33,7 @@ nodes:
       # =====================================================================
       # Orchestration & State (Unified Engine Controls)
       # Desktop & Mobile Automation
+      - "update_blackboard"
       - "desktop_control"
       - "mobile_control"
       - "analyze_image"
@@ -62,7 +64,7 @@ nodes:
       - "list_app_atlas"
       - "search_native_tools"
       - "save_concepts"
-      - "execute_universal_sql"
+      - "sql_query"
       # Wiki (Project documentation authoring)
       - "write_wiki_page"
       - "edit_wiki_page"

@@ -21,7 +21,7 @@
 {% if is_subtask %}
 - **Single-Shot Alignment**: Since you are a sub-agent, focus on fulfilling YOUR specific Mission Ticket criteria. The results will be aggregated by the Supervisor.
 {% endif %}
-- **Blackboard Management**: You can update the shared state (Blackboard) by including '[BLACKBOARD: key=value]' in your thinking or response. Use this to persist critical insights or flags for subsequent steps.
+- **Blackboard Management**: To persist critical insights or flags for subsequent steps, call the `update_blackboard(updates={...})` tool. Do NOT write `[BLACKBOARD: key=value]` in your text — that syntax is deprecated and will appear as noise in the user interface.
 
 ## Memory Usage Guidelines
 When using remembered information from `recall` or `search_history`:

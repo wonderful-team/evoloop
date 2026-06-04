@@ -6,7 +6,9 @@ orchestrates:
 - ContextTrimmer (unified token-driven message trimming)
 - InferenceEngine (LLM ReAct / single-shot loops)
 - SignalRegistry (plugin-based signal interception)
-- BlackboardParser (structured blackboard updates from LLM output)
+
+Blackboard updates are now performed exclusively through the `update_blackboard`
+tool (function calling). The legacy text-tag parser has been removed.
 
 Supports dependency injection for easier testing and extensibility.
 """
@@ -17,7 +19,6 @@ from typing import Any
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 
-from app.core.engine.blackboard_parser import BlackboardParser
 from app.core.engine.callbacks.database_logger import current_node_source
 from app.core.engine.context_trimmer import ContextTrimmer
 from app.core.engine.inference_engine import InferenceEngine
@@ -154,15 +155,9 @@ class AgentEngine:
                 iteration_count=state.iteration_count,
             )
 
-        # 8. Parse blackboard updates from final response content
-        last_response = inference_result.get("last_response")
+        # 8. Blackboard is already updated live by the update_blackboard tool
+        #    via ContextManager. We just read it back from state to build EngineResult.
         blackboard = state.blackboard
-        if last_response and last_response.content:
-            blackboard = BlackboardParser.parse(
-                last_response.content,
-                blackboard,
-                name=name,
-            )
 
         # 9. Determine structured outcome
         outcome_status = "success"

@@ -1,5 +1,5 @@
 ---
-name: code_to_prd
+name: Code To PRD
 description: |
   Reverse-engineer any codebase into a complete Product Requirements Document (PRD).
   Analyzes routes, components, state management, API integrations, and user interactions to produce
