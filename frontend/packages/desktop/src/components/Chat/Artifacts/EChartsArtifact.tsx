@@ -138,7 +138,7 @@ const EChartsArtifactInner: React.FC<EChartsArtifactProps> = ({ data }) => {
       grid: {
         left: '3%',
         right: '4%',
-        bottom: '3%',
+        bottom: '12%',
         containLabel: true
       },
       animation: true,
@@ -146,17 +146,29 @@ const EChartsArtifactInner: React.FC<EChartsArtifactProps> = ({ data }) => {
       animationEasing: 'cubicOut'
     };
 
-    // User's option takes priority over defaults — spread user config last
+    // User's option takes priority over defaults
+    const { title, grid, legend, tooltip, ...restUserOption } = data.option || {};
+
+    // Smart grid merge: if user provided grid with dangerous bottom: "3%" AND has a legend, override it
+    let finalGrid = grid ? { ...grid } : { ...baseOption.grid };
+    if (grid && grid.bottom === '3%' && legend) {
+      finalGrid.bottom = '12%';
+    }
+
     return {
       ...baseOption,
-      ...data.option,
-      // Deep merge tooltip so our styling defaults apply when user doesn't specify
+      ...restUserOption,
+      grid: finalGrid,
+      ...(legend ? {
+        legend: {
+          textStyle: { color: isDark ? '#f4f4f5' : '#18181b' },
+          ...legend
+        }
+      } : {}),
       tooltip: {
         ...baseOption.tooltip,
-        ...(data.option?.tooltip || {}),
+        ...(tooltip || {}),
       },
-      // Deep merge grid only if user hasn't set it
-      ...(!data.option?.grid ? { grid: baseOption.grid } : {}),
     };
   }, [data.option, isDark]);
 
@@ -210,6 +222,11 @@ const EChartsArtifactInner: React.FC<EChartsArtifactProps> = ({ data }) => {
 
   const chartHeight = data.height ?? 350;
 
+  // Extract the title to display in the header: prioritize explicit string title, then title.text from options
+  const displayTitle = (typeof data.title === 'string' && data.title !== 'echarts')
+    ? data.title 
+    : (data.option?.title?.text || t('chat.artifact.chart', 'Statistical Analysis'));
+
   if (!validation.valid) {
     return <EChartsErrorFallback data={data} />;
   }
@@ -220,7 +237,7 @@ const EChartsArtifactInner: React.FC<EChartsArtifactProps> = ({ data }) => {
         <div className="py-3 px-5 border-b border-[var(--doc-border)] bg-muted/10 flex flex-row items-center justify-between group/chart">
           <div className="flex flex-col">
             <h3 className="text-sm font-bold tracking-tight">
-                {typeof data.title === 'string' ? data.title : t('chat.artifact.chart', 'Statistical Analysis')}
+                {displayTitle}
             </h3>
           </div>
           <div className="flex items-center gap-2 opacity-0 group-hover/chart:opacity-100 transition-opacity">
