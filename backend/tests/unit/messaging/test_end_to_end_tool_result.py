@@ -108,7 +108,7 @@ async def test_list_dir_end_to_end():
 
 async def test_search_files_end_to_end():
     """端到端：search_files 工具返回值全流程验证"""
-    from app.domain.tools.files.search_files import _search_by_name
+    from app.domain.tools.files.grep_search import _search_by_name
 
     test_dir = os.path.join(os.getcwd(), "test_e2e_search")
     os.makedirs(test_dir, exist_ok=True)
@@ -124,8 +124,8 @@ async def test_search_files_end_to_end():
         assert raw_result[1].get("count") == 1
 
         # 经过装饰器
-        from app.domain.tools.files.search_files import search_files
-        decorated_result = await search_files.ainvoke({"pattern": "test", "path": test_dir, "search_in_name": True})
+        from app.domain.tools.files.grep_search import grep_search
+        decorated_result = await grep_search.ainvoke({"pattern": "test", "path": test_dir, "search_in_name": True})
 
         print(f"\n5. 装饰器处理后:")
         print(f"   display_name = {repr(decorated_result.display_name)}")

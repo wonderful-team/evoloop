@@ -23,11 +23,11 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(BASE_DIR)
 sys.path.insert(0, BASE_DIR)
 
-from app.domain.tools.files.search_files import search_files_internal
+from app.domain.tools.files.grep_search import grep_search_internal
 
 
 async def call_search(**kwargs) -> str:
-    return await search_files_internal(**kwargs)
+    return await grep_search_internal(**kwargs)
 
 
 def assert_contains(text: str, *substrings):

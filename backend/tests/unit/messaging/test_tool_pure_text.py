@@ -64,7 +64,7 @@ async def test_list_dir_tree_returns_plain_text():
 
 async def test_search_files_returns_plain_text():
     """验证 search_files 返回纯文本"""
-    from app.domain.tools.files.search_files import _search_by_name
+    from app.domain.tools.files.grep_search import _search_by_name
 
     import os
     test_dir = os.path.join(os.getcwd(), "test_tmp_dir_search")

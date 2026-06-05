@@ -38,7 +38,7 @@ async def test_list_dir():
 
 async def test_search_files():
     """search_files: 返回 tuple，Agent/DB 收到纯文本，display_name 带 count"""
-    from app.domain.tools.files.search_files import search_files
+    from app.domain.tools.files.grep_search import grep_search
     from app.core.tools.base import ToolResult
 
     test_dir = os.path.join(os.getcwd(), "test_all_search")
@@ -46,7 +46,7 @@ async def test_search_files():
     try:
         open(os.path.join(test_dir, "foo.py"), "w").close()
 
-        result = await search_files.ainvoke({"pattern": "foo", "path": test_dir, "search_in_name": True})
+        result = await grep_search.ainvoke({"pattern": "foo", "path": test_dir, "search_in_name": True})
 
         assert isinstance(result, ToolResult)
         assert "foo.py" in str(result)
@@ -196,7 +196,7 @@ if __name__ == "__main__":
     print("全面工具测试")
     print("=" * 60)
     asyncio.run(test_list_dir())
-    asyncio.run(test_search_files())
+    asyncio.run(test_grep_search())
     asyncio.run(test_multiedit_file())
     asyncio.run(test_read_file())
     asyncio.run(test_write_file())

@@ -123,7 +123,7 @@ async def test_tuple_tools_agent_gets_plain_text():
     """
     from app.core.tools.base import ToolResult
     from app.domain.tools.files.list_dir import list_dir
-    from app.domain.tools.files.search_files import search_files
+    from app.domain.tools.files.grep_search import grep_search
     from app.domain.tools.files.multiedit_file import multiedit_file
 
     # --- list_dir ---
@@ -139,7 +139,7 @@ async def test_tuple_tools_agent_gets_plain_text():
     print(f"✅ list_dir: Agent 得到纯文本 \"{snippet}...\", meta={result.meta}, display_name='{result.display_name}'")
 
     # --- search_files ---
-    result = await search_files.ainvoke({"pattern": "search", "scope": "*.py", "path": "."})
+    result = await grep_search.ainvoke({"pattern": "search", "scope": "*.py", "path": "."})
     assert isinstance(result, str), f"search_files: Agent 应该得到 str，得到 {type(result)}"
     assert not result.strip().startswith("{"), f"search_files: Agent 不应该得到 JSON 字符串: {result[:100]}"
     assert isinstance(result, ToolResult), f"search_files: 应该是 ToolResult，得到 {type(result)}"
