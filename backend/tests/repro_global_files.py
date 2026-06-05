@@ -7,7 +7,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from app.core.config import settings
 from app.core.context import ContextManager
 from app.domain.tools.files.utils import resolve_and_validate_path
-from app.domain.tools.files.list_directory import handle_list
+from app.domain.tools.files.list_dir import handle_list
 from app.infrastructure.config.service import SystemConfigService
 
 
@@ -55,7 +55,7 @@ async def diagnose():
     print(f"  {'✅ Fallback works' if r3 == test_file_path else '❌ Fallback failed'}")
     print()
 
-    print("=== Test 4: list_directory root — uploads/ virtual injection ===")
+    print("=== Test 4: list_dir root — uploads/ virtual injection ===")
     ctx.project_id = 0
     res, meta = await handle_list(path=".", tree=False)
     has_uploads = "uploads/" in res

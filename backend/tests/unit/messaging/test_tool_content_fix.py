@@ -128,7 +128,7 @@ async def test_handler_reads_meta_from_context():
             tool_output = "file1.py\nfile2.py\nfile3.py"
 
             result = await handler.handle_tool_output(
-                tool_name="list_directory",
+                tool_name="list_dir",
                 output=tool_output,
                 tool_call_id="call_123",
                 sequence_number=42
@@ -185,7 +185,7 @@ async def test_handler_fallback_parsing():
             )
 
             result = await handler.handle_tool_output(
-                tool_name="list_directory",
+                tool_name="list_dir",
                 output=tool_output,
                 tool_call_id="call_456",
                 sequence_number=43

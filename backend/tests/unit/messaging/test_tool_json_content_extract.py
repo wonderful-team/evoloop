@@ -1,7 +1,7 @@
 """
 测试工具 JSON 输出中的 content 提取逻辑
 
-验证：list_directory 返回的 json.dumps({"content": ..., "count": ...})
+验证：list_dir 返回的 json.dumps({"content": ..., "count": ...})
 在存入 messages 表前，content 字段应被提取为纯文本，
 而 count 等元数据仍保留在 result_meta 中供 display_name 使用。
 """
@@ -13,7 +13,7 @@ sys.path.insert(0, '/Users/huangjinhuan/项目/develop-assistant.cn/evoloop/back
 def test_extract_content_from_json_tool_output():
     """模拟 MessageHandler.handle_tool_output 中的 JSON content 提取逻辑"""
 
-    # 模拟 list_directory 的返回值
+    # 模拟 list_dir 的返回值
     tool_output = json.dumps({
         "content": "file1.py\nfile2.py\nREADME.md",
         "count": 3

@@ -9,7 +9,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
-from app.domain.tools.files.list_directory import list_directory
+from app.domain.tools.files.list_dir import list_dir
 
 TARGET_DIR = "software-ecommerce"
 
@@ -43,10 +43,10 @@ async def run_conversation(llm, tools, system_prompt, user_prompt):
             if isinstance(args, str):
                 args = json.loads(args)
             
-            print(f"  [Tool] list_directory({json.dumps(args, ensure_ascii=False)})")
+            print(f"  [Tool] list_dir({json.dumps(args, ensure_ascii=False)})")
             
             start = time.perf_counter()
-            result = await list_directory.ainvoke(args)
+            result = await list_dir.ainvoke(args)
             tool_time = (time.perf_counter() - start) * 1000
             
             lines = result.split('\n')
@@ -56,7 +56,7 @@ async def run_conversation(llm, tools, system_prompt, user_prompt):
             print(f"  → {len(non_empty)} lines, {tool_time:.1f}ms, truncated={'yes' if truncated else 'no'}")
             
             # 把结果给 LLM 看
-            messages.append(("human", f"[Tool result for list_directory]\n{result[:2000]}"))
+            messages.append(("human", f"[Tool result for list_dir]\n{result[:2000]}"))
     
     print(f"\n⚠️ 达到最大轮数 {max_rounds}")
 
@@ -71,7 +71,7 @@ async def main():
     tools = [{
         "type": "function",
         "function": {
-            "name": "list_directory",
+            "name": "list_dir",
             "description": (
                 "Browse and explore directory contents with filtering, stats, and tree view.\n"
                 "Use this to explore project structure, find files by type, and analyze directories.\n"
@@ -96,7 +96,7 @@ async def main():
     }]
     
     system_prompt = (
-        "You are a coding assistant. Use list_directory to explore directories. "
+        "You are a coding assistant. Use list_dir to explore directories. "
         "When searching for a file, explore step by step: first list the directory, "
         "then navigate into relevant subdirectories. Do not guess paths."
     )

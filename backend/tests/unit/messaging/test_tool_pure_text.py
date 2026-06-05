@@ -9,9 +9,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import asyncio
 
 
-async def test_list_directory_returns_plain_text():
-    """验证 list_directory 返回纯文本"""
-    from app.domain.tools.files.list_directory import handle_list
+async def test_list_dir_returns_plain_text():
+    """验证 list_dir 返回纯文本"""
+    from app.domain.tools.files.list_dir import handle_list
 
     # 在工作目录内创建测试目录，避免安全路径检查失败
     import os
@@ -33,15 +33,15 @@ async def test_list_directory_returns_plain_text():
         assert not text.strip().startswith("{"), f"Should not be JSON, got: {text}"
         assert meta.get("count") == 2
 
-        print("✅ test_list_directory_returns_plain_text passed")
+        print("✅ test_list_dir_returns_plain_text passed")
     finally:
         import shutil
         shutil.rmtree(test_dir, ignore_errors=True)
 
 
-async def test_list_directory_tree_returns_plain_text():
-    """验证 list_directory 树形模式返回纯文本"""
-    from app.domain.tools.files.list_directory import handle_list
+async def test_list_dir_tree_returns_plain_text():
+    """验证 list_dir 树形模式返回纯文本"""
+    from app.domain.tools.files.list_dir import handle_list
 
     import os
     test_dir = os.path.join(os.getcwd(), "test_tmp_dir_tree")
@@ -56,7 +56,7 @@ async def test_list_directory_tree_returns_plain_text():
         assert isinstance(text, str)
         assert not text.strip().startswith("{"), f"Should not be JSON, got: {text}"
 
-        print("✅ test_list_directory_tree_returns_plain_text passed")
+        print("✅ test_list_dir_tree_returns_plain_text passed")
     finally:
         import shutil
         shutil.rmtree(test_dir, ignore_errors=True)
@@ -116,7 +116,7 @@ async def test_display_name_without_count():
         tool_output = "file1.py\nfile2.py"
 
         result = await handler.handle_tool_output(
-            tool_name="list_directory",
+            tool_name="list_dir",
             output=tool_output,
             tool_call_id="call_123",
             sequence_number=42
@@ -131,8 +131,8 @@ async def test_display_name_without_count():
 
 
 if __name__ == "__main__":
-    asyncio.run(test_list_directory_returns_plain_text())
-    asyncio.run(test_list_directory_tree_returns_plain_text())
+    asyncio.run(test_list_dir_returns_plain_text())
+    asyncio.run(test_list_dir_tree_returns_plain_text())
     asyncio.run(test_search_files_returns_plain_text())
     asyncio.run(test_display_name_without_count())
     print("\n✅ All pure text tool tests passed!")

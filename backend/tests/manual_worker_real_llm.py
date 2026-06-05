@@ -115,7 +115,7 @@ def make_state(user_message: str, tools: list[str] = None) -> AgentState:
         agent_config=AgentRuntimeConfig(
             role_name="Explorer",
             system_instructions="你是一个文件系统探索助手。使用工具来完成任务。",
-            tools=tools or ["list_directory", "read_file"],
+            tools=tools or ["list_dir", "read_file"],
         ),
     )
     blackboard = BlackboardState(ticket=ticket)

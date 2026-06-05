@@ -5,17 +5,17 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.domain.tools.files.list_directory import list_directory
+from app.domain.tools.files.list_dir import list_dir
 
 async def _test_dir_impl(path, tree=False, depth=1, filter_pattern=None):
     print(f"\n{'='*60}")
-    print(f"[TEST] list_directory")
+    print(f"[TEST] list_dir")
     print(f"  path={path}")
     print(f"  tree={tree}, depth={depth}, filter={filter_pattern}")
     print('='*60)
     
     start = time.perf_counter()
-    result = await list_directory.ainvoke({
+    result = await list_dir.ainvoke({
         "path": path,
         "tree": tree,
         "depth": depth,

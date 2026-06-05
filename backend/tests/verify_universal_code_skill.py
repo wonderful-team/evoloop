@@ -322,7 +322,7 @@ async def _run_code_agent(project_id: int, project_path: str, skill, timeout: in
                 system_instructions=system_instructions,
                 tools=[
                     "read_file", "write_file", "search_files", "search_history", 
-                    "multiedit_file", "execute_command", "list_directory",
+                    "multiedit_file", "execute_command", "list_dir",
                     "kb_read", "kb_search", "kb_list"
                 ],
             ),

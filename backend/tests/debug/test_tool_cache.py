@@ -56,7 +56,7 @@ class TestCacheKey:
         """Different args should produce different keys."""
         key1 = CacheKey("read_file", "hash123", "content456")
         key2 = CacheKey("read_file", "hash123", "content789")
-        key3 = CacheKey("list_directory", "hash123", "content456")
+        key3 = CacheKey("list_dir", "hash123", "content456")
         
         assert key1 != key2
         assert key1 != key3
@@ -216,7 +216,7 @@ class TestDeterministicToolCache:
         
         with patch.object(cache, '_compute_file_hash', AsyncMock(return_value="abc123")):
             result1, _ = await cache.execute('read_file', {'path': '/tmp/test'}, execute_fn)
-            result2, _ = await cache.execute('list_directory', {'path': '/tmp/test'}, execute_fn)
+            result2, _ = await cache.execute('list_dir', {'path': '/tmp/test'}, execute_fn)
             
             assert result1 == "result1"
             assert result2 == "result2"

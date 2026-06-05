@@ -79,8 +79,8 @@ class MockAgentEngine(AgentEngine):
         if name == "Worker":
             if c == 1:
                 return EngineResult(messages=[
-                    AIMessage(content="", tool_calls=[{"name": "list_directory", "args": {}, "id": "tc1"}]),
-                    ToolMessage(content="software-ecommerce/\n├── addon/\n├── app/", tool_call_id="tc1", name="list_directory"),
+                    AIMessage(content="", tool_calls=[{"name": "list_dir", "args": {}, "id": "tc1"}]),
+                    ToolMessage(content="software-ecommerce/\n├── addon/\n├── app/", tool_call_id="tc1", name="list_dir"),
                     AIMessage(content="这是一个复合型项目，包含商城和插件系统。"),
                 ])
             if c == 2:
@@ -279,4 +279,4 @@ async def test_real_graph_4round_retry(agent_main_graph, memory_saver):
         f"ToolMessages should increase by 1 after retry: {tool_before} -> {tool_retry}"
     )
     tool_names = [m.name for m in msgs_after_retry if isinstance(m, ToolMessage)]
-    assert tool_names == ["list_directory", "search_web"], f"ToolMessage names mismatch: {tool_names}"
+    assert tool_names == ["list_dir", "search_web"], f"ToolMessage names mismatch: {tool_names}"

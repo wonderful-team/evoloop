@@ -12,7 +12,7 @@ import asyncio
 
 
 async def test_handle_tool_output_extracts_json_content():
-    """验证 handle_tool_output 对 list_directory JSON 输出的处理"""
+    """验证 handle_tool_output 对 list_dir JSON 输出的处理"""
 
     from app.core.engine.message.handler import MessageHandler
 
@@ -33,14 +33,14 @@ async def test_handle_tool_output_extracts_json_content():
     mock_meta.get_display_name = MagicMock(return_value="已列出 src/ (3 项)")
 
     with patch('app.core.engine.message.handler.get_tool_metadata', return_value=mock_meta):
-        # 模拟 list_directory 的 JSON 输出
+        # 模拟 list_dir 的 JSON 输出
         tool_output = json.dumps({
             "content": "file1.py\nfile2.py\nREADME.md",
             "count": 3
         })
 
         result = await handler.handle_tool_output(
-            tool_name="list_directory",
+            tool_name="list_dir",
             output=tool_output,
             tool_call_id="call_123",
             sequence_number=42
@@ -131,7 +131,7 @@ async def test_display_name_still_gets_count():
             meta={"count": 2},
         )
         await handler.handle_tool_output(
-            tool_name="list_directory",
+            tool_name="list_dir",
             output=tool_output,
             tool_call_id="call_789",
             sequence_number=44

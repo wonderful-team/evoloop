@@ -392,7 +392,7 @@ async def _run_wiki_agent(project_id: int, project_path: str, skill, timeout: in
         f"After writing all content pages, you MUST create a dedicated 'Table of Contents' page "
         f"(title='目录' if Chinese, else 'Table of Contents') with slug='toc' and order=0. "
         f"The TOC page must list all wiki pages in a hierarchical tree format. Do NOT skip this step. "
-        f"You MUST assess project scale FIRST using list_directory and key config files, then propose an appropriate page budget. "
+        f"You MUST assess project scale FIRST using list_dir and key config files, then propose an appropriate page budget. "
         f"You MUST call create_plan FIRST before writing any pages. The plan step count should match your proposed budget. "
         f"Update plan progress with update_step_status after each page. Do NOT stop until all plan steps are completed."
     )
@@ -400,7 +400,7 @@ async def _run_wiki_agent(project_id: int, project_path: str, skill, timeout: in
     message = (
         f"**Mission Goal**: Generate a comprehensive Wiki documentation for the project at {project_path}.\n"
         "You MUST:\n"
-        "1. Survey the project structure (list_directory, read README and key config files) to assess scale.\n"
+        "1. Survey the project structure (list_dir, read README and key config files) to assess scale.\n"
         "2. Propose a page budget based on project size (refer to SKILL.md scale table).\n"
         "3. Call create_plan FIRST with steps matching your proposed budget.\n"
         "4. Generate content page by page using write_wiki_page tool. Update step status after each page.\n"
@@ -434,7 +434,7 @@ async def _run_wiki_agent(project_id: int, project_path: str, skill, timeout: in
                 tools=[
                     "write_wiki_page", "read_wiki_page", "list_wiki_pages",
                     "create_plan", "update_step_status",
-                    "list_directory", "read_file", "search_files",
+                    "list_dir", "read_file", "search_files",
                     "remember", "recall", "search_history",
                 ],
             ),

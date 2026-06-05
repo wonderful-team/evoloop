@@ -65,7 +65,7 @@ def test_normalize_preserves_tool_messages(caplog):
         thread_id="thread-123",
         role="tool",
         content="dir listing",
-        tool_name="list_directory",
+        tool_name="list_dir",
         tool_call_id="call_def",
         meta_data={"input": {"path": "src"}},
         status="completed",

@@ -1,6 +1,6 @@
 """
 全面测试所有修改过的工具
-覆盖：list_directory、search_files、multiedit_file、read_file、write_file、edit_file
+覆盖：list_dir、search_files、multiedit_file、read_file、write_file、edit_file
 """
 import sys
 sys.path.insert(0, '/Users/huangjinhuan/项目/develop-assistant.cn/evoloop/backend')
@@ -10,9 +10,9 @@ import asyncio
 import os
 
 
-async def test_list_directory():
-    """list_directory: 返回 tuple，Agent/DB 收到纯文本，display_name 带 count"""
-    from app.domain.tools.files.list_directory import list_directory
+async def test_list_dir():
+    """list_dir: 返回 tuple，Agent/DB 收到纯文本，display_name 带 count"""
+    from app.domain.tools.files.list_dir import list_dir
     from app.core.tools.base import ToolResult
 
     test_dir = os.path.join(os.getcwd(), "test_all_dir")
@@ -21,7 +21,7 @@ async def test_list_directory():
         open(os.path.join(test_dir, "a.py"), "w").close()
         open(os.path.join(test_dir, "b.py"), "w").close()
 
-        result = await list_directory.ainvoke({"path": "test_all_dir", "tree": False, "stats": False})
+        result = await list_dir.ainvoke({"path": "test_all_dir", "tree": False, "stats": False})
 
         assert isinstance(result, ToolResult), f"Expected ToolResult, got {type(result)}"
         assert "a.py" in str(result)
@@ -30,7 +30,7 @@ async def test_list_directory():
         assert result.meta.get("count") == 2
         assert isinstance(result.display_name, str) and len(result.display_name) > 0
         assert isinstance(result.display_name, str) and len(result.display_name) > 0
-        print(f"✅ list_directory: display_name='{result.display_name}', count={result.meta.get('count')}")
+        print(f"✅ list_dir: display_name='{result.display_name}', count={result.meta.get('count')}")
     finally:
         import shutil
         shutil.rmtree(test_dir, ignore_errors=True)
@@ -166,7 +166,7 @@ async def test_message_handler_with_all_tools():
     handler._repository = mock_repo
 
     tools_to_test = [
-        ("list_directory", ToolResult("file1.py\nfile2.py", {"count": 2}, "已列出 src/ (2 项)")),
+        ("list_dir", ToolResult("file1.py\nfile2.py", {"count": 2}, "已列出 src/ (2 项)")),
         ("search_files", ToolResult("match.py", {"count": 1}, "搜索完成，找到 1 个结果")),
         ("read_file", ToolResult("import os", {}, "读取文件 'main.py'")),
         ("write_file", ToolResult("OK", {}, "写入文件 'out.py'")),
@@ -195,7 +195,7 @@ if __name__ == "__main__":
     print("=" * 60)
     print("全面工具测试")
     print("=" * 60)
-    asyncio.run(test_list_directory())
+    asyncio.run(test_list_dir())
     asyncio.run(test_search_files())
     asyncio.run(test_multiedit_file())
     asyncio.run(test_read_file())

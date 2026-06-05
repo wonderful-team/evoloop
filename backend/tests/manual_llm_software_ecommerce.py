@@ -9,7 +9,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
-from app.domain.tools.files.list_directory import list_directory
+from app.domain.tools.files.list_dir import list_dir
 
 TARGET_DIR = "software-ecommerce"
 
@@ -39,10 +39,10 @@ async def run_scenario(llm, tools, system_prompt, user_prompt, scenario_name):
     if isinstance(args, str):
         args = json.loads(args)
     
-    print(f"[Tool call] list_directory({json.dumps(args, ensure_ascii=False)})")
+    print(f"[Tool call] list_dir({json.dumps(args, ensure_ascii=False)})")
     
     start = time.perf_counter()
-    result = await list_directory.ainvoke(args)
+    result = await list_dir.ainvoke(args)
     tool_time = (time.perf_counter() - start) * 1000
     
     lines = result.split('\n')
@@ -73,7 +73,7 @@ async def main():
     tools = [{
         "type": "function",
         "function": {
-            "name": "list_directory",
+            "name": "list_dir",
             "description": (
                 "Browse and explore directory contents with filtering, stats, and tree view.\n"
                 "Use this to explore project structure, find files by type, and analyze directories.\n"

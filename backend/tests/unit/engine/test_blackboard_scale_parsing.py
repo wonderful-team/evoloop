@@ -77,10 +77,10 @@ class TestBlackboardParserGeneric:
     def test_preserve_existing_metadata(self):
         """Parsing should preserve existing metadata fields."""
         content = "[BLACKBOARD: new_field=hello]"
-        metadata = BlackboardMetadata(tool_history=["read_file", "list_directory"])
+        metadata = BlackboardMetadata(tool_history=["read_file", "list_dir"])
         blackboard = BlackboardState(metadata=metadata)
 
         result = BlackboardParser.parse(content, blackboard)
 
         assert result.metadata.new_field == "hello"
-        assert result.metadata.tool_history == ["read_file", "list_directory"]
+        assert result.metadata.tool_history == ["read_file", "list_dir"]

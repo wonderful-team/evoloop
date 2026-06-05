@@ -19,9 +19,9 @@ import tempfile
 import os
 
 
-async def test_list_directory_end_to_end():
-    """端到端：list_directory 工具返回值全流程验证"""
-    from app.domain.tools.files.list_directory import handle_list
+async def test_list_dir_end_to_end():
+    """端到端：list_dir 工具返回值全流程验证"""
+    from app.domain.tools.files.list_dir import handle_list
 
     # 1. 工具执行：返回 (text, meta)
     test_dir = os.path.join(os.getcwd(), "test_e2e_dir")
@@ -42,8 +42,8 @@ async def test_list_directory_end_to_end():
         assert meta.get("count") == 3
 
         # 2. 经过 evoloop_tool 装饰器后的返回值（模拟 LangChain 调用）
-        from app.domain.tools.files.list_directory import list_directory
-        decorated_result = await list_directory.ainvoke({"path": "test_e2e_dir", "tree": False, "stats": False})
+        from app.domain.tools.files.list_dir import list_dir
+        decorated_result = await list_dir.ainvoke({"path": "test_e2e_dir", "tree": False, "stats": False})
 
         print(f"\n2. 装饰器处理后（LangChain/Agent 收到）:")
         print(f"   type = {type(decorated_result).__name__}")
@@ -80,7 +80,7 @@ async def test_list_directory_end_to_end():
 
         with patch('app.core.engine.message.handler.get_tool_metadata', return_value=mock_meta):
             await handler.handle_tool_output(
-                tool_name="list_directory",
+                tool_name="list_dir",
                 output=decorated_result,
                 tool_call_id="call_123",
                 sequence_number=42
@@ -100,7 +100,7 @@ async def test_list_directory_end_to_end():
         # display_name 已渲染
         assert isinstance(stored_meta["tool_meta"]["display_name"], str) and len(stored_meta["tool_meta"]["display_name"]) > 0
 
-        print("\n✅ test_list_directory_end_to_end passed")
+        print("\n✅ test_list_dir_end_to_end passed")
     finally:
         import shutil
         shutil.rmtree(test_dir, ignore_errors=True)
@@ -179,7 +179,7 @@ if __name__ == "__main__":
     print("=" * 60)
     print("端到端工具返回值验证")
     print("=" * 60)
-    asyncio.run(test_list_directory_end_to_end())
+    asyncio.run(test_list_dir_end_to_end())
     asyncio.run(test_search_files_end_to_end())
     asyncio.run(test_multiedit_file_end_to_end())
     print("\n" + "=" * 60)

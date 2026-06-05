@@ -92,7 +92,7 @@ async def test_handler_reads_from_tool_result():
         )
 
         result = await handler.handle_tool_output(
-            tool_name="list_directory",
+            tool_name="list_dir",
             output=tool_output,
             tool_call_id="call_123",
             sequence_number=42

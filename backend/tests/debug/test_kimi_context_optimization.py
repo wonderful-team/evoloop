@@ -223,7 +223,7 @@ The Supervisor has handed you an **ExecutionTicket**. It contains:
                     "id": f"call_{i}",
                     "type": "function",
                     "function": {
-                        "name": "list_directory",
+                        "name": "list_dir",
                         "arguments": json.dumps({"path": "/test/project", "tree": True})
                     }
                 }]

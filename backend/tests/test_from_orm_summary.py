@@ -18,14 +18,14 @@ def run_tests():
     print("验证 MessageBlockFactory.from_orm 历史消息渲染")
     print("=" * 60)
     
-    # ─── 测试 1：list_directory 历史消息，含 {count} 未解析 ───
-    print("\n[Test 1] list_directory 含 count 参数")
+    # ─── 测试 1：list_dir 历史消息，含 {count} 未解析 ───
+    print("\n[Test 1] list_dir 含 count 参数")
     # 模拟旧的数据库记录：display_name 中 {count} 未渲染
     msg1 = MockOrmMsg(
         id="uuid-1",
         role="tool",
         content='{"content": "file1.py\\nfile2.py\\nfile3.py", "count": 3}',
-        tool_name="list_directory",
+        tool_name="list_dir",
         tool_call_id="call-1",
         status="completed",
         thread_id="t1",

@@ -390,7 +390,7 @@ async def _run_wiki_agent(project_id: int, project_path: str, skill, timeout: in
         f"ALL wiki content and page titles MUST be written in {user_lang}. "
         f"You must build a hierarchical documentation tree. "
         f"Always create parent pages before child pages, and link them using the parent_title parameter. "
-        f"You MUST assess project scale FIRST using list_directory and key config files, then propose an appropriate page budget. "
+        f"You MUST assess project scale FIRST using list_dir and key config files, then propose an appropriate page budget. "
         f"You MUST call create_plan FIRST before writing any pages. The plan steps MUST follow a hierarchical order (Parents before Children). "
         f"Update plan progress with update_step_status after each page. "
         f"CRITICAL: Generate pages in batches of 3-5 pages per turn. After each batch, STOP and return to Supervisor. "
@@ -400,7 +400,7 @@ async def _run_wiki_agent(project_id: int, project_path: str, skill, timeout: in
     message = (
         f"**Mission Goal**: Generate a comprehensive, hierarchical Wiki documentation for the project at {project_path}.\n"
         "You MUST:\n"
-        "1. Survey the project structure (list_directory, read README and key config files) to assess scale.\n"
+        "1. Survey the project structure (list_dir, read README and key config files) to assess scale.\n"
         "2. Propose a page budget based on project size (refer to SKILL.md scale table).\n"
         "3. Call create_plan FIRST with steps matching your proposed budget. Use hierarchical order.\n"
         "4. Generate content page by page using write_wiki_page(title, content, parent_title=...). "
@@ -434,7 +434,7 @@ async def _run_wiki_agent(project_id: int, project_path: str, skill, timeout: in
                 tools=[
                     "write_wiki_page", "edit_wiki_page", "read_wiki_page", "list_wiki_pages",
                     "create_plan", "update_step_status",
-                    "list_directory", "read_file", "search_files",
+                    "list_dir", "read_file", "search_files",
                 ],
             ),
             parameters=TicketParameters(),

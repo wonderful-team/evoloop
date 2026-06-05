@@ -9,7 +9,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
-from app.domain.tools.files.list_directory import list_directory
+from app.domain.tools.files.list_dir import list_dir
 
 async def call_llm(llm, messages, tools):
     response = await llm.ainvoke(messages, tools=tools, tool_choice="auto")
@@ -38,7 +38,7 @@ async def test_scenario(llm, tools, system_prompt, user_prompt, name):
             args = json.loads(args)
         print(f"[Tool] {json.dumps(args, ensure_ascii=False)}")
         
-        result = await list_directory.ainvoke(args)
+        result = await list_dir.ainvoke(args)
         lines = [l for l in result.split('\n') if l.strip()]
         truncated = any("more entries hidden" in l for l in result.split('\n'))
         print(f"[Result] {len(lines)} lines, truncated={'yes' if truncated else 'no'}")
@@ -55,7 +55,7 @@ async def main():
     tools = [{
         "type": "function",
         "function": {
-            "name": "list_directory",
+            "name": "list_dir",
             "description": (
                 "Browse and explore directory contents with filtering, stats, and tree view.\n"
                 "Args: path (REQUIRED), tree (bool), depth (int, default 1, ONLY works with tree=True), "

@@ -717,7 +717,7 @@
             {
               "timestamp": "2026-04-05T03:13:41.366611",
               "step_type": "loop_detection",
-              "message": "节点 'Using list_directory' 连续 4 次",
+              "message": "节点 'Using list_dir' 连续 4 次",
               "severity": "HIGH",
               "step_data": null
             },

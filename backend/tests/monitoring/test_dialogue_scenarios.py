@@ -3,7 +3,7 @@
 用于测试 EvoLoop 聊天系统的各种场景
 
 工具名称映射（新系统）:
-- 文件操作: read_file, write_file, edit_file, search_code, list_directory, apply_patch_file
+- 文件操作: read_file, write_file, edit_file, search_code, list_dir, apply_patch_file
 - 代码探索: find_symbol, search_code, ask_codebase
 - 执行命令: execute_command (原 bash)
 - 内存/知识: search_history, save_preference, add_concept, save_concepts
@@ -395,7 +395,7 @@ def print_tool_mapping():
     print("=" * 70)
     
     tool_categories = {
-        "文件操作": ["read_file", "write_file", "edit_file", "search_code", "list_directory", "apply_patch_file"],
+        "文件操作": ["read_file", "write_file", "edit_file", "search_code", "list_dir", "apply_patch_file"],
         "代码探索": ["find_symbol", "search_code", "ask_codebase"],
         "执行命令": ["execute_command"],
         "知识管理": ["search_history", "save_preference", "add_concept", "save_concepts", "find_related_episodes"],

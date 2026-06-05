@@ -124,8 +124,8 @@ async def run_scenario(scenario: dict, model: str = "google/gemma-4-e4b") -> dic
         topic=scenario["name"],
         agent_config=AgentRuntimeConfig(
             role_name="Explorer",
-            system_instructions="你是一个文件系统探索助手。使用 list_directory 和 read_file 工具来完成任务。",
-            tools=["list_directory", "read_file"],
+            system_instructions="你是一个文件系统探索助手。使用 list_dir 和 read_file 工具来完成任务。",
+            tools=["list_dir", "read_file"],
         ),
     )
     blackboard = BlackboardState(ticket=ticket)

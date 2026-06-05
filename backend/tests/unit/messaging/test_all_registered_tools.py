@@ -118,25 +118,25 @@ async def test_all_tools_metadata():
 async def test_tuple_tools_agent_gets_plain_text():
     """
     验证返回 tuple 的工具：Agent 得到纯文本(str)，不是 dict/JSON。
-    这是核心修复：之前 list_directory/search_files 返回 json.dumps({"content":...,"count":...})
+    这是核心修复：之前 list_dir/search_files 返回 json.dumps({"content":...,"count":...})
     现在返回 (text, {"count": N})，装饰器提取 text 包装为 ToolResult(str)。
     """
     from app.core.tools.base import ToolResult
-    from app.domain.tools.files.list_directory import list_directory
+    from app.domain.tools.files.list_dir import list_dir
     from app.domain.tools.files.search_files import search_files
     from app.domain.tools.files.multiedit_file import multiedit_file
 
-    # --- list_directory ---
-    result = await list_directory.ainvoke({"path": ".", "mode": "flat"})
-    assert isinstance(result, str), f"list_directory: Agent 应该得到 str，得到 {type(result)}"
-    assert not result.strip().startswith("{"), f"list_directory: Agent 不应该得到 JSON 字符串: {result[:100]}"
-    assert isinstance(result, ToolResult), f"list_directory: 应该是 ToolResult，得到 {type(result)}"
-    assert hasattr(result, "meta") and isinstance(result.meta, dict), "list_directory: ToolResult 应该有 .meta dict"
-    assert "count" in result.meta, f"list_directory: .meta 应该有 count，得到 {result.meta}"
-    assert hasattr(result, "display_name"), "list_directory: ToolResult 应该有 .display_name"
+    # --- list_dir ---
+    result = await list_dir.ainvoke({"path": ".", "mode": "flat"})
+    assert isinstance(result, str), f"list_dir: Agent 应该得到 str，得到 {type(result)}"
+    assert not result.strip().startswith("{"), f"list_dir: Agent 不应该得到 JSON 字符串: {result[:100]}"
+    assert isinstance(result, ToolResult), f"list_dir: 应该是 ToolResult，得到 {type(result)}"
+    assert hasattr(result, "meta") and isinstance(result.meta, dict), "list_dir: ToolResult 应该有 .meta dict"
+    assert "count" in result.meta, f"list_dir: .meta 应该有 count，得到 {result.meta}"
+    assert hasattr(result, "display_name"), "list_dir: ToolResult 应该有 .display_name"
     print(result)
     snippet = result[:200].replace('\n', '\\n')
-    print(f"✅ list_directory: Agent 得到纯文本 \"{snippet}...\", meta={result.meta}, display_name='{result.display_name}'")
+    print(f"✅ list_dir: Agent 得到纯文本 \"{snippet}...\", meta={result.meta}, display_name='{result.display_name}'")
 
     # --- search_files ---
     result = await search_files.ainvoke({"pattern": "search", "scope": "*.py", "path": "."})
@@ -193,7 +193,7 @@ async def test_database_gets_plain_text_content():
     from app.core.tools.base import ToolResult
     from app.core.engine.message.handler import MessageHandler
 
-    # 构造一个模拟的 ToolResult（类似 list_directory 返回的）
+    # 构造一个模拟的 ToolResult（类似 list_dir 返回的）
     tool_output = ToolResult(
         text="file1.py\nfile2.py",
         meta={"count": 2},

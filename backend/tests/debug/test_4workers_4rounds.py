@@ -80,8 +80,8 @@ class MockAgentEngine(AgentEngine):
             if c == 1:
                 return EngineResult(
                     messages=[
-                        AIMessage(content="", tool_calls=[{"name": "list_directory", "args": {}, "id": "call_1"}]),
-                        ToolMessage(content="software-ecommerce/\n├── addon/\n├── app/", name="list_directory", tool_call_id="call_1"),
+                        AIMessage(content="", tool_calls=[{"name": "list_dir", "args": {}, "id": "call_1"}]),
+                        ToolMessage(content="software-ecommerce/\n├── addon/\n├── app/", name="list_dir", tool_call_id="call_1"),
                         AIMessage(content="这是一个复合型项目，包含商城和插件系统。"),
                     ]
                 )
