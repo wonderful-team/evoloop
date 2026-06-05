@@ -106,8 +106,8 @@ async def test_list_dir_end_to_end():
         shutil.rmtree(test_dir, ignore_errors=True)
 
 
-async def test_search_files_end_to_end():
-    """端到端：search_files 工具返回值全流程验证"""
+async def test_grep_search_end_to_end():
+    """端到端：grep_search 工具返回值全流程验证"""
     from app.domain.tools.files.grep_search import _search_by_name
 
     test_dir = os.path.join(os.getcwd(), "test_e2e_search")
@@ -117,7 +117,7 @@ async def test_search_files_end_to_end():
         open(os.path.join(test_dir, "main.py"), "w").close()
 
         raw_result = await _search_by_name("test", test_dir, None, False, max_files=20)
-        print(f"\n4. search_files 原始返回值:")
+        print(f"\n4. grep_search 原始返回值:")
         print(f"   text = {repr(raw_result[0][:80])}")
         print(f"   meta = {raw_result[1]}")
 
@@ -132,7 +132,7 @@ async def test_search_files_end_to_end():
 
         assert isinstance(decorated_result.display_name, str) and len(decorated_result.display_name) > 0
 
-        print("\n✅ test_search_files_end_to_end passed")
+        print("\n✅ test_grep_search_end_to_end passed")
     finally:
         import shutil
         shutil.rmtree(test_dir, ignore_errors=True)
@@ -180,7 +180,7 @@ if __name__ == "__main__":
     print("端到端工具返回值验证")
     print("=" * 60)
     asyncio.run(test_list_dir_end_to_end())
-    asyncio.run(test_search_files_end_to_end())
+    asyncio.run(test_grep_search_end_to_end())
     asyncio.run(test_multiedit_file_end_to_end())
     print("\n" + "=" * 60)
     print("✅ All end-to-end tests passed!")

@@ -72,15 +72,15 @@ def run_tests():
     else:
         print("  ❌ FAIL: 仍存在未解析的占位符")
 
-    # ─── 测试 3：search_files 完成后显示搜索结果数量 ───
-    print("\n[Test 3] search_files 完成后摘要显示结果数")
+    # ─── 测试 3：grep_search 完成后显示搜索结果数量 ───
+    print("\n[Test 3] grep_search 完成后摘要显示结果数")
     import json
     output_json = json.dumps({"content": "匹配内容...", "count": 17, "pattern": "def handle"})
     msg3 = MockOrmMsg(
         id="uuid-3",
         role="tool",
         content=output_json,
-        tool_name="search_files",
+        tool_name="grep_search",
         tool_call_id="call-3",
         status="completed",
         thread_id="t1",

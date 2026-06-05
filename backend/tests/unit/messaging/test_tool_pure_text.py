@@ -62,8 +62,8 @@ async def test_list_dir_tree_returns_plain_text():
         shutil.rmtree(test_dir, ignore_errors=True)
 
 
-async def test_search_files_returns_plain_text():
-    """验证 search_files 返回纯文本"""
+async def test_grep_search_returns_plain_text():
+    """验证 grep_search 返回纯文本"""
     from app.domain.tools.files.grep_search import _search_by_name
 
     import os
@@ -81,7 +81,7 @@ async def test_search_files_returns_plain_text():
         assert not text.strip().startswith("{"), f"Should not be dict str, got: {text}"
         assert meta.get("count") == 1
 
-        print("✅ test_search_files_returns_plain_text passed")
+        print("✅ test_grep_search_returns_plain_text passed")
     finally:
         import shutil
         shutil.rmtree(test_dir, ignore_errors=True)
@@ -133,6 +133,6 @@ async def test_display_name_without_count():
 if __name__ == "__main__":
     asyncio.run(test_list_dir_returns_plain_text())
     asyncio.run(test_list_dir_tree_returns_plain_text())
-    asyncio.run(test_search_files_returns_plain_text())
+    asyncio.run(test_grep_search_returns_plain_text())
     asyncio.run(test_display_name_without_count())
     print("\n✅ All pure text tool tests passed!")

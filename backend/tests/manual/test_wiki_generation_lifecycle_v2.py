@@ -434,7 +434,7 @@ async def _run_wiki_agent(project_id: int, project_path: str, skill, timeout: in
                 tools=[
                     "write_wiki_page", "edit_wiki_page", "read_wiki_page", "list_wiki_pages",
                     "create_plan", "update_step_status",
-                    "list_dir", "read_file", "search_files",
+                    "list_dir", "read_file", "grep_search",
                 ],
             ),
             parameters=TicketParameters(),

@@ -24,7 +24,7 @@ class TestMessagePruning(unittest.TestCase):
             ToolMessage(content="success", tool_call_id="2"),
             AIMessage(content="Worker: I have finished the subtask 1."),
             HumanMessage(content="telemetry data 2", name="context_ticket"),
-            AIMessage(content="", tool_calls=[{"name": "search_files", "args": {"query": "test"}, "id": "3"}]),
+            AIMessage(content="", tool_calls=[{"name": "grep_search", "args": {"query": "test"}, "id": "3"}]),
             ToolMessage(content="found test.py", tool_call_id="3"),
             AIMessage(content="Worker: I have finished the entire task."),
             HumanMessage(content="latest telemetry", name="context_ticket"),

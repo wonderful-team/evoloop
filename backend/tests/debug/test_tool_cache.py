@@ -235,7 +235,7 @@ class TestExecuteWithCache:
         
         with patch.object(tool_cache, 'execute', wraps=tool_cache.execute) as mock_execute:
             result, meta = await execute_with_cache(
-                'search_files',
+                'grep_search',
                 {'pattern': '*.py'},
                 execute_fn
             )

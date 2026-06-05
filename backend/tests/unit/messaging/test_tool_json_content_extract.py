@@ -132,7 +132,7 @@ def test_json_without_content_key():
 
 
 def test_python_dict_with_content():
-    """Python dict 类型的工具输出（如 search_files）也应正确提取"""
+    """Python dict 类型的工具输出（如 grep_search）也应正确提取"""
 
     tool_output = {"content": "match1.py:10\nmatch2.py:20", "count": 2}
 

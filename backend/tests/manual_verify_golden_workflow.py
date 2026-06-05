@@ -4,7 +4,7 @@
 
 验证范围：
 - write_file
-- search_files
+- grep_search
 - read_file
 - edit_file
 - move_file
@@ -89,14 +89,14 @@ async def test_golden_workflow():
             assert persisted_operations[-1]["operation"] == "ADD"
 
             # -----------------------------------------------------
-            # 2. Search Files (Locate)
+            # 2. grep_search (Locate)
             # -----------------------------------------------------
-            print("\n--- 2. search_files (Locate) ---")
-            result_search = await grep_search.ainvoke({
+            print("\n--- 2. grep_search (Locate) ---")
+            search_res = await grep_search.ainvoke({
                 "pattern": "def hello",
                 "search_in_name": False
             })
-            assert filename in result_search, f"未找到文件: {result_search}"
+            assert filename in str(search_res), f"未找到文件: {search_res}"
 
             # -----------------------------------------------------
             # 3. Read File (Inspect)

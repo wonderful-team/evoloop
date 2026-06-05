@@ -18,14 +18,14 @@ class MockMessage:
 def test_search_summary():
     print("Testing Search Summary Rendering...")
     
-    # 1. Simulate search_files output
+    # 1. Simulate grep_search output
     tool_output = json.dumps({"content": "Found some files...", "count": 42})
     
     msg = MockMessage(
         id="msg-1",
         role="tool",
         content=tool_output,
-        tool_name="search_files",
+        tool_name="grep_search",
         meta_data={
             "input": {"pattern": "test_pattern", "path": "src/"}
         }
@@ -51,7 +51,7 @@ def test_search_summary():
         role="tool",
         content="",
         status="running",
-        tool_name="search_files",
+        tool_name="grep_search",
         meta_data={"input": {"pattern": "test_pattern"}}
     )
     block_running = MessageBlockFactory.from_orm(msg_running)

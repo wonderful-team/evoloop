@@ -297,7 +297,7 @@ async def _run_code_agent(project_id: int, project_path: str, skill, timeout: in
         "1. **口语评测增强**：探索现存的 Azure / GPT 语音评分服务（如 `SpeechAzureService.php` 或 `AI.php` 或模型类），为其增加【语速(Speed)】【流利度(Fluency)】【停顿检测(Pause Detection)】的评分维度逻辑。\n"
         "2. **考试数据结构扩充**：探索考试和试卷相关的数据模型或控制器（如 `Exam.php`、`mock_exam_records` 表），增加记录【考试计时器(Timer)】【答题进度(Progress)】等必须的结构。\n"
         "3. **必须实操**：不要只写架构报告，你必须去使用工具读取现有的 PHP/SQL 代码，并真实地使用写工具（write_file 或 execute_command 编辑文本）把这些改进代码植入进去。\n"
-        "4. 遇到未知的底层框架类，自行使用 search_files 或 read_file 查阅源码进行对齐。完成后结束任务。"
+        "4. 遇到未知的底层框架类，自行使用 grep_search 或 read_file 查阅源码进行对齐。完成后结束任务。"
     )
 
     logger.info(f"[Test] Dispatching agent run (thread_id={thread_id})...")
@@ -321,7 +321,7 @@ async def _run_code_agent(project_id: int, project_path: str, skill, timeout: in
                 role_name="Worker",
                 system_instructions=system_instructions,
                 tools=[
-                    "read_file", "write_file", "search_files", "search_history", 
+                    "read_file", "write_file", "grep_search", "search_history", 
                     "multiedit_file", "execute_command", "list_dir",
                     "kb_read", "kb_search", "kb_list"
                 ],
