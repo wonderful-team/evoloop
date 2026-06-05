@@ -123,7 +123,7 @@ async def generate_wiki(
     message = (
         f"**Mission Goal**: Generate a comprehensive, hierarchical Wiki documentation for the project at {path}.\n"
         "You MUST:\n"
-        "1. Survey the project structure (list_directory, read README and key config files).\n"
+        "1. Survey the project structure (list_dir, read README and key config files).\n"
         "2. Plan a logical tree-like structure (Overview -> Architecture, Setup, API, etc.).\n"
         "3. Generate content page by page using write_wiki_page(title, content, parent_title=...). \n"
         "   IMPORTANT: Create parent pages BEFORE child pages to ensure correct linking.\n"
@@ -159,7 +159,7 @@ async def generate_wiki(
                 tools=[
                     "write_wiki_page", "edit_wiki_page", "read_wiki_page", "list_wiki_pages",
                     "create_plan", "update_step_status",
-                    "list_directory", "read_file", "search_files",
+                    "list_dir", "read_file", "grep_search", "find_files",
                 ],
             ),
         )

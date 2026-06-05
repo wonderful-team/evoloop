@@ -28,7 +28,7 @@ parameters:
    - Read existing documentation to avoid duplication.
 
 2. **Gather Source Material**:
-   - Read relevant source files using `read_file`, `find_symbol`, `search_files`, or `ask_codebase`.
+   - Read relevant source files using `read_file`, `find_symbol`, `grep_search`, `find_files`, or `ask_codebase`.
    - Extract key patterns, decisions, and rationale from the conversation history.
 
 3. **Author**:
@@ -71,7 +71,7 @@ graph LR
 Wrap diagram code in triple backticks with `mermaid` language identifier.
 
 ## Required Tools
-- `read_file`, `list_directory`, `find_symbol`, `search_files`, `ask_codebase`
+- `read_file`, `list_dir`, `find_symbol`, `grep_search`, `find_files`, `ask_codebase`
 - `write_document`, `edit_document`
 - `list_wiki_pages`, `read_wiki_page`, `write_wiki_page`
 - `remember`, `recall` (for saving and retrieving knowledge)

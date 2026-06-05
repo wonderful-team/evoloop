@@ -102,8 +102,8 @@ task = task_manager.create_task(
 
 #### 5. 文件搜索
 ```python
-# search_files - 大范围搜索
-search_files(
+# grep_search - 大范围搜索
+grep_search(
     pattern="TODO",
     path="/large-project",
     background=True,  # 搜索可能 > 30秒

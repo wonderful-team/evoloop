@@ -29,6 +29,8 @@ class FileEditOperation(BaseModel):
     replacement: str = Field(..., description="The new text or content to append/prepend")
     allow_multiple: bool = Field(False, description="Replace all occurrences of target")
     mode: str = Field("replace", description="'replace' (default), 'append' (add to end of file), 'prepend' (add to beginning)")
+    start_line: Optional[int] = Field(None, description="Optional 1-indexed starting line number constraint")
+    end_line: Optional[int] = Field(None, description="Optional 1-indexed ending line number constraint (inclusive)")
 
 
 class EditFileRequest(BaseModel):
@@ -38,6 +40,8 @@ class EditFileRequest(BaseModel):
     content: Optional[str] = None
     allow_multiple: bool = False
     mode: str = "replace"
+    start_line: Optional[int] = None
+    end_line: Optional[int] = None
     expected_hash: Optional[str] = None
     verify_types: bool = True
     config: Optional[dict] = None

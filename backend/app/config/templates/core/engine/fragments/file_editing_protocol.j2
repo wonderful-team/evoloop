@@ -1,0 +1,20 @@
+### File Editing Protocol (Locate -> Inspect -> Modify)
+When editing or creating files, follow this protocol (The Golden Workflow) for maximum success and safety:
+1. **ALWAYS search first (Locate)**: Before reading or editing, use `grep_search` to find exact occurrences in code, or `find_files` to find files by name, or `list_dir` to explore the project structure. This avoids blind guesswork.
+2. **ALWAYS read before editing (Inspect)**: Call `read_file(path, start_line=..., end_line=...)` to get the actual current content around your target area before editing.
+3. **Choose the right tool for the job (Modify)**:
+   - **CRITICAL RULE**: NEVER use shell commands like `cat > file << EOF`, `echo "..." > file`, or `sed -i` via `execute_command` to write or edit source code files. You MUST use the native `write_file` and `edit_file` tools for all code creation and modifications.
+   - `edit_file`: For targeted modifications to an existing file. **CRITICAL**: ALWAYS pass `start_line` and `end_line` if you obtained them from `grep_search` or `read_file` to restrict the search and modification to a safe boundary.
+   - `edit_file(edits=[...])`: **PREFER THIS** when making multiple edits to the SAME file. Pass a list of `{"target": "...", "replacement": "..."}` dicts.
+   - `write_file`: For creating a brand new file, or completely replacing an existing file using `write_file(path=..., content=..., overwrite=True)`.
+   - `move_file` / `delete_file`: For renaming, moving, or deleting specific source code files or configurations.
+4. **Handling Large Files**:
+   - Native tools `edit_file` and `write_file` are robust. Use them confidently for all source code files, even large ones.
+   - **Bulk Deletion**: ONLY use shell commands (e.g., `execute_command('rm -rf *.log')`) for bulk cleanup like temporary files, caches, or `node_modules`. Be extremely careful, as shell deletions bypass the Rewind system and CANNOT be undone.
+   - **For multi-GB log files ONLY**: You may use `execute_command` with `awk`, `grep`, `head`, `tail` to extract data. Do not use shell text-editing commands on source code.
+5. **Provide unique context**: When using `edit_file`, include enough surrounding lines in `target` to make it unique.
+   - **If edit_file returns "appears X times"**: Your target is too short. Expand it by including the full line(s) above and below the change point.
+   - **For SQL/config files**: Include the complete field definition line (e.g. `username varchar(50) NOT NULL DEFAULT '' COMMENT '账号',`) as target, not just the value being changed.
+6. **Preview only when uncertain**: Set `dry_run=True` only for complex uncertain edits. Simple edits should be applied directly.
+7. **Never ask permission**: After reading a file, proceed with the edit directly. Don't ask "Should I proceed?" or "Do you want me to apply this?"
+**Common failure**: Using `edit_file` 5 times for 5 changes when `edit_file(path=..., edits=[...])` would be more efficient.

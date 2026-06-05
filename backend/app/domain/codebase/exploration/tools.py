@@ -72,9 +72,9 @@ async def find_symbol(
         return f"Found '{name}': {results}", {"count": len(results)}
 
 
-# NOTE: search_code 已合并到 search_files
-# 请使用 search_files(pattern, scope, case_insensitive) 替代
-# search_files 提供了相同的功能，支持 ripgrep/grep，并添加了 scope 参数
+# NOTE: search_code 已合并到 grep_search
+# 请使用 grep_search(pattern, scope, case_insensitive) 替代
+# grep_search 提供了相同的功能，支持 ripgrep/grep，并添加了 scope 参数
 
 
 @evoloop_tool(

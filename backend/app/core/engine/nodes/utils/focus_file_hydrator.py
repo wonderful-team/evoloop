@@ -47,7 +47,7 @@ class FocusFileHydrator:
                     results.append({
                         "rel_path": display_path,
                         "status": "directory",
-                        "detail": "This is a directory. Use 'list_directory(tree=True)' to examine."
+                        "detail": "This is a directory. Use 'list_dir(tree=True)' to examine."
                     })
                     continue
 

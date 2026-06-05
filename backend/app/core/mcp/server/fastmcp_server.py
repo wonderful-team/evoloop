@@ -8,11 +8,11 @@ from app.domain.codebase.retrieval.tools import search_codebase
 from app.domain.tools.execution import execute_command
 from app.domain.tools.files import (
     edit_file,
-    list_directory,
+    list_dir,
     read_file,
     write_file,
 )
-from app.domain.tools.files import search_files as search_code
+from app.domain.tools.files import grep_search as search_code
 from app.utils import json as json_utils
 
 # Initialize FastMCP Server
@@ -70,10 +70,10 @@ async def edit_file_ops(path: str, target: str, replacement: str, allow_multiple
 
 
 @mcp.tool()
-async def list_directory_ops(path: str, depth: int = 3, tree: bool = True) -> str:
-    """List files in a directory. Use tree=True for annotated tree view."""
+async def list_dir_ops(path: str, depth: int = 3, tree: bool = True) -> str:
+    """List directory contents up to a specific depth."""
     try:
-        return _truncate(await list_directory.ainvoke({
+        return _truncate(await list_dir.ainvoke({
             "path": path,
             "depth": depth,
             "tree": tree

@@ -186,15 +186,18 @@ async def execute_command(
     and executing standard operating procedures including Git operations.
 
     In global mode, commands are executed within WORKSPACE_ROOT for safety.
-    Use dedicated file tools for file operations rather than shell redirection.
 
     Output Limit: Maximum 1000 lines of stdout/stderr per call.
     For larger outputs, redirect to file or use background mode.
 
-    WARNING: Use dedicated tools for standard operations when available:
-    - File Editing -> Use `edit_file` / `write_file`.
-    - File Reading -> Use `read_file`.
-    - Directory Operations -> Use `execute_command` (mkdir, rm, mv) or `list_directory`.
+    CRITICAL RESTRICTION ON FILE EDITING:
+    You MUST NEVER use shell commands to write, create, or edit source code files.
+    - DO NOT use `cat > file << EOF`
+    - DO NOT use `echo "..." > file`
+    - DO NOT use `sed -i`
+    If you need to create a file, use the `write_file` tool.
+    If you need to modify a file, use the `edit_file` tool.
+    Attempting to bypass this via shell commands will be treated as a security violation.
 
     Args:
         command: The shell command to execute

@@ -43,16 +43,29 @@ def route_to(
                           The Supervisor should select appropriate tools from the
                           Worker Baseline Capability Pool defined in agent_main.yaml.
                           For deep_researcher: ["search_web", "browser_control", ...]
-                          For documenter: ["read_file", "write_file", "list_directory", ...]
+                          For documenter: ["read_file", "write_file", "list_dir", ...]
         skill_ids: List of skill IDs for multi-step workflows (executed in order).
         workflow_mode: "single" for one skill, "sequential" for step-by-step execution.
         session_goal: Optional session-level goal to establish or refine the active goal on the UI.
     """
     target_val = target.value
 
+    MANDATORY_FILE_TOOLS = {
+        "list_dir", "find_files", "read_file", "write_file", 
+        "edit_file", "move_file", "delete_file", "grep_search", 
+        "execute_command", "search_web"
+    }
+
     ctx = context or RoutingContext()
     context_dict = ctx.model_dump()
     if authorized_tools:
+        # If any file operation tool is requested, ensure the entire bundle is granted
+        # to prevent the Worker from being constrained during multi-turn dynamic tasks.
+        if bool(set(authorized_tools) & MANDATORY_FILE_TOOLS):
+            for tool in MANDATORY_FILE_TOOLS:
+                if tool not in authorized_tools:
+                    authorized_tools.append(tool)
+                    
         context_dict["authorized_tools"] = authorized_tools
 
     if skill_ids:

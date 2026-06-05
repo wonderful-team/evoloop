@@ -88,8 +88,8 @@ async def handle_read(
         return (
             f"⚠️ Cannot read a directory with read_file.\n\n"
             f"Path '{path}' is a directory, not a file.\n\n"
-            f"Use list_directory(path='{path}') to explore its contents, "
-            f"or search_files(pattern='keyword', path='{path}') to find files inside it."
+            f"Use list_dir(path='{path}') to explore its contents, "
+            f"or grep_search(pattern='keyword', path='{path}') to find files inside it."
         )
 
     # Check if it's a large file (use core.file for size info)
@@ -177,6 +177,10 @@ async def read_file(
 ) -> str:
     """
     Read the contents of a file.
+    
+    ⚡ EFFICIENCY TIP: If you have line numbers from search results, ALWAYS
+       pass start_line and end_line to read only the relevant context
+       (e.g., target_line ± 30). Avoid reading the entire file unnecessarily.
 
     Output Limit: Maximum 1000 lines per call.
     For larger ranges, make multiple calls with specific line ranges.

@@ -483,8 +483,8 @@ def _generate_summary(tool_name: str, content: str, max_length: int = 200) -> st
     if tool_name == "read_file":
         lines = content.split('\n')
         return f"[read_file: {len(lines)} lines] {lines[0][:80]}..."
-    elif tool_name == "list_directory":
+    elif tool_name == "list_dir":
         items = [l for l in content.split('\n') if l.strip()]
-        return f"[list_directory: {len(items)} items] {', '.join(items[:3])}..."
+        return f"[list_dir: {len(items)} items] {', '.join(items[:3])}..."
 
     return f"[{tool_name}: {len(content)} chars] {content[:max_length]}..."

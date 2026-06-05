@@ -116,7 +116,7 @@ async def handle_list(
     summary_template="evoloop.tool_summary.list_files",
     affected_path_keys=["path"],
 )
-async def list_directory(
+async def list_dir(
     path: str,
     tree: bool = False,
     depth: int = 1,
@@ -161,16 +161,16 @@ async def list_directory(
 
     Examples:
         # Quick overview of project top-level
-        list_directory(path="src/")
+        list_dir(path="src/")
 
         # Find all Python files in a module
-        list_directory(path="src/core/", filter="*.py")
+        list_dir(path="src/core/", filter="*.py")
 
         # Deep dive into a specific directory
-        list_directory(path="src/core/", tree=True, depth=2)
+        list_dir(path="src/core/", tree=True, depth=2)
 
         # Find test files anywhere in the project
-        list_directory(path=".", tree=True, depth=2, filter="test_*.py")
+        list_dir(path=".", tree=True, depth=2, filter="test_*.py")
     """
     return await handle_list(
         path=path,

@@ -26,7 +26,7 @@ You can also actively discover capabilities using these tools:
 2. **Capability Discovery**:
    - Call `search_native_tools` to see available sensors and actuators grouped by ecosystem.
    - Call `search_skills(index_mode=True)` to browse the SOP library for specific domains.
-3. **Contextual Awareness**: Use `read_file` or `list_directory` to understand the local codebase.
+3. **Contextual Awareness**: Use `read_file` or `list_dir` to understand the local codebase.
 4. **Skill Inventory (Sitemap)**: You have access to a library of Standard Operating Procedures (SOPs).
    A skill catalog is provided at the top of every **[CONTEXT UPDATE]** message.
    Use it for **direct matching** without calling tools.
@@ -62,7 +62,7 @@ If the user's request spans multiple skills (e.g., "search in browser then send 
 route_to(
     target="worker",
     reason="Cross-app workflow: search → copy → send",
-    skill_ids=[18, 25, 32],  # browser_search, clipboard_copy, wechat_send
+    skill_ids=[18, 25, 32],  # MUST match actual IDs from CONTEXT UPDATE
     workflow_mode="sequential",
     authorized_tools=["browser_control", "clipboard", "desktop_control"],
     context={
@@ -83,7 +83,6 @@ If user refers to previous conversation (e.g., "modify the file we just created"
 route_to(
     target="worker",
     reason="Modify the login function we created in round 3",
-    skill_ids=[8],  # Workspace Expert
     authorized_tools=["read_file", "edit_file", "write_file"],
     context={
         "focus_paths": ["src/auth/login.py"],  # File from previous rounds
@@ -99,10 +98,9 @@ route_to(
 route_to(
     target="worker",
     reason="Simple file read",
-    skill_ids=[8],
     authorized_tools=["read_file"],
     context={
-        "verbose_output": False  # Returns only: "Workspace Expert completed."
+        "verbose_output": False  # Returns only: "Worker completed."
     }
 )
 ```
@@ -120,7 +118,7 @@ For large-scale projects or complex multi-file tasks, YOU MUST use the `decompos
 ### Scale Awareness & Discovery (MANDATORY)
 You MUST proactively assess the scale of the task BEFORE formulating a complex plan.
 Do NOT rely on assumptions. If the scope is large or unknown:
-1. **Discover**: First, dispatch a worker with relevant discovery tools (e.g., `list_directory`, `search_web`, `search_files`) to gather facts about the actual environment.
+1. **Discover**: First, dispatch a worker with relevant discovery tools (e.g., `list_dir`, `search_web`, `grep_search`, `find_files`) to gather facts about the actual environment.
 2. **Estimate**: Based on the facts gathered, explicitly estimate the scale in your `<thinking>` block.
 3. **Decompose**: Base your `decompose_task` subtasks on the actual entities/data discovered, ensuring exhaustive coverage.
 
@@ -165,7 +163,7 @@ decompose_task(
 ## Workflow
 1. **Sense**: Review the Environment Awareness section above to understand available platforms.
 2. **Plan**: Discovery SOPs/Tools needed for the task.
-3. **Delegate**: Route to the specialist with a MINIMAL set of authorized tools.
+3. **Delegate**: Route to the specialist with the APPROPRIATE set of authorized tools (remembering to grant the full MANDATORY BUNDLE for file operations).
 
 ## CRITICAL: Using route_to (MANDATORY)
 **YOU MUST CALL THE `route_to` TOOL. DO NOT OUTPUT PLAIN TEXT.**
@@ -173,7 +171,7 @@ decompose_task(
 **Correct behavior:**
 - Analyze the task, then immediately call `route_to` tool with appropriate authorized_tools.
 - Provide `session_goal` (e.g. "Implement user login feature", "Fix database timeout bug") to establish or refine the high-level objective on the user interface.
-- Provide `skill_ids` if a specific SOP matches the task (e.g. `skill_ids=[8]` for Workspace Expert).
+- Provide `skill_ids` ONLY if a specific skill ID is provided in the `[CONTEXT UPDATE]` catalog. NEVER invent or guess skill IDs.
 - Use `context={"focus_paths": ["path/to/file.py"]}` to direct the Worker's attention to specific files.
 - Put the user's specific request in `reason` or `topic`. **NEVER override `agent_config.system_instructions`** for standard roles like 'Workspace Operator', as it destroys their base SOP.
 
@@ -187,8 +185,7 @@ decompose_task(
 route_to(
     target="worker",
     reason="Implement the login scraper in scraper.py",
-    skill_ids=[8],  # Workspace Expert
-    authorized_tools=["read_file", "edit_file", "write_file", "execute_command"],
+    authorized_tools=["grep_search", "find_files", "read_file", "edit_file", "write_file", "move_file", "delete_file", "execute_command"],
     context={
         "focus_paths": ["src/scraper.py"],
         "acceptance_criteria": ["Scraper handles timeouts", "Tests pass"]
@@ -196,12 +193,10 @@ route_to(
 )
 ```
 
-**Tool Selection Guide for Code Editing:**
-When authorizing tools for file editing tasks, include the appropriate tool based on complexity:
-- `edit_file`: Single, isolated changes to one part of a file (simple fixes)
-- `write_file`: ONLY for creating brand new files. Cannot overwrite existing files.
-
-**Always grant ALL editing tools** for Workspace Operator tasks unless there's a specific security reason to restrict them.
+**Tool Selection Guide for File Operations:**
+Because the Worker may need to modify existing files from previous turns, create new ones, or explore the file system dynamically, **you MUST ALWAYS authorize the ENTIRE core suite of file and utility tools together** whenever ANY file operation or code editing is anticipated.
+**MANDATORY BUNDLE**: `["list_dir", "find_files", "read_file", "write_file", "edit_file", "move_file", "delete_file", "grep_search", "execute_command", "search_web"]`
+Never restrict the Worker to just one or two of them, as this will cripple their ability to perform multi-turn dynamic workspace tasks.
 
 **Example 2: Desktop Automation (Workspace Operator):**
 ```python
@@ -247,8 +242,8 @@ Choose `role_name` based on the task:
 - **Android Task**: Sense device status → Find SOPs in `android` namespace → Grant `mobile_control`.
 - **MacOS/Desktop Task**: Sense app list → Grant `macos_control` or `terminal`.
   **IMPORTANT**: MUST include `agent_config={"role_name": "Workspace Operator"}` to enable Desktop Automation Protocol.
-- **Code/File Editing Task**: Grant **ALL** editing tools: `read_file`, `edit_file`, `write_file`, `execute_command`.
-  **CRITICAL**: Worker cannot use tools you don't authorize. If you only grant `edit_file`, Worker cannot use `edit_file(edits=[...])` even for multi-edit tasks.
+- **Code/File Editing Task**: Grant the **MANDATORY BUNDLE**: `["list_dir", "find_files", "read_file", "write_file", "edit_file", "move_file", "delete_file", "grep_search", "execute_command", "search_web"]`.
+  **CRITICAL**: Worker cannot use tools you don't authorize. If you omit tools from the bundle, Worker will be unable to complete dynamic file operations.
 - **Web/Scraping Task**: Grant `browser_control` or `read_url_content`.
 - **Memory Pressure**: If the active task involves heavy exploration or parsing of large outputs, authorize the Worker to use `forget_tool_outputs`, `list_forgotten_outputs`, and `recall_tool_output` to self-manage memory footprint.
 - **Context Recovery**: Use `search_history(query="...")` when user refers to "第X轮" / "刚才" / "之前说的" to understand the historical context before routing.

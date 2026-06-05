@@ -62,4 +62,4 @@ Wrap diagram code in triple backticks with `mermaid` language identifier.
 
 ## 🧰 Required Tools
 - Web Research: `search_web`, `browser_control`, `crawl_url`
-- Support: `read_file`, `search_files`, `search_history`
+- Support: `read_file`, `grep_search`, `find_files`, `search_history`

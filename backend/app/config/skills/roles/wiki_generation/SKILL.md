@@ -33,7 +33,7 @@ The user's preferred language is provided in the mission context. **ALL** wiki c
 **You must develop a sensitivity to the project's scale. Do not blindly generate a "catch-all" overview without a comprehensive understanding of the project's structure.**
 
 1. **Intuitive Survey**:
-   - The first step of any mission MUST be scanning the project's core skeleton using `list_directory` (suggested depth: 2-3 levels).
+   - The first step of any mission MUST be scanning the project's core skeleton using `list_dir` (suggested depth: 2-3 levels).
    - Observe the number of core modules (e.g., `addon/`, `plugins/`, `packages/`, `src/modules/`, etc.).
 
 2. **Entity-Based Decomposition**:
@@ -44,7 +44,7 @@ The user's preferred language is provided in the mission context. **ALL** wiki c
 ## 🛠 Execution Flow
 
 ### Phase 1: Cognitive Discovery & Planning (MANDATORY)
-1. **Discover**: Call `list_directory` to map the codebase. Count the major directories, plugins, or components.
+1. **Discover**: Call `list_dir` to map the codebase. Count the major directories, plugins, or components.
 2. **Estimate**: In your thinking, state exactly how many entities you found and acknowledge the scale.
 3. **Plan Generation**: Call `create_plan(title="Wiki Generation Plan", steps=[...])`.
    - The steps MUST follow a **hierarchical order**: Define Parent pages before their respective Children.
@@ -89,7 +89,7 @@ You are expected to execute a massive amount of pages. To avoid context window c
 
 ## ⚠️ Critical Rules
 
-- **ONE tree listing**: Call `list_directory(path=".", tree=True)` exactly once at the beginning.
+- **ONE tree listing**: Call `list_dir(path=".", tree=True)` exactly once at the beginning.
 - **Selective file reading**: Do not read more than 10 source files total per module. Choose the most representative ones.
 - **Memory Hygiene**: You MUST use `forget_tool_outputs` after processing each major module to survive long generation tasks.
 - **Language**: ALL content must be in the user's preferred language. No exceptions.

@@ -20,7 +20,7 @@ parameters:
     type: string
     description: Path to the specific file containing a bug or needing a fix.
 requires:
-  tools: [read_file, write_file, search_files, search_history, edit_file, execute_command, list_directory, search_web, browser_control, mobile_control, analyze_image]
+  tools: [read_file, write_file, grep_search, find_files, search_history, edit_file, execute_command, list_dir, search_web, browser_control, mobile_control, analyze_image]
 ---
 
 # Universal Code Development
@@ -85,7 +85,7 @@ You must proactively detect and resolve:
 - **N+1 Queries**: Ensure database logic inside loops is eager-loaded or batched.
 - **Floating Promises**: Ensure all asynchronous calls are properly `await`ed or have a `.catch()`.
 - **Boolean Blindness**: Use enums, descriptive types, or config objects instead of passing multiple boolean parameters to functions.
-- **Shell Exploration Abuse**: DO NOT use `execute_command` to run `grep`, `find`, or `cat` for codebase exploration. You MUST use semantic native tools like `search_files` and `read_file` instead.
+- **Shell Exploration Abuse**: DO NOT use `execute_command` to run `grep`, `find`, or `cat` for codebase exploration. You MUST use semantic native tools like `grep_search`, `find_files` and `read_file` instead.
 - **QA Delegation Warning**: Do NOT perform extensive E2E Black-Box testing or multi-modal UI clicks to verify your features. If the user requests full UI verification, you must advise the user or Supervisor to delegate the testing phase to the `automated_qa_tester` SKILL. You are a developer, not the primary QA.
 
 ### 6. Code Review Reception & Collaboration

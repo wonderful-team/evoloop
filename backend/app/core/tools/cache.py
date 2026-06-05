@@ -34,17 +34,19 @@ class DeterministicToolCache:
     
     Only caches tools that are mathematically deterministic:
     - read_file: File content at call time is fixed
-    - list_directory: Directory state at call time is fixed
-    - search_files: Results based on disk state at call time
+    - list_dir: Directory state at call time is fixed
+    - grep_search: Results based on disk state at call time
+    - find_files: Results based on disk state at call time
     - analyze_image: Same image + same model = same result
     """
 
     # Strict whitelist - only truly deterministic tools
     DETERMINISTIC_TOOLS = frozenset({
         'read_file',
-        'list_directory',
+        'list_dir',
         'get_file_info',
-        'search_files',
+        'grep_search',
+        'find_files',
         'analyze_image',
         'search_web',           # Cached with short TTL
         'read_url_content',     # Cached with short TTL
@@ -77,9 +79,10 @@ class DeterministicToolCache:
     # TTL configuration per tool type (seconds)
     TTL_CONFIG = {
         'read_file': 60,           # 1 minute for source files
-        'list_directory': 30,      # 30 seconds for directories
+        'list_dir': 30,      # 30 seconds for directories
         'get_file_info': 120,      # 2 minutes for metadata
-        'search_files': 60,        # 1 minute for search results
+        'grep_search': 60,        # 1 minute for search results
+        'find_files': 60,         # 1 minute for find results
         'analyze_image': 300,      # 5 minutes for image analysis
         'search_web': 30,          # 30 seconds for web content
         'read_url_content': 60,    # 1 minute for URL content

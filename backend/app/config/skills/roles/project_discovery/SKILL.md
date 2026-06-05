@@ -24,7 +24,7 @@ Create `PROJECT.md` at the project root that documents this project for AI assis
 ## 🛠 Execution Flow
 
 0. **Project Identification & Infrastructure Setup**:
-   - Call `list_directory(path=".", tree=False)` once to see top-level files.
+   - Call `list_dir(path=".", tree=False)` once to see top-level files.
    - Determine project type and technology stack.
    - **Infrastructure Discovery & Provisioning**:
      - **REQUIRED ACTION (Docker)**: If `docker-compose.yml` or `docker-stack.yml` exists, you **MUST EXECUTE** `execute_command("docker-compose up -d")` immediately before proceeding to other survey steps.
@@ -83,7 +83,7 @@ Build steps, conventions, or initialization commands.
 
 ## ⚠️ Critical Rules
 
-- **ONE listing only**: Call `list_directory` exactly once.
+- **ONE listing only**: Call `list_dir` exactly once.
 - **Secrets Handling**: Strictly follow the "Security Guideline" in the mission message. If forbidden, omit all credentials.
 - **Non-Code Projects**: If no source code exists, document the project as a documentation/resource repository.
 - **FINAL action must be `write_file`**: Always end by creating `PROJECT.md`.

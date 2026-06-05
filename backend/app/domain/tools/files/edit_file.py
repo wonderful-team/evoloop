@@ -76,6 +76,34 @@ async def handle_multi_edit(
             logger.debug(f"[Type Check] Failed: {e}")
         template_context["diagnostics"] = diagnostics
 
+    # Record Rewind operation
+    from app.core.context import ContextManager
+    from app.core.file.editor.algorithms import generate_unified_diff
+    from app.core.file.io import read_file
+    
+    ctx = ContextManager.current()
+    if ctx.thread_id:
+        try:
+            original_content = result.get("original_content", "")
+            modified_content = read_file(target_path).content
+            diff = generate_unified_diff(
+                original=original_content,
+                modified=modified_content,
+                file_path=path
+            )
+            await persist_file_operation_task(
+                thread_id=ctx.thread_id,
+                message_id="",
+                file_path=str(target_path),
+                operation="EDIT",
+                diff_content=diff,
+                original_content=original_content,
+                run_id=ctx.run_id,
+                tool_call_id=ctx.current_tool_call_id,
+            )
+        except Exception as e:
+            logger.error(f"Failed to persist file operation: {e}")
+
     return render_template("domain/tools/multi_edit_success.prompt.j2", **template_context), {"count": result["applied_edits"]}
 
 
@@ -93,7 +121,14 @@ async def handle_edit(request: EditFileRequest) -> str:
         return str(e)
 
     # Convert single edit to multi-edit list for service
-    edits = [FileEditOperation(target=request.target or "", replacement=request.content, allow_multiple=request.allow_multiple, mode=request.mode)]
+    edits = [FileEditOperation(
+        target=request.target or "", 
+        replacement=request.content, 
+        allow_multiple=request.allow_multiple, 
+        mode=request.mode,
+        start_line=request.start_line,
+        end_line=request.end_line
+    )]
 
     result = await FileEditorService.apply_edits(
         absolute_path=target_path,
@@ -124,6 +159,35 @@ async def handle_edit(request: EditFileRequest) -> str:
         except Exception as e:
             logger.debug(f"[Type Check] Failed: {e}")
         template_context["diagnostics"] = diagnostics
+
+    if result["success"]:
+        # Record Rewind operation
+        from app.core.context import ContextManager
+        from app.core.file.editor.algorithms import generate_unified_diff
+        from app.core.file.io import read_file
+        
+        ctx = ContextManager.current()
+        if ctx.thread_id:
+            try:
+                original_content = result.get("original_content", "")
+                modified_content = read_file(target_path).content
+                diff = generate_unified_diff(
+                    original=original_content,
+                    modified=modified_content,
+                    file_path=request.path
+                )
+                await persist_file_operation_task(
+                    thread_id=ctx.thread_id,
+                    message_id="",
+                    file_path=str(target_path),
+                    operation="EDIT",
+                    diff_content=diff,
+                    original_content=original_content,
+                    run_id=ctx.run_id,
+                    tool_call_id=ctx.current_tool_call_id,
+                )
+            except Exception as e:
+                logger.error(f"Failed to persist file operation: {e}")
 
     return render_template("domain/tools/edit_result.prompt.j2", **template_context)
 
@@ -167,6 +231,8 @@ async def edit_file(
     prepend: str | None = None,
     edits: list[dict] | None = None,
     allow_multiple: bool = False,
+    start_line: int | None = None,
+    end_line: int | None = None,
     expected_hash: str | None = None,
     dry_run: bool = False,
     verify_types: bool = True,
@@ -181,8 +247,10 @@ async def edit_file(
         replacement: The new text to replace the target. Optional if append/prepend is provided.
         append: Content to append to the end of the file.
         prepend: Content to prepend to the beginning of the file.
-        edits: A list of dicts for multiple edits. Each dict can have 'target', 'replacement', 'allow_multiple', and optionally 'mode' ('replace', 'append', 'prepend').
+        edits: A list of dicts for multiple edits. Each dict can have 'target', 'replacement', 'allow_multiple', 'mode', 'start_line', and 'end_line'.
         allow_multiple: Replace all occurrences of the target.
+        start_line: Optional. 1-indexed line number where the target text begins. When provided together with end_line, constrains the search scope.
+        end_line: Optional. 1-indexed ending line number (inclusive).
         expected_hash: Optional hash for optimistic concurrency.
         dry_run: If True, returns a preview without making changes.
         verify_types: If True, performs type checking after edit.
@@ -244,6 +312,8 @@ async def edit_file(
             content=final_replacement,
             allow_multiple=allow_multiple,
             mode=mode,
+            start_line=start_line,
+            end_line=end_line,
             expected_hash=expected_hash,
             verify_types=verify_types,
             config=config,
