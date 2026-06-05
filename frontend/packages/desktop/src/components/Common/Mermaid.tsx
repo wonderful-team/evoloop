@@ -1,6 +1,5 @@
-
 import mermaid from "mermaid"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, memo } from "react"
 import { useTranslation } from "react-i18next"
 
 // Initialize mermaid
@@ -14,7 +13,7 @@ mermaid.initialize({
     suppressErrorNotifications: true,
 })
 
-export const Mermaid = ({ chart }: { chart: string }) => {
+export const Mermaid = memo(({ chart }: { chart: string }) => {
     const { t } = useTranslation()
     const ref = useRef<HTMLDivElement>(null)
     const lastValidSvg = useRef<string>("")
@@ -65,10 +64,15 @@ export const Mermaid = ({ chart }: { chart: string }) => {
             }
         }
 
-        renderChart()
+        const timer = setTimeout(() => {
+            if (!isCancelled) {
+                renderChart()
+            }
+        }, 300)
 
         return () => {
             isCancelled = true
+            clearTimeout(timer)
         }
     }, [chart, t])
 
@@ -78,4 +82,4 @@ export const Mermaid = ({ chart }: { chart: string }) => {
             className="mermaid-container my-4 flex justify-center bg-zinc-950/40 p-4 rounded-xl border border-zinc-800/50 overflow-x-auto min-h-[60px]" 
         />
     )
-}
+})

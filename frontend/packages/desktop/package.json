@@ -11,6 +11,7 @@
     },
     "dependencies": {
         "@evoloop/shared": "workspace:*",
+        "diff2html": "^3.4.56",
         "echarts": "^6.0.0",
         "echarts-for-react": "^3.0.6",
         "mermaid": "^11.12.2",

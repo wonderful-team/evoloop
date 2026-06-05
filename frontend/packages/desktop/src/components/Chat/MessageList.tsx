@@ -13,7 +13,6 @@ import { SmartChatMessageItem, type Message } from "./ChatMessageItem"
 import { ChatWelcome } from "./ChatWelcome"
 
 interface MessageListProps {
-    messages: Message[]
     hasMoreHistory?: boolean
     isLoadingHistory?: boolean
     loadMoreHistory?: () => void
@@ -54,7 +53,7 @@ function mergeAiMessages(msgs: Message[]): Message | null {
     }
 }
 
-function TurnStepsGroupView({
+const TurnStepsGroupView = memo(function TurnStepsGroupView({
     steps,
     isTurnActive,
     onAddToMemory,
@@ -98,12 +97,13 @@ function TurnStepsGroupView({
                 </Button>
             </CollapsibleTrigger>
             <CollapsibleContent className="pl-1 my-1 border-l-1 border-border/40 space-y-1">
-                {steps.map((stepMsg) => (
+                {steps.map((stepMsg, index) => (
                     <SmartChatMessageItem
                         key={stepMsg.id}
                         msg={stepMsg}
                         isGrouped={true}
                         showAvatar={false}
+                        isActivelyStreaming={isTurnActive && index === steps.length - 1 && stepMsg.status === 'streaming'}
                         onAddToMemory={onAddToMemory}
                         onRewind={() => onRewind?.(stepMsg)}
                         onRetry={() => onRetry?.(stepMsg)}
@@ -114,10 +114,11 @@ function TurnStepsGroupView({
             </CollapsibleContent>
         </Collapsible>
     )
-}
+})
+
+import { useChatStore } from "@/stores/chatStore"
 
 export const MessageList = memo(function MessageList({
-    messages,
     hasMoreHistory = false,
     isLoadingHistory = false,
     loadMoreHistory,
@@ -129,6 +130,7 @@ export const MessageList = memo(function MessageList({
     footer,
 }: MessageListProps) {
     const { t } = useTranslation()
+    const messages = useChatStore(s => s.messages)
 
     // Use refs to avoid stale closures in Virtuoso callbacks
     const callbacksRef = useRef({ hasMoreHistory, isLoadingHistory, loadMoreHistory })
@@ -429,6 +431,7 @@ export const MessageList = memo(function MessageList({
                         msg={item.data}
                         isGrouped={!(item.data as any).isFirstInTurn && item.data.role !== "human"}
                         showAvatar={item.data.role === "human" || (item.data as any).isFirstInTurn}
+                        isActivelyStreaming={_index === virtItems.length - 1 && item.data.status === "streaming"}
                         onAddToMemory={onAddToMemory}
                         onRewind={() => onRewind?.(item.data!)}
                         onRetry={() => onRetry?.(item.data!)}
@@ -454,7 +457,7 @@ export const MessageList = memo(function MessageList({
             )
         }
         return null
-    }, [onAddToMemory, onRewind, onRetry, onQuote, onViewChangeset])
+    }, [onAddToMemory, onRewind, onRetry, onQuote, onViewChangeset, virtItems.length])
 
     if (messages.length === 0 && !isLoadingHistory) {
         return <ChatWelcome />

@@ -5,6 +5,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetDescription,
 } from "@evoloop/shared/components/ui/sheet"
 import { AlertCircle, FileText, Loader2, RefreshCw, Rocket, Edit, Save, X } from "lucide-react"
 import { useEffect, useState } from "react"
@@ -102,6 +103,7 @@ export function ProjectProfileDrawer({ projectId, open, onOpenChange }: ProjectP
             <div className="flex items-center gap-3">
               <FileText className="h-5 w-5 text-primary" />
               <SheetTitle>PROJECT.md</SheetTitle>
+              <SheetDescription className="sr-only">Project Profile Document</SheetDescription>
             </div>
             
             <div className="flex items-center gap-2 pr-8">

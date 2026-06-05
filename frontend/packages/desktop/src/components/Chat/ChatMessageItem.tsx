@@ -87,10 +87,26 @@ interface ChatMessageItemProps {
   onRetry?: (msg: Message) => void
   onQuote?: () => void
   onViewChangeset?: (messageId: string | number, path?: string) => void
+  isActivelyStreaming?: boolean
+}
+
+const chatMessagePropsAreEqual = (prevProps: ChatMessageItemProps, nextProps: ChatMessageItemProps) => {
+  return (
+    prevProps.msg.id === nextProps.msg.id &&
+    prevProps.msg.content === nextProps.msg.content &&
+    prevProps.msg.effective_content === nextProps.msg.effective_content &&
+    prevProps.msg.turnDuration === nextProps.msg.turnDuration &&
+    prevProps.msg.isLastInTurn === nextProps.msg.isLastInTurn &&
+    prevProps.msg.thinking === nextProps.msg.thinking &&
+    prevProps.msg.status === nextProps.msg.status &&
+    prevProps.showAvatar === nextProps.showAvatar &&
+    prevProps.isGrouped === nextProps.isGrouped &&
+    prevProps.isActivelyStreaming === nextProps.isActivelyStreaming
+  )
 }
 
 const ChatMessageItem = memo(
-  ({ msg, onAddToMemory, onRewind, onRetry, onQuote, onViewChangeset }: ChatMessageItemProps) => {
+  ({ msg, isActivelyStreaming, onAddToMemory, onRewind, onRetry, onQuote, onViewChangeset, isGrouped, showAvatar }: ChatMessageItemProps) => {
     const { t } = useTranslation()
 
     // Hide system prompts from main chat
@@ -168,6 +184,7 @@ const ChatMessageItem = memo(
     }
 
     // 2. AI Message Layout (Compact transparent document flow with bottom action bar)
+    const isCurrentlyStreaming = isActivelyStreaming ?? (msg.status === 'streaming')
     return (
       <motion.div
         className="group relative flex flex-col mx-4 my-1 text-foreground text-[14px] transition-all"
@@ -176,16 +193,26 @@ const ChatMessageItem = memo(
         {/* Thinking section (tight margin) */}
         {msg.thinking && (
           <Collapsible className="mb-2 overflow-hidden">
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-6 px-2 rounded text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors hover:bg-muted/40 flex items-center gap-1.5">
+            <CollapsibleTrigger asChild disabled={!msg.content && isCurrentlyStreaming}>
+              <Button variant="ghost" size="sm" className="group/trigger h-6 px-2 rounded text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors hover:bg-muted/40 flex items-center gap-1.5">
                 <Brain className="h-3 w-3 text-primary/70" />
-                <span>{t("chat.interface.thinkingProcess", { defaultValue: "Worked for thought" })}</span>
-                <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90 text-muted-foreground/50" />
+                <span>
+                  {(!msg.content && isCurrentlyStreaming)
+                    ? t("chat.interface.thinking", { defaultValue: "Thinking..." })
+                    : t("chat.interface.thinkingProcess", { defaultValue: "Worked for thought" })}
+                </span>
+                {(!msg.content && isCurrentlyStreaming) ? (
+                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground/50" />
+                ) : (
+                  <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]/trigger:rotate-90 text-muted-foreground/50" />
+                )}
               </Button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="mt-1 pl-3 py-1 border-l-1 border-border/60 text-[12px] text-muted-foreground/80 leading-relaxed font-mono">
-              <MessageContent content={typeof msg.thinking === 'string' ? msg.thinking : JSON.stringify(msg.thinking, null, 2)} />
-            </CollapsibleContent>
+            {(msg.content || !isCurrentlyStreaming) && (
+              <CollapsibleContent className="mt-1 pl-3 py-1 border-l-1 border-border/60 text-[12px] text-muted-foreground/80 leading-relaxed font-mono">
+                <MessageContent content={typeof msg.thinking === 'string' ? msg.thinking : JSON.stringify(msg.thinking, null, 2)} />
+              </CollapsibleContent>
+            )}
           </Collapsible>
         )}
 
@@ -262,19 +289,7 @@ const ChatMessageItem = memo(
       </motion.div>
     )
   },
-  (prevProps, nextProps) => {
-    return (
-      prevProps.msg.id === nextProps.msg.id &&
-      prevProps.msg.content === nextProps.msg.content &&
-      prevProps.msg.effective_content === nextProps.msg.effective_content &&
-      prevProps.msg.turnDuration === nextProps.msg.turnDuration &&
-      prevProps.msg.isLastInTurn === nextProps.msg.isLastInTurn &&
-      prevProps.msg.thinking === nextProps.msg.thinking &&
-      prevProps.msg.status === nextProps.msg.status &&
-      prevProps.showAvatar === nextProps.showAvatar &&
-      prevProps.isGrouped === nextProps.isGrouped
-    )
-  }
+  chatMessagePropsAreEqual
 )
 
 ChatMessageItem.displayName = "ChatMessageItem"
@@ -313,6 +328,6 @@ const SmartChatMessageItem = memo((props: ChatMessageItemProps) => {
   }, [autoSpeak, msg.role, msg.content, msg.effective_content, msg.status, isSpeaking, speak, msg.id, msg.timestamp])
 
   return <ChatMessageItem {...props} />
-})
+}, chatMessagePropsAreEqual)
 
 export { ChatMessageItem, SmartChatMessageItem }

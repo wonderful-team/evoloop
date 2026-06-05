@@ -9,7 +9,6 @@ import {
     PlusSquare,
     Edit,
     Trash2,
-    Check,
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { cn } from "@evoloop/shared/lib/utils"
@@ -76,110 +75,92 @@ export function ChangesetTreeSection({ activeThreadId, onSelectFile, defaultExpa
         }
     }, [changeset, setChangeset])
 
-    // Recursive component for the tree
-    const TreeNode = ({ node, level = 0 }: { node: ChangesetNode; level?: number }) => {
-        const [isOpen, setIsOpen] = useState(defaultExpanded)
-        const isViewed = viewedChanges.has(node.path)
-
-        const handleToggle = (e: React.MouseEvent) => {
-            e.stopPropagation()
-            setIsOpen(!isOpen)
-        }
-
-        const handleSelect = () => {
-            if (!node.is_dir) {
-                onSelectFile(node.path, node.diff || "")
-                // Mark as viewed when clicked
-                markChangeAsViewed(node.path)
-            } else {
-                setIsOpen(!isOpen)
+    // Convert to flat list
+    const flatFiles: Array<{path: string; operation: 'ADD' | 'EDIT' | 'DELETE'; diff?: string}> = []
+    
+    const extractFiles = (nodes: ChangesetNode[]) => {
+        nodes.forEach(node => {
+            if (node.is_dir && node.children) {
+                extractFiles(node.children)
+            } else if (!node.is_dir && node.operation) {
+                flatFiles.push({
+                    path: node.path,
+                    operation: node.operation,
+                    diff: node.diff
+                })
             }
-        }
-
-        return (
-            <div className="select-none">
-                <div
-                    className={cn(
-                        "flex items-center py-2 px-3 cursor-pointer hover:bg-primary/5 rounded-lg text-xs transition-all group/node relative",
-                        isViewed && !node.is_dir && "opacity-60"
-                    )}
-                    style={{ paddingLeft: `${level * 16 + 12}px` }}
-                    onClick={handleSelect}
-                >
-                    {/* Activity Indicator (for unviewed) */}
-                    {!node.is_dir && !isViewed && (
-                        <div className="absolute left-1 top-1/2 -translate-y-1/2 w-1 h-4 bg-primary rounded-full" />
-                    )}
-
-                    {node.is_dir ? (
-                        <span onClick={handleToggle} className="p-0.5 hover:bg-background rounded mr-1.5 transition-transform group-hover/node:scale-110">
-                            {isOpen ? <ChevronDown className="h-3 w-3 opacity-40" /> : <ChevronRight className="h-3 w-3 opacity-40" />}
-                        </span>
-                    ) : (
-                        <div className="w-4 mr-1.5" />
-                    )}
-
-                    {node.is_dir ? (
-                        <Folder className="h-4 w-4 mr-2 text-primary/60" />
-                    ) : (
-                        <FileCode className={cn("h-4 w-4 mr-2", isViewed ? "text-muted-foreground" : "text-primary/70")} />
-                    )}
-
-                    <span className={cn(
-                        "truncate flex-1 font-medium tracking-tight", 
-                        isViewed && !node.is_dir && "text-muted-foreground"
-                    )}>
-                        {node.name}
-                    </span>
-
-                    {!node.is_dir && (
-                        <div className="ml-2 flex items-center gap-1.5">
-                            {node.operation === "ADD" && (
-                                <span className="px-1.5 py-0.5 rounded-[4px] bg-emerald-500/10 text-emerald-600 text-[9px] font-black uppercase tracking-tighter border border-emerald-500/20">
-                                    ADD
-                                </span>
-                            )}
-                            {node.operation === "EDIT" && (
-                                <span className="px-1.5 py-0.5 rounded-[4px] bg-amber-500/10 text-amber-600 text-[9px] font-black uppercase tracking-tighter border border-amber-500/20">
-                                    MOD
-                                </span>
-                            )}
-                            {node.operation === "DELETE" && (
-                                <span className="px-1.5 py-0.5 rounded-[4px] bg-red-500/10 text-red-600 text-[9px] font-black uppercase tracking-tighter border border-red-500/20">
-                                    DEL
-                                </span>
-                            )}
-                            {isViewed && <Check className="h-3 w-3 text-emerald-500" />}
-                        </div>
-                    )}
-                </div>
-
-                {node.is_dir && isOpen && (
-                    <div className="mt-0.5 relative">
-                        {/* Vertical Guide Line */}
-                        <div 
-                            className="absolute left-[18px] top-0 bottom-0 w-px bg-border/40" 
-                            style={{ left: `${level * 16 + 18}px` }}
-                        />
-                        {node.children.map((child) => (
-                            <TreeNode key={child.path} node={child} level={level + 1} />
-                        ))}
-                    </div>
-                )}
-            </div>
-        )
+        })
+    }
+    
+    if (changeset) {
+        extractFiles(changeset)
     }
 
-    if (!changeset || changeset.length === 0) {
+    if (!flatFiles.length) {
         if (isLoading) return <div className="p-4 text-center text-xs text-muted-foreground">{t("common.loading")}</div>
         return null
     }
 
     return (
-        <div className="p-1">
-            {changeset.map((node) => (
-                <TreeNode key={node.path} node={node} />
-            ))}
+        <div className="p-1 space-y-1">
+            {flatFiles.map((file) => {
+                const isViewed = viewedChanges.has(file.path)
+                const fileName = file.path.split('/').pop() || file.path
+                const dirPath = file.path.substring(0, file.path.lastIndexOf('/'))
+
+                return (
+                    <div
+                        key={file.path}
+                        className={cn(
+                            "flex items-center py-2 px-3 cursor-pointer hover:bg-primary/5 rounded-lg text-xs transition-all group/node relative",
+                            isViewed && "opacity-60"
+                        )}
+                        onClick={() => {
+                            onSelectFile(file.path, file.diff || "")
+                            markChangeAsViewed(file.path)
+                        }}
+                    >
+                        {/* Activity Indicator */}
+                        {!isViewed && (
+                            <div className="absolute left-1 top-1/2 -translate-y-1/2 w-1 h-4 bg-primary rounded-full" />
+                        )}
+
+                        <FileCode className={cn("h-4 w-4 mr-2 shrink-0", isViewed ? "text-muted-foreground" : "text-primary/70")} />
+
+                        <div className="flex-1 min-w-0 mr-2 flex flex-col">
+                            <span className={cn(
+                                "truncate font-medium tracking-tight", 
+                                isViewed && "text-muted-foreground"
+                            )}>
+                                {fileName}
+                            </span>
+                            {dirPath && (
+                                <span className="truncate text-[10px] text-muted-foreground/60">
+                                    {dirPath}
+                                </span>
+                            )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            {file.operation === "ADD" && (
+                                <span className="px-1.5 py-0.5 rounded-[4px] bg-emerald-500/10 text-emerald-600 text-[9px] font-black uppercase tracking-tighter border border-emerald-500/20">
+                                    ADD
+                                </span>
+                            )}
+                            {file.operation === "EDIT" && (
+                                <span className="px-1.5 py-0.5 rounded-[4px] bg-amber-500/10 text-amber-600 text-[9px] font-black uppercase tracking-tighter border border-amber-500/20">
+                                    MOD
+                                </span>
+                            )}
+                            {file.operation === "DELETE" && (
+                                <span className="px-1.5 py-0.5 rounded-[4px] bg-red-500/10 text-red-600 text-[9px] font-black uppercase tracking-tighter border border-red-500/20">
+                                    DEL
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                )
+            })}
         </div>
     )
 }

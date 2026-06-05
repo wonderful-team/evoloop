@@ -41,7 +41,8 @@ import { MessageList } from "./MessageList"
 import { ChatSidebar, type Thread } from "./ChatSidebar"
 import { ContextPanel } from "./ContextPanel"
 
-import { DiffDrawer } from "./DiffDrawer"
+import { GlobalDiffViewer } from "./GlobalDiffViewer"
+import { GlobalFilePreviewer } from "./GlobalFilePreviewer"
 import { RewindConfirmDialog } from "./RewindConfirmDialog"
 import { DebugManager } from "./DebugManager"
 import { HumanRequestCard } from "./HumanRequestCard"
@@ -50,7 +51,6 @@ import { QuotaExhaustedCard } from "./QuotaExhaustedCard"
 export function ChatInterface() {
   // --- Store State (selective subscriptions to avoid unnecessary re-renders) ---
   const activeThreadId = useChatStore(s => s.threadId)
-  const messages = useChatStore(s => s.messages)
   const status = useChatStore(s => s.status)
   const humanRequest = useChatStore(s => s.humanRequest)
   const storeProjectId = useChatStore(s => s.projectId)
@@ -71,8 +71,6 @@ export function ChatInterface() {
   const queryClient = useQueryClient()
 
   // --- UI State ---
-  const [selectedDiff, setSelectedDiff] = useState<{ path: string; diff: string } | null>(null)
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [isRewindDialogOpen, setIsRewindDialogOpen] = useState(false)
   const [confirmMode, setConfirmMode] = useState<"rewind" | "retry">("rewind")
   const [selectedMessageId, setSelectedMessageId] = useState<string | undefined>(undefined)
@@ -134,17 +132,17 @@ export function ChatInterface() {
   }, [status, showContextPanel])
 
   // Persist manual close action
-  const handleCloseContextPanel = () => {
+  const handleCloseContextPanel = useCallback(() => {
     localStorage.setItem("chat.contextPanel.hidden", "true")
     hasManuallyClosedInCurrentRun.current = true // Mark as manually closed for this run
     setShowContextPanel(false)
-  }
+  }, [])
 
   // Persist manual open action
-  const handleOpenContextPanel = () => {
+  const handleOpenContextPanel = useCallback(() => {
     localStorage.removeItem("chat.contextPanel.hidden")
     setShowContextPanel(true)
-  }
+  }, [])
 
   // --- Initialization ---
   useEffect(() => {
@@ -192,38 +190,44 @@ export function ChatInterface() {
     const pendingMessage = params.get("message")
     const shouldAutoSend = params.get("autoSend") === "true"
 
-    if (quoteId && messages.length > 0) {
-      const msg = messages.find(m => m.id === quoteId || m.id.toString() === quoteId)
-      if (msg) {
-        // Pre-fill input if pending message exists
-        if (pendingMessage) {
-          chatInputRef.current?.setInput(pendingMessage + " ")
-        }
+    if (!quoteId) return
 
-        // Add reference (this appends)
-        chatInputRef.current?.addReference({
-          type: 'message',
-          id: msg.id.toString(),
-          name: msg.content.slice(0, 50) + (msg.content.length > 50 ? "..." : ""),
-          detail: msg.role
-        })
-
-        // Handle Pending Message & AutoSend *AFTER* Quote is added
-        if (pendingMessage) {
-          if (shouldAutoSend) {
-            // Optional: If we want to auto-send, we can trigger onSend here if we had access.
-            // But since we are modifying internal state of InputArea, maybe just let user click send?
-            // User requirement didn't explicitly demand auto-send for execute action with quote, 
-            // but TodoList sets autoSend=true.
-            // For now, let's just leave it filled for user review as adding context is "heavy".
+    const checkAndHandleQuote = (currentMessages: any[]) => {
+      if (currentMessages.length > 0) {
+        const msg = currentMessages.find(m => m.id === quoteId || m.id.toString() === quoteId)
+        if (msg) {
+          // Pre-fill input if pending message exists
+          if (pendingMessage) {
+            chatInputRef.current?.setInput(pendingMessage + " ")
           }
-        }
 
-        // Clear URL
-        window.history.replaceState({}, '', window.location.pathname + (window.location.search.replace(/quoteId=[^&]*&?/, '').replace(/message=[^&]*&?/, '').replace(/autoSend=[^&]*&?/, '')))
+          // Add reference
+          chatInputRef.current?.addReference({
+            type: 'message',
+            id: msg.id.toString(),
+            name: msg.content.slice(0, 50) + (msg.content.length > 50 ? "..." : ""),
+            detail: msg.role
+          })
+
+          // Clear URL
+          window.history.replaceState({}, '', window.location.pathname + (window.location.search.replace(/quoteId=[^&]*&?/, '').replace(/message=[^&]*&?/, '').replace(/autoSend=[^&]*&?/, '')))
+          return true // Handled
+        }
       }
+      return false
     }
-  }, [messages]) // Re-run when messages load
+
+    // Check initially
+    if (!checkAndHandleQuote(useChatStore.getState().messages)) {
+      // If not found yet, subscribe and wait
+      const unsub = useChatStore.subscribe((state) => {
+        if (checkAndHandleQuote(state.messages)) {
+          unsub()
+        }
+      })
+      return () => unsub()
+    }
+  }, []) // Run once on mount
 
   // Handle unauthorized state - trigger global 401 handling (only for logged-in users)
   useEffect(() => {
@@ -280,6 +284,14 @@ export function ChatInterface() {
     })
   }, [threadsInfiniteData])
 
+  const mappedThreads = useMemo(() => {
+    return threads.map(t => ({
+      ...t,
+      // Override status if it's the active thread, using reliable store state
+      status: t.thread_id === activeThreadId ? status : t.status
+    }))
+  }, [threads, activeThreadId, status])
+
   const handleTogglePin = useCallback(async (id: string, isPinned: boolean) => {
     try {
       await ConversationsService.updateConversation({
@@ -303,16 +315,16 @@ export function ChatInterface() {
   }, [projectId, setThread])
 
   // Wrapper for sendMessage to handle post-send actions
-  const handleSendMessage = async (content: string, pickedFiles?: any[]) => {
-    const isNewThread = messages.length === 0
+  const handleSendMessage = useCallback(async (content: string, pickedFiles?: any[]) => {
+    const isNewThread = useChatStore.getState().messages.length === 0
     await sendMessage(content, pickedFiles)
     // If this was a new thread (first message), refresh the conversation list
     if (isNewThread && projectId !== undefined) {
       queryClient.invalidateQueries({ queryKey: ["projectConversations", projectId] })
     }
-  }
+  }, [sendMessage, projectId, queryClient])
 
-  const handleDeleteThread = async (id: string) => {
+  const handleDeleteThread = useCallback(async (id: string) => {
     try {
       await ConversationsService.deleteConversation({ threadId: id })
       queryClient.invalidateQueries({ queryKey: ["projectConversations"] })
@@ -329,7 +341,7 @@ export function ChatInterface() {
     } catch (_e) {
       toast.error(t("chat.interface.deleteChatError"))
     }
-  }
+  }, [activeThreadId, threads, projectId, setThread, handleNewChat, queryClient, t])
 
   const handleStopThread = useCallback(async (id: string) => {
     // If stopping active, use store action. Else API.
@@ -417,9 +429,10 @@ export function ChatInterface() {
     },
     onMutate: () => {
       // Optimistically truncate the messages list to remove old AI messages
-      const lastHumanIndex = [...messages].reverse().findIndex(m => m.role === "human")
+      const currentMessages = useChatStore.getState().messages
+      const lastHumanIndex = [...currentMessages].reverse().findIndex(m => m.role === "human")
       if (lastHumanIndex !== -1) {
-        const actualIndex = messages.length - 1 - lastHumanIndex
+        const actualIndex = currentMessages.length - 1 - lastHumanIndex
         _truncateMessages(actualIndex + 1)
       }
     },
@@ -438,7 +451,7 @@ export function ChatInterface() {
     }
   })
 
-  const handleQuoteMessage = (msg: any) => {
+  const handleQuoteMessage = useCallback((msg: any) => {
     if (!msg || !msg.id) return
     const quoteText = msg.effective_content !== undefined && msg.effective_content.trim() !== "" ? msg.effective_content : msg.content;
     
@@ -449,19 +462,19 @@ export function ChatInterface() {
       name: quoteText.slice(0, 50) + (quoteText.length > 50 ? "..." : ""),
       detail: msg.role
     })
-  }
+  }, [])
 
-  const handleQuoteFile = (file: any) => {
+  const handleQuoteFile = useCallback((file: any) => {
     chatInputRef.current?.addReference({
       type: 'file',
       id: file.path,
       name: file.name,
       detail: file.path
     })
-  }
+  }, [])
 
   // Handle view changeset from message snapshot
-  const handleViewChangeset = (_messageId?: string | number, path?: string) => {
+  const handleViewChangeset = useCallback((_messageId?: string | number, path?: string) => {
     // Switch to files tab
     setSidebarActiveTab("files")
     // Expand Agent Changes panel
@@ -471,8 +484,7 @@ export function ChatInterface() {
       // Find the file in the changeset and trigger diff
       const file = useChatStore.getState().changeset.find(f => f.path === path)
       if (file) {
-        setSelectedDiff({ path: file.path, diff: file.diff || "" })
-        setIsDrawerOpen(true)
+        useChatStore.getState().setPreviewDiff({ path: file.path, diff: file.diff || "" })
         // Mark as viewed
         markChangeAsViewed(path)
       }
@@ -480,7 +492,57 @@ export function ChatInterface() {
       // Mark all as viewed
       markAllChangesAsViewed()
     }
-  }
+  }, [markChangeAsViewed, markAllChangesAsViewed])
+
+  const handleSetActiveThreadId = useCallback((id: string) => {
+    if (projectId !== undefined) setThread(id, projectId)
+  }, [projectId, setThread])
+
+  const handleSelectDiff = useCallback((path: string, diff: string) => {
+    useChatStore.getState().setPreviewDiff({ path, diff })
+  }, [])
+
+  const handleAddToMemory = useCallback((txt: string) => {
+    setMemoryContent(txt)
+    setIsMemoryDialogOpen(true)
+  }, [])
+
+  const handleRewind = useCallback((msg: any) => {
+    const currentMessages = useChatStore.getState().messages
+    const index = currentMessages.findIndex(m => m.id === msg.id)
+    const subMessages = currentMessages.slice(index)
+    const hasFiles = subMessages.some(m => m.has_file_operations)
+
+    setSelectedMessageId(msg.id.toString())
+
+    if (msg.role === "human") {
+      setRewindContent(msg.content)
+    } else {
+      setRewindContent("")
+    }
+
+    if (hasFiles) {
+      setConfirmMode("rewind")
+      setIsRewindDialogOpen(true)
+    } else {
+      rewindMutation.mutate({ revertFiles: false, messageId: msg.id.toString() })
+    }
+  }, [rewindMutation])
+
+  const handleRetry = useCallback((msg: any) => {
+    const currentMessages = useChatStore.getState().messages
+    const index = currentMessages.findIndex(m => m.id === msg.id)
+    const subMessages = currentMessages.slice(index + 1)
+    const hasFiles = subMessages.some(m => m.has_file_operations)
+
+    setSelectedMessageId(msg.id.toString())
+    if (hasFiles) {
+      setConfirmMode("retry")
+      setIsRewindDialogOpen(true)
+    } else {
+      retryMutation.mutate({ revertFiles: false, messageId: msg.id.toString() })
+    }
+  }, [retryMutation])
 
   // Auto-focus input when agent finishes
   useEffect(() => {
@@ -535,21 +597,14 @@ export function ChatInterface() {
         >
           <div style={{ contain: 'content', height: '100%', width: '100%', minWidth: 0 }}>
           <ChatSidebar
-            threads={threads.map(t => ({
-              ...t,
-              // Override status if it's the active thread, using reliable store state
-              status: t.thread_id === activeThreadId ? status : t.status
-            }))}
+            threads={mappedThreads}
             activeThreadId={activeThreadId || ""}
-            setActiveThreadId={(id) => projectId !== undefined && setThread(id, projectId)}
+            setActiveThreadId={handleSetActiveThreadId}
             projectId={projectId}
             onDeleteThread={handleDeleteThread}
             onStopThread={handleStopThread}
             onNewChat={handleNewChat}
-            onSelectDiff={(path, diff) => {
-              setSelectedDiff({ path, diff })
-              setIsDrawerOpen(true)
-            }}
+            onSelectDiff={handleSelectDiff}
             onQuoteFile={handleQuoteFile}
             activeTab={sidebarActiveTab}
             onTabChange={setSidebarActiveTab}
@@ -589,49 +644,13 @@ export function ChatInterface() {
 
             <div className="flex-1 min-h-0 min-w-0 w-full" data-tour="chat-messages">
               <MessageList
-                messages={messages}
                 hasMoreHistory={hasMoreHistory}
                 isLoadingHistory={isLoadingHistory}
                 loadMoreHistory={loadMoreHistory}
-                onAddToMemory={(txt) => {
-                  setMemoryContent(txt)
-                  setIsMemoryDialogOpen(true)
-                }}
-                onRewind={(msg) => {
-                  const index = messages.findIndex(m => m.id === msg.id)
-                  const subMessages = messages.slice(index)
-                  const hasFiles = subMessages.some(m => m.has_file_operations)
-
-                  setSelectedMessageId(msg.id.toString())
-
-                  if (msg.role === "human") {
-                    setRewindContent(msg.content)
-                  } else {
-                    setRewindContent("")
-                  }
-
-                  if (hasFiles) {
-                    setConfirmMode("rewind")
-                    setIsRewindDialogOpen(true)
-                  } else {
-                    rewindMutation.mutate({ revertFiles: false, messageId: msg.id.toString() })
-                  }
-                }}
-                onRetry={(msg) => {
-                  const index = messages.findIndex(m => m.id === msg.id)
-                  const subMessages = messages.slice(index + 1)
-
-                  const hasFiles = subMessages.some(m => m.has_file_operations)
-
-                  setSelectedMessageId(msg.id.toString())
-                  if (hasFiles) {
-                    setConfirmMode("retry")
-                    setIsRewindDialogOpen(true)
-                  } else {
-                    retryMutation.mutate({ revertFiles: false, messageId: msg.id.toString() })
-                  }
-                }}
-                onQuote={(msg) => handleQuoteMessage(msg)}
+                onAddToMemory={handleAddToMemory}
+                onRewind={handleRewind}
+                onRetry={handleRetry}
+                onQuote={handleQuoteMessage}
                 onViewChangeset={handleViewChangeset}
                 footer={
                   <>
@@ -754,12 +773,11 @@ export function ChatInterface() {
         }}
       />
       {/* Diff Drawer */}
-      <DiffDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        path={selectedDiff?.path || null}
-        diff={selectedDiff?.diff || null}
-      />
+      <GlobalDiffViewer />
+      
+      {/* File Preview Modal & Profile Drawer */}
+      <GlobalFilePreviewer />
+      
       {import.meta.env.DEV && <DebugManager />}
     </div>
   )

@@ -63,6 +63,10 @@ export interface ChatState {
     } | null
     agentState: { mode: string; task_name: string; task_status: string; details?: any; activeSkills?: Array<{ id: number; name: string; description: string }> | null } | null
 
+    // Diff Viewer State
+    previewDiff: { path: string, diff: string } | null
+    previewFile: { path: string, name: string } | null
+
     // --- Live Buffer (For Right Panel) ---
     streamingThinking: string
     streamingSteps: any[]
@@ -75,6 +79,7 @@ export interface ChatState {
 
     // Throttling Logic
     _streamBuffer: string
+    _thinkingBuffer: string
     _flushTimeout: any
 
     // --- Actions ---
@@ -98,6 +103,9 @@ export interface ChatState {
     markAllChangesAsViewed: () => void
     clearChangeset: () => void
     loadViewedChanges: (threadId: string) => void
+
+    setPreviewDiff: (preview: { path: string, diff: string } | null) => void
+    setPreviewFile: (preview: { path: string, name: string } | null) => void
 
     // Internal Handlers
     _setConnectionStatus: (connected: boolean, status: string) => void

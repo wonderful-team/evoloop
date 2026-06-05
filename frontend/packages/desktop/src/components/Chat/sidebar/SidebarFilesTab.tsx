@@ -23,12 +23,10 @@ import { WikiService } from "@/client"
 import { useQueryClient, useQuery } from "@tanstack/react-query"
 import { FilesService } from "@/client"
 import { useProjectStore, isGlobalProject } from "@/stores/projectStore"
+import { useChatStore } from "@/stores/chatStore"
 import { DiscoverDialog } from "@/components/Projects/Modules/Overview/DiscoverDialog"
 import { Link } from "@tanstack/react-router"
-import { FilePreviewModal } from "@/components/Files/FilePreviewModal"
 import { Button } from "@evoloop/shared/components/ui/button"
-
-import { ProjectProfileDrawer } from "@/components/Files/ProjectProfileDrawer"
 import { FolderPlus, Upload } from "lucide-react"
 
 interface SidebarFilesTabProps {
@@ -47,7 +45,6 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
   const [isProjectOpen, setIsProjectOpen] = useState(true)
   const [isChangesOpen, setIsChangesOpen] = useState(expandChanges)
   const [discoverOpen, setDiscoverOpen] = useState(false)
-  const [previewFile, setPreviewFile] = useState<{ path: string; name: string } | null>(null)
   const [isCreatingRootFolder, setIsCreatingRootFolder] = useState(false)
 
   // Check for global mode (projectId is 0)
@@ -196,7 +193,9 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
                   {hasProjectProfile ? (
                     <div 
                       className="px-3 py-2 border border-muted/50 rounded-md bg-muted/10 hover:bg-muted/30 transition-colors flex items-center justify-between group cursor-pointer" 
-                      onClick={() => setPreviewFile({ path: "PROJECT.md", name: "PROJECT.md" })}
+                      onClick={() => {
+                        useChatStore.getState().setPreviewFile({ path: "PROJECT.md", name: "PROJECT.md" });
+                      }}
                     >
                       <div className="flex items-center gap-2 text-sm text-primary">
                         <BookOpen className="h-4 w-4" />
@@ -218,7 +217,7 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
                           <TooltipTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => {
                               e.stopPropagation()
-                              setPreviewFile({ path: "PROJECT.md", name: "PROJECT.md" })
+                              useChatStore.getState().setPreviewFile({ path: "PROJECT.md", name: "PROJECT.md" });
                             }}>
                               <Edit className="h-3 w-3" />
                             </Button>
@@ -242,7 +241,9 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
                 <div className="flex-1 overflow-auto">
                   <FileTree
                     projectId={projectId}
-                    onSelectFile={(file) => setPreviewFile({ path: file.path, name: file.name })}
+                    onSelectFile={(file) => {
+                      useChatStore.getState().setPreviewFile({ path: file.path, name: file.name });
+                    }}
                     onQuoteFile={onQuoteFile}
                     isCreatingRootFolder={isCreatingRootFolder}
                     onCancelCreateRootFolder={() => setIsCreatingRootFolder(false)}
@@ -303,18 +304,6 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
         onDiscovered={() => fetchProjects()}
       />
 
-      <FilePreviewModal
-        projectId={projectId || 0}
-        file={previewFile?.name !== "PROJECT.md" ? previewFile : null}
-        open={!!previewFile && previewFile.name !== "PROJECT.md"}
-        onOpenChange={(open) => !open && setPreviewFile(null)}
-      />
-      
-      <ProjectProfileDrawer
-        projectId={projectId || 0}
-        open={!!previewFile && previewFile.name === "PROJECT.md"}
-        onOpenChange={(open) => !open && setPreviewFile(null)}
-      />
     </div>
   )
 }

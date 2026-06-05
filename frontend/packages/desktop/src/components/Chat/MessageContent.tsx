@@ -1,5 +1,5 @@
 import { FileText, X, Music } from "lucide-react"
-import { memo, useState, useRef, useCallback } from "react"
+import { memo, useState, useRef, useCallback, useDeferredValue } from "react"
 import { useTranslation } from "react-i18next"
 import ReactMarkdown from "react-markdown"
 // TEMP: syntax-highlighter disabled for performance profiling
@@ -56,6 +56,7 @@ interface MessageContentProps {
 
 export const MessageContent = memo(({ content, isUser }: MessageContentProps) => {
   const { t } = useTranslation()
+  const deferredContent = useDeferredValue(content)
   const [viewerImage, setViewerImage] = useState<string | null>(null)
   const [previewHtml, setPreviewHtml] = useState<string | null>(null)
 
@@ -69,10 +70,10 @@ export const MessageContent = memo(({ content, isUser }: MessageContentProps) =>
   // to uniquely identify a complete ECharts JSON block.
   const cacheKey = useCallback((code: string) => `${code.length}:${code.slice(0, 80)}`, [])
 
-  if (!content) return null
+  if (!deferredContent) return null
 
   // 0. Pre-process: Filter out technical XML tags (audit, report, thought, etc.)
-  let displayContent = content;
+  let displayContent = deferredContent;
 
   // A. If <report> exists, prioritize its content as the main message
   const reportMatch = displayContent.match(/<report>([\s\S]*?)(?:<\/report>|$)/i);
@@ -243,8 +244,8 @@ export const MessageContent = memo(({ content, isUser }: MessageContentProps) =>
 
                       if (!inline && match && match[1] === "html") {
                         return (
-                          <div className="my-2 rounded-md overflow-hidden bg-[#1e1e1e] border border-[#3e3e3e] max-w-full">
-                            <div className="flex items-center justify-between px-3 py-1 bg-[#252526] text-[10px] text-gray-400 border-b border-[#3e3e3e] w-full overflow-hidden">
+                          <div className="my-2 rounded-md overflow-hidden bg-zinc-50 dark:bg-[#1e1e1e] border border-zinc-200 dark:border-[#3e3e3e] max-w-full">
+                            <div className="flex items-center justify-between px-3 py-1 bg-zinc-100 dark:bg-[#252526] text-[10px] text-zinc-500 dark:text-gray-400 border-b border-zinc-200 dark:border-[#3e3e3e] w-full overflow-hidden">
                               <span>
                                 html {isLong && `(${lineCount} lines)`}
                               </span>
@@ -252,20 +253,20 @@ export const MessageContent = memo(({ content, isUser }: MessageContentProps) =>
                                 <button
                                   type="button"
                                   onClick={() => setPreviewHtml(codeString)}
-                                  className="hover:text-white transition-colors"
+                                  className="hover:text-zinc-900 dark:hover:text-white transition-colors"
                                 >
                                   {t("chat.messageList.preview", "Preview")}
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => navigator.clipboard.writeText(codeString)}
-                                  className="hover:text-white transition-colors"
+                                  className="hover:text-zinc-900 dark:hover:text-white transition-colors"
                                 >
                                   {t("chat.messageList.copy", "Copy")}
                                 </button>
                               </div>
                             </div>
-                            <pre className="p-3 text-[12px] overflow-auto" style={{ margin: 0, maxHeight: isLong ? "200px" : "none" }}>
+                            <pre className="p-3 text-[12px] overflow-auto text-zinc-800 dark:text-gray-300" style={{ margin: 0, maxHeight: isLong ? "200px" : "none" }}>
                               <code>{codeString}</code>
                             </pre>
                           </div>
@@ -299,20 +300,20 @@ export const MessageContent = memo(({ content, isUser }: MessageContentProps) =>
 
                       if (!inline && match) {
                         return (
-                          <div className="my-2 rounded-md overflow-hidden bg-[#1e1e1e] border border-[#3e3e3e] max-w-full">
-                            <div className="flex items-center justify-between px-3 py-1 bg-[#252526] text-[10px] text-gray-400 border-b border-[#3e3e3e] w-full overflow-hidden">
+                          <div className="my-2 rounded-md overflow-hidden bg-zinc-50 dark:bg-[#1e1e1e] border border-zinc-200 dark:border-[#3e3e3e] max-w-full">
+                            <div className="flex items-center justify-between px-3 py-1 bg-zinc-100 dark:bg-[#252526] text-[10px] text-zinc-500 dark:text-gray-400 border-b border-zinc-200 dark:border-[#3e3e3e] w-full overflow-hidden">
                               <span>
                                 {match[1]} {isLong && `(${lineCount} lines)`}
                               </span>
                               <button
                                 type="button"
                                 onClick={() => navigator.clipboard.writeText(codeString)}
-                                className="hover:text-white transition-colors"
+                                className="hover:text-zinc-900 dark:hover:text-white transition-colors"
                               >
                                 {t("chat.messageList.copy", "Copy")}
                               </button>
                             </div>
-                            <pre className="p-3 text-[12px] overflow-auto" style={{ margin: 0, maxHeight: isLong ? "200px" : "none" }}>
+                            <pre className="p-3 text-[12px] overflow-auto text-zinc-800 dark:text-gray-300" style={{ margin: 0, maxHeight: isLong ? "200px" : "none" }}>
                               <code>{codeString}</code>
                             </pre>
                           </div>

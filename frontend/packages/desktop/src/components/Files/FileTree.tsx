@@ -165,7 +165,7 @@ export function FileTree({
         onDrop={handleDrop}
       >
         {level === 0 && isCreatingRootFolder && (
-          <div className="flex items-center gap-1.5 py-1 px-2 rounded-sm whitespace-nowrap mb-2" style={{ paddingLeft: `${level * 12 + 8}px` }}>
+          <div className="flex items-center gap-1.5 py-1 px-3 rounded-sm whitespace-nowrap mb-2" style={{ paddingLeft: `12px` }}>
             <span className="w-4 shrink-0" />
             <Folder size={14} className="text-blue-400/80 shrink-0" />
             <Input 
@@ -208,7 +208,7 @@ export function FileTree({
       onDrop={level === 0 ? handleDrop : undefined}
     >
       {level === 0 && isCreatingRootFolder && (
-        <div className="flex items-center gap-1.5 py-1 px-2 rounded-sm whitespace-nowrap" style={{ paddingLeft: `${level * 12 + 8}px` }}>
+        <div className="flex items-center gap-1.5 py-1 px-3 rounded-sm whitespace-nowrap" style={{ paddingLeft: `12px` }}>
           <span className="w-4 shrink-0" />
           <Folder size={14} className="text-blue-400/80 shrink-0" />
           <Input 
@@ -401,10 +401,10 @@ function FileTreeNode({
   const content = (
     <div
       className={cn(
-        "flex items-center gap-1.5 py-1 px-2 hover:bg-accent/50 cursor-pointer rounded-sm select-none whitespace-nowrap transition-colors group",
+        "flex items-center gap-1.5 py-1.5 px-3 hover:bg-primary/5 cursor-pointer rounded-lg select-none whitespace-nowrap transition-all group relative",
         isDragOver && isFolder && "bg-primary/20 ring-1 ring-primary"
       )}
-      style={{ paddingLeft: `${level * 12 + 8}px` }}
+      style={{ paddingLeft: `${level * 16 + 12}px` }}
       onClick={handleClick}
       draggable
       onDragStart={handleDragStart}
@@ -413,11 +413,11 @@ function FileTreeNode({
       onDrop={handleDrop}
     >
       {isFolder ? (
-        <span className="text-muted-foreground mr-0.5 shrink-0">
-          {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        <span className="text-muted-foreground mr-0.5 shrink-0 transition-transform hover:scale-110">
+          {isOpen ? <ChevronDown size={14} className="opacity-60" /> : <ChevronRight size={14} className="opacity-60" />}
         </span>
       ) : (
-        <span className="w-4 shrink-0" /> // Spacer
+        <span className="w-4 mr-0.5 shrink-0" /> // Spacer
       )}
 
       {isFolder ? (
@@ -446,7 +446,7 @@ function FileTreeNode({
           onDoubleClick={(e) => e.stopPropagation()}
         />
       ) : (
-        <span className="truncate flex-1">{node.name}</span>
+        <span className="truncate flex-1 text-[13px] opacity-90">{node.name}</span>
       )}
 
       {!isFolder && onQuoteFile && !isRenaming && (
@@ -528,9 +528,13 @@ function FileTreeNode({
       </AlertDialog>
 
       {isFolder && isOpen && (
-        <div className="border-l ml-4 pl-1 border-muted/20">
+        <div className="mt-0.5 relative">
+          <div 
+            className="absolute top-0 bottom-0 w-px bg-border/40" 
+            style={{ left: `${level * 16 + 21}px` }}
+          />
           {isCreatingChild && (
-            <div className="flex items-center gap-1.5 py-1 px-2 rounded-sm whitespace-nowrap" style={{ paddingLeft: `${(level + 1) * 12 + 8}px` }}>
+            <div className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg whitespace-nowrap" style={{ paddingLeft: `${(level + 1) * 16 + 12}px` }}>
               <span className="w-4 shrink-0" />
               <Folder size={14} className="text-blue-400/80 shrink-0" />
               <Input 

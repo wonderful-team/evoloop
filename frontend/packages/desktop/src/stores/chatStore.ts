@@ -13,7 +13,56 @@ import {
     tryParseHumanRequest
 } from "./chat/helpers"
 
-export const useChatStore = create<ChatState>((set, get) => ({
+export const useChatStore = create<ChatState>((set, get) => {
+    const createFlushTimeout = (messageId?: string) => {
+        return setTimeout(() => {
+            set((currentState) => {
+                const streamBuffer = currentState._streamBuffer;
+                const thinkingBuffer = currentState._thinkingBuffer;
+                if (!streamBuffer && !thinkingBuffer) return { _flushTimeout: null };
+
+                const msgs = [...currentState.messages];
+                let targetIdx = messageId ? msgs.findIndex(m => String(m.id) === String(messageId)) : -1;
+
+                if (targetIdx >= 0) {
+                    const target = { ...msgs[targetIdx] }
+                    if (streamBuffer) target.content = (target.content || "") + streamBuffer;
+                    if (thinkingBuffer) target.thinking = (target.thinking || "") + thinkingBuffer;
+                    target.status = "streaming"
+                    msgs[targetIdx] = target
+                } else {
+                    let last = msgs[msgs.length - 1]
+                    if (!last || last.role !== "ai" || last.status !== "streaming") {
+                        msgs.push({
+                            id: messageId || `placeholder-${Date.now()}`,
+                            role: "ai",
+                            content: streamBuffer || "",
+                            thinking: (currentState.streamingThinking || "") + (thinkingBuffer || ""),
+                            status: "streaming",
+                            timestamp: new Date().toISOString(),
+                            changeset_count: 0
+                        });
+                    } else {
+                        const lastUpdated = { ...last }
+                        if (streamBuffer) lastUpdated.content = (lastUpdated.content || "") + streamBuffer;
+                        if (thinkingBuffer) lastUpdated.thinking = (lastUpdated.thinking || "") + thinkingBuffer;
+                        lastUpdated.status = "streaming"
+                        msgs[msgs.length - 1] = lastUpdated
+                    }
+                }
+
+                return {
+                    messages: msgs,
+                    streamingThinking: streamBuffer ? "" : ((currentState.streamingThinking || "") + (thinkingBuffer || "")),
+                    _streamBuffer: "",
+                    _thinkingBuffer: "",
+                    _flushTimeout: null
+                };
+            });
+        }, 50);
+    };
+
+    return {
     // --- Initial State ---
     threadId: null,
     projectId: null,
@@ -40,7 +89,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     isConnected: false,
     connectionStatus: "disconnected",
     _streamBuffer: "",
+    _thinkingBuffer: "",
     _flushTimeout: null,
+    
+    previewDiff: null,
+    previewFile: null,
 
     // --- Core Actions ---
     setThread: async (threadId, projectId, skillIds) => {
@@ -385,6 +438,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (saved) set({ viewedChanges: new Set(JSON.parse(saved)) })
     },
 
+    setPreviewDiff: (preview) => set({ previewDiff: preview }),
+    setPreviewFile: (preview) => set({ previewFile: preview }),
+
     // --- Internal Handlers ---
     _setConnectionStatus: (connected, status) => {
         const prevConnected = get().isConnected
@@ -403,42 +459,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
     },
 
     _appendThinking: (text, messageId) => {
-        set((state) => {
-            const msgs = [...state.messages]
-            let targetIdx = messageId ? msgs.findIndex(m => String(m.id) === String(messageId)) : -1
+        const state = get();
+        const newBuffer = (state._thinkingBuffer || "") + text;
 
-            if (targetIdx >= 0) {
-                const target = { ...msgs[targetIdx] }
-                target.thinking = (target.thinking || "") + text
-                target.status = "streaming"
-                msgs[targetIdx] = target
-            } else {
-                let last = msgs[msgs.length - 1]
-                // Auto-create AI placeholder if not present or not currently streaming
-                if (!last || last.role !== "ai" || last.status !== "streaming") {
-                    const placeholder: Message = {
-                        id: messageId || `placeholder-${Date.now()}`,
-                        role: "ai",
-                        content: "",
-                        thinking: text,
-                        status: "streaming",
-                        timestamp: new Date().toISOString(),
-                        changeset_count: 0
-                    }
-                    msgs.push(placeholder)
-                } else {
-                    const lastUpdated = { ...last }
-                    lastUpdated.thinking = (lastUpdated.thinking || "") + text
-                    lastUpdated.status = "streaming"
-                    msgs[msgs.length - 1] = lastUpdated
-                }
-            }
+        if (state._flushTimeout) {
+            set({ _thinkingBuffer: newBuffer });
+            return;
+        }
 
-            return {
-                messages: msgs,
-                streamingThinking: (state.streamingThinking || "") + text
-            }
-        })
+        const timeout = createFlushTimeout(messageId);
+        set({ _thinkingBuffer: newBuffer, _flushTimeout: timeout });
     },
 
     _appendToken: (tokens, messageId) => {
@@ -450,48 +480,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             return;
         }
 
-        const timeout = setTimeout(() => {
-            set((currentState) => {
-                const bufferToFlush = currentState._streamBuffer;
-                if (!bufferToFlush) return { _flushTimeout: null };
-
-                const msgs = [...currentState.messages];
-                let targetIdx = messageId ? msgs.findIndex(m => String(m.id) === String(messageId)) : -1;
-
-                if (targetIdx >= 0) {
-                    const target = { ...msgs[targetIdx] }
-                    target.content = (target.content || "") + bufferToFlush
-                    target.status = "streaming"
-                    msgs[targetIdx] = target
-                } else {
-                    let last = msgs[msgs.length - 1]
-                    if (!last || last.role !== "ai" || last.status !== "streaming") {
-                        msgs.push({
-                            id: messageId || `placeholder-${Date.now()}`,
-                            role: "ai",
-                            content: bufferToFlush,
-                            thinking: currentState.streamingThinking || "",
-                            status: "streaming",
-                            timestamp: new Date().toISOString(),
-                            changeset_count: 0
-                        });
-                    } else {
-                        const lastUpdated = { ...last }
-                        lastUpdated.content = (lastUpdated.content || "") + bufferToFlush
-                        lastUpdated.status = "streaming"
-                        msgs[msgs.length - 1] = lastUpdated
-                    }
-                }
-
-                return {
-                    messages: msgs,
-                    streamingThinking: "",
-                    _streamBuffer: "",
-                    _flushTimeout: null
-                };
-            });
-        }, 50); // 50ms debounce/throttle
-
+        const timeout = createFlushTimeout(messageId);
         set({ _streamBuffer: newBuffer, _flushTimeout: timeout });
     },
 
@@ -698,6 +687,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             sessionGoal: ev.goal || get().sessionGoal,
             streamingThinking: "",
             _streamBuffer: "",
+            _thinkingBuffer: "",
             finalOutcome: null
         })
         console.log(`[ChatStore] Run started: ${ev.run_id}`)
@@ -744,4 +734,5 @@ export const useChatStore = create<ChatState>((set, get) => ({
         toast.error(i18n.t("chat.errors.connection", { error: err }))
         set({ status: "error" })
     },
-}))
+    }
+})
