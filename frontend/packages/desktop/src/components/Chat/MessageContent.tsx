@@ -225,9 +225,11 @@ export const MessageContent = memo(({ content, isUser }: MessageContentProps) =>
                           let option = parsedCodeCache.current.get(ck)
                           if (!option) {
                             const parsed = JSON.parse(codeString)
-                            if (parsed && parsed.series) {
-                              // Freeze the option so React.memo can do a stable reference check
-                              option = Object.freeze(parsed)
+                            // Accept any valid ECharts option object (series, dataset, etc.)
+                            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                              // Do NOT freeze — ECharts mutates the option internally during layout processing.
+                              // The ref-based cache already provides a stable reference for React.memo.
+                              option = parsed
                               parsedCodeCache.current.set(ck, option)
                             }
                           }

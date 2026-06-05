@@ -11,6 +11,8 @@ import {
 import { MessageContent } from "../MessageContent"
 import { useTranslation } from "react-i18next"
 import { PlanningService } from "@/client"
+import { LearningService } from "@/client/sdk.gen"
+import { SkillDetailsPanel } from "@/components/Learning/SkillDetailsPanel"
 import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
 import {
   Collapsible,
@@ -105,6 +107,15 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
 
   const sessionGoal = useChatStore((state) => state.sessionGoal)
   const [goalOpen, setGoalOpen] = useState(true)
+
+  const [selectedSkillId, setSelectedSkillId] = useState<number | null>(null)
+  const [isSkillPanelOpen, setIsSkillPanelOpen] = useState(false)
+
+  const { data: fullSkill } = useQuery({
+    queryKey: ["learnedSkill", selectedSkillId],
+    queryFn: () => LearningService.getSkill({ skillId: selectedSkillId! }),
+    enabled: !!selectedSkillId && isSkillPanelOpen,
+  })
 
   return (
     <div className="h-full w-full min-w-0 flex flex-col bg-muted/5 overflow-hidden">
@@ -313,7 +324,11 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
                     {matchingSkills.map((skill: any) => (
                       <div
                         key={skill.id}
-                        className="flex items-start gap-2.5 p-2 rounded-lg bg-muted/20 border border-border/30 hover:bg-muted/30 transition-colors"
+                        className="flex items-start gap-2.5 p-2 rounded-lg bg-muted/20 border border-border/30 hover:bg-muted/30 transition-colors cursor-pointer"
+                        onClick={() => {
+                          setSelectedSkillId(skill.id)
+                          setIsSkillPanelOpen(true)
+                        }}
                       >
                         <Wrench className="h-3.5 w-3.5 text-primary/60 shrink-0 mt-0.5" />
                         <div className="flex-1 min-w-0">
@@ -334,6 +349,15 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
             </ScrollArea>
           </CollapsibleContent>
         </Collapsible>
+
+        <SkillDetailsPanel
+          skill={fullSkill || null}
+          open={isSkillPanelOpen}
+          onOpenChange={(open) => {
+            setIsSkillPanelOpen(open)
+            if (!open) setTimeout(() => setSelectedSkillId(null), 200)
+          }}
+        />
     </div>
   )
 }

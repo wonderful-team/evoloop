@@ -94,17 +94,24 @@ const EChartsArtifactInner: React.FC<EChartsArtifactProps> = ({ data }) => {
     return () => observer.disconnect();
   }, []);
 
-  // Handle window resize
+  // Handle window resize — debounced to avoid calling resize during ECharts main process
   useEffect(() => {
+    let rafId: number;
     const handleResize = () => {
-      const instance = chartRef.current?.getEchartsInstance();
-      if (instance) {
-        instance.resize();
-      }
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const instance = chartRef.current?.getEchartsInstance();
+        if (instance) {
+          instance.resize();
+        }
+      });
     };
 
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      cancelAnimationFrame(rafId);
+    };
   }, []);
 
   const chartTheme = isDark ? 'dark' : 'light';
@@ -139,7 +146,18 @@ const EChartsArtifactInner: React.FC<EChartsArtifactProps> = ({ data }) => {
       animationEasing: 'cubicOut'
     };
 
-    return { ...baseOption, ...data.option };
+    // User's option takes priority over defaults — spread user config last
+    return {
+      ...baseOption,
+      ...data.option,
+      // Deep merge tooltip so our styling defaults apply when user doesn't specify
+      tooltip: {
+        ...baseOption.tooltip,
+        ...(data.option?.tooltip || {}),
+      },
+      // Deep merge grid only if user hasn't set it
+      ...(!data.option?.grid ? { grid: baseOption.grid } : {}),
+    };
   }, [data.option, isDark]);
 
   const handleSaveImage = async () => {
