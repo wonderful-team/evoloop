@@ -91,7 +91,7 @@ async def handle_multi_edit(
                 modified=modified_content,
                 file_path=path
             )
-            await persist_file_operation_task(
+            persist_file_operation_task.delay(
                 thread_id=ctx.thread_id,
                 message_id="",
                 file_path=str(target_path),
@@ -144,7 +144,7 @@ async def handle_edit(request: EditFileRequest) -> str:
         "new_hash": result.get("new_hash", "")[:8] if result.get("new_hash") else None,
         "diagnostics": None,
         "message": result.get("message"),
-        "log": f"Technical details: {result.get('log')}" if result.get("log") else result.get("details"),
+        "log": f"Technical details: {result.get('log')}" if result.get('log') else result.get('details'),
         "causes": [c.format(path=request.path) for c in (i18n.get("domain_tools.files.edit_causes") or [])],
         "hints": [h.format(path=request.path) for h in (i18n.get("domain_tools.files.edit_hints") or [])],
         "labels": i18n.get("domain_tools.files.edit_labels") or {}
@@ -176,7 +176,7 @@ async def handle_edit(request: EditFileRequest) -> str:
                     modified=modified_content,
                     file_path=request.path
                 )
-                await persist_file_operation_task(
+                persist_file_operation_task.delay(
                     thread_id=ctx.thread_id,
                     message_id="",
                     file_path=str(target_path),

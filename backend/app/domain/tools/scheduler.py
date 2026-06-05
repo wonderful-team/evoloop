@@ -14,9 +14,9 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     is_hidden=True,
-    summary_template="evoloop.tool_summary.delegate_periodic_intent"
+    summary_template="evoloop.tool_summary.schedule_periodic_task"
 )
-async def delegate_periodic_intent(
+async def schedule_periodic_task(
     intent: str,
     trigger: str,
     skill_name: str,
@@ -61,7 +61,7 @@ async def delegate_periodic_intent(
                 note=f"Trigger: {trigger}"
             )
     except Exception as e:
-        logger.error(f"Error in delegate_periodic_intent: {e}")
+        logger.error(f"Error in schedule_periodic_task: {e}")
         return ControllerResponse.error("Failed to delegate intent", details=str(e))
 
 
@@ -95,8 +95,8 @@ async def inspect_task_health(task_id: int) -> str:
         return f"Error: Failed to inspect task health. {str(e)}"
 
 
-@evoloop_tool(summary_template="evoloop.tool_summary.list_autonomous_tasks")
-async def list_autonomous_tasks(project_id: Optional[int] = None) -> str:
+@evoloop_tool(summary_template="evoloop.tool_summary.list_scheduled_tasks")
+async def list_scheduled_tasks(project_id: Optional[int] = None) -> str:
     """
     List all autonomous tasks managed by the agent.
     
@@ -124,5 +124,5 @@ async def list_autonomous_tasks(project_id: Optional[int] = None) -> str:
                 logger.error(f"Failed to render task list: {e}")
                 return f"Found {len(tasks)} tasks.", {"count": len(tasks)}
     except Exception as e:
-        logger.error(f"Error in list_autonomous_tasks: {e}")
+        logger.error(f"Error in list_scheduled_tasks: {e}")
         return f"Error: Failed to list tasks. {str(e)}"

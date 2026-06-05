@@ -81,7 +81,7 @@ async def move_file(
             if ctx.thread_id:
                 try:
                     # Record DELETE for source
-                    await persist_file_operation_task(
+                    persist_file_operation_task.delay(
                         thread_id=ctx.thread_id,
                         message_id="",
                         file_path=str(source_absolute),
@@ -92,7 +92,7 @@ async def move_file(
                         tool_call_id=ctx.current_tool_call_id,
                     )
                     # Record ADD for destination
-                    await persist_file_operation_task(
+                    persist_file_operation_task.delay(
                         thread_id=ctx.thread_id,
                         message_id="",
                         file_path=str(dest_absolute),

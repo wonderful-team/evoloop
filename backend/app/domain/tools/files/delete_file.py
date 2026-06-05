@@ -66,7 +66,7 @@ async def delete_file(
             ctx = ContextManager.current()
             if ctx.thread_id:
                 try:
-                    await persist_file_operation_task(
+                    persist_file_operation_task.delay(
                         thread_id=ctx.thread_id,
                         message_id="",
                         file_path=str(absolute_path),

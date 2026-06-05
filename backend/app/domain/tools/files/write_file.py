@@ -67,7 +67,7 @@ async def handle_write(
                         modified=content,
                         file_path=path
                     )
-                    await persist_file_operation_task(
+                    persist_file_operation_task.delay(
                         thread_id=ctx.thread_id,
                         message_id="",
                         file_path=str(target_path),
