@@ -73,13 +73,11 @@ class EmbedderFactory:
                 logger.info("Embedding provider not configured. Falling back to LocalEmbedder (SentenceTransformers).")
                 return LocalEmbedder()
             except ImportError:
-                if settings.EMBEDDED_MODE:
-                    logger.warning(
-                        "Embedding provider not configured and sentence_transformers is not installed. "
-                        "Semantic search will be disabled."
-                    )
-                    return None
-                raise
+                logger.warning(
+                    "Embedding provider not configured and sentence_transformers is not installed. "
+                    "Semantic search will be disabled until a provider is configured."
+                )
+                return None
 
         # 2. DB Config Exists
         if provider == "openai" or provider == "generic" or provider == "local":

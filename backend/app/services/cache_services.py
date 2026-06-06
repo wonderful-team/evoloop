@@ -372,6 +372,16 @@ class ActivityStateService:
             if activity is None:
                 activity = AgentActivity(thread_id=thread_id)
                 session.add(activity)
+            
+            # Preserve active_skills if the incoming state omits it (e.g. Supervisor status updates)
+            if activity.agent_state_json:
+                try:
+                    prev_state = json.loads(activity.agent_state_json)
+                    if state.get("active_skills") is None and prev_state.get("active_skills") is not None:
+                        state["active_skills"] = prev_state["active_skills"]
+                except Exception:
+                    pass
+
             activity.agent_state_json = json.dumps(state)
         return True
 
