@@ -1,20 +1,22 @@
-import { ChatState } from "./types"
+// Helpers for Chat Store
 
 /**
  * Commits current streaming thinking buffer to the last AI message
  */
-export function commitThinkingBuffer(state: ChatState) {
-    if (!state.streamingThinking) return {}
+export function commitThinkingBuffer(state: any) {
+    if (!state._streamBuffer && !state._thinkingBuffer) return {}
     
     const newMsgs = [...state.messages]
-    const lastAi = [...newMsgs].reverse().find(m => m.role === "ai")
+    const lastAi = [...newMsgs].reverse().find(m => m.role === "ai" && m.status === "streaming")
     if (lastAi) {
-        lastAi.thinking = (lastAi.thinking || "") + state.streamingThinking
+        lastAi.thinking = (lastAi.thinking || "") + state._thinkingBuffer
+        lastAi.content = (lastAi.content || "") + state._streamBuffer
     }
     
     return { 
         messages: newMsgs, 
-        streamingThinking: "" 
+        _thinkingBuffer: "",
+        _streamBuffer: ""
     }
 }
 

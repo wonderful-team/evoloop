@@ -8,8 +8,6 @@ import { useRef, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Textarea } from '@evoloop/shared/components/ui/textarea';
 import { cn } from '@evoloop/shared/lib/utils';
-import { useGhostText } from '@/hooks/useGhostText';
-import { GhostText } from './GhostText';
 
 interface CodeEditorProps {
   value: string;
@@ -35,30 +33,6 @@ export function CodeEditor({
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorColumn, setCursorColumn] = useState(0);
 
-  const {
-    state: ghostState,
-    requestSuggestion,
-    acceptSuggestion,
-    dismissSuggestion,
-  } = useGhostText({
-    onAccept: (suggestion) => {
-      if (!textareaRef.current) return;
-
-      const textarea = textareaRef.current;
-      const start = textarea.selectionStart;
-      const newValue = value.substring(0, start) + suggestion.text + value.substring(start);
-
-      onChange(newValue);
-
-      // Move cursor after inserted text
-      setTimeout(() => {
-        const newPos = start + suggestion.text.length;
-        textarea.setSelectionRange(newPos, newPos);
-        textarea.focus();
-      }, 0);
-    },
-  });
-
   // Calculate cursor position (line and column)
   const calculateCursorPosition = useCallback(
     (position: number): { line: number; column: number; lineText: string } => {
@@ -83,32 +57,15 @@ export function CodeEditor({
 
       setCursorLine(line);
       setCursorColumn(column);
-
-      // Request Ghost Text suggestion
-      requestSuggestion({
-        filePath,
-        cursorLine: line,
-        cursorColumn: column,
-        currentLineText: lineText.substring(0, column),
-      });
     },
-    [onChange, filePath, calculateCursorPosition, requestSuggestion]
+    [onChange, filePath, calculateCursorPosition]
   );
 
-  // Handle keydown for Tab (accept) and Escape (dismiss)
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (ghostState.visible) {
-        if (e.key === 'Tab') {
-          e.preventDefault();
-          acceptSuggestion();
-        } else if (e.key === 'Escape') {
-          e.preventDefault();
-          dismissSuggestion();
-        }
-      }
+      // Logic for keydown if needed
     },
-    [ghostState.visible, acceptSuggestion, dismissSuggestion]
+    []
   );
 
   // Handle click to update cursor position
@@ -120,9 +77,8 @@ export function CodeEditor({
 
       setCursorLine(line);
       setCursorColumn(column);
-      dismissSuggestion();
     },
-    [calculateCursorPosition, dismissSuggestion]
+    [calculateCursorPosition]
   );
 
   // Handle selection change
@@ -149,12 +105,7 @@ export function CodeEditor({
           )}
         </div>
         <div className="flex items-center gap-4">
-            {t('editor.line')} {cursorLine}, {t('editor.column')} {cursorColumn}
-          {ghostState.loading && (
-            <span className="text-primary animate-pulse">
-              {t('editor.thinking')}
-            </span>
-          )}
+          {t('editor.line')} {cursorLine}, {t('editor.column')} {cursorColumn}
         </div>
       </div>
 
@@ -172,27 +123,7 @@ export function CodeEditor({
           readOnly={readOnly}
           spellCheck={false}
         />
-
-        {/* Ghost Text overlay */}
-        <GhostText
-          state={ghostState}
-          onAccept={acceptSuggestion}
-          onDismiss={dismissSuggestion}
-          className="absolute pointer-events-none"
-          style={{
-            // Position near cursor (simplified positioning)
-            left: `${Math.min(cursorColumn * 8 + 16, 600)}px`,
-            top: `${(cursorLine - 1) * 21 + 16}px`,
-          }}
-        />
       </div>
-
-      {/* Ghost Text hint */}
-      {ghostState.visible && (
-        <div className="absolute bottom-2 right-2 text-[10px] text-muted-foreground bg-background/80 px-2 py-1 rounded border">
-          {t('editor.ghostHint')}
-        </div>
-      )}
     </div>
   );
 }

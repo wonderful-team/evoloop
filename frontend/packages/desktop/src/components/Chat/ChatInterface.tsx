@@ -31,6 +31,7 @@ import {
 import { Input } from "@evoloop/shared/components/ui/input"
 import { Label } from "@evoloop/shared/components/ui/label"
 import { useChatStore } from "@/stores/chatStore"
+import { useUIStore } from "@/stores/uiStore"
 import { useProjectStore } from "@/stores/projectStore"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { HITLBanner } from "./HITLBanner"
@@ -40,29 +41,28 @@ import { ChatInputArea, type ChatInputAreaHandle } from "./ChatInputArea"
 import { MessageList } from "./MessageList"
 import { ChatSidebar, type Thread } from "./ChatSidebar"
 import { ContextPanel } from "./ContextPanel"
-
-import { GlobalDiffViewer } from "./GlobalDiffViewer"
-import { GlobalFilePreviewer } from "./GlobalFilePreviewer"
 import { RewindConfirmDialog } from "./RewindConfirmDialog"
 import { DebugManager } from "./DebugManager"
 import { HumanRequestCard } from "./HumanRequestCard"
 import { QuotaExhaustedCard } from "./QuotaExhaustedCard"
+import { useAgentStore } from "@/stores/agentStore"
+import { useChangesetStore } from "@/stores/changesetStore"
 
 export function ChatInterface() {
   // --- Store State (selective subscriptions to avoid unnecessary re-renders) ---
   const activeThreadId = useChatStore(s => s.threadId)
-  const status = useChatStore(s => s.status)
-  const humanRequest = useChatStore(s => s.humanRequest)
   const storeProjectId = useChatStore(s => s.projectId)
   const hasMoreHistory = useChatStore(s => s.hasMoreHistory)
   const isLoadingHistory = useChatStore(s => s.isLoadingHistory)
   const loadMoreHistory = useChatStore(s => s.loadMoreHistory)
   const setThread = useChatStore(s => s.setThread)
   const sendMessage = useChatStore(s => s.sendMessage)
-  const stopAgent = useChatStore(s => s.stopAgent)
   const _truncateMessages = useChatStore(s => s._truncateMessages)
-  const markChangeAsViewed = useChatStore(s => s.markChangeAsViewed)
-  const markAllChangesAsViewed = useChatStore(s => s.markAllChangesAsViewed)
+  const status = useAgentStore(s => s.status)
+  const humanRequest = useAgentStore(s => s.humanRequest)
+  const stopAgent = useAgentStore(s => s.stopAgent)
+  const markChangeAsViewed = useChangesetStore(s => s.markChangeAsViewed)
+  const markAllChangesAsViewed = useChangesetStore(s => s.markAllChangesAsViewed)
   const selectedModel = useChatStore(s => s.selectedModel)
 
   const { t } = useTranslation()
@@ -394,9 +394,18 @@ export function ChatInterface() {
           message_id: messageId
         }
       } as any),
+    onMutate: ({ messageId }) => {
+      if (messageId) {
+        const index = useChatStore.getState().messages.findIndex(m => String(m.id) === String(messageId))
+        if (index !== -1) {
+          useChatStore.getState()._truncateMessages(index)
+        }
+      }
+    },
     onSuccess: (data: any) => {
-      // Reload store
-      if (activeThreadId && projectId) setThread(activeThreadId, projectId)
+      if (activeThreadId) {
+        useChangesetStore.getState().fetchChangeset(activeThreadId)
+      }
       const filesMsg = data.files_reverted && data.files_reverted > 0
         ? ` (${t("chat.interface.filesReverted", { count: data.files_reverted })})`
         : ""
@@ -480,26 +489,29 @@ export function ChatInterface() {
     // Expand Agent Changes panel
     setExpandAgentChanges(true)
 
-    if (path) {
-      // Find the file in the changeset and trigger diff
-      const file = useChatStore.getState().changeset.find(f => f.path === path)
-      if (file) {
-        useChatStore.getState().setPreviewDiff({ path: file.path, diff: file.diff || "" })
-        // Mark as viewed
-        markChangeAsViewed(path)
+    const threadId = activeThreadId
+    if (threadId) {
+      if (path) {
+        // Find the file in the changeset and trigger diff
+        const file = useChangesetStore.getState().changeset.find(f => f.path === path)
+        if (file) {
+          useUIStore.getState().setPreviewDiff({ path: file.path, diff: file.diff || "" })
+          // Mark as viewed
+          markChangeAsViewed(path, threadId)
+        }
+      } else {
+        // Mark all as viewed
+        markAllChangesAsViewed(threadId)
       }
-    } else {
-      // Mark all as viewed
-      markAllChangesAsViewed()
     }
-  }, [markChangeAsViewed, markAllChangesAsViewed])
+  }, [markChangeAsViewed, markAllChangesAsViewed, activeThreadId])
 
   const handleSetActiveThreadId = useCallback((id: string) => {
     if (projectId !== undefined) setThread(id, projectId)
   }, [projectId, setThread])
 
   const handleSelectDiff = useCallback((path: string, diff: string) => {
-    useChatStore.getState().setPreviewDiff({ path, diff })
+    useUIStore.getState().setPreviewDiff({ path, diff })
   }, [])
 
   const handleAddToMemory = useCallback((txt: string) => {
@@ -772,12 +784,6 @@ export function ChatInterface() {
           }
         }}
       />
-      {/* Diff Drawer */}
-      <GlobalDiffViewer />
-      
-      {/* File Preview Modal & Profile Drawer */}
-      <GlobalFilePreviewer />
-      
       {import.meta.env.DEV && <DebugManager />}
     </div>
   )

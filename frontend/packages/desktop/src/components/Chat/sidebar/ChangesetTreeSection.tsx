@@ -12,7 +12,8 @@ import {
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { cn } from "@evoloop/shared/lib/utils"
-import { useChatStore } from "@/stores/chatStore"
+import { useAgentStore } from "@/stores/agentStore"
+import { useChangesetStore } from "@/stores/changesetStore"
 
 export interface ChangesetNode {
     name: string
@@ -31,10 +32,10 @@ interface ChangesetTreeSectionProps {
 
 export function ChangesetTreeSection({ activeThreadId, onSelectFile, defaultExpanded = false }: ChangesetTreeSectionProps) {
     const { t } = useTranslation()
-    const setChangeset = useChatStore((s) => s.setChangeset)
-    const markChangeAsViewed = useChatStore((s) => s.markChangeAsViewed)
-    const viewedChanges = useChatStore((s) => s.viewedChanges)
-    const status = useChatStore((s) => s.status)
+    const setChangeset = useChangesetStore((s) => s.setChangeset)
+    const markChangeAsViewed = useChangesetStore((s) => s.markChangeAsViewed)
+    const viewedChanges = useChangesetStore((s) => s.viewedChanges)
+    const status = useAgentStore((s) => s.status)
     const isAgentActive = status === "running" || status === "interrupted" || status === "summarizing"
 
     const { data: changeset, isLoading } = useQuery<ChangesetNode[]>({
@@ -71,9 +72,9 @@ export function ChangesetTreeSection({ activeThreadId, onSelectFile, defaultExpa
             }
             
             extractFiles(changeset)
-            setChangeset(flatFiles)
+            setChangeset(flatFiles, activeThreadId)
         }
-    }, [changeset, setChangeset])
+    }, [changeset, setChangeset, activeThreadId])
 
     // Convert to flat list
     const flatFiles: Array<{path: string; operation: 'ADD' | 'EDIT' | 'DELETE'; diff?: string}> = []
@@ -117,7 +118,7 @@ export function ChangesetTreeSection({ activeThreadId, onSelectFile, defaultExpa
                         )}
                         onClick={() => {
                             onSelectFile(file.path, file.diff || "")
-                            markChangeAsViewed(file.path)
+                            markChangeAsViewed(file.path, activeThreadId)
                         }}
                     >
                         {/* Activity Indicator */}

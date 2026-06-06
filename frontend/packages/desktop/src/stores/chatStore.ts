@@ -12,6 +12,8 @@ import {
     normalizeMessage,
     tryParseHumanRequest
 } from "./chat/helpers"
+import { useAgentStore } from "./agentStore"
+import { useChangesetStore } from "./changesetStore"
 
 export const useChatStore = create<ChatState>((set, get) => {
     const createFlushTimeout = (messageId?: string) => {
@@ -37,7 +39,7 @@ export const useChatStore = create<ChatState>((set, get) => {
                             id: messageId || `placeholder-${Date.now()}`,
                             role: "ai",
                             content: streamBuffer || "",
-                            thinking: (currentState.streamingThinking || "") + (thinkingBuffer || ""),
+                            thinking: useAgentStore.getState().streamingThinking + (thinkingBuffer || ""),
                             status: "streaming",
                             timestamp: new Date().toISOString(),
                             changeset_count: 0
@@ -51,9 +53,12 @@ export const useChatStore = create<ChatState>((set, get) => {
                     }
                 }
 
+                if (streamBuffer) {
+                    useAgentStore.setState({ streamingThinking: "" })
+                }
+
                 return {
                     messages: msgs,
-                    streamingThinking: streamBuffer ? "" : ((currentState.streamingThinking || "") + (thinkingBuffer || "")),
                     _streamBuffer: "",
                     _thinkingBuffer: "",
                     _flushTimeout: null
@@ -69,32 +74,14 @@ export const useChatStore = create<ChatState>((set, get) => {
     skillIds: [],
     sessionGoal: null,
     messages: [],
-    changeset: [],
-    viewedChanges: new Set<string>(),
-    changesetLastUpdated: null,
     hasMoreHistory: false,
     isLoadingHistory: false,
     firstMessageId: null,
     totalMessageCount: null,
     selectedModel: llmPlatformService.getSelectedModel(),
-    status: "idle",
-    finalOutcome: null,
-    activeMemories: [],
-    artifacts: [],
-    humanRequest: null,
-    quotaExhaustedInfo: null,
-    agentState: null,
-    streamingThinking: "",
-    streamingSteps: [],
-    isConnected: false,
-    connectionStatus: "disconnected",
     _streamBuffer: "",
     _thinkingBuffer: "",
     _flushTimeout: null,
-    
-    previewDiff: null,
-    previewFile: null,
-
     // --- Core Actions ---
     setThread: async (threadId, projectId, skillIds) => {
         const currentThreadId = get().threadId
@@ -104,53 +91,51 @@ export const useChatStore = create<ChatState>((set, get) => {
             skillIds: skillIds || [],
             ...(currentThreadId !== threadId ? {
                 messages: [],
-                status: "idle",
-                sessionGoal: null,
-                finalOutcome: null,
-                humanRequest: null,
-                changeset: [],
-                viewedChanges: new Set(),
-                changesetLastUpdated: null,
                 hasMoreHistory: false,
                 firstMessageId: null,
                 totalMessageCount: null,
                 isLoadingHistory: false,
-                agentState: null,
             } : {}),
         })
 
         if (threadId) {
-            get().loadViewedChanges(threadId)
+            useChangesetStore.getState().loadViewedChanges(threadId)
 
             // Register callbacks once
             const store = get()
+            const agentStore = useAgentStore.getState()
             ChatConnection.getInstance().setCallbacks({
-                onConnectionChange: store._setConnectionStatus,
+                onConnectionChange: agentStore._setConnectionStatus,
                 onToken: (token, messageId) => store._appendToken(token, messageId),
-                onActivity: store._setActivitySnapshot,
-                onArtifact: store._addArtifact,
-                onStatus: store._updateStatus,
-                onHumanRequest: store._setHumanRequest,
+                onActivity: agentStore._setActivitySnapshot,
+                onArtifact: agentStore._addArtifact,
+                onStatus: agentStore._updateStatus,
+                onHumanRequest: agentStore._setHumanRequest,
                 onMessage: store._appendMessage,
-                onThinking: (ev) => store._appendThinking(ev.content, ev.message_id),
-                onProgress: (ev) => store._updateProgress(ev),
-                onAgentState: (ev) => store._setAgentState(ev),
-                onQuotaExhausted: store._setQuotaExhausted,
-                onLLMAuthError: store._setLLMAuthError,
-                onRunStart: store._handleRunStart,
-                onRunEnd: store._handleRunEnd,
-                onSessionCompleted: store._handleSessionCompleted,
+                onThinking: (ev) => {
+                    agentStore._appendThinking(ev.content)
+                    store._appendThinking(ev.content, ev.message_id)
+                },
+                onProgress: (ev) => agentStore._updateProgress(ev),
+                onAgentState: (ev) => agentStore._setAgentState(ev),
+                onQuotaExhausted: agentStore._setQuotaExhausted,
+                onLLMAuthError: agentStore._setLLMAuthError,
+                onRunStart: agentStore._handleRunStart,
+                onRunEnd: agentStore._handleRunEnd,
+                onSessionCompleted: agentStore._handleSessionCompleted,
                 onAuthExpired: (ev) => toast.error(ev.message),
-                onError: store._setError,
+                onError: agentStore._setError,
                 onUnauthorized: () => {
-                    set({ status: 'unauthorized' })
+                    useAgentStore.setState({ status: 'unauthorized' })
                 }
             })
 
             // Fetch history and activity first, then connect SSE
             Promise.all([
                 get().fetchHistory(threadId),
-                get().fetchActivity(threadId)
+                get().fetchActivity(threadId),
+                useChangesetStore.getState().fetchChangeset(threadId),
+                useChangesetStore.getState().loadViewedChanges(threadId)
             ]).then(() => {
                 ChatConnection.getInstance().connect(threadId)
             })
@@ -184,19 +169,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     fetchActivity: async (threadId) => {
         try {
             const data = (await ConversationsService.getThreadActivity({ threadId })) as any as ActivitySnapshot
-            let normalizedStatus = data.status || "idle"
-            if (["done", "failed", "cancelled"].includes(normalizedStatus)) {
-                normalizedStatus = "idle"
-            } else if (normalizedStatus === "stopping") {
-                normalizedStatus = "stopped"
-            }
-            set({
-                artifacts: data.artifacts || [],
-                activeMemories: data.active_memories || [],
-                agentState: data.agent_state || null,
-                finalOutcome: data.final_outcome || null,
-                status: normalizedStatus as any
-            })
+            useAgentStore.getState()._setActivitySnapshot(data)
         } catch (e) {
             console.error("[ChatStore] Fetch activity failed", e)
         }
@@ -234,7 +207,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         const { threadId } = get()
         if (!threadId) return
         try {
-            set({ status: "running" })
+            useAgentStore.setState({ status: "running" })
             await ConversationsService.rewindConversation({
                 threadId,
                 requestBody: {
@@ -248,10 +221,11 @@ export const useChatStore = create<ChatState>((set, get) => {
                 set({ messages: get().messages.slice(0, index) })
             }
             // Trigger changeset refresh as files might have reverted
-            get().fetchChangeset()
+            useChangesetStore.getState().fetchChangeset(threadId)
+            useAgentStore.setState({ status: "idle" })
         } catch (e) {
             toast.error("Failed to rewind conversation")
-            set({ status: "idle" })
+            useAgentStore.setState({ status: "idle" })
         }
     },
 
@@ -286,21 +260,21 @@ export const useChatStore = create<ChatState>((set, get) => {
             references: mappedReferences.length > 0 ? mappedReferences : undefined
         }
         set((state) => ({ 
-            messages: [...state.messages, userMsg],
-            status: "running",
+            messages: [...state.messages, userMsg]
+        }))
+
+        // Call agent store to update status
+        useAgentStore.getState()._handleRunStart({ run_id: "optimistic", goal: null })
+        useAgentStore.setState((s: any) => ({
             quotaExhaustedInfo: null,
-            // Reset active skills immediately on send:
-            // - If user explicitly selected skills this turn → optimistic pre-fill with id stubs
-            //   (backend will overwrite with full data once Worker fires)
-            // - If no skills selected → clear to null so stale skills from last run don't linger
-            agentState: state.agentState
+            agentState: s.agentState
                 ? {
-                    ...state.agentState,
+                    ...s.agentState,
                     activeSkills: activeSkillIds.length > 0
-                        ? activeSkillIds.map(id => ({ id, name: "", description: "" }))
+                        ? activeSkillIds.map((id: number) => ({ id, name: "", description: "" }))
                         : null
                 }
-                : state.agentState
+                : s.agentState
         }))
 
         try {
@@ -332,133 +306,22 @@ export const useChatStore = create<ChatState>((set, get) => {
         } catch (e: any) {
             toast.error(i18n.t("chat.errors.sendFailed"))
             set((state) => ({
-                messages: state.messages.filter(m => m.id !== tempId),
-                status: "idle"
+                messages: state.messages.filter(m => m.id !== tempId)
             }))
+            useAgentStore.getState()._handleRunEnd({ status: "idle" })
         }
     },
 
-    stopAgent: async () => {
-        const { threadId } = get()
-        if (!threadId) return
-        try {
-            await AgentService.stopChat({ requestBody: { thread_id: threadId, message: "" } })
-            set({ status: "stopped" })
-        } catch (e) {
-            toast.error("Failed to stop agent")
-        }
-    },
-
-    resumeAgent: async (userInput) => {
-        const { threadId } = get()
-        if (!threadId) return
-        try {
-            await AgentService.resumeChat({
-                requestBody: { thread_id: threadId, user_input: userInput }
-            })
-            set({ status: "running", humanRequest: null })
-        } catch (e) {
-            toast.error("Failed to resume agent")
-        }
-    },
-
-    cancelHumanRequest: async (reason) => {
-        const { threadId } = get()
-        if (!threadId) return
-        try {
-            await AgentService.cancelHitlRequest({
-                requestBody: { thread_id: threadId, reason }
-            })
-            set({ humanRequest: null, status: "idle" })
-        } catch (e) {
-            toast.error("Failed to cancel request")
-        }
-    },
-
-    clearContent: () => set({ messages: [], finalOutcome: null, humanRequest: null, quotaExhaustedInfo: null }),
+    clearContent: () => set({ messages: [] }),
 
     setSelectedModel: (model) => {
         set({ selectedModel: model })
         llmPlatformService.setSelectedModel(model)
     },
 
-    fetchChangeset: async () => {
-        const { threadId } = get()
-        if (!threadId) return
-        try {
-            const data = await ConversationsService.getThreadChangeset({ threadId })
-            // Flatten the changeset tree if needed, or map nodes to flat list
-            // Backend returns a tree, but our UI usually expects a list of files
-            const flatten = (node: any, list: any[] = []) => {
-                if (node.path && node.operation) list.push(node)
-                if (node.children) node.children.forEach((c: any) => flatten(c, list))
-                return list
-            }
-            const files = flatten(data)
-            set({ changeset: files, changesetLastUpdated: new Date().toISOString() })
-        } catch (e) {
-            console.error("[ChatStore] Fetch changeset failed", e)
-        }
-    },
-
-    // --- Changeset Actions ---
-    setChangeset: (files) => set({ changeset: files, changesetLastUpdated: new Date().toISOString() }),
-
-    addToChangeset: (file) => {
-        set((state) => {
-            const idx = state.changeset.findIndex(f => f.path === file.path)
-            const newCs = idx >= 0 ? [...state.changeset] : [...state.changeset, file]
-            if (idx >= 0) newCs[idx] = file
-            return { changeset: newCs, changesetLastUpdated: new Date().toISOString() }
-        })
-    },
-
-    markChangeAsViewed: (path) => {
-        set((state) => {
-            const newViewed = new Set(state.viewedChanges).add(path)
-            const { threadId } = state
-            if (threadId) localStorage.setItem(`evoloop:viewed:${threadId}`, JSON.stringify([...newViewed]))
-            return { viewedChanges: newViewed }
-        })
-    },
-
-    markAllChangesAsViewed: () => {
-        set((state) => {
-            const allPaths = state.changeset.map(f => f.path)
-            const newViewed = new Set(allPaths)
-            if (state.threadId) localStorage.setItem(`evoloop:viewed:${state.threadId}`, JSON.stringify(allPaths))
-            return { viewedChanges: newViewed }
-        })
-    },
-
-    clearChangeset: () => set({ changeset: [], viewedChanges: new Set(), changesetLastUpdated: null }),
-
-    loadViewedChanges: (threadId) => {
-        const saved = localStorage.getItem(`evoloop:viewed:${threadId}`)
-        if (saved) set({ viewedChanges: new Set(JSON.parse(saved)) })
-    },
-
-    setPreviewDiff: (preview) => set({ previewDiff: preview }),
-    setPreviewFile: (preview) => set({ previewFile: preview }),
-
     // --- Internal Handlers ---
-    _setConnectionStatus: (connected, status) => {
-        const prevConnected = get().isConnected
-        set({ isConnected: connected, connectionStatus: status })
-        if (connected && !prevConnected) {
-            const threadId = get().threadId
-            if (threadId) {
-                console.log("[ChatStore] SSE Reconnected, fetching latest history and activity...")
-                // Only re-fetch history on initial load, don't wipe already-loaded paginated history
-                if (get().messages.length === 0) {
-                    get().fetchHistory(threadId)
-                }
-                get().fetchActivity(threadId)
-            }
-        }
-    },
 
-    _appendThinking: (text, messageId) => {
+    _appendThinking: (text: string, messageId?: string) => {
         const state = get();
         const newBuffer = (state._thinkingBuffer || "") + text;
 
@@ -484,120 +347,37 @@ export const useChatStore = create<ChatState>((set, get) => {
         set({ _streamBuffer: newBuffer, _flushTimeout: timeout });
     },
 
-    _setHumanRequest: (req) => {
-        if (!req) return
-        if (req.action === "clear") {
-            set((state) => ({
-                humanRequest: null,
-                status: "idle",
-                messages: state.messages.map(m => m.humanRequest ? { ...m, humanRequest: undefined } : m)
-            }))
-            return
-        }
-        const data = req.data || req
-        set((state) => {
+    _finalizeMessages: () => {
+        set(state => {
+            const updates: any = commitThinkingBuffer(state)
+            updates.messages = (updates.messages || state.messages).map((m: any) => 
+                m.status === "streaming" ? { ...m, status: "completed" } : m
+            )
+            return updates
+        })
+    },
+
+    _clearHumanRequest: () => {
+        set(state => ({
+            messages: state.messages.map(m => m.humanRequest ? { ...m, humanRequest: undefined } : m)
+        }))
+    },
+
+    _attachHumanRequestToLastMessage: (req) => {
+        set(state => {
             const msgs = [...state.messages]
             const lastAi = [...msgs].reverse().find(m => m.role === "ai")
-            if (lastAi) lastAi.humanRequest = data
-            return { humanRequest: data, status: "interrupted", messages: msgs }
+            if (lastAi) lastAi.humanRequest = req
+            return { messages: msgs }
         })
     },
-
-    _setActivitySnapshot: (data) => {
-        const newStatus = data.status || "unknown"
-        let normalized = newStatus
-        if (["done", "failed", "cancelled"].includes(newStatus)) normalized = "idle"
-        else if (newStatus === "stopping") normalized = "stopped"
-
-        set({
-            status: normalized,
-            sessionGoal: data.main_goal || get().sessionGoal,
-            artifacts: data.artifacts || [],
-            finalOutcome: data.final_outcome || null,
-            activeMemories: data.active_memories || [],
-            agentState: data.agent_state || null,
-        })
-    },
-
-    _addArtifact: (ev) => {
-        const data = ev.data || ev
-        set(state => {
-            const idx = state.artifacts.findIndex(a => a.id === data.id || a.name === data.name)
-            const list = [...state.artifacts]
-            if (idx >= 0) list[idx] = { ...list[idx], ...data }
-            else list.push(data)
-            return { artifacts: list }
-        })
-    },
-
-    _updateStatus: (ev) => {
-        const raw = ev.status || ev
-        if (raw === "quota_exhausted") return set({ status: "quota_exhausted" })
-
-        let normalized = raw
-        if (["done", "failed", "cancelled"].includes(raw)) normalized = "idle"
-        else if (raw === "stopping") normalized = "stopped"
-        else if (raw === "waiting_human") normalized = "interrupted"
-
-        const state = get()
-        const updates: Partial<ChatState> = {
-            status: normalized,
-            activeMemories: ev.active_memories || state.activeMemories,
-            agentState: ev.agent_state || state.agentState
-        }
-        if (normalized === "idle") {
-            Object.assign(updates, commitThinkingBuffer(state))
-        }
-        if (state.status === "running" && normalized !== "running") {
-            updates.messages = state.messages.map(m => m.status === "streaming" ? { ...m, status: "completed" } : m)
-        }
-        if (normalized !== "interrupted" && state.humanRequest) {
-            updates.humanRequest = null
-            updates.messages = (updates.messages || state.messages).map(m => m.humanRequest ? { ...m, humanRequest: undefined } : m)
-        }
-        set(updates)
-    },
-
-    _setQuotaExhausted: (info) => set({
-        status: "quota_exhausted",
-        quotaExhaustedInfo: {
-            title: info.title || i18n.t("chat.quotaExhausted.title"),
-            message: info.message || i18n.t("chat.quotaExhausted.message"),
-            hint: info.hint || i18n.t("chat.quotaExhausted.hint"),
-            actionText: info.actionText || i18n.t("chat.quotaExhausted.action")
-        }
-    }),
-
-    _setLLMAuthError: (ev) => {
-        toast.error(ev.title || i18n.t("chat.llmAuthError", "LLM API 认证失败"), {
-            description: ev.message || i18n.t("chat.llmAuthErrorDesc", "API 密钥无效或已过期"),
-            action: {
-                label: i18n.t("chat.goToSettings", "去设置"),
-                onClick: () => { window.location.hash = '#/settings' }
-            },
-            duration: 10000,
-        })
-        set({ status: 'error' })
-    },
-
-    _setAgentState: (ev) => set({
-        agentState: {
-            mode: ev.mode,
-            task_name: ev.task_name,
-            task_status: ev.task_status,
-            activeSkills: ev.active_skills ?? null  // null = clear (e.g. during PLANNING)
-        }
-    }),
-
-    _updateProgress: (ev) => set(state => ({
-        agentState: state.agentState
-            ? { ...state.agentState, task_status: ev.message }
-            : { mode: "PLANNING", task_name: "Agent Running", task_status: ev.message }
-    })),
 
     _appendMessage: (raw) => {
         const { threadId, messages } = get()
-        set(commitThinkingBuffer)
+        set(state => {
+            useAgentStore.setState({ streamingThinking: "" })
+            return commitThinkingBuffer(state)
+        })
         const humanReq = tryParseHumanRequest(raw)
         if (!threadId || (raw.role === "system" && !humanReq)) return
 
@@ -606,8 +386,9 @@ export const useChatStore = create<ChatState>((set, get) => {
                 const msgs = [...state.messages]
                 const lastAi = [...msgs].reverse().find(m => m.role === "ai")
                 if (lastAi) lastAi.humanRequest = humanReq
-                return { messages: msgs, humanRequest: humanReq, status: "interrupted" }
+                return { messages: msgs }
             })
+            useAgentStore.getState()._setHumanRequest(humanReq)
             return
         }
 
@@ -674,7 +455,12 @@ export const useChatStore = create<ChatState>((set, get) => {
         }
         // Trigger changeset refresh if message has file changes
         if (msg.changeset_count && msg.changeset_count > 0) {
-            get().fetchChangeset()
+            setTimeout(() => {
+                const threadId = get().threadId;
+                if (threadId) {
+                    useChangesetStore.getState().fetchChangeset(threadId)
+                }
+            }, 500)
         }
 
         set(state => ({ messages: [...state.messages, msg] }))
@@ -683,56 +469,10 @@ export const useChatStore = create<ChatState>((set, get) => {
     _truncateMessages: (idx) => set(state => ({ messages: state.messages.slice(0, idx) })),
     _handleRunStart: (ev) => {
         set({
-            status: "running",
             sessionGoal: ev.goal || get().sessionGoal,
-            streamingThinking: "",
             _streamBuffer: "",
             _thinkingBuffer: "",
-            finalOutcome: null
         })
-        console.log(`[ChatStore] Run started: ${ev.run_id}`)
-    },
-
-    _handleRunEnd: (ev) => {
-        const state = get()
-        const normalized = (ev.status === "done" || ev.status === "failed" || ev.status === "cancelled") ? "idle" : (ev.status as any || "idle")
-
-        const updates: Partial<ChatState> = {
-            status: normalized,
-            finalOutcome: ev.final_outcome || state.finalOutcome,
-            // Clear activeSkills when run ends — skills are per-run context, not persistent UI state
-            agentState: state.agentState
-                ? { ...state.agentState, activeSkills: null }
-                : state.agentState
-        }
-
-        // Finalize any lingering streaming messages
-        updates.messages = state.messages.map(m => m.status === "streaming" ? { ...m, status: "completed" } : m)
-
-        set(updates)
-        console.log(`[ChatStore] Run ended: ${ev.run_id}, status: ${ev.status}`)
-    },
-
-    _handleSessionCompleted: (ev) => {
-        const state = get()
-        const updates: Partial<ChatState> = {
-            status: "idle",
-            finalOutcome: ev.data?.outcome || state.finalOutcome,
-        }
-
-        // 防御性状态清理：将会话中处于 streaming 状态的消息重置为 completed
-        const messages: Message[] = state.messages.map(m =>
-            m.status === "streaming" ? { ...m, status: "completed" as const } : m
-        )
-        updates.messages = messages
-
-        set(updates)
-        console.log(`[ChatStore] Session completed - final state cleaned and finalized: run_id=${ev.data?.run_id}`)
-    },
-
-    _setError: (err) => {
-        toast.error(i18n.t("chat.errors.connection", { error: err }))
-        set({ status: "error" })
-    },
+    }
     }
 })

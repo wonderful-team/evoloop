@@ -11,7 +11,7 @@ import { Button } from "@evoloop/shared/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@evoloop/shared/components/ui/tabs"
 import { ActivityTab } from "./context/ActivityTab"
 import { ContextGroupTab } from "./context/ContextGroupTab"
-import { useChatStore } from "@/stores/chatStore"
+import { useAgentStore } from "@/stores/agentStore"
 
 interface ContextPanelProps {
   projectId?: number
@@ -30,7 +30,7 @@ export const ContextPanel = memo(
     const { t } = useTranslation()
     const [activeTab, setActiveTab] = useState("activity")
 
-    const status = useChatStore((s) => s.status)
+    const status = useAgentStore((s) => s.status)
     const isAgentActive = status === "running" || status === "interrupted" || status === "summarizing"
 
     // Auto-switch tab based on context

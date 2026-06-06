@@ -6,7 +6,7 @@ import { SidebarChatList, type Thread } from "./sidebar/SidebarChatList"
 export type { Thread }
 
 import { SidebarFilesTab } from "./sidebar/SidebarFilesTab"
-import { useChatStore } from "@/stores/chatStore"
+import { useChangesetStore } from "@/stores/changesetStore"
 
 interface ChatSidebarProps {
   threads: Thread[]
@@ -49,8 +49,8 @@ export const ChatSidebar = memo(
     const { t } = useTranslation()
     
     // Get changeset state for badge
-    const changeset = useChatStore((s) => s.changeset)
-    const viewedChanges = useChatStore((s) => s.viewedChanges)
+    const changeset = useChangesetStore((s) => s.changeset)
+    const viewedChanges = useChangesetStore((s) => s.viewedChanges)
     const unviewedCount = changeset.filter(f => !viewedChanges.has(f.path)).length
 
     return (

@@ -4,14 +4,15 @@ import { useTranslation } from "react-i18next"
 import { useQuery } from "@tanstack/react-query"
 import { PlanningService } from "@/client"
 import { useChatStore } from "@/stores/chatStore"
+import { useAgentStore } from "@/stores/agentStore"
 import { useProjectStore } from "@/stores/projectStore"
 
 export const BreadcrumbStatus = memo(() => {
     const { t } = useTranslation()
     const currentProject = useProjectStore((s) => s.currentProject)
     const threadId = useChatStore((s) => s.threadId)
-    const status = useChatStore((s) => s.status)
-    const agentState = useChatStore((s) => s.agentState)
+    const status = useAgentStore((s) => s.status)
+    const agentState = useAgentStore((s) => s.agentState)
 
     // Fetch Plan
     const { data: planData } = useQuery({

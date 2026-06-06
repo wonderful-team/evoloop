@@ -1,7 +1,7 @@
 import { FileDiff, ChevronRight } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@evoloop/shared/lib/utils"
-import { useChatStore } from "@/stores/chatStore"
+import { useChangesetStore } from "@/stores/changesetStore"
 
 interface ChangesetInlineHintProps {
   fileCount: number
@@ -17,8 +17,8 @@ export function ChangesetInlineHint({
   className,
 }: ChangesetInlineHintProps) {
   const { t } = useTranslation()
-  const viewedChanges = useChatStore((s) => s.viewedChanges)
-  const changeset = useChatStore((s) => s.changeset)
+  const viewedChanges = useChangesetStore((s) => s.viewedChanges)
+  const changeset = useChangesetStore((s) => s.changeset)
 
   // Check if all files associated with this message are viewed
   // For now, we consider it viewed if user has viewed any files

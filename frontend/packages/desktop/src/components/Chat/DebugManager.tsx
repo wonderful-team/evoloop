@@ -11,10 +11,10 @@ import {
   CheckCircle2
 } from "lucide-react";
 import { useChatStore } from "@/stores/chatStore";
+import { useAgentStore } from "@/stores/agentStore";
 import { generateMockMessages, simulateStreaming } from "./debug/mockData";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from 'uuid';
-import { OpenAPI } from "@/client/core/OpenAPI";
 import { AgentService } from "@/client/sdk.gen";
 
 export function DebugManager() {
@@ -76,7 +76,7 @@ export function DebugManager() {
       case 'file_select': prompt = "请选择需要作为上下文参考的本地源代码文件："; break;
     }
 
-    useChatStore.setState({
+    useAgentStore.setState({
       status: "interrupted",
       humanRequest: {
         id: uuidv4(),
@@ -92,7 +92,7 @@ export function DebugManager() {
 
   const clearMessages = () => {
     clearContent();
-    useChatStore.setState({ humanRequest: null, status: "idle" });
+    useAgentStore.getState().clearContent();
     toast.info("会话已清空");
   };
 

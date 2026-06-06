@@ -7,6 +7,7 @@ import { DetectedProjectAlert } from "@/components/Projects/Import"
 import { SetupWizardProvider } from "@/components/Wizard"
 
 import { BenefitRequirementDialog } from "@/components/Subscription/BenefitRequirementDialog"
+import { GlobalOverlayManager } from "@/components/Common/GlobalOverlayManager"
 
 export const Route = createRootRoute({
   component: RootComponent,
@@ -27,6 +28,7 @@ function RootComponent() {
       <Outlet />
       <DetectedProjectAlert />
       <BenefitRequirementDialog />
+      <GlobalOverlayManager />
     </SetupWizardProvider>
   )
 }

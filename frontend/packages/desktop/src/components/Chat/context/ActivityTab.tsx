@@ -11,6 +11,7 @@ import {
 import { MessageContent } from "../MessageContent"
 import { useTranslation } from "react-i18next"
 import { PlanningService } from "@/client"
+import { useAgentStore } from "@/stores/agentStore"
 import { LearningService } from "@/client/sdk.gen"
 import { SkillDetailsPanel } from "@/components/Learning/SkillDetailsPanel"
 import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
@@ -319,8 +320,9 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
 
 const ThinkingBlock = memo(({ isAgentActive }: { isAgentActive: boolean }) => {
   const { t } = useTranslation()
+  const streamingThinking = useAgentStore(state => state.streamingThinking)
   const thinking = useChatStore(state => {
-    if (state.streamingThinking.trim().length > 0) return state.streamingThinking.trim();
+    if (streamingThinking && streamingThinking.trim().length > 0) return streamingThinking.trim();
     for (let i = state.messages.length - 1; i >= 0; i--) {
       if (state.messages[i].role === 'ai') {
         return (state.messages[i].thinking || "").trim();

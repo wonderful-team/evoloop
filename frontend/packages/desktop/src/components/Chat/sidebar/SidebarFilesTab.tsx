@@ -24,6 +24,7 @@ import { useQueryClient, useQuery } from "@tanstack/react-query"
 import { FilesService } from "@/client"
 import { useProjectStore, isGlobalProject } from "@/stores/projectStore"
 import { useChatStore } from "@/stores/chatStore"
+import { useUIStore } from "@/stores/uiStore"
 import { DiscoverDialog } from "@/components/Projects/Modules/Overview/DiscoverDialog"
 import { Link } from "@tanstack/react-router"
 import { Button } from "@evoloop/shared/components/ui/button"
@@ -194,7 +195,7 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
                     <div 
                       className="px-3 py-2 border border-muted/50 rounded-md bg-muted/10 hover:bg-muted/30 transition-colors flex items-center justify-between group cursor-pointer" 
                       onClick={() => {
-                        useChatStore.getState().setPreviewFile({ path: "PROJECT.md", name: "PROJECT.md" });
+                        useUIStore.getState().setPreviewFile({ path: "PROJECT.md", name: "PROJECT.md" });
                       }}
                     >
                       <div className="flex items-center gap-2 text-sm text-primary">
@@ -217,7 +218,7 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
                           <TooltipTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => {
                               e.stopPropagation()
-                              useChatStore.getState().setPreviewFile({ path: "PROJECT.md", name: "PROJECT.md" });
+                              useUIStore.getState().setPreviewFile({ path: "PROJECT.md", name: "PROJECT.md" });
                             }}>
                               <Edit className="h-3 w-3" />
                             </Button>
@@ -242,7 +243,7 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
                   <FileTree
                     projectId={projectId}
                     onSelectFile={(file) => {
-                      useChatStore.getState().setPreviewFile({ path: file.path, name: file.name });
+                      useUIStore.getState().setPreviewFile({ path: file.path, name: file.name });
                     }}
                     onQuoteFile={onQuoteFile}
                     isCreatingRootFolder={isCreatingRootFolder}
