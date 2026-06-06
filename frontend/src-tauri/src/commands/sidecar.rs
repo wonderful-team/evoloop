@@ -1,8 +1,9 @@
 //! Tauri commands for Backend management (Sidecar mode)
 
+use std::sync::MutexGuard;
 use tauri::{command, AppHandle, Manager, State};
 
-use crate::sidecar::BACKEND_PORT;
+use crate::sidecar::{BACKEND_PORT, SidecarClient};
 use crate::AppServiceState;
 
 /// Get Backend URL (for Frontend to use)
@@ -15,8 +16,10 @@ pub fn backend_get_url() -> Result<String, String> {
 #[command]
 pub fn sidecar_is_ready(state: State<'_, AppServiceState>) -> bool {
     if let Ok(client) = state.sidecar_client.lock() {
-        if let Some(ref c) = *client {
-            return c.is_ready();
+        let guard: MutexGuard<Option<SidecarClient>> = client;
+        if let Some(ref c) = *guard {
+            let client: &SidecarClient = c;
+            return client.is_ready();
         }
     }
     false
@@ -28,8 +31,9 @@ pub async fn sidecar_get_status(
     state: State<'_, AppServiceState>,
 ) -> Result<serde_json::Value, String> {
     let (is_ready, port) = if let Ok(client) = state.sidecar_client.lock() {
-        let ready = client.as_ref().map(|c| c.is_ready()).unwrap_or(false);
-        let port = client.as_ref().and_then(|c| c.get_port());
+        let guard: MutexGuard<Option<SidecarClient>> = client;
+        let ready = guard.as_ref().map(SidecarClient::is_ready).unwrap_or(false);
+        let port = guard.as_ref().and_then(SidecarClient::get_port);
         (ready, port)
     } else {
         (false, None)
@@ -38,7 +42,7 @@ pub async fn sidecar_get_status(
     Ok(serde_json::json!({
         "ready": is_ready,
         "port": port,
-        "url": port.map(|p| format!("http://127.0.0.1:{}", p)),
+        "url": port.map(|p: u16| format!("http://127.0.0.1:{}", p)),
         "status": if is_ready { "ready" } else { "initializing" }
     }))
 }
@@ -51,8 +55,10 @@ pub async fn sidecar_restart(app: AppHandle) -> Result<(), String> {
     // Stop existing backend
     {
         let mut client_guard = state.sidecar_client.lock().unwrap();
-        if let Some(client) = client_guard.take() {
-            let _: Result<(), String> = client.stop();
+        let guard: &mut Option<SidecarClient> = &mut *client_guard;
+        if let Some(ref mut client) = guard {
+            let c: &mut SidecarClient = client;
+            let _: Result<(), String> = c.stop();
         }
     }
 
@@ -72,7 +78,8 @@ pub async fn sidecar_restart(app: AppHandle) -> Result<(), String> {
                 };
 
                 if let Some(client) = client_opt {
-                    match client.wait_for_ready(30).await {
+                    let c: SidecarClient = client;
+                    match c.wait_for_ready(30).await {
                         Ok(_) => {
                             log::info!("Backend restarted successfully on port {}", BACKEND_PORT);
                             let _ = tauri::Emitter::emit(&app_handle, "backend-ready", crate::sidecar::get_backend_url());

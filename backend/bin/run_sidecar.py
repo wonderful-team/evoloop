@@ -7,7 +7,10 @@ EvoLoop Backend Sidecar Entry Point
 直接启动 API 服务器，无需子命令。
 
 用法：
-    ./evoloop-backend-x86_64-apple-darwin --host 127.0.0.1 --port 8000
+    EVOLOOP_BACKEND_PORT=20160 ./evoloop-backend-x86_64-apple-darwin --host 127.0.0.1
+
+    或显式指定端口：
+    ./evoloop-backend-x86_64-apple-darwin --host 127.0.0.1 --port 20160
 """
 
 import argparse
@@ -30,11 +33,24 @@ def main():
     parser.add_argument(
         "--port",
         type=int,
-        default=8000,
-        help="Port to bind the server to (default: 8000)",
+        default=int(os.environ.get("EVOLOOP_BACKEND_PORT", "20160")),
+        help="Port to bind the server to (default: 20160, 通过 EVOLOOP_BACKEND_PORT 环境变量覆盖)",
     )
     
     args = parser.parse_args()
+    
+    # Embedded mode: set default EMBEDDED_MODE=true for sidecar packaging
+    if "PYTHON_ENV" in os.environ and os.environ["PYTHON_ENV"] == "embedded":
+        os.environ.setdefault("EMBEDDED_MODE", "true")
+    
+    # Pre-import app.main to catch ImportError early (before uvicorn starts)
+    try:
+        import app.main  # noqa: F401
+    except Exception as e:
+        import traceback
+        print(f"[Sidecar] Failed to import app.main: {e}", file=sys.stderr)
+        traceback.print_exc()
+        sys.exit(1)
     
     # Import uvicorn here to avoid early import issues with PyInstaller
     import uvicorn
@@ -53,8 +69,14 @@ def main():
     except KeyboardInterrupt:
         print("\n[Sidecar] Shutting down...")
         sys.exit(0)
+    except SystemExit as e:
+        # Uvicorn may raise SystemExit on startup failure
+        print(f"[Sidecar] Server exited with code {e.code}", file=sys.stderr)
+        sys.exit(e.code)
     except Exception as e:
+        import traceback
         print(f"[Sidecar] Error: {e}", file=sys.stderr)
+        traceback.print_exc()
         sys.exit(1)
 
 

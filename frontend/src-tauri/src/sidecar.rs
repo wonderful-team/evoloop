@@ -50,7 +50,24 @@ pub struct SidecarClient {
 }
 
 /// Default Backend port
-pub const BACKEND_PORT: u16 = 8000;
+/// 从环境变量 EVOLOOP_BACKEND_PORT 读取（通过 build.rs 注入，默认 20160）
+/// 与 scripts/build/config.sh 保持一致
+pub const BACKEND_PORT: u16 = {
+    // env! 在编译时展开，build.rs 保证该变量始终存在
+    let port_str = env!("EVOLOOP_BACKEND_PORT");
+    // 编译时计算常量
+    let bytes = port_str.as_bytes();
+    let mut port: u16 = 0;
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] < b'0' || bytes[i] > b'9' {
+            panic!("EVOLOOP_BACKEND_PORT must be a number");
+        }
+        port = port * 10 + (bytes[i] - b'0') as u16;
+        i += 1;
+    }
+    port
+};
 
 /// Default Backend URL
 pub fn get_backend_url() -> String {

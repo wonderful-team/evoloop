@@ -3,6 +3,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
+source "$SCRIPT_DIR/config.sh"
 
 DEV_MODE=false
 WITH_MODELS=false
@@ -80,7 +81,11 @@ case "$ENVIRONMENT" in
   development) cp .env.development .env ;;
   production)  cp .env.production .env ;;
 esac
-info "前端环境: $ENVIRONMENT"
+# 桌面端后端始终是本地 sidecar，覆盖 API URL
+sed -i '' "s|^VITE_API_URL=.*|VITE_API_URL=${VITE_API_URL}|" .env
+# 用 env var 覆盖（优先级最高），覆盖 .env.production
+export VITE_API_URL
+info "前端环境: $ENVIRONMENT (VITE_API_URL=${VITE_API_URL})"
 
 if [ "$WITH_MODELS" = true ]; then
   step "Step 3: Bundling Models"
@@ -95,7 +100,7 @@ if [ "$DEV_MODE" = true ]; then
 else
   rustup target add "$ARCH" 2>/dev/null || true
   info "Building for distribution..."
-  npm run tauri build -- --target "$ARCH" || {
+  LIBRARY_PATH="$PROJECT_ROOT/frontend/src-tauri/libs:$LIBRARY_PATH" EVOLOOP_BACKEND_PORT="$BACKEND_PORT" VITE_API_URL="$VITE_API_URL" npm run tauri build -- --target "$ARCH" || {
     warn "Tauri build failed, attempting manual bundling..."
   }
 
