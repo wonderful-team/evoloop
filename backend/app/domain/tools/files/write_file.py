@@ -97,8 +97,8 @@ async def handle_write(
     summary_template="evoloop.tool_summary.write_file",
 )
 async def write_file(
-    path: str | None = None,
-    content: str | None = None,
+    path: str,
+    content: str,
     overwrite: bool = False,
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:

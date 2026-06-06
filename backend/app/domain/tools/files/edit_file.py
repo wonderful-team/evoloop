@@ -224,7 +224,7 @@ def format_preview_result(result: EditPreviewResult, path: str, target: str, rep
     summary_template="evoloop.tool_summary.edit_file",
 )
 async def edit_file(
-    path: str | None = None,
+    path: str,
     target: str | None = None,
     replacement: str | None = None,
     append: str | None = None,

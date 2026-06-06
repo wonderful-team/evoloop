@@ -169,7 +169,7 @@ MAX_LINES_PER_CALL = 1000
     affected_path_keys=["path"],
 )
 async def read_file(
-    path: str | None = None,
+    path: str,
     start_line: str | int | None = None,
     end_line: str | int | None = None,
     include_metadata: bool = True,
