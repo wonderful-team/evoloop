@@ -62,6 +62,7 @@ class SupervisorPromptBuilder:
                 "project_profile": project_profile,
             },
             "project_concepts": ctx.metadata.get("project_concepts", ""),
+            "is_supervisor": True,
         }
 
         # 4. Render Template
