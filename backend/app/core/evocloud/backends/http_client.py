@@ -180,6 +180,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         current_base = self._get_base_url(is_gateway)
 
         url = f"{current_base}{endpoint}"
+        logger.info(f"[EvoCloud] Requesting API: {method} {url}")
         timestamp = int(time.time())
         body_str = json_utils.dumps(data) if data else ""
 
@@ -226,7 +227,9 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
                         )
 
             if resp.status_code >= 400:
-                logger.error(f"API Error {resp.status_code}: {resp.text[:200]}")
+                logger.error(f"API Error {resp.status_code}: {resp.text[:500]}")
+            else:
+                logger.info(f"[EvoCloud] Response: {resp.status_code} OK from {url}")
 
             try:
                 result = resp.json()
