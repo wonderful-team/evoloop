@@ -7,6 +7,8 @@ Event subscribers for the Awakening/Environment domain.
 
 import logging
 
+_background_tasks = set()
+
 from app.core.environment.bus import event_bus
 from .schemas import (
     AwakenEvent,
@@ -42,9 +44,11 @@ class EnvironmentLifecycleSubscriber:
         from app.core.environment.controllers.device_watcher import device_watcher
 
         # 1. Awaken Agent
-        logger.info("[Environment] 🌅 Triggering Agent Awakening...")
-        await awaken()
-        logger.info("[Environment] ✓ Agent awakening process complete")
+        logger.info("[Environment] 🌅 Scheduling Agent Awakening in background...")
+        import asyncio
+        task = asyncio.create_task(awaken())
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
 
         # 2. Start Device Watcher
         logger.info("[Environment] 🔍 Starting Device Watcher...")

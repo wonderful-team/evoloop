@@ -49,15 +49,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Agent Awakening/Discovery failed (non-critical): {e}")
 
-    # Engine Graph (Dynamic Build)
-    try:
-        from app.core.globals import init_agent_graph
-        init_agent_graph()
-        logger.info(f"Agent Graph built successfully")
-    except Exception as e:
-        logger.critical(f"Failed to build Agent Graph: {e}")
-        raise
-
     # Publish Application Started Event
     from app.core.events.publishers import publish_app_started
     await publish_app_started(startup_time)
