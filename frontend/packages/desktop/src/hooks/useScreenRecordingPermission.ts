@@ -80,9 +80,6 @@ export function useScreenRecordingPermission() {
     }, [checkPermission])
 
     useEffect(() => {
-        // Initial check
-        checkPermission()
-
         const onFocus = () => {
             // Debounce focus events
             if (focusTimeoutRef.current) {
