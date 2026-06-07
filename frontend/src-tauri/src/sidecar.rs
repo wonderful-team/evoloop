@@ -173,6 +173,16 @@ impl SidecarClient {
             // Production mode
             let exe_path = std::env::current_exe()
                 .map_err(|e| format!("Failed to get current exe path: {}", e))?;
+                
+            #[cfg(target_os = "macos")]
+            let sidecar_path = app.path().resource_dir()
+                .map_err(|e| format!("Failed to get resource dir: {}", e))?
+                .join("EvoLoop Backend.app")
+                .join("Contents")
+                .join("MacOS")
+                .join("evoloop-backend");
+
+            #[cfg(not(target_os = "macos"))]
             let sidecar_path = exe_path
                 .parent()
                 .ok_or("Failed to get exe parent dir")?
