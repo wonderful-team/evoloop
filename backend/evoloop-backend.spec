@@ -182,4 +182,10 @@ if sys.platform == 'darwin':
         name='EvoLoop Backend.app',
         icon=None,
         bundle_identifier='com.evoloop.backend',
+        info_plist={
+            'NSMicrophoneUsageDescription': 'EvoLoop Backend needs access to microphone to record voice commands.',
+            'NSScreenCaptureUsageDescription': 'EvoLoop Backend needs access to screen capture for visual context.',
+            'NSAppleEventsUsageDescription': 'EvoLoop Backend needs access to control the system.',
+            'LSBackgroundOnly': 'True'
+        }
     )
