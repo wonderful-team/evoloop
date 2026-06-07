@@ -8,6 +8,7 @@ import { SetupWizardProvider } from "@/components/Wizard"
 
 import { BenefitRequirementDialog } from "@/components/Subscription/BenefitRequirementDialog"
 import { GlobalOverlayManager } from "@/components/Common/GlobalOverlayManager"
+import { WindowDragRegion } from "@/components/Common/WindowDragRegion"
 
 export const Route = createRootRoute({
   component: RootComponent,
@@ -19,16 +20,24 @@ function RootComponent() {
   const [isBackendReady, setIsBackendReady] = useState(false)
 
   if (!isBackendReady) {
-    return <StartupScreen onReady={() => setIsBackendReady(true)} />
+    return (
+      <>
+        <WindowDragRegion />
+        <StartupScreen onReady={() => setIsBackendReady(true)} />
+      </>
+    )
   }
 
   return (
-    <SetupWizardProvider>
-      <HeadContent />
-      <Outlet />
-      <DetectedProjectAlert />
-      <BenefitRequirementDialog />
-      <GlobalOverlayManager />
-    </SetupWizardProvider>
+    <>
+      <WindowDragRegion />
+      <SetupWizardProvider>
+        <HeadContent />
+        <Outlet />
+        <DetectedProjectAlert />
+        <BenefitRequirementDialog />
+        <GlobalOverlayManager />
+      </SetupWizardProvider>
+    </>
   )
 }

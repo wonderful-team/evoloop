@@ -13,6 +13,7 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./packages/desktop/src"),
       "@evoloop/shared": path.resolve(__dirname, "./packages/shared/src"),
     },
+    dedupe: ["react", "react-dom"],
   },
   plugins: [
     tanstackRouter({

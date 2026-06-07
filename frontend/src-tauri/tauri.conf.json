@@ -17,7 +17,9 @@
         "height": 800,
         "url": "packages/desktop/index.html",
         "maximized": true,
-        "dragDropEnabled": false
+        "dragDropEnabled": false,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
       }
     ],
     "macOSPrivateApi": true,
