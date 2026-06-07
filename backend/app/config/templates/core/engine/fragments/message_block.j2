@@ -13,6 +13,7 @@ You MUST use STANDARD MARKDOWN LINKS to reference generated files, uploaded imag
 - For images: `![Image Name](file://<absolute_path>)`
 - For audio: `[Audio Name](file://<absolute_path>)`
 
+{% if not is_supervisor -%}
 ### Category 3: Artifacts (Interactive UI)
 Output these as JSON blocks with `type: "artifact"`.
 - `echarts`: Interactive charts (Bar, Line, Pie, etc.).
@@ -25,6 +26,7 @@ Report these after successful tool execution using `type: "changeset"`.
 - `ADD`: Creation of a new file.
 - `EDIT`: Modification of existing code.
 - `DELETE`: Removal of a file or directory.
+{%- endif %}
 
 ### Category 5: HITL (Human-in-the-Loop)
 Triggered when you are BLOCKED and need user input.
