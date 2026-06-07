@@ -100,7 +100,12 @@ if [ "$DEV_MODE" = true ]; then
 else
   rustup target add "$ARCH" 2>/dev/null || true
   info "Building for distribution..."
-  LIBRARY_PATH="$PROJECT_ROOT/frontend/src-tauri/libs:$LIBRARY_PATH" EVOLOOP_BACKEND_PORT="$BACKEND_PORT" VITE_API_URL="$VITE_API_URL" npm run tauri build -- --target "$ARCH" || {
+  
+  export CPLUS_INCLUDE_PATH="$(xcrun --show-sdk-path)/usr/include/c++/v1"
+  export SOURCE_DATE_EPOCH=1
+  export CXXFLAGS_x86_64_apple_darwin="-D_LIBCPP_DISABLE_AVAILABILITY"
+
+  LIBRARY_PATH="$PROJECT_ROOT/frontend/src-tauri/libs:$LIBRARY_PATH" EVOLOOP_BACKEND_PORT="$BACKEND_PORT" VITE_API_URL="$VITE_API_URL" npm run tauri build -- --target "$ARCH" --bundles app || {
     warn "Tauri build failed, attempting manual bundling..."
   }
 
