@@ -41,7 +41,7 @@ async def move_file_task(src_path: str, dest_path: str, repo_id: int):
 
 
 @shared_task(name="run_full_indexing")
-def run_full_indexing_task(project_id: int, rebuild: bool = False):
+async def run_full_indexing_task(project_id: int, rebuild: bool = False):
     """
     Celery/Huey task to run full indexing in a background worker.
     """
@@ -52,25 +52,16 @@ def run_full_indexing_task(project_id: int, rebuild: bool = False):
 
     sys_tid = f"sys:{project_id}:indexing"
 
-    async def _monitored_execution():
-        try:
-            await activity_monitor.start_run(sys_tid, "Full Codebase Indexing")
-            await activity_monitor.update_agent_state(sys_tid, "Indexing", "Indexing Codebase", "Initializing...")
+    try:
+        await activity_monitor.start_run(sys_tid, "Full Codebase Indexing")
+        await activity_monitor.update_agent_state(sys_tid, "Indexing", "Indexing Codebase", "Initializing...")
 
-            # TODO: We should enhance trigger_full_index to accept a progress callback
-            await indexing_manager.trigger_full_index(project_id, rebuild)
+        # TODO: We should enhance trigger_full_index to accept a progress callback
+        await indexing_manager.trigger_full_index(project_id, rebuild)
 
-            await activity_monitor.end_run(sys_tid, "done")
-            logger.info(f"[Task] Full Indexing Completed for Project {project_id}")
+        await activity_monitor.end_run(sys_tid, "done")
+        logger.info(f"[Task] Full Indexing Completed for Project {project_id}")
 
-        except Exception as e:
-            logger.error(f"[Task] Indexing Task Failed: {e}")
-            await activity_monitor.end_run(sys_tid, "failed")
-
-    async def _run_with_flush():
-        try:
-            await _monitored_execution()
-        finally:
-            await flush_loop_bound_resources()
-
-    asyncio.run(_run_with_flush())
+    except Exception as e:
+        logger.error(f"[Task] Indexing Task Failed: {e}")
+        await activity_monitor.end_run(sys_tid, "failed")
