@@ -17,9 +17,9 @@ except ImportError:
 
 
 # Global environment for app/config/templates
-_CONFIG_TEMPLATE_DIR = os.path.join(
+_CONFIG_TEMPLATE_DIR = os.path.abspath(os.path.join(
     os.path.dirname(__file__), "..", "config", "templates"
-)
+))
 _config_env: "Environment | None" = None
 
 

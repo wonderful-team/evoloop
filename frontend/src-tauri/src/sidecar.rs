@@ -180,13 +180,14 @@ impl SidecarClient {
 
             log::info!("Starting sidecar from: {}", sidecar_path.display());
 
-            // Get app directories
-            let app_data_dir = app.path().app_data_dir()
-                .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+            // Get app directories (Aligning with Python backend's ~/.evoloop)
+            let home_dir = dirs::home_dir().ok_or("Failed to get home dir")?;
+            let app_data_dir = home_dir.join(".evoloop");
             let workspace_dir = app_data_dir.join("workspace");
-            let db_path = app_data_dir.join("backend.db");
+            let db_path = app_data_dir.join("database").join("backend.db");
 
             std::fs::create_dir_all(&workspace_dir).ok();
+            std::fs::create_dir_all(app_data_dir.join("database")).ok();
 
             std::process::Command::new(&sidecar_path)
                 .args(&["--host", "127.0.0.1", "--port", &BACKEND_PORT.to_string()])

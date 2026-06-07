@@ -93,6 +93,10 @@ if [ "$WITH_MODELS" = true ]; then
 fi
 
 step "Step 4: Building Tauri Application"
+export CPLUS_INCLUDE_PATH="$(xcrun --show-sdk-path)/usr/include/c++/v1"
+export SOURCE_DATE_EPOCH=1
+export CXXFLAGS_aarch64_apple_darwin="-D_LIBCPP_DISABLE_AVAILABILITY"
+
 if [ "$DEV_MODE" = true ]; then
   info "Starting dev server..."
   npm run tauri dev

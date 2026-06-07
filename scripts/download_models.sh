@@ -147,9 +147,14 @@ echo -e "${YELLOW}📦 Checking dependencies...${NC}"
 
 # Function to handle pip installs with uv fallback
 pip_install() {
+    local python_path="$PYTHON_CMD"
+    if [[ "$python_path" == "arch -arm64 "* ]]; then
+        python_path="${python_path#arch -arm64 }"
+    fi
+
     if command -v uv &> /dev/null; then
         if [ -n "$VIRTUAL_ENV" ] || [ -f "$PROJECT_ROOT/backend/.venv/pyvenv.cfg" ]; then
-            uv pip install --python "$PYTHON_CMD" "$@"
+            uv pip install --python "$python_path" "$@"
         else
             uv pip install --system "$@"
         fi

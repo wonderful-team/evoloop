@@ -29,11 +29,15 @@ async def prime_preferences(project_id: int | None = None) -> PreferenceContext:
         await MemoryLifespanManager.ainitialize()
     container = MemoryLifespanManager.get_container()
     manager = container.memory_manager
-    prefs_text = await manager.get_merged_preferences(
-        user_id=user_id,
-        project_id=project_id,
-    )
-    preferences = _parse_preferences(prefs_text)
+    try:
+        prefs_text = await manager.get_merged_preferences(
+            user_id=user_id,
+            project_id=project_id,
+        )
+        preferences = _parse_preferences(prefs_text)
+    except Exception as e:
+        logger.warning(f"Failed to retrieve preferences: {e}")
+        preferences = {}
 
     # Add language preference
     language = SystemConfigService.get_language_preference()
