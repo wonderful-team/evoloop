@@ -50,9 +50,9 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "resources/EvoLoop Backend.app": "EvoLoop Backend.app"
+      "resources/EvoLoop Backend.app": "EvoLoop Backend.app",
+      "models": "models"
     },
-
     "externalBin": [
       "binaries/evoloop-backend"
     ],
