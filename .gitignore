@@ -17,3 +17,4 @@ node_modules/
 /.github/
 /.claude/
 /.solidlsp/
+frontend/src-tauri/resources/*.app/
