@@ -1,4 +1,4 @@
-FROM python:3.10
+FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1
 
@@ -28,22 +28,18 @@ ENV UV_INDEX_URL="https://mirrors.aliyun.com/pypi/simple/"
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-install-project
+    uv sync --frozen --no-install-project --extra full
 
 ENV PYTHONPATH=/app
 
 COPY ./bin /app/bin
-COPY ./scripts /app/scripts
-
 COPY ./pyproject.toml ./uv.lock ./alembic.ini /app/
-
 COPY ./app /app/app
-COPY ./tests /app/tests
 
 # Sync the project
 # Ref: https://docs.astral.sh/uv/guides/integration/docker/#intermediate-layers
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync
+    uv sync --extra full
 
 # Use unified runner
 ENV WORKERS=4
