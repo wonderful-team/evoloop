@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback, memo, useRef } from "react"
+import { useMemo, useState, useEffect, useCallback, memo, useRef, forwardRef } from "react"
 import { useTranslation } from "react-i18next"
 import { Loader2, Layers, ChevronRight } from "lucide-react"
 import { motion } from "framer-motion"
@@ -131,12 +131,30 @@ export const MessageList = memo(function MessageList({
 }: MessageListProps) {
     const { t } = useTranslation()
     const messages = useChatStore(s => s.messages)
-
+    const scrollerRef = useRef<HTMLElement | null>(null)
     // Use refs to avoid stale closures in Virtuoso callbacks
     const callbacksRef = useRef({ hasMoreHistory, isLoadingHistory, loadMoreHistory })
     useEffect(() => {
         callbacksRef.current = { hasMoreHistory, isLoadingHistory, loadMoreHistory }
     })
+
+    // 自动加载探测：当停止加载且还有历史时，如果滚动条仍在顶部 20% 范围内，则继续触发加载
+    useEffect(() => {
+        if (!isLoadingHistory && hasMoreHistory) {
+            // 给 DOM 渲染一点时间，确保 scrollTop 和 scrollHeight 已经是最新的
+            const timer = setTimeout(() => {
+                const target = scrollerRef.current
+                if (target) {
+                    const { scrollTop, scrollHeight, clientHeight } = target
+                    const scrollableHeight = scrollHeight - clientHeight
+                    if (scrollableHeight > 0 && scrollTop / scrollableHeight <= 0.2) {
+                        loadMoreHistory?.()
+                    }
+                }
+            }, 50)
+            return () => clearTimeout(timer)
+        }
+    }, [isLoadingHistory, hasMoreHistory, loadMoreHistory])
 
     const handleFollowOutput = useCallback((isAtBottom: boolean) => {
         if (isLoadingHistory) return false
@@ -469,8 +487,17 @@ export const MessageList = memo(function MessageList({
             data={virtItems}
             itemContent={itemContent}
             followOutput={handleFollowOutput}
-            onScroll={handleScroll}
             components={{
+                Scroller: forwardRef((props, ref) => (
+                    <div {...props} ref={(node) => {
+                        if (typeof ref === 'function') ref(node)
+                        else if (ref) (ref as any).current = node
+                        scrollerRef.current = node
+                    }} onScroll={(e) => {
+                        props.onScroll?.(e as any)
+                        handleScroll(e as any)
+                    }} />
+                )),
                 Item: VirtuosoItem,
                 Header: () => (
                     <>

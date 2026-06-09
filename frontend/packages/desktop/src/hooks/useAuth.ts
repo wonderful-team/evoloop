@@ -33,11 +33,14 @@ const useAuth = () => {
     queryKey: ["currentUser"],
     queryFn: () => MemberService.readUserMe(),
     enabled: isLoggedIn(),
+    staleTime: 1000 * 60 * 2, // 2 minutes
   })
 
   const registerConfigQuery = useQuery({
     queryKey: ["registerConfig"],
     queryFn: () => AuthService.getRegisterConfig(),
+    enabled: !isLoggedIn(),
+    staleTime: Infinity, // config rarely changes
   })
 
   const signUpMutation = useMutation({

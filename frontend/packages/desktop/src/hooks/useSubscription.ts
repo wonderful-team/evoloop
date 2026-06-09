@@ -13,18 +13,21 @@ export const useSubscription = () => {
         queryKey: ["subscription", "status"],
         queryFn: () => SubscriptionService.getSubscriptionStatus(),
         refetchInterval: 30000, // Poll every 30s
+        staleTime: 30000,
     })
 
     const { data: detail, isLoading: isLoadingDetail } = useQuery({
         queryKey: ["subscription", "detail"],
         queryFn: () => SubscriptionService.getSubscriptionDetail(),
         enabled: !!status && (status as any).code === 0,
+        staleTime: 1000 * 60 * 2, // 2 minutes
     })
 
     // Query: Available Plans
     const { data: plans, isLoading: isLoadingPlans } = useQuery({
         queryKey: ["subscription", "plans"],
         queryFn: () => SubscriptionService.getSubscriptionPlans(),
+        staleTime: 1000 * 60 * 60, // 1 hour
     })
 
     // Query: AI Quota (统一配额池)
@@ -32,6 +35,7 @@ export const useSubscription = () => {
         queryKey: ["subscription", "quota"],
         queryFn: () => SubscriptionService.getAiQuota(),
         refetchInterval: 60000,
+        staleTime: 60000,
     })
 
     // Mutation: Create Order
