@@ -31,6 +31,21 @@ def _format_size(size: int) -> str:
         return f"{size / (1024 * 1024 * 1024):.1f}G"
 
 
+def _get_line_count(file_path: str, max_size: int = 1024 * 1024) -> int | None:
+    """Return line count for files under max_size, else None."""
+    try:
+        size = os.path.getsize(file_path)
+        if size == 0 or size > max_size:
+            return None
+        with open(file_path, "rb") as f:
+            if b"\x00" in f.read(4096):
+                return None
+        with open(file_path, "rb") as f:
+            return sum(1 for _ in f)
+    except Exception:
+        return None
+
+
 async def handle_list(
     path: str,
     tree: bool = False,
@@ -63,7 +78,12 @@ async def handle_list(
                 lines.append(f"{e.name}/")
             else:
                 size_str = f"  {_format_size(e.size)}" if stats else ""
-                lines.append(f"{e.name}{size_str}")
+                lines_str = ""
+                if stats and e.size <= 1024 * 1024:
+                    lc = _get_line_count(e.path)
+                    if lc is not None:
+                        lines_str = f" ({lc} lines)"
+                lines.append(f"{e.name}{size_str}{lines_str}")
 
         output = '\n'.join(lines[:max_entries])
 

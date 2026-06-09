@@ -63,7 +63,8 @@ def generate_tree(
         max_entries=max_entries,
         prefix=prefix,
         exclude_dirs=exclude_dirs,
-        _state=_state
+        _state=_state,
+        with_stats=with_stats
     )
 
 # ============================================================================

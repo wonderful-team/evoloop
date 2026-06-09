@@ -178,12 +178,14 @@ async def read_file(
     """
     Read the contents of a file.
     
-    ⚡ EFFICIENCY TIP: If you have line numbers from search results, ALWAYS
-       pass start_line and end_line to read only the relevant context
-       (e.g., target_line ± 30). Avoid reading the entire file unnecessarily.
+    ⚡ EFFICIENCY TIP: 
+       - If you need to read a specific small section, pass start_line and end_line.
+       - If you need to inspect many different parts of the same file, it is MUCH MORE EFFICIENT 
+         to make a SINGLE call reading a large continuous chunk (e.g. 1 to 1000) rather than 
+         making dozens of small read_file calls for individual functions or line ranges.
 
     Output Limit: Maximum 1000 lines per call.
-    For larger ranges, make multiple calls with specific line ranges.
+    For larger files, make multiple calls to read the next segment (e.g. 1001-2000).
 
     Important: When include_metadata=True (default), the output starts with a header like:
       [File: path | Lines X-Y of Z | Hash: abc123]

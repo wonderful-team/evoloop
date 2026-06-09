@@ -54,7 +54,8 @@ class TreeService:
         max_entries: int = 200,
         prefix: str = "",
         exclude_dirs: Optional[List[str]] = None,
-        _state: Optional[Dict] = None
+        _state: Optional[Dict] = None,
+        with_stats: bool = False,
     ) -> str:
         """
         Generate a compact text representation of the directory.
@@ -62,6 +63,24 @@ class TreeService:
         """
         if _state is None:
             _state = {"count": 0, "truncated": False}
+
+        # Helpers for stats
+        def _format_size(size: int) -> str:
+            if size < 1024: return f"{size}B"
+            elif size < 1024 * 1024: return f"{size / 1024:.1f}K"
+            elif size < 1024 * 1024 * 1024: return f"{size / (1024 * 1024):.1f}M"
+            else: return f"{size / (1024 * 1024 * 1024):.1f}G"
+
+        def _get_line_count(file_path: str, max_size: int = 1024 * 1024) -> Optional[int]:
+            try:
+                size = os.path.getsize(file_path)
+                if size == 0 or size > max_size: return None
+                with open(file_path, "rb") as f:
+                    if b"\x00" in f.read(4096): return None
+                with open(file_path, "rb") as f:
+                    return sum(1 for _ in f)
+            except Exception:
+                return None
 
         if not os.path.isdir(path):
             return f"Not a directory: {path}"
@@ -94,12 +113,25 @@ class TreeService:
                 child_prefix = f"{prefix}  "
                 if entry.is_dir():
                     subtree = TreeService.get_text_tree(
-                        entry.path, max_depth - 1, max_entries, child_prefix, exclude_dirs, _state
+                        entry.path, max_depth - 1, max_entries, child_prefix, exclude_dirs, _state, with_stats
                     )
                     result.extend(subtree.split("\n")[1:]) # Skip child root as we prefix it
                     result[-(len(subtree.split("\n"))-1)] = f"{child_prefix}{entry.name}/"
                 else:
-                    result.append(f"{child_prefix}{entry.name}")
+                    stat_str = ""
+                    if with_stats:
+                        try:
+                            st = entry.stat()
+                            size_str = f"  {_format_size(st.st_size)}"
+                            lines_str = ""
+                            if st.st_size <= 1024 * 1024:
+                                lc = _get_line_count(entry.path)
+                                if lc is not None:
+                                    lines_str = f" ({lc} lines)"
+                            stat_str = f"{size_str}{lines_str}"
+                        except Exception:
+                            pass
+                    result.append(f"{child_prefix}{entry.name}{stat_str}")
                     _state["count"] += 1
                     
         except Exception as e:
