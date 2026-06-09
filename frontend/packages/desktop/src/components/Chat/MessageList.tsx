@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect, useCallback, memo, useRef, forwardRef } f
 import { useTranslation } from "react-i18next"
 import { Loader2, Layers, ChevronRight } from "lucide-react"
 import { motion } from "framer-motion"
-import { Virtuoso } from "react-virtuoso"
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
     Collapsible,
@@ -132,11 +132,24 @@ export const MessageList = memo(function MessageList({
     const { t } = useTranslation()
     const messages = useChatStore(s => s.messages)
     const scrollerRef = useRef<HTMLElement | null>(null)
+    const virtuosoRef = useRef<VirtuosoHandle>(null)
     // Use refs to avoid stale closures in Virtuoso callbacks
     const callbacksRef = useRef({ hasMoreHistory, isLoadingHistory, loadMoreHistory })
     useEffect(() => {
         callbacksRef.current = { hasMoreHistory, isLoadingHistory, loadMoreHistory }
     })
+
+    // 监听用户强制滚到底部的事件 (比如发送新消息、点击重试)
+    useEffect(() => {
+        const handleScrollToBottom = () => {
+            // 给一点延迟，让消息渲染进 DOM 后再滚动
+            setTimeout(() => {
+                virtuosoRef.current?.scrollToIndex({ index: 'LAST', align: 'end', behavior: 'smooth' })
+            }, 50)
+        }
+        window.addEventListener('chat-scroll-to-bottom', handleScrollToBottom)
+        return () => window.removeEventListener('chat-scroll-to-bottom', handleScrollToBottom)
+    }, [])
 
     // 自动加载探测：当停止加载且还有历史时，如果滚动条仍在顶部 20% 范围内，则继续触发加载
     useEffect(() => {
@@ -483,6 +496,7 @@ export const MessageList = memo(function MessageList({
 
     return (
         <Virtuoso
+            ref={virtuosoRef}
             style={{ height: "100%" }}
             data={virtItems}
             itemContent={itemContent}

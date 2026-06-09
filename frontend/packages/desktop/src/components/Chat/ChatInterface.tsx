@@ -318,6 +318,10 @@ export function ChatInterface() {
   const handleSendMessage = useCallback(async (content: string, pickedFiles?: any[]) => {
     const isNewThread = useChatStore.getState().messages.length === 0
     await sendMessage(content, pickedFiles)
+    
+    // 发送消息后强制滚到底部
+    window.dispatchEvent(new CustomEvent('chat-scroll-to-bottom'))
+
     // If this was a new thread (first message), refresh the conversation list
     if (isNewThread && projectId !== undefined) {
       queryClient.invalidateQueries({ queryKey: ["projectConversations", projectId] })
@@ -444,6 +448,9 @@ export function ChatInterface() {
         const actualIndex = currentMessages.length - 1 - lastHumanIndex
         _truncateMessages(actualIndex + 1)
       }
+      
+      // 重试操作开始时，强制将焦点切到底部（用户消息处）
+      window.dispatchEvent(new CustomEvent('chat-scroll-to-bottom'))
     },
     // @ts-ignore
     onSuccess: (data: any) => {
