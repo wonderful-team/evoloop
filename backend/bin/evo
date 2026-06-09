@@ -264,20 +264,20 @@ case "${1:-help}" in
     dev)
         _cleanup_stuck_ports
         info "启动开发服务器 ($WORKERS Workers)..."
-        WORKERS=$WORKERS RELOAD=false .venv/bin/python bin/run.py api
+        ENVIRONMENT=local WORKERS=$WORKERS RELOAD=false .venv/bin/python bin/run.py api
         ;;
 
     worker)
         info "启动 Task Queue Worker ($WORKERS Workers)..."
         info "Backend: 根据 EMBEDDED_MODE 环境变量 (true→Huey / false→Celery)"
-        .venv/bin/python bin/run.py worker --workers=$WORKERS "${@:2}"
+        ENVIRONMENT=local .venv/bin/python bin/run.py worker --workers=$WORKERS "${@:2}"
         ;;
 
     beat)
         info "启动 Celery Beat（定时任务调度）..."
         echo " Beat 用于周期性任务调度（如定时清理、检查）"
         echo " 注意：Beat 只负责调度，任务执行仍需 Worker"
-        .venv/bin/celery -A app.infrastructure.queue.celery_app beat -l info
+        ENVIRONMENT=local .venv/bin/celery -A app.infrastructure.queue.celery_app beat -l info
         ;;
 
     start)
@@ -293,7 +293,7 @@ case "${1:-help}" in
             warning "API 服务已在运行"
         else
             info "启动 API 服务 ($WORKERS Workers)..."
-            WORKERS=$WORKERS nohup .venv/bin/python bin/run.py api > "$LOG_DIR/api.log" 2>&1 &
+            ENVIRONMENT=local WORKERS=$WORKERS nohup .venv/bin/python bin/run.py api > "$LOG_DIR/api.log" 2>&1 &
             echo $! > "$LOG_DIR/api.pid"
             sleep 2
             if pgrep -f "python bin/run.py api" > /dev/null; then
@@ -307,7 +307,7 @@ case "${1:-help}" in
             warning "Worker 服务已在运行"
         else
             info "启动 Worker 服务 ($WORKERS Workers)..."
-            nohup .venv/bin/python bin/run.py worker --workers=$WORKERS > "$LOG_DIR/worker.log" 2>&1 &
+            ENVIRONMENT=local nohup .venv/bin/python bin/run.py worker --workers=$WORKERS > "$LOG_DIR/worker.log" 2>&1 &
             echo $! > "$LOG_DIR/worker.pid"
             sleep 2
             if pgrep -f "python bin/run.py worker" > /dev/null; then
@@ -321,7 +321,7 @@ case "${1:-help}" in
             warning "Beat 服务已在运行"
         else
             info "启动 Beat 服务..."
-            nohup .venv/bin/celery -A app.infrastructure.queue.celery_app beat -l info > "$LOG_DIR/beat.log" 2>&1 &
+            ENVIRONMENT=local nohup .venv/bin/celery -A app.infrastructure.queue.celery_app beat -l info > "$LOG_DIR/beat.log" 2>&1 &
             echo $! > "$LOG_DIR/beat.pid"
             sleep 2
             if pgrep -f "celery.*beat" > /dev/null; then
