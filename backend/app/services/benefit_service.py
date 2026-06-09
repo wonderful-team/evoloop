@@ -1,10 +1,12 @@
 import logging
+import json
 import time
 from typing import Any
 
 from app.core.evocloud import evocloud_manager
 from app.core.events import SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
+from app.infrastructure.cache import cache
 
 logger = logging.getLogger(__name__)
 
@@ -19,13 +21,15 @@ class BenefitAuthHandler:
     async def on_user_logged_in(self, event):
         """Clear stale cache so next request fetches fresh entitlements."""
         logger.info("[BenefitService] User logged in, invalidating benefit cache...")
-        benefit_service.invalidate_cache()
+        member_id = getattr(event, "member_id", None)
+        await benefit_service.invalidate_cache(member_id)
 
     @event_subscribe(SystemEventType.USER_LOGGED_OUT)
     async def on_user_logged_out(self, event):
         """Clear all cached benefits on logout."""
         logger.info("[BenefitService] User logged out, clearing benefit cache...")
-        benefit_service.invalidate_cache()
+        member_id = getattr(event, "member_id", None)
+        await benefit_service.invalidate_cache(member_id)
 
 
 class BenefitService:
@@ -35,44 +39,49 @@ class BenefitService:
     """
 
     def __init__(self):
-        # Local TTL Cache for benefits to reduce cloud latency
-        # Cache structure: {member_id: (benefit_data, timestamp)}
-        self._cache: dict[int, tuple[dict[str, Any], float]] = {}
+        # Local cache is removed in favor of shared infrastructure cache
         # Benefit definitions (Labels/Desc)
         self._definitions: dict[str, dict[str, str]] = {}
-        self.CACHE_TTL = 60  # 60 seconds
+        self.CACHE_TTL = 120  # Changed to 2 minutes
 
-    def invalidate_cache(self, member_id: int = None):
+    async def invalidate_cache(self, member_id: int = None):
         """
-        Clear local cache for a member or all members.
+        Clear shared cache for a member.
         """
         if member_id:
-            if member_id in self._cache:
-                del self._cache[member_id]
-        else:
-            self._cache.clear()
-        self._definitions.clear()
+            await cache.delete(f"evoloop:benefits:{member_id}")
+        # Note: clearing all members is not easily supported in simple KV cache without scanning,
+        # but the only caller without member_id is global logout/login events which we can ignore
+        # or handle differently if needed.
 
     async def get_member_entitlements(self, member_id: int, token: str = None, force_refresh: bool = False) -> dict[str, Any]:
         """
         Fetch full entitlement set for a member from Member Center.
         """
+        cache_key = f"evoloop:benefits:{member_id}"
+
         # 0. Force refresh: invalidate cache first
         if force_refresh:
-            self.invalidate_cache(member_id)
+            await self.invalidate_cache(member_id)
 
-        # 1. Check local cache
-        if member_id in self._cache:
-            data, ts = self._cache[member_id]
-            if time.time() - ts < self.CACHE_TTL:
+        # 1. Check shared cache
+        cached_data_str = await cache.get(cache_key)
+        if cached_data_str:
+            try:
+                data = json.loads(cached_data_str)
+                defs = data.get("definitions", {})
+                if defs:
+                    self._definitions.update(defs)
                 return data
+            except json.JSONDecodeError:
+                pass
 
         # 2. Fetch from Cloud
         try:
-            res = await evocloud_manager.api.get_member_benefits()
+            res = await evocloud_manager.api.get_member_benefits(token=token)
             if res.get("code") == 0:
                 data = res.get("data", {})
-                self._cache[member_id] = (data, time.time())
+                await cache.set(cache_key, json.dumps(data), ex=self.CACHE_TTL)
                 
                 # Update global definitions cache
                 defs = data.get("definitions", {})

@@ -4,12 +4,12 @@ import time
 from app.core.config import settings
 from app.models.schemas.auth import LoginResult
 from .store import IdentityStore
+from app.infrastructure.cache import cache
 
 logger = logging.getLogger(__name__)
 
 # Token -> (member_id, timestamp) 本地缓存
-_token_member_cache: dict[str, tuple[int, float]] = {}
-TOKEN_CACHE_TTL = 300  # 5 minutes
+TOKEN_CACHE_TTL = 120  # 2 minutes
 MAX_CACHE_SIZE = 1000  # 防止内存泄漏
 
 
@@ -57,8 +57,10 @@ class IdentityService:
 
     async def logout(self):
         """Clears all local auth state."""
+        token = await self.store.get_access_token()
         await self.store.clear()
-        _token_member_cache.clear()
+        if token:
+            await cache.delete(f"evoloop:token_mid:{token}")
 
     async def get_access_token(self) -> str | None:
         """Retrieves the access token from cache-backed storage."""
@@ -77,12 +79,11 @@ class IdentityService:
         Resolve member_id from an access token with local caching.
         Falls back to Member Center API if not cached.
         """
-        # 1. Check local cache
-        cached = _token_member_cache.get(token)
-        if cached:
-            member_id, ts = cached
-            if time.time() - ts < TOKEN_CACHE_TTL:
-                return member_id
+        # 1. Check shared cache
+        cache_key = f"evoloop:token_mid:{token}"
+        cached_mid_str = await cache.get(cache_key)
+        if cached_mid_str:
+            return int(cached_mid_str)
 
         # 2. Validate against Member Center
         try:
@@ -93,15 +94,7 @@ class IdentityService:
                 member_id = data.get("member_id")
                 if member_id is not None:
                     mid = int(member_id)
-                    _token_member_cache[token] = (mid, time.time())
-
-                    # 缓存清理：超出上限时移除最旧的 50%
-                    if len(_token_member_cache) > MAX_CACHE_SIZE:
-                        sorted_items = sorted(
-                            _token_member_cache.items(), key=lambda x: x[1][1]
-                        )
-                        for i in range(len(sorted_items) // 2):
-                            del _token_member_cache[sorted_items[i][0]]
+                    await cache.set(cache_key, str(mid), ex=TOKEN_CACHE_TTL)
 
                     # Sync to store only if user changed (e.g. login on another device/client)
                     # or if the store is currently empty.
