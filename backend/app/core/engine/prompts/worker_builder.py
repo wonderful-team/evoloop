@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from app.constants import DEFAULT_PROJECT_ID
+from app.core.config import settings
 from app.core.context import ContextManager, plugin_registry
 from app.core.engine.state.blackboard import BlackboardState
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
@@ -91,6 +91,7 @@ class WorkerPromptBuilder:
             "project_id": ctx.project_id,
             "sys_info": sys_info,
             "sandbox_mode": mode,
+            "multi_tenant_mode": settings.MULTI_TENANT_MODE,
             "role_name": self.agent_config.role_name if self.agent_config else "Specialist",
             "instructions": self.agent_config.system_instructions if self.agent_config else "Execute the assigned task accurately.",
             "has_android": ctx.metadata.get("has_android", False),

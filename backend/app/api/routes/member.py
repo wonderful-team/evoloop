@@ -204,5 +204,5 @@ async def invalidate_member_benefits_cache(token: TokenDep) -> CacheInvalidateRe
     """
     手动使权益缓存失效（用于调试或强制刷新）
     """
-    benefit_service.invalidate_cache(await identity_service.get_member_id(token))
+    await benefit_service.invalidate_cache(await identity_service.get_member_id(token))
     return CacheInvalidateResponse(code=0, message="缓存已清除")

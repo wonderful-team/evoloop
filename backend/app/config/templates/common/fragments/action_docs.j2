@@ -11,7 +11,6 @@
 {% endif %}
 {% endmacro %}
 
-{# 完整的 action 文档（所有平台） #}
 {% macro action_docs_full(actions, default_actions="navigate, click, input, scroll, wait, screenshot, get_text, get_attribute, key_press") %}
 {% if actions %}
 {{ action_docs_by_platform(actions, "dom", "Web/DOM") }}

@@ -3,29 +3,21 @@ import logging
 import os
 import signal
 import time
+import re
 from typing import Any, Annotated, Optional
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 
 from app.constants import DEFAULT_PROJECT_ID
+from app.core.config import settings
 from app.core.context import ContextManager
 from app.core.tools import evoloop_tool, get_working_directory
 from app.core.tools.background import task_manager, TaskType, TaskStatus, CreateBackgroundTaskRequest
+from app.infrastructure.config import SystemConfigService
 from app.utils import ControllerResponse, SkillResponse, render_template
 
 logger = logging.getLogger(__name__)
-
-
-# Dangerous patterns that should be blocked
-_BLOCKED_PATTERNS = [
-    # Attempts to write to common system directories
-    "> /etc/", "> /usr/", "> /bin/", "> /sbin/", "> /lib",
-    # Attempts to modify system files
-    "rm -rf /", "rm -rf /*", "> ~/.bashrc", "> ~/.zshrc",
-    # Attempts to write outside workspace using relative escapes
-    ".. /", "../ /", 
-]
 
 
 def _is_dangerous_command(command: str) -> tuple[bool, str]:
@@ -34,28 +26,42 @@ def _is_dangerous_command(command: str) -> tuple[bool, str]:
     Returns (is_dangerous, reason).
     """
     cmd_lower = command.lower()
-    
-    for pattern in _BLOCKED_PATTERNS:
-        if pattern in cmd_lower:
-            return True, f"Command contains blocked pattern: {pattern}"
-    
-    # Check for attempts to write to Desktop, Documents, Downloads in global mode
-    # This prevents bypassing file write restrictions via shell redirection
-    ctx = ContextManager.current()
+
+    # 1. Block extremely dangerous operations via regex
+    # Block destructive rm on root or system directories
+    if re.search(r"rm\s+-r[f\s]*\s+/", cmd_lower):
+        return True, "Command contains blocked pattern: destructive rm on root."
+
+    # Block attempts to modify bashrc or zshrc
+    if re.search(r">\s*~/\.bashrc|>\s*~/\.zshrc", cmd_lower):
+        return True, "Command contains blocked pattern: modification of shell config."
+
+    # Block deep directory traversal
+    if "../.." in cmd_lower:
+        return True, "Command contains blocked pattern: deep directory traversal (../../)."
+
+    # 2. Check for shell redirection to user restricted paths
     home_dir = os.path.expanduser("~")
     restricted_dirs = [
         os.path.join(home_dir, "Desktop"),
         os.path.join(home_dir, "Documents"), 
-        os.path.join(home_dir, "Downloads"),
-        os.path.join(home_dir, "Desktop"),
+        os.path.join(home_dir, "Downloads")
     ]
-    
+
     # Check for shell redirection to restricted paths
     if ">" in command or ">>" in command:
         for restricted in restricted_dirs:
             if restricted in command or restricted.replace(home_dir, "~") in command:
                 return True, f"Cannot write to {restricted} using execute_command. Use write_file tool instead."
-    
+
+    # 3. Multi-Tenant Sandbox Isolations
+    if settings.MULTI_TENANT_MODE:
+        # Strict isolation: Any access to global system directories is forbidden
+        # This catches cat /etc/passwd, cp /var/log/syslog ., etc.
+        system_dirs_pattern = r"/(etc|root|var|boot|dev|sys|proc|sbin|lib)(/|$)"
+        if re.search(system_dirs_pattern, cmd_lower):
+            return True, "Path access blocked: System directories cannot be accessed in Multi-Tenant mode."
+
     return False, ""
 
 
@@ -80,8 +86,7 @@ async def _execute_command(command: str, config: RunnableConfig | None = None) -
 
     try:
         from app.core.execution import SandboxFactory
-        from app.infrastructure.config.service import SystemConfigService
-        
+
         # Determine working directory
         # In global mode, use WORKSPACE_ROOT to ensure commands run in a safe location
         ctx = ContextManager.current()

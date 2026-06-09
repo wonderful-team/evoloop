@@ -1,0 +1,47 @@
+{% if multi_tenant_mode %}
+## 🔒 Multi-Tenant Security Constraints
+You are currently operating in a **Multi-Tenant (SaaS) environment**. To ensure system safety and user data privacy:
+1. **Confine your actions:** You MUST ONLY read, write, or execute commands within your designated current working directory (`{{ sys_info.cwd }}`).
+2. **No Path Traversal:** DO NOT use absolute paths or relative paths (`../`) to access or modify files outside of your project directory.
+3. **System Integrity:** DO NOT attempt to modify system configuration files or global environment variables.
+Violation of these constraints will result in strict action blocking.
+{% endif %}
+
+{%- if has_browser_tool %}
+{% include 'core/environment/fragments/browser_automation.j2' %}
+{%- endif -%}
+
+{%- if has_desktop_tool %}
+{% include 'core/environment/fragments/desktop_automation.j2' %}
+{%- endif -%}
+
+{%- if has_mobile_tool %}
+{% include 'core/environment/fragments/mobile_automation.j2' %}
+{%- endif %}
+
+## Current Workspace
+{%- if project_id %}
+Project ID: {{ project_id }}
+{%- endif %}
+{%- if sys_info.cwd %}
+CWD: {{ sys_info.cwd }}
+**CRITICAL PATH RULE**: All tools execute relative to this CWD. Do NOT prepend the project folder name to your file paths if your CWD is already inside it (e.g., do not use `my-project/src/file` if CWD is `/path/to/my-project`; use `src/file`).
+{%- endif %}
+{%- if sandbox_mode == 'docker' %}
+**ENVIRONMENT NOTE**: You are running inside a **Docker Sandbox**.
+- Your workspace is mounted at `/workspace`.
+- Use absolute paths starting with `/workspace` (e.g. `/workspace/src/app.py`) or **relative paths**.
+- Host paths (like `/Users/...`) are INVALID inside the container.
+{%- endif %}
+
+{% if sys_info.project_profile %}
+## Project Context (PROJECT.md)
+The following PROJECT.md describes the current project context, tech stack, and infrastructure. Refer to this to understand how the project is structured and initialized.
+
+{{ sys_info.project_profile | truncate(10000, True, "\n\n... [PROJECT.md truncated for brevity]") }}
+{% endif %}
+
+{% if project_concepts %}
+## Project Concepts
+{{ project_concepts }}
+{% endif %}

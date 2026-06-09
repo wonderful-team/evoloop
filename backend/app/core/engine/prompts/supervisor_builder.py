@@ -10,7 +10,7 @@ from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 
-from app.constants import DEFAULT_PROJECT_ID
+from app.core.config import settings
 from app.core.engine.schemas import SupervisorContext
 from app.infrastructure.config.service import SystemConfigService
 from app.utils import render_template
@@ -57,6 +57,7 @@ class SupervisorPromptBuilder:
             "project_id": self.project_id,
             "user_lang": user_lang,
             "sandbox_mode": mode,
+            "multi_tenant_mode": settings.MULTI_TENANT_MODE,
             "sys_info": {
                 "cwd": actual_cwd,
                 "project_profile": project_profile,
