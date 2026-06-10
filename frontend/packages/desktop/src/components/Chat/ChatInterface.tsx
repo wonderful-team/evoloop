@@ -8,6 +8,7 @@ import {
   ConversationsService,
   MemoryService,
 } from "@/client"
+import { ChatConnection } from "@/lib/ChatConnection"
 import { isLoggedIn } from "@/hooks/useAuth"
 
 import {
@@ -428,6 +429,10 @@ export function ChatInterface() {
   // Retry Logic
   const retryMutation = useMutation({
     mutationFn: async ({ revertFiles, messageId }: { revertFiles: boolean; messageId?: string }) => {
+      // 发起动作前，兜底确保读通道 (SSE连接) 处于连通状态
+      if (activeThreadId) {
+        ChatConnection.getInstance().connect(activeThreadId);
+      }
       // @ts-ignore
       return AgentService.retryChat({
         requestBody: {

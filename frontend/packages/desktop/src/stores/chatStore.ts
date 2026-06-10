@@ -278,6 +278,11 @@ export const useChatStore = create<ChatState>((set, get) => {
         }))
 
         try {
+            // 发起动作前，兜底确保读通道 (SSE连接) 处于连通状态，防止后端重启或网络异常导致失联
+            if (threadId) {
+                ChatConnection.getInstance().connect(threadId);
+            }
+
             const res: any = await AgentService.chatEndpoint({
                 requestBody: {
                     thread_id: threadId || undefined,
