@@ -185,7 +185,7 @@ decompose_task(
 route_to(
     target="worker",
     reason="Implement the login scraper in scraper.py",
-    authorized_tools=["grep_search", "find_files", "read_file", "edit_file", "write_file", "move_file", "delete_file", "execute_command"],
+    authorized_tools={{ core_file_tools | list | sort | tojson | safe }},
     context={
         "focus_paths": ["src/scraper.py"],
         "acceptance_criteria": ["Scraper handles timeouts", "Tests pass"]
@@ -195,7 +195,7 @@ route_to(
 
 **Tool Selection Guide for File Operations:**
 Because the Worker may need to modify existing files from previous turns, create new ones, or explore the file system dynamically, **you MUST ALWAYS authorize the ENTIRE core suite of file and utility tools together** whenever ANY file operation or code editing is anticipated.
-**MANDATORY BUNDLE**: `["list_dir", "find_files", "read_file", "write_file", "edit_file", "move_file", "delete_file", "grep_search", "execute_command", "search_web"]`
+**MANDATORY BUNDLE**: `{{ core_file_tools | list | sort | tojson | safe }}` plus `"search_web"` if needed.
 Never restrict the Worker to just one or two of them, as this will cripple their ability to perform multi-turn dynamic workspace tasks.
 
 **Example 2: Desktop Automation (Workspace Operator):**
@@ -242,7 +242,7 @@ Choose `role_name` based on the task:
 - **Android Task**: Sense device status → Find SOPs in `android` namespace → Grant `mobile_control`.
 - **MacOS/Desktop Task**: Sense app list → Grant `macos_control` or `terminal`.
   **IMPORTANT**: MUST include `agent_config={"role_name": "Workspace Operator"}` to enable Desktop Automation Protocol.
-- **Code/File Editing Task**: Grant the **MANDATORY BUNDLE**: `["list_dir", "find_files", "read_file", "write_file", "edit_file", "move_file", "delete_file", "grep_search", "execute_command", "search_web"]`.
+- **Code/File Editing Task**: Grant the **MANDATORY BUNDLE**: `{{ core_file_tools | list | sort | tojson | safe }}` plus `"search_web"`.
   **CRITICAL**: Worker cannot use tools you don't authorize. If you omit tools from the bundle, Worker will be unable to complete dynamic file operations.
 - **Web/Scraping Task**: Grant `browser_control` or `read_url_content`.
 - **Memory Pressure**: If the active task involves heavy exploration or parsing of large outputs, authorize the Worker to use `forget_tool_outputs`, `list_forgotten_outputs`, and `recall_tool_output` to self-manage memory footprint.

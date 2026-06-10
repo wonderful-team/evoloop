@@ -11,6 +11,7 @@ from typing import Any
 from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
+from app.core.tools.registry import get_tool_bundle
 from app.core.engine.schemas import SupervisorContext
 from app.infrastructure.config.service import SystemConfigService
 from app.utils import render_template
@@ -62,6 +63,7 @@ class SupervisorPromptBuilder:
                 "cwd": actual_cwd,
                 "project_profile": project_profile,
             },
+            "core_file_tools": get_tool_bundle("core_file_tools"),
             "project_concepts": ctx.metadata.get("project_concepts", ""),
             "is_supervisor": True,
         }

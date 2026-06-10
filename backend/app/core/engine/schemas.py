@@ -75,6 +75,7 @@ class AgentGraphConfig(DynamicBaseModel):
     state_schema: str = "app.core.engine.state.AgentState"
     nodes: list[NodeConfig]
     edges: list[EdgeConfig]
+    tool_bundles: dict[str, list[str]] = Field(default_factory=dict)
     interrupt_before: list[str] = Field(default_factory=list)
     interrupt_after: list[str] = Field(default_factory=list)
 

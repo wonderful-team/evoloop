@@ -40,6 +40,7 @@ class AppEnvironmentPrompt:
 
             template_vars = {
                 "environment": ctx.environment_summaries, # Now contains raw data
+                "current_datetime": __import__("datetime").datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z"),
                 "memory_replay": ctx.memory_replay,
                 "spatial_awareness": ctx.spatial_awareness,
                 "boundaries": ctx.active_boundaries,
@@ -54,7 +55,7 @@ class AppEnvironmentPrompt:
                 "ctx": ctx,  # Pass full context for working_directory access
             }
 
-            return render_template("core/engine/awakening.prompt.j2", **template_vars)
+            return render_template("core/environment/awakening.prompt.j2", **template_vars)
 
         except Exception as e:
             logger.error(f"Failed to render environment block: {e}")

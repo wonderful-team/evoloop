@@ -7,7 +7,6 @@ exposing the underlying cache implementation details.
 
 import json
 import logging
-import time
 from typing import Any
 
 from pydantic import Field
@@ -155,15 +154,6 @@ class ActivityState(DynamicBaseModel):
     active_memories: list[dict] = Field(default_factory=list)
     human_request: dict | None = None
     final_outcome: str = ""
-
-
-# ---------------------------------------------------------------------------
-# In-process cancellation check cache
-# ---------------------------------------------------------------------------
-# Stores {thread_id: (is_stopping: bool, monotonic_ts: float)}
-# TTL is intentionally short (2 s) so users see Stop take effect quickly.
-_cancel_cache: dict[str, tuple[bool, float]] = {}
-_CANCEL_CACHE_TTL: float = 2.0  # seconds
 
 
 class ActivityStateService:
@@ -327,33 +317,15 @@ class ActivityStateService:
             if activity is None:
                 return False
             activity.status = "stopping"
-        # Eagerly update the in-process cache so check_cancellation returns
-        # True immediately on the same process without waiting for the TTL.
-        _cancel_cache[thread_id] = (True, time.monotonic())
         return True
 
     async def check_cancellation(self, thread_id: str) -> bool:
-        """Check if run is marked for stopping.
-
-        Uses a short in-process TTL cache to avoid a DB round-trip on every
-        ReAct step. The cache is invalidated eagerly by signal_stop().
-        """
-        now = time.monotonic()
-        cached = _cancel_cache.get(thread_id)
-        if cached is not None:
-            is_stopping, ts = cached
-            if now - ts < _CANCEL_CACHE_TTL:
-                return is_stopping
-
-        # Cache miss or expired — query the DB
+        """Check if run is marked for stopping."""
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:
                 return False
-            is_stopping = activity.status == "stopping"
-
-        _cancel_cache[thread_id] = (is_stopping, now)
-        return is_stopping
+            return activity.status == "stopping"
 
     async def set_interrupted(self, thread_id: str, reason: str = "awaiting_human_input") -> bool:
         """Mark run as interrupted."""

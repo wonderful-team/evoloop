@@ -82,16 +82,16 @@ async def _persist_file_operation_task(
         session.add(op)
         logger.info(f"[Celery] Persisted file operation for {file_path}")
 
-        # --- [Phase 2] 同步到消息标准化引用并触发实时更新 ---
-        from app.core.engine.message.repository import MessageRepository
-        repo = MessageRepository(thread_id=thread_id)
-        await repo.sync_changeset_reference(
-            message_id=message_id,
-            file_path=file_path,
-            operation=operation,
-            run_id=run_id,
-            tool_call_id=tool_call_id
-        )
+    # --- [Phase 2] 同步到消息标准化引用并触发实时更新 ---
+    from app.core.engine.message.repository import MessageRepository
+    repo = MessageRepository(thread_id=thread_id)
+    await repo.sync_changeset_reference(
+        message_id=message_id,
+        file_path=file_path,
+        operation=operation,
+        run_id=run_id,
+        tool_call_id=tool_call_id
+    )
 
 
 @shared_task(name="engine_persist_file_operation")
@@ -443,38 +443,47 @@ async def run_autonomous_task_execution(task_id: int, project_id: int | None = N
             if not skill:
                 raise ValueError(f"Skill {task.skill_id} for task {task_id} not found.")
 
-            thread_id = f"auton-{task_id}-{int(time.time())}"
+            intent_description = task.intent_description
+            skill_name = skill.name
+            skill_id = skill.id
 
-            from app.utils import render_template
-            prompt = render_template(
-                "core/engine/tasks/autonomous_task.prompt.j2",
-                intent_description=task.intent_description,
-                skill_name=skill.name,
-                skill_id=skill.id,
-                device_id=device_id
-            )
+        thread_id = f"auton-{task_id}-{int(time.time())}"
 
-            # 2. Trigger Unified Dispatcher
-            from app.core.engine.dispatch import dispatch_agent_run
-            result = await dispatch_agent_run(
-                thread_id=thread_id,
-                message_content=prompt,
-                project_id=project_id if project_id is not None else DEFAULT_PROJECT_ID,
-                goal_prefix="[Autonomous Task] ",
-                metadata={
-                    "autonomous_task_id": task_id,
-                    "source_skill_id": skill.id,
-                    "device_id": device_id  
-                }
-            )
+        from app.utils import render_template
+        prompt = render_template(
+            "core/engine/tasks/autonomous_task.prompt.j2",
+            intent_description=intent_description,
+            skill_name=skill_name,
+            skill_id=skill_id,
+            device_id=device_id
+        )
 
-            if result.status == "failed":
-                raise RuntimeError(f"Dispatch failed for task {task_id}: {result.error}")
+        # 2. Trigger Unified Dispatcher
+        from app.core.engine.dispatch import dispatch_agent_run
+        result = await dispatch_agent_run(
+            thread_id=thread_id,
+            message_content=prompt,
+            project_id=project_id if project_id is not None else DEFAULT_PROJECT_ID,
+            goal_prefix="[Autonomous Task] ",
+            metadata={
+                "autonomous_task_id": task_id,
+                "source_skill_id": skill_id,
+                "device_id": device_id  
+            }
+        )
 
-            logger.info(f"[Celery] Starting autonomous agent for task {task_id} on {device_id}")
-            task.consecutive_failures = 0
-            if result.inputs:
-                await run_agent_background(thread_id, result.inputs)
+        if result.status == "failed":
+            raise RuntimeError(f"Dispatch failed for task {task_id}: {result.error}")
+
+        logger.info(f"[Celery] Starting autonomous agent for task {task_id} on {device_id}")
+
+        async with session_scope() as session:
+            task = await session.get(AutonomousTask, task_id)
+            if task:
+                task.consecutive_failures = 0
+
+        if result.inputs:
+            await run_agent_background(thread_id, result.inputs)
     finally:
         await DevicePool.release_device(device_id, task_id=f"task-{task_id}")
 

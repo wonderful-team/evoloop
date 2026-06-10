@@ -1,5 +1,6 @@
 {% if environment -%}
 ## ENVIRONMENT AWARENESS
+- **Current Time**: {{ current_datetime }}
 
 {% if environment.macos -%}
 - Host: {{ environment.macos.model }} ({{ environment.macos.cpu }}), macOS {{ environment.macos.os_version }}

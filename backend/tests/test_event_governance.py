@@ -44,7 +44,6 @@ async def test_scenario_1_session_lifecycle():
         
         # Trigger Bridge
         await bridge.handle_event(event)
-        await asyncio.sleep(0.01)
         
         # Verify
         found = False
@@ -82,7 +81,6 @@ async def test_scenario_2_background_tasks():
         output="Hello World"
     )
     await bridge.handle_event(output_event)
-    await asyncio.sleep(0.01)
     
     # Verify
     updates = [m for m in mock_transport.published_messages if m["message"].get("type") == "task_started"]
@@ -111,7 +109,6 @@ async def test_scenario_3_hitl_interaction():
         request_type="confirm"
     )
     await bridge.handle_event(event)
-    await asyncio.sleep(0.01)
     
     found = any(m["message"].get("type") == "human_request" for m in mock_transport.published_messages)
     assert found
@@ -135,7 +132,6 @@ async def test_scenario_4_error_handling():
         message="Please top up"
     )
     await bridge.handle_event(event)
-    await asyncio.sleep(0.01)
     
     found = any(m["message"].get("type") == "quota_exhausted" for m in mock_transport.published_messages)
     assert found

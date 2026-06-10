@@ -49,20 +49,16 @@ def route_to(
         session_goal: Optional session-level goal to establish or refine the active goal on the UI.
     """
     target_val = target.value
-
-    MANDATORY_FILE_TOOLS = {
-        "list_dir", "find_files", "read_file", "write_file", 
-        "edit_file", "move_file", "delete_file", "grep_search", 
-        "execute_command", "search_web"
-    }
+    from app.core.tools.registry import get_tool_bundle
+    mandatory_basic_tools = set(get_tool_bundle("core_file_tools") + ["search_web"])
 
     ctx = context or RoutingContext()
     context_dict = ctx.model_dump()
     if authorized_tools:
         # If any file operation tool is requested, ensure the entire bundle is granted
         # to prevent the Worker from being constrained during multi-turn dynamic tasks.
-        if bool(set(authorized_tools) & MANDATORY_FILE_TOOLS):
-            for tool in MANDATORY_FILE_TOOLS:
+        if bool(set(authorized_tools) & mandatory_basic_tools):
+            for tool in mandatory_basic_tools:
                 if tool not in authorized_tools:
                     authorized_tools.append(tool)
                     

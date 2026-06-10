@@ -64,12 +64,6 @@ class MessageHandler:
         self.last_persisted_message_id: str | None = None
         self.last_persisted_sequence: int = 0
 
-        # In-memory cache for the most recently persisted message ID.
-        # Used as parent_id for the *next* message so we avoid a DB round-trip
-        # on every handle_ai_message / handle_tool_start call.
-        # Set to None initially so the first call falls back to get_last_message_id().
-        self._last_known_parent_id: str | None = None
-
         # Delegated components
         self._repository = MessageRepository(thread_id, project_id, run_id)
         self._deduplicator = MessageDeduplicator()
@@ -121,7 +115,7 @@ class MessageHandler:
         msg_id = message_id
         seq = 0
 
-        effective_parent_id = parent_id or self._last_known_parent_id or await self._repository.get_last_message_id()
+        effective_parent_id = parent_id or await self._repository.get_last_message_id()
 
         if persist_data.should_persist:
             # --- [Phase 2] 自动提取 AI 产出物引用 ---
@@ -189,8 +183,6 @@ class MessageHandler:
 
         self.last_persisted_message_id = msg_id
         self.last_persisted_sequence = seq
-        if msg_id:
-            self._last_known_parent_id = msg_id
         return MessageHandlerResult(
             category=category.value,
             persisted=persist_data.should_persist,
@@ -228,7 +220,7 @@ class MessageHandler:
         message_id = None
         seq = 0
 
-        effective_parent_id = parent_id or self._last_known_parent_id or await self._repository.get_last_message_id()
+        effective_parent_id = parent_id or await self._repository.get_last_message_id()
 
         # Apply persistence policy
         if category.should_persist_to_db:
@@ -271,8 +263,6 @@ class MessageHandler:
         logger.info(
             f"[MessageHandler] Tool start tracked: {tool_name} (seq={seq}, hidden={is_hidden})"
         )
-        if message_id:
-            self._last_known_parent_id = message_id
         return MessageHandlerResult(
             category=category.value,
             persisted=category.should_persist_to_db,

@@ -25,7 +25,6 @@ async def handle_write(
     action: str,
     path: str,
     content: str | None = None,
-    overwrite: bool = False,
     config: RunnableConfig | None = None,
 ) -> str:
     """Handle file write operation using core.file module."""
@@ -39,12 +38,11 @@ async def handle_write(
         op_type = "ADD"
         
         if os.path.exists(target_path):
-            if action == "create" and not overwrite:
+            if action == "create":
                 return (
                     f"Error: File '{path}' already exists. "
-                    "This tool can only create NEW files by default. To overwrite an existing file, "
-                    "pass overwrite=True. To modify or append to an existing file, "
-                    "use the edit_file tool (e.g. edit_file(path, append='...')). "
+                    "This tool can only create NEW files. To modify or append to an existing file, "
+                    "use the edit_file tool."
                 )
             # If overwrite is True and file exists, read original content for Rewind
             from app.core.file.verification import safe_read_with_hash
@@ -99,14 +97,13 @@ async def handle_write(
 async def write_file(
     path: str,
     content: str,
-    overwrite: bool = False,
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
-    Create a new file. Pass overwrite=True to replace an existing file.
+    Create a new file.
     
-    For targeted modifications to existing files, prefer edit_file instead,
-    as it preserves unchanged content and has better error recovery.
+    For targeted modifications to existing files or to overwrite an existing file, 
+    use the edit_file tool instead, as it preserves unchanged content and has better error recovery.
 
     Args:
         path: Target file path. **REQUIRED**
@@ -114,11 +111,9 @@ async def write_file(
                  Must contain ONLY the real file text. Do NOT include metadata
                  headers (e.g. [File: ... | Lines ... | Hash: ...]) from
                  read_file output.
-        overwrite: Set to True to allow overwriting an existing file.
 
     Examples:
         write_file(path="src/main.py", content="print('hello')")  # Create new
-        write_file(path="src/main.py", content="print('hello')", overwrite=True)  # Overwrite
     """
     if not path or content is None:
         return (
@@ -133,6 +128,5 @@ async def write_file(
         action="create",
         path=path,
         content=content,
-        overwrite=overwrite,
         config=config,
     )

@@ -41,7 +41,13 @@ async def stream_chat(thread_id: str):
         pubsub = None
 
         try:
-            # 1. Bootstrap: Send Initial Full State (once)
+            # 1. Subscribe to cache channel FIRST to prevent missing events
+            pubsub = cache.pubsub()
+            channel = f"chat:{thread_id}:events"
+            await pubsub.subscribe(channel)
+            logger.info(f"[SSE] Subscribed to Pub/Sub channel: {channel}")
+
+            # 2. Bootstrap: Send Initial Full State (once)
             try:
                 activity = await activity_monitor.get_activity(thread_id)
                 logger.debug(f"[SSE] Fetched initial activity for {thread_id}")
@@ -59,12 +65,6 @@ async def stream_chat(thread_id: str):
 
                 if snapshot.get("human_request"):
                     yield f"event: human_request\ndata: {json.dumps(snapshot['human_request'])}\n\n"
-
-            # 2. Subscribe to cache channel
-            pubsub = cache.pubsub()
-            channel = f"chat:{thread_id}:events"
-            await pubsub.subscribe(channel)
-            logger.info(f"[SSE] Subscribed to Pub/Sub channel: {channel}")
 
             # 3. Stream Events (incremental)
             reconnect_attempts = 0

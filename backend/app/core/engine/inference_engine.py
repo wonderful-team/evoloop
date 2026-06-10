@@ -415,12 +415,7 @@ class InferenceEngine:
             )
             thread_id = config.get("configurable", {}).get("thread_id")
             run_id = config.get("configurable", {}).get("run_id")
-            # Check cancellation every N steps rather than every step.
-            # ActivityStateService.check_cancellation already has a 2-second
-            # in-process TTL cache, so individual calls are cheap, but
-            # skipping redundant calls further reduces overhead for fast loops.
-            _CANCEL_CHECK_CADENCE = 3
-            if thread_id and i % _CANCEL_CHECK_CADENCE == 0:
+            if thread_id:
                 await activity_monitor.check_cancellation(thread_id)
 
             loop_messages, _ = await self._prepare_turn_context(
