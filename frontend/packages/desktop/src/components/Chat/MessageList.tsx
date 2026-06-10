@@ -118,6 +118,70 @@ const TurnStepsGroupView = memo(function TurnStepsGroupView({
 
 import { useChatStore } from "@/stores/chatStore"
 
+// --- Static Virtuoso Components ---
+const VirtuosoScroller = forwardRef((props: any, ref: any) => {
+    const { scrollerRef, handleScroll } = props.context || {}
+    return (
+        <div {...props} ref={(node) => {
+            if (typeof ref === 'function') ref(node)
+            else if (ref) (ref as any).current = node
+            if (scrollerRef) scrollerRef.current = node
+        }} onScroll={(e) => {
+            props.onScroll?.(e as any)
+            if (handleScroll) handleScroll(e as any)
+        }} />
+    )
+})
+VirtuosoScroller.displayName = "VirtuosoScroller"
+
+const VirtuosoItem = memo(({ children, ...props }: any) => (
+    <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.2 }}
+        {...props}
+    >
+        {children}
+    </motion.div>
+))
+VirtuosoItem.displayName = "VirtuosoItem"
+
+const VirtuosoHeader = ({ context }: any) => {
+    const { isLoadingHistory, hasMoreHistory, messagesLength, t } = context || {}
+    return (
+        <>
+            {isLoadingHistory && (
+                <div className="py-4 text-center text-muted-foreground">
+                    <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
+                    <span className="text-xs">{t ? t("chat.loadingHistory") : "Loading..."}</span>
+                </div>
+            )}
+            {hasMoreHistory && !isLoadingHistory && messagesLength > 0 && (
+                <div className="py-3 text-center text-muted-foreground/50 text-xs">
+                    {t ? t("chat.scrollToLoadMore") : "Scroll for more"}
+                </div>
+            )}
+        </>
+    )
+}
+
+const VirtuosoFooter = ({ context }: any) => {
+    const { footer } = context || {}
+    return (
+        <div className="pb-2 px-3 sm:px-5 lg:px-6">
+            {footer}
+        </div>
+    )
+}
+
+const STATIC_COMPONENTS = {
+    Scroller: VirtuosoScroller,
+    Item: VirtuosoItem,
+    Header: VirtuosoHeader,
+    Footer: VirtuosoFooter,
+}
+// ------------------------------------
+
 export const MessageList = memo(function MessageList({
     hasMoreHistory = false,
     isLoadingHistory = false,
@@ -443,16 +507,15 @@ export const MessageList = memo(function MessageList({
         }).filter(Boolean) as VirtItem[]
     }, [renderItems, messages.length])
 
-    const VirtuosoItem = useCallback(({ children, ...props }: any) => (
-        <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.2 }}
-            {...props}
-        >
-            {children}
-        </motion.div>
-    ), [])
+    const virtuosoContext = useMemo(() => ({
+        scrollerRef,
+        handleScroll,
+        isLoadingHistory,
+        hasMoreHistory,
+        messagesLength: messages.length,
+        t,
+        footer,
+    }), [handleScroll, isLoadingHistory, hasMoreHistory, messages.length, t, footer])
 
     const itemContent = useCallback((_index: number, item: VirtItem) => {
         if (item.type === "message" && item.data) {
@@ -501,39 +564,8 @@ export const MessageList = memo(function MessageList({
             data={virtItems}
             itemContent={itemContent}
             followOutput={handleFollowOutput}
-            components={{
-                Scroller: forwardRef((props, ref) => (
-                    <div {...props} ref={(node) => {
-                        if (typeof ref === 'function') ref(node)
-                        else if (ref) (ref as any).current = node
-                        scrollerRef.current = node
-                    }} onScroll={(e) => {
-                        props.onScroll?.(e as any)
-                        handleScroll(e as any)
-                    }} />
-                )),
-                Item: VirtuosoItem,
-                Header: () => (
-                    <>
-                        {isLoadingHistory && (
-                            <div className="py-4 text-center text-muted-foreground">
-                                <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
-                                <span className="text-xs">{t("chat.loadingHistory")}</span>
-                            </div>
-                        )}
-                        {hasMoreHistory && !isLoadingHistory && messages.length > 0 && (
-                            <div className="py-3 text-center text-muted-foreground/50 text-xs">
-                                {t("chat.scrollToLoadMore")}
-                            </div>
-                        )}
-                    </>
-                ),
-                Footer: () => (
-                    <div className="pb-2 px-3 sm:px-5 lg:px-6">
-                        {footer}
-                    </div>
-                ),
-            }}
+            components={STATIC_COMPONENTS}
+            context={virtuosoContext}
         />
     )
 })
