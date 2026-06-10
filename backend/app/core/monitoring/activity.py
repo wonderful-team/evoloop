@@ -5,6 +5,7 @@ Provides real-time state management and event publishing for agent runs.
 Uses ActivityStateService for state persistence and Cache for Pub/Sub.
 """
 
+import asyncio
 import json
 import logging
 import time
@@ -284,16 +285,26 @@ class ActivityMonitor:
 
         await self._state_service.update_agent_state(thread_id, state.model_dump())
 
-        # Publish internal Event
-        await system_bus.publish(
-            AgentStateEvent(
-                thread_id=thread_id,
-                mode=mode,
-                task_name=task_name,
-                task_status=task_status,
-                active_skills=active_skills
+        # Publish internal Event asynchronously
+        task = asyncio.create_task(
+            system_bus.publish(
+                AgentStateEvent(
+                    thread_id=thread_id,
+                    mode=mode,
+                    task_name=task_name,
+                    task_status=task_status,
+                    active_skills=active_skills
+                )
             )
         )
+
+        def _done_callback(t: asyncio.Task) -> None:
+            try:
+                t.result()
+            except Exception as e:
+                logger.error(f"[ActivityMonitor] Error publishing AgentStateEvent asynchronously: {e}", exc_info=True)
+
+        task.add_done_callback(_done_callback)
 
     async def log_event(self, event_type: str, data: dict[str, Any], thread_id: str = "system"):
         """Generic event logger for system and session events."""

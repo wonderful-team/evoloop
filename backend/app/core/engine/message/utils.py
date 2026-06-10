@@ -236,6 +236,8 @@ def estimate_message_tokens(msg: BaseMessage) -> int:
     Estimate token count for a single message including structural overhead.
 
     Uses the unified chars // 4 heuristic from app.utils.token.estimate_tokens.
+    Result is cached on the message object itself via a ``_token_est`` attribute
+    so repeated calls within the same ReAct step are O(1) instead of O(N).
 
     Args:
         msg: A LangChain message.
@@ -243,12 +245,26 @@ def estimate_message_tokens(msg: BaseMessage) -> int:
     Returns:
         Estimated token count.
     """
+    # Fast path: return cached value if already computed for this message instance
+    cached = object.__getattribute__(msg, "__dict__").get("_token_est")
+    if cached is not None:
+        return cached
+
     text = get_message_text(msg)
     base = estimate_tokens(text)
     overhead = 4  # role, name, etc.
     if isinstance(msg, AIMessage) and msg.tool_calls:
         overhead += 8  # tool_calls have extra overhead
-    return base + overhead
+    result = base + overhead
+
+    # Store on instance — LangChain BaseMessage is a Pydantic v2 model so we
+    # bypass validation by writing directly into __dict__.
+    try:
+        object.__getattribute__(msg, "__dict__")["_token_est"] = result
+    except (AttributeError, TypeError):
+        pass  # Immutable / frozen model — skip caching, no harm done
+
+    return result
 
 
 def count_total_tokens(messages: list[BaseMessage]) -> int:

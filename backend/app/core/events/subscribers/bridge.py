@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import json
 from app.core.events.base import BaseEvent
@@ -56,17 +57,26 @@ class UniversalBridgeSubscriber:
             # Fallback to system events or global notifications
             target_channel = "system:events"
 
-        try:
-            # Standardized payload conversion via BaseEvent's method
-            payload = event.to_frontend_payload()
-            
-            # Publish to external EventBus (Redis/PubSub)
-            # Use app.utils.json for robust serialization of domain objects (messages, etc)
-            from app.utils import json as utils_json
-            bus = get_event_bus()
-            await bus.publish(target_channel, utils_json.dumps(payload, ensure_ascii=False))
-            
-            logger.debug(f"[UniversalBridge] Bridged {event_type} -> {target_channel}")
-        except Exception as e:
-            logger.warning(f"[UniversalBridge] Failed to bridge event {event_type}: {e}")
+        # Create a background task for bridge publish to avoid blocking internal handlers
+        task = asyncio.create_task(self._publish_to_bus(target_channel, event, event_type))
+
+        def _done_callback(t: asyncio.Task) -> None:
+            try:
+                t.result()
+            except Exception as e:
+                logger.warning(f"[UniversalBridge] Failed to bridge event {event_type} in background: {e}")
+
+        task.add_done_callback(_done_callback)
+
+    async def _publish_to_bus(self, target_channel: str, event: BaseEvent, event_type: str) -> None:
+        # Standardized payload conversion via BaseEvent's method
+        payload = event.to_frontend_payload()
+        
+        # Publish to external EventBus (Redis/PubSub)
+        # Use app.utils.json for robust serialization of domain objects (messages, etc)
+        from app.utils import json as utils_json
+        bus = get_event_bus()
+        await bus.publish(target_channel, utils_json.dumps(payload, ensure_ascii=False))
+        
+        logger.debug(f"[UniversalBridge] Bridged {event_type} -> {target_channel}")
 
