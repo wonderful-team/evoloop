@@ -71,10 +71,10 @@ const TurnStepsGroupView = memo(function TurnStepsGroupView({
     onViewChangeset?: (messageId: string | number, path?: string) => void
 }) {
     const { t } = useTranslation()
-    const [isOpen, setIsOpen] = useState(!!isTurnActive)
+    const [isOpen, setIsOpen] = useState(isTurnActive || false)
 
     useEffect(() => {
-        setIsOpen(!!isTurnActive)
+        setIsOpen(isTurnActive || false)
     }, [isTurnActive])
 
     return (
@@ -208,8 +208,12 @@ export const MessageList = memo(function MessageList({
         const handleScrollToBottom = () => {
             // 给一点延迟，让消息渲染进 DOM 后再滚动
             setTimeout(() => {
-                virtuosoRef.current?.scrollToIndex({ index: 'LAST', align: 'end', behavior: 'smooth' })
+                virtuosoRef.current?.scrollToIndex({ index: 'LAST', align: 'end', behavior: 'auto' })
             }, 50)
+            // 兜底再次触发，防止流式消息刚刚建立时的尺寸突变
+            setTimeout(() => {
+                virtuosoRef.current?.scrollToIndex({ index: 'LAST', align: 'end', behavior: 'auto' })
+            }, 200)
         }
         window.addEventListener('chat-scroll-to-bottom', handleScrollToBottom)
         return () => window.removeEventListener('chat-scroll-to-bottom', handleScrollToBottom)
