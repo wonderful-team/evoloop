@@ -3,7 +3,6 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import BackgroundFetch from 'react-native-background-fetch';
 import { api } from '@/services/api/client';
 
 const LAST_CHECK_TIME_KEY = '@evoloop_last_check_time';
@@ -78,6 +77,10 @@ async function checkNewMessages(): Promise<boolean> {
 
 // 显示本地通知
 async function showNotification(title: string, body: string): Promise<void> {
+  if (Platform.OS === 'harmony') {
+    console.log('[BackgroundTask] Local notification on HarmonyOS is delegated to native Push Kit.');
+    return;
+  }
   try {
     // 使用 @notifee/react-native 显示通知
     const notifee = require('@notifee/react-native').default;
@@ -126,16 +129,23 @@ async function backgroundTaskHandler(taskId: string): Promise<void> {
     await AsyncStorage.setItem(LAST_CHECK_TIME_KEY, String(Date.now()));
 
     // 完成任务
+    const BackgroundFetch = require('react-native-background-fetch').default;
     BackgroundFetch.finish(taskId);
   } catch (error) {
     console.error('[BackgroundTask] Task error:', error);
+    const BackgroundFetch = require('react-native-background-fetch').default;
     BackgroundFetch.finish(taskId);
   }
 }
 
 // 配置后台任务
 export async function initBackgroundTask(): Promise<void> {
+  if (Platform.OS === 'harmony') {
+    console.log('[BackgroundTask] BackgroundFetch not supported on HarmonyOS, skipping configuration.');
+    return;
+  }
   try {
+    const BackgroundFetch = require('react-native-background-fetch').default;
     // 配置后台获取
     await BackgroundFetch.configure(
       {
@@ -165,7 +175,11 @@ export async function initBackgroundTask(): Promise<void> {
 
 // 停止后台任务
 export async function stopBackgroundTask(): Promise<void> {
+  if (Platform.OS === 'harmony') {
+    return;
+  }
   try {
+    const BackgroundFetch = require('react-native-background-fetch').default;
     await BackgroundFetch.stop();
     console.log('[BackgroundTask] Stopped');
   } catch (error) {

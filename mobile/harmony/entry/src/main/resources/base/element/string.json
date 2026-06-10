@@ -1,0 +1,32 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": ""
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": ""
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "EvoLoopMobile"
+    },
+    {
+      "name": "microphone_reason",
+      "value": "此应用需要访问麦克风以进行语音对话或录音。"
+    },
+    {
+      "name": "camera_reason",
+      "value": "此应用需要访问相机以进行拍照或拍摄视频。"
+    },
+    {
+      "name": "read_imagevideo_reason",
+      "value": "此应用需要访问相册以选取照片或视频。"
+    },
+    {
+      "name": "write_imagevideo_reason",
+      "value": "此应用需要向您的相册保存录制的视频或拍摄的照片。"
+    }
+  ]
+}

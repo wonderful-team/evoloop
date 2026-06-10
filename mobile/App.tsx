@@ -1,19 +1,26 @@
 import 'react-native-gesture-handler';
 import React, { useEffect, useState } from 'react';
-import { LogBox, View, ActivityIndicator } from 'react-native';
+import { LogBox, View, ActivityIndicator, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PaperProvider } from 'react-native-paper';
-import notifee from '@notifee/react-native';
 import './src/locales'; // 初始化 i18n
 
-// 注册 Notifee 前台服务（唤醒词后台监听必需）
-notifee.registerForegroundService(() => {
-  return new Promise(() => {
-    // 保持服务运行，直到调用 notifee.stopForegroundService()
-  });
-});
+// 注册 Notifee 前台服务（唤醒词后台监听必需，非鸿蒙平台适用）
+if (Platform.OS !== 'harmony') {
+  try {
+    const notifee = require('@notifee/react-native').default;
+    notifee.registerForegroundService(() => {
+      return new Promise(() => {
+        // 保持服务运行，直到调用 notifee.stopForegroundService()
+      });
+    });
+  } catch (e) {
+    console.error('[App] Failed to register Notifee foreground service:', e);
+  }
+}
+
 import { ToastProvider } from './src/contexts/ToastContext';
 import RootNavigator from './src/navigation';
 import { navigationRef } from './src/utils/navigation';
@@ -42,7 +49,19 @@ function App(): React.JSX.Element {
 
         // 初始化通知权限
         console.log('[App] Initializing notifications...');
-        await notifee.requestPermission();
+        if (Platform.OS === 'harmony') {
+          const EvoLoopDevice = require('./src/services/device/EvoLoopDevice').default;
+          await EvoLoopDevice.requestNotificationPermission();
+          const pushToken = await EvoLoopDevice.getPushToken();
+          console.log('[App] HarmonyOS Push Token:', pushToken);
+        } else {
+          try {
+            const notifee = require('@notifee/react-native').default;
+            await notifee.requestPermission();
+          } catch (e) {
+            console.error('[App] Failed to request Notifee permission:', e);
+          }
+        }
 
         // 初始化后台轮询任务
         console.log('[App] Initializing background task...');

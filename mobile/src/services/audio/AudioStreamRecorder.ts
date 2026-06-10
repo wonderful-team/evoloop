@@ -1,8 +1,10 @@
 // 实时音频流录制器 - 使用 react-native-live-audio-stream 实现原生流式录制
 import LiveAudioStream from 'react-native-live-audio-stream';
 import { Buffer } from 'buffer';
-import { Platform, PermissionsAndroid } from 'react-native';
+import { Platform, PermissionsAndroid, TurboModuleRegistry, DeviceEventEmitter } from 'react-native';
 import i18n from '@/locales';
+
+const HarmonyAudioStream = Platform.OS === 'harmony' ? TurboModuleRegistry.get('RNLiveAudioStream') : null;
 
 export interface AudioStreamConfig {
   sampleRate?: number;    // 16000 或 8000
@@ -34,17 +36,14 @@ export class AudioStreamRecorder {
 
     // 初始化流
     const options = {
-      sampleRate: this.config.sampleRate,
-      channels: this.config.channelConfig,
+      sampleRate: this.config.sampleRate ?? 16000,
+      channels: this.config.channelConfig ?? 1,
       bitsPerSample: 16,
       audioSource: 6, // 语音助手/录音源
       bufferSize: 4096,
     };
 
-    LiveAudioStream.init(options);
-
-    // 设置回调
-    LiveAudioStream.on('data', (data: string) => {
+    const handleData = (data: string) => {
       // data 是 base64 字符串
       const chunk = Buffer.from(data, 'base64');
       const uint8Array = new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
@@ -56,7 +55,17 @@ export class AudioStreamRecorder {
         const volume = this.calculateRMS(uint8Array);
         this.callbacks.onVolumeChange(volume);
       }
-    });
+    };
+
+    if (Platform.OS === 'harmony') {
+      if (HarmonyAudioStream) {
+        HarmonyAudioStream.init(options);
+        DeviceEventEmitter.addListener('data', handleData);
+      }
+    } else {
+      LiveAudioStream.init(options);
+      LiveAudioStream.on('data', handleData);
+    }
   }
 
   // 计算音量 (RMS 模型)
@@ -86,7 +95,7 @@ export class AudioStreamRecorder {
         return false;
       }
     }
-    return true; // iOS 通过 Info.plist 处理
+    return true; // iOS 和 HarmonyOS 在原生层或配置文件中处理
   }
 
   // 开始录制
@@ -99,7 +108,11 @@ export class AudioStreamRecorder {
         throw new Error(i18n.t('audio.errors.noPermission'));
       }
 
-      LiveAudioStream.start();
+      if (Platform.OS === 'harmony') {
+        HarmonyAudioStream?.start();
+      } else {
+        LiveAudioStream.start();
+      }
       this.isRecording = true;
       console.log('✅ 原生音频流录制已开始');
     } catch (error) {
@@ -114,7 +127,11 @@ export class AudioStreamRecorder {
     if (!this.isRecording) return;
 
     try {
-      LiveAudioStream.stop();
+      if (Platform.OS === 'harmony') {
+        HarmonyAudioStream?.stop();
+      } else {
+        LiveAudioStream.stop();
+      }
       this.isRecording = false;
       console.log('✅ 原生音频流录制已停止');
     } catch (error) {
