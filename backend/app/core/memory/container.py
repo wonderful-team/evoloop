@@ -8,7 +8,6 @@ receive their dependencies via constructor injection.
 
 import logging
 
-from app.core.memory.auto_extraction import AutoMemoryExtractor
 from app.core.memory.config import MemoryConfig
 from app.core.memory.manager import MemoryManager
 from app.core.memory.short_term import SqlShortTermMemory
@@ -49,7 +48,6 @@ class MemoryContainer:
         self._quality: MemoryQualityAnalyzer | None = None
         self._state_tracker: MemoryStateTracker | None = None
         self._two_tier: TwoTierMemoryManager | None = None
-        self._auto_extractor: AutoMemoryExtractor | None = None
         self._manager: MemoryManager | None = None
 
     async def initialize(self) -> None:
@@ -183,13 +181,3 @@ class MemoryContainer:
                 config=self.config,
             )
         return self._two_tier
-
-    @property
-    def auto_extractor(self) -> AutoMemoryExtractor:
-        """Get auto memory extractor (lazy)."""
-        if self._auto_extractor is None:
-            self._auto_extractor = AutoMemoryExtractor(
-                memory_manager=self.memory_manager,
-                config=self.config,
-            )
-        return self._auto_extractor

@@ -1,4 +1,22 @@
-{% import "common/fragments/list_renderer.j2" as list %}
+{% macro render_list(items, title=none, bullet="-") %}
+{% if title %}{{ title }}
+{% endif %}
+{% for item in items %}
+{{ bullet }} {{ item }}
+{% endfor %}
+{% if not items %}
+(None found)
+{% endif %}
+{% endmacro %}
+
+{% macro render_kv_list(data, title=none) %}
+{% if title %}{{ title }}
+{% endif %}
+{% for k, v in data.items() %}
+- **{{ k }}**: {{ v }}
+{% endfor %}
+{% endmacro %}
+
 
 {% if type == "links" %}
 ### Found {{ items|length }} links
@@ -18,19 +36,19 @@
 {% endif %}
 {% elif type == "devices" %}
 ### Connected Devices ({{ items|length }})
-{{ list.render_list(items) }}
+{{ render_list(items) }}
 {% elif type == "extractions" %}
 ### Extracted Data
-{{ list.render_kv_list(items) }}
+{{ render_kv_list(items) }}
 {% elif type == "tools_used" %}
 ### Tools Used ({{ items|length }})
-{{ list.render_list(items) }}
+{{ render_list(items) }}
 {% elif type == "wiki_pages" %}
 ### Wiki Pages ({{ items|length }})
-{{ list.render_list(items) }}
+{{ render_list(items) }}
 {% elif type == "android_devices" %}
 ### Android Devices ({{ items|length }})
-{{ list.render_list(items) }}
+{{ render_list(items) }}
 {% elif type == "ui_elements" %}
 ### UI Elements ({{ items[:max_items] | length }})
 {% for el in items[:max_items] %}

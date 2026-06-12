@@ -7,17 +7,12 @@ from app.core.engine.state.blackboard import BlackboardState
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.utils import render_template
 
-from .utils import (
-    get_mapped_cwd,
-    get_sandbox_mode,
-    read_project_profile,
-    to_template_context,
-)
+from .base_builder import BasePromptBuilder
 
 logger = logging.getLogger(__name__)
 
 
-class WorkerPromptBuilder:
+class WorkerPromptBuilder(BasePromptBuilder):
     """
     Constructs the system prompt for dynamic, ephemeral sub-agents via Jinja2.
     """
@@ -50,16 +45,16 @@ class WorkerPromptBuilder:
         ctx = ContextManager.current()
         plugin_registry.hydrate_context(ctx)
 
-        mode = get_sandbox_mode()
+        mode = self.get_sandbox_mode()
 
         # Read PROJECT.md if exists (static for the session)
-        project_profile = read_project_profile(ctx.working_directory, "[WorkerPrompt]")
+        project_profile = self.read_project_profile(ctx.working_directory, "[WorkerPrompt]")
 
         # Static Sys Info (Project identity only)
         sys_info = {
             "project_concepts": ctx.metadata.get("project_concepts", ""),
             "project_profile": project_profile,
-            "cwd": get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", "")),
+            "cwd": self.get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", "")),
         }
 
         # Protocol flags based on authorized tools (Static for the node)
@@ -101,9 +96,12 @@ class WorkerPromptBuilder:
             "has_browser_tool": has_browser_tool,
             "has_wiki_tools": has_wiki_tools,
             "has_interactive_charts": has_interactive_charts,
+            "user_lang": self.get_user_lang(),
+            "user_preferences": ctx.metadata.get("user_preferences", {}),
+            "has_file_operations": True,
         }
 
-        return render_template("core/engine/worker.prompt.j2", **to_template_context(template_vars))
+        return render_template("core/engine/worker.prompt.j2", **self.to_template_context(template_vars))
 
     def build_mission_message(
         self,
@@ -148,7 +146,7 @@ class WorkerPromptBuilder:
             "historical_context": self.ticket.historical_context if self.ticket else None,
             "referenced_tech": self.ticket.referenced_tech if self.ticket else None,
         }
-        return render_template("core/engine/fragments/worker_mission_ticket.j2", **to_template_context(template_vars))
+        return render_template("core/engine/fragments/worker_mission_ticket.j2", **self.to_template_context(template_vars))
 
     def _prepare_knowledge_blocks(self) -> list[str]:
         """

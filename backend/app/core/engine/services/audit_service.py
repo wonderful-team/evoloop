@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import re
@@ -20,7 +19,6 @@ from app.core.engine.message.reasoning import extract_tool_calls
 from app.core.engine.state import AgentState
 from app.core.engine.state.blackboard import BlackboardState, VerificationStatus
 from app.core.environment import get_awakened_state
-from app.infrastructure.config import SystemConfigService
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
@@ -120,7 +118,7 @@ class AuditService:
             return AuditResult(summary=summary, meta={"duration_ms": 10})
 
         from app.core.config import settings
-        from app.core.engine.prompts import FinishPromptBuilder
+        from app.core.engine.nodes.prompts import FinishPromptBuilder
 
         start = time.time()
 

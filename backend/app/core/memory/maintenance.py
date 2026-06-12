@@ -33,10 +33,6 @@ class MemoryMaintenanceAgent:
         self.thread_id = f"maint_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         self.log_file = Path(settings.BRAIN_MEMORY_ROOT) / ".maintenance"
 
-        # Load prompt template from config/templates/memory/
-        template_path = Path(__file__).parent.parent.parent / "config" / "templates" / "core" / "memory" / "maintenance.j2"
-        self.prompt_template = Template(template_path.read_text(encoding="utf-8"))
-
     async def run(self):
         """Execute maintenance."""
         start_time = datetime.utcnow()
@@ -175,24 +171,33 @@ class MaintenanceScheduler:
 
 
 # Daily scheduled task: 2:00 AM
-@periodic_task(cron="0 2 * * *", name="memory_maintenance")
-def scheduled_memory_maintenance():
-    """
-    Daily maintenance check at 2:00 AM.
-    
-    Checks if maintenance is needed (3+ days or 100+ memories).
-    If needed, runs the maintenance agent.
-    """
-    async def _run():
-        try:
-            scheduler = MaintenanceScheduler()
-            result = await scheduler.run()
-            return {"triggered": result is not None}
-        except Exception as e:
-            logger.error(f"[Maintenance] Scheduled task failed: {e}")
-            return {"triggered": False, "error": str(e)}
+# DISABLED by default — set MEMORY_MAINTENANCE_ENABLED=True in settings to enable.
+# Reason: run_maintenance() triggers irreversible semantic pruning of the memory store.
+_MAINTENANCE_ENABLED = getattr(settings, 'MEMORY_MAINTENANCE_ENABLED', False)
 
-    return asyncio.run(_run())
+if _MAINTENANCE_ENABLED:
+    @periodic_task(cron="0 2 * * *", name="memory_maintenance")
+    def scheduled_memory_maintenance():
+        """
+        Daily maintenance check at 2:00 AM.
+
+        Checks if maintenance is needed (3+ days or 100+ memories).
+        If needed, runs the maintenance agent.
+
+        Enable via: MEMORY_MAINTENANCE_ENABLED=True in settings.
+        """
+        async def _run():
+            try:
+                scheduler = MaintenanceScheduler()
+                result = await scheduler.run()
+                return {"triggered": result is not None}
+            except Exception as e:
+                logger.error(f"[Maintenance] Scheduled task failed: {e}")
+                return {"triggered": False, "error": str(e)}
+
+        return asyncio.run(_run())
+else:
+    logger.debug("[Maintenance] Scheduled memory maintenance is DISABLED. Set MEMORY_MAINTENANCE_ENABLED=True to enable.")
 
 
 # Convenience functions for manual trigger / CLI

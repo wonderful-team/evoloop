@@ -82,11 +82,9 @@ class MemoryManager:
             logger.info(f"MemoryManager: Initialized with MemoryStore ({mode} mode)")
 
         # Services (use storage directly)
-        from app.core.memory.auto_extraction import AutoMemoryExtractor
         from app.core.memory.pruning import MemoryPruningService
         from app.core.memory.quality import MemoryQualityAnalyzer
 
-        self.extraction = AutoMemoryExtractor(self, config=self.config)
         self.pruning = MemoryPruningService(self._storage)
         self.retrieval = MemoryRetriever(self._storage, config=self.config)
         self.quality = MemoryQualityAnalyzer(self._storage, config=self.config)
@@ -195,7 +193,6 @@ class MemoryManager:
     ) -> None:
         """
         Store a domain concept.
-        Delegates to specialized storage if available, otherwise falls back to MemoryEntry.
         """
         # Normalize input to Concept model
         if isinstance(concept, str):
@@ -208,12 +205,6 @@ class MemoryManager:
         else:
             concept_obj = concept
 
-        # 1. Try specialized storage (e.g., Neo4j)
-        if hasattr(self._storage, "store_concept"):
-            await self._storage.store_concept(concept_obj)
-            return
-
-        # 2. Fallback: Save as standard MemoryEntry
         entry = MemoryEntry(
             id=f"concept_{concept_obj.name.lower().replace(' ', '_')}",
             type=MemoryType.CONCEPT,
@@ -230,14 +221,7 @@ class MemoryManager:
     async def search_concepts(self, query: str, project_id: int | None = None, limit: int = 10, member_id: int = 0) -> list[Concept]:
         """
         Search for domain concepts.
-        Delegates to specialized storage if available, otherwise falls back to semantic search.
         """
-        # 1. Try specialized storage (e.g., Neo4j)
-        if hasattr(self._storage, "search_concepts"):
-            results = await self._storage.search_concepts(query, project_id)
-            return [Concept(name=r.name, description=r.description, related_files=r.files) for r in results[:limit]]
-
-        # 2. Fallback: Search MemoryEntries
         entries = await self.search_memories(
             query=query,
             types=[MemoryType.CONCEPT],
@@ -251,48 +235,30 @@ class MemoryManager:
         """
         Search for domain concepts and return raw data.
         """
-        if hasattr(self._storage, "search_concepts_data"):
-            return await self._storage.search_concepts_data(query, project_id)
-        
         concepts = await self.search_concepts(query, project_id, limit, member_id)
         return [{"name": c.name, "description": c.description, "project_id": c.project_id} for c in concepts]
 
     async def get_project_concepts(self, project_id: int) -> list[str]:
         """Get all concepts for a project as formatted strings."""
-        # 1. Try specialized storage
-        if hasattr(self._storage, "get_project_concepts"):
-            return await self._storage.get_project_concepts(project_id)
-
-        # 2. Fallback
         results = await self.list_memories(type_filter=MemoryType.CONCEPT, limit=100)
         return [f"{m.title}: {m.description}" for m in results]
 
     async def find_episodes_by_concept(self, concept_name: str, project_id: int | None = None, limit: int = 10, member_id: int = 0) -> list[dict]:
         """Find all episodes linked to a specific concept."""
-        if hasattr(self._storage, "find_episodes_by_concept"):
-            return await self._storage.find_episodes_by_concept(concept_name, limit)
         return []
 
     async def get_concept_episode_counts_batch(self, project_id: int | None = None, member_id: int = 0) -> dict[str, int]:
         """Efficiently get counts for all concepts in one go."""
-        if hasattr(self._storage, "get_all_concept_counts"):
-            return await self._storage.get_all_concept_counts()
         return {}
 
     # ========================================================================
-    # Episode Recording (Refactored per USER Decision)
+    # Episode Recording
     # ========================================================================
 
     async def record_episode(self, episode: Episode) -> str:
         """
         Record a task episode.
-        Delegates to specialized storage if available, otherwise falls back to a MemoryEntry.
         """
-        # 1. Try specialized storage
-        if hasattr(self._storage, "record_episode"):
-            return await self._storage.record_episode(episode)
-
-        # 2. Fallback: Save as MemoryEntry
         import uuid
         source_message_id = episode.source_message_id
         project_id = episode.project_id
@@ -320,11 +286,6 @@ class MemoryManager:
 
     async def search_episodes(self, query: str, project_id: int | None = None, limit: int = 5, member_id: int = 0) -> list[dict]:
         """Search for execution episodes."""
-        # 1. Try specialized storage (using retrieve_experience conceptually)
-        if hasattr(self._storage, "search_episodes"):
-            return await self._storage.search_episodes(query, project_id, limit=limit)
-
-        # 2. Fallback to text search
         results = await self.search_memories(
             query=query,
             types=[MemoryType.EPISODE],
@@ -341,10 +302,6 @@ class MemoryManager:
 
     async def retrieve_experience(self, goal: str, project_id: int, top_k: int = 3, member_id: int = 0) -> str:
         """Find past episodes similar to the current goal."""
-        if hasattr(self._storage, "retrieve_experience"):
-            return await self._storage.retrieve_experience(goal, project_id, top_k=top_k)
-        
-        # Fallback to simple episode search and formatting
         episodes = await self.search_episodes(goal, project_id, limit=top_k, member_id=member_id)
         if not episodes:
             return ""
@@ -357,10 +314,7 @@ class MemoryManager:
         return "\n".join(lines)
 
     async def get_directory_info(self, project_id: int, path: str) -> dict:
-        """Retrieve architectural summary for a directory (graph backend only)."""
-        if hasattr(self._storage, "get_directory_info"):
-            return await self._storage.get_directory_info(project_id, path)
-        
+        """Retrieve architectural summary for a directory."""
         return {
             "path": path,
             "summary": "No summary available (Directory not indexed or graph backend not configured).",
@@ -395,18 +349,6 @@ class MemoryManager:
             Memory entry or None if not found
         """
         return await self._storage.get(entry_id)
-
-    async def delete_memory(self, entry_id: str) -> bool:
-        """
-        Delete a memory entry.
-
-        Args:
-            entry_id: Memory entry ID to delete
-
-        Returns:
-            True if deleted, False if not found
-        """
-        return await self._storage.delete(entry_id)
 
     async def search_memories(
         self,
@@ -591,34 +533,11 @@ class MemoryManager:
             )
 
     # ========================================================================
-    # Extraction Operations
+    # Extraction Operations  
     # ========================================================================
-
-    async def extract_memories(
-        self,
-        thread_id: str,
-        messages: list[BaseMessage],
-        project_id: int | None = None,
-        user_id: str | None = None,
-    ) -> list[MemoryEntry]:
-        """
-        Automatically extract memories from a conversation.
-        
-        Args:
-            thread_id: Conversation thread ID
-            messages: List of conversation messages
-            project_id: Associated project ID
-            user_id: User ID
-            
-        Returns:
-            List of extracted memory entries
-        """
-        return await self.extraction.maybe_extract(
-            thread_id=thread_id,
-            messages=messages,
-            project_id=project_id,
-            user_id=user_id,
-        )
+    # NOTE: Memory extraction is handled by the event bus pipeline:
+    #   AuditService → EXTRACTION_REQUESTED event → subscribers.py → save_memory()
+    # The AutoMemoryExtractor (auto_extraction.py) has been removed as dead code.
 
     async def run_maintenance(self, project_id: int | None = None, force: bool = False) -> dict:
         """

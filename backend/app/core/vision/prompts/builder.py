@@ -11,10 +11,18 @@ class VisionPromptBuilder:
     Builder for Vision-related prompts via Jinja2.
     """
 
+    def build(self) -> str:
+        """Fallback implementation returning UI analysis prompt."""
+        return self.build_ui_analysis_prompt()
+
+    def get_user_lang(self) -> str:
+        """Helper to get user's language preference."""
+        return SystemConfigService.get_language_preference()
+
     def build_ui_analysis_prompt(self) -> str:
         template_vars = {
             "mode": "ui_analysis",
-            "user_lang": SystemConfigService.get_language_preference()
+            "user_lang": self.get_user_lang()
         }
         return self._render(template_vars)
 
@@ -22,7 +30,7 @@ class VisionPromptBuilder:
         template_vars = {
             "mode": "locate",
             "element": element,
-            "user_lang": SystemConfigService.get_language_preference()
+            "user_lang": self.get_user_lang()
         }
         return self._render(template_vars)
 
@@ -30,7 +38,7 @@ class VisionPromptBuilder:
         template_vars = {
             "mode": "compare",
             "focus_instruction": focus_instruction,
-            "user_lang": SystemConfigService.get_language_preference()
+            "user_lang": self.get_user_lang()
         }
         return self._render(template_vars)
 

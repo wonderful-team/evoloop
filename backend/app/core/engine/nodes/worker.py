@@ -13,7 +13,7 @@ from app.core.engine.nodes.base import BaseAgentNode
 from app.core.engine.nodes.utils.focus_file_hydrator import FocusFileHydrator
 from app.core.engine.nodes.utils.skill_resolver import SkillResolver
 from app.core.engine.nodes.utils.worker_result_processor import process_worker_result
-from app.core.engine.prompts import WorkerPromptBuilder
+from app.core.engine.nodes.prompts import WorkerPromptBuilder
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.schemas import EngineResult
 from app.core.engine.skill_hydrator import SkillHydrator
@@ -117,7 +117,7 @@ class WorkerNode(BaseAgentNode):
         static_system_prompt = await prompt_builder.build(config)
 
         # 2. Dynamic Mission (Turn-based context)
-        from app.core.engine.prompts.utils import get_mapped_cwd
+        from app.core.engine.nodes.utils.node_utils import get_mapped_cwd
         actual_cwd = get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", ""))
 
         from app.core.environment import get_awakened_state

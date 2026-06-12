@@ -136,19 +136,19 @@ try:
     from app.infrastructure.queue.factory import shared_task
 
     @shared_task(name="app.core.vision.cleanup_screenshots")
-    def cleanup_screenshots_task(dry_run: bool = False) -> ScreenshotCleanupResult:
+    def cleanup_screenshots_task(dry_run: bool = False) -> dict:
         """Background task for periodic screenshot cleanup."""
-        return cleanup_screenshots(dry_run=dry_run)
+        return cleanup_screenshots(dry_run=dry_run).model_dump()
 
     @shared_task(name="app.core.vision.cleanup_screen_recordings")
-    def cleanup_screen_recordings_task(dry_run: bool = False) -> RecordingCleanupResult:
+    def cleanup_screen_recordings_task(dry_run: bool = False) -> dict:
         """Background task for periodic screen recording cleanup."""
-        return cleanup_screen_recordings(dry_run=dry_run)
+        return cleanup_screen_recordings(dry_run=dry_run).model_dump()
 
     @shared_task(name="app.core.vision.cleanup_all_storage")
-    def cleanup_all_storage_task(dry_run: bool = False) -> CombinedCleanupResult:
+    def cleanup_all_storage_task(dry_run: bool = False) -> dict:
         """Background task for periodic cleanup of all storage."""
-        return cleanup_all(dry_run=dry_run)
+        return cleanup_all(dry_run=dry_run).model_dump()
 
 except ImportError:
     logger.debug("[StorageCleanup] Task scheduler not available, tasks not registered")

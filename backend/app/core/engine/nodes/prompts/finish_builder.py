@@ -3,13 +3,13 @@ import logging
 
 from app.core.engine.state.blackboard import BlackboardState, VerificationStatus
 from app.core.engine.state.config import ExecutionTicket
-from app.infrastructure.config.service import SystemConfigService
 from app.utils import render_template
+from .base_builder import BasePromptBuilder
 
 logger = logging.getLogger(__name__)
 
 
-class FinishPromptBuilder:
+class FinishPromptBuilder(BasePromptBuilder):
     """
     Constructs the system prompt for the Session Reviewer agent via Jinja2.
     """
@@ -39,20 +39,19 @@ class FinishPromptBuilder:
         """Builds the STATIC Reviewer system prompt."""
         try:
             from app.core.context.manager import ContextManager
-            from app.core.engine.prompts.utils import get_mapped_cwd, get_sandbox_mode, read_project_profile
             
             ctx = ContextManager.current()
-            mode = get_sandbox_mode()
-            project_profile = read_project_profile(ctx.working_directory, "[FinishPrompt]")
+            mode = self.get_sandbox_mode()
+            project_profile = self.read_project_profile(ctx.working_directory, "[FinishPrompt]")
             
             sys_info = {
                 "project_concepts": ctx.metadata.get("project_concepts", ""),
                 "project_profile": project_profile,
-                "cwd": get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", "")),
+                "cwd": self.get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", "")),
             }
             
             template_vars = {
-                "user_lang": SystemConfigService.get_language_preference(),
+                "user_lang": self.get_user_lang(),
                 "project_id": self.project_id,
                 "iteration_count": self.iteration_count,
                 "audit_context": self.action_context,
@@ -92,14 +91,3 @@ class FinishPromptBuilder:
             "telemetry": self.telemetry,
         }
         return render_template("core/engine/fragments/finish_audit_ticket.j2", **template_vars)
-
-    def build_standard_prompt(self, last_content: str, tool_usage: list[str]) -> str:
-        """Builds the lightweight standard audit prompt."""
-        template_vars = {
-            "blackboard": {
-                "ticket": self.execution_ticket,
-            },
-            "tools": tool_usage,
-            "last_content": last_content,
-        }
-        return render_template("core/engine/standard_audit.prompt.j2", **template_vars)

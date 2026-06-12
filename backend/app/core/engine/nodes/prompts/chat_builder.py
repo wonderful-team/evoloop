@@ -1,14 +1,12 @@
 import logging
 
-from app.infrastructure.config.service import SystemConfigService
 from app.utils import render_template
-
-from .utils import read_project_profile
+from .base_builder import BasePromptBuilder
 
 logger = logging.getLogger(__name__)
 
 
-class ChatPromptBuilder:
+class ChatPromptBuilder(BasePromptBuilder):
     """
     Builder for Chat node prompts via Jinja2.
     """
@@ -20,7 +18,7 @@ class ChatPromptBuilder:
         ctx = ContextManager.current()
         plugin_registry.hydrate_context(ctx)
 
-        project_profile = read_project_profile(ctx.working_directory, "[ChatPrompt]")
+        project_profile = self.read_project_profile(ctx.working_directory, "[ChatPrompt]")
 
         sys_info = {
             "cwd": ctx.working_directory,
@@ -28,7 +26,7 @@ class ChatPromptBuilder:
         }
 
         template_vars = {
-            "user_lang": SystemConfigService.get_language_preference(),
+            "user_lang": self.get_user_lang(),
             "environment_block": ctx.environment_block,
             "sys_info": sys_info,
             "project_id": ctx.project_id,

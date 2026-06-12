@@ -10,7 +10,7 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.engine.message.utils import get_last_human_message
 from app.core.engine.nodes.base import BaseAgentNode
-from app.core.engine.prompts import SupervisorContext, SupervisorPromptBuilder
+from app.core.engine.nodes.prompts import SupervisorContext, SupervisorPromptBuilder
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.schemas import EngineResult
 from app.core.engine.state import AgentState, StateUpdate

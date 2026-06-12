@@ -16,6 +16,7 @@ class DynamicContextLayer(DynamicBaseModel):
     messages: list = Field(default_factory=list)
     iteration_count: int = 0
 
+
 class ContextMetadata(DynamicBaseModel):
     """Dynamic metadata attached to an EvoContext."""
     has_android: bool | None = None
@@ -29,3 +30,8 @@ class ContextMetadata(DynamicBaseModel):
     iteration_count: int | None = None
     active_plan_context: str | None = None
     prompt: str | None = None
+
+    # Memory pipeline — populated by AgentContextHydrator
+    # Corresponds to Jinja2 template vars: memory.core_raw / memory.episodic_raw
+    core_memory_raw: str | None = None
+    episodic_memory_raw: str | None = None

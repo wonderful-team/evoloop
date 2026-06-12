@@ -91,8 +91,9 @@ class AppUsageRecord(DynamicBaseModel):
     priority_score: float = 0.0               # Normalized 0-1 combined score
     is_running: bool = False                   # Is the app currently running?
 
-class MacOSEnvironment(DynamicBaseModel):
-    """MacOS host environment information."""
+class HostEnvironment(DynamicBaseModel):
+    """Host environment information (MacOS, Linux, Windows)."""
+    os_name: str = "macOS"  # Default to macOS for backward compatibility
     os_version: str
     model: str
     cpu: str
@@ -146,8 +147,12 @@ class AndroidTelemetry(DynamicBaseModel):
 
 class TelemetrySnapshot(DynamicBaseModel):
     android: list[AndroidTelemetry] = Field(default_factory=list)
-    macos: bool = False
+    host: bool = False
+    active_window: dict | None = None
     network: bool = False
+    cpu: dict = Field(default_factory=dict)
+    memory: dict = Field(default_factory=dict)
+    context_usage_percent: int = 0
 
 class PreferenceContext(DynamicBaseModel):
     """User preferences."""

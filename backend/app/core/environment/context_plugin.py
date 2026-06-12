@@ -46,7 +46,7 @@ class EnvironmentContextPlugin(ContextPlugin):
             if state:
                 if state.android_devices:
                     ctx.metadata.has_android = True
-                if state.macos:
+                if state.host and state.host.os_name == "macOS":
                     ctx.metadata.has_macos = True
 
                 # 3. Hydrate Spatial Awareness (Discovery Report)

@@ -5,7 +5,7 @@ Focus file hydrator — retrieves file contents for Worker prompts.
 import logging
 import os
 
-from app.core.engine.prompts.utils import get_mapped_cwd
+from app.core.engine.nodes.utils.node_utils import get_mapped_cwd
 from app.core.engine.state.config import ExecutionTicket
 
 logger = logging.getLogger(__name__)

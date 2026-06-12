@@ -3,6 +3,7 @@ import logging
 import time
 from typing import Any
 
+from langgraph.types import Command
 from pydantic import BaseModel, ConfigDict, Field
 
 # Callbacks
@@ -178,6 +179,14 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
 
             if inputs.hitl_resume_response is not None:
                 input_payload = await build_resume_command(graph_instance, config, inputs.hitl_resume_response)
+            else:
+                # If we are starting a new conversation turn, ensure the graph is not stuck in a pending node (e.g. after a crash).
+                # This prevents the graph from silently consuming the new message and instantly finishing if it resumes FinishNode.
+                current_state = await graph_instance.aget_state(config)
+                if current_state.next:
+                    logger.warning(f"[Agent] Thread {thread_id} is stuck at {current_state.next}. Forcing route to supervisor to process new message.")
+                    # Provide an empty string to resume in case it was explicitly interrupted, and force route to supervisor.
+                    input_payload = Command(resume="", goto="supervisor", update=input_payload)
 
             # 6. Run Graph
             async for _event in graph_instance.astream(input_payload, config=config):

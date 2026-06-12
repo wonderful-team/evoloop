@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import PrivateAttr
 
-from app.core.environment.schemas import MacOSEnvironment, AndroidDevice, NetworkStatus, EpisodeSummary, ConceptSummary, \
+from app.core.environment.schemas import HostEnvironment, AndroidDevice, NetworkStatus, EpisodeSummary, ConceptSummary, \
     AndroidTelemetry, TelemetrySnapshot
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
@@ -23,7 +23,7 @@ class AwakenedState(DynamicBaseModel):
     """
     # == Environment Layer ==
     timestamp: datetime
-    macos: MacOSEnvironment | None = None
+    host: HostEnvironment | None = None
     android_devices: list[AndroidDevice] = []
     network: NetworkStatus = NetworkStatus()
 
@@ -47,8 +47,8 @@ class AwakenedState(DynamicBaseModel):
     def compute_platforms(self) -> list[str]:
         """Compute available platforms based on environment."""
         platforms = []
-        if self.macos:
-            platforms.append("macos")
+        if self.host:
+            platforms.append(self.host.os_name.lower())
         if self.android_devices:
             platforms.append("android")
         return platforms
@@ -70,13 +70,25 @@ class AwakenedState(DynamicBaseModel):
             return self._telemetry_cache
 
         # Compute fresh snapshot
+        import psutil
+        try:
+            cpu_data = {"usage_percent": psutil.cpu_percent(interval=None), "load_avg": psutil.getloadavg() if hasattr(psutil, "getloadavg") else []}
+            mem = psutil.virtual_memory()
+            mem_data = {"percent": mem.percent, "available": mem.available}
+        except Exception:
+            cpu_data = {}
+            mem_data = {}
+
         self._telemetry_cache = TelemetrySnapshot(
             android=[
                 AndroidTelemetry(id=d.device_id, reachable=d.is_reachable)
                 for d in self.android_devices
             ],
-            macos=bool(self.macos),
-            network=self.network.internet_connected if self.network else False
+            host=bool(self.host),
+            network=self.network.internet_connected if self.network else False,
+            cpu=cpu_data,
+            memory=mem_data,
+            context_usage_percent=0  # Filled dynamically by context_hydrator later if possible
         )
         self._telemetry_cache_time = now
         return self._telemetry_cache

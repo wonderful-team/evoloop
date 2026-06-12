@@ -16,10 +16,12 @@ from app.core.engine.schemas import SupervisorContext
 from app.infrastructure.config.service import SystemConfigService
 from app.utils import render_template
 
+from .base_builder import BasePromptBuilder
+
 logger = logging.getLogger(__name__)
 
 
-class SupervisorPromptBuilder:
+class SupervisorPromptBuilder(BasePromptBuilder):
     def __init__(
         self,
         project_id: int,
@@ -30,7 +32,7 @@ class SupervisorPromptBuilder:
         self.iteration_count = iteration_count
         self.context: Any = context or {}
 
-    async def build(self, config: RunnableConfig) -> str:
+    async def build(self, config: RunnableConfig = None) -> str:
         """Constructs the STATIC system prompt using Jinja2 templating.
 
         Dynamic per-turn state (Blackboard, Memory, Environment, Active Plan)
@@ -39,19 +41,17 @@ class SupervisorPromptBuilder:
         """
         from app.core.context import ContextManager, plugin_registry
 
-        from .utils import get_mapped_cwd, get_sandbox_mode, read_project_profile
-
         # 1. Prepare Environment
         ctx = ContextManager.current()
         plugin_registry.hydrate_context(ctx)
-        user_lang = SystemConfigService.get_language_preference()
-        actual_cwd = get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", ""))
-        mode = get_sandbox_mode()
+        user_lang = self.get_user_lang()
+        actual_cwd = self.get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", ""))
+        mode = self.get_sandbox_mode()
 
         # 2. Protocol & Sys Info Prep (STATIC parts only)
 
         # Read PROJECT.md if exists (static for the session)
-        project_profile = read_project_profile(ctx.working_directory, "[SupervisorPrompt]")
+        project_profile = self.read_project_profile(ctx.working_directory, "[SupervisorPrompt]")
 
         # 3. Prepare Template Variables (STATIC only — no blackboard/memory/telemetry)
         template_vars = {
@@ -66,6 +66,7 @@ class SupervisorPromptBuilder:
             "core_file_tools": get_tool_bundle("core_file_tools"),
             "project_concepts": ctx.metadata.get("project_concepts", ""),
             "is_supervisor": True,
+            "has_file_operations": False,
         }
 
         # 4. Render Template

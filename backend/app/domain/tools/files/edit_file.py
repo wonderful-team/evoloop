@@ -239,7 +239,7 @@ async def edit_file(
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
-    Performs string replacements in files with automatic cascading fuzzy matching, or appends/prepends content.
+    Performs string replacements in files with automatic cascading fuzzy matching, or appends/prepends content. Always call read_file to inspect the content first before using this tool.
     
     Args:
         path: Path to the file to edit.

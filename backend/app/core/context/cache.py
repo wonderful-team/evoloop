@@ -31,6 +31,10 @@ class StaticContextLayer(DynamicBaseModel):
     environment_telemetry: dict = Field(default_factory=dict)
     system_preferences: dict = Field(default_factory=dict)
 
+    # Memory pipeline fields — populated by AgentContextHydrator
+    hot_memory: str | None = None
+    episodes: str | None = None
+
     # Metadata
     project_id: int = DEFAULT_PROJECT_ID
     cached_at: float = Field(default_factory=time.time)
@@ -102,6 +106,9 @@ class LayeredContextCache:
             active_skills_index=static_data.get('active_skills', []),
             environment_telemetry=static_data.get('telemetry', {}),
             system_preferences=static_data.get('preferences', {}),
+            # Memory pipeline — carry through from loader_fn output
+            hot_memory=static_data.get('hot_memory'),
+            episodes=static_data.get('episodes'),
             project_id=project_id,
         )
 
