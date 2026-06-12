@@ -6,7 +6,7 @@ pytest tests/integration/test_worker_prompt_editing_protocol.py -v
 
 import pytest
 
-from app.core.engine.prompts.worker_builder import WorkerPromptBuilder
+from app.core.engine.nodes.prompts import WorkerPromptBuilder
 from app.core.engine.state.config import AgentRuntimeConfig
 
 

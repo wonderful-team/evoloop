@@ -8,11 +8,10 @@ pytest tests/baseline/test_llm_tool_selection_baseline.py -v
 
 import json
 import os
-from unittest.mock import AsyncMock, patch, MagicMock
 
 import pytest
 
-from app.core.engine.prompts.worker_builder import WorkerPromptBuilder
+from app.core.engine.nodes.prompts import WorkerPromptBuilder
 from app.core.engine.state.config import AgentRuntimeConfig
 
 
