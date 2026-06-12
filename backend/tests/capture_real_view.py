@@ -1,0 +1,342 @@
+#!/usr/bin/env python3
+"""
+Universal Code Development — Multi-Turn Memory Integration Test
+
+This test verifies that the LangGraph checkpointer correctly preserves the Agent's
+short-term working memory (checkpoints) across multiple distinct conversation turns
+within the same thread.
+
+FIXED PARAMETERS:
+  - project_id: 99
+  - project_path: /tmp/evoloop_multi_turn_test
+  - timeout: 600s
+"""
+
+import argparse
+import asyncio
+import logging
+import os
+import sys
+import time
+
+# Basic setup to import EvoLoop modules
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import os
+os.environ["EVOLOOP_APP_DATA_DIR"] = "/tmp/evoloop"
+os.environ["OPENAI_API_KEY"] = "sk-dummy"
+
+from app.core.config import settings
+settings.EMBEDDED_MODE = True
+settings.SQLITE_PATH = "/tmp/evoloop/backend.db"
+
+# Temporary project path
+TEST_PROJECT_ID = 99
+TEST_PROJECT_PATH = "/tmp/evoloop_multi_turn_test"
+TEST_LOG_FILE = os.path.join(os.path.dirname(__file__), "multi_turn_e2e_test.log")
+TEST_TIMEOUT = 600
+
+logger = logging.getLogger(__name__)
+
+
+def _pre_test_cleanup():
+    try:
+        os.makedirs(os.path.dirname(TEST_LOG_FILE), exist_ok=True)
+    except Exception:
+        pass
+    
+    if os.path.exists(TEST_LOG_FILE):
+        os.remove(TEST_LOG_FILE)
+        logger.info(f"[Test] Removed old log: {TEST_LOG_FILE}")
+        
+    # Setup test workspace
+    os.makedirs(TEST_PROJECT_PATH, exist_ok=True)
+    with open(os.path.join(TEST_PROJECT_PATH, "dummy_data.txt"), "w") as f:
+        f.write("This is a dummy file to verify Turn 1 memory.")
+
+
+async def _login_and_store_token(username: str = "preterchan", password: str = "hellomylife") -> str:
+    from app.core.evocloud import evocloud_manager
+    from app.core.identity import identity_service
+
+    logger.info("[Test] Initializing EvoCloud Manager...")
+    try:
+        evocloud_manager.initialize()
+    except Exception as e:
+        logger.warning(f"[Test] Initialization had some issues: {e}")
+
+    client = evocloud_manager.api
+    login_res = await client.login(username, password)
+    if not login_res.get("success"):
+        raise RuntimeError(f"Login failed: {login_res}")
+
+    token = login_res["token"]
+    refresh_token = login_res.get("refresh_token", "")
+    await identity_service.set_token(token, refresh_token)
+    logger.info("[Test] Login successful.")
+    return token
+
+
+async def _init_backend():
+    from app.infrastructure.database.resource_manager import db_resource_manager
+    logger.info("[Test] Initializing database...")
+    await db_resource_manager.initialize(create_tables=True, seed_data=True)
+    
+    from app.models.system import SystemConfig
+    from app.infrastructure.database.sql.database import session_scope
+    async with session_scope() as session:
+        session.add(SystemConfig(key="LLM_PROVIDER", value="openai"))
+        session.add(SystemConfig(key="LLM_MODEL", value="gpt-4o"))
+        session.add(SystemConfig(key="EMBEDDING_PROVIDER", value="openai"))
+        await session.commit()
+    
+    await _login_and_store_token()
+
+    from app.core.environment import awaken
+    logger.info("[Test] Awakening agent environment...")
+    await awaken()
+
+    # Register event handlers (normally done by main.py:auto_discover_handlers)
+    from app.core.events.discovery import auto_discover_handlers
+    auto_discover_handlers()
+
+    from app.core.engine.graph_builder import GraphBuilder
+    from app.core.globals import set_graph
+    
+    # CRITICAL FIX: The checkpointer MUST be injected into builder.build to prevent amnesia
+    builder = GraphBuilder()
+    config_path = os.path.join(os.path.dirname(__file__), "../app/core/engine/config/agent_main.yaml")
+    workflow = builder.build(os.path.abspath(config_path), checkpointer=db_resource_manager.checkpointer)
+    set_graph(workflow, config_path=os.path.abspath(config_path), checkpointer=db_resource_manager.checkpointer)
+    logger.info("[Test] Agent graph built with Checkpointer.")
+
+
+async def _run_agent_turn(thread_id: str, message: str, turn_name: str, timeout: int) -> str:
+    from app.core.context import thread_context_store
+    from app.core.engine.background_agent import run_agent_background
+    from app.core.engine.dispatch import dispatch_agent_run
+
+    thread_context_store.set_working_directory(thread_id, TEST_PROJECT_PATH)
+
+    logger.info(f"[Test] Dispatching {turn_name} (thread_id={thread_id})...")
+    result = await dispatch_agent_run(
+        thread_id=thread_id,
+        message_content=message,
+        project_id=TEST_PROJECT_ID,
+        goal_prefix=f"[{turn_name}] "
+    )
+
+    if result.status == "failed":
+        raise RuntimeError(f"Dispatch failed: {result.error}")
+    
+    if "metadata" not in result.inputs:
+        result.inputs["metadata"] = {}
+    result.inputs["metadata"]["user_id"] = "test-user-1"
+
+    logger.info(f"[Test] Running {turn_name} (timeout={timeout}s)...")
+    start = time.time()
+
+    try:
+        await asyncio.wait_for(
+            run_agent_background(thread_id, result.inputs),
+            timeout=timeout,
+        )
+    except asyncio.TimeoutError:
+        elapsed = time.time() - start
+        raise RuntimeError(f"Agent timed out after {elapsed:.1f}s")
+
+    elapsed = time.time() - start
+    logger.info(f"[Test] {turn_name} completed in {elapsed:.1f}s")
+    return thread_id
+
+
+# --- MONKEY PATCH ---
+import json
+from app.core.engine.engine import AgentEngine
+_original_run_node = AgentEngine.run_node
+
+async def _mock_run_node(
+    self, state, config, system_prompt, tools, max_steps=5,
+    temperature=0.7, name="Agent", is_subtask=False, node_source=None, 
+    parallel_tools=False, model=None, **kwargs
+):
+    lines = []
+    lines.append(f"# {name} Full LLM Context View (Real E2E)\n")
+    
+    lines.append("## 1. System Prompt\n")
+    lines.append("```text")
+    lines.append(system_prompt)
+    lines.append("```\n")
+    
+    lines.append("## 2. Tools Available\n")
+    lines.append("```json")
+    tools_info = []
+    for t in tools:
+        tool_name = getattr(t, "name", str(t))
+        tool_desc = getattr(t, "description", "")
+        tools_info.append({"name": tool_name, "description": tool_desc})
+    lines.append(json.dumps(tools_info, indent=2, ensure_ascii=False))
+    lines.append("```\n")
+    
+    lines.append("## 3. Messages History\n")
+    for idx, msg in enumerate(state.messages):
+        msg_type = type(msg).__name__
+        lines.append(f"### Message [{idx}] - {msg_type}")
+        if hasattr(msg, "name") and msg.name:
+            lines.append(f"**Name:** {msg.name}")
+        content = str(msg.content)
+        lines.append("```text")
+        lines.append(content)
+        lines.append("```\n")
+        
+    output_path = os.path.join(os.path.dirname(__file__), f"real_{name.lower()}_full_view.md")
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+    print(f"\n[Monkey Patch] Successfully captured {name} context payload to: {output_path}\n")
+        
+    # call original
+    return await _original_run_node(
+        self, state, config, system_prompt, tools, max_steps,
+        temperature, name, is_subtask, node_source, parallel_tools, model, **kwargs
+    )
+
+AgentEngine.run_node = _mock_run_node
+# --- END MONKEY PATCH ---
+
+# --- MOCK EMBEDDINGS ---
+from app.infrastructure.embeddings.openai import OpenAIEmbedder
+async def _mock_embed_query(self, text):
+    return [0.0] * 768
+OpenAIEmbedder.embed_query = _mock_embed_query
+OpenAIEmbedder.embed_documents = lambda self, texts: [[0.0] * 768 for _ in texts]
+# --- END MOCK EMBEDDINGS ---
+
+async def main():
+    _pre_test_cleanup()
+    parser = argparse.ArgumentParser(description="Code Development Multi-Turn Memory Test")
+    parser.add_argument("--timeout", type=int, default=TEST_TIMEOUT, help="Agent timeout in seconds")
+    args = parser.parse_args()
+
+    # sys.stdout = open(TEST_LOG_FILE, "w", buffering=1)
+    # sys.stderr = sys.stdout
+    timeout = args.timeout
+
+    logger.info("=" * 60)
+    logger.info("Universal Code Development — Multi-Turn Memory Integration Test")
+    logger.info("=" * 60)
+
+    try:
+        await _init_backend()
+        
+        # Ensure unique thread_id for a clean memory test
+        import uuid
+        thread_id = f"multi-turn-memory-test-{uuid.uuid4().hex[:6]}"
+        
+        # ---------------------------------------------------------
+        # TURN 1
+        # ---------------------------------------------------------
+        turn_1_msg = (
+            "你好，这是一个多轮对话记忆测试的第一轮。请你查看一下当前目录（/tmp/evoloop_multi_turn_test），"
+            "找一下有没有什么有意思的文件，并用一句话向我总结你的发现。"
+        )
+        logger.info("\n>>> STARTING TURN 1")
+        await _run_agent_turn(thread_id, turn_1_msg, "Turn-1", timeout)
+        
+        # ---------------------------------------------------------
+        # TURN 2
+        # ---------------------------------------------------------
+        # In Turn 2, we specifically ask the Agent to recall information 
+        # from Turn 1 without restating what the file was.
+        turn_2_msg = (
+            "这是测试的第二轮。你还记得在上一轮对话中，你在 /tmp/evoloop_multi_turn_test 目录发现了什么文件吗？"
+            "请基于你上一轮的总结记忆，在该目录下创建一个名为 memory_test_result.md 的文件，"
+            "将你发现的那个文件名写在这个新文件里。"
+            "注意：不要去重新用工具探索环境，请直接依赖上一轮对话总结出来的短时记忆（LangGraph State）。"
+        )
+        logger.info("\n>>> STARTING TURN 2")
+        await _run_agent_turn(thread_id, turn_2_msg, "Turn-2", timeout)
+
+        # ---------------------------------------------------------
+        # TURN 2 RETRY (NEW STAGE)
+        # ---------------------------------------------------------
+        # 1. Get the last human message from DB (which is the Turn 2 query)
+        from app.models.conversation import Message
+        from app.infrastructure.database.sql.database import session_scope
+        from sqlalchemy import select
+
+        logger.info("\n>>> FETCHING TURN 2 MESSAGE FOR RETRY")
+        async with session_scope() as session:
+            stmt = (
+                select(Message)
+                .where(Message.thread_id == thread_id)
+                .where(Message.role == "human")
+                .order_by(Message.sequence_number.desc())
+                .limit(1)
+            )
+            res = await session.execute(stmt)
+            last_human_msg = res.scalar_one_or_none()
+            if not last_human_msg:
+                raise AssertionError("Could not find Turn 2 human message in DB to retry")
+            turn_2_msg_id = last_human_msg.id
+            turn_2_msg_content = last_human_msg.content
+            logger.info(f"Targeting message {turn_2_msg_id} for retry: {turn_2_msg_content}")
+
+        # 2. Trigger rewind orchestrator
+        logger.info("\n>>> TRIGGERING RETRY REWIND")
+        from app.core.events import system_bus
+        from app.core.engine.rewind import RewindOrchestrator
+
+        orchestrator = RewindOrchestrator(event_bus=system_bus)
+        rewind_res = await orchestrator.perform_rewind(
+            thread_id=thread_id,
+            target_message_id=str(turn_2_msg_id),
+            include_target=False,  # Keep the human query
+            revert_files=False,
+            reset_state=True,
+            reason="retry"
+        )
+        logger.info(f"Rewind completed: status={rewind_res.status}, removed_messages={rewind_res.removed_message_count}, errors={rewind_res.errors}")
+        if rewind_res.status != "success":
+            raise AssertionError(f"Rewind failed: {rewind_res.errors}")
+
+        # 3. Clean up the file created by Turn-2 to ensure we test Turn-2-Retry creating it fresh
+        result_file = os.path.join(TEST_PROJECT_PATH, "memory_test_result.md")
+        if os.path.exists(result_file):
+            os.remove(result_file)
+            logger.info("[Test] Cleaned up Turn-2 result file for clean retry run")
+
+        # 4. Run Turn 2 Retry
+        logger.info("\n>>> STARTING TURN 2 RETRY RUN")
+        await _run_agent_turn(thread_id, turn_2_msg_content, "Turn-2-Retry", timeout)
+
+        # ---------------------------------------------------------
+        # VERIFICATION
+        # ---------------------------------------------------------
+        logger.info("\n>>> VERIFYING MEMORY AFTER RETRY")
+        if not os.path.exists(result_file):
+            raise AssertionError(f"Agent did not create the result file: {result_file}")
+            
+        with open(result_file, "r") as f:
+            content = f.read()
+            logger.info(f"Result file content:\n{content}")
+            
+            if "dummy_data.txt" not in content.lower():
+                logger.error("❌ TEST FAILED: Agent failed to recall 'dummy_data.txt' from Turn 1 memory during Retry.")
+                sys.exit(1)
+        
+        logger.info("✅ MULTI-TURN MEMORY TEST COMPLETED SUCCESSFULLY!")
+        logger.info("The Supervisor correctly preserved memory across conversation turns.")
+
+    except AssertionError as e:
+        logger.error(f"❌ TEST FAILED (assertion): {e}")
+        sys.exit(1)
+    except Exception as e:
+        logger.exception(f"❌ TEST FAILED (error): {e}")
+        sys.exit(1)
+    finally:
+        logger.info("[Test] Cleaning up resources...")
+        from app.infrastructure.database.resource_manager import db_resource_manager
+        await db_resource_manager.shutdown()
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    asyncio.run(main())
