@@ -136,7 +136,7 @@ async def _run_agent_turn(thread_id: str, message: str, turn_name: str, timeout:
     
     if "metadata" not in result.inputs:
         result.inputs["metadata"] = {}
-    result.inputs["metadata"]["user_id"] = "test-user-1"
+    result.inputs["metadata"]["member_id"] = 1
 
     logger.info(f"[Test] Running {turn_name} (timeout={timeout}s)...")
     start = time.time()
@@ -259,7 +259,7 @@ async def main():
             content="This memory should be deleted when Turn 2 is rewound.",
             description="Testing e2e memory rollback.",
             project_id=TEST_PROJECT_ID,
-            user_id="test_user_1",
+            member_id=1,
             privacy=PrivacyLevel.TEAM,
             source="manual",
             source_message_id=str(target_msg.id),

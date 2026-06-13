@@ -94,7 +94,7 @@ async def _run_agent_turn(thread_id: str, message: str, turn_name: str, timeout:
     
     if "metadata" not in result.inputs:
         result.inputs["metadata"] = {}
-    result.inputs["metadata"]["user_id"] = "test-user-1"
+    result.inputs["metadata"]["member_id"] = 1
 
     start = time.time()
     try:
@@ -172,7 +172,7 @@ async def main():
         config = RunnableConfig(configurable={
             "thread_id": thread_id, 
             "project_id": TEST_PROJECT_ID, 
-            "user_id": "test", 
+            "member_id": 1, 
             "run_id": "test-run",
             "model": "kimi-k2-thinking-turbo"
         })

@@ -125,7 +125,7 @@ async def run_effect_test():
     req_event = ExtractionRequestedEvent(
         thread_id="thread_cors_nginx_debug",
         project_id=1,
-        user_id="developer_user_a",
+        member_id=1,
         run_id="run_debug_999",
         requests=[]
     )
@@ -143,7 +143,7 @@ async def run_effect_test():
             await run_engine_audit_structured_extraction(
                 thread_id="thread_cors_nginx_debug",
                 project_id=1,
-                user_id="developer_user_a",
+                member_id=1,
                 run_id="run_debug_999",
                 summary=session_summary,
                 messages_dicts=messages_dicts,
@@ -167,7 +167,7 @@ async def run_effect_test():
     # 3. 验证冷记忆的写入效果与 Trace 追溯元数据
     logger.info("第三步：验证冷记忆 Markdown 文件与 SQLite 关系表中的 Trace 指针")
     
-    all_memories = await manager.list_memories(project_id=1)
+    all_memories = await manager.list_memories(project_id=1, member_id=1)
     logger.info(f"冷记忆库中的记忆条目总数：{len(all_memories)}")
     
     if not all_memories:
@@ -206,10 +206,9 @@ async def run_effect_test():
     logger.info("用户提问：'我们要部署这个 FastAPI 程序到生产，并用 Nginx 做反代，跨域要注意什么吗？'")
     logger.info("大模型感知意图，调用工具：recall(query='FastAPI Nginx CORS')")
     
-    # 调用 Recall（注意用户是 developer_user_a，项目是 1）
     recall_results = await manager.find_relevant_memories(
         query="FastAPI Nginx CORS",
-        context={"user_id": "developer_user_a", "project_id": 1},
+        context={"member_id": 1, "project_id": 1},
         max_results=3
     )
     
@@ -238,7 +237,7 @@ async def run_effect_test():
     
     hacker_recall_results = await manager.find_relevant_memories(
         query="CORS FastAPI",
-        context={"user_id": "hacker_user_b", "project_id": 1},
+        context={"member_id": 2, "project_id": 1},
         max_results=3
     )
     

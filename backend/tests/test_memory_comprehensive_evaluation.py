@@ -133,7 +133,7 @@ async def run_scenario_evaluation(scenario_key: str, scenario_data: dict, manage
     req_event = ExtractionRequestedEvent(
         thread_id=scenario_data["thread_id"],
         project_id=1,
-        user_id="developer_user_a",
+        member_id=1,
         run_id=scenario_data["run_id"],
         requests=[]
     )
@@ -145,7 +145,7 @@ async def run_scenario_evaluation(scenario_key: str, scenario_data: dict, manage
     await run_engine_audit_structured_extraction(
         thread_id=scenario_data["thread_id"],
         project_id=1,
-        user_id="developer_user_a",
+        member_id=1,
         run_id=scenario_data["run_id"],
         summary=scenario_data["summary"],
         messages_dicts=scenario_data["messages"],
@@ -157,7 +157,7 @@ async def run_scenario_evaluation(scenario_key: str, scenario_data: dict, manage
     
     # 3. 数据层验证：检查 SQLite 与 Markdown 中的 Traceabilidad 指针与数据完整性
     logger.info("  2. 数据层验证 (Metadata & Markdown Integrity)...")
-    all_memories = await manager.list_memories(project_id=1)
+    all_memories = await manager.list_memories(project_id=1, member_id=1)
     
     matching_memory = None
     for m in all_memories:
@@ -188,7 +188,7 @@ async def run_scenario_evaluation(scenario_key: str, scenario_data: dict, manage
     search_query = scenario_data.get("recall_query", scenario_data["question"])
     recall_results = await manager.find_relevant_memories(
         query=search_query,
-        context={"user_id": "developer_user_a", "project_id": 1},
+        context={"member_id": 1, "project_id": 1},
         max_results=3
     )
     
@@ -206,7 +206,7 @@ async def run_scenario_evaluation(scenario_key: str, scenario_data: dict, manage
     logger.info("  4. 横向越权隔离测试...")
     hacker_recall = await manager.find_relevant_memories(
         query=search_query,
-        context={"user_id": "hacker_user_b", "project_id": 1},
+        context={"member_id": 2, "project_id": 1},
         max_results=3
     )
     hacker_leaked = any(r.id == matching_memory.id for r in hacker_recall)
