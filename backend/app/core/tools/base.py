@@ -97,12 +97,10 @@ def evoloop_tool(
                 from app.core.config import settings
 
                 ctx = ContextManager.current()
-                if ctx.user_id:
+                if ctx.member_id:
                     try:
-                        # Try to parse user_id as member_id and check benefit
-                        member_id = int(ctx.user_id)
                         has_benefit = await benefit_service.has_benefit(
-                            member_id, config.required_benefit
+                            ctx.member_id, config.required_benefit
                         )
                         if not has_benefit:
                             from app.api.deps import create_benefit_error_detail
