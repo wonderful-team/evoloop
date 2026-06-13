@@ -55,7 +55,7 @@ class MemoryEntry(DynamicBaseModel):
 
     # Metadata
     project_id: int | None = None
-    user_id: str | None = None
+    member_id: int | None = None
     tags: list[str] = Field(default_factory=list)
 
     # Source tracking
@@ -113,7 +113,7 @@ class MemoryEntry(DynamicBaseModel):
             "title": _clean(self.title, 150),
             "description": _clean(self.description, 500),
             "project_id": self.project_id,
-            "user_id": self.user_id,
+            "member_id": self.member_id,
             "tags": self.tags,
             "source": self.source,
             "source_message_id": self.source_message_id,

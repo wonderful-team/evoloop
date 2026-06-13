@@ -677,7 +677,7 @@ def _distribute_list_to_schema_fields(data: list, schema: type) -> dict:
 async def run_engine_audit_structured_extraction(
     thread_id: str,
     project_id: int,
-    user_id: str | None,
+    member_id: int | None,
     run_id: str | None,
     summary: str,
     messages_dicts: list[dict],
@@ -746,7 +746,7 @@ async def run_engine_audit_structured_extraction(
             event = ExtractionCompletedEvent(
                 thread_id=thread_id,
                 project_id=project_id,
-                user_id=user_id,
+                member_id=member_id,
                 run_id=run_id,
                 extracted_data=extracted_data,
             )
@@ -761,7 +761,7 @@ async def run_engine_audit_structured_extraction(
 async def engine_audit_structured_extraction(
     thread_id: str,
     project_id: int,
-    user_id: str | None,
+    member_id: int | None,
     run_id: str | None,
     summary: str,
     messages_dicts: list[dict],
@@ -773,7 +773,7 @@ async def engine_audit_structured_extraction(
     await run_engine_audit_structured_extraction(
         thread_id=thread_id,
         project_id=project_id,
-        user_id=user_id,
+        member_id=member_id,
         run_id=run_id,
         summary=summary,
         messages_dicts=messages_dicts,

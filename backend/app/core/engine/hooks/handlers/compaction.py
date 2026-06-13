@@ -113,7 +113,7 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
             title=f"Context Checkpoint - {checkpoint['task_progress'][:50]}...",
             description=f"Auto-saved before context compaction ({checkpoint['compact_trigger']})",
             content=yaml.safe_dump(checkpoint, allow_unicode=True, default_flow_style=False, sort_keys=False),
-            user_id=context.user_id,
+            member_id=context.member_id,
             project_id=context.project_id,
             source_message_id=source_message_id,
             run_id=context.run_id,

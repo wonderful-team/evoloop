@@ -92,9 +92,12 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                 ctx.command_id = inputs.command_id
                 ctx.active_model = inputs.model or ctx.active_model
             
-            # Allow tests/metadata to inject user_id for benefit-gated tools
-            if not ctx.user_id and inputs.metadata.get("user_id"):
-                ctx.user_id = inputs.metadata["user_id"]
+            # Allow tests/metadata to inject member_id for benefit-gated tools
+            if not ctx.member_id and inputs.metadata.get("member_id"):
+                try:
+                    ctx.member_id = int(inputs.metadata["member_id"])
+                except (ValueError, TypeError):
+                    pass
                 
             ContextManager.set(ctx)
 

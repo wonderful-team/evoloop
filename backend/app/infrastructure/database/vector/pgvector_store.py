@@ -366,9 +366,9 @@ class PgVectorStore:
             if filters:
                 if "project_id" in filters and filters["project_id"] is not None:
                     q = q.filter(VectorEmbedding.collection == str(filters["project_id"]))
-                if "user_id" in filters and filters["user_id"] is not None:
-                    # In PgVectorStore, user_id is usually inside the JSONB metadata column
-                    q = q.filter(VectorEmbedding.metadata_["user_id"].astext == str(filters["user_id"]))
+                if "member_id" in filters and filters["member_id"] is not None:
+                    # In PgVectorStore, member_id is inside the JSONB metadata column
+                    q = q.filter(VectorEmbedding.metadata_["member_id"].astext == str(filters["member_id"]))
 
             rows = q.all()
 
@@ -377,7 +377,7 @@ class PgVectorStore:
                     "id": r.VectorEmbedding.source_id,
                     "text": r.VectorEmbedding.content,
                     "project_id": r.VectorEmbedding.metadata_.get("project_id"),
-                    "user_id": r.VectorEmbedding.metadata_.get("user_id"),
+                    "member_id": r.VectorEmbedding.metadata_.get("member_id"),
                     "score": 1.0 - float(r.distance),
                 }
                 for r in rows

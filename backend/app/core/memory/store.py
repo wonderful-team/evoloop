@@ -164,11 +164,11 @@ class _FileEngine:
             topic = entry.tags[0] if entry.tags else "general"
             return base_dir / f"{date_str}-{topic}.md", category
         if category == MemoryCategory.CONTEXT:
-            user_prefix = f"user-{entry.user_id}-" if entry.user_id else ""
+            user_prefix = f"user-{entry.member_id}-" if entry.member_id else ""
             prefix = f"project-{entry.project_id}-" if entry.project_id else ""
             return base_dir / f"{prefix}{user_prefix}{entry.id}.md", category
         if category == MemoryCategory.PREFERENCES:
-            user_prefix = f"user-{entry.user_id}-" if entry.user_id else ""
+            user_prefix = f"user-{entry.member_id}-" if entry.member_id else ""
             topic = entry.tags[0] if entry.tags else "general"
             return base_dir / f"{user_prefix}{topic}.md", category
 
@@ -330,7 +330,7 @@ class _FileEngine:
         project_id: int | None = None,
         filters: dict[str, Any] | None = None,
         limit: int = 10,
-        user_id: str | None = None,
+        member_id: int | None = None,
     ) -> list[MemoryEntry]:
         if not self._initialized:
             await self.initialize()
@@ -340,15 +340,15 @@ class _FileEngine:
             sql_filters["project_id"] = project_id
         if privacy:
             sql_filters["privacy"] = privacy.value
-        if user_id is not None:
-            sql_filters["user_id"] = user_id
+        if member_id is not None:
+            sql_filters["member_id"] = member_id
 
-        if "user_id" not in sql_filters:
+        if "member_id" not in sql_filters:
             try:
                 from app.core.context.manager import ContextManager
                 ctx = ContextManager.current()
-                if ctx and ctx.user_id:
-                    sql_filters["user_id"] = str(ctx.user_id)
+                if ctx and ctx.member_id is not None:
+                    sql_filters["member_id"] = ctx.member_id
             except Exception:
                 pass
 
@@ -574,8 +574,7 @@ class _FileEngine:
             db_index.description = entry.description
             db_index.path = str(file_path)
             db_index.project_id = entry.project_id
-            db_index.member_id = getattr(entry, 'member_id', 0)
-            db_index.user_id = entry.user_id
+            db_index.member_id = entry.member_id
             db_index.source = entry.source
             db_index.source_message_id = entry.source_message_id
 
@@ -644,7 +643,6 @@ class _FileEngine:
                     "path": db_index.path,
                     "project_id": db_index.project_id,
                     "member_id": db_index.member_id,
-                    "user_id": db_index.user_id,
                     "source": db_index.source,
                     "source_message_id": db_index.source_message_id,
                     "run_id": db_index.source_run_id,
@@ -695,7 +693,6 @@ class _FileEngine:
                     "path": row.path,
                     "project_id": row.project_id,
                     "member_id": row.member_id,
-                    "user_id": row.user_id,
                     "source": row.source,
                     "source_message_id": row.source_message_id,
                     "run_id": row.source_run_id,
@@ -728,7 +725,6 @@ class _FileEngine:
                     "path": row.path,
                     "project_id": row.project_id,
                     "member_id": row.member_id,
-                    "user_id": row.user_id,
                     "source": row.source,
                     "source_message_id": row.source_message_id,
                     "run_id": row.source_run_id,
@@ -883,7 +879,7 @@ class MemoryStore:
         project_id: int | None = None,
         filters: dict[str, Any] | None = None,
         limit: int = 10,
-        user_id: str | None = None,
+        member_id: int | None = None,
     ) -> list[MemoryEntry]:
         return await self._engine.search(
             query=query,
@@ -892,7 +888,7 @@ class MemoryStore:
             project_id=project_id,
             filters=filters,
             limit=limit,
-            user_id=user_id,
+            member_id=member_id,
         )
 
     async def list_all(

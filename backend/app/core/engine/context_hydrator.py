@@ -62,7 +62,7 @@ class AgentContextHydrator:
             HookContext(
                 thread_id=ctx.thread_id,
                 project_id=ctx.project_id,
-                user_id=ctx.user_id,
+                member_id=ctx.member_id,
                 blackboard=blackboard,
             ),
         )

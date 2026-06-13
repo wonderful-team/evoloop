@@ -73,9 +73,8 @@ class WorkerPromptBuilder(BasePromptBuilder):
             from app.core.evocloud import evocloud_manager
             from app.services.benefit_service import benefit_service
             token = await evocloud_manager.get_token()
-            member_id_str = ctx.user_id
-            if token and member_id_str:
-                member_id = int(member_id_str)
+            member_id = ctx.member_id
+            if token and member_id:
                 has_interactive_charts = await benefit_service.has_benefit(
                     member_id, "interactive_charts", token
                 )

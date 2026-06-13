@@ -80,7 +80,7 @@ class AgentToolExecutor:
         """
         meta = RunnableConfigMetadata.from_config(self.config)
         thread_id = meta.thread_id
-        user_id = meta.user_id
+        member_id = meta.member_id
         project_id = meta.project_id
         run_id = meta.run_id
 
@@ -107,7 +107,7 @@ class AgentToolExecutor:
             # === HOOK: PreToolUse ===
             pre_ctx = HookContext(
                 thread_id=thread_id,
-                user_id=user_id,
+                member_id=member_id,
                 project_id=project_id,
                 tool_name=tool_name,
                 tool_input=ToolInput.model_validate(tool_args),
@@ -177,7 +177,7 @@ class AgentToolExecutor:
             # === HOOK: PostToolUse ===
             post_ctx = HookContext(
                 thread_id=thread_id,
-                user_id=user_id,
+                member_id=member_id,
                 project_id=project_id,
                 tool_name=tool_name,
                 tool_input=ToolInput.model_validate(tool_args),
@@ -218,7 +218,7 @@ class AgentToolExecutor:
             # === HOOK: PostToolUseFailure ===
             fail_ctx = HookContext(
                 thread_id=thread_id,
-                user_id=user_id,
+                member_id=member_id,
                 project_id=project_id,
                 tool_name=tool_name,
                 tool_input=ToolInput.model_validate(tool_args),

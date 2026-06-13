@@ -101,7 +101,7 @@ class MemoryRetriever:
             query=query,
             recent_tools=context.get("recent_tools", []) if context else [],
             already_surfaced=already_surfaced or set(),
-            user_id=context.get("user_id") if context else None,
+            member_id=context.get("member_id") if context else None,
             project_id=context.get("project_id") if context else None,
         )
 
@@ -109,7 +109,7 @@ class MemoryRetriever:
         candidates = await self._storage.search(
             query=ctx.query,
             project_id=ctx.project_id,
-            user_id=ctx.user_id,
+            member_id=ctx.member_id,
             limit=self.max_candidates
         )
 
@@ -177,7 +177,7 @@ class MemoryRetriever:
     async def get_for_context_injection(
         self,
         query: str,
-        user_id: str | None = None,
+        member_id: int | None = None,
         project_id: int | None = None,
     ) -> dict[str, list[MemoryEntry]]:
         """
@@ -185,7 +185,7 @@ class MemoryRetriever:
         
         Args:
             query: Current query for relevance ranking
-            user_id: User ID for private memories
+            member_id: Member ID for private memories
             project_id: Project ID for filtering
             
         Returns:
@@ -209,7 +209,7 @@ class MemoryRetriever:
 
         for entry in entries:
             # Privacy check
-            if entry.privacy.value == "private" and entry.user_id != user_id:
+            if entry.privacy.value == "private" and entry.member_id != member_id:
                 continue
 
             # Project check
@@ -283,7 +283,7 @@ async def _get_global_memory_container() -> Any:
 
 async def get_relevant_memories(
     query: str,
-    user_id: str | None = None,
+    member_id: int | None = None,
     project_id: int | None = None,
     max_results: int = 5,
     already_surfaced: set[str] | None = None,
@@ -296,7 +296,7 @@ async def get_relevant_memories(
     
     Args:
         query: The search query
-        user_id: Optional user ID for filtering
+        member_id: Optional user member ID for filtering
         project_id: Optional project ID for filtering
         max_results: Maximum number of results to return
         already_surfaced: Set of memory IDs already shown to user (to avoid repetition)
@@ -314,7 +314,7 @@ async def get_relevant_memories(
 
     ctx = context or {}
     ctx.update({
-        "user_id": user_id,
+        "member_id": member_id,
         "project_id": project_id,
     })
 

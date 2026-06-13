@@ -148,7 +148,7 @@ class LanceVectorStore(BaseVectorStore):
             pa.field("vector", pa.list_(pa.float32(), settings.EMBEDDING_DIMENSIONS)),
             pa.field("text", pa.string()),
             pa.field("project_id", pa.int32()),
-            pa.field("user_id", pa.string()),
+            pa.field("member_id", pa.int64()),
             pa.field("created_at", pa.timestamp("us")),
         ])
         return self.client.create_table("memories", schema=schema)
@@ -403,7 +403,7 @@ class LanceVectorStore(BaseVectorStore):
             "vector": [r["vector"] for r in records],
             "text": [r.get("text", "") or r.get("content", "") for r in records],
             "project_id": [r.get("project_id") if r.get("project_id") is not None else DEFAULT_PROJECT_ID for r in records],
-            "user_id": [r.get("user_id", "") for r in records],
+            "member_id": [r.get("member_id") for r in records],
             "created_at": [r.get("created_at", now).replace(microsecond=0) for r in records],
         })
 
@@ -424,8 +424,8 @@ class LanceVectorStore(BaseVectorStore):
             where_clauses = []
             if "project_id" in filters and filters["project_id"] is not None:
                 where_clauses.append(f"project_id = {filters['project_id']}")
-            if "user_id" in filters and filters["user_id"] is not None:
-                where_clauses.append(f"user_id = '{filters['user_id']}'")
+            if "member_id" in filters and filters["member_id"] is not None:
+                where_clauses.append(f"member_id = {filters['member_id']}")
             
             if where_clauses:
                 query = query.where(" AND ".join(where_clauses))
@@ -437,7 +437,7 @@ class LanceVectorStore(BaseVectorStore):
                 "id": r["id"],
                 "text": r["text"],
                 "project_id": r["project_id"],
-                "user_id": r["user_id"],
+                "member_id": r.get("member_id"),
                 "score": 1.0 - r["_distance"],
             }
             for r in results

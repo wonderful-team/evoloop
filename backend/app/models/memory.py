@@ -32,8 +32,7 @@ class MemoryIndex(Base):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     path: Mapped[str] = mapped_column(Text, nullable=False)
     project_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
-    member_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=0)
-    user_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
+    member_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=0, index=True)
     source: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
     # Traceability 元数据追溯字段

@@ -139,7 +139,7 @@ class MemoryManager:
 
     async def save_preference(
         self,
-        user_id: str,
+        member_id: int,
         key: str,
         value: str,
         description: str = "",
@@ -147,19 +147,19 @@ class MemoryManager:
     ) -> None:
         """Save a user preference as a MemoryEntry."""
         entry = MemoryEntry(
-            id=f"pref_{user_id}_{key}",
+            id=f"pref_{member_id}_{key}",
             type=MemoryType.USER,
             privacy=PrivacyLevel.PRIVATE,
             title=f"Preference: {key}",
             content=f"{key}: {value}\n\n{description}",
             description=f"{key} = {value}",
             project_id=project_id,
-            user_id=user_id,
+            member_id=member_id,
             tags=["preference", key],
         )
         await self.save_memory(entry)
 
-    async def get_merged_preferences(self, user_id: str, project_id: int | None = None) -> str:
+    async def get_merged_preferences(self, member_id: int, project_id: int | None = None) -> str:
         """Get merged preferences formatted for LLM context."""
         memories = await self.search_memories(
             query="preference",
@@ -167,6 +167,7 @@ class MemoryManager:
             privacy=PrivacyLevel.PRIVATE,
             project_id=project_id,
             limit=50,
+            member_id=member_id,
         )
 
         if not memories:
@@ -381,6 +382,7 @@ class MemoryManager:
             project_id=project_id,
             filters=filters,
             limit=limit,
+            member_id=member_id,
         )
 
     async def find_by_hash(self, content_hash: str, project_id: int | None = None) -> MemoryEntry | None:

@@ -29,7 +29,6 @@ def upgrade():
         sa.Column('path', sa.Text(), nullable=False),
         sa.Column('project_id', sa.Integer(), nullable=True),
         sa.Column('member_id', sa.Integer(), nullable=True, server_default='0'),
-        sa.Column('user_id', sa.String(length=255), nullable=True),
         sa.Column('source', sa.String(length=100), nullable=True),
         
         sa.Column('source_file_path', sa.Text(), nullable=True),
@@ -49,7 +48,7 @@ def upgrade():
     )
     op.create_index('ix_memory_index_type', 'memory_index', ['type'], unique=False)
     op.create_index('ix_memory_index_project_id', 'memory_index', ['project_id'], unique=False)
-    op.create_index('ix_memory_index_user_id', 'memory_index', ['user_id'], unique=False)
+    op.create_index('ix_memory_index_member_id', 'memory_index', ['member_id'], unique=False)
     op.create_index('ix_memory_index_source_thread_id', 'memory_index', ['source_thread_id'], unique=False)
     op.create_index('ix_memory_index_source_message_id', 'memory_index', ['source_message_id'], unique=False)
     op.create_index('ix_memory_index_source_run_id', 'memory_index', ['source_run_id'], unique=False)
@@ -61,7 +60,7 @@ def downgrade():
     op.drop_index('ix_memory_index_source_run_id', table_name='memory_index')
     op.drop_index('ix_memory_index_source_message_id', table_name='memory_index')
     op.drop_index('ix_memory_index_source_thread_id', table_name='memory_index')
-    op.drop_index('ix_memory_index_user_id', table_name='memory_index')
+    op.drop_index('ix_memory_index_member_id', table_name='memory_index')
     op.drop_index('ix_memory_index_project_id', table_name='memory_index')
     op.drop_index('ix_memory_index_type', table_name='memory_index')
     op.drop_table('memory_index')

@@ -158,7 +158,7 @@ class FinishNode(BaseNode):
                         run_id=config.get("configurable", {}).get("run_id"),
                         messages=messages,
                         project_id=config.get("configurable", {}).get("project_id"),
-                        user_id=config.get("configurable", {}).get("user_id"),
+                        member_id=config.get("configurable", {}).get("member_id"),
                         compact_trigger=trim_result.trigger.name.lower(),
                     )
                 )
@@ -247,7 +247,7 @@ class FinishNode(BaseNode):
         try:
             stop_ctx = HookContext(
                 thread_id=effective_thread_id,
-                user_id=ctx.user_id,
+                member_id=ctx.member_id,
                 project_id=ctx.project_id,
                 messages=messages,
                 blackboard=blackboard,
@@ -286,7 +286,7 @@ class FinishNode(BaseNode):
             thread_id=effective_thread_id,
             run_id=run_id,
             project_id=ctx.project_id,
-            user_id=ctx.user_id,
+            member_id=ctx.member_id,
             messages=messages,
             blackboard_dict=blackboard.model_dump(),
             summary=summary,

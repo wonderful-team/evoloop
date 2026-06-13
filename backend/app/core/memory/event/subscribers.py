@@ -120,7 +120,7 @@ class MemoryLifecycleSubscriber:
                 description=item.get("description", ""),
                 tags=item.get("tags", []),
                 project_id=event.project_id,
-                user_id=event.user_id,
+                member_id=event.member_id,
                 source="harvest:finish",
                 run_id=event.run_id,
                 confidence=item.get("confidence", 0.7),

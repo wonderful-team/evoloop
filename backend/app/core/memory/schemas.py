@@ -71,7 +71,7 @@ class RetrievalContext(DynamicBaseModel):
     query: str
     recent_tools: list[str] = Field(default_factory=list)
     already_surfaced: set[str] = Field(default_factory=set)  # Memory IDs already shown to user
-    user_id: str | None = None
+    member_id: int | None = None
     project_id: int | None = None
 
 

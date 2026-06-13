@@ -27,7 +27,7 @@ class EvoContext(DynamicBaseModel):
     timestamp: float = Field(default_factory=time.time)
 
     # Identity
-    user_id: str | None = None
+    member_id: int | None = None
     project_id: int | None = None
     thread_id: str | None = None
     token: str | None = None

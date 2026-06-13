@@ -293,7 +293,7 @@ class AuditService:
         )
 
         run_id = config.get("configurable", {}).get("run_id")
-        user_id = config.get("configurable", {}).get("user_id")
+        member_id = int(config.get("configurable", {}).get("member_id"))
 
         msg_dicts = []
         for m in messages:
@@ -307,7 +307,7 @@ class AuditService:
         engine_audit_structured_extraction.delay(
             thread_id=thread_id,
             project_id=project_id,
-            user_id=user_id,
+            member_id=member_id,
             run_id=run_id,
             summary=summary,
             messages_dicts=msg_dicts,

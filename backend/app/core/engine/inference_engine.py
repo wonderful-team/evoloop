@@ -140,7 +140,7 @@ class InferenceEngine:
                         run_id=run_id,
                         messages=loop_messages,
                         project_id=config.get("configurable", {}).get("project_id"),
-                        user_id=config.get("configurable", {}).get("user_id"),
+                        member_id=config.get("configurable", {}).get("member_id"),
                         compact_trigger=trim_result.trigger.name.lower(),
                     ),
                 )
