@@ -152,11 +152,30 @@ export const useChatStore = create<ChatState>((set, get) => {
                 limit: 30,
             })
             const msgs = (data.data || []).map(normalizeMessage)
-            set({
-                messages: msgs,
-                hasMoreHistory: !!data.has_more,
-                firstMessageId: data.first_id || null,
-                totalMessageCount: data.total_count || data.total || msgs.length,
+            set(state => {
+                const serverIds = new Set(msgs.map(m => String(m.id)))
+                const activeRunId = useAgentStore.getState().agentState?.run_id;
+
+                const localMsgsToKeep = state.messages.filter(m => {
+                    const idStr = String(m.id);
+                    if (serverIds.has(idStr)) return false; // Use server's version
+                    if (idStr.startsWith("temp-") || idStr.startsWith("placeholder-")) return true;
+                    if (m.status === "streaming") {
+                        // Only keep streaming messages if they match the active run
+                        if (activeRunId && (m as any).run_id === activeRunId) return true;
+                        // Or if they don't have a run_id but the agent is actively running
+                        if (!activeRunId && useAgentStore.getState().status === 'running') return true;
+                    }
+                    return false;
+                });
+
+                const merged = [...msgs, ...localMsgsToKeep].sort((a, b) => new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime())
+                return {
+                    messages: merged,
+                    hasMoreHistory: !!data.has_more,
+                    firstMessageId: data.first_id || null,
+                    totalMessageCount: data.total_count || data.total || merged.length,
+                }
             })
         } catch (e) {
             console.error("[ChatStore] Fetch history failed", e)
@@ -227,6 +246,40 @@ export const useChatStore = create<ChatState>((set, get) => {
             toast.error("Failed to rewind conversation")
             useAgentStore.setState({ status: "idle" })
         }
+    },
+    optimisticTruncate: (messageId) => {
+        const state = get()
+        const currentMessages = state.messages
+        const snapshot = [...currentMessages]
+        let targetHumanIndex = -1
+        
+        if (messageId) {
+            const targetIndex = currentMessages.findIndex(m => String(m.id) === String(messageId))
+            if (targetIndex !== -1) {
+                // Find the target message itself (if it's human) or the closest preceding human message
+                for (let i = targetIndex; i >= 0; i--) {
+                    if (currentMessages[i].role === "human") {
+                        targetHumanIndex = i
+                        break
+                    }
+                }
+            }
+        } else {
+            const lastHumanIndex = [...currentMessages].reverse().findIndex(m => m.role === "human")
+            if (lastHumanIndex !== -1) {
+                targetHumanIndex = currentMessages.length - 1 - lastHumanIndex
+            }
+        }
+
+        if (targetHumanIndex !== -1) {
+            // Keep the target human message, remove its AI responses and everything after
+            set({ messages: currentMessages.slice(0, targetHumanIndex + 1) })
+        }
+        return snapshot
+    },
+
+    restoreSnapshot: (snapshot) => {
+        set({ messages: snapshot })
     },
 
     sendMessage: async (content, pickedFiles, skillIds) => {
@@ -419,9 +472,11 @@ export const useChatStore = create<ChatState>((set, get) => {
 
         const existIdx = messages.findIndex(m => m.id === msg.id)
         if (existIdx >= 0) {
+            let shouldRefreshChangeset = false;
             set(state => {
                 const msgs = [...state.messages]
                 const ex = msgs[existIdx]
+                const prevChangesetCount = ex.changeset_count || 0
                 msgs[existIdx] = {
                     ...ex,
                     thinking: msg.thinking || ex.thinking,
@@ -429,9 +484,22 @@ export const useChatStore = create<ChatState>((set, get) => {
                     status: msg.status || ex.status,
                     // Merge references: prefer incoming if existing has none
                     references: (msg.references && msg.references.length > 0) ? msg.references : ex.references,
+                    changeset_count: msg.changeset_count !== undefined ? msg.changeset_count : ex.changeset_count,
+                    has_file_operations: msg.has_file_operations !== undefined ? msg.has_file_operations : ex.has_file_operations,
+                }
+                if ((msg.changeset_count && msg.changeset_count > 0) && prevChangesetCount === 0) {
+                    shouldRefreshChangeset = true;
                 }
                 return { messages: msgs }
             })
+            if (shouldRefreshChangeset) {
+                setTimeout(() => {
+                    const threadId = get().threadId;
+                    if (threadId) {
+                        useChangesetStore.getState().fetchChangeset(threadId)
+                    }
+                }, 500)
+            }
             return
         }
 
@@ -446,18 +514,33 @@ export const useChatStore = create<ChatState>((set, get) => {
         }
 
         if (streamIdx >= 0) {
+            let shouldRefreshChangeset = false;
             set(state => {
                 const msgs = [...state.messages]
+                const ex = msgs[streamIdx]
+                const prevChangesetCount = ex.changeset_count || 0
                 msgs[streamIdx] = {
                     ...msg,
                     content: msg.content || msgs[streamIdx].content,
                     thinking: msg.thinking || msgs[streamIdx].thinking,
                     status: msg.status || "completed"
                 }
+                if ((msg.changeset_count && msg.changeset_count > 0) && prevChangesetCount === 0) {
+                    shouldRefreshChangeset = true;
+                }
                 return { messages: msgs }
             })
+            if (shouldRefreshChangeset) {
+                setTimeout(() => {
+                    const threadId = get().threadId;
+                    if (threadId) {
+                        useChangesetStore.getState().fetchChangeset(threadId)
+                    }
+                }, 500)
+            }
             return
         }
+        
         // Trigger changeset refresh if message has file changes
         if (msg.changeset_count && msg.changeset_count > 0) {
             setTimeout(() => {

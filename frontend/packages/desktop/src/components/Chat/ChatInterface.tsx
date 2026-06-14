@@ -48,14 +48,12 @@ import { HumanRequestCard } from "./HumanRequestCard"
 import { QuotaExhaustedCard } from "./QuotaExhaustedCard"
 import { useAgentStore } from "@/stores/agentStore"
 import { useChangesetStore } from "@/stores/changesetStore"
+import { useChatMutations } from "./hooks/useChatMutations"
 
 export function ChatInterface() {
   // --- Store State (selective subscriptions to avoid unnecessary re-renders) ---
   const activeThreadId = useChatStore(s => s.threadId)
   const storeProjectId = useChatStore(s => s.projectId)
-  const hasMoreHistory = useChatStore(s => s.hasMoreHistory)
-  const isLoadingHistory = useChatStore(s => s.isLoadingHistory)
-  const loadMoreHistory = useChatStore(s => s.loadMoreHistory)
   const setThread = useChatStore(s => s.setThread)
   const sendMessage = useChatStore(s => s.sendMessage)
   const _truncateMessages = useChatStore(s => s._truncateMessages)
@@ -73,9 +71,21 @@ export function ChatInterface() {
 
   // --- UI State ---
   const [isRewindDialogOpen, setIsRewindDialogOpen] = useState(false)
+  const [rewindTargetId, setRewindTargetId] = useState<string | null>(null)
+  const [rewindRevertFiles, setRewindRevertFiles] = useState(true)
+  const [rewindContent, setRewindContent] = useState("")
   const [confirmMode, setConfirmMode] = useState<"rewind" | "retry">("rewind")
-  const [selectedMessageId, setSelectedMessageId] = useState<string | undefined>(undefined)
-  const [rewindContent, setRewindContent] = useState<string>("")
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null)
+  
+  const chatInputRef = useRef<ChatInputAreaHandle | null>(null)
+
+  // Custom Hook for Mutations
+  const { rewindMutation, retryMutation } = useChatMutations({
+    setIsRewindDialogOpen,
+    setRewindContent,
+    chatInputRef
+  })
+
   const [sidebarActiveTab, setSidebarActiveTab] = useState<string>("chats")
   const [expandAgentChanges, setExpandAgentChanges] = useState<boolean>(false)
 
@@ -89,8 +99,6 @@ export function ChatInterface() {
     if (saved === "true") return false
     return true
   })
-  const chatInputRef = useRef<ChatInputAreaHandle | null>(null)
-
   // Compact window detection (< 1024px, matching lg breakpoint of left sidebar)
   const [isCompactWindow, setIsCompactWindow] = useState(() => {
     if (typeof window !== "undefined") {
@@ -318,10 +326,14 @@ export function ChatInterface() {
   // Wrapper for sendMessage to handle post-send actions
   const handleSendMessage = useCallback(async (content: string, pickedFiles?: any[]) => {
     const isNewThread = useChatStore.getState().messages.length === 0
-    await sendMessage(content, pickedFiles)
     
+    const sendPromise = sendMessage(content, pickedFiles)
+
+    // 立即触发滚动到底部，不需要等待 AI 响应完成
     // 发送消息后强制滚到底部
     window.dispatchEvent(new CustomEvent('chat-scroll-to-bottom'))
+
+    await sendPromise
 
     // If this was a new thread (first message), refresh the conversation list
     if (isNewThread && projectId !== undefined) {
@@ -388,89 +400,6 @@ export function ChatInterface() {
     },
   })
 
-  const rewindMutation = useMutation({
-    // @ts-ignore
-    mutationFn: ({ revertFiles, messageId }: { revertFiles: boolean; messageId?: string }) =>
-      // @ts-ignore
-      ConversationsService.rewindConversation({
-        threadId: activeThreadId!,
-        requestBody: {
-          revert_files: revertFiles,
-          message_id: messageId
-        }
-      } as any),
-    onMutate: ({ messageId }) => {
-      if (messageId) {
-        const index = useChatStore.getState().messages.findIndex(m => String(m.id) === String(messageId))
-        if (index !== -1) {
-          useChatStore.getState()._truncateMessages(index)
-        }
-      }
-    },
-    onSuccess: (data: any) => {
-      if (activeThreadId) {
-        useChangesetStore.getState().fetchChangeset(activeThreadId)
-      }
-      const filesMsg = data.files_reverted && data.files_reverted > 0
-        ? ` (${t("chat.interface.filesReverted", { count: data.files_reverted })})`
-        : ""
-
-      // If we are rewinding a human message, refill the input
-      if (rewindContent) {
-        chatInputRef.current?.setInput(rewindContent)
-        setRewindContent("")
-      }
-
-      toast.success(`${t("chat.interface.rewindSuccess")}${filesMsg}`)
-      setIsRewindDialogOpen(false)
-    },
-  })
-
-  // Retry Logic
-  const retryMutation = useMutation({
-    mutationFn: async ({ revertFiles, messageId }: { revertFiles: boolean; messageId?: string }) => {
-      // 发起动作前，兜底确保读通道 (SSE连接) 处于连通状态
-      if (activeThreadId) {
-        ChatConnection.getInstance().connect(activeThreadId);
-      }
-      // @ts-ignore
-      return AgentService.retryChat({
-        requestBody: {
-          thread_id: activeThreadId,
-          message: "", // Backend finds the target user message
-          project_id: projectId,
-          revert_files: revertFiles,
-          message_id: messageId,
-          model: selectedModel,
-        }
-      } as any)
-    },
-    onMutate: () => {
-      // Optimistically truncate the messages list to remove old AI messages
-      const currentMessages = useChatStore.getState().messages
-      const lastHumanIndex = [...currentMessages].reverse().findIndex(m => m.role === "human")
-      if (lastHumanIndex !== -1) {
-        const actualIndex = currentMessages.length - 1 - lastHumanIndex
-        _truncateMessages(actualIndex + 1)
-      }
-      
-      // 重试操作开始时，强制将焦点切到底部（用户消息处）
-      window.dispatchEvent(new CustomEvent('chat-scroll-to-bottom'))
-    },
-    // @ts-ignore
-    onSuccess: (data: any) => {
-      const filesMsg = data.files_reverted && data.files_reverted > 0
-        ? ` (${t("chat.interface.filesReverted", { count: data.files_reverted })})`
-        : ""
-      toast.success(`${t("chat.interface.retrying")}${filesMsg}`)
-      // Reload store to reflect rolled back state and new streaming status
-      if (activeThreadId && projectId) setThread(activeThreadId, projectId)
-      setIsRewindDialogOpen(false)
-    },
-    onError: () => {
-      toast.error(t("chat.interface.retryFailed"))
-    }
-  })
 
   const handleQuoteMessage = useCallback((msg: any) => {
     if (!msg || !msg.id) return
@@ -495,7 +424,7 @@ export function ChatInterface() {
   }, [])
 
   // Handle view changeset from message snapshot
-  const handleViewChangeset = useCallback((_messageId?: string | number, path?: string) => {
+  const handleViewChangeset = useCallback((_messageId?: string | number, path?: string, diff?: string) => {
     // Switch to files tab
     setSidebarActiveTab("files")
     // Expand Agent Changes panel
@@ -504,13 +433,17 @@ export function ChatInterface() {
     const threadId = activeThreadId
     if (threadId) {
       if (path) {
-        // Find the file in the changeset and trigger diff
-        const file = useChangesetStore.getState().changeset.find(f => f.path === path)
-        if (file) {
-          useUIStore.getState().setPreviewDiff({ path: file.path, diff: file.diff || "" })
-          // Mark as viewed
-          markChangeAsViewed(path, threadId)
+        if (diff) {
+          useUIStore.getState().setPreviewDiff({ path, diff })
+        } else {
+          // Find the file in the changeset and trigger diff (fallback)
+          const file = useChangesetStore.getState().changeset.find(f => f.path === path)
+          if (file) {
+            useUIStore.getState().setPreviewDiff({ path: file.path, diff: file.diff || "" })
+          }
         }
+        // Mark as viewed
+        markChangeAsViewed(path, threadId)
       } else {
         // Mark all as viewed
         markAllChangesAsViewed(threadId)
@@ -668,9 +601,6 @@ export function ChatInterface() {
 
             <div className="flex-1 min-h-0 min-w-0 w-full" data-tour="chat-messages">
               <MessageList
-                hasMoreHistory={hasMoreHistory}
-                isLoadingHistory={isLoadingHistory}
-                loadMoreHistory={loadMoreHistory}
                 onAddToMemory={handleAddToMemory}
                 onRewind={handleRewind}
                 onRetry={handleRetry}

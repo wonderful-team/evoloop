@@ -1062,6 +1062,7 @@ export type MemberBenefitsResponse = {
 export type MessageChangesetFile = {
     path: string;
     operation: string;
+    diff?: (string | null);
     [key: string]: unknown | string;
 };
 

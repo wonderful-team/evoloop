@@ -25,6 +25,8 @@ interface AgentProcessProps {
 // Safe JSON parse helper
 function safeJsonParse(str: string): any {
     if (!str || typeof str !== 'string') return null
+    // Prevent blocking the main thread for massive strings (e.g. reading huge files)
+    if (str.length > 50000) return null
     try {
         return JSON.parse(str)
     } catch {

@@ -17,6 +17,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
     // --- Live Buffer (For Right Panel) ---
     streamingThinking: "",
+    _thinkingBuffer: "",
+    _flushTimeout: null,
     streamingSteps: [],
 
     isConnected: false,
@@ -31,17 +33,36 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             const threadId = chatState.threadId
             if (threadId) {
                 console.log("[AgentStore] SSE Reconnected, fetching latest history and activity...")
-                if (chatState.messages.length === 0) {
-                    chatState.fetchHistory(threadId)
-                }
+                // Always fetch history to catch up on missed messages during disconnection
+                chatState.fetchHistory(threadId)
                 chatState.fetchActivity(threadId)
             }
         }
     },
 
     _appendThinking: (text) => {
-        // Just used for the Activity tab, actual message buffering is in chatStore
-        set(state => ({ streamingThinking: state.streamingThinking + text }))
+        const state = get();
+        const newBuffer = (state._thinkingBuffer || "") + text;
+
+        if (state._flushTimeout) {
+            set({ _thinkingBuffer: newBuffer });
+            return;
+        }
+
+        const timeout = setTimeout(() => {
+            set((currentState) => {
+                const thinkingBuffer = currentState._thinkingBuffer;
+                if (!thinkingBuffer) return { _flushTimeout: null };
+                
+                return {
+                    streamingThinking: currentState.streamingThinking + thinkingBuffer,
+                    _thinkingBuffer: "",
+                    _flushTimeout: null
+                };
+            });
+        }, 50);
+
+        set({ _thinkingBuffer: newBuffer, _flushTimeout: timeout });
     },
 
     _setActivitySnapshot: (data) => {
@@ -88,6 +109,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         
         if (["idle", "stopped", "interrupted"].includes(normalized)) {
             updates.streamingThinking = ""
+            updates._thinkingBuffer = ""
         }
         
         const chatStore = useChatStore.getState()
@@ -158,6 +180,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         set({
             status: "running",
             streamingThinking: "",
+            _thinkingBuffer: "",
             finalOutcome: null
         })
         useChatStore.getState()._handleRunStart(ev)
@@ -205,6 +228,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         quotaExhaustedInfo: null,
         agentState: null,
         streamingThinking: "",
+        _thinkingBuffer: "",
         streamingSteps: []
     }),
 

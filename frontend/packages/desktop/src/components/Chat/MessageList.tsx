@@ -13,14 +13,11 @@ import { SmartChatMessageItem, type Message } from "./ChatMessageItem"
 import { ChatWelcome } from "./ChatWelcome"
 
 interface MessageListProps {
-    hasMoreHistory?: boolean
-    isLoadingHistory?: boolean
-    loadMoreHistory?: () => void
     onAddToMemory?: (text: string) => void
     onRewind?: (msg: Message) => void
     onRetry?: (msg: Message) => void
     onQuote?: (msg: Message) => void
-    onViewChangeset?: (messageId: string | number, path?: string) => void
+    onViewChangeset?: (messageId: string | number, path?: string, diff?: string) => void
     footer?: React.ReactNode
 }
 
@@ -68,7 +65,7 @@ const TurnStepsGroupView = memo(function TurnStepsGroupView({
     onRewind?: (msg: Message) => void
     onRetry?: (msg: Message) => void
     onQuote?: (msg: Message) => void
-    onViewChangeset?: (messageId: string | number, path?: string) => void
+    onViewChangeset?: (messageId: string | number, path?: string, diff?: string) => void
 }) {
     const { t } = useTranslation()
     const [isOpen, setIsOpen] = useState(isTurnActive || false)
@@ -183,9 +180,6 @@ const STATIC_COMPONENTS = {
 // ------------------------------------
 
 export const MessageList = memo(function MessageList({
-    hasMoreHistory = false,
-    isLoadingHistory = false,
-    loadMoreHistory,
     onAddToMemory,
     onRewind,
     onRetry,
@@ -195,6 +189,9 @@ export const MessageList = memo(function MessageList({
 }: MessageListProps) {
     const { t } = useTranslation()
     const messages = useChatStore(s => s.messages)
+    const hasMoreHistory = useChatStore(s => s.hasMoreHistory)
+    const isLoadingHistory = useChatStore(s => s.isLoadingHistory)
+    const loadMoreHistory = useChatStore(s => s.loadMoreHistory)
     const scrollerRef = useRef<HTMLElement | null>(null)
     const virtuosoRef = useRef<VirtuosoHandle>(null)
     // Use refs to avoid stale closures in Virtuoso callbacks
@@ -568,6 +565,7 @@ export const MessageList = memo(function MessageList({
             data={virtItems}
             itemContent={itemContent}
             followOutput={handleFollowOutput}
+            atBottomThreshold={100}
             components={STATIC_COMPONENTS}
             context={virtuosoContext}
         />

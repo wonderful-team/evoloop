@@ -26,6 +26,8 @@ export interface AgentState {
 
     // --- Live Buffer (For Right Panel) ---
     streamingThinking: string
+    _thinkingBuffer: string
+    _flushTimeout: ReturnType<typeof setTimeout> | null
     streamingSteps: any[]
 
     isConnected: boolean

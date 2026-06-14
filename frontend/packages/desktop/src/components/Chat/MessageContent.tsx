@@ -1,4 +1,4 @@
-import { FileText, X, Music } from "lucide-react"
+import { FileText, X, Music, Loader2 } from "lucide-react"
 import { memo, useState, useRef, useCallback, useDeferredValue } from "react"
 import { useTranslation } from "react-i18next"
 import ReactMarkdown from "react-markdown"
@@ -239,7 +239,14 @@ export const MessageContent = memo(({ content, isUser }: MessageContentProps) =>
                             return <EChartsArtifact key={ck} data={{ option }} />
                           }
                         } catch {
-                          // incomplete JSON during streaming, fall through to code block
+                          // incomplete JSON during streaming
+                          return (
+                            <div className="my-2 p-6 bg-muted/30 rounded-lg border border-dashed flex flex-col items-center justify-center text-sm text-muted-foreground">
+                              <Loader2 className="w-6 h-6 mb-2 animate-spin text-primary/50" />
+                              <span>{t("chat.artifact.generatingChart", "Generating Chart...")}</span>
+                              <span className="text-xs opacity-50 mt-1">{codeString.length} bytes received</span>
+                            </div>
+                          )
                         }
                       }
 

@@ -150,14 +150,39 @@ const EChartsArtifactInner: React.FC<EChartsArtifactProps> = ({ data }) => {
     const { title, grid, legend, tooltip, ...restUserOption } = data.option || {};
 
     // Smart grid merge: if user provided grid with dangerous bottom: "3%" AND has a legend, override it
-    let finalGrid = grid ? { ...grid } : { ...baseOption.grid };
-    if (grid && grid.bottom === '3%' && legend) {
-      finalGrid.bottom = '12%';
+    let finalGrid: any;
+    if (grid) {
+      if (Array.isArray(grid)) {
+        finalGrid = grid.map(g => {
+          const newG = { containLabel: true, ...g };
+          if (newG.bottom === '3%' && legend) {
+            newG.bottom = '12%';
+          }
+          return newG;
+        });
+      } else {
+        finalGrid = { containLabel: true, ...grid };
+        if (finalGrid.bottom === '3%' && legend) {
+          finalGrid.bottom = '12%';
+        }
+      }
+    } else {
+      finalGrid = { ...baseOption.grid };
+    }
+
+    let modifiedTitle = title;
+    if (title) {
+      if (Array.isArray(title)) {
+        modifiedTitle = title.map((t, idx) => idx === 0 ? { ...t, show: false } : t);
+      } else {
+        modifiedTitle = { ...title, show: false };
+      }
     }
 
     return {
       ...baseOption,
       ...restUserOption,
+      ...(modifiedTitle ? { title: modifiedTitle } : {}),
       grid: finalGrid,
       ...(legend ? {
         legend: {
@@ -223,9 +248,18 @@ const EChartsArtifactInner: React.FC<EChartsArtifactProps> = ({ data }) => {
   const chartHeight = data.height ?? 350;
 
   // Extract the title to display in the header: prioritize explicit string title, then title.text from options
+  let optionTitleText = '';
+  if (data.option?.title) {
+    if (Array.isArray(data.option.title)) {
+      optionTitleText = data.option.title[0]?.text || '';
+    } else {
+      optionTitleText = data.option.title.text || '';
+    }
+  }
+
   const displayTitle = (typeof data.title === 'string' && data.title !== 'echarts')
     ? data.title 
-    : (data.option?.title?.text || t('chat.artifact.chart', 'Statistical Analysis'));
+    : (optionTitleText || t('chat.artifact.chart', 'Statistical Analysis'));
 
   if (!validation.valid) {
     return <EChartsErrorFallback data={data} />;

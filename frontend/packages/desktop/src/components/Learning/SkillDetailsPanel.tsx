@@ -4,9 +4,8 @@ import { LearningService } from "@/client/sdk.gen"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
 import ReactMarkdown from "react-markdown"
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
-import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"
 import remarkGfm from "remark-gfm"
+import { CodeBlock } from "@/components/Chat/CodeBlock"
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
@@ -214,19 +213,10 @@ export function SkillDetailsPanel({
                                                                         {t("chat.messageList.copy")}
                                                                     </button>
                                                                 </div>
-                                                                <SyntaxHighlighter
-                                                                    style={vscDarkPlus as any}
+                                                                <CodeBlock
                                                                     language={match[1]}
-                                                                    PreTag="div"
-                                                                    customStyle={{
-                                                                        margin: 0,
-                                                                        borderRadius: 0,
-                                                                        fontSize: "12px",
-                                                                    }}
-                                                                    {...props}
-                                                                >
-                                                                    {codeString}
-                                                                </SyntaxHighlighter>
+                                                                    code={codeString}
+                                                                />
                                                             </div>
                                                         )
                                                     }

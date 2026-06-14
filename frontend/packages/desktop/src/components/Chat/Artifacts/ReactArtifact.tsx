@@ -3,8 +3,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@evoloop/shared/compon
 import { Atom, Code2, Copy, Check } from 'lucide-react';
 import { Button } from "@evoloop/shared/components/ui/button";
 import { useTranslation } from 'react-i18next';
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
-import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"
+import { CodeBlock } from "@/components/Chat/CodeBlock"
 
 interface ReactArtifactProps {
   data: {
@@ -56,21 +55,11 @@ export const ReactArtifact: React.FC<ReactArtifactProps> = ({ data }) => {
           <Atom className="w-4 h-4 text-sky-400 opacity-50" />
         </div>
 
-        <div className="max-h-[400px] overflow-auto no-scrollbar">
-          <SyntaxHighlighter
-            style={vscDarkPlus as any}
+        <div className="max-h-[400px] overflow-auto no-scrollbar pt-4 bg-[#1e1e1e]">
+          <CodeBlock
             language="tsx"
-            PreTag="div"
-            customStyle={{
-              margin: 0,
-              padding: '20px',
-              borderRadius: 0,
-              fontSize: "12px",
-              backgroundColor: 'transparent',
-            }}
-          >
-            {data.code}
-          </SyntaxHighlighter>
+            code={data.code}
+          />
         </div>
       </div>
 
