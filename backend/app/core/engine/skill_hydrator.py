@@ -95,9 +95,4 @@ class SkillHydrator:
             logger.info(f"[Hydrator] Skipping eager hydration for subtask: {topic}")
             return []
 
-        # Future optimization: allow Supervisor to specify 'lazy' via Ticket parameters.
-        parameters = execution_ticket.parameters if execution_ticket else None
-        is_lazy = parameters.lazy_hydration if parameters else False
-        mode = "lazy" if is_lazy else "eager"
-
-        return await SkillHydrator.hydrate(state, topic, namespace_context=namespace_context, mode=mode)
+        return await SkillHydrator.hydrate(state, topic, namespace_context=namespace_context, mode="eager")

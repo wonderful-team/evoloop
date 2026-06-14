@@ -72,18 +72,14 @@ Execute using available tools. One turn only.
 {%- endif %}
 {%- endif %}
 
-{%- if focus_files %}
+{%- if focus_paths %}
 ## Attention Guidance (Focus Files)
-The Supervisor has identified {{ focus_files | length }} focus file(s) for this mission:
-{% for file in focus_files -%}
-{%- if file.status == "ok" %}
---- FILE: {{ file.rel_path }} ---
-{{ file.content }}
---- END OF FILE ---
-{%- else %}
-- **{{ file.status|upper }}**: `{{ file.rel_path }}` {%- if file.detail %}({{ file.detail }}){%- endif %}
-{%- endif %}
+The Supervisor strongly recommends you to examine the following {{ focus_paths | length }} file(s) for this mission:
+{% for path in focus_paths -%}
+- `{{ path }}`
 {% endfor %}
+
+> **ACTION REQUIRED**: Use your file reading tools (e.g. `view_file`, `grep_search`) to retrieve the latest contents of these files immediately. DO NOT guess their contents.
 {%- endif %}
 
 {%- if knowledge_blocks %}
@@ -98,8 +94,8 @@ The following Standard Operating Procedures are attached to this mission. You MU
 WARNING: No Standard Operating Procedure (SOP) is available for this mission.
 
 **YOU MUST DO ONE OF THE FOLLOWING:**
-1. **Call `search_skills`** — Search the skill library for relevant SOPs
-2. **Call `ask_human`** — Ask the user for clarification if the task is unclear
+1. **Call `list_skills`** — Search the skill library index for relevant SOPs.
+2. **Call `read_skill_sop(id)`** — Read the matched SOP and follow its instructions to the letter.
 
 **FORBIDDEN:**
 - Do NOT randomly try tools hoping to find the right one
@@ -135,16 +131,6 @@ The Supervisor has provided background information from previous conversation:
   {% for item in clipboard -%}
   - Item {{ loop.index }}: {{ item.content[:200] }}...
   {% endfor %}
-{%- endif %}
-
-{%- if memory.episodic_raw or memory.core_raw %}
-## Memory Context
-{%- if memory.episodic_raw %}
-- **Episodic**: {{ memory.episodic_raw[:500] }}{{ '...' if memory.episodic_raw|length > 500 else '' }}
-{%- endif %}
-{%- if memory.core_raw %}
-- **Core**: {{ memory.core_raw[:500] }}{{ '...' if memory.core_raw|length > 500 else '' }}
-{%- endif %}
 {%- endif %}
 
 {%- if blackboard.subtask_results is defined or blackboard.metadata is defined or (blackboard.shared_context and blackboard.shared_context|length > 0) %}

@@ -5,7 +5,7 @@ state_schema: "app.core.engine.state.AgentState"
 interrupt_before: []
 
 tool_bundles:
-  core_file_tools:
+  file_tools:
     - "list_dir"
     - "find_files"
     - "read_file"
@@ -15,6 +15,38 @@ tool_bundles:
     - "delete_file"
     - "grep_search"
     - "execute_command"
+  browser_tools:
+    - "browser_control"
+    - "clipboard"
+    - "desktop_control"
+    - "analyze_image"
+    - "verify_ui_state"
+  desktop_tools:
+    - "desktop_control"
+    - "open_app"
+    - "clipboard"
+    - "analyze_image"
+  mobile_tools:
+    - "mobile_control"
+    - "list_devices"
+  knowledge_tools:
+    - "remember"
+    - "recall"
+    - "search_history"
+    - "list_skills"
+    - "read_skill_sop"
+    - "query_app_atlas"
+    - "list_app_atlas"
+    - "save_concepts"
+    - "kb_read"
+    - "kb_search"
+  planning_tools:
+    - "create_plan"
+    - "update_step_status"
+    - "create_todo"
+    - "list_todos"
+    - "complete_todo"
+    - "cancel_todo"
 
 nodes:
   - id: "supervisor"
@@ -23,7 +55,8 @@ nodes:
       - "route_to"
       - "decompose_task"
       - "update_blackboard"
-      - "search_skills"
+      - "list_skills"
+      - "read_skill_sop"
       - "search_history"
       - "search_web"
       - "read_file"
@@ -72,7 +105,8 @@ nodes:
       - "remember"
       - "recall"
       - "search_history"
-      - "search_skills"
+      - "list_skills"
+      - "read_skill_sop"
       - "run_macro"
       - "query_app_atlas"
       - "list_app_atlas"
@@ -119,7 +153,8 @@ nodes:
       - "find_symbol"
       - "ask_codebase"
       - "search_history"
-      - "search_skills"
+      - "list_skills"
+      - "read_skill_sop"
       - "run_macro"
       - "synthesize_skill"
       - "verify_ui_state"

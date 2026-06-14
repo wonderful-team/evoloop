@@ -4,7 +4,7 @@ import os
 import sys
 import uuid
 from sqlalchemy import select
-from unittest.mock import patch, PropertyMock
+from unittest.mock import patch, PropertyMock, AsyncMock
 
 # Load env
 from dotenv import load_dotenv
@@ -87,7 +87,7 @@ async def run_multi_turn_test():
 
         with patch("app.core.evocloud.evocloud_manager.get_token", return_value=TOKEN), \
              patch.object(EvoCloudHTTPClient, "root_url", new_callable=PropertyMock, return_value="https://evoloop.develop-assistant.cn"), \
-             patch("app.core.evocloud.evocloud_manager.get_project_by_id", return_value=mock_project):
+             patch("app.core.evocloud.evocloud_manager.get_project_by_id", new_callable=AsyncMock, return_value=mock_project):
             
             for i, user_input in enumerate(conversation_script):
                 turn_no = i + 1

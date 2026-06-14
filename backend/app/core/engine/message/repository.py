@@ -171,6 +171,7 @@ class MessageRepository:
         operation: str,
         run_id: str | None = None,
         tool_call_id: str | None = None,
+        diff_content: str | None = None,
     ) -> bool:
         """
         同步或创建消息的 changeset 引用。
@@ -200,7 +201,7 @@ class MessageRepository:
                 result = await session.execute(stmt)
                 ref = result.scalar_one_or_none()
 
-                new_file_entry = {"path": file_path, "operation": operation.lower()}
+                new_file_entry = {"path": file_path, "operation": operation.lower(), "diff": diff_content}
 
                 if ref:
                     # 3. 更新现有引用

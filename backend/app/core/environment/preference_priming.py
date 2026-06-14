@@ -23,7 +23,7 @@ async def prime_preferences(project_id: int | None = None) -> PreferenceContext:
     from app.core.memory.lifespan import MemoryLifespanManager
     from app.infrastructure.config.service import SystemConfigService
 
-    user_id = 1  # Default user
+    member_id = 1  # Default user
 
     if not MemoryLifespanManager.is_initialized():
         await MemoryLifespanManager.ainitialize()
@@ -31,7 +31,7 @@ async def prime_preferences(project_id: int | None = None) -> PreferenceContext:
     manager = container.memory_manager
     try:
         prefs_text = await manager.get_merged_preferences(
-            user_id=user_id,
+            member_id=member_id,
             project_id=project_id,
         )
         preferences = _parse_preferences(prefs_text)

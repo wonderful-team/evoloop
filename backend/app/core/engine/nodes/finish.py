@@ -170,31 +170,10 @@ class FinishNode(BaseNode):
                 )
             messages = trim_result.messages
 
-        # ------------------------------------------------------------
-        # 0. Early truncation / replan gate
-        # If a Worker hit max_steps and requested replanning, bypass
-        # auditing and route straight back to Supervisor.
-        # ------------------------------------------------------------
         iteration_count = (state.iteration_count or 0)
         max_steps = settings.SUPERVISOR_AGENT_MAX_STEPS
         if blackboard and blackboard.metadata and blackboard.metadata.max_supervisor_steps:
             max_steps = blackboard.metadata.max_supervisor_steps
-
-        if iteration_count < max_steps:
-            for msg in reversed(messages):
-                if isinstance(msg, AIMessage):
-                    meta = msg.additional_kwargs
-                    if meta.get("is_truncated") and meta.get("requires_replan"):
-                        logger.warning(
-                            f"[Finish] 🔄 Worker was truncated (max_steps={meta.get('max_steps')}). "
-                            "Routing back to Supervisor for replanning."
-                        )
-                        blackboard.worker_outcome = "truncated"
-                        return StateUpdate(
-                            messages=messages,
-                            next_node=RoutingTarget.SUPERVISOR,
-                            blackboard=blackboard,
-                        )
 
         is_shadow_mode = blackboard.metadata.shadow_audit or False
         tool_history = blackboard.metadata.tool_history

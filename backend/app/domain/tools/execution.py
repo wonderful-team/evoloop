@@ -715,7 +715,7 @@ async def run_macro(
     from scratch using browser_control / desktop_control / mobile_control.
 
     WHEN TO USE:
-    - After `search_skills` returns a match with `execution_mode = "deterministic"`.
+    - After `list_skills` and `read_skill_sop` indicates a macro execution.
     - When the user explicitly asks you to replay a recorded skill.
     - When you want to repeat a previously successful multi-step automation.
 
@@ -725,9 +725,9 @@ async def run_macro(
 
     Args:
         skill_name: Exact name of the skill to execute. Perform a case-insensitive DB lookup.
-                    Use the name returned by `search_skills`.
+                    Use the name returned by `list_skills`.
         skill_id:   Skill ID (integer primary key). Use if you have the exact ID from
-                    `search_skills`. Takes precedence over skill_name when both are given.
+                    `list_skills`. Takes precedence over skill_name when both are given.
         params:     Runtime parameter dict to inject into the macro steps,
                     e.g. {"query": "iPhone 15", "target_url": "https://example.com"}.
                     These map to `{{parameters.query}}` placeholders in the macro steps.
@@ -739,7 +739,7 @@ async def run_macro(
         steps were present.
 
     Example:
-        # After search_skills returns skill_id=42, execution_mode="deterministic":
+        # After list_skills returns skill_id=42:
         result = await run_macro(skill_id=42, params={"keyword": "机器学习"})
     """
     from app.core.execution.macro.service import MacroService

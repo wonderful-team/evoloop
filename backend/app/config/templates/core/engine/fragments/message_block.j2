@@ -18,20 +18,5 @@ Use standard Markdown links to reference all generated files and media:
 - Images: `![Alt Text](file:///absolute/path/to/image.png)`
 - Audio: `[Audio Name](file:///absolute/path/to/audio.mp3)`
 
-{% if has_file_operations -%}
-### Changeset Reports
-After completing file operations, report a structured summary using a ` ```json ``` ` block:
-```json
-{
-  "type": "changeset",
-  "changes": [
-    { "op": "ADD",    "path": "src/new_file.py" },
-    { "op": "EDIT",   "path": "src/existing.py" },
-    { "op": "DELETE", "path": "src/old_file.py" }
-  ]
-}
-```
-{%- endif %}
-
 ### HITL (Human-in-the-Loop)
 Use **only** when you are genuinely blocked and need user input. Choose the appropriate type: `approval` · `confirm` · `choice` · `text_input` · `project_switch` · `file_select`

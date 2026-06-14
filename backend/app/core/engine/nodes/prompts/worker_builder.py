@@ -22,7 +22,7 @@ class WorkerPromptBuilder(BasePromptBuilder):
         blackboard: BlackboardState | dict,
         skills: list = None,
         ticket: ExecutionTicket | None = None,
-        focus_files: list = None,
+        focus_paths: list = None,
         plan: dict | str = None
     ):
         self.agent_config = agent_config
@@ -33,7 +33,7 @@ class WorkerPromptBuilder(BasePromptBuilder):
         else:
             self.clipboard = blackboard.clipboard if blackboard else []
         self.ticket = ticket
-        self.focus_files = focus_files or []
+        self.focus_paths = focus_paths or []
         self.plan = plan
 
     async def build(self, config: Any = None) -> str:
@@ -127,7 +127,7 @@ class WorkerPromptBuilder(BasePromptBuilder):
             "acceptance_criteria": self.ticket.acceptance_criteria if self.ticket else [],
             "parameters": self.ticket.parameters if self.ticket else {},
             "is_subtask": self.agent_config.is_subtask if self.agent_config else False,
-            "focus_files": self.focus_files,
+            "focus_paths": self.focus_paths,
             "knowledge_blocks": self._prepare_knowledge_blocks(),
             "workflow_context": self.ticket.workflow_context if self.ticket else None,
             "cwd": cwd,

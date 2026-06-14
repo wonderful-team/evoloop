@@ -186,6 +186,16 @@ class SupervisorNode(BaseAgentNode):
             logger.info(f"[Supervisor] ℹ️ Worker returned '{worker_outcome}'. Delegating review to Supervisor LLM.")
             blackboard.ticket = None
 
+            if worker_outcome in ("truncated", "failed", "error", "incomplete"):
+                from langchain_core.messages import SystemMessage
+                warning_msg = (
+                    f"[SYSTEM ALERT] The previous Worker execution was {worker_outcome.upper()}.\n"
+                    "If TRUNCATED: The worker hit its step limit before finishing. You MUST review the progress and issue a new `route_to` ticket to continue the work.\n"
+                    "If FAILED/ERROR/INCOMPLETE: Review the last tool errors and decide whether to retry or formulate a new plan.\n"
+                    "DO NOT return an empty response. You must take explicit action."
+                )
+                state.messages.append(SystemMessage(content=warning_msg))
+
         return None
 
     async def build_prompt_pair(self, state: AgentState, config: RunnableConfig) -> tuple[str, str]:

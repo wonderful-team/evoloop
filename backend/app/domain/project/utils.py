@@ -25,8 +25,8 @@ async def get_project_path(project_id: int) -> str:
     # 1. Try Cloud API
     try:
         project = await evocloud_manager.get_project_by_id(project_id)
-        if project and project.path and os.path.isdir(project.path):
-            return project.path
+        if project and project.get("path") and os.path.isdir(project.get("path")):
+            return project.get("path")
     except Exception as e:
         logger.debug(f"Cloud lookup failed for {project_id}: {e}")
 

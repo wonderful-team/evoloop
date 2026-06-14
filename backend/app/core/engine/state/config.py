@@ -39,11 +39,6 @@ class RunnableConfigMetadata(DynamicBaseModel):
 
 
 class TicketParameters(DynamicBaseModel):
-    task_steps: list[str] | None = None
-    fallback_strategy: str | None = None
-    target_apps: list[str] | None = None
-    lazy_hydration: bool = False
-    verbose_output: bool = True
     dependencies: list[str] | None = None
 
 

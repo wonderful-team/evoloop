@@ -96,11 +96,8 @@ class ToolManager:
             # 3. Strict Supervisor Allowlist Enforcement
             # Only apply this to specialists (workers), NEVER to the supervisor itself.
             if dynamic_tools and node_name != "supervisor":
-                from app.core.tools.registry import get_tool_bundle
                 # If Supervisor provided a strict tool allowlist, we prune any tool not in the list.
                 allowed = set(dynamic_tools)
-                # Unconditionally add basic file and execution tools
-                allowed.update(get_tool_bundle("core_file_tools"))
                 combined_map = {k: v for k, v in combined_map.items() if k in allowed}
 
                 # 4. Prevent tool-choice ambiguity: when write_wiki_page is explicitly

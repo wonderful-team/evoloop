@@ -293,7 +293,8 @@ class AuditService:
         )
 
         run_id = config.get("configurable", {}).get("run_id")
-        member_id = int(config.get("configurable", {}).get("member_id"))
+        member_id_val = config.get("configurable", {}).get("member_id")
+        member_id = int(member_id_val) if member_id_val is not None else None
 
         msg_dicts = []
         for m in messages:

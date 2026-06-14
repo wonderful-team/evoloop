@@ -56,6 +56,7 @@ class PyrightServer(SolidLanguageServer):
             "rootPath": repository_absolute_path,
             "rootUri": pathlib.Path(repository_absolute_path).as_uri(),
             "initializationOptions": {
+                "include": ["."],
                 "exclude": [
                     "**/__pycache__",
                     "**/.venv",
@@ -63,6 +64,10 @@ class PyrightServer(SolidLanguageServer):
                     "**/build",
                     "**/dist",
                     "**/.pixi",
+                    "**/Library/**",
+                    "**/Applications/**",
+                    "**/.vscode/**",
+                    "**/node_modules/**"
                 ],
                 "reportMissingImports": "error",
             },

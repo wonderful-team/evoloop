@@ -75,7 +75,7 @@ async def run_advanced_test():
     mock_project = {"id": project_id, "name": "Test Project", "path": os.getcwd()}
 
     with patch("app.core.evocloud.evocloud_manager.get_token", return_value=TOKEN), \
-         patch("app.core.evocloud.evocloud_manager.get_project_by_id", return_value=mock_project):
+         patch("app.core.evocloud.evocloud_manager.get_project_by_id", new_callable=AsyncMock, return_value=mock_project):
 
         # --- PHASE 1: Normal Multi-Turn ---
         print("\n>>> PHASE 1: Normal Multi-Turn")

@@ -32,7 +32,6 @@ class RouteToSignal(AgentSignal):
     """Signal to transition to another Graph Node."""
     target: str = "finish"
     context: RoutingContext = Field(default_factory=RoutingContext)
-    authorized_tools: list[str] | None = None
     skill_ids: list[int] | None = None
     session_goal: str | None = None
 

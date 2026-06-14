@@ -2,9 +2,10 @@ import asyncio
 import logging
 import os
 import sys
+import time
 import uuid
 from sqlalchemy import select
-from unittest.mock import patch, PropertyMock
+from unittest.mock import patch, PropertyMock, AsyncMock
 
 # Add backend path to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -43,11 +44,14 @@ async def run_verification():
         
         project_id = 99
         thread_id = f"analytics-test-{uuid.uuid4().hex[:6]}"
-        target_file = "/Users/xujin/Projects/develop-assistant.cn/抖音本地样本数据.xlsx"
+        from app.core.environment import awaken
+        await awaken(project_id=project_id)
+        target_file = "/Users/xujin/Projects/develop-assistant.cn/workspace/抖音本地样本数据.xlsx"
         
         user_input = (
             f"分析文件 {target_file}，"
             "计算 2025、2026 年直营与加盟的总消费金额是多少"
+            # "计算 2025、2026 年直营与加盟的会员数是多少"
         )
         
         logger.info("[Test] Initializing EvoCloud Manager...")
@@ -75,7 +79,7 @@ async def run_verification():
 
         with patch("app.core.evocloud.evocloud_manager.get_token", return_value=TOKEN), \
              patch("app.core.identity.identity_service.get_member_id", return_value=member_id), \
-             patch("app.core.evocloud.evocloud_manager.get_project_by_id", return_value=mock_project):
+             patch("app.core.evocloud.evocloud_manager.get_project_by_id", new_callable=AsyncMock, return_value=mock_project):
             
             logger.info("=" * 60)
             logger.info(f"🚀 STARTING VERIFICATION TEST (Thread: {thread_id})")
@@ -83,6 +87,7 @@ async def run_verification():
             logger.info("=" * 60)
 
             # 1. Dispatch
+            start_time = time.time()
             logger.info("Dispatching agent run (natural language query)...")
             dispatch_res = await dispatch_agent_run(
                 thread_id=thread_id,
@@ -102,8 +107,11 @@ async def run_verification():
             await run_agent_background(thread_id, dispatch_res.inputs)
             
             # 3. Verification Audit
+            end_time = time.time()
+            total_time = end_time - start_time
             logger.info("=" * 60)
             logger.info("📊 FINAL EXECUTION AUDIT")
+            logger.info(f"⏱️  Total Execution Time: {total_time:.2f} seconds")
             logger.info("=" * 60)
             
             async with session_scope() as session:

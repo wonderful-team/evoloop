@@ -51,7 +51,8 @@ class DeterministicToolCache:
         'search_web',           # Cached with short TTL
         'read_url_content',     # Cached with short TTL
         'search_history',
-        'search_skills',
+        'list_skills',
+        'read_skill_sop',
     })
 
     # Never cache these tools (side effects)
@@ -87,7 +88,8 @@ class DeterministicToolCache:
         'search_web': 30,          # 30 seconds for web content
         'read_url_content': 60,    # 1 minute for URL content
         'search_history': 30,      # 30 seconds for history
-        'search_skills': 300,      # 5 minutes for skills (rarely change)
+        'list_skills': 300,
+        'read_skill_sop': 300,
     }
 
     def __init__(self, maxsize: int = 1000):

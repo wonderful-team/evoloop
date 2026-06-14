@@ -386,7 +386,7 @@ class LLMFactory:
                 model_name=model_name,
                 temperature=temperature,
                 streaming=streaming,
-                model_kwargs=anthropic_kwargs if anthropic_kwargs else None,
+                model_kwargs=anthropic_kwargs if anthropic_kwargs else {},
                 http_async_client=_HTTP_CLIENT_POOL.get(),
             )
         else:

@@ -63,7 +63,6 @@ class SupervisorPromptBuilder(BasePromptBuilder):
                 "cwd": actual_cwd,
                 "project_profile": project_profile,
             },
-            "core_file_tools": get_tool_bundle("core_file_tools"),
             "project_concepts": ctx.metadata.get("project_concepts", ""),
             "is_supervisor": True,
             "has_file_operations": False,

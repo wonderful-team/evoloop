@@ -55,7 +55,7 @@ class AgentContextHydrator:
         Mutates ctx.metadata and blackboard directly.
         """
         start_time = time.time()
-
+        
         # 1. Trigger SessionStart Hook
         session_start_result = await hook_system.trigger(
             HookEvent.SESSION_START,

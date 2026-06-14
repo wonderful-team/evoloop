@@ -153,6 +153,7 @@ class InternalLLMService:
             temperature=temperature,
             max_tokens=max_tokens,
             model_name=model_name,
+            **kwargs
         )
 
         # 绑定结构化输出

@@ -43,6 +43,7 @@ class BenefitService:
         # Benefit definitions (Labels/Desc)
         self._definitions: dict[str, dict[str, str]] = {}
         self.CACHE_TTL = 120  # Changed to 2 minutes
+        self._pending_fetches = {}
 
     async def invalidate_cache(self, member_id: int = None):
         """
@@ -58,6 +59,12 @@ class BenefitService:
         """
         Fetch full entitlement set for a member from Member Center.
         """
+        import asyncio
+        
+        # 0. Prevent cache stampede (singleflight)
+        if member_id in self._pending_fetches and not force_refresh:
+            return await self._pending_fetches[member_id]
+            
         cache_key = f"evoloop:benefits:{member_id}"
 
         # 0. Force refresh: invalidate cache first
@@ -76,25 +83,33 @@ class BenefitService:
             except json.JSONDecodeError:
                 pass
 
-        # 2. Fetch from Cloud
-        try:
-            res = await evocloud_manager.api.get_member_benefits(token=token)
-            if res.get("code") == 0:
-                data = res.get("data", {})
-                await cache.set(cache_key, json.dumps(data), ex=self.CACHE_TTL)
-                
-                # Update global definitions cache
-                defs = data.get("definitions", {})
-                if defs:
-                    self._definitions.update(defs)
+        # 2. Fetch from Cloud (wrapped in task for singleflight)
+        async def _fetch():
+            try:
+                res = await evocloud_manager.api.get_member_benefits(token=token)
+                if res.get("code") == 0:
+                    data = res.get("data", {})
+                    await cache.set(cache_key, json.dumps(data), ex=self.CACHE_TTL)
                     
-                return data
-            
-            logger.warning(f"Failed to fetch benefits for {member_id}: {res.get('message')}")
-            return {}
-        except Exception as e:
-            logger.error(f"Benefit Service error for {member_id}: {e}")
-            return {}
+                    # Update global definitions cache
+                    defs = data.get("definitions", {})
+                    if defs:
+                        self._definitions.update(defs)
+                        
+                    return data
+                
+                logger.warning(f"Failed to fetch benefits for {member_id}: {res.get('message')}")
+                return {}
+            except Exception as e:
+                logger.error(f"Benefit Service error for {member_id}: {e}")
+                return {}
+
+        task = asyncio.create_task(_fetch())
+        self._pending_fetches[member_id] = task
+        try:
+            return await task
+        finally:
+            self._pending_fetches.pop(member_id, None)
 
     def get_benefit_label(self, feature_code: str) -> str:
         """

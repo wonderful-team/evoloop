@@ -93,8 +93,12 @@ class BaseAgentNode(BaseNode, ABC):
             # static_prompt: Huge instructions + tools -> goes to generic SystemMessage
             # dynamic_ticket: Small turn-based telemetry -> injected as HumanMessage
             static_system_prompt, dynamic_ticket_text = await self.build_prompt_pair(state, config)
-            # print("static_system_prompt=", static_system_prompt)
-            # print("dynamic_ticket_text=", dynamic_ticket_text)
+            print("\n" + "="*40 + f" [{self.node_name.upper()} STATIC SYSTEM PROMPT] " + "="*40)
+            print(static_system_prompt)
+            print("="*100 + "\n")
+            print("="*40 + f" [{self.node_name.upper()} DYNAMIC TICKET TEXT] " + "="*40)
+            print(dynamic_ticket_text)
+            print("="*100 + "\n")
             if dynamic_ticket_text:
                 logger.info(
                     f"[{self.node_name}] Dynamic ticket injected ({len(dynamic_ticket_text)} chars) | "

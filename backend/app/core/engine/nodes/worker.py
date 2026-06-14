@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.context import ContextManager
 from app.core.engine.nodes.base import BaseAgentNode
-from app.core.engine.nodes.utils.focus_file_hydrator import FocusFileHydrator
 from app.core.engine.nodes.utils.skill_resolver import SkillResolver
 from app.core.engine.nodes.utils.worker_result_processor import process_worker_result
 from app.core.engine.nodes.prompts import WorkerPromptBuilder
@@ -101,7 +100,7 @@ class WorkerNode(BaseAgentNode):
 
         # Hydrate internal context
         full_plan = state.structured_plan or state.current_plan
-        focus_files = await FocusFileHydrator.hydrate(execution_ticket, ctx)
+        focus_paths = execution_ticket.focus_paths if execution_ticket else []
         relevant_sops = list(state.relevant_sops)
 
         prompt_builder = WorkerPromptBuilder(
@@ -109,7 +108,7 @@ class WorkerNode(BaseAgentNode):
             blackboard,
             skills=relevant_sops,
             ticket=execution_ticket,
-            focus_files=focus_files,
+            focus_paths=focus_paths,
             plan=full_plan
         )
 

@@ -99,7 +99,7 @@ class SequentialWorkflowNode(BaseAgentNode):
             blackboard=blackboard,
             skills=[skill] if not isinstance(skill, list) else skill,
             ticket=step_ticket,
-            focus_files=[],  # focus files loaded once at workflow start if needed
+            focus_paths=[],  # focus paths passed from ticket if needed, but sequential steps usually don't use it directly
             plan=state.structured_plan or state.current_plan,
         )
         system_prompt = await prompt_builder.build(config)

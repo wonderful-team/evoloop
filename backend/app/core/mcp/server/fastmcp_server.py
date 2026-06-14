@@ -193,7 +193,7 @@ async def remember_preference(key: str, value: str, description: str = "") -> st
         manager = container.memory_manager
         # Unified Facade API
         await manager.save_preference(
-            user_id="user_default",
+            member_id=1,
             key=key,
             value=value,
             description=description

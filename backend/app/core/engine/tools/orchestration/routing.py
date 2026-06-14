@@ -17,7 +17,6 @@ def route_to(
     target: RoutingTarget,
     reason: str,
     context: RoutingContext | None = None,
-    authorized_tools: list[str] | None = None,
     skill_ids: list[int] | None = None,
     workflow_mode: str = "single",
     session_goal: str | None = None,
@@ -39,30 +38,15 @@ def route_to(
         target: The target specialist node. REQUIRED.
         reason: Why this handoff is occurring. REQUIRED.
         context: Structured guidance or attention focus for the specialist.
-        authorized_tools: Restricted set of tools if specific constraints are needed.
-                          The Supervisor should select appropriate tools from the
-                          Worker Baseline Capability Pool defined in agent_main.yaml.
-                          For deep_researcher: ["search_web", "browser_control", ...]
-                          For documenter: ["read_file", "write_file", "list_dir", ...]
         skill_ids: List of skill IDs for multi-step workflows (executed in order).
         workflow_mode: "single" for one skill, "sequential" for step-by-step execution.
         session_goal: Optional session-level goal to establish or refine the active goal on the UI.
     """
     target_val = target.value
     from app.core.tools.registry import get_tool_bundle
-    mandatory_basic_tools = set(get_tool_bundle("core_file_tools") + ["search_web"])
 
     ctx = context or RoutingContext()
     context_dict = ctx.model_dump()
-    if authorized_tools:
-        # If any file operation tool is requested, ensure the entire bundle is granted
-        # to prevent the Worker from being constrained during multi-turn dynamic tasks.
-        if bool(set(authorized_tools) & mandatory_basic_tools):
-            for tool in mandatory_basic_tools:
-                if tool not in authorized_tools:
-                    authorized_tools.append(tool)
-                    
-        context_dict["authorized_tools"] = authorized_tools
 
     if skill_ids:
         context_dict["skill_ids"] = skill_ids
@@ -70,6 +54,5 @@ def route_to(
 
     context_str = json.dumps(context_dict, ensure_ascii=False)
     skill_info = f" | Skill IDs: {skill_ids}" if skill_ids else ""
-    tool_info = f" | Tools: {authorized_tools}" if authorized_tools else ""
 
-    return f"ROUTE_SIGNAL|{target_val}|{reason}|{context_str}{skill_info}{tool_info}"
+    return f"ROUTE_SIGNAL|{target_val}|{reason}|{context_str}{skill_info}"

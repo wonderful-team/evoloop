@@ -91,7 +91,8 @@ async def _persist_file_operation_task(
         file_path=file_path,
         operation=operation,
         run_id=run_id,
-        tool_call_id=tool_call_id
+        tool_call_id=tool_call_id,
+        diff_content=diff_content
     )
 
 
@@ -682,6 +683,7 @@ async def run_engine_audit_structured_extraction(
     summary: str,
     messages_dicts: list[dict],
     collected_schemas: list[dict],
+    **kwargs,
 ):
     """
     Heavy reasoning extraction implementation.
@@ -691,8 +693,9 @@ async def run_engine_audit_structured_extraction(
     from app.core.events.schemas.lifecycle import ExtractionRequest, ExtractionCompletedEvent
     from app.core.events.base import system_bus
     from app.core.llm import InternalLLMService
-    from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+    from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
     from app.utils.template import render_template
+    from app.core.engine.message.converter import EvoMessageConverter
 
     if not collected_schemas:
         logger.info(f"[Celery] No extraction schemas requested for thread {thread_id}, skipping extraction.")
@@ -703,15 +706,21 @@ async def run_engine_audit_structured_extraction(
     if not DynamicVerdict:
         return
 
-    # Reconstruct messages
+    # Reconstruct messages fully, including ToolMessages
     messages = []
     for m in messages_dicts:
-        if m.get("type") == "human":
+        m_type = m.get("type")
+        if m_type == "human":
             messages.append(HumanMessage(**m))
-        elif m.get("type") == "ai":
+        elif m_type == "ai":
             messages.append(AIMessage(**m))
-        elif m.get("type") == "system":
+        elif m_type == "system":
             messages.append(SystemMessage(**m))
+        elif m_type == "tool":
+            messages.append(ToolMessage(**m))
+
+    # Authoritatively repair the message history to ensure structural validity for strict LLM APIs
+    messages = EvoMessageConverter.repair(messages)
 
     model_name = SystemConfigService.get_value("LLM_MODEL")
     schema_json = json.dumps(DynamicVerdict.model_json_schema(), ensure_ascii=False, indent=2)
@@ -726,7 +735,7 @@ async def run_engine_audit_structured_extraction(
         import asyncio
         response = await asyncio.wait_for(
             InternalLLMService.invoke_structured(
-                messages=messages + [{"role": "system", "content": extract_prompt}],
+                messages=messages + [SystemMessage(content=extract_prompt)],
                 output_schema=DynamicVerdict,
                 purpose="audit_extraction",
                 temperature=0.1,
@@ -766,6 +775,7 @@ async def engine_audit_structured_extraction(
     summary: str,
     messages_dicts: list[dict],
     collected_schemas: list[dict],
+    **kwargs,
 ):
     """
     Background Celery task that performs the heavy reasoning extraction (kimi-k2-thinking-turbo).
@@ -778,6 +788,7 @@ async def engine_audit_structured_extraction(
         summary=summary,
         messages_dicts=messages_dicts,
         collected_schemas=collected_schemas,
+        **kwargs,
     )
 
 
