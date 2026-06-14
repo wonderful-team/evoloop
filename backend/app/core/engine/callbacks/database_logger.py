@@ -236,8 +236,12 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         """
         工具执行开始时调用 — 预插入 running 状态记录
         """
-        # 提取工具名称
-        tool_name = str(serialized.get("name") or "unknown_tool")
+        # 提取工具名称（兼容 LangChain 不同版本的序列化格式）
+        tool_name = str(
+            serialized.get("name") or 
+            serialized.get("kwargs", {}).get("name") or 
+            "unknown_tool"
+        )
         run_id_str = str(run_id)
 
         # 使用传入的 metadata 参数，而不是从 kwargs 中提取（因为它已被参数捕获）

@@ -55,13 +55,16 @@ class MemoryEntry(DynamicBaseModel):
 
     # Metadata
     project_id: int | None = None
-    user_id: str | None = None
+    member_id: int | None = None
     tags: list[str] = Field(default_factory=list)
 
     # Source tracking
     source: str = "manual"
     source_message_id: str | None = None
     run_id: str | None = None
+    source_file_path: str | None = None
+    source_thread_id: str | None = None
+    source_wiki_title: str | None = None
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
 
     # Versioning
@@ -98,8 +101,8 @@ class MemoryEntry(DynamicBaseModel):
     def to_frontmatter(self) -> str:
         """Serialize to Markdown with YAML frontmatter."""
         # Clean strings for YAML
-        def _clean(s: str) -> str:
-            return ' '.join((s or "").replace('\n', ' ').split()).strip()[:150]
+        def _clean(s: str, max_len: int = 150) -> str:
+            return ' '.join((s or "").replace('\n', ' ').split()).strip()[:max_len]
 
         frontmatter: dict[str, Any] = {
             "id": self.id,
@@ -107,14 +110,17 @@ class MemoryEntry(DynamicBaseModel):
             "tier": self.tier.value,
             "utility_score": self.utility_score,
             "privacy": self.privacy.value,
-            "title": _clean(self.title),
-            "description": _clean(self.description),
+            "title": _clean(self.title, 150),
+            "description": _clean(self.description, 500),
             "project_id": self.project_id,
-            "user_id": self.user_id,
+            "member_id": self.member_id,
             "tags": self.tags,
             "source": self.source,
             "source_message_id": self.source_message_id,
             "run_id": self.run_id,
+            "source_file_path": self.source_file_path,
+            "source_thread_id": self.source_thread_id,
+            "source_wiki_title": self.source_wiki_title,
             "confidence": self.confidence,
             "version": self.version,
             "created_at": self.created_at.isoformat(),
@@ -220,7 +226,7 @@ class MemoryIndexEntry(DynamicBaseModel):
     def to_index_line(self) -> str:
         """Format as index line."""
         if self.description:
-            return f"- [{self.title}]({self.path}) — {self.description[:100]}"
+            return f"- [{self.title}]({self.path}) — {self.description[:500]}"
         return f"- [{self.title}]({self.path})"
 
     @classmethod

@@ -5,13 +5,12 @@ Unified memory system for EvoLoop.
 
 This module provides:
 - Short-term memory: Conversation history (SQL)
-- Long-term memory: Persistent knowledge (File or Neo4j)
-- Auto-extraction: Automatic memory creation from conversations
+- Long-term memory: Persistent knowledge (File-based, SQLite + LanceDB)
 - Smart retrieval: LLM-assisted relevance selection
+- Two-tier hot/cold memory architecture
 """
 
 # Services
-from app.core.memory.auto_extraction import AutoMemoryExtractor
 # Configuration and Dependency Injection
 from app.core.memory.config import MemoryConfig, get_default_memory_config
 from app.core.memory.container import MemoryContainer
@@ -20,7 +19,6 @@ from app.core.memory.maintenance import (
     MaintenanceScheduler,
     MemoryMaintenanceAgent,
     get_maintenance_status,
-    scheduled_memory_maintenance,
     trigger_maintenance,
 )
 # Main facade
@@ -70,7 +68,6 @@ __all__ = [
     "PrivacyLevel",
 
     # Services
-    "AutoMemoryExtractor",
     "MemoryPruningService",
     "MemoryRetriever",
     "get_relevant_memories",
@@ -92,7 +89,6 @@ __all__ = [
     # Maintenance
     "MemoryMaintenanceAgent",
     "MaintenanceScheduler",
-    "scheduled_memory_maintenance",
     "trigger_maintenance",
     "get_maintenance_status",
 ]

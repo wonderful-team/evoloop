@@ -201,193 +201,37 @@ class SkillDiscovery:
         logger.info(f"[Discovery] No deterministic match for: {query_clean}")
         return None, [], "No exact match found."
 
-    async def match_multiple(
+    async def get_skills_catalog(
         self,
-        query: str,
-        task_steps: list[str] | None = None,
-        namespace_context: str | None = None,
-        max_skills: int = 3
-    ) -> tuple[list[SkillMatch], str]:
+        namespace: str | None = None,
+        query: str | None = None
+    ) -> list[dict[str, Any]]:
         """
-        Match multiple skills for complex multi-step tasks.
+        Fast O(1) retrieval of the skills catalog.
+        Optionally filter by namespace and a simple case-insensitive substring query.
+        """
+        all_skills = await self._get_active_skills()
         
-        Args:
-            query: The main task description
-            task_steps: Optional list of identified steps (e.g., ["search web", "send to wechat"])
-            namespace_context: Optional namespace filter
-            max_skills: Maximum number of skills to return
+        results = []
+        for s in all_skills:
+            if namespace and s.namespace != namespace:
+                continue
             
-        Returns:
-            Tuple of (list of SkillMatch, reasoning)
-        """
-        all_skills = await self._get_active_skills()
-        matches = []
-
-        # If explicit steps provided, match each step
-        if task_steps and len(task_steps) > 1:
-            logger.info(f"[Discovery] Multi-step task detected: {len(task_steps)} steps")
-
-            for step in task_steps:
-                # Try exact match first
-                match, _, _ = await self.exact_search(step, namespace_context)
-
-                if not match:
-                    # Fallback to semantic search for this step
-                    match, _, _ = await self.semantic_search(step, namespace_context=namespace_context)
-
-                if match and match.skill_id not in [m.skill_id for m in matches]:
-                    matches.append(match)
-
-                if len(matches) >= max_skills:
-                    break
-
-        # If no matches from steps, try to extract multiple intents from main query
-        if not matches:
-            # Use LLM to analyze if this is a multi-skill task
-            analysis = await self._analyze_task_complexity(query)
-
-            if analysis.get("is_multi_step", False):
-                for skill_name in analysis.get("required_skills", [])[:max_skills]:
-                    match, _, _ = await self.exact_search(skill_name, namespace_context)
-                    if match and match.skill_id not in [m.skill_id for m in matches]:
-                        matches.append(match)
-
-        reasoning = f"Matched {len(matches)} skills for multi-step task"
-        return matches, reasoning
-
-    async def _analyze_task_complexity(self, query: str) -> dict:
-        """
-        Analyze if a task requires multiple skills.
-        Uses lightweight LLM call with modular prompt template.
-        """
-        from app.core.learning.prompts import prompt_builder
-
-        # Use modular prompt template instead of hardcoded string
-        prompt = prompt_builder.build_task_complexity_prompt(query)
-
-        # Fallback to basic structure if template rendering failed
-        if prompt.startswith("Error loading"):
-            logger.warning("[Discovery] Failed to load task complexity template, using fallback")
-            return {"is_multi_step": False, "required_skills": [], "reasoning": "Template load failed"}
-
-        try:
-            from app.core.llm import InternalLLMService
-            from app.infrastructure.config.service import SystemConfigService
-            model_name = SystemConfigService.get_value("LLM_MODEL")
-            response = await InternalLLMService.invoke(
-                messages=[{"role": "user", "content": prompt}],
-                purpose="task_analysis",
-                temperature=0.0,
-                model_name=model_name,
-            )
-
-            content = response.content.strip()
-            if "```json" in content:
-                content = content.split("```json")[-1].split("```")[0].strip()
-
-            return json.loads(content)
-        except Exception as e:
-            logger.error(f"[Discovery] Task analysis failed: {e}")
-            return {"is_multi_step": False, "required_skills": [], "reasoning": "Analysis failed"}
-
-    async def semantic_search(
-        self,
-        query: str,
-        history: list[dict] | None = None,
-        namespace_context: str | None = None,
-        current_plan: str | None = None,
-        user_preferences: Any | None = None
-    ) -> tuple[SkillMatch | None, list[LearnedSkill], str]:
-        """
-        Pure LLM-Based Skill Discovery with History support.
-        Intent Caching has been DISABLED to prioritize accuracy.
-        Used by explicit search tools.
-        """
-        # Ensure cache is ready
-        all_skills = await self._get_active_skills()
-        if not all_skills:
-            return None, [], "No active skills available to match."
-
-        # 2. Build LLM Context
-        prompt_vars = {
-            "catalog": "\n".join([
-                f"- ID: {s.id} | Name: {s.name} | Description: {s.description}"
-                for s in all_skills
-            ]),
-            "current_plan": current_plan or "None",
-            "user_preferences": user_preferences or "None"
-        }
-
-        system_prompt = prompt_builder.build_discovery_prompt(prompt_vars)
-
-        try:
-            from app.infrastructure.config.service import SystemConfigService
-            model_name = SystemConfigService.get_value("LLM_MODEL")
-            if not model_name:
-                raise ValueError("LLM_MODEL not configured in SystemConfigService")
-            llm = await get_default_llm(temperature=0.0, model_name=model_name)
-            messages = [
-                SystemMessage(content=system_prompt)
-            ]
-
-            # Incorporate history if provided
-            if history:
-                for msg in history[-5:]:  # Last 5 turns for context
-                    role = msg.get("role", "human")
-                    content = msg.get("content", "")
-                    if role == "human":
-                        messages.append(HumanMessage(content=content))
-                    elif role == "ai":
-                        messages.append(AIMessage(content=content))
-
-            messages.append(HumanMessage(content=query))
-
-            logger.info(f"[Discovery] Invoking LLM for intent matching: {query[:50]}...")
-            response = await llm.ainvoke(
-                messages,
-                config={"callbacks": []}
-            )
-
-            # Simple brain-style JSON parser
-            content = response.content.strip()
-            if "```json" in content:
-                content = content.split("```json")[-1].split("```")[0].strip()
-
-            try:
-                data = json.loads(content)
-            except Exception as e:
-                logger.error(f"[Discovery] JSON Parse Error: {e}. Content: {content}")
-                return None, [], f"JSON Parse Error: {e}"
-
-            match = None
-            relevant = []
-            reasoning = data.get("reasoning", "")
-
-            if data.get("match_found"):
-                # Double check ID exists in our list
-                found_id = data.get("skill_id")
-                best_skill = next((s for s in all_skills if s.id == found_id), None)
-
-                if best_skill:
-                    match = SkillMatch(
-                        skill_id=best_skill.id,
-                        skill_name=best_skill.name,
-                        confidence=data.get("confidence", 0.8),
-                        reasoning=reasoning,
-                        extracted_params=data.get("parameters", {})
-                    )
-                    relevant = [best_skill]
-                    logger.info(f"[Discovery] Semantic Match Found: {best_skill.name} (Conf: {match.confidence})")
-
-            if not match:
-                logger.info(f"[Discovery] Semantic search decided NO_MATCH for: {query[:50]}. Reasoning: {reasoning}")
-                relevant = (all_skills if namespace_context else [])
-
-            return match, relevant, reasoning
-
-        except Exception as e:
-            logger.error(f"[Discovery] Semantic matching failed: {e}")
-            return None, [], str(e)
+            if query:
+                q = query.lower()
+                name_match = s.name and q in s.name.lower()
+                desc_match = s.description and q in s.description.lower()
+                if not (name_match or desc_match):
+                    continue
+                    
+            results.append({
+                "id": s.id,
+                "name": s.name,
+                "namespace": s.namespace or "general",
+                "description": s.description or ""
+            })
+            
+        return results
 
     async def get_namespace_index(self, namespace_context: str) -> list[dict[str, str]]:
         """

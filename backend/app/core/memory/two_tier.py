@@ -399,7 +399,7 @@ class TwoTierMemoryManager:
             sections[section_name]["entries"].append({
                 "id": entry.id,
                 "title": entry.title,
-                "description": entry.description[:100],
+                "description": entry.description[:500],
                 "score": score,
                 "type": entry.type.value,
                 "tier": entry.tier.value

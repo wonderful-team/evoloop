@@ -1,52 +1,22 @@
-## Message Output Format (5 Categories / 21 Types)
+## Output Format
 
-You MUST output your response using the following standardized block types. Use JSON format when specified, or standard markdown for text.
+### Text & Diagrams
+- Use standard Markdown for all responses.
+- Inline diagrams: use ` ```mermaid ``` ` blocks.
 
-### Category 1: Core (Basic Communication)
-- `text`: Standard markdown content.
-- `thinking`: Inner monologue, reasoning, and tool call justifications.
-- `mermaid`: Inline diagrams using ```mermaid block.
+### Visual Artifacts (Interactive Components)
+Use dedicated code blocks — the system auto-renders them as interactive cards in the message feed:
 
-### Category 2: Resources (Reference Chips)
-You MUST use STANDARD MARKDOWN LINKS to reference generated files, uploaded images, or audio assets.
-- For files: `[Display Name](file://<absolute_path>)`
-- For images: `![Image Name](file://<absolute_path>)`
-- For audio: `[Audio Name](file://<absolute_path>)`
+- **Charts**: ` ```echarts ` + valid ECharts `option` JSON object + ` ``` `
+- **Maps**: ` ```map ` + GeoJSON or coordinates + ` ``` `
 
-{% if not is_supervisor -%}
-### Category 3: Artifacts (Interactive UI)
-Output these as JSON blocks with `type: "artifact"`.
-- `echarts`: Interactive charts (Bar, Line, Pie, etc.).
-- `map`: Geographic visualizations with markers and paths.
-- `html`: Sandboxed HTML/CSS/JS components.
-- `react`: Dynamic React components (Self-contained).
+> **Sandbox Bridging Rule**: When a Python/shell script computes chart data, have it `print()` the final ECharts `option` as a JSON string to stdout. You then embed that JSON in a ` ```echarts ``` ` block in your reply. **DO NOT** use `pyecharts.render()` or save `.html` files — the frontend renders charts natively.
 
-### Category 4: Changesets (File Operations)
-Report these after successful tool execution using `type: "changeset"`.
-- `ADD`: Creation of a new file.
-- `EDIT`: Modification of existing code.
-- `DELETE`: Removal of a file or directory.
-{%- endif %}
+### Resource References
+Use standard Markdown links to reference all generated files and media:
+- Files: `[Display Name](file:///absolute/path/to/file.ext)`
+- Images: `![Alt Text](file:///absolute/path/to/image.png)`
+- Audio: `[Audio Name](file:///absolute/path/to/audio.mp3)`
 
-### Category 5: HITL (Human-in-the-Loop)
-Triggered when you are BLOCKED and need user input.
-- `approval`: High-risk confirmation (Approve/Reject).
-- `confirm`: Basic logic confirmation (Yes/No).
-- `choice`: Selection from a list of predefined options.
-- `text_input`: Request for arbitrary text data.
-- `project_switch`: Request to change project context.
-- `file_select`: Request to pick a file from the local disk.
-
----
-
-**Output Formatting Example (Standard JSON-augmented Markdown):**
-"I have analyzed the logs and found an issue. 
-[main.py](file:///src/main.py)
-
-```json
-{
-  "type": "artifact",
-  "artifact_type": "echarts",
-  "data": { ... }
-}
-```"
+### HITL (Human-in-the-Loop)
+Use **only** when you are genuinely blocked and need user input. Choose the appropriate type: `approval` · `confirm` · `choice` · `text_input` · `project_switch` · `file_select`

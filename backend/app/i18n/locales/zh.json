@@ -57,6 +57,7 @@
   "common": {
     "tool_not_found": "错误：找不到工具 {name}。",
     "tool_execution_error": "执行工具 {name} 时出错：{error}",
+    "all": "全部",
     "pronouns": [
       "它",
       "这个",
@@ -175,13 +176,14 @@
       "list_app_atlas": "列出应用图谱",
       "save_concepts": "保存概念",
       "query_excel_sql": "查询 Excel '{file_path}'[[ (SQL: {query}) ]]",
-      "sql_query": "查询数据库 '{db_name}'[[ (SQL: {sql}) ]]",
+      "sql_query": "查询数据库 [[ (SQL: {sql}) ]]",
       "wait_for": "等待 {seconds} 秒",
       "auto_harvest_from_git": "自动从 Git 收获知识",
       "search_native_tools": "搜索原生工具 '{query}'[[ (限制: {limit}) ]]",
       "learn_from_trace": "从轨迹学习技能 (Thread: {thread_id})",
       "reconcile_skill": "调和技能 {skill_id}",
       "search_skills": "搜索技能 '{query}'[[ (限制: {limit}) ]]",
+      "list_skills": "列出技能",
       "create_task_with_subtasks": "创建层级任务 '{title}'",
       "get_task_tree_summary": "获取任务树 (ID: {task_id})",
       "update_task_completion": "更新任务进度 '{task_id}'[[ → {status} ]][[ ({reason}) ]]",
@@ -339,6 +341,12 @@
       },
       "skill_synthesis": {
         "instruction": "请分析此追踪记录并生成技能 YAML。"
+      },
+      "list_skills": {
+        "catalog_header": "### 技能目录: {namespace} (找到 {count} 个技能)",
+        "no_skills": "未找到技能。请尝试移除过滤条件或检查其他命名空间。",
+        "skill_item": "- **[ID: {id}] {name}**: {description}",
+        "instruction": "\n*提示：找到所需技能的 ID，然后调用 `read_skill_sop(skill_id)` 查看完整说明。*"
       }
     },
     "learner": {

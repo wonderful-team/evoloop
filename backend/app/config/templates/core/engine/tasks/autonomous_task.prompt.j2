@@ -3,4 +3,14 @@
 **Method**: Use skill '{{ skill_name }}' (ID: {{ skill_id }})
 **Device**: Assigned to {{ device_id }}
 
-Execute this task now. If the deterministic path fails, use your reasoning to complete the goal or analyze the failure.
+## Execution Instructions
+1. **Load Skill**: Retrieve and execute the instructions and macro script for skill '{{ skill_name }}'.
+2. **Handle Failures**: If the macro execution fails, freezes, or encounters an unexpected state:
+   - Identify the exact step or condition that failed.
+   - Use your reasoning and available tools to attempt a recovery or find a workaround.
+   - If recovery is impossible, report a detailed diagnostic summary of the failure.
+3. **Safety Constraints**: Confine your actions strictly to the scope of this goal. Do not modify system settings, access personal accounts unrelated to the task, or execute destructive commands.
+4. **Verification**: Verify that the goal was successfully accomplished by examining the final state (e.g., take a screenshot or read files/output).
+
+Execute this task now.
+

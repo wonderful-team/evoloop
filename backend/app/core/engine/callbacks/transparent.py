@@ -259,7 +259,12 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if self.thread_id and self.monitor:
             await self.monitor.check_cancellation(self.thread_id)
 
-        tool_name = serialized.get("name") or "Unknown Tool"
+        # 兼容 LangChain 的不同序列化结构
+        tool_name = (
+            serialized.get("name") or 
+            serialized.get("kwargs", {}).get("name") or 
+            "Unknown Tool"
+        )
         self._tool_names[run_id] = tool_name
 
         # Get tool metadata

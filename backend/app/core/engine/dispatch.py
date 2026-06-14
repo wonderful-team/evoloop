@@ -96,7 +96,14 @@ async def dispatch_agent_run(
     # 1. Prepare minimal Context (working_dir will be hydrated later via events)
     # ------------------------------------------------------------------
     from app.core.context.thread_store import thread_context_store
-    working_directory = thread_context_store.get_working_directory(thread_id)
+    working_directory = thread_context_store._thread_contexts.get(thread_id)
+    if not working_directory and project_id:
+        project_path = await get_project_path(project_id)
+        if project_path:
+            working_directory = project_path
+            thread_context_store.set_working_directory(thread_id, project_path)
+    if not working_directory:
+        working_directory = thread_context_store.get_working_directory(thread_id)
 
     if context is None:
         context = EvoContext(
@@ -220,6 +227,23 @@ async def dispatch_agent_run(
             )
             persisted_msg_id = msg_id
 
+            if msg_id:
+                from app.core.engine.message.factory import MessageBlockFactory
+                from app.core.engine.message.publisher import MessagePublisher
+                
+                block = MessageBlockFactory.from_event(
+                    thread_id=thread_id,
+                    sequence_number=seq,
+                    role="human",
+                    content=message_content,
+                    category="user",
+                    status="completed",
+                    references=ref_context.references,
+                    message_id=msg_id,
+                )
+                publisher = MessagePublisher(thread_id=thread_id, project_id=project_id)
+                await publisher.publish(block, channels={"sse"})
+
     # ------------------------------------------------------------------
     # 5. Build BackgroundAgentInputs
     # ------------------------------------------------------------------
@@ -284,4 +308,22 @@ async def persist_user_message(
             category="user",
             is_visible=True,
         )
+        
+        if msg_id:
+            from app.core.engine.message.factory import MessageBlockFactory
+            from app.core.engine.message.publisher import MessagePublisher
+            
+            block = MessageBlockFactory.from_event(
+                thread_id=thread_id,
+                sequence_number=seq,
+                role="human",
+                content=content,
+                category="user",
+                status="completed",
+                message_id=msg_id,
+            )
+            resolved_project_id = project_id if project_id is not None else conversation.project_id
+            publisher = MessagePublisher(thread_id=thread_id, project_id=resolved_project_id)
+            await publisher.publish(block, channels={"sse"})
+            
         return msg_id

@@ -43,7 +43,8 @@ export interface ChatState {
     clearContent: () => void
     setSelectedModel: (model: string | null) => void
     rewindToMessage: (messageId: string) => Promise<void>
-
+    optimisticTruncate: (messageId: string | number) => Message[]
+    restoreSnapshot: (snapshot: Message[]) => void
 
     // Internal Handlers
     _appendToken: (tokens: string, messageId?: string) => void

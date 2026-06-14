@@ -56,6 +56,7 @@
   "common": {
     "tool_not_found": "Error: Tool {name} not found.",
     "tool_execution_error": "Error executing tool {name}: {error}",
+    "all": "all",
     "pronouns": [
       "it",
       "that",
@@ -173,13 +174,14 @@
       "list_app_atlas": "Listing app atlas",
       "save_concepts": "Saving concepts",
       "query_excel_sql": "Querying Excel '{file_path}'",
-      "sql_query": "Executing DB Query '{db_name}'[[ (SQL: {sql}) ]]",
+      "sql_query": "Executing DB Query [[ (SQL: {sql}) ]]",
       "wait_for": "Waiting for {seconds}s",
       "auto_harvest_from_git": "Auto harvesting from Git",
       "search_native_tools": "Searching native tools '{query}'",
       "learn_from_trace": "Learning from trace (Thread: {thread_id})",
       "reconcile_skill": "Reconciling skill {skill_id}",
       "search_skills": "Searching skills '{query}'",
+      "list_skills": "Listing skills",
       "create_task_with_subtasks": "Creating hierarchical task '{title}'",
       "get_task_tree_summary": "Getting task tree (ID: {task_id})",
       "update_task_completion": "Updating task '{task_id}' → {status}",
@@ -337,6 +339,12 @@
       },
       "skill_synthesis": {
         "instruction": "Please analyze the trace and generate the skill YAML."
+      },
+      "list_skills": {
+        "catalog_header": "### Skill Catalog: {namespace} ({count} skills found)",
+        "no_skills": "No skills found. Try removing filters or checking a different namespace.",
+        "skill_item": "- **[ID: {id}] {name}**: {description}",
+        "instruction": "\n*Instruction: Identify the ID of the skill you want, and call `read_skill_sop(skill_id)` to view the full instructions.*"
       }
     },
     "learner": {

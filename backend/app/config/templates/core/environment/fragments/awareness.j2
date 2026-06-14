@@ -1,0 +1,89 @@
+{% if environment -%}
+## ENVIRONMENT AWARENESS
+- **Current Time**: {{ current_datetime }}
+
+{% if environment.host -%}
+- Host: {{ environment.host.model }} ({{ environment.host.cpu }}), {{ environment.host.os_name }} {{ environment.host.os_version }}
+{%- if not is_subtask and environment.host.top_apps %}
+  Installed {{ environment.host.os_name }} Apps (Top): {{ environment.host.top_apps[:15] | join(', ') }}
+{%- endif %}
+{%- if not is_subtask %}
+  Use `list_app_atlas()` to see apps with structural UI maps.
+{%- endif %}
+{%- endif %}
+{%- if environment.android_devices %}
+{%- for dev in environment.android_devices %}
+- Android Device {{ '✅' if dev.is_reachable else '⚠️' }} `{{ dev.device_id }}`: {{ dev.model }} (Android {{ dev.os_version }}), Battery: {{ dev.battery_percent }}%
+{%- if not is_subtask and dev.top_pkgs %} [Packages: {{ dev.top_pkgs[:10] | join(', ') }}{% set more_count = [0, dev.top_pkgs | length - 10] | max %}{% if more_count > 0 %}, and {{ more_count }} more{% endif %}]{% endif %}
+{%- endfor %}
+{%- endif %}
+{%- if environment.network %}
+- Network: {{ 'Online' if environment.network.internet_connected else 'Offline' }}
+{%- endif %}
+{% if browser_status -%}
+
+### Browser Status
+- **Mode**: {{ browser_status.mode }}
+- **CDP Endpoint**: {{ browser_status.cdp_url }}
+{% if browser_status.active_url -%}
+- **Active Tab**: {{ browser_status.active_url }}
+{%- endif %}
+{% if browser_status.tab_count -%}
+- **Open Tabs**: {{ browser_status.tab_count }}
+{%- endif %}
+{%- endif %}
+{%- endif %}
+
+{% if not is_subtask -%}
+{% if memory_replay -%}
+{% set has_content = memory_replay.episodes or memory_replay.concepts or memory_replay.highlights or memory_replay.insights -%}
+{% if has_content -%}
+
+### Memory Replay (Recent Trends)
+{% if memory_replay.episodes %}
+**Recent Tasks:**
+{% for ep in memory_replay.episodes %}
+- [{{ ep.date }}] {{ ep.goal }} → {{ ep.result }}
+{% endfor %}
+{% endif -%}
+{% if memory_replay.concepts %}
+**Key Knowledge:** {{ memory_replay.concepts | join(', ') }}
+{% endif -%}
+{% if memory_replay.highlights %}
+**Recent Learnings:**
+{{ memory_replay.highlights }}
+{% endif -%}
+{% if memory_replay.insights -%}
+{% for insight in memory_replay.insights -%}
+- {{ insight }}
+{%- endfor %}
+{%- endif %}
+{%- endif %}
+{%- endif %}
+
+{% if spatial_awareness %}
+### Discovery Insights
+{% if spatial_awareness.new_apps %}- New Apps Found: {{ spatial_awareness.new_apps | join(', ') }}{% endif %}
+{% if spatial_awareness.missing_skills %}- Missing Expert Guides: {{ spatial_awareness.missing_skills | join(', ') }}{% endif %}
+{% if spatial_awareness.verified_layouts %}- Verified UI Baselines: {{ spatial_awareness.verified_layouts | join(', ') }}{% endif %}
+{% if spatial_awareness.macos_verified %}- MacOS Tools Verified: {{ spatial_awareness.macos_verified | join(', ') }}{% endif %}
+{% if spatial_awareness.insights %}
+{% for insight in spatial_awareness.insights -%}
+- {{ insight }}
+{% endfor %}
+{% endif %}
+{% endif %}
+
+{%- endif %}
+
+{%- if boundaries %}
+
+### Constraints
+{% for b in boundaries -%}
+- {{ b }}
+{% endfor -%}
+{%- endif %}
+
+{% if mcp_inventory -%}
+{{ mcp_inventory }}
+{%- endif %}

@@ -11,6 +11,7 @@ import logging
 import time
 from typing import Any
 
+import psutil
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 
@@ -54,14 +55,14 @@ class AgentContextHydrator:
         Mutates ctx.metadata and blackboard directly.
         """
         start_time = time.time()
-
+        
         # 1. Trigger SessionStart Hook
         session_start_result = await hook_system.trigger(
             HookEvent.SESSION_START,
             HookContext(
                 thread_id=ctx.thread_id,
                 project_id=ctx.project_id,
-                user_id=ctx.user_id,
+                member_id=ctx.member_id,
                 blackboard=blackboard,
             ),
         )
@@ -101,11 +102,28 @@ class AgentContextHydrator:
             from app.core.environment import get_awakened_state
             env_state = get_awakened_state()
             if env_state:
-                data['telemetry'] = {
-                    "android": [{"id": d.device_id, "reachable": d.is_reachable} for d in env_state.android_devices],
-                    "macos": bool(env_state.macos),
-                    "network": env_state.network.internet_connected if env_state.network else False
-                }
+                try:
+                    cpu_percent = psutil.cpu_percent(interval=None)
+                    mem = psutil.virtual_memory()
+                    active_win = None
+                    if env_state.host and env_state.host.os_name == "macOS":
+                        try:
+                            from app.infrastructure.drivers.macos import macos_driver
+                            active_win = macos_driver.get_active_window()
+                        except Exception:
+                            pass
+
+                    telemetry_data = {
+                        "cpu": {"usage_percent": cpu_percent, "load_avg": psutil.getloadavg() if hasattr(psutil, "getloadavg") else []},
+                        "memory": {"percent": mem.percent, "available": mem.available},
+                        "android": [{"id": d.device_id, "reachable": d.is_reachable} for d in env_state.android_devices],
+                        "host": bool(env_state.host),
+                        "active_window": active_win,
+                        "network": env_state.network.internet_connected if env_state.network else False
+                    }
+                except Exception:
+                    telemetry_data = {}
+                data['telemetry'] = telemetry_data
             return data
 
         session_id = config.get("configurable", {}).get("run_id", ctx.request_id)
@@ -118,6 +136,11 @@ class AgentContextHydrator:
         ctx.metadata.project_concepts = static_layer.project_concepts
         ctx.metadata.active_skills = static_layer.active_skills_index
         ctx.metadata.environment_telemetry = static_layer.environment_telemetry
+
+        # Memory pipeline — forward cached memory data into context metadata
+        # These map to Jinja2 vars: memory.core_raw / memory.episodic_raw
+        ctx.metadata.core_memory_raw = static_layer.hot_memory
+        ctx.metadata.episodic_memory_raw = static_layer.episodes
 
         # 6. Dynamic Layer & Plugins
         # We manually inject the dynamic values since we aren't using the full AgentState here

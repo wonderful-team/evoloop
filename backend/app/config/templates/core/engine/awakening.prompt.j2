@@ -1,8 +1,0 @@
-{% include 'core/engine/fragments/env_awareness.j2' %}
-{%- if tips %}
- **PRO TIP**: You can use the `query_app_atlas` tool to retrieve structural UI maps (Atlas) for known applications (e.g. Navicat). Use this to find menu paths or button locations without excessive exploration.
-{%- if has_android %}
- **PRO TIP**: For sequential Android tasks, use the `intent_flow` action in `mobile_control`. It executes a list of clicks/inputs locally at high frequency (10Hz), dramatically reducing execution time and bypassing UI animation delays between steps.
-{% endif -%}
- **PRO TIP**: For web automation, `browser_control` is dramatically more reliable than `desktop_control` + OCR. It supports CSS selectors, JS execution, and cookie management. The browser starts automatically on first use—no manual launch needed.
-{% endif %}

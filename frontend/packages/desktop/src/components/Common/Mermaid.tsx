@@ -34,14 +34,8 @@ export const Mermaid = memo(({ chart }: { chart: string }) => {
 
             try {
                 // Pre-check syntax before rendering to avoid Mermaid's internal error DOM injection
-                const isValid = await mermaid.parse(trimmedChart, { suppressErrors: true })
-                if (!isValid) {
-                    // If invalid but we are likely still streaming, just stay quiet or show last valid
-                    if (lastValidSvg.current && ref.current) {
-                        ref.current.innerHTML = lastValidSvg.current
-                    }
-                    return
-                }
+                // We do not suppress errors here so that invalid syntax throws and triggers the catch block fallback
+                await mermaid.parse(trimmedChart)
 
                 const renderId = `mermaid-${Math.random().toString(36).slice(2, 11)}`
                 const { svg } = await mermaid.render(renderId, trimmedChart)
@@ -55,9 +49,9 @@ export const Mermaid = memo(({ chart }: { chart: string }) => {
                 if (!isCancelled && ref.current && !lastValidSvg.current) {
                     const errorMessage = error instanceof Error ? error.message : String(error)
                     ref.current.innerHTML = `
-                        <div class="text-left w-full opacity-50">
-                            <div class="text-[10px] text-muted-foreground italic mb-1">${t("mermaid.renderingPartial", "Rendering diagram...")}</div>
-                            <pre class="text-[9px] text-muted-foreground/40 bg-black/10 p-2 rounded overflow-x-auto border border-white/5"><code>${chart.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
+                        <div class="text-left w-full opacity-60">
+                            <div class="text-[11px] text-destructive italic mb-2 font-medium">⚠️ Diagram Syntax Error</div>
+                            <pre class="text-[10px] text-muted-foreground bg-black/5 dark:bg-white/5 p-3 rounded-lg overflow-x-auto border border-border/50 whitespace-pre-wrap break-all font-mono"><code>${chart.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
                         </div>
                     `
                 }

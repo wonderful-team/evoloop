@@ -19,12 +19,13 @@ import {
 interface ChangesetFile {
   path: string
   operation: 'added' | 'modified' | 'deleted' | 'renamed'
+  diff?: string
 }
 
 interface ChangesetSnapshotProps {
   files: ChangesetFile[]
   totalCount: number
-  onViewDetails?: (path: string) => void
+  onViewDetails?: (path: string, diff?: string) => void
 }
 
 /**
@@ -73,7 +74,7 @@ export const ChangesetSnapshot = memo(({ files, totalCount, onViewDetails }: Cha
                 <Tooltip key={`${file.path}-${idx}`}>
                   <TooltipTrigger asChild>
                     <button
-                      onClick={() => onViewDetails?.(file.path)}
+                      onClick={() => onViewDetails?.(file.path, file.diff)}
                       className={cn(
                         "flex items-center gap-2 px-2 py-1 rounded-md border border-border/40",
                         "bg-muted/10 hover:bg-muted/20 hover:border-border/80 transition-all shrink-0",

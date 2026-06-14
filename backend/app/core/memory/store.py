@@ -1,7 +1,7 @@
 """Unified memory storage facade.
 
-Delegates to _FileEngine (embedded) or _GraphEngine (production) based on
-settings.EMBEDDED_MODE.
+Delegates to _FileEngine (embedded mode) based on settings.EMBEDDED_MODE.
+_GraphEngine is a stub — full Neo4j support is not implemented in this build.
 """
 
 import asyncio
@@ -13,7 +13,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, List, Optional
 
-import aiosqlite
+from sqlalchemy import select, func
+from app.models.memory import MemoryIndex
+from app.infrastructure.database.sql.database import session_scope
 
 from app.core.config import settings
 from app.core.memory.models import (
@@ -24,9 +26,6 @@ from app.core.memory.models import (
     PrivacyLevel,
 )
 from app.core.memory.schemas import CheckpointDedupResult, StorageHealthCheck
-from app.infrastructure.database.graph.driver import GraphManager
-from app.infrastructure.database.vector import get_vector_store
-from app.infrastructure.embeddings.factory import EmbedderFactory
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +39,8 @@ class MemoryCategory(str, Enum):
     DECISIONS = "decisions"
 
 
-class _SQLiteIndexProxy:
-    """Lightweight proxy exposing the raw SQLite layer for test compatibility."""
+class _DBIndexProxy:
+    """Lightweight proxy exposing the raw database layer for test compatibility."""
 
     __slots__ = ("_engine",)
 
@@ -49,11 +48,11 @@ class _SQLiteIndexProxy:
         self._engine = engine
 
     async def search(self, filters: dict, limit: int = 100) -> list[dict]:
-        return await self._engine._sqlite_search(filters, limit)
+        return await self._engine._db_search(filters, limit)
 
 
 class _FileEngine:
-    """Embedded mode storage backed by Markdown SOT + SQLite + LanceDB."""
+    """Embedded mode storage backed by Markdown SOT + DB Index."""
 
     def __init__(self, base_dir: str | None = None):
         self.root = Path(base_dir or settings.BRAIN_MEMORY_ROOT)
@@ -63,12 +62,10 @@ class _FileEngine:
         self.decisions_dir = self.root / "decisions"
         self.index_dir = self.root / "index"
 
-        self._db_path = self.index_dir / "memory_metadata.db"
-        self._sqlite_initialized = False
-        self._vector_store = get_vector_store()
-        self.vector_db = self._vector_store  # alias for backward compatibility
-        self.index_db = _SQLiteIndexProxy(self)
-        self.__embedder = None
+        self._db_initialized = True
+        self._vector_store = None
+        self.vector_db = None
+        self.index_db = _DBIndexProxy(self)
 
         self._id_index: dict[str, tuple[Path, MemoryCategory]] = {}
         self._hash_index: dict[str, str] = {}
@@ -90,54 +87,6 @@ class _FileEngine:
             self.index_dir,
         ):
             d.mkdir(parents=True, exist_ok=True)
-
-    @property
-    def _embedder(self):
-        if self.__embedder is None:
-            try:
-                self.__embedder = EmbedderFactory.get_embedder()
-            except Exception as exc:
-                logger.warning(f"[FileEngine] Failed to get embedder: {exc}")
-                self.__embedder = None
-        return self.__embedder
-
-    async def _vector_add_entry(
-        self,
-        memory_id: str,
-        text: str,
-        project_id: int | None = None,
-        user_id: str | None = None,
-    ) -> None:
-        embedder = self._embedder
-        if embedder is None:
-            return
-        vector = await embedder.embed_query(text)
-        if not vector:
-            return
-        record = {
-            "id": memory_id,
-            "vector": vector,
-            "text": text,
-            "project_id": project_id,
-            "user_id": user_id or "",
-        }
-        self._vector_store.upsert_memory_chunks([record])
-
-    async def _vector_delete_entry(self, memory_id: str) -> None:
-        self._vector_store.delete_memory_by_id(memory_id)
-
-    async def _vector_search(
-        self, query: str, filters: dict[str, Any] | None = None, limit: int = 10
-    ) -> list[dict[str, Any]]:
-        embedder = self._embedder
-        if embedder is None:
-            return []
-        vector = await embedder.embed_query(query)
-        if not vector:
-            return []
-        return self._vector_store.search_memory(
-            query_vector=vector, top_k=limit, filters=filters
-        )
 
     async def _build_memory_id_index(self) -> None:
         start_time = time.time()
@@ -171,20 +120,12 @@ class _FileEngine:
         )
 
     async def _rebuild_index(self) -> None:
-        await self._sqlite_clear()
-        self._vector_store.delete_all_memories()
+        await self._db_clear()
         for entry_id, (path, category) in self._id_index.items():
             try:
                 text = path.read_text(encoding="utf-8")
                 entry = MemoryEntry.from_frontmatter(text, str(path))
-                await self._sqlite_upsert(entry, str(path))
-                if category != MemoryCategory.JOURNAL:
-                    await self._vector_add_entry(
-                        entry.id,
-                        f"{entry.title}\n{entry.description}\n{entry.content}",
-                        entry.project_id,
-                        entry.user_id,
-                    )
+                await self._db_upsert(entry, str(path))
             except Exception as exc:
                 logger.warning(f"[FileEngine] Failed to index {path}: {exc}")
 
@@ -223,11 +164,13 @@ class _FileEngine:
             topic = entry.tags[0] if entry.tags else "general"
             return base_dir / f"{date_str}-{topic}.md", category
         if category == MemoryCategory.CONTEXT:
+            user_prefix = f"user-{entry.member_id}-" if entry.member_id else ""
             prefix = f"project-{entry.project_id}-" if entry.project_id else ""
-            return base_dir / f"{prefix}{entry.id}.md", category
+            return base_dir / f"{prefix}{user_prefix}{entry.id}.md", category
         if category == MemoryCategory.PREFERENCES:
+            user_prefix = f"user-{entry.member_id}-" if entry.member_id else ""
             topic = entry.tags[0] if entry.tags else "general"
-            return base_dir / f"{topic}.md", category
+            return base_dir / f"{user_prefix}{topic}.md", category
 
         return base_dir / f"{entry.id}.md", category
 
@@ -254,9 +197,8 @@ class _FileEngine:
         async with self._lock:
             if self._initialized:
                 return
-            await self._sqlite_initialize()
             await self._build_memory_id_index()
-            db_count = await self._sqlite_get_count()
+            db_count = await self._db_get_count()
             if db_count == 0 and len(self._id_index) > 0:
                 logger.info(
                     f"[FileEngine] Index empty but {len(self._id_index)} files found. Rebuilding..."
@@ -268,7 +210,7 @@ class _FileEngine:
             )
 
     async def close(self) -> None:
-        self._sqlite_initialized = False
+        self._db_initialized = False
         self._initialized = False
 
     async def truncate_all(self) -> None:
@@ -278,8 +220,7 @@ class _FileEngine:
                     path.unlink()
             self._id_index.clear()
             self._hash_index.clear()
-            await self._sqlite_clear()
-            self._vector_store.delete_all_memories()
+            await self._db_clear()
             logger.warning("[FileEngine] Truncated all data")
 
     async def flush(self) -> None:
@@ -318,15 +259,7 @@ class _FileEngine:
 
             self._id_index[entry.id] = (path, category)
             self._hash_index[entry.content_hash] = entry.id
-            await self._sqlite_upsert(entry, str(path))
-
-            if category != MemoryCategory.JOURNAL:
-                await self._vector_add_entry(
-                    entry.id,
-                    f"{entry.title}\n{entry.description}\n{entry.content}",
-                    entry.project_id,
-                    entry.user_id,
-                )
+            await self._db_upsert(entry, str(path))
 
             logger.info(f"[FileEngine] Saved {entry.id}")
 
@@ -360,8 +293,7 @@ class _FileEngine:
             self._hash_index = {
                 h: i for h, i in self._hash_index.items() if i != entry_id
             }
-            await self._sqlite_delete(entry_id)
-            await self._vector_delete_entry(entry_id)
+            await self._db_delete(entry_id)
             logger.info(f"[FileEngine] Deleted {entry_id}")
             return True
 
@@ -398,81 +330,54 @@ class _FileEngine:
         project_id: int | None = None,
         filters: dict[str, Any] | None = None,
         limit: int = 10,
+        member_id: int | None = None,
     ) -> list[MemoryEntry]:
         if not self._initialized:
             await self.initialize()
 
-        # Metadata-only search
-        if not query:
-            sql_filters = dict(filters) if filters else {}
-            if project_id is not None:
-                sql_filters["project_id"] = project_id
-            if privacy:
-                sql_filters["privacy"] = privacy.value
+        sql_filters = dict(filters) if filters else {}
+        if project_id is not None:
+            sql_filters["project_id"] = project_id
+        if privacy:
+            sql_filters["privacy"] = privacy.value
+        if member_id is not None:
+            sql_filters["member_id"] = member_id
 
+        if "member_id" not in sql_filters:
+            try:
+                from app.core.context.manager import ContextManager
+                ctx = ContextManager.current()
+                if ctx and ctx.member_id is not None:
+                    sql_filters["member_id"] = ctx.member_id
+            except Exception:
+                pass
+
+        # 词法匹配与检索
+        if query:
+            rows = await self._db_search(sql_filters, query=query, limit=limit * 5)
+        else:
             if types:
-                rows: list[dict] = []
+                rows = []
                 for t in types:
                     f = dict(sql_filters)
                     f["type"] = t.value
-                    rows.extend(await self._sqlite_search(f, limit=limit))
-                rows.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+                    rows.extend(await self._db_search(f, limit=limit))
+                rows.sort(key=lambda x: x.get("created_at", datetime.min.isoformat()), reverse=True)
                 rows = rows[:limit]
             else:
-                rows = await self._sqlite_search(sql_filters, limit=limit)
+                rows = await self._db_search(sql_filters, limit=limit)
 
-            entries = [await self.get(row["id"]) for row in rows if row.get("id")]
-            return [e for e in entries if e is not None]
-
-        # Semantic search
-        v_filters: dict[str, Any] = (
-            {"project_id": project_id} if project_id is not None else {}
-        )
-        if privacy:
-            v_filters["privacy"] = privacy.value
-
-        v_results = await self._vector_search(query, filters=v_filters, limit=limit * 3)
-
-        if not v_results:
-            logger.debug("[FileEngine] Vector search unavailable, falling back to keyword")
-            sql_filters = dict(filters) if filters else {}
-            if project_id is not None:
-                sql_filters["project_id"] = project_id
-            if privacy:
-                sql_filters["privacy"] = privacy.value
-
-            type_values = [t.value for t in types] if types else []
-            query_lower = query.lower()
-            rows = await self._sqlite_search(sql_filters, limit=limit * 5)
-            results: list[MemoryEntry] = []
-            for row in rows:
-                if len(results) >= limit:
-                    break
-                entry = await self.get(row["id"])
-                if not entry:
-                    continue
-                if type_values and entry.type.value not in type_values:
-                    continue
-                text = f"{entry.title} {entry.description} {entry.content}".lower()
-                if query_lower in text:
-                    results.append(entry)
-            return results
-
-        results = []
-        for v in v_results:
-            if len(results) >= limit:
+        entries = []
+        for row in rows:
+            if len(entries) >= limit:
                 break
-            entry = await self.get(v.get("id"))
+            entry = await self.get(row["id"])
             if not entry:
                 continue
             if types and entry.type not in types:
                 continue
-            if filters and not all(
-                getattr(entry, k, None) == val for k, val in filters.items()
-            ):
-                continue
-            results.append(entry)
-        return results
+            entries.append(entry)
+        return entries
 
     async def list_all(
         self,
@@ -494,21 +399,30 @@ class _FileEngine:
         if member_id is not None:
             sql_filters["member_id"] = member_id
 
-        rows = await self._sqlite_search(sql_filters, limit=limit or 1000)
-        return [
-            MemorySearchResult(
-                id=row["id"],
-                type=MemoryType(row["type"]),
-                tier=MemoryTier(row["tier"]),
-                utility_score=row.get("utility_score", 0.0),
-                confidence=row.get("confidence", 1.0),
-                title=row["title"],
-                description=row.get("description") or "",
-                created_at=datetime.fromisoformat(row["created_at"]),
-                updated_at=datetime.fromisoformat(row["updated_at"]),
+        rows = await self._db_search(sql_filters, limit=limit or 1000)
+        
+        results = []
+        for row in rows:
+            created = row["created_at"]
+            if isinstance(created, str):
+                created = datetime.fromisoformat(created)
+            updated = row["updated_at"]
+            if isinstance(updated, str):
+                updated = datetime.fromisoformat(updated)
+            results.append(
+                MemorySearchResult(
+                    id=row["id"],
+                    type=MemoryType(row["type"]),
+                    tier=MemoryTier(row["tier"]),
+                    utility_score=row.get("utility_score", 0.0),
+                    confidence=row.get("confidence", 1.0),
+                    title=row["title"],
+                    description=row.get("description") or "",
+                    created_at=created,
+                    updated_at=updated,
+                )
             )
-            for row in rows
-        ]
+        return results
 
     async def get_recent(
         self, count: int = 5, project_id: int | None = None
@@ -516,7 +430,7 @@ class _FileEngine:
         if not self._initialized:
             await self.initialize()
         filters = {"project_id": project_id} if project_id is not None else {}
-        rows = await self._sqlite_search(filters, limit=count)
+        rows = await self._db_search(filters, limit=count)
         results: list[MemoryEntry] = []
         for row in rows:
             entry = await self.get(row["id"])
@@ -531,7 +445,7 @@ class _FileEngine:
             await self.initialize()
         results: list[MemoryEntry] = []
         for mid in message_ids:
-            rows = await self._sqlite_search({"source_message_id": mid})
+            rows = await self._db_search({"source_message_id": mid})
             for row in rows:
                 e = await self.get(row["id"])
                 if e:
@@ -548,7 +462,7 @@ class _FileEngine:
 
     async def health_check(self) -> StorageHealthCheck:
         try:
-            db_count = await self._sqlite_get_count()
+            db_count = await self._db_get_count()
             return StorageHealthCheck(
                 status="healthy",
                 backend="_FileEngine (Hybrid)",
@@ -631,485 +545,293 @@ class _FileEngine:
 
 
     # ------------------------------------------------------------------
-    # SQLite index methods (inlined from former SqliteMemoryIndex)
+    # DB index methods (inlined from former SqliteMemoryIndex)
     # ------------------------------------------------------------------
     """
-    SQLite-based index for memory metadata.
+    Database-based index for memory metadata.
     Provides fast filtering and lookup for the file-based memory store.
     """
 
-    async def _sqlite_initialize(self):
-        """Create tables if they don't exist."""
-        if self._sqlite_initialized:
-            return
+    async def _db_initialize(self):
+        """Create tables if they don't exist. Now handled by db_resource_manager, keep as no-op."""
+        self._db_initialized = True
 
-        self._db_path.parent.mkdir(parents=True, exist_ok=True)
+    async def _db_upsert(self, entry: MemoryEntry, file_path: str):
+        """Insert or update a memory entry in the index using SQLAlchemy ORM."""
+        async with session_scope() as session:
+            stmt = select(MemoryIndex).where(MemoryIndex.id == entry.id)
+            res = await session.execute(stmt)
+            db_index = res.scalar_one_or_none()
 
-        async with aiosqlite.connect(self._db_path) as db:
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS memory_index (
-                    id TEXT PRIMARY KEY,
-                    type TEXT NOT NULL,
-                    tier TEXT NOT NULL,
-                    privacy TEXT NOT NULL,
-                    title TEXT NOT NULL,
-                    description TEXT,
-                    path TEXT NOT NULL,
-                    project_id INTEGER,
-                    member_id INTEGER,
-                    user_id TEXT,
-                    source TEXT,
-                    source_message_id TEXT,
-                    run_id TEXT,
-                    content_hash TEXT,
-                    confidence REAL,
-                    utility_score REAL,
-                    version INTEGER,
-                    created_at TIMESTAMP,
-                    updated_at TIMESTAMP
-                )
-            """)
+            if not db_index:
+                db_index = MemoryIndex(id=entry.id)
+                session.add(db_index)
 
-            await db.execute("CREATE INDEX IF NOT EXISTS idx_mem_project ON memory_index(project_id)")
-            await db.execute("CREATE INDEX IF NOT EXISTS idx_mem_user ON memory_index(user_id)")
-            await db.execute("CREATE INDEX IF NOT EXISTS idx_mem_run ON memory_index(run_id)")
-            await db.execute("CREATE INDEX IF NOT EXISTS idx_mem_msg ON memory_index(source_message_id)")
-            await db.execute("CREATE INDEX IF NOT EXISTS idx_mem_hash ON memory_index(content_hash)")
-            await db.execute("CREATE INDEX IF NOT EXISTS idx_mem_type ON memory_index(type)")
+            db_index.type = entry.type.value
+            db_index.tier = entry.tier.value
+            db_index.privacy = entry.privacy.value
+            db_index.title = entry.title
+            db_index.description = entry.description
+            db_index.path = str(file_path)
+            db_index.project_id = entry.project_id
+            db_index.member_id = entry.member_id
+            db_index.source = entry.source
+            db_index.source_message_id = entry.source_message_id
 
-            await db.commit()
+            # Traceability 元数据追溯字段
+            db_index.source_file_path = getattr(entry, "source_file_path", None)
+            db_index.source_thread_id = getattr(entry, "source_thread_id", None)
+            db_index.source_message_id = getattr(entry, "source_message_id", None) or entry.source_message_id
+            db_index.source_run_id = getattr(entry, "source_run_id", None) or entry.run_id
+            db_index.source_wiki_title = getattr(entry, "source_wiki_title", None)
 
-        self._sqlite_initialized = True
-        logger.info(f"[_FileEngine|sqlite] Initialized at {self._db_path}")
+            db_index.content_hash = entry.content_hash
+            db_index.confidence = entry.confidence
+            db_index.utility_score = entry.utility_score
+            db_index.version = entry.version
+            db_index.created_at = entry.created_at
+            db_index.updated_at = entry.updated_at
 
-    async def _sqlite_upsert(self, entry: MemoryEntry, file_path: str):
-        """Insert or update a memory entry in the index."""
-        async with aiosqlite.connect(self._db_path) as db:
-            await db.execute("""
-                INSERT OR REPLACE INTO memory_index (
-                    id, type, tier, privacy, title, description, path,
-                    project_id, member_id, user_id, source, source_message_id, run_id,
-                    content_hash, confidence, utility_score, version,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                entry.id, entry.type.value, entry.tier.value, entry.privacy.value,
-                entry.title, entry.description, str(file_path),
-                entry.project_id, entry.member_id, entry.user_id, entry.source,
-                entry.source_message_id, entry.run_id,
-                entry.content_hash, entry.confidence, entry.utility_score,
-                entry.version, entry.created_at.isoformat(),
-                entry.updated_at.isoformat()
-            ))
-            await db.commit()
+    async def _db_delete(self, entry_id: str) -> None:
+        """Delete an entry from the index using ORM."""
+        async with session_scope() as session:
+            stmt = select(MemoryIndex).where(MemoryIndex.id == entry_id)
+            res = await session.execute(stmt)
+            db_index = res.scalar_one_or_none()
+            if db_index:
+                await session.delete(db_index)
 
-    async def _sqlite_delete(self, entry_id: str) -> None:
-        """Delete an entry from the index."""
-        async with aiosqlite.connect(self._db_path) as db:
-            await db.execute("DELETE FROM memory_index WHERE id = ?", (entry_id,))
-            await db.commit()
+    async def _db_close(self) -> None:
+        self._db_initialized = False
 
-    async def _sqlite_close(self) -> None:
-        """Close connection (no-op for connection-per-call pattern)."""
-        self._sqlite_initialized = False
-        logger.debug(f"[_FileEngine|sqlite] Closed (cleared initialized flag) for {self._db_path}")
-
-    async def _sqlite_delete_by_run_id(self, run_id: str) -> int:
-        """Delete all entries associated with a run_id."""
-        async with aiosqlite.connect(self._db_path) as db:
-            cursor = await db.execute("DELETE FROM memory_index WHERE run_id = ?", (run_id,))
-            count = cursor.rowcount
-            await db.commit()
+    async def _db_delete_by_run_id(self, run_id: str) -> int:
+        """Delete all entries associated with a run_id using ORM."""
+        async with session_scope() as session:
+            stmt = select(MemoryIndex).where(MemoryIndex.source_run_id == run_id)
+            res = await session.execute(stmt)
+            records = res.scalars().all()
+            count = len(records)
+            for r in records:
+                await session.delete(r)
             return count
 
-    async def _sqlite_delete_by_source_message_id(self, msg_id: str) -> int:
+    async def _db_delete_by_source_message_id(self, msg_id: str) -> int:
         """Delete all entries associated with a source_message_id."""
-        async with aiosqlite.connect(self._db_path) as db:
-            cursor = await db.execute("DELETE FROM memory_index WHERE source_message_id = ?", (msg_id,))
-            count = cursor.rowcount
-            await db.commit()
+        async with session_scope() as session:
+            stmt = select(MemoryIndex).where(MemoryIndex.source_message_id == msg_id)
+            res = await session.execute(stmt)
+            records = res.scalars().all()
+            count = len(records)
+            for r in records:
+                await session.delete(r)
             return count
 
-    async def _sqlite_get_by_id(self, memory_id: str) -> Optional[dict]:
+    async def _db_get_by_id(self, memory_id: str) -> Optional[dict]:
         """Get an entry's metadata by ID."""
-        async with aiosqlite.connect(self._db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT * FROM memory_index WHERE id = ?", (memory_id,)) as cursor:
-                row = await cursor.fetchone()
-                return dict(row) if row else None
+        async with session_scope() as session:
+            stmt = select(MemoryIndex).where(MemoryIndex.id == memory_id)
+            res = await session.execute(stmt)
+            db_index = res.scalar_one_or_none()
+            if db_index:
+                return {
+                    "id": db_index.id,
+                    "type": db_index.type,
+                    "tier": db_index.tier,
+                    "privacy": db_index.privacy,
+                    "title": db_index.title,
+                    "description": db_index.description,
+                    "path": db_index.path,
+                    "project_id": db_index.project_id,
+                    "member_id": db_index.member_id,
+                    "source": db_index.source,
+                    "source_message_id": db_index.source_message_id,
+                    "run_id": db_index.source_run_id,
+                    "source_file_path": db_index.source_file_path,
+                    "source_thread_id": db_index.source_thread_id,
+                    "source_wiki_title": db_index.source_wiki_title,
+                    "content_hash": db_index.content_hash,
+                    "confidence": db_index.confidence,
+                    "utility_score": db_index.utility_score,
+                    "version": db_index.version,
+                    "created_at": db_index.created_at.isoformat() if db_index.created_at else None,
+                    "updated_at": db_index.updated_at.isoformat() if db_index.updated_at else None,
+                }
+            return None
 
-    async def _sqlite_search(self, filters: dict, limit: int = 100) -> List[dict]:
-        """Search for entries matching specific metadata filters."""
-        query = "SELECT * FROM memory_index WHERE 1=1"
-        params = []
+    async def _db_search(self, filters: dict, query: str | None = None, limit: int = 100) -> List[dict]:
+        """Search for entries matching filters and query string (SQL LIKE)."""
+        async with session_scope() as session:
+            stmt = select(MemoryIndex)
+            for key, value in filters.items():
+                if value is not None and hasattr(MemoryIndex, key):
+                    stmt = stmt.where(getattr(MemoryIndex, key) == value)
 
-        ALLOWED_COLUMNS = {
-            "id", "type", "tier", "privacy", "title", "description", "path",
-            "project_id", "member_id", "user_id", "source", "source_message_id", "run_id",
-            "content_hash", "confidence", "utility_score", "version",
-            "created_at", "updated_at",
-        }
-        for key, value in filters.items():
-            if value is not None and key in ALLOWED_COLUMNS:
-                query += f" AND {key} = ?"
-                params.append(value)
+            if query:
+                words = query.strip().split()
+                if words:
+                    conditions = []
+                    for word in words:
+                        like_pat = f"%{word}%"
+                        conditions.append(
+                            (MemoryIndex.title.like(like_pat)) |
+                            (MemoryIndex.description.like(like_pat))
+                        )
+                    from sqlalchemy import or_
+                    stmt = stmt.where(or_(*conditions))
 
-        query += " ORDER BY created_at DESC LIMIT ?"
-        params.append(limit)
+            stmt = stmt.order_by(MemoryIndex.created_at.desc()).limit(limit)
+            res = await session.execute(stmt)
+            rows = res.scalars().all()
+            return [
+                {
+                    "id": row.id,
+                    "type": row.type,
+                    "tier": row.tier,
+                    "privacy": row.privacy,
+                    "title": row.title,
+                    "description": row.description,
+                    "path": row.path,
+                    "project_id": row.project_id,
+                    "member_id": row.member_id,
+                    "source": row.source,
+                    "source_message_id": row.source_message_id,
+                    "run_id": row.source_run_id,
+                    "source_file_path": row.source_file_path,
+                    "source_thread_id": row.source_thread_id,
+                    "source_wiki_title": row.source_wiki_title,
+                    "content_hash": row.content_hash,
+                    "confidence": row.confidence,
+                    "utility_score": row.utility_score,
+                    "version": row.version,
+                    "created_at": row.created_at.isoformat() if row.created_at else None,
+                    "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+                }
+                for row in rows
+            ]
 
-        async with aiosqlite.connect(self._db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute(query, params) as cursor:
-                rows = await cursor.fetchall()
-                return [dict(row) for row in rows]
+    async def _db_list_all(self) -> List[dict]:
+        async with session_scope() as session:
+            stmt = select(MemoryIndex)
+            res = await session.execute(stmt)
+            rows = res.scalars().all()
+            return [
+                {
+                    "id": row.id,
+                    "type": row.type,
+                    "tier": row.tier,
+                    "privacy": row.privacy,
+                    "title": row.title,
+                    "description": row.description,
+                    "path": row.path,
+                    "project_id": row.project_id,
+                    "member_id": row.member_id,
+                    "source": row.source,
+                    "source_message_id": row.source_message_id,
+                    "run_id": row.source_run_id,
+                    "source_file_path": row.source_file_path,
+                    "source_thread_id": row.source_thread_id,
+                    "source_wiki_title": row.source_wiki_title,
+                    "content_hash": row.content_hash,
+                    "confidence": row.confidence,
+                    "utility_score": row.utility_score,
+                    "version": row.version,
+                    "created_at": row.created_at.isoformat() if row.created_at else None,
+                    "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+                }
+                for row in rows
+            ]
 
-    async def _sqlite_list_all(self) -> List[dict]:
-        """List all indexed metadata."""
-        async with aiosqlite.connect(self._db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT * FROM memory_index") as cursor:
-                rows = await cursor.fetchall()
-                return [dict(row) for row in rows]
+    async def _db_clear(self):
+        async with session_scope() as session:
+            stmt = select(MemoryIndex)
+            res = await session.execute(stmt)
+            for row in res.scalars().all():
+                await session.delete(row)
 
-    async def _sqlite_clear(self):
-        """Wipe the entire index."""
-        async with aiosqlite.connect(self._db_path) as db:
-            await db.execute("DELETE FROM memory_index")
-            await db.commit()
-
-    async def _sqlite_get_count(self) -> int:
-        """Get total number of indexed entries."""
-        async with aiosqlite.connect(self._db_path) as db:
-            async with db.execute("SELECT COUNT(*) FROM memory_index") as cursor:
-                row = await cursor.fetchone()
-                return row[0] if row else 0
+    async def _db_get_count(self) -> int:
+        async with session_scope() as session:
+            stmt = select(func.count(MemoryIndex.id))
+            res = await session.execute(stmt)
+            return res.scalar() or 0
 
 
 class _GraphEngine:
-    """Production mode storage backed by a graph database (Neo4j)."""
+    """
+    Graph backend stub — NOT implemented in this build.
 
-    def __init__(self):
-        self._driver: Any = None
-
-    # ------------------------------------------------------------------
-    # Lifecycle
-    # ------------------------------------------------------------------
+    In EMBEDDED_MODE (default), MemoryStore always uses _FileEngine.
+    If full Neo4j support is needed in the future, implement a proper backend
+    in backends/graph_backend.py and wire it in MemoryStore.__init__.
+    """
 
     async def initialize(self) -> None:
-        try:
-            self._driver = GraphManager.get_driver()
-            await self._driver.verify_connectivity()
-            from app.infrastructure.database.graph.schema import schema_manager
-
-            await schema_manager.initialize()
-            logger.info("[GraphEngine] Initialized")
-        except Exception as exc:
-            raise ConnectionError(f"Failed to connect to graph: {exc}")
+        logger.warning(
+            "[GraphEngine] Full mode (Neo4j) is not available in this build. "
+            "Set EMBEDDED_MODE=True or implement the graph backend."
+        )
 
     async def close(self) -> None:
-        if self._driver:
-            await self._driver.close()
-            self._driver = None
-            logger.info("[GraphEngine] Closed")
+        pass
 
-    async def truncate_all(self) -> None:
-        if not self._driver:
-            return
-        await self._driver.delete_nodes("Memory")
-        await self._driver.delete_nodes("Concept")
-        logger.warning("[GraphEngine] Truncated")
+    async def save(self, entry) -> None:
+        raise NotImplementedError("GraphEngine is not available in this build.")
 
-    async def flush(self) -> None:
-        await self.truncate_all()
-
-    # ------------------------------------------------------------------
-    # CRUD
-    # ------------------------------------------------------------------
-
-    async def save(self, entry: MemoryEntry) -> None:
-        if not self._driver:
-            raise RuntimeError("Graph driver not initialized")
-        entry.updated_at = datetime.utcnow()
-        label = "Concept" if entry.type == MemoryType.CONCEPT else "Memory"
-        props = entry.model_dump()
-        props["created_at"] = entry.created_at.isoformat()
-        props["updated_at"] = entry.updated_at.isoformat()
-        if props.get("extra"):
-            props["extra"] = str(props["extra"])
-        await self._driver.upsert_node(label, "id", props)
-        logger.debug(f"[GraphEngine] Saved {entry.id} as {label}")
-
-    async def get(self, entry_id: str) -> MemoryEntry | None:
-        if not self._driver:
-            raise RuntimeError("Graph driver not initialized")
-        for label in ("Memory", "Concept"):
-            nodes = await self._driver.find_nodes(label, {"id": entry_id}, limit=1)
-            if nodes:
-                return self._node_to_entry(nodes[0])
-        return None
-
-    async def find_by_hash(
-        self, content_hash: str, project_id: int | None = None
-    ) -> MemoryEntry | None:
-        if not self._driver:
-            raise RuntimeError("Graph driver not initialized")
-        filters: dict[str, Any] = {"content_hash": content_hash}
-        if project_id is not None:
-            filters["project_id"] = project_id
-        for label in ("Memory", "Concept"):
-            nodes = await self._driver.find_nodes(label, filters, limit=1)
-            if nodes:
-                return self._node_to_entry(nodes[0])
+    async def get(self, entry_id: str):
         return None
 
     async def delete(self, entry_id: str) -> bool:
-        if not self._driver:
-            raise RuntimeError("Graph driver not initialized")
-        deleted = await self._driver.delete_nodes("Memory", {"id": entry_id})
-        if not deleted:
-            deleted = await self._driver.delete_nodes("Concept", {"id": entry_id})
-        return deleted > 0
+        return False
 
-    async def get_multi(self, entry_ids: list[str]) -> dict[str, MemoryEntry]:
-        if not self._driver or not entry_ids:
-            return {}
-        results: dict[str, MemoryEntry] = {}
-        for eid in entry_ids:
-            entry = await self.get(eid)
-            if entry:
-                results[entry.id] = entry
-        return results
+    async def find_by_hash(self, content_hash: str, project_id=None):
+        return None
 
-    # ------------------------------------------------------------------
-    # Query
-    # ------------------------------------------------------------------
+    async def search(self, query: str, **kwargs) -> list:
+        return []
 
-    async def search(
-        self,
-        query: str,
-        types: list[MemoryType] | None = None,
-        privacy: PrivacyLevel | None = None,
-        project_id: int | None = None,
-        filters: dict[str, Any] | None = None,
-        limit: int = 10,
-    ) -> list[MemoryEntry]:
-        if not self._driver:
-            raise RuntimeError("Graph driver not initialized")
-        all_results: list[MemoryEntry] = []
-        for label in ("Memory", "Concept"):
-            search_filters = dict(filters) if filters else {}
-            if privacy:
-                search_filters["privacy"] = privacy.value
-            if project_id is not None:
-                search_filters["project_id"] = project_id
-            nodes = await self._driver.find_nodes(label, search_filters, limit=limit)
-            for node in nodes:
-                if query and query.lower() not in str(node).lower():
-                    continue
-                all_results.append(self._node_to_entry(node))
-        return all_results[:limit]
+    async def list_all(self, **kwargs) -> list:
+        return []
 
-    async def list_all(
-        self,
-        type_filter: MemoryType | None = None,
-        privacy_filter: PrivacyLevel | None = None,
-        project_id: int | None = None,
-        limit: int | None = None,
-        member_id: int = 0,
-    ) -> list[MemorySearchResult]:
-        if not self._driver:
-            raise RuntimeError("Graph driver not initialized")
-        filters: dict[str, Any] = {}
-        if type_filter:
-            filters["type"] = type_filter.value
-        if privacy_filter:
-            filters["privacy"] = privacy_filter.value
-        if project_id is not None:
-            filters["project_id"] = project_id
+    async def get_recent(self, count: int = 5, project_id=None) -> list:
+        return []
 
-        results: list[MemorySearchResult] = []
-        for label in ("Memory", "Concept"):
-            nodes = await self._driver.find_nodes(
-                label, filters, limit=limit or 100
-            )
-            for node in nodes:
-                entry = self._node_to_entry(node)
-                if entry:
-                    results.append(entry.to_search_result())
-        return results[:limit] if limit else results
+    async def get_multi(self, entry_ids: list) -> dict:
+        return {}
 
-    async def get_recent(
-        self, count: int = 5, project_id: int | None = None
-    ) -> list[MemoryEntry]:
-        if not self._driver:
-            raise RuntimeError("Graph driver not initialized")
-        all_entries: list[MemoryEntry] = []
-        for label in ("Memory", "Concept"):
-            filters: dict[str, Any] = {}
-            if project_id is not None:
-                filters["project_id"] = project_id
-            nodes = await self._driver.find_nodes(label, filters, limit=count)
-            all_entries.extend(
-                self._node_to_entry(n) for n in nodes if n
-            )
-        all_entries.sort(key=lambda x: x.updated_at, reverse=True)
-        return all_entries[:count]
+    async def search_similar(self, query_embedding: list, top_k: int = 10, project_id=None) -> list:
+        return []
 
-    async def find_by_source_message_ids(
-        self, message_ids: list[str]
-    ) -> list[MemoryEntry]:
-        if not self._driver:
-            return []
-        results: list[MemoryEntry] = []
-        for mid in message_ids:
-            for label in ("Memory", "Concept"):
-                nodes = await self._driver.find_nodes(
-                    label, {"source_message_id": mid}
-                )
-                for node in nodes:
-                    entry = self._node_to_entry(node)
-                    if entry:
-                        results.append(entry)
-        return results
+    async def get_related(self, entry_id: str, relation_type=None, limit: int = 10) -> list:
+        return []
 
-    async def delete_by_source_message_ids(self, message_ids: list[str]) -> int:
-        entries = await self.find_by_source_message_ids(message_ids)
-        count = 0
-        for e in entries:
-            if await self.delete(e.id):
-                count += 1
-        return count
+    async def link_concept_to_episode(self, concept_name: str, episode_id: str) -> None:
+        pass
 
-    async def health_check(self) -> StorageHealthCheck:
-        if not self._driver:
-            return StorageHealthCheck(
-                status="not_initialized", backend="_GraphEngine"
-            )
-        try:
-            nodes = await self._driver.find_nodes("Memory", limit=1)
-            return StorageHealthCheck(
-                status="healthy",
-                backend="_GraphEngine",
-                entry_count=len(nodes),
-            )
-        except Exception as exc:
-            return StorageHealthCheck(
-                status="unhealthy", backend="_GraphEngine", error=str(exc)
-            )
+    async def find_episodes_by_concept(self, concept_name: str, limit: int = 10) -> list:
+        return []
 
-    # ------------------------------------------------------------------
-    # Graph-specific
-    # ------------------------------------------------------------------
+    async def get_all_concept_counts(self) -> dict:
+        return {}
 
-    async def search_similar(
-        self,
-        query_embedding: list[float],
-        top_k: int = 10,
-        project_id: int | None = None,
-    ) -> list[MemoryEntry]:
-        if not self._driver:
-            return []
-        filters = {"project_id": project_id} if project_id is not None else None
-        nodes = await self._driver.search_similar(
-            "Concept", query_embedding, top_k=top_k, filters=filters
+    async def health_check(self):
+        return StorageHealthCheck(status="not_available", backend="_GraphEngine (stub)")
+
+    async def truncate_all(self) -> None:
+        pass
+
+    async def flush(self) -> None:
+        pass
+
+    async def find_by_source_message_ids(self, message_ids: list) -> list:
+        return []
+
+    async def delete_by_source_message_ids(self, message_ids: list) -> int:
+        return 0
+
+    async def deduplicate_checkpoints(self, dry_run: bool = True):
+        return CheckpointDedupResult(
+            dry_run=dry_run,
+            error="GraphEngine is a stub — not available in this build."
         )
-        return [self._node_to_entry(n) for n in nodes if n]
-
-    async def get_related(
-        self,
-        entry_id: str,
-        relation_type: str | None = None,
-        limit: int = 10,
-    ) -> list[MemoryEntry]:
-        if not self._driver:
-            raise RuntimeError("Graph driver not initialized")
-        nodes = await self._driver.traverse(
-            "Memory",
-            {"id": entry_id},
-            rel_type=relation_type or "RELATED_TO",
-            target_label="Memory",
-            limit=limit,
-        )
-        return [self._node_to_entry(n) for n in nodes if n]
-
-    async def link_concept_to_episode(
-        self, concept_name: str, episode_id: str
-    ) -> None:
-        if not self._driver:
-            return
-        await self._driver.link_nodes(
-            "Concept",
-            {"title": concept_name},
-            "Memory",
-            {"id": episode_id},
-            "LINKED_TO",
-        )
-
-    async def find_episodes_by_concept(
-        self, concept_name: str, limit: int = 10
-    ) -> list[dict[str, Any]]:
-        if not self._driver:
-            return []
-        nodes = await self._driver.traverse(
-            "Concept",
-            {"title": concept_name},
-            rel_type="LINKED_TO",
-            target_label="Memory",
-            limit=limit,
-        )
-        return [
-            {
-                "id": n["id"],
-                "goal": n["title"],
-                "result": n["content"],
-                "timestamp": n.get("created_at"),
-            }
-            for n in nodes
-            if n
-        ]
-
-    async def get_all_concept_counts(self) -> dict[str, int]:
-        if not self._driver:
-            return {}
-        query = """
-        MATCH (c)-[:LINKED_TO]->(e:Memory)
-        WHERE (c:Memory OR c:Concept) AND c.type = 'concept'
-        RETURN c.title as name, count(e) as count
-        """
-        records = await self._driver.execute_query(query)
-        return {r["name"]: r["count"] for r in records}
-
-    async def deduplicate_checkpoints(
-        self, dry_run: bool = True
-    ) -> CheckpointDedupResult:
-        return CheckpointDedupResult(dry_run=dry_run)
-
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
-    def _node_to_entry(self, node: dict[str, Any]) -> MemoryEntry | None:
-        try:
-            return MemoryEntry(
-                id=node["id"],
-                type=MemoryType(node["type"]),
-                privacy=PrivacyLevel(node["privacy"]),
-                title=node["title"],
-                content=node["content"],
-                description=node.get("description", ""),
-                project_id=node.get("project_id"),
-                user_id=node.get("user_id"),
-                tags=node.get("tags", []),
-                source=node.get("source", "manual"),
-                source_message_id=node.get("source_message_id"),
-                confidence=node.get("confidence", 1.0),
-                version=node.get("version", 1),
-                created_at=datetime.fromisoformat(node["created_at"]),
-                updated_at=datetime.fromisoformat(node["updated_at"]),
-            )
-        except Exception as exc:
-            logger.warning(f"[GraphEngine] Failed to convert node: {exc}")
-            return None
 
 
 class MemoryStore:
@@ -1157,9 +879,16 @@ class MemoryStore:
         project_id: int | None = None,
         filters: dict[str, Any] | None = None,
         limit: int = 10,
+        member_id: int | None = None,
     ) -> list[MemoryEntry]:
         return await self._engine.search(
-            query, types, privacy, project_id, filters, limit
+            query=query,
+            types=types,
+            privacy=privacy,
+            project_id=project_id,
+            filters=filters,
+            limit=limit,
+            member_id=member_id,
         )
 
     async def list_all(

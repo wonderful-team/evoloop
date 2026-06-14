@@ -22,6 +22,7 @@ from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.domain.project.utils import get_project_path
 from app.i18n.service import i18n
 from app.infrastructure.config.service import SystemConfigService
+from app.core.tools.registry import get_tool_bundle
 
 logger = logging.getLogger(__name__)
 
@@ -159,8 +160,7 @@ async def generate_wiki(
                 tools=[
                     "write_wiki_page", "edit_wiki_page", "read_wiki_page", "list_wiki_pages",
                     "create_plan", "update_step_status",
-                    "list_dir", "read_file", "grep_search", "find_files",
-                ],
+                ] + [t for t in get_tool_bundle("core_file_tools") if t not in ("write_file", "edit_file", "delete_file", "move_file", "execute_command")],
             ),
         )
     )

@@ -10,10 +10,9 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.context import ContextManager
 from app.core.engine.nodes.base import BaseAgentNode
-from app.core.engine.nodes.utils.focus_file_hydrator import FocusFileHydrator
 from app.core.engine.nodes.utils.skill_resolver import SkillResolver
 from app.core.engine.nodes.utils.worker_result_processor import process_worker_result
-from app.core.engine.prompts import WorkerPromptBuilder
+from app.core.engine.nodes.prompts import WorkerPromptBuilder
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.schemas import EngineResult
 from app.core.engine.skill_hydrator import SkillHydrator
@@ -101,7 +100,7 @@ class WorkerNode(BaseAgentNode):
 
         # Hydrate internal context
         full_plan = state.structured_plan or state.current_plan
-        focus_files = await FocusFileHydrator.hydrate(execution_ticket, ctx)
+        focus_paths = execution_ticket.focus_paths if execution_ticket else []
         relevant_sops = list(state.relevant_sops)
 
         prompt_builder = WorkerPromptBuilder(
@@ -109,7 +108,7 @@ class WorkerNode(BaseAgentNode):
             blackboard,
             skills=relevant_sops,
             ticket=execution_ticket,
-            focus_files=focus_files,
+            focus_paths=focus_paths,
             plan=full_plan
         )
 
@@ -117,7 +116,7 @@ class WorkerNode(BaseAgentNode):
         static_system_prompt = await prompt_builder.build(config)
 
         # 2. Dynamic Mission (Turn-based context)
-        from app.core.engine.prompts.utils import get_mapped_cwd
+        from app.core.engine.nodes.utils.node_utils import get_mapped_cwd
         actual_cwd = get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", ""))
 
         from app.core.environment import get_awakened_state

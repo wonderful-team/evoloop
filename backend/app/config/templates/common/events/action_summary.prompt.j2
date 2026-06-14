@@ -1,8 +1,0 @@
-{% from "common/fragments/list_items.j2" import action_item %}
-{% for action in actions %}{{ action_item(
-   type=action.type,
-   name=action.name,
-   args=action.args,
-   output=action.output,
-   content=action.content
-) }}{% endfor %}

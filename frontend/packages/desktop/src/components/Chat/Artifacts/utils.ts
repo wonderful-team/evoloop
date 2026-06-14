@@ -78,7 +78,7 @@ export function extractArtifactsFromContent(content: string): ExtractedPart[] {
   let lastIndex = 0;
 
   // First, try to find artifacts inside ```json / ``` code blocks
-  const codeBlockRegex = /```(?:json)?\s*\n?([\s\S]*?)```/g;
+  const codeBlockRegex = /```[a-zA-Z0-9_-]*\s*\n?([\s\S]*?)```/g;
   let cbMatch: RegExpExecArray | null;
   const codeBlockArtifacts: Array<{ start: number; end: number; part: ExtractedPart }> = [];
 

@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.core.environment.explorers.dynamic_apps import DynamicAppTriage
 from app.core.environment.models import (
     AndroidDevice,
-    MacOSEnvironment,
+    HostEnvironment,
     NetworkStatus,
 )
 
@@ -24,11 +24,42 @@ class EnvironmentProbe:
     """Collects environment information from various sources."""
 
     @staticmethod
-    async def probe_macos() -> MacOSEnvironment | None:
-        """Probe MacOS host environment using macos_driver."""
+    async def probe_host() -> HostEnvironment | None:
+        """Probe host environment (macOS, Linux, Windows)."""
         if not settings.ENABLE_ENVIRONMENT_CONTROLS:
             return None
 
+        import platform
+        os_name = platform.system()
+
+        if os_name == "Darwin":
+            return await EnvironmentProbe._probe_macos_impl()
+        else:
+            return await EnvironmentProbe._probe_standard_os_impl(os_name)
+
+    @staticmethod
+    async def _probe_standard_os_impl(os_name: str) -> HostEnvironment | None:
+        """Standard host probe for Linux and Windows."""
+        import platform
+        try:
+            import psutil
+            ram_gb = int(psutil.virtual_memory().total / (1024 ** 3))
+        except ImportError:
+            ram_gb = 0
+            
+        return HostEnvironment(
+            os_name=os_name,
+            os_version=platform.release(),
+            model=f"{os_name} Host",
+            cpu=platform.processor() or "Unknown",
+            ram_gb=ram_gb,
+            installed_apps=[],
+            app_usage_stats=[]
+        )
+
+    @staticmethod
+    async def _probe_macos_impl() -> HostEnvironment | None:
+        """Probe MacOS host environment using macos_driver."""
         from app.core.environment.explorers.dynamic_apps import DynamicAppTriage
         from app.infrastructure.drivers.macos import macos_driver
 
@@ -65,7 +96,8 @@ class EnvironmentProbe:
             except Exception as triage_e:
                 logger.warning(f"[EnvironmentProbe] macOS dynamic app triage failed: {triage_e}")
 
-            return MacOSEnvironment(
+            return HostEnvironment(
+                os_name="macOS",
                 os_version=info.get("os_version", "Unknown"),
                 model=info.get("model", "Unknown"),
                 cpu=info.get("cpu", "Unknown"),

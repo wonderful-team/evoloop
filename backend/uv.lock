@@ -997,7 +997,7 @@ requires-dist = [
     { name = "google-genai", specifier = ">=1.0.0" },
     { name = "googlesearch-python", specifier = ">=1.2.3" },
     { name = "httpx", extras = ["http2"], specifier = ">=0.25.1,<1.0.0" },
-    { name = "huey", extras = ["sqlite"], specifier = ">=2.5.0" },
+    { name = "huey", specifier = ">=2.5.0" },
     { name = "imagehash", specifier = ">=4.3.2" },
     { name = "itsdangerous", specifier = ">=2.2.0" },
     { name = "jinja2", specifier = ">=3.1.4,<4.0.0" },

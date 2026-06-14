@@ -1,9 +1,7 @@
 import logging
-import json
 from app.core.events.base import BaseEvent
 from app.core.events.decorators import event_register, event_subscribe_all, register_instance_handlers
 from app.core.engine.message.event_bus import get_event_bus
-from app.core.events import system_bus
 
 logger = logging.getLogger(__name__)
 
@@ -59,13 +57,13 @@ class UniversalBridgeSubscriber:
         try:
             # Standardized payload conversion via BaseEvent's method
             payload = event.to_frontend_payload()
-            
+
             # Publish to external EventBus (Redis/PubSub)
             # Use app.utils.json for robust serialization of domain objects (messages, etc)
             from app.utils import json as utils_json
             bus = get_event_bus()
             await bus.publish(target_channel, utils_json.dumps(payload, ensure_ascii=False))
-            
+
             logger.debug(f"[UniversalBridge] Bridged {event_type} -> {target_channel}")
         except Exception as e:
             logger.warning(f"[UniversalBridge] Failed to bridge event {event_type}: {e}")

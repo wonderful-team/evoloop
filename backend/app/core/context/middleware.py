@@ -26,14 +26,12 @@ class ContextMiddleware(BaseHTTPMiddleware):
 
         # 2. Attempt Identify User (Best Effort)
         # We don't enforce auth here (deps.py does that), we just populate context if possible.
-        user_id = None
+        member_id = None
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
             token = auth_header.split(" ")[1]
             try:
                 member_id = await identity_service.resolve_member_id_from_token(token)
-                if member_id:
-                    user_id = member_id
             except Exception:
                 pass
 
@@ -42,7 +40,7 @@ class ContextMiddleware(BaseHTTPMiddleware):
             request_id=request_id,
             trace_id=trace_id,
             timestamp=start_time,
-            user_id=str(user_id) if user_id else None,
+            member_id=member_id,
             thread_id=request.headers.get("X-Thread-ID")  # Optional: thread hint
         )
 

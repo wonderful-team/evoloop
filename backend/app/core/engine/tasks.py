@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import re
@@ -82,16 +83,17 @@ async def _persist_file_operation_task(
         session.add(op)
         logger.info(f"[Celery] Persisted file operation for {file_path}")
 
-        # --- [Phase 2] 同步到消息标准化引用并触发实时更新 ---
-        from app.core.engine.message.repository import MessageRepository
-        repo = MessageRepository(thread_id=thread_id)
-        await repo.sync_changeset_reference(
-            message_id=message_id,
-            file_path=file_path,
-            operation=operation,
-            run_id=run_id,
-            tool_call_id=tool_call_id
-        )
+    # --- [Phase 2] 同步到消息标准化引用并触发实时更新 ---
+    from app.core.engine.message.repository import MessageRepository
+    repo = MessageRepository(thread_id=thread_id)
+    await repo.sync_changeset_reference(
+        message_id=message_id,
+        file_path=file_path,
+        operation=operation,
+        run_id=run_id,
+        tool_call_id=tool_call_id,
+        diff_content=diff_content
+    )
 
 
 @shared_task(name="engine_persist_file_operation")
@@ -443,60 +445,257 @@ async def run_autonomous_task_execution(task_id: int, project_id: int | None = N
             if not skill:
                 raise ValueError(f"Skill {task.skill_id} for task {task_id} not found.")
 
-            thread_id = f"auton-{task_id}-{int(time.time())}"
+            intent_description = task.intent_description
+            skill_name = skill.name
+            skill_id = skill.id
 
-            from app.utils import render_template
-            prompt = render_template(
-                "core/engine/tasks/autonomous_task.prompt.j2",
-                intent_description=task.intent_description,
-                skill_name=skill.name,
-                skill_id=skill.id,
-                device_id=device_id
-            )
+        thread_id = f"auton-{task_id}-{int(time.time())}"
 
-            # 2. Trigger Unified Dispatcher
-            from app.core.engine.dispatch import dispatch_agent_run
-            result = await dispatch_agent_run(
-                thread_id=thread_id,
-                message_content=prompt,
-                project_id=project_id if project_id is not None else DEFAULT_PROJECT_ID,
-                goal_prefix="[Autonomous Task] ",
-                metadata={
-                    "autonomous_task_id": task_id,
-                    "source_skill_id": skill.id,
-                    "device_id": device_id  
-                }
-            )
+        from app.utils import render_template
+        prompt = render_template(
+            "core/engine/tasks/autonomous_task.prompt.j2",
+            intent_description=intent_description,
+            skill_name=skill_name,
+            skill_id=skill_id,
+            device_id=device_id
+        )
 
-            if result.status == "failed":
-                raise RuntimeError(f"Dispatch failed for task {task_id}: {result.error}")
+        # 2. Trigger Unified Dispatcher
+        from app.core.engine.dispatch import dispatch_agent_run
+        result = await dispatch_agent_run(
+            thread_id=thread_id,
+            message_content=prompt,
+            project_id=project_id if project_id is not None else DEFAULT_PROJECT_ID,
+            goal_prefix="[Autonomous Task] ",
+            metadata={
+                "autonomous_task_id": task_id,
+                "source_skill_id": skill_id,
+                "device_id": device_id  
+            }
+        )
 
-            logger.info(f"[Celery] Starting autonomous agent for task {task_id} on {device_id}")
-            task.consecutive_failures = 0
-            if result.inputs:
-                await run_agent_background(thread_id, result.inputs)
+        if result.status == "failed":
+            raise RuntimeError(f"Dispatch failed for task {task_id}: {result.error}")
+
+        logger.info(f"[Celery] Starting autonomous agent for task {task_id} on {device_id}")
+
+        async with session_scope() as session:
+            task = await session.get(AutonomousTask, task_id)
+            if task:
+                task.consecutive_failures = 0
+
+        if result.inputs:
+            await run_agent_background(thread_id, result.inputs)
     finally:
         await DevicePool.release_device(device_id, task_id=f"task-{task_id}")
 
 
-@shared_task(name="engine_audit_structured_extraction")
-async def engine_audit_structured_extraction(
+def resolve_base_type(ann):
+    import typing
+    origin = typing.get_origin(ann) or ann
+    if origin is typing.Union:
+        args = typing.get_args(ann)
+        for arg in args:
+            if arg is not type(None):
+                return typing.get_origin(arg) or arg
+    return origin
+
+
+def _clean_none_values(d: any, schema: type = None) -> any:
+    """
+    递归将字典或列表中的 None 值或类型不匹配的值替换为/强制转换为对应类型的规范值，防止 Pydantic 字段校验失败。
+    """
+    import typing
+    from pydantic import BaseModel
+
+    if schema is None or not isinstance(d, dict) or not issubclass(schema, BaseModel):
+        # 降级兜底逻辑
+        if isinstance(d, dict):
+            return {k: _clean_none_values(v) for k, v in d.items()}
+        elif isinstance(d, list):
+            return [_clean_none_values(x) for x in d]
+        elif d is None:
+            return ""
+        return d
+
+    result = d.copy()
+    for fname, finfo in schema.model_fields.items():
+        if fname not in result:
+            continue
+        val = result[fname]
+        annotation = finfo.annotation
+        
+        # 使用 resolve_base_type 解析出最底层的实际类型（去除 Optional/Union 包装）
+        base_type = resolve_base_type(annotation)
+
+        if val is None:
+            # 根据字段被定义的基本类型返回对应的零值
+            if base_type is bool:
+                result[fname] = False
+            elif base_type is list:
+                result[fname] = []
+            elif base_type is dict:
+                result[fname] = {}
+            elif base_type is int:
+                result[fname] = 0
+            elif base_type is float:
+                result[fname] = 0.0
+            else:
+                result[fname] = ""
+        else:
+            # 类型校验与强力纠偏 (Discipline the data source)
+            if base_type is list:
+                if not isinstance(val, list):
+                    if isinstance(val, str):
+                        if val.strip():
+                            # 尝试对逗号分隔的标签字符串进行切割和清洗
+                            result[fname] = [t.strip() for t in val.split(",") if t.strip()]
+                        else:
+                            result[fname] = []
+                    else:
+                        result[fname] = []
+                else:
+                    # 确保 list 内部所有元素都是 String (如果 annotation 声明了 list[str])
+                    args = typing.get_args(annotation)
+                    if args and args[0] is str:
+                        result[fname] = [str(x) for x in val if x is not None]
+            elif base_type is dict:
+                if not isinstance(val, dict):
+                    result[fname] = {}
+            elif base_type is str:
+                if not isinstance(val, str):
+                    result[fname] = str(val)
+            elif base_type is bool:
+                if not isinstance(val, bool):
+                    if isinstance(val, str):
+                        result[fname] = val.lower() in ("true", "1", "yes")
+                    else:
+                        result[fname] = bool(val)
+            elif base_type is int or base_type is float:
+                if not isinstance(val, (int, float)):
+                    try:
+                        result[fname] = base_type(val)
+                    except (ValueError, TypeError):
+                        result[fname] = 0.0 if base_type is float else 0
+
+        # 递归清理嵌套字典/列表
+        val = result[fname]
+        if isinstance(val, dict):
+            sub_model = None
+            if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+                sub_model = annotation
+            else:
+                args = typing.get_args(annotation)
+                if args:
+                    for arg in args:
+                        if isinstance(arg, type) and issubclass(arg, BaseModel):
+                            sub_model = arg
+                            break
+            if sub_model:
+                result[fname] = _clean_none_values(val, sub_model)
+        elif isinstance(val, list) and val:
+            args = typing.get_args(annotation)
+            sub_model = None
+            if args:
+                arg = args[0]
+                if isinstance(arg, type) and issubclass(arg, BaseModel):
+                    sub_model = arg
+                else:
+                    for sub in typing.get_args(arg):
+                        if isinstance(sub, type) and issubclass(sub, BaseModel):
+                            sub_model = sub
+                            break
+            if sub_model:
+                result[fname] = [_clean_none_values(x, sub_model) if isinstance(x, dict) else x for x in val]
+
+    return result
+
+
+def _distribute_list_to_schema_fields(data: list, schema: type) -> dict:
+    """
+    将一个 list 中的元素按照字段特征分流到 schema 中所有的 list 类型字段中（仅在提取模块内部使用，保证底层解耦）。
+    """
+    import typing
+    from pydantic import BaseModel
+
+    # 1. 查找 schema 中所有列表字段及其元素 model 类型
+    list_fields = {}
+    for fname, finfo in schema.model_fields.items():
+        annotation = finfo.annotation
+        origin = typing.get_origin(annotation)
+        if annotation is list or origin is list:
+            # 寻找其包含的 BaseModel 类型
+            args = typing.get_args(annotation)
+            if args:
+                arg = args[0]
+                # 可能是直接的 BaseModel
+                if isinstance(arg, type) and issubclass(arg, BaseModel):
+                    list_fields[fname] = arg
+                else:
+                    # 可能是 Optional 或 Union，获取其中的 BaseModel
+                    for sub in typing.get_args(arg):
+                        if isinstance(sub, type) and issubclass(sub, BaseModel):
+                            list_fields[fname] = sub
+                            break
+
+    if not list_fields:
+        return {}
+
+    # 2. 对 data 中的每一个 item，找出它最匹配的列表字段
+    result = {fname: [] for fname in list_fields.keys()}
+    for item in data:
+        if not isinstance(item, dict):
+            first_fname = list(list_fields.keys())[0]
+            result[first_fname].append(item)
+            continue
+
+        best_fname = None
+        best_score = -1
+
+        for fname, item_model in list_fields.items():
+            model_keys = set(item_model.model_fields.keys())
+            item_keys = set(item.keys())
+            overlap = model_keys.intersection(item_keys)
+            score = len(overlap)
+
+            from pydantic_core import PydanticUndefined
+            required_overlap = 0
+            for rname, rinfo in item_model.model_fields.items():
+                if rinfo.default is PydanticUndefined and rname in item_keys:
+                    required_overlap += 1
+            score += required_overlap * 2
+
+            if score > best_score:
+                best_score = score
+                best_fname = fname
+
+        if best_fname:
+            result[best_fname].append(item)
+
+    return result
+
+
+async def run_engine_audit_structured_extraction(
     thread_id: str,
     project_id: int,
-    user_id: str | None,
+    member_id: int | None,
     run_id: str | None,
     summary: str,
     messages_dicts: list[dict],
     collected_schemas: list[dict],
+    **kwargs,
 ):
     """
-    Background Celery task that performs the heavy reasoning extraction (kimi-k2-thinking-turbo).
+    Heavy reasoning extraction implementation.
     """
+    import json
     from app.core.engine.extraction.schema import build_dynamic_schema
     from app.core.events.schemas.lifecycle import ExtractionRequest, ExtractionCompletedEvent
     from app.core.events.base import system_bus
     from app.core.llm import InternalLLMService
-    from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+    from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+    from app.utils.template import render_template
+    from app.core.engine.message.converter import EvoMessageConverter
 
     if not collected_schemas:
         logger.info(f"[Celery] No extraction schemas requested for thread {thread_id}, skipping extraction.")
@@ -507,35 +706,43 @@ async def engine_audit_structured_extraction(
     if not DynamicVerdict:
         return
 
-    # Reconstruct messages
+    # Reconstruct messages fully, including ToolMessages
     messages = []
     for m in messages_dicts:
-        if m.get("type") == "human":
+        m_type = m.get("type")
+        if m_type == "human":
             messages.append(HumanMessage(**m))
-        elif m.get("type") == "ai":
+        elif m_type == "ai":
             messages.append(AIMessage(**m))
-        elif m.get("type") == "system":
+        elif m_type == "system":
             messages.append(SystemMessage(**m))
+        elif m_type == "tool":
+            messages.append(ToolMessage(**m))
+
+    # Authoritatively repair the message history to ensure structural validity for strict LLM APIs
+    messages = EvoMessageConverter.repair(messages)
 
     model_name = SystemConfigService.get_value("LLM_MODEL")
+    schema_json = json.dumps(DynamicVerdict.model_json_schema(), ensure_ascii=False, indent=2)
 
-    extract_prompt = (
-        f"You are extracting structured information from a completed session.\n\n"
-        f"Session Summary:\n{summary}\n\n"
-        f"Please extract information according to the requested schemas."
+    extract_prompt = render_template(
+        "core/memory/audit_extraction.prompt.j2",
+        summary=summary,
+        schema_json=schema_json,
     )
 
     try:
         import asyncio
         response = await asyncio.wait_for(
             InternalLLMService.invoke_structured(
-                messages=messages + [{"role": "system", "content": extract_prompt}],
+                messages=messages + [SystemMessage(content=extract_prompt)],
                 output_schema=DynamicVerdict,
                 purpose="audit_extraction",
                 temperature=0.1,
                 max_tokens=4000,
                 model_name=model_name,
-                structured_output_method="json_mode",
+                structured_output_method="function_calling",
+                extra_body={"enable_thinking": False},
             ),
             timeout=300.0,
         )
@@ -543,11 +750,12 @@ async def engine_audit_structured_extraction(
             extracted_data = response.model_dump()
             extracted_data.pop("summary", None)
             extracted_data.pop("is_completed", None)
+            extracted_data = _clean_none_values(extracted_data, DynamicVerdict)
 
             event = ExtractionCompletedEvent(
                 thread_id=thread_id,
                 project_id=project_id,
-                user_id=user_id,
+                member_id=member_id,
                 run_id=run_id,
                 extracted_data=extracted_data,
             )
@@ -555,6 +763,33 @@ async def engine_audit_structured_extraction(
             await system_bus.publish(event)
     except Exception as e:
         logger.error(f"[Celery] engine_audit_structured_extraction failed for thread {thread_id}: {e!r}")
+        raise
+
+
+@shared_task(name="engine_audit_structured_extraction")
+async def engine_audit_structured_extraction(
+    thread_id: str,
+    project_id: int,
+    member_id: int | None,
+    run_id: str | None,
+    summary: str,
+    messages_dicts: list[dict],
+    collected_schemas: list[dict],
+    **kwargs,
+):
+    """
+    Background Celery task that performs the heavy reasoning extraction (kimi-k2-thinking-turbo).
+    """
+    await run_engine_audit_structured_extraction(
+        thread_id=thread_id,
+        project_id=project_id,
+        member_id=member_id,
+        run_id=run_id,
+        summary=summary,
+        messages_dicts=messages_dicts,
+        collected_schemas=collected_schemas,
+        **kwargs,
+    )
 
 
 @shared_task(name="engine_run_agent_background")

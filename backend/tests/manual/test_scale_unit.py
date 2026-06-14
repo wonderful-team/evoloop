@@ -14,9 +14,8 @@ logger.info(f"Using temp EVOLOOP_APP_DATA_DIR: {temp_dir}")
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
 # Mock Blackboard classes before importing ScaleMeasurer
-from pydantic import Field
 from enum import Enum
-from typing import Literal
+
 
 class TaskScaleTier(str, Enum):
     TINY = "TINY"
@@ -28,11 +27,9 @@ class DynamicBaseModel: # Simple mock
     pass
 
 # We need the real Blackboard models for the test to be valid
-from app.core.engine.state.blackboard import BlackboardState, BlackboardMetadata, ScaleAssessment, TaskScaleTier, ScaleMetrics
-from app.core.engine.state import AgentState, ExecutionTicket
+from app.core.engine.state.blackboard import BlackboardState, BlackboardMetadata
+from app.core.engine.state import AgentState
 from app.core.engine.nodes.utils.scale_measurer import ScaleMeasurer
-from app.core.context import ContextManager, EvoContext
-from langchain_core.runnables import RunnableConfig
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("test_scale")
@@ -90,7 +87,6 @@ async def test_worker_integration():
 async def test_supervisor_prompt():
     logger.info("--- Testing Supervisor Prompt Rendering ---")
     from app.core.engine.nodes.supervisor import SupervisorNode
-    from app.core.engine.prompts import SupervisorContext
     from app.core.engine.state.blackboard import ScaleAssessment, TaskScaleTier, ScaleMetrics
     from app.core.context import ContextManager, EvoContext
     from langchain_core.runnables import RunnableConfig

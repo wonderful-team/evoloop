@@ -11,8 +11,7 @@ import {
 import { useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import ReactMarkdown from "react-markdown"
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
-import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"
+import { CodeBlock } from "@/components/Chat/CodeBlock"
 import remarkGfm from "remark-gfm"
 import { toast } from "sonner"
 import * as XLSX from "xlsx"
@@ -213,15 +212,10 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
                   code({ node: _node, className, children, ...props }) {
                     const match = /language-(\w+)/.exec(className || "")
                     return match ? (
-                      <SyntaxHighlighter
-                        // @ts-expect-error
-                        style={vscDarkPlus}
+                      <CodeBlock
                         language={match[1]}
-                        PreTag="div"
-                        {...props}
-                      >
-                        {String(children).replace(/\n$/, "")}
-                      </SyntaxHighlighter>
+                        code={String(children).replace(/\n$/, "")}
+                      />
                     ) : (
                       <code className={className} {...props}>
                         {children}

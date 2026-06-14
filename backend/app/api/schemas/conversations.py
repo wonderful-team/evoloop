@@ -10,6 +10,7 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 class MessageChangesetFile(DynamicBaseModel):
     path: str
     operation: str  # ADD, EDIT, DELETE
+    diff: str | None = None
 
 
 class MessageItem(MessageBlock):

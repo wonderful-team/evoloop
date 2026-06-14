@@ -40,6 +40,7 @@ class AppEnvironmentPrompt:
 
             template_vars = {
                 "environment": ctx.environment_summaries, # Now contains raw data
+                "current_datetime": __import__("datetime").datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z"),
                 "memory_replay": ctx.memory_replay,
                 "spatial_awareness": ctx.spatial_awareness,
                 "boundaries": ctx.active_boundaries,
@@ -54,7 +55,7 @@ class AppEnvironmentPrompt:
                 "ctx": ctx,  # Pass full context for working_directory access
             }
 
-            return render_template("core/engine/awakening.prompt.j2", **template_vars)
+            return render_template("core/environment/awakening.prompt.j2", **template_vars)
 
         except Exception as e:
             logger.error(f"Failed to render environment block: {e}")
@@ -84,20 +85,21 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
         }
 
         # 1. Host (macOS) Info
-        if state.macos:
-            macos_info = {
-                "model": state.macos.model,
-                "cpu": state.macos.cpu,
-                "os_version": state.macos.os_version,
+        if state.host:
+            host_info = {
+                "os_name": state.host.os_name,
+                "model": state.host.model,
+                "cpu": state.host.cpu,
+                "os_version": state.host.os_version,
                 "top_apps": []
             }
             if relevance in ["macos", "both", "auto"]:
-                if state.macos.installed_apps:
-                    if state.macos.app_usage_stats:
-                        macos_info["top_apps"] = [s.app_name for s in state.macos.app_usage_stats]
+                if state.host.installed_apps:
+                    if state.host.app_usage_stats:
+                        host_info["top_apps"] = [s.app_name for s in state.host.app_usage_stats]
                     else:
-                        macos_info["top_apps"] = sorted(state.macos.installed_apps)
-            data["macos"] = macos_info
+                        host_info["top_apps"] = sorted(state.host.installed_apps)
+            data["host"] = host_info
 
         # 2. Android Info
         if state.android_devices:

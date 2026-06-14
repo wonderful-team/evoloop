@@ -4,7 +4,7 @@ import os
 import sys
 import uuid
 from sqlalchemy import select
-from unittest.mock import patch, PropertyMock
+from unittest.mock import patch, PropertyMock, AsyncMock
 
 # Add backend path to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -72,7 +72,7 @@ async def run_verification():
         with patch("app.core.evocloud.evocloud_manager.get_token", return_value=TOKEN), \
              patch("app.core.identity.identity_service.get_member_id", return_value=member_id), \
              patch.object(EvoCloudHTTPClient, "root_url", new_callable=PropertyMock, return_value="http://127.0.0.1:9001"), \
-             patch("app.core.evocloud.evocloud_manager.get_project_by_id", return_value=mock_project):
+             patch("app.core.evocloud.evocloud_manager.get_project_by_id", new_callable=AsyncMock, return_value=mock_project):
             
             logger.info("=" * 60)
             logger.info(f"🚀 STARTING VERIFICATION TEST (Thread: {thread_id})")

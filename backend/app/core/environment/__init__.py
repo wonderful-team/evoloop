@@ -48,7 +48,7 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
     logger.info("  👁️ Awakening cognitive subsystems (Parallel)...")
 
     # Bundle tasks
-    probe_macos_task = EnvironmentProbe.probe_macos()
+    probe_host_task = EnvironmentProbe.probe_host()
     probe_android_task = EnvironmentProbe.probe_android_devices()
     probe_network_task = EnvironmentProbe.probe_network()
     memory_task = replay_memory(project_id)
@@ -56,7 +56,7 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
 
     # Execute all
     results = await asyncio.gather(
-        probe_macos_task,
+        probe_host_task,
         probe_android_task,
         probe_network_task,
         memory_task,
@@ -64,23 +64,23 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
     )
 
     # Assign results
-    macos, android_devices, network, memory_context, pref_context = results
+    host, android_devices, network, memory_context, pref_context = results
 
     # 4. Compute capability boundaries
-    boundaries = _compute_capability_boundaries(macos, android_devices, network)
+    boundaries = _compute_capability_boundaries(host, android_devices, network)
     boundary_manager.set_static_boundaries(boundaries)
 
     # 5. Compute available platforms
     platforms = []
-    if macos:
-        platforms.append("macos")
+    if host:
+        platforms.append(host.os_name.lower())
     if android_devices:
         platforms.append("android")
 
     # 6. Assemble final state
     state = AwakenedState(
         timestamp=datetime.now(),
-        macos=macos,
+        host=host,
         android_devices=android_devices,
         network=network,
         recent_episodes=memory_context.episodes,
@@ -109,18 +109,18 @@ async def _refresh_state(project_id: int | None = None) -> AwakenedState:
     logger.debug("Refreshing environment state...")
 
     # Probe environment (these are fast)
-    macos = await EnvironmentProbe.probe_macos()
+    host = await EnvironmentProbe.probe_host()
     android_devices = await EnvironmentProbe.probe_android_devices()
     network = await EnvironmentProbe.probe_network()
 
     # Compute boundaries
-    boundaries = _compute_capability_boundaries(macos, android_devices, network)
+    boundaries = _compute_capability_boundaries(host, android_devices, network)
     boundary_manager.set_static_boundaries(boundaries)
 
     # Compute platforms
     platforms = []
-    if macos:
-        platforms.append("macos")
+    if host:
+        platforms.append(host.os_name.lower())
     if android_devices:
         platforms.append("android")
 
@@ -129,7 +129,7 @@ async def _refresh_state(project_id: int | None = None) -> AwakenedState:
 
     state = AwakenedState(
         timestamp=datetime.now(),
-        macos=macos,
+        host=host,
         android_devices=android_devices,
         network=network,
         recent_episodes=prev_state.recent_episodes if prev_state else [],
@@ -163,7 +163,7 @@ async def _refresh_network_state() -> None:
 
     # Recompute boundaries with new network status
     boundaries = _compute_capability_boundaries(
-        prev_state.macos,
+        prev_state.host,
         prev_state.android_devices,
         network
     )
@@ -172,7 +172,7 @@ async def _refresh_network_state() -> None:
     # Update state with new network info
     state = AwakenedState(
         timestamp=datetime.now(),
-        macos=prev_state.macos,
+        host=prev_state.host,
         android_devices=prev_state.android_devices,
         network=network,
         recent_episodes=prev_state.recent_episodes,
@@ -188,7 +188,7 @@ async def _refresh_network_state() -> None:
 
 
 def _compute_capability_boundaries(
-    macos: object | None,
+    host: object | None,
     android_devices: list,
     network: object,
 ) -> list[str]:

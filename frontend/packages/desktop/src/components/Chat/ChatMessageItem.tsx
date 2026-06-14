@@ -86,7 +86,7 @@ interface ChatMessageItemProps {
   onRewind?: (msg: Message) => void
   onRetry?: (msg: Message) => void
   onQuote?: () => void
-  onViewChangeset?: (messageId: string | number, path?: string) => void
+  onViewChangeset?: (messageId: string | number, path?: string, diff?: string) => void
   isActivelyStreaming?: boolean
 }
 
@@ -239,7 +239,7 @@ const ChatMessageItem = memo(
             <ChangesetSnapshot
               files={msg.changeset_files || []}
               totalCount={msg.changeset_count}
-              onViewDetails={(path) => onViewChangeset?.(msg.id, path)}
+              onViewDetails={(path, diff) => onViewChangeset?.(msg.id, path, diff)}
             />
           </div>
         )}

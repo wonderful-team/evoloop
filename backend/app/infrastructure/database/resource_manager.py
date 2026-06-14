@@ -143,7 +143,7 @@ class DatabaseResourceManager:
     async def _ensure_tables_exist(self):
         """Execute metadata.create_all and handle extensions."""
         from app.infrastructure.database.sql.database import Base
-        from app.models import conversation, checkpoint, codebase, learning  # noqa: F401
+        from app.models import conversation, checkpoint, codebase, learning, memory  # noqa: F401
 
         logger.info("[ResourceManager] Ensuring tables exist...")
         async with self._engine.begin() as conn:

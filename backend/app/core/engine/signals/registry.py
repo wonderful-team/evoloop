@@ -82,8 +82,6 @@ class RouteToInterceptor(ToolCallInterceptor):
             except Exception:
                 context = {}
 
-        authorized_tools = args.get("authorized_tools")
-
         logger.info(f"[SignalRegistry] Intent: -> {target} ({reason})")
 
         skill_ids = args.get("skill_ids")
@@ -96,7 +94,6 @@ class RouteToInterceptor(ToolCallInterceptor):
             target=target,
             reason=reason,
             context=context,
-            authorized_tools=authorized_tools,
             skill_ids=skill_ids,
             session_goal=session_goal,
         )

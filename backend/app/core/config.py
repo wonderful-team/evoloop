@@ -24,7 +24,12 @@ def _get_env_file_path():
     import sys
     if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
         return os.path.join(sys._MEIPASS, '.env')
-    return '../.env'
+    
+    # Resolve relative to this file to prevent CWD dependency issues
+    # This file is at: backend/app/core/config.py
+    # We want: backend/../.env -> .env at project root
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.abspath(os.path.join(current_dir, "../../../.env"))
 
 
 def parse_cors(v: Any) -> list[str] | str:
@@ -91,6 +96,9 @@ class Settings(BaseSettings):
     # SaaS / Multi-tenant Mode
     MULTI_TENANT_MODE: bool = False  # True: Strict token isolation, no global session cache. False: Single-user mode (safe for global cache)
 
+    # Core App Data Directory
+    EVOLOOP_APP_DATA_DIR: str = "~/.evoloop"
+
     # Memory System Settings
     AUTO_MEMORY_EXTRACTION: bool = True  # Enable automatic memory extraction at conversation end
     AUTO_MEMORY_EXTRACTION_INTERVAL: int = 1  # Extract every N turns (1 = every turn, 2 = every other turn, etc.)
@@ -139,45 +147,25 @@ class Settings(BaseSettings):
     # "sqlite_fts": Force SQLite FTS5 (local file)
     # "meilisearch": Force Meilisearch (external service)
     SEARCH_ENGINE: Literal["auto", "sqlite_fts", "meilisearch"] = "auto"
-    SEARCH_DB_PATH: Annotated[str, BeforeValidator(expand_path)] = Field(
-        default_factory=lambda: os.path.expanduser(
-            os.path.join(os.getenv("EVOLOOP_APP_DATA_DIR", "~/.evoloop"), "database/search.db")
-        )
-    )
+    SEARCH_DB_PATH: Annotated[str | None, BeforeValidator(expand_path)] = None
+
     # Meilisearch settings (used when SEARCH_ENGINE=meilisearch)
     MEILISEARCH_URL: str = "http://localhost:7700"
     MEILISEARCH_API_KEY: str = ""
 
     # SQLite (for embedded mode)
     # Allow override via env var for dev/prod isolation
-    SQLITE_PATH: Annotated[str, BeforeValidator(expand_path)] = Field(
-        default_factory=lambda: os.path.expanduser(
-            os.getenv("SQLITE_DB_PATH", os.path.join(
-                os.getenv("EVOLOOP_APP_DATA_DIR", "~/.evoloop"), "database/backend.db")
-            )
-        ),
-    )
+    SQLITE_DB_PATH: Annotated[str | None, BeforeValidator(expand_path)] = None
+    SQLITE_PATH: Annotated[str | None, BeforeValidator(expand_path)] = None
 
     # LanceDB (for embedded vector storage)
-    LANCEDB_PATH: Annotated[str, BeforeValidator(expand_path)] = Field(
-        default_factory=lambda: os.path.expanduser(
-            os.path.join(os.getenv("EVOLOOP_APP_DATA_DIR", "~/.evoloop"), "database/lancedb")
-        ),
-    )
+    LANCEDB_PATH: Annotated[str | None, BeforeValidator(expand_path)] = None
 
     # Celery Beat Schedule DB
-    CELERY_SCHEDULE_DB_PATH: Annotated[str, BeforeValidator(expand_path)] = Field(
-        default_factory=lambda: os.path.expanduser(
-            os.path.join(os.getenv("EVOLOOP_APP_DATA_DIR", "~/.evoloop"), "database/celerybeat-schedule.db")
-        ),
-    )
+    CELERY_SCHEDULE_DB_PATH: Annotated[str | None, BeforeValidator(expand_path)] = None
 
     # Knowledge Base Storage
-    KNOWLEDGE_BASE_PATH: Annotated[str, BeforeValidator(expand_path)] = Field(
-        default_factory=lambda: os.path.expanduser(
-            os.path.join(os.getenv("EVOLOOP_APP_DATA_DIR", "~/.evoloop"), "knowledge")
-        ),
-    )
+    KNOWLEDGE_BASE_PATH: Annotated[str | None, BeforeValidator(expand_path)] = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -256,11 +244,7 @@ class Settings(BaseSettings):
     FUNASR_DEVICE: str = "cpu"  # cpu | cuda
 
     # AI Models Storage Configuration
-    MODELS_DIR: Annotated[str, BeforeValidator(expand_path)] = Field(
-        default_factory=lambda: os.path.expanduser(
-            os.path.join(os.getenv("EVOLOOP_APP_DATA_DIR", "~/.evoloop"), "models")
-        ),
-    )  # Directory for storing AI models (FunASR, embeddings, etc.)
+    MODELS_DIR: Annotated[str | None, BeforeValidator(expand_path)] = None  # Directory for storing AI models (FunASR, embeddings, etc.)
 
     # Embedding Configuration
     EMBEDDING_DIMENSIONS: int = 768  # Nomic / Local Default
@@ -372,7 +356,7 @@ class Settings(BaseSettings):
     @property
     def APP_DATA_DIR(self) -> str:
         """Centralized application data directory."""
-        return os.getenv("EVOLOOP_APP_DATA_DIR", os.path.join(os.path.expanduser("~"), ".evoloop"))
+        return expand_path(self.EVOLOOP_APP_DATA_DIR)
 
     @computed_field
     @property
@@ -460,6 +444,31 @@ class Settings(BaseSettings):
     SCREEN_RECORDING_MAX_SIZE_GB: int = 10     # 总容量限制10GB
     SCREEN_RECORDING_MAX_DURATION_MIN: int = 10  # 单次录制最大10分钟
     SCREEN_RECORDING_MAX_SIZE_MB: int = 500    # 单次录制最大500MB
+
+    @model_validator(mode="after")
+    def _set_default_paths(self) -> Self:
+        """Set default paths based on EVOLOOP_APP_DATA_DIR."""
+        base_dir = expand_path(self.EVOLOOP_APP_DATA_DIR)
+
+        if not self.SEARCH_DB_PATH:
+            self.SEARCH_DB_PATH = os.path.join(base_dir, "database/search.db")
+
+        if not self.SQLITE_PATH:
+            self.SQLITE_PATH = self.SQLITE_DB_PATH or os.path.join(base_dir, "database/backend.db")
+
+        if not self.LANCEDB_PATH:
+            self.LANCEDB_PATH = os.path.join(base_dir, "database/lancedb")
+
+        if not self.CELERY_SCHEDULE_DB_PATH:
+            self.CELERY_SCHEDULE_DB_PATH = os.path.join(base_dir, "database/celerybeat-schedule.db")
+
+        if not self.KNOWLEDGE_BASE_PATH:
+            self.KNOWLEDGE_BASE_PATH = os.path.join(base_dir, "knowledge")
+
+        if not self.MODELS_DIR:
+            self.MODELS_DIR = os.path.join(base_dir, "models")
+
+        return self
 
     @model_validator(mode="after")
     def _setup_external_env(self) -> Self:

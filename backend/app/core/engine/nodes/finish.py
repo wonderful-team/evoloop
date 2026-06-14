@@ -158,7 +158,7 @@ class FinishNode(BaseNode):
                         run_id=config.get("configurable", {}).get("run_id"),
                         messages=messages,
                         project_id=config.get("configurable", {}).get("project_id"),
-                        user_id=config.get("configurable", {}).get("user_id"),
+                        member_id=config.get("configurable", {}).get("member_id"),
                         compact_trigger=trim_result.trigger.name.lower(),
                     )
                 )
@@ -170,31 +170,10 @@ class FinishNode(BaseNode):
                 )
             messages = trim_result.messages
 
-        # ------------------------------------------------------------
-        # 0. Early truncation / replan gate
-        # If a Worker hit max_steps and requested replanning, bypass
-        # auditing and route straight back to Supervisor.
-        # ------------------------------------------------------------
         iteration_count = (state.iteration_count or 0)
         max_steps = settings.SUPERVISOR_AGENT_MAX_STEPS
         if blackboard and blackboard.metadata and blackboard.metadata.max_supervisor_steps:
             max_steps = blackboard.metadata.max_supervisor_steps
-
-        if iteration_count < max_steps:
-            for msg in reversed(messages):
-                if isinstance(msg, AIMessage):
-                    meta = msg.additional_kwargs
-                    if meta.get("is_truncated") and meta.get("requires_replan"):
-                        logger.warning(
-                            f"[Finish] 🔄 Worker was truncated (max_steps={meta.get('max_steps')}). "
-                            "Routing back to Supervisor for replanning."
-                        )
-                        blackboard.worker_outcome = "truncated"
-                        return StateUpdate(
-                            messages=messages,
-                            next_node=RoutingTarget.SUPERVISOR,
-                            blackboard=blackboard,
-                        )
 
         is_shadow_mode = blackboard.metadata.shadow_audit or False
         tool_history = blackboard.metadata.tool_history
@@ -247,7 +226,7 @@ class FinishNode(BaseNode):
         try:
             stop_ctx = HookContext(
                 thread_id=effective_thread_id,
-                user_id=ctx.user_id,
+                member_id=ctx.member_id,
                 project_id=ctx.project_id,
                 messages=messages,
                 blackboard=blackboard,
@@ -286,7 +265,7 @@ class FinishNode(BaseNode):
             thread_id=effective_thread_id,
             run_id=run_id,
             project_id=ctx.project_id,
-            user_id=ctx.user_id,
+            member_id=ctx.member_id,
             messages=messages,
             blackboard_dict=blackboard.model_dump(),
             summary=summary,

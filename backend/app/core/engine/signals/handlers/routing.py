@@ -24,7 +24,6 @@ class RouteToHandler(SignalHandler[RouteToSignal]):
         target = signal.target
         reason = signal.reason
         routing_context = signal.context
-        authorized_tools = signal.authorized_tools
 
         logger.info(f"[SignalHandler] ✅ Intercepted route_to -> {target} | Reason: {reason}")
 
@@ -54,26 +53,10 @@ class RouteToHandler(SignalHandler[RouteToSignal]):
             agent_config.namespace_context = inferred_namespace
         if not agent_config.role_name:
             agent_config.role_name = str(target).replace("_", " ").title()
-        if authorized_tools is not None:
-            # Merge: preserve tools preset in agent_config while adding Supervisor-authorized ones
-            existing_tools = set(agent_config.tools or [])
-            agent_config.tools = list(existing_tools | set(authorized_tools))
 
         parameters_fields = set(TicketParameters.model_fields.keys())
         parameters = {k: v for k, v in routing_context.model_dump().items() if k in parameters_fields}
 
-        # Fix: task_steps may contain dicts from LLM tool calls; coerce to strings
-        if "task_steps" in parameters and isinstance(parameters["task_steps"], list):
-            cleaned_steps = []
-            for s in parameters["task_steps"]:
-                if isinstance(s, str):
-                    cleaned_steps.append(s)
-                elif isinstance(s, dict):
-                    # Extract title or description from dict step
-                    cleaned_steps.append(s.get("title") or s.get("description") or str(s))
-                else:
-                    cleaned_steps.append(str(s))
-            parameters["task_steps"] = cleaned_steps
 
         context_dump = routing_context.model_dump()
         historical_context = context_dump.get("historical_context")
@@ -159,7 +142,6 @@ def create_route_to_signal(args: dict) -> RouteToSignal:
         target=args.get("target", RoutingTarget.FINISH),
         reason=args.get("reason", ""),
         context=RoutingContext.model_validate(context_data) if context_data else RoutingContext(),
-        authorized_tools=args.get("authorized_tools"),
         skill_ids=raw_skill_ids,
         session_goal=args.get("session_goal"),
     )

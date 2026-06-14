@@ -85,7 +85,7 @@ async def remember(content: str, context: str = "", is_user_preference: bool = F
         is_user_preference: Set to True if this is about the user's personal preferences, habits, or roles. False for project-specific knowledge.
     """
     ctx = ContextManager.current()
-    user_id = ctx.user_id if ctx else None
+    member_id = ctx.member_id if ctx else None
 
     try:
         # Determine memory scope based on LLM's classification
@@ -111,7 +111,7 @@ async def remember(content: str, context: str = "", is_user_preference: bool = F
             title=title,
             content=full_content,
             description=content[:200],
-            user_id=str(user_id) if user_id is not None else None,
+            member_id=member_id,
             project_id=project_id,
             tags=["remembered"],
             source="agent_tool",
@@ -152,14 +152,14 @@ async def recall(query: str, limit: int = 5) -> str:
         limit: Max results to return.
     """
     ctx = ContextManager.current()
-    user_id = ctx.user_id if ctx else None
+    member_id = ctx.member_id if ctx else None
     project_id = ctx.project_id if ctx else None
     thread_id = ctx.thread_id if ctx else None
 
     try:
         entries = await get_relevant_memories(
             query=query,
-            user_id=user_id,
+            member_id=member_id,
             project_id=project_id,
             max_results=limit,
         )

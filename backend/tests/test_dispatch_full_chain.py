@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 
 # Load env before imports
 from dotenv import load_dotenv
@@ -79,7 +79,7 @@ async def test_full_chain():
     with patch("app.infrastructure.database.resource_manager.db_resource_manager", mock_db), \
          patch("app.infrastructure.database.sql.database.db_resource_manager", mock_db), \
          patch("app.core.evocloud.evocloud_manager.get_token", return_value=TOKEN), \
-         patch("app.core.evocloud.evocloud_manager.get_project_by_id", return_value=mock_project), \
+         patch("app.core.evocloud.evocloud_manager.get_project_by_id", new_callable=AsyncMock, return_value=mock_project), \
          patch("app.core.monitoring.activity.activity_monitor", mock_activity), \
          patch("app.i18n.service.i18n", mock_i18n), \
          patch("app.core.engine.dispatch.session_scope", side_effect=mock_session_scope_func), \

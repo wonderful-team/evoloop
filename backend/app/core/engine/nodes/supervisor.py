@@ -10,7 +10,7 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.engine.message.utils import get_last_human_message
 from app.core.engine.nodes.base import BaseAgentNode
-from app.core.engine.prompts import SupervisorContext, SupervisorPromptBuilder
+from app.core.engine.nodes.prompts import SupervisorContext, SupervisorPromptBuilder
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.schemas import EngineResult
 from app.core.engine.state import AgentState, StateUpdate
@@ -185,6 +185,16 @@ class SupervisorNode(BaseAgentNode):
             # let the Supervisor LLM read the context to decide the next step.
             logger.info(f"[Supervisor] ℹ️ Worker returned '{worker_outcome}'. Delegating review to Supervisor LLM.")
             blackboard.ticket = None
+
+            if worker_outcome in ("truncated", "failed", "error", "incomplete"):
+                from langchain_core.messages import SystemMessage
+                warning_msg = (
+                    f"[SYSTEM ALERT] The previous Worker execution was {worker_outcome.upper()}.\n"
+                    "If TRUNCATED: The worker hit its step limit before finishing. You MUST review the progress and issue a new `route_to` ticket to continue the work.\n"
+                    "If FAILED/ERROR/INCOMPLETE: Review the last tool errors and decide whether to retry or formulate a new plan.\n"
+                    "DO NOT return an empty response. You must take explicit action."
+                )
+                state.messages.append(SystemMessage(content=warning_msg))
 
         return None
 

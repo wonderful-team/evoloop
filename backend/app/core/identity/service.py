@@ -21,6 +21,7 @@ class IdentityService:
 
     def __init__(self):
         self.store = IdentityStore()
+        self._pending_resolutions = {}
 
     async def login_with_cloud_result(self, cloud_result: LoginResult) -> None:
         """
@@ -79,37 +80,47 @@ class IdentityService:
         Resolve member_id from an access token with local caching.
         Falls back to Member Center API if not cached.
         """
+        import asyncio
+        
+        # 0. Prevent cache stampede (singleflight)
+        if token in self._pending_resolutions:
+            return await self._pending_resolutions[token]
+            
         # 1. Check shared cache
         cache_key = f"evoloop:token_mid:{token}"
         cached_mid_str = await cache.get(cache_key)
         if cached_mid_str:
             return int(cached_mid_str)
 
-        # 2. Validate against Member Center
+        # 2. Validate against Member Center (wrapped in a task to allow other requests to await it)
+        async def _fetch():
+            try:
+                from app.core.evocloud import evocloud_manager
+                result = await evocloud_manager.api.get_user_info(token)
+                if result.get("code") == 0:
+                    data = result.get("data", {})
+                    member_id = data.get("member_id")
+                    if member_id is not None:
+                        mid = int(member_id)
+                        await cache.set(cache_key, str(mid), ex=TOKEN_CACHE_TTL)
+
+                        if not settings.MULTI_TENANT_MODE:
+                            stored_mid = await self.store.get_member_id()
+                            if stored_mid is None or stored_mid != mid:
+                                logger.info(f"[Identity] Syncing session to store for new/different user (mid: {mid})")
+                                await self.store.save_access_token(token)
+                                await self.store.save_member_id(mid)
+                        return mid
+            except Exception as e:
+                logger.error(f"Failed to resolve member_id from token: {e}")
+            return None
+
+        task = asyncio.create_task(_fetch())
+        self._pending_resolutions[token] = task
         try:
-            from app.core.evocloud import evocloud_manager
-            result = await evocloud_manager.api.get_user_info(token)
-            if result.get("code") == 0:
-                data = result.get("data", {})
-                member_id = data.get("member_id")
-                if member_id is not None:
-                    mid = int(member_id)
-                    await cache.set(cache_key, str(mid), ex=TOKEN_CACHE_TTL)
-
-                    # Sync to store only if user changed (e.g. login on another device/client)
-                    # or if the store is currently empty.
-                    # Sync to store only if user changed AND we are in single-user mode
-                    if not settings.MULTI_TENANT_MODE:
-                        stored_mid = await self.store.get_member_id()
-                        if stored_mid is None or stored_mid != mid:
-                            logger.info(f"[Identity] Syncing session to store for new/different user (mid: {mid})")
-                            await self.store.save_access_token(token)
-                            await self.store.save_member_id(mid)
-                    return mid
-        except Exception as e:
-            logger.error(f"Failed to resolve member_id from token: {e}")
-
-        return None
+            return await task
+        finally:
+            self._pending_resolutions.pop(token, None)
 
     async def get_member_id(self, token: str | None = None) -> int | None:
         """

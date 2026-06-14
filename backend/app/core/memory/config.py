@@ -6,20 +6,19 @@ All memory-related settings are encapsulated in the MemoryConfig dataclass.
 """
 
 import logging
-import os
 from pathlib import Path
 
 from pydantic import Field
 
+from app.core.config import settings
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
 def _default_memory_root() -> Path:
-    """Resolve memory root from EVOLOOP_APP_DATA_DIR (same logic as Settings.APP_DATA_DIR)."""
-    app_data = os.getenv("EVOLOOP_APP_DATA_DIR", os.path.join(os.path.expanduser("~"), ".evoloop"))
-    return Path(app_data) / "memory"
+    """Resolve memory root from EVOLOOP_APP_DATA_DIR."""
+    return Path(settings.APP_DATA_DIR) / "memory"
 
 
 class MemoryConfig(DynamicBaseModel):

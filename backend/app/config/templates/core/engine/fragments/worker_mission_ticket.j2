@@ -64,6 +64,7 @@ Execute using available tools. One turn only.
 {%- else %}
 - **Title**: {{ plan.title }}
 - **Status**: {{ 'APPROVED' if plan.approved else 'PENDING' }}
+- **IMPORTANT**: This plan has ALREADY been created by the Supervisor. DO NOT call `create_plan` again. Use the existing plan_id when calling `update_step_status`.
   {% for s in plan.steps -%}
   {{ s.index }}. [{{ s.status }}] {{ s.title }}
   {%- if s.result %} → Result: {{ s.result }}{% endif %}
@@ -71,18 +72,14 @@ Execute using available tools. One turn only.
 {%- endif %}
 {%- endif %}
 
-{%- if focus_files %}
+{%- if focus_paths %}
 ## Attention Guidance (Focus Files)
-The Supervisor has identified {{ focus_files | length }} focus file(s) for this mission:
-{% for file in focus_files -%}
-{%- if file.status == "ok" %}
---- FILE: {{ file.rel_path }} ---
-{{ file.content }}
---- END OF FILE ---
-{%- else %}
-- **{{ file.status|upper }}**: `{{ file.rel_path }}` {%- if file.detail %}({{ file.detail }}){%- endif %}
-{%- endif %}
+The Supervisor strongly recommends you to examine the following {{ focus_paths | length }} file(s) for this mission:
+{% for path in focus_paths -%}
+- `{{ path }}`
 {% endfor %}
+
+> **ACTION REQUIRED**: Use your file reading tools (e.g. `view_file`, `grep_search`) to retrieve the latest contents of these files immediately. DO NOT guess their contents.
 {%- endif %}
 
 {%- if knowledge_blocks %}
@@ -97,21 +94,8 @@ The following Standard Operating Procedures are attached to this mission. You MU
 WARNING: No Standard Operating Procedure (SOP) is available for this mission.
 
 **YOU MUST DO ONE OF THE FOLLOWING:**
-1. **Call `search_skills`** — Search the skill library for relevant SOPs
-2. **Call `ask_human`** — Ask the user for clarification if the task is unclear
-
-## Output Protocol
-
-When you produce files or generate visual content, you MUST adhere to the following conventions so the system can correctly render them:
-
-1. **Generated Files**: Mention the path using `uploads/<filename>.<ext>` in your response (e.g., "I have generated the report at `uploads/analysis_v1.xlsx`").
-2. **Visual Artifacts**: Use specific code blocks for interactive components:
-   - ECharts: ```echarts [JSON config] ```
-   - Mermaid: ```mermaid [graph definition] ```
-   - Maps: ```map [GeoJSON or coordinates] ```
-   - HTML/React Previews: ```artifact [HTML/JSX code] ```
-
-The system will automatically detect these patterns and surface them as interactive cards in the message feed.
+1. **Call `list_skills`** — Search the skill library index for relevant SOPs.
+2. **Call `read_skill_sop(id)`** — Read the matched SOP and follow its instructions to the letter.
 
 **FORBIDDEN:**
 - Do NOT randomly try tools hoping to find the right one
@@ -149,16 +133,6 @@ The Supervisor has provided background information from previous conversation:
   {% endfor %}
 {%- endif %}
 
-{%- if memory.episodic_raw or memory.core_raw %}
-## Memory Context
-{%- if memory.episodic_raw %}
-- **Episodic**: {{ memory.episodic_raw[:500] }}{{ '...' if memory.episodic_raw|length > 500 else '' }}
-{%- endif %}
-{%- if memory.core_raw %}
-- **Core**: {{ memory.core_raw[:500] }}{{ '...' if memory.core_raw|length > 500 else '' }}
-{%- endif %}
-{%- endif %}
-
 {%- if blackboard.subtask_results is defined or blackboard.metadata is defined or (blackboard.shared_context and blackboard.shared_context|length > 0) %}
 ## Session State
 {%- if blackboard.shared_context and blackboard.shared_context|length > 0 %}
@@ -180,8 +154,8 @@ The following critical notes were left by previous workers/subtasks for you to c
 ## System Telemetry
 - CPU: {{ telemetry.cpu.usage_percent }}% | Load: {{ telemetry.cpu.load_avg|join(', ') }}
 - Memory: {{ telemetry.memory.percent }}% ({{ (telemetry.memory.available / 1024**2)|round }}MB available)
-{%- if telemetry.macos %}
-- Active Window: {{ telemetry.macos.active_window.title }} ({{ telemetry.macos.active_window.app_name }})
+{%- if telemetry.active_window %}
+- Active Window: {{ telemetry.active_window.title }} ({{ telemetry.active_window.app_name }})
 {%- endif %}
 {%- endif %}
 

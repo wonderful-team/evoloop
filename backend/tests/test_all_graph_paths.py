@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 import uuid
-from unittest.mock import patch, PropertyMock
+from unittest.mock import patch, PropertyMock, AsyncMock
 from sqlalchemy import select
 
 # Load env
@@ -57,7 +57,7 @@ async def run_scenario(name: str, prompt: str, project_id: int = 43, force_input
 
     with patch("app.core.evocloud.evocloud_manager.get_token", return_value=TOKEN), \
          patch.object(EvoCloudHTTPClient, "root_url", new_callable=PropertyMock, return_value="https://evoloop.develop-assistant.cn"), \
-         patch("app.core.evocloud.evocloud_manager.get_project_by_id", return_value=mock_project):
+         patch("app.core.evocloud.evocloud_manager.get_project_by_id", new_callable=AsyncMock, return_value=mock_project):
         
         # 1. Dispatch
         dispatch_res = await dispatch_agent_run(

@@ -51,7 +51,29 @@ Each step MUST have:
 - For pagination detection, use: `{ "type": "action", "event_type": "detect_pagination" }`
 - For scrolling, use: `{ "type": "action", "event_type": "scroll_to_bottom" }`
 
-{% from "common/fragments/action_docs.j2" import action_docs_full %}
+{% macro action_doc_item(action) %}
+- "{{ action.id }}": {{ action.description }}{% if action.params %} Params: {{ action.params | join(", ") }}{% endif %}
+{% endmacro %}
+
+{# 按平台分组的 action 列表 #}
+{% macro action_docs_by_platform(actions, platform, title) %}
+{% set platform_actions = actions | selectattr("platforms", "contains", platform) | list %}
+{% if platform_actions %}
+#### {{ title }}:
+{% for action in platform_actions %}{{ action_doc_item(action) }}{% endfor %}
+{% endif %}
+{% endmacro %}
+
+{% macro action_docs_full(actions, default_actions="navigate, click, input, scroll, wait, screenshot, get_text, get_attribute, key_press") %}
+{% if actions %}
+{{ action_docs_by_platform(actions, "dom", "Web/DOM") }}
+{{ action_docs_by_platform(actions, "mobile", "Mobile/Android") }}
+{{ action_docs_by_platform(actions, "desktop", "Desktop/MacOS") }}
+{% else %}
+- {{ default_actions }}
+{% endif %}
+{% endmacro %}
+
 Action Types (By Platform):
 {{ action_docs_full(actions) }}
 

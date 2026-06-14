@@ -30,7 +30,7 @@ from app.core.engine.dispatch import dispatch_agent_run
 from app.core.engine.background_agent import run_agent_background
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Conversation, Message
-from unittest.mock import patch, PropertyMock
+from unittest.mock import patch, PropertyMock, AsyncMock
 from app.core.evocloud.backends.http_client import EvoCloudHTTPClient
 
 async def initialize_system():
@@ -92,7 +92,7 @@ async def run_integration_test():
         # Mock both the token and the root_url property
         with patch("app.core.evocloud.evocloud_manager.get_token", return_value=TOKEN), \
              patch.object(EvoCloudHTTPClient, "root_url", new_callable=PropertyMock, return_value="https://evoloop.develop-assistant.cn"), \
-             patch("app.core.evocloud.evocloud_manager.get_project_by_id", return_value=mock_project):
+             patch("app.core.evocloud.evocloud_manager.get_project_by_id", new_callable=AsyncMock, return_value=mock_project):
             # 3. Dispatch (Real Logic, Real DB)
             print(f"\n[Step 1] Dispatching agent run for project {project_id}...")
             dispatch_res = await dispatch_agent_run(

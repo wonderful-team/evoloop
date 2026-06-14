@@ -246,13 +246,13 @@ async def test_prefs():
         
         # Simulate setting a preference
         entry = MemoryEntry(
-            id="pref_user_default_test_key",
+            id="pref_1_test_key",
             type=MT.USER,
             privacy=PL.PRIVATE,
             title="Preference: test_key",
             content="test_key: test_value\n\nTest preference",
             description="test_key = test_value",
-            user_id="user_default",
+            member_id=1,
             tags=["preference", "test_key"],
         )
         await storage.save(entry)

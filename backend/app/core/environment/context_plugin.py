@@ -33,10 +33,6 @@ class EnvironmentContextPlugin(ContextPlugin):
             if not isinstance(ctx.spatial_awareness, dict):
                 ctx.spatial_awareness = {}
 
-            # 2.5 Compute the final Environment Block (Autonomous Sensing Output)
-            # This pre-rendered block is what the Engine will use.
-            ctx.environment_block = AppEnvironmentPrompt.render_environment_block(skip_hydrate=True)
-
             state = get_awakened_state()
 
             # Reset metadata flags
@@ -46,7 +42,7 @@ class EnvironmentContextPlugin(ContextPlugin):
             if state:
                 if state.android_devices:
                     ctx.metadata.has_android = True
-                if state.macos:
+                if state.host and state.host.os_name == "macOS":
                     ctx.metadata.has_macos = True
 
                 # 3. Hydrate Spatial Awareness (Discovery Report)
@@ -130,6 +126,10 @@ class EnvironmentContextPlugin(ContextPlugin):
                 # Pass raw user preferences to templates for rendering
                 if getattr(state, "user_preferences", None):
                     ctx.metadata.user_preferences = state.user_preferences
+
+            # Compute the final Environment Block (Autonomous Sensing Output)
+            # This pre-rendered block is what the Engine will use.
+            ctx.environment_block = AppEnvironmentPrompt.render_environment_block(skip_hydrate=True)
 
         except Exception as e:
             logger.error(f"Failed to hydrate EnvironmentContextPlugin: {e}")

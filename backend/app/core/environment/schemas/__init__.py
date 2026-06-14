@@ -13,7 +13,7 @@ from .models import (
     DehydratedElement,
     ElementResolutionResult,
     EpisodeSummary,
-    MacOSEnvironment,
+    HostEnvironment,
     MemoryContext,
     MirrorSessionStopResult,
     NetworkStatus,

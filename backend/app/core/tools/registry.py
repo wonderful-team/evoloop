@@ -336,6 +336,11 @@ def get_node_tools(node_role: str, config_path: str | None = None) -> list[BaseT
     return hydrated
 
 
+def get_tool_bundle(bundle_name: str, config_path: str | None = None) -> list[str]:
+    """Get a named list of tools defined in the tool_bundles section of YAML config."""
+    config = _load_yaml_config(config_path)
+    return config.get("tool_bundles", {}).get(bundle_name, [])
+
 # --- Convenience Accessors ---
 
 

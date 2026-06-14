@@ -26,25 +26,25 @@ class SchedulerService:
         now = datetime.now(timezone.utc)
         
         async with session_scope() as session:
-            # 1. Catch active & due tasks
-            stmt = select(AutonomousTask).where(
+            # 1. Catch active & due tasks (fetch only IDs)
+            stmt = select(AutonomousTask.id).where(
                 AutonomousTask.is_active == True,
                 AutonomousTask.is_dead_letter == False,
                 AutonomousTask.next_run_at <= now
             )
             result = await session.execute(stmt)
-            due_tasks = result.scalars().all()
+            due_task_ids = result.scalars().all()
             
-            if not due_tasks:
-                return
+        if not due_task_ids:
+            return
 
-            logger.info(f"[Scheduler] Found {len(due_tasks)} due tasks.")
-            
-            for task in due_tasks:
-                try:
-                    await SchedulerService.dispatch_task(task.id)
-                except Exception as e:
-                    logger.error(f"[Scheduler] Failed to dispatch task {task.id}: {e}")
+        logger.info(f"[Scheduler] Found {len(due_task_ids)} due tasks.")
+        
+        for task_id in due_task_ids:
+            try:
+                await SchedulerService.dispatch_task(task_id)
+            except Exception as e:
+                logger.error(f"[Scheduler] Failed to dispatch task {task_id}: {e}")
 
     @staticmethod
     async def dispatch_task(task_id: int):

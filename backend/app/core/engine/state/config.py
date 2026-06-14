@@ -11,7 +11,7 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 class RunnableConfigMetadata(DynamicBaseModel):
     """Metadata extracted from LangGraph RunnableConfig."""
     thread_id: str = "unknown"
-    user_id: str | None = None
+    member_id: int | None = None
     project_id: int | None = None
     run_id: str | None = None
     model: str | None = None
@@ -31,7 +31,7 @@ class RunnableConfigMetadata(DynamicBaseModel):
 
         return cls(
             thread_id=str(configurable.get("thread_id", "unknown")),
-            user_id=configurable.get("user_id"),
+            member_id=configurable.get("member_id"),
             project_id=configurable.get("project_id"),
             run_id=configurable.get("run_id"),
             model=configurable.get("model"),
@@ -39,11 +39,6 @@ class RunnableConfigMetadata(DynamicBaseModel):
 
 
 class TicketParameters(DynamicBaseModel):
-    task_steps: list[str] | None = None
-    fallback_strategy: str | None = None
-    target_apps: list[str] | None = None
-    lazy_hydration: bool = False
-    verbose_output: bool = True
     dependencies: list[str] | None = None
 
 

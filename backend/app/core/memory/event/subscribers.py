@@ -86,6 +86,10 @@ class MemoryLifecycleSubscriber:
                             "items": {"type": "string"},
                             "description": "List of relevant tags",
                         },
+                        "source_file_path": {
+                            "type": "string",
+                            "description": "The workspace-relative file path related to this memory/gotcha, if any (e.g. 'app/main.py')",
+                        },
                     },
                     "required": ["type", "content", "title", "confidence"],
                 }
@@ -116,10 +120,13 @@ class MemoryLifecycleSubscriber:
                 description=item.get("description", ""),
                 tags=item.get("tags", []),
                 project_id=event.project_id,
-                user_id=event.user_id,
+                member_id=event.member_id,
                 source="harvest:finish",
                 run_id=event.run_id,
                 confidence=item.get("confidence", 0.7),
+                source_thread_id=event.thread_id,
+                source_run_id=event.run_id,
+                source_file_path=item.get("source_file_path"),
             )
             await memory_manager.save_memory(entry)
             count += 1

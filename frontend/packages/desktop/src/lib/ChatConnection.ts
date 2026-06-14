@@ -48,8 +48,8 @@ export class ChatConnection {
             return;
         }
 
-        // If already connected to same thread, do nothing
-        if (this.eventSource && this.currentThreadId === threadId && this.eventSource.readyState !== EventSource.CLOSED) {
+        // If already connected and OPEN, do nothing
+        if (this.eventSource && this.currentThreadId === threadId && this.eventSource.readyState === EventSource.OPEN) {
             console.log("[ChatConnection] Already connected to thread", threadId);
             return;
         }

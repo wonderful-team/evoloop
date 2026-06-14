@@ -41,7 +41,7 @@ class HookContext(DynamicBaseModel):
     thread_id: str
     run_id: str | None = None
     project_id: int | None = None
-    user_id: str | None = None
+    member_id: int | None = None
     messages: list[BaseMessage] = Field(default_factory=list)
     blackboard: BlackboardState | None = None
     metadata: HookMetadata = Field(default_factory=HookMetadata)

@@ -18,7 +18,7 @@ class SessionCompletedData(BaseModel):
     thread_id: str
     run_id: str | None = None
     project_id: int | None = None
-    user_id: Optional[str] = None
+    member_id: Optional[int] = None
     messages: List[BaseMessage] = Field(default_factory=list)
     blackboard_dict: dict = Field(default_factory=dict, description="Serialized blackboard state")
     summary: Optional[str] = None
@@ -78,7 +78,7 @@ class ExtractionCompletedEvent(BaseEvent):
     thread_id: str
     run_id: str | None = None
     project_id: int | None = None
-    user_id: Optional[str] = None
+    member_id: Optional[int] = None
     extracted_data: dict = Field(default_factory=dict, description="The raw structured output from LLM")
     is_public: bool = False
 
