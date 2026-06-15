@@ -1,10 +1,9 @@
-import { useState, useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
-import { Loader2, RotateCcw } from 'lucide-react'
-import { cn } from '@evoloop/shared/lib/utils'
-import { Button } from '@evoloop/shared/components/ui/button'
-import { VoiceMessage } from './VoiceMessage'
-import { useTranscription } from '@/hooks/useTranscription'
+import { Button } from "@evoloop/shared/components/ui/button"
+import { cn } from "@evoloop/shared/lib/utils"
+import { Loader2, RotateCcw } from "lucide-react"
+import { useCallback, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { VoiceMessage } from "./VoiceMessage"
 
 interface VoiceMessageWithTranscriptProps {
   audioUrl: string
@@ -25,16 +24,18 @@ export function VoiceMessageWithTranscript({
   isTranscribing: initialTranscribing = false,
   onTranscribe,
   isUser = false,
-  className
+  className,
 }: VoiceMessageWithTranscriptProps) {
   const { t } = useTranslation()
-  const [transcript, setTranscript] = useState<string | undefined>(initialTranscript)
+  const [transcript, setTranscript] = useState<string | undefined>(
+    initialTranscript,
+  )
   const [isTranscribing, setIsTranscribing] = useState(initialTranscribing)
   const [isExpanded, setIsExpanded] = useState(false)
 
   const handleTranscribe = useCallback(async () => {
     if (!onTranscribe) return
-    
+
     setIsTranscribing(true)
     try {
       const result = await onTranscribe()
@@ -58,10 +59,12 @@ export function VoiceMessageWithTranscript({
       />
 
       {/* 转文字区域 */}
-      <div className={cn(
-        "rounded-lg overflow-hidden transition-all",
-        isUser ? "bg-primary/10" : "bg-muted"
-      )}>
+      <div
+        className={cn(
+          "rounded-lg overflow-hidden transition-all",
+          isUser ? "bg-primary/10" : "bg-muted",
+        )}
+      >
         {/* 转文字按钮（如果还没有文字） */}
         {!transcript && !isTranscribing && onTranscribe && (
           <Button
@@ -69,22 +72,28 @@ export function VoiceMessageWithTranscript({
             size="sm"
             className={cn(
               "w-full h-8 text-xs",
-              isUser ? "text-primary-foreground/70 hover:text-primary-foreground" : "text-muted-foreground"
+              isUser
+                ? "text-primary-foreground/70 hover:text-primary-foreground"
+                : "text-muted-foreground",
             )}
             onClick={handleTranscribe}
           >
-            {t('chat.voice.transcribe', '转文字')}
+            {t("chat.voice.transcribe", "转文字")}
           </Button>
         )}
 
         {/* 转文字中 */}
         {isTranscribing && (
-          <div className={cn(
-            "flex items-center justify-center gap-2 py-2 px-3",
-            isUser ? "text-primary-foreground/70" : "text-muted-foreground"
-          )}>
+          <div
+            className={cn(
+              "flex items-center justify-center gap-2 py-2 px-3",
+              isUser ? "text-primary-foreground/70" : "text-muted-foreground",
+            )}
+          >
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            <span className="text-xs">{t('chat.voice.transcribing', '转文字中...')}</span>
+            <span className="text-xs">
+              {t("chat.voice.transcribing", "转文字中...")}
+            </span>
           </div>
         )}
 
@@ -95,22 +104,25 @@ export function VoiceMessageWithTranscript({
               type="button"
               className={cn(
                 "w-full text-left px-3 py-2 text-sm",
-                isUser ? "text-primary-foreground/90" : "text-foreground"
+                isUser ? "text-primary-foreground/90" : "text-foreground",
               )}
               onClick={() => setIsExpanded(!isExpanded)}
             >
-              <span className={cn(
-                "transition-all",
-                !isExpanded && "line-clamp-2"
-              )}>
+              <span
+                className={cn("transition-all", !isExpanded && "line-clamp-2")}
+              >
                 {transcript}
               </span>
               {!isExpanded && transcript.length > 50 && (
-                <span className={cn(
-                  "text-xs ml-1",
-                  isUser ? "text-primary-foreground/60" : "text-muted-foreground"
-                )}>
-                  {t('chat.voice.expand', '展开')}
+                <span
+                  className={cn(
+                    "text-xs ml-1",
+                    isUser
+                      ? "text-primary-foreground/60"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  {t("chat.voice.expand", "展开")}
                 </span>
               )}
             </button>
@@ -122,13 +134,15 @@ export function VoiceMessageWithTranscript({
                 size="icon"
                 className={cn(
                   "absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity",
-                  isUser ? "text-primary-foreground/60 hover:text-primary-foreground" : "text-muted-foreground"
+                  isUser
+                    ? "text-primary-foreground/60 hover:text-primary-foreground"
+                    : "text-muted-foreground",
                 )}
                 onClick={(e) => {
                   e.stopPropagation()
                   handleTranscribe()
                 }}
-                title={t('chat.voice.retranscribe', '重新转文字')}
+                title={t("chat.voice.retranscribe", "重新转文字")}
               >
                 <RotateCcw className="w-3 h-3" />
               </Button>
@@ -145,50 +159,50 @@ export function VoiceMessageWithTranscript({
  */
 export function TranscriptionBadge({
   status,
-  onClick
+  onClick,
 }: {
-  status: 'idle' | 'transcribing' | 'done' | 'error'
+  status: "idle" | "transcribing" | "done" | "error"
   onClick?: () => void
 }) {
   const { t } = useTranslation()
 
-  if (status === 'idle') {
+  if (status === "idle") {
     return (
       <button
         type="button"
         onClick={onClick}
         className="text-xs text-muted-foreground hover:text-foreground underline"
       >
-        {t('chat.voice.transcribe', '转文字')}
+        {t("chat.voice.transcribe", "转文字")}
       </button>
     )
   }
 
-  if (status === 'transcribing') {
+  if (status === "transcribing") {
     return (
       <span className="text-xs text-muted-foreground flex items-center gap-1">
         <Loader2 className="w-3 h-3 animate-spin" />
-        {t('chat.voice.transcribing', '转文字中...')}
+        {t("chat.voice.transcribing", "转文字中...")}
       </span>
     )
   }
 
-  if (status === 'done') {
+  if (status === "done") {
     return (
       <span className="text-xs text-green-600">
-        {t('chat.voice.transcribed', '已转文字')}
+        {t("chat.voice.transcribed", "已转文字")}
       </span>
     )
   }
 
-  if (status === 'error') {
+  if (status === "error") {
     return (
       <button
         type="button"
         onClick={onClick}
         className="text-xs text-red-500 hover:text-red-600 underline"
       >
-        {t('chat.voice.transcribeFailed', '转文字失败，重试')}
+        {t("chat.voice.transcribeFailed", "转文字失败，重试")}
       </button>
     )
   }

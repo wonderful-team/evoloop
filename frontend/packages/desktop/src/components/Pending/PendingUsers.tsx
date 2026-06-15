@@ -1,4 +1,3 @@
-import { useTranslation } from "react-i18next"
 import { Skeleton } from "@evoloop/shared/components/ui/skeleton"
 import {
   Table,
@@ -8,6 +7,7 @@ import {
   TableHeader,
   TableRow,
 } from "@evoloop/shared/components/ui/table"
+import { useTranslation } from "react-i18next"
 
 const PendingUsers = () => {
   const { t } = useTranslation()

@@ -1,15 +1,14 @@
-import { useTranslation } from 'react-i18next'
-import { Sparkles, Crown, ArrowRight } from 'lucide-react'
+import { Badge } from "@evoloop/shared/components/ui/badge"
+import { Button } from "@evoloop/shared/components/ui/button"
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
-} from '@evoloop/shared/components/ui/dialog'
-import { Button } from '@evoloop/shared/components/ui/button'
-import { Badge } from '@evoloop/shared/components/ui/badge'
-import { useBenefitStore, PLAN_KEY_MAP } from '@/stores/benefitStore'
+  DialogTitle,
+} from "@evoloop/shared/components/ui/dialog"
+import { ArrowRight, Crown, Sparkles } from "lucide-react"
+import { useTranslation } from "react-i18next"
+import { PLAN_KEY_MAP, useBenefitStore } from "@/stores/benefitStore"
 
 export function BenefitRequirementDialog() {
   const { t } = useTranslation()
@@ -17,16 +16,19 @@ export function BenefitRequirementDialog() {
 
   if (!info) return null
 
-  const planKey = PLAN_KEY_MAP[info.requiredPlan || ''] || info.requiredPlan
+  const planKey = PLAN_KEY_MAP[info.requiredPlan || ""] || info.requiredPlan
   const planName = t(`subscription.plans.${planKey}`, {
-    defaultValue: info.requiredPlan || t('subscription.plans.higher')
+    defaultValue: info.requiredPlan || t("subscription.plans.higher"),
   })
   const benefitName = t(`subscription.benefits.${info.feature}`, {
-    defaultValue: info.featureName || info.feature || t('subscription.errors.featureFallback')
+    defaultValue:
+      info.featureName ||
+      info.feature ||
+      t("subscription.errors.featureFallback"),
   })
 
   const handleUpgrade = () => {
-    window.location.hash = '#/subscription'
+    window.location.hash = "#/subscription"
     closeDialog()
   }
 
@@ -45,14 +47,20 @@ export function BenefitRequirementDialog() {
           </div>
 
           <div className="space-y-2">
-            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">
-               {t('subscription.status.locked')}
+            <Badge
+              variant="outline"
+              className="bg-primary/10 text-primary border-primary/20 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest"
+            >
+              {t("subscription.status.locked")}
             </Badge>
             <DialogTitle className="text-2xl font-bold tracking-tight text-white pt-2">
-              {t('subscription.errors.dialogTitle', { feature: benefitName })}
+              {t("subscription.errors.dialogTitle", { feature: benefitName })}
             </DialogTitle>
             <DialogDescription className="text-slate-400 text-sm max-w-[320px] mx-auto leading-relaxed">
-              {info.message || t('subscription.errors.benefitDescription', { feature: planName })}
+              {info.message ||
+                t("subscription.errors.benefitDescription", {
+                  feature: planName,
+                })}
             </DialogDescription>
           </div>
 
@@ -62,7 +70,7 @@ export function BenefitRequirementDialog() {
               onClick={handleUpgrade}
             >
               <Sparkles className="mr-2 h-5 w-5 animate-pulse" />
-              {t('subscription.errors.upgradeAction')}
+              {t("subscription.errors.upgradeAction")}
               <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Button>
             <Button
@@ -70,7 +78,7 @@ export function BenefitRequirementDialog() {
               className="w-full text-slate-500 hover:text-slate-300 hover:bg-white/5 font-medium"
               onClick={closeDialog}
             >
-              {t('common.cancel')}
+              {t("common.cancel")}
             </Button>
           </div>
         </div>

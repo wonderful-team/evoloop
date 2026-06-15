@@ -1,17 +1,3 @@
-import { useNavigate } from "@tanstack/react-router"
-import {
-  CheckCircle2,
-  ChevronsUpDown,
-  Clock,
-  Folder,
-  Globe,
-  ListTodo,
-  RefreshCw,
-  Search, Unlink,
-  XCircle,
-} from "lucide-react"
-import * as React from "react"
-import { useTranslation } from "react-i18next"
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
@@ -23,11 +9,33 @@ import {
   DialogTrigger,
 } from "@evoloop/shared/components/ui/dialog"
 import { Input } from "@evoloop/shared/components/ui/input"
-import { useProjectStatus } from "@/hooks/useProjectStatus"
 import { cn } from "@evoloop/shared/lib/utils"
-import { type Project, useProjectStore, GLOBAL_PROJECT } from "@/stores/projectStore"
+import { useNavigate } from "@tanstack/react-router"
+import {
+  CheckCircle2,
+  ChevronsUpDown,
+  Clock,
+  Folder,
+  Globe,
+  ListTodo,
+  RefreshCw,
+  Search,
+  Unlink,
+  XCircle,
+} from "lucide-react"
+import * as React from "react"
+import { useTranslation } from "react-i18next"
+import { useProjectStatus } from "@/hooks/useProjectStatus"
+import {
+  GLOBAL_PROJECT,
+  type Project,
+  useProjectStore,
+} from "@/stores/projectStore"
 
-function getIndexingStatusDisplay(project: Project, t: (key: string) => string) {
+function getIndexingStatusDisplay(
+  project: Project,
+  t: (key: string) => string,
+) {
   // Priority 1: Real-time Redis status (indexing)
   if (project.indexing_status === "indexing") {
     return {
@@ -64,8 +72,6 @@ function getIndexingStatusDisplay(project: Project, t: (key: string) => string) 
         text: t("projectSwitcher.indexPending"),
         className: "bg-yellow-100 text-yellow-700",
       }
-    case "not_needed":
-    case "not_linked":
     default:
       return null
   }
@@ -80,10 +86,10 @@ interface ProjectSwitcherProps {
   onSelect?: (project: Project) => void
 }
 
-export function ProjectSwitcher({ 
-  open: controlledOpen, 
+export function ProjectSwitcher({
+  open: controlledOpen,
   onOpenChange,
-  onSelect 
+  onSelect,
 }: ProjectSwitcherProps = {}) {
   const { t } = useTranslation()
   const { projects, currentProject, setProject, fetchProjects, isGlobalMode } =
@@ -109,7 +115,7 @@ export function ProjectSwitcher({
   React.useEffect(() => {
     if (projects.length === 0) {
       // Fetch only switchable projects (linked + local path exists)
-      fetchProjects('switchable')
+      fetchProjects("switchable")
     }
   }, [fetchProjects, projects.length])
 
@@ -126,7 +132,7 @@ export function ProjectSwitcher({
       setOpen(false)
       return
     }
-    
+
     // Default behavior: set project in store
     // All projects from 'switchable' filter can be selected
     // (global project is also allowed)
@@ -162,39 +168,51 @@ export function ProjectSwitcher({
                 // Don't show status badges for global mode
                 if (isGlobalMode) return null
 
-                const idxStatus = currentProject ? getIndexingStatusDisplay(currentProject, t) : null
-                if (!currentProject?.exists_locally && currentProject?.local_status === "DISCONNECTED") {
+                const idxStatus = currentProject
+                  ? getIndexingStatusDisplay(currentProject, t)
+                  : null
+                if (
+                  !currentProject?.exists_locally &&
+                  currentProject?.local_status === "DISCONNECTED"
+                ) {
                   return (
                     <Badge
                       variant="outline"
                       className="ml-2 h-5 text-[10px] px-1.5 font-normal text-muted-foreground border-muted hidden sm:inline-flex gap-1"
                     >
-                      <Unlink className="h-3 w-3" /> {t("projectSwitcher.disconnected")}
+                      <Unlink className="h-3 w-3" />{" "}
+                      {t("projectSwitcher.disconnected")}
                     </Badge>
                   )
-                } else if (idxStatus) {
+                }
+                if (idxStatus) {
                   return (
                     <Badge
                       variant="secondary"
                       className={cn(
                         "ml-2 h-5 text-[10px] px-1.5 font-normal hidden sm:inline-flex gap-1",
-                        idxStatus.className
+                        idxStatus.className,
                       )}
                     >
                       {idxStatus.icon} {idxStatus.text}
                     </Badge>
                   )
-                } else if (currentProject?.summarization_status === "running" ||
-                  currentProject?.summarization_status === "summarizing") {
+                }
+                if (
+                  currentProject?.summarization_status === "running" ||
+                  currentProject?.summarization_status === "summarizing"
+                ) {
                   return (
                     <Badge
                       variant="secondary"
                       className="ml-2 h-5 text-[10px] px-1.5 font-normal bg-purple-100 text-purple-700 hidden sm:inline-flex gap-1"
                     >
-                      <ListTodo className="h-3 w-3 animate-pulse" /> {t("projectSwitcher.analyzing")}
+                      <ListTodo className="h-3 w-3 animate-pulse" />{" "}
+                      {t("projectSwitcher.analyzing")}
                     </Badge>
                   )
-                } else if (currentProject?.status_text) {
+                }
+                if (currentProject?.status_text) {
                   return (
                     <Badge
                       variant="secondary"
@@ -246,7 +264,9 @@ export function ProjectSwitcher({
                 <Globe className="size-4" />
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-sm">{t("projectSwitcher.global")}</h3>
+                <h3 className="font-semibold text-sm">
+                  {t("projectSwitcher.global")}
+                </h3>
                 <p className="text-xs text-muted-foreground">
                   {t("projectSwitcher.globalDesc")}
                 </p>
@@ -301,16 +321,25 @@ export function ProjectSwitcher({
                           </Badge>
                           {/* Indexing Status */}
                           {(() => {
-                            const idxStatus = getIndexingStatusDisplay(project, t)
+                            const idxStatus = getIndexingStatusDisplay(
+                              project,
+                              t,
+                            )
                             if (!idxStatus) return null
                             return (
                               <Badge
                                 variant="secondary"
                                 className={cn(
                                   "shrink-0 text-[10px] px-1.5 py-0 h-5 gap-1",
-                                  idxStatus.className
+                                  idxStatus.className,
                                 )}
-                                title={project.last_indexed_at ? t("projectSwitcher.lastIndexed", { time: project.last_indexed_at }) : undefined}
+                                title={
+                                  project.last_indexed_at
+                                    ? t("projectSwitcher.lastIndexed", {
+                                        time: project.last_indexed_at,
+                                      })
+                                    : undefined
+                                }
                               >
                                 {idxStatus.icon}
                                 {idxStatus.text}

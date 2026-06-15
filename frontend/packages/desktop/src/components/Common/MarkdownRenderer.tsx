@@ -1,10 +1,10 @@
+import { cn } from "@evoloop/shared/lib/utils"
 import { useMemo } from "react"
 import ReactMarkdown from "react-markdown"
-import remarkGfm from "remark-gfm"
 import rehypeRaw from "rehype-raw"
+import remarkGfm from "remark-gfm"
 import { CodeBlock } from "@/components/Chat/CodeBlock"
 import { Mermaid } from "@/components/Common/Mermaid"
-import { cn } from "@evoloop/shared/lib/utils"
 
 export interface MarkdownRendererProps {
   content: string
@@ -42,7 +42,10 @@ const defaultComponents = {
 
     return (
       <code
-        className={cn("bg-muted px-1.5 py-0.5 rounded text-[85%] font-mono", className)}
+        className={cn(
+          "bg-muted px-1.5 py-0.5 rounded text-[85%] font-mono",
+          className,
+        )}
         {...props}
       >
         {children}
@@ -86,9 +89,15 @@ const defaultComponents = {
       {children}
     </td>
   ),
-  h1: ({ children }: any) => <h1 className="text-2xl font-bold mt-6 mb-4">{children}</h1>,
-  h2: ({ children }: any) => <h2 className="text-xl font-bold mt-5 mb-3">{children}</h2>,
-  h3: ({ children }: any) => <h3 className="text-lg font-bold mt-4 mb-2">{children}</h3>,
+  h1: ({ children }: any) => (
+    <h1 className="text-2xl font-bold mt-6 mb-4">{children}</h1>
+  ),
+  h2: ({ children }: any) => (
+    <h2 className="text-xl font-bold mt-5 mb-3">{children}</h2>
+  ),
+  h3: ({ children }: any) => (
+    <h3 className="text-lg font-bold mt-4 mb-2">{children}</h3>
+  ),
   hr: () => <hr className="my-6 border-border" />,
 }
 
@@ -99,7 +108,6 @@ export function MarkdownRenderer({
   rehypePlugins = defaultRehypePlugins,
   components,
 }: MarkdownRendererProps) {
-  
   // 3. Use useMemo to merge custom components only when custom overrides change
   const mergedComponents = useMemo(() => {
     if (!components) return defaultComponents
@@ -110,7 +118,9 @@ export function MarkdownRenderer({
   }, [components])
 
   return (
-    <div className={cn("prose prose-sm max-w-none dark:prose-invert", className)}>
+    <div
+      className={cn("prose prose-sm max-w-none dark:prose-invert", className)}
+    >
       <ReactMarkdown
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}

@@ -1,11 +1,3 @@
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useMutation } from "@tanstack/react-query"
-import { useForm } from "react-hook-form"
-import { useTranslation } from "react-i18next"
-import { z } from "zod"
-import { Lock } from "lucide-react"
-
-import { MemberService } from "@/client"
 import {
   Form,
   FormControl,
@@ -17,8 +9,15 @@ import {
 import { LoadingButton } from "@evoloop/shared/components/ui/loading-button"
 import { PasswordInput } from "@evoloop/shared/components/ui/password-input"
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
-import { handleError } from "@/utils"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useMutation } from "@tanstack/react-query"
+import { Lock } from "lucide-react"
+import { useForm } from "react-hook-form"
+import { useTranslation } from "react-i18next"
+import { z } from "zod"
+import { MemberService } from "@/client"
 import { SettingsCard } from "@/components/Settings/SettingsCard"
+import { handleError } from "@/utils"
 
 const createSchema = (t: any) =>
   z
@@ -78,23 +77,24 @@ const ChangePassword = () => {
   }
 
   return (
-    <SettingsCard 
-      icon={Lock} 
+    <SettingsCard
+      icon={Lock}
       title={t("settings.password.title")}
-      description={t("settings.password.description") || t("auth.changePassword.desc")}
+      description={
+        t("settings.password.description") || t("auth.changePassword.desc")
+      }
     >
       <Form {...form}>
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          className="space-y-6"
-        >
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <div className="grid grid-cols-1 gap-6">
             <FormField
               control={form.control}
               name="current_password"
               render={({ field, fieldState }) => (
                 <FormItem>
-                  <FormLabel className="text-sm font-medium">{t("settings.password.current")}</FormLabel>
+                  <FormLabel className="text-sm font-medium">
+                    {t("settings.password.current")}
+                  </FormLabel>
                   <FormControl>
                     <PasswordInput
                       data-testid="current-password-input"
@@ -115,7 +115,9 @@ const ChangePassword = () => {
                 name="new_password"
                 render={({ field, fieldState }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium">{t("settings.password.new")}</FormLabel>
+                    <FormLabel className="text-sm font-medium">
+                      {t("settings.password.new")}
+                    </FormLabel>
                     <FormControl>
                       <PasswordInput
                         data-testid="new-password-input"
@@ -135,7 +137,9 @@ const ChangePassword = () => {
                 name="confirm_password"
                 render={({ field, fieldState }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium">{t("settings.password.confirm")}</FormLabel>
+                    <FormLabel className="text-sm font-medium">
+                      {t("settings.password.confirm")}
+                    </FormLabel>
                     <FormControl>
                       <PasswordInput
                         data-testid="confirm-password-input"

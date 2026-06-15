@@ -1,6 +1,6 @@
-import { create } from "zustand"
-import { toast } from "sonner"
 import i18n from "@evoloop/shared/i18n"
+import { toast } from "sonner"
+import { create } from "zustand"
 import { ProjectRequirementsService } from "@/client"
 
 export interface RequirementDocument {
@@ -133,23 +133,23 @@ interface RequirementState {
     projectId: number,
     docId: string,
     analysisId: string,
-    modifications?: Partial<AnalysisResult["data"]>
+    modifications?: Partial<AnalysisResult["data"]>,
   ) => Promise<boolean>
   requestAnalysisChanges: (
     projectId: number,
     docId: string,
     analysisId: string,
-    feedback: string
+    feedback: string,
   ) => Promise<boolean>
   fetchAnalysisTasks: (
     projectId: number,
     docId: string,
-    analysisId: string
+    analysisId: string,
   ) => Promise<void>
   fetchSyncProgress: (
     projectId: number,
     docId: string,
-    analysisId: string
+    analysisId: string,
   ) => Promise<void>
   formatFileSize: (bytes: number) => string
   getStatusText: (status: string) => string
@@ -170,7 +170,8 @@ export const useRequirementStore = create<RequirementState>((set, get) => ({
   fetchDocuments: async (projectId: number) => {
     set({ isLoading: true })
     try {
-      const resp: any = await ProjectRequirementsService.listProjectRequirements({ projectId })
+      const resp: any =
+        await ProjectRequirementsService.listProjectRequirements({ projectId })
 
       const items = (resp.data || []).map((item: any) => ({
         ...item,
@@ -190,10 +191,11 @@ export const useRequirementStore = create<RequirementState>((set, get) => ({
   uploadDocument: async (projectId: number, file: File) => {
     set({ isUploading: true })
     try {
-      const data: any = await ProjectRequirementsService.uploadRequirementDocument({
-        projectId,
-        formData: { file },
-      })
+      const data: any =
+        await ProjectRequirementsService.uploadRequirementDocument({
+          projectId,
+          formData: { file },
+        })
 
       toast.success(i18n.t("requirements.toast.uploadSuccess"))
       await get().fetchDocuments(projectId)
@@ -222,7 +224,9 @@ export const useRequirementStore = create<RequirementState>((set, get) => ({
         updated_at: data.updated_at ? new Date(data.updated_at).getTime() : 0,
         analyses: (data.analyses || []).map((a: any) => ({
           ...a,
-          confirmed_at: a.confirmed_at ? new Date(a.confirmed_at).getTime() : null,
+          confirmed_at: a.confirmed_at
+            ? new Date(a.confirmed_at).getTime()
+            : null,
         })),
       }
 
@@ -258,11 +262,11 @@ export const useRequirementStore = create<RequirementState>((set, get) => ({
     projectId: number,
     docId: string,
     analysisId: string,
-    modifications?: Partial<AnalysisResult["data"]>
+    modifications?: Partial<AnalysisResult["data"]>,
   ) => {
     try {
       // NOTE: These specific endpoints (/confirm, /feedback) are missing from the backend routes
-      // but were present in the original manual fetch implementation. 
+      // but were present in the original manual fetch implementation.
       // Keep as manual fetch for now or replace if/when added to SDK.
       const res = await fetch(
         `/api/v1/projects/${projectId}/requirements/${docId}/analyses/${analysisId}/confirm`,
@@ -270,7 +274,7 @@ export const useRequirementStore = create<RequirementState>((set, get) => ({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ modifications }),
-        }
+        },
       )
       if (!res.ok) throw new Error("Failed to confirm analysis")
 
@@ -288,7 +292,7 @@ export const useRequirementStore = create<RequirementState>((set, get) => ({
     projectId: number,
     docId: string,
     analysisId: string,
-    feedback: string
+    feedback: string,
   ) => {
     try {
       const res = await fetch(
@@ -297,7 +301,7 @@ export const useRequirementStore = create<RequirementState>((set, get) => ({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ feedback }),
-        }
+        },
       )
       if (!res.ok) throw new Error("Failed to submit feedback")
 
@@ -313,7 +317,7 @@ export const useRequirementStore = create<RequirementState>((set, get) => ({
   fetchAnalysisTasks: async (
     projectId: number,
     docId: string,
-    analysisId: string
+    analysisId: string,
   ) => {
     set({ isLoadingTasks: true })
     try {
@@ -344,18 +348,21 @@ export const useRequirementStore = create<RequirementState>((set, get) => ({
   fetchSyncProgress: async (
     projectId: number,
     docId: string,
-    analysisId: string
+    analysisId: string,
   ) => {
     try {
-      const data: any = await ProjectRequirementsService.getAnalysisSyncProgress({
-        projectId,
-        docId,
-        analysisId,
-      })
+      const data: any =
+        await ProjectRequirementsService.getAnalysisSyncProgress({
+          projectId,
+          docId,
+          analysisId,
+        })
 
       const mappedProgress: SyncProgress = {
         ...data,
-        last_updated: data.last_updated ? new Date(data.last_updated).getTime() : null,
+        last_updated: data.last_updated
+          ? new Date(data.last_updated).getTime()
+          : null,
       }
 
       set({ syncProgress: mappedProgress })
@@ -369,7 +376,7 @@ export const useRequirementStore = create<RequirementState>((set, get) => ({
     const k = 1024
     const sizes = ["B", "KB", "MB", "GB"]
     const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
+    return `${parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`
   },
 
   getStatusText: (status: string) => {

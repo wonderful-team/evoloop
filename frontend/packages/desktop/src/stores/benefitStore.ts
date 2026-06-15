@@ -16,10 +16,10 @@ interface BenefitState {
 }
 
 export const PLAN_KEY_MAP: Record<string, string> = {
-  '创作者版': 'creator',
-  '极客版': 'geek',
-  '专家版': 'expert',
-  '企业版': 'enterprise',
+  创作者版: "creator",
+  极客版: "geek",
+  专家版: "expert",
+  企业版: "enterprise",
 }
 
 export const useBenefitStore = create<BenefitState>((set) => ({

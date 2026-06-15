@@ -1,9 +1,6 @@
 // @evoloop/shared - Shared components, hooks, utilities, and locales
 // This package is consumed by both @evoloop/desktop and @evoloop/mobile
 
-// Re-export utilities
-export { cn } from "./lib/utils"
-
 // Re-export UI components
 export * from "./components/ui/alert"
 export * from "./components/ui/alert-dialog"
@@ -38,3 +35,5 @@ export * from "./components/ui/table"
 export * from "./components/ui/tabs"
 export * from "./components/ui/textarea"
 export * from "./components/ui/tooltip"
+// Re-export utilities
+export { cn } from "./lib/utils"

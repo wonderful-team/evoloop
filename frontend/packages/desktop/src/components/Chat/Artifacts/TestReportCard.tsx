@@ -1,3 +1,5 @@
+import { Button } from "@evoloop/shared/components/ui/button"
+import { cn } from "@evoloop/shared/lib/utils"
 import { AnimatePresence, motion } from "framer-motion"
 import {
   Bug,
@@ -10,8 +12,6 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Button } from "@evoloop/shared/components/ui/button"
-import { cn } from "@evoloop/shared/lib/utils"
 
 export interface TestReportData {
   status: "PASS" | "FAIL"
@@ -54,19 +54,29 @@ export function TestReportCard({ data }: TestReportCardProps) {
         )}
         onClick={() => setExpanded(!expanded)}
       >
-        <div className={cn(
+        <div
+          className={cn(
             "p-2 rounded-lg transition-transform group-hover/report:scale-110",
-            isPass ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"
-        )}>
-            {isPass ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+            isPass
+              ? "bg-green-500/10 text-green-600"
+              : "bg-red-500/10 text-red-600",
+          )}
+        >
+          {isPass ? (
+            <CheckCircle2 className="w-5 h-5" />
+          ) : (
+            <XCircle className="w-5 h-5" />
+          )}
         </div>
 
         <div className="flex-1">
           <div className="text-[10px] font-bold uppercase tracking-widest opacity-40 mb-0.5">
-             {t("chat.artifacts.testReport", "Execution Report")}
+            {t("chat.artifacts.testReport", "Execution Report")}
           </div>
           <div className="font-bold text-sm">
-            {data.status === "PASS" ? "Validation Successful" : "Validation Failed"}
+            {data.status === "PASS"
+              ? "Validation Successful"
+              : "Validation Failed"}
           </div>
         </div>
 

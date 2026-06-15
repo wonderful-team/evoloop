@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { useFeatureAccess, type FeatureCode } from "@/hooks/useFeatureAccess"
+import { type FeatureCode, useFeatureAccess } from "@/hooks/useFeatureAccess"
 import { UpgradePrompt } from "./UpgradePrompt"
 
 interface FeatureGuardProps {
@@ -8,8 +8,13 @@ interface FeatureGuardProps {
   fallback?: ReactNode
 }
 
-export function FeatureGuard({ feature, children, fallback }: FeatureGuardProps) {
-  const { hasAccess, isExpired, requiredPlan, isLoading } = useFeatureAccess(feature)
+export function FeatureGuard({
+  feature,
+  children,
+  fallback,
+}: FeatureGuardProps) {
+  const { hasAccess, isExpired, requiredPlan, isLoading } =
+    useFeatureAccess(feature)
 
   if (isLoading) {
     return (

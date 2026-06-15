@@ -6,7 +6,7 @@ export interface DocumentInfo {
   modified_at: string
   has_metadata: boolean
   collection?: string
-  tags?: string[]  // New in Phase 2
+  tags?: string[] // New in Phase 2
 }
 
 export interface DocumentContent {
@@ -47,7 +47,7 @@ export interface FTSSearchResult {
   collection: string
   title: string
   snippet: string
-  highlights: string  // HTML with <mark> tags
+  highlights: string // HTML with <mark> tags
   score: number
 }
 

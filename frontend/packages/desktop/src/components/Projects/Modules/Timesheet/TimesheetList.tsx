@@ -1,10 +1,3 @@
-import { useParams } from "@tanstack/react-router"
-import { Clock, Loader2, Plus, RefreshCw } from "lucide-react"
-import type React from "react"
-import { useCallback, useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { ProjectModulesService } from "@/client"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
   Dialog,
@@ -33,6 +26,13 @@ import {
   TableRow,
 } from "@evoloop/shared/components/ui/table"
 import { Textarea } from "@evoloop/shared/components/ui/textarea"
+import { useParams } from "@tanstack/react-router"
+import { Clock, Loader2, Plus, RefreshCw } from "lucide-react"
+import type React from "react"
+import { useCallback, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
+import { ProjectModulesService } from "@/client"
 import type { TimesheetEntry } from "@/types/timesheet"
 
 export const TimesheetList: React.FC = () => {

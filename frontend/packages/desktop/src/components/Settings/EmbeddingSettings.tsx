@@ -1,26 +1,7 @@
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { 
-  Database,
-  Globe, 
-  Shield, 
-  Loader2, 
-  CheckCircle2, 
-  XCircle, 
-  Eye, 
-  EyeOff,
-  Save,
-  Layers,
-  Network
-} from "lucide-react"
-
-import { SystemService } from "@/client"
+import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
-import { useSettings } from "./SettingsContext"
-import { SettingsCard } from "./SettingsCard"
-import { Label } from "@evoloop/shared/components/ui/label"
 import { Input } from "@evoloop/shared/components/ui/input"
+import { Label } from "@evoloop/shared/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -31,7 +12,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@evoloop/shared/components/ui/select"
-import { Badge } from "@evoloop/shared/components/ui/badge"
+import {
+  CheckCircle2,
+  Database,
+  Eye,
+  EyeOff,
+  Globe,
+  Layers,
+  Loader2,
+  Network,
+  Save,
+  Shield,
+  XCircle,
+} from "lucide-react"
+import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
+import { SystemService } from "@/client"
+import { SettingsCard } from "./SettingsCard"
+import { useSettings } from "./SettingsContext"
 
 // Preset embedding model type from backend
 interface PresetEmbeddingModel {
@@ -54,10 +53,15 @@ export function EmbeddingSettings() {
     success: boolean
     msg: string
   } | null>(null)
-  const { setComponentDirty, registerSaveHandler, unregisterSaveHandler, registerResetHandler } = useSettings()
+  const {
+    setComponentDirty,
+    registerSaveHandler,
+    unregisterSaveHandler,
+    registerResetHandler,
+  } = useSettings()
 
   const [presetModels, setPresetModels] = useState<PresetEmbeddingModel[]>([])
-  const [isLoadingModels, setIsLoadingModels] = useState(true)
+  const [_isLoadingModels, setIsLoadingModels] = useState(true)
 
   // Form states
   const [defaultModelId, setDefaultModelId] = useState("")
@@ -66,7 +70,7 @@ export function EmbeddingSettings() {
   const [model, setModel] = useState("")
   const [dimensions, setDimensions] = useState("768")
   const [apiKey, setApiKey] = useState("")
-  
+
   const [initialState, setInitialState] = useState<any>(null)
 
   const fetchConfig = async () => {
@@ -74,7 +78,7 @@ export function EmbeddingSettings() {
       setIsLoadingModels(true)
       const [modelsRes, configRes] = await Promise.all([
         SystemService.getEmbeddingModels(),
-        SystemService.getSystemConfig()
+        SystemService.getSystemConfig(),
       ])
 
       setPresetModels((modelsRes as any)?.models || [])
@@ -102,7 +106,7 @@ export function EmbeddingSettings() {
       setDimensions(state.dimensions)
       setApiKey(state.apiKey)
       setInitialState(state)
-    } catch (error) {
+    } catch (_error) {
       toast.error(t("settings.embedding.loadError"))
     } finally {
       setIsLoadingModels(false)
@@ -112,16 +116,25 @@ export function EmbeddingSettings() {
   // Track dirty
   useEffect(() => {
     if (!initialState) return
-    const isDirty = 
+    const isDirty =
       defaultModelId !== initialState.defaultModelId ||
       provider !== initialState.provider ||
       baseUrl !== initialState.baseUrl ||
       model !== initialState.model ||
       dimensions !== initialState.dimensions ||
       apiKey !== initialState.apiKey
-      
+
     setComponentDirty("embedding", isDirty)
-  }, [defaultModelId, provider, baseUrl, model, dimensions, apiKey, initialState, setComponentDirty])
+  }, [
+    defaultModelId,
+    provider,
+    baseUrl,
+    model,
+    dimensions,
+    apiKey,
+    initialState,
+    setComponentDirty,
+  ])
 
   useEffect(() => {
     fetchConfig()
@@ -147,14 +160,15 @@ export function EmbeddingSettings() {
             dim: res.dimensions,
           }),
         })
-        toast.success(t("settings.embedding.success_connected", { dim: res.dimensions }))
+        toast.success(
+          t("settings.embedding.success_connected", { dim: res.dimensions }),
+        )
         return true
-      } else {
-        const msg = t("settings.embedding.error_connection")
-        setTestResult({ success: false, msg })
-        toast.error(msg)
-        return false
       }
+      const msg = t("settings.embedding.error_connection")
+      setTestResult({ success: false, msg })
+      toast.error(msg)
+      return false
     } catch (error) {
       const msg = `${t("settings.embedding.error_connection")}: ${(error as any).message}`
       setTestResult({ success: false, msg })
@@ -167,7 +181,7 @@ export function EmbeddingSettings() {
 
   const handleSave = async () => {
     // 1. Check if config changed and test connection
-    const configChanged = 
+    const configChanged =
       provider !== initialState?.provider ||
       baseUrl !== initialState?.baseUrl ||
       model !== initialState?.model ||
@@ -185,14 +199,26 @@ export function EmbeddingSettings() {
       // Just update parameters, don't trigger re-indexing automatically in the global save
       // unless the user clicks the explicit button.
       await Promise.all([
-        SystemService.updateSystemConfig({ requestBody: { key: "EMBEDDING_PROVIDER", value: provider } }),
-        SystemService.updateSystemConfig({ requestBody: { key: "EMBEDDING_BASE_URL", value: baseUrl } }),
-        SystemService.updateSystemConfig({ requestBody: { key: "CUSTOM_EMBEDDING_MODEL", value: model } }),
-        SystemService.updateSystemConfig({ requestBody: { key: "EMBEDDING_DIMENSIONS", value: dimensions } }),
-        SystemService.updateSystemConfig({ requestBody: { key: "EMBEDDING_API_KEY", value: apiKey } }),
-        SystemService.updateSystemConfig({ requestBody: { key: "EMBEDDING_MODEL", value: defaultModelId } }),
+        SystemService.updateSystemConfig({
+          requestBody: { key: "EMBEDDING_PROVIDER", value: provider },
+        }),
+        SystemService.updateSystemConfig({
+          requestBody: { key: "EMBEDDING_BASE_URL", value: baseUrl },
+        }),
+        SystemService.updateSystemConfig({
+          requestBody: { key: "CUSTOM_EMBEDDING_MODEL", value: model },
+        }),
+        SystemService.updateSystemConfig({
+          requestBody: { key: "EMBEDDING_DIMENSIONS", value: dimensions },
+        }),
+        SystemService.updateSystemConfig({
+          requestBody: { key: "EMBEDDING_API_KEY", value: apiKey },
+        }),
+        SystemService.updateSystemConfig({
+          requestBody: { key: "EMBEDDING_MODEL", value: defaultModelId },
+        }),
       ])
-      
+
       setInitialState({
         defaultModelId,
         provider,
@@ -248,14 +274,25 @@ export function EmbeddingSettings() {
     registerSaveHandler("embedding", handleSave)
     registerResetHandler("embedding", () => fetchConfig())
     return () => unregisterSaveHandler("embedding")
-  }, [registerSaveHandler, unregisterSaveHandler, registerResetHandler, provider, baseUrl, model, dimensions, apiKey, defaultModelId, initialState])
+  }, [
+    registerSaveHandler,
+    unregisterSaveHandler,
+    registerResetHandler,
+    provider,
+    baseUrl,
+    model,
+    dimensions,
+    apiKey,
+    defaultModelId,
+    initialState,
+  ])
 
   return (
     <div className="space-y-8">
       {/* Default Model Card */}
-      <SettingsCard 
-        icon={Database} 
-        title={t("settings.embedding.default_model")} 
+      <SettingsCard
+        icon={Database}
+        title={t("settings.embedding.default_model")}
         description={t("settings.embedding.default_model_desc")}
         iconClassName="text-blue-600 bg-blue-600/10"
         headerExtra={
@@ -268,13 +305,14 @@ export function EmbeddingSettings() {
         }
       >
         <div className="space-y-2">
-          <Label className="text-sm font-medium">{t("settings.embedding.select_default_placeholder")}</Label>
-          <Select 
-            value={defaultModelId} 
-            onValueChange={setDefaultModelId}
-          >
+          <Label className="text-sm font-medium">
+            {t("settings.embedding.select_default_placeholder")}
+          </Label>
+          <Select value={defaultModelId} onValueChange={setDefaultModelId}>
             <SelectTrigger className="w-full h-12">
-              <SelectValue placeholder={t("settings.embedding.select_model_placeholder")} />
+              <SelectValue
+                placeholder={t("settings.embedding.select_model_placeholder")}
+              />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
@@ -288,7 +326,12 @@ export function EmbeddingSettings() {
                     <SelectItem key={m.id} value={m.id}>
                       <div className="flex items-center gap-2">
                         <span>{m.name}</span>
-                        <Badge variant="secondary" className="text-[10px] h-4 rounded-none">Platform</Badge>
+                        <Badge
+                          variant="secondary"
+                          className="text-[10px] h-4 rounded-none"
+                        >
+                          Platform
+                        </Badge>
                       </div>
                     </SelectItem>
                   ))}
@@ -302,7 +345,12 @@ export function EmbeddingSettings() {
                 <SelectItem value={`custom-${provider}-${model}`}>
                   <div className="flex items-center gap-2">
                     <span>{model || t("settings.llm.custom")}</span>
-                    <Badge variant="outline" className="text-[10px] h-4 border-blue-500/30 text-blue-600 rounded-none">Custom</Badge>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] h-4 border-blue-500/30 text-blue-600 rounded-none"
+                    >
+                      Custom
+                    </Badge>
                   </div>
                 </SelectItem>
               </SelectGroup>
@@ -312,9 +360,9 @@ export function EmbeddingSettings() {
       </SettingsCard>
 
       {/* Provider Config Card */}
-      <SettingsCard 
-        icon={Network} 
-        title={t("settings.llm.configure_provider")} 
+      <SettingsCard
+        icon={Network}
+        title={t("settings.llm.configure_provider")}
         description={t("settings.llm.configure_provider_desc")}
         iconClassName="text-indigo-600 bg-indigo-600/10"
         headerExtra={
@@ -329,38 +377,46 @@ export function EmbeddingSettings() {
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label className="text-sm font-medium">{t("settings.modelFields.provider")}</Label>
-              <Input 
-                placeholder="openai" 
-                value={provider || ""} 
+              <Label className="text-sm font-medium">
+                {t("settings.modelFields.provider")}
+              </Label>
+              <Input
+                placeholder="openai"
+                value={provider || ""}
                 onChange={(e) => setProvider(e.target.value)}
                 className="h-10 transition-colors focus:border-primary"
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-sm font-medium">{t("settings.modelFields.dimensions")}</Label>
-              <Input 
+              <Label className="text-sm font-medium">
+                {t("settings.modelFields.dimensions")}
+              </Label>
+              <Input
                 type="number"
-                placeholder="1536" 
-                value={dimensions || ""} 
+                placeholder="1536"
+                value={dimensions || ""}
                 onChange={(e) => setDimensions(e.target.value)}
                 className="h-10 transition-colors focus:border-primary"
               />
             </div>
             <div className="space-y-2 md:col-span-2">
-              <Label className="text-sm font-medium">{t("settings.modelFields.baseUrl")}</Label>
-              <Input 
-                placeholder="https://api.openai.com/v1" 
-                value={baseUrl || ""} 
+              <Label className="text-sm font-medium">
+                {t("settings.modelFields.baseUrl")}
+              </Label>
+              <Input
+                placeholder="https://api.openai.com/v1"
+                value={baseUrl || ""}
                 onChange={(e) => setBaseUrl(e.target.value)}
                 className="h-10 transition-colors focus:border-primary"
               />
             </div>
             <div className="space-y-2 md:col-span-2">
-              <Label className="text-sm font-medium">{t("settings.modelFields.modelName")}</Label>
-              <Input 
-                placeholder="text-embedding-3-small" 
-                value={model || ""} 
+              <Label className="text-sm font-medium">
+                {t("settings.modelFields.modelName")}
+              </Label>
+              <Input
+                placeholder="text-embedding-3-small"
+                value={model || ""}
                 onChange={(e) => setModel(e.target.value)}
                 className="h-10 transition-colors focus:border-primary"
               />
@@ -368,7 +424,9 @@ export function EmbeddingSettings() {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-sm font-medium">{t("settings.modelFields.apiKey")}</Label>
+            <Label className="text-sm font-medium">
+              {t("settings.modelFields.apiKey")}
+            </Label>
             <div className="relative">
               <Input
                 type={showApiKey ? "text" : "password"}
@@ -384,7 +442,11 @@ export function EmbeddingSettings() {
                 className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                 onClick={() => setShowApiKey(!showApiKey)}
               >
-                {showApiKey ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                {showApiKey ? (
+                  <EyeOff className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <Eye className="h-4 w-4 text-muted-foreground" />
+                )}
               </Button>
             </div>
           </div>
@@ -398,16 +460,24 @@ export function EmbeddingSettings() {
                 disabled={testing}
                 className="flex-1 h-11 border-dashed hover:border-indigo-500/50 hover:bg-indigo-500/5 hover:text-indigo-600 transition-all"
               >
-                {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Shield className="mr-2 h-4 w-4 text-indigo-500" />}
+                {testing ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Shield className="mr-2 h-4 w-4 text-indigo-500" />
+                )}
                 {t("settings.embedding.test_connection")}
               </Button>
 
-              <Button 
-                onClick={handleActivateAndReindex} 
-                disabled={loading} 
+              <Button
+                onClick={handleActivateAndReindex}
+                disabled={loading}
                 className="flex-1 h-11 transition-all gap-2"
               >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
                 {t("settings.embedding.activate_reindex")}
               </Button>
             </div>
@@ -415,12 +485,16 @@ export function EmbeddingSettings() {
             {testResult && (
               <div
                 className={`flex items-start gap-3 p-4 rounded-xl border text-sm animate-in fade-in slide-in-from-top-2 duration-300 ${
-                  testResult.success 
-                    ? "bg-green-500/10 text-green-700 border-green-500/20 dark:text-green-400" 
+                  testResult.success
+                    ? "bg-green-500/10 text-green-700 border-green-500/20 dark:text-green-400"
                     : "bg-red-500/10 text-red-700 border-red-500/20 dark:text-red-400"
                 }`}
               >
-                {testResult.success ? <CheckCircle2 className="h-5 w-5 shrink-0 text-green-500" /> : <XCircle className="h-5 w-5 shrink-0 text-red-500" />}
+                {testResult.success ? (
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-green-500" />
+                ) : (
+                  <XCircle className="h-5 w-5 shrink-0 text-red-500" />
+                )}
                 <span className="flex-1 leading-relaxed">{testResult.msg}</span>
               </div>
             )}

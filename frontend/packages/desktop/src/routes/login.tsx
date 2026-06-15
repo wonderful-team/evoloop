@@ -1,17 +1,3 @@
-import { zodResolver } from "@hookform/resolvers/zod"
-import {
-  createFileRoute,
-  Link as RouterLink,
-  redirect,
-  useNavigate,
-} from "@tanstack/react-router"
-import { useForm } from "react-hook-form"
-import { useTranslation } from "react-i18next"
-import { useEffect } from "react"
-import { z } from "zod"
-
-import { AuthLayout } from "@/components/Common/AuthLayout"
-import { WechatLoginButton } from "@/components/Auth/WechatLogin"
 import {
   Form,
   FormControl,
@@ -23,6 +9,19 @@ import {
 import { Input } from "@evoloop/shared/components/ui/input"
 import { LoadingButton } from "@evoloop/shared/components/ui/loading-button"
 import { PasswordInput } from "@evoloop/shared/components/ui/password-input"
+import { zodResolver } from "@hookform/resolvers/zod"
+import {
+  createFileRoute,
+  Link as RouterLink,
+  redirect,
+  useNavigate,
+} from "@tanstack/react-router"
+import { useEffect } from "react"
+import { useForm } from "react-hook-form"
+import { useTranslation } from "react-i18next"
+import { z } from "zod"
+import { WechatLoginButton } from "@/components/Auth/WechatLogin"
+import { AuthLayout } from "@/components/Common/AuthLayout"
 import useAuth, { isLoggedIn } from "@/hooks/useAuth"
 
 const searchSchema = z.object({
@@ -99,17 +98,19 @@ function Login() {
 
   // 处理登录后的跳转逻辑
   const handlePostLoginRedirect = () => {
-    const redirectPath = localStorage.getItem('redirect_after_login')
+    const redirectPath = localStorage.getItem("redirect_after_login")
     if (redirectPath) {
-      localStorage.removeItem('redirect_after_login')
-      console.log('[Login] Redirecting to saved path:', redirectPath)
+      localStorage.removeItem("redirect_after_login")
+      console.log("[Login] Redirecting to saved path:", redirectPath)
       const hashMatch = redirectPath.match(/^#(\/.+)$/)
       if (hashMatch) {
         const pathWithSearch = hashMatch[1]
-        const [path, search] = pathWithSearch.split('?')
-        navigate({ 
+        const [path, search] = pathWithSearch.split("?")
+        navigate({
           to: path,
-          search: search ? Object.fromEntries(new URLSearchParams(search)) : undefined
+          search: search
+            ? Object.fromEntries(new URLSearchParams(search))
+            : undefined,
         })
         return
       }
@@ -123,7 +124,7 @@ function Login() {
     loginMutation.mutate(data, {
       onSuccess: () => {
         handlePostLoginRedirect()
-      }
+      },
     })
   }
 
@@ -137,9 +138,7 @@ function Login() {
     <AuthLayout>
       <div className="flex flex-col gap-6">
         <div className="flex flex-col items-center gap-2 text-center">
-          <h1 className="text-2xl font-bold">
-            {t("auth.login.desktopTitle")}
-          </h1>
+          <h1 className="text-2xl font-bold">{t("auth.login.desktopTitle")}</h1>
         </div>
 
         <Tabs defaultValue="account" className="w-full">
@@ -154,7 +153,10 @@ function Login() {
 
           <TabsContent value="account">
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="space-y-4"
+              >
                 <FormField
                   control={form.control}
                   name="username"
@@ -180,7 +182,9 @@ function Login() {
                   render={({ field }) => (
                     <FormItem>
                       <div className="flex items-center">
-                        <FormLabel>{t("auth.login.passwordPlaceholder")}</FormLabel>
+                        <FormLabel>
+                          {t("auth.login.passwordPlaceholder")}
+                        </FormLabel>
                         <RouterLink
                           to="/recover-password"
                           className="ml-auto text-sm underline-offset-4 hover:underline"
@@ -200,7 +204,11 @@ function Login() {
                   )}
                 />
 
-                <LoadingButton type="submit" className="w-full" loading={loginMutation.isPending}>
+                <LoadingButton
+                  type="submit"
+                  className="w-full"
+                  loading={loginMutation.isPending}
+                >
                   {t("auth.login.submit")}
                 </LoadingButton>
               </form>

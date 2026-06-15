@@ -2,9 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "marker-overlay",
   "description": "Capability for the marker overlay window - a floating always-on-top window for global recording region marking",
-  "windows": [
-    "marker-overlay"
-  ],
+  "windows": ["marker-overlay"],
   "permissions": [
     "core:default",
     "core:window:allow-show",

@@ -1,11 +1,11 @@
 /**
  * 会员权益服务
- * 
+ *
  * 提供权益相关的API调用和状态管理
  */
 
-import { MemberService } from "@/client"
 import i18n from "@evoloop/shared/i18n"
+import { MemberService } from "@/client"
 import type { FeatureCode } from "@/hooks/useFeatureAccess"
 
 // 权益缓存
@@ -25,9 +25,15 @@ interface BenefitsCache {
  * 获取会员权益
  * @param forceRefresh 是否强制刷新缓存
  */
-export async function getMemberBenefits(forceRefresh = false): Promise<BenefitsCache> {
+export async function getMemberBenefits(
+  forceRefresh = false,
+): Promise<BenefitsCache> {
   // 检查缓存
-  if (!forceRefresh && benefitsCache && Date.now() - cacheTimestamp < CACHE_TTL) {
+  if (
+    !forceRefresh &&
+    benefitsCache &&
+    Date.now() - cacheTimestamp < CACHE_TTL
+  ) {
     return benefitsCache
   }
 
@@ -42,7 +48,7 @@ export async function getMemberBenefits(forceRefresh = false): Promise<BenefitsC
  * 批量检查权益
  */
 export async function checkBenefitsBatch(
-  features: FeatureCode[]
+  features: FeatureCode[],
 ): Promise<Record<FeatureCode, boolean>> {
   const res = await MemberService.checkBenefitsBatch({
     benefit_codes: features,
@@ -74,17 +80,19 @@ export async function hasAnyBenefit(features: FeatureCode[]): Promise<boolean> {
   const data = await getMemberBenefits()
   if (data.is_expired) return false
 
-  return features.some(f => data.benefits?.[f] === true)
+  return features.some((f) => data.benefits?.[f] === true)
 }
 
 /**
  * 检查是否拥有所有指定权益
  */
-export async function hasAllBenefits(features: FeatureCode[]): Promise<boolean> {
+export async function hasAllBenefits(
+  features: FeatureCode[],
+): Promise<boolean> {
   const data = await getMemberBenefits()
   if (data.is_expired) return false
 
-  return features.every(f => data.benefits?.[f] === true)
+  return features.every((f) => data.benefits?.[f] === true)
 }
 
 /**
@@ -100,7 +108,8 @@ export async function getSubscriptionStatus(): Promise<{
 
   return {
     isActive: !data.is_expired,
-    levelName: data.level_name || i18n.t("subscription.plans.free", "Free Plan"),
+    levelName:
+      data.level_name || i18n.t("subscription.plans.free", "Free Plan"),
     remainingDays: data.remaining_days || 0,
     expireTime: data.expire_time,
   }

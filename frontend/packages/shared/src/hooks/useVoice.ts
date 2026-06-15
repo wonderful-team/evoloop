@@ -19,7 +19,8 @@ export function useVoice(options: UseVoiceOptions = {}) {
   useEffect(() => {
     // Initialize Speech Recognition
     const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition
 
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition()
@@ -70,7 +71,7 @@ export function useVoice(options: UseVoiceOptions = {}) {
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop()
-        } catch (_e) { }
+        } catch (_e) {}
       }
       if (synthesisRef.current) {
         synthesisRef.current.cancel()

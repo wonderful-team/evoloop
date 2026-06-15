@@ -1,11 +1,11 @@
+import { Button } from "@evoloop/shared/components/ui/button"
+import { Input } from "@evoloop/shared/components/ui/input"
 import { useMutation } from "@tanstack/react-query"
 import { Check, Loader2, X } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { SubtasksService } from "@/client"
-import { Button } from "@evoloop/shared/components/ui/button"
-import { Input } from "@evoloop/shared/components/ui/input"
 
 interface TaskProgressEditProps {
   projectId: number
@@ -97,7 +97,7 @@ export function TaskProgressEdit({
         className="w-20 h-8"
       />
       <span className="text-sm font-medium w-10">{progress}%</span>
-      
+
       <div className="flex gap-1">
         <Button
           size="icon"

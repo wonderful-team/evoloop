@@ -1,14 +1,13 @@
-import { createRootRoute, HeadContent, Outlet } from "@tanstack/react-router"
-import ErrorComponent from "@/components/Common/ErrorComponent"
 import NotFound from "@evoloop/shared/components/NotFound"
+import { createRootRoute, HeadContent, Outlet } from "@tanstack/react-router"
 import { useState } from "react"
-import StartupScreen from "@/components/Startup/StartupScreen"
-import { DetectedProjectAlert } from "@/components/Projects/Import"
-import { SetupWizardProvider } from "@/components/Wizard"
-
-import { BenefitRequirementDialog } from "@/components/Subscription/BenefitRequirementDialog"
+import ErrorComponent from "@/components/Common/ErrorComponent"
 import { GlobalOverlayManager } from "@/components/Common/GlobalOverlayManager"
 import { WindowDragRegion } from "@/components/Common/WindowDragRegion"
+import { DetectedProjectAlert } from "@/components/Projects/Import"
+import StartupScreen from "@/components/Startup/StartupScreen"
+import { BenefitRequirementDialog } from "@/components/Subscription/BenefitRequirementDialog"
+import { SetupWizardProvider } from "@/components/Wizard"
 
 export const Route = createRootRoute({
   component: RootComponent,

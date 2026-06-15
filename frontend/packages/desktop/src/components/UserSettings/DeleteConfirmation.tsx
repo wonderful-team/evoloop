@@ -1,4 +1,3 @@
-import { Trans, useTranslation } from "react-i18next"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
   Dialog,
@@ -11,6 +10,7 @@ import {
   DialogTrigger,
 } from "@evoloop/shared/components/ui/dialog"
 import { LoadingButton } from "@evoloop/shared/components/ui/loading-button"
+import { Trans, useTranslation } from "react-i18next"
 import { useMemberCancellation } from "@/hooks/useMemberCancellation"
 
 const DeleteConfirmation = () => {
@@ -19,7 +19,8 @@ const DeleteConfirmation = () => {
     useMemberCancellation("desktop")
 
   // Status check: 0 or 1 usually implies pending/audit in Niushop logic
-  const isPending = info && ((info as any).status === 0 || (info as any).status === 1)
+  const isPending =
+    info && ((info as any).status === 0 || (info as any).status === 1)
 
   const handleAction = () => {
     if (isPending) {

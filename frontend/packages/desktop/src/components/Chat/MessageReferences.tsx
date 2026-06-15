@@ -94,9 +94,16 @@ export const MessageReferences: React.FC<MessageReferencesProps> = ({
                 // We must strip it before spreading into the ECharts option, otherwise ECharts
                 // receives `title: "echarts"` (a string) and crashes in compatLayoutProperties
                 // with: Cannot use 'in' operator to search for 'x' in echarts
-                const { title: injectedTitle, option: nestedOption, ...rawOption } = data as any
+                const {
+                  title: injectedTitle,
+                  option: nestedOption,
+                  ...rawOption
+                } = data as any
                 const echartsData = {
-                  title: typeof injectedTitle === 'string' ? injectedTitle : art.target_name,
+                  title:
+                    typeof injectedTitle === "string"
+                      ? injectedTitle
+                      : art.target_name,
                   // If the data was wrapped with { option: {...} }, use that; otherwise the
                   // data itself IS the ECharts option (minus the injected title)
                   option: nestedOption || rawOption,

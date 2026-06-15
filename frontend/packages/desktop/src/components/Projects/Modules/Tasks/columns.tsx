@@ -1,6 +1,6 @@
+import { Badge } from "@evoloop/shared/components/ui/badge"
 import type { ColumnDef } from "@tanstack/react-table"
 import type { TFunction } from "i18next"
-import { Badge } from "@evoloop/shared/components/ui/badge"
 import { type Task, TaskPriority, TaskStatus } from "@/types/task"
 
 const getStatusColor = (status: number) => {

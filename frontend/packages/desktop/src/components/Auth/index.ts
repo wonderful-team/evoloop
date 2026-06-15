@@ -1,1 +1,1 @@
-export { WechatLoginButton } from './WechatLogin';
+export { WechatLoginButton } from "./WechatLogin"

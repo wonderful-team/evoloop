@@ -1,12 +1,17 @@
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@evoloop/shared/components/ui/tabs"
 import { memo } from "react"
 import { useTranslation } from "react-i18next"
 import { ProjectSwitcher } from "@/components/Sidebar/ProjectSwitcher"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@evoloop/shared/components/ui/tabs"
 import { SidebarChatList, type Thread } from "./sidebar/SidebarChatList"
 export type { Thread }
 
-import { SidebarFilesTab } from "./sidebar/SidebarFilesTab"
 import { useChangesetStore } from "@/stores/changesetStore"
+import { SidebarFilesTab } from "./sidebar/SidebarFilesTab"
 
 interface ChatSidebarProps {
   threads: Thread[]
@@ -47,11 +52,13 @@ export const ChatSidebar = memo(
     onTogglePin,
   }: ChatSidebarProps) => {
     const { t } = useTranslation()
-    
+
     // Get changeset state for badge
     const changeset = useChangesetStore((s) => s.changeset)
     const viewedChanges = useChangesetStore((s) => s.viewedChanges)
-    const unviewedCount = changeset.filter(f => !viewedChanges.has(f.path)).length
+    const unviewedCount = changeset.filter(
+      (f) => !viewedChanges.has(f.path),
+    ).length
 
     return (
       <div
@@ -62,8 +69,8 @@ export const ChatSidebar = memo(
           <ProjectSwitcher />
         </div>
 
-        <Tabs 
-          value={activeTab || "chats"} 
+        <Tabs
+          value={activeTab || "chats"}
           onValueChange={onTabChange}
           className="flex flex-col flex-1 min-h-0 min-w-0 w-full overflow-hidden"
         >
@@ -75,10 +82,12 @@ export const ChatSidebar = memo(
               <TabsTrigger value="files" className="relative">
                 {t("chat.sidebar.tabFiles")}
                 {unviewedCount > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center 
+                  <span
+                    className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center 
                                    rounded-full bg-red-500 px-1 text-[10px] font-medium text-white 
-                                   animate-in zoom-in duration-200">
-                    {unviewedCount > 99 ? '99+' : unviewedCount}
+                                   animate-in zoom-in duration-200"
+                  >
+                    {unviewedCount > 99 ? "99+" : unviewedCount}
                   </span>
                 )}
               </TabsTrigger>

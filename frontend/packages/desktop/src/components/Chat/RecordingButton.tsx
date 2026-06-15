@@ -1,7 +1,3 @@
-import { Circle, Square, Monitor, ShieldAlert, Video } from "lucide-react"
-import { toast } from "sonner"
-import { useCallback } from "react"
-import { useTranslation } from "react-i18next"
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
@@ -10,9 +6,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@evoloop/shared/components/ui/tooltip"
-import { useRecordingStore } from "@/stores/recordingStore"
+import { Circle, ShieldAlert, Square, Video } from "lucide-react"
+import { useCallback } from "react"
+import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
 import { useAccessibilityPermission } from "@/hooks/useAccessibilityPermission"
 import { useScreenRecordingPermission } from "@/hooks/useScreenRecordingPermission"
+import { useRecordingStore } from "@/stores/recordingStore"
 
 interface RecordingButtonProps {
   threadId: string
@@ -37,15 +37,31 @@ export function RecordingButton({
   // Note: Synthesize dialog is handled by parent component (learning.tsx)
   // via postRecordingAction state, not here
 
-  const { hasPermission: hasAxPermission, requestPermission: requestAxPermission } = useAccessibilityPermission()
-  const { hasPermission: hasVideoPermission, requestPermission: requestVideoPermission } = useScreenRecordingPermission()
+  const {
+    hasPermission: hasAxPermission,
+    requestPermission: requestAxPermission,
+  } = useAccessibilityPermission()
+  const {
+    hasPermission: hasVideoPermission,
+    requestPermission: requestVideoPermission,
+  } = useScreenRecordingPermission()
 
   const handleStart = useCallback(() => {
-    console.log("[RecordingButton] handleStart clicked", { isDesktopRecording, hasAxPermission, hasVideoPermission, threadId })
+    console.log("[RecordingButton] handleStart clicked", {
+      isDesktopRecording,
+      hasAxPermission,
+      hasVideoPermission,
+      threadId,
+    })
 
     // 1. Check Video Permission (Always needed)
     if (hasVideoPermission !== true) {
-      toast.error(t("learning.screenRecordingPermissionTitle", "Screen Recording Permission Required"))
+      toast.error(
+        t(
+          "learning.screenRecordingPermissionTitle",
+          "Screen Recording Permission Required",
+        ),
+      )
       requestVideoPermission()
       return
     }
@@ -53,18 +69,32 @@ export function RecordingButton({
     // 2. Check AX Permission (Only if desktop recording)
     if (isDesktopRecording && hasAxPermission !== true) {
       console.log("[RecordingButton] Requesting AX permission...")
-      toast.error(t("learning.permissionRequired", "Permission required. Check system settings."))
+      toast.error(
+        t(
+          "learning.permissionRequired",
+          "Permission required. Check system settings.",
+        ),
+      )
       requestAxPermission()
       return
     }
 
     // 3. Start countdown (countdown logic is now in store)
     initiateRecording(threadId)
-  }, [hasVideoPermission, hasAxPermission, isDesktopRecording, threadId, t, requestVideoPermission, requestAxPermission, initiateRecording])
+  }, [
+    hasVideoPermission,
+    hasAxPermission,
+    isDesktopRecording,
+    threadId,
+    t,
+    requestVideoPermission,
+    requestAxPermission,
+    initiateRecording,
+  ])
 
   const handleStop = () => {
     // Must set action BEFORE stopping, so GlobalRecorderManager knows to trigger synthesis
-    setPostRecordingAction('synthesize')
+    setPostRecordingAction("synthesize")
     stopRecording()
     // Synthesize dialog is handled by parent component (learning.tsx)
     // via postRecordingAction state
@@ -138,7 +168,10 @@ export function RecordingButton({
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              {t("learning.permissionRequired", "Accessibility permission required for global recording")}
+              {t(
+                "learning.permissionRequired",
+                "Accessibility permission required for global recording",
+              )}
             </TooltipContent>
           </Tooltip>
         </div>
@@ -159,7 +192,10 @@ export function RecordingButton({
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              {t("learning.screenRecordingPermissionTitle", "Screen recording permission required")}
+              {t(
+                "learning.screenRecordingPermissionTitle",
+                "Screen recording permission required",
+              )}
             </TooltipContent>
           </Tooltip>
         </div>
@@ -178,7 +214,10 @@ export function RecordingButton({
             {isRecording ? (
               <span className="flex items-center gap-1">
                 <Square className="h-3 w-3 fill-current" />
-                <Badge variant="secondary" className="px-1 py-0 h-4 text-[10px] min-w-[1.5rem]">
+                <Badge
+                  variant="secondary"
+                  className="px-1 py-0 h-4 text-[10px] min-w-[1.5rem]"
+                >
                   {eventCount}
                 </Badge>
               </span>
@@ -193,7 +232,6 @@ export function RecordingButton({
             : t("learning.startRecording", "Start Recording")}
         </TooltipContent>
       </Tooltip>
-
     </div>
   )
 }

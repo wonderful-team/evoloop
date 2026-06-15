@@ -1,5 +1,7 @@
-import { useState } from "react"
-import { useTranslation } from "react-i18next"
+import { Badge } from "@evoloop/shared/components/ui/badge"
+import { Button } from "@evoloop/shared/components/ui/button"
+import { Textarea } from "@evoloop/shared/components/ui/textarea"
+import { cn } from "@evoloop/shared/lib/utils"
 import {
   Check,
   CheckCircle,
@@ -11,19 +13,8 @@ import {
   ShieldAlert,
   Users,
 } from "lucide-react"
-import { Button } from "@evoloop/shared/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@evoloop/shared/components/ui/card"
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
-import { Textarea } from "@evoloop/shared/components/ui/textarea"
-import { cn } from "@evoloop/shared/lib/utils"
+import { useState } from "react"
+import { useTranslation } from "react-i18next"
 
 interface Requirement {
   id: string
@@ -90,7 +81,7 @@ export function AnalysisResultCard({
     setExpandedSections((prev) =>
       prev.includes(section)
         ? prev.filter((s) => s !== section)
-        : [...prev, section]
+        : [...prev, section],
     )
   }
 
@@ -146,7 +137,7 @@ export function AnalysisResultCard({
     >
       <div className="flex items-center gap-3">
         <div className="p-1.5 rounded-lg bg-muted/50 group-hover/header:bg-primary/10 transition-colors">
-            <Icon className="h-4 w-4 text-muted-foreground group-hover/header:text-primary transition-colors" />
+          <Icon className="h-4 w-4 text-muted-foreground group-hover/header:text-primary transition-colors" />
         </div>
         <span className="font-bold text-sm tracking-tight">{title}</span>
         {count !== undefined && (
@@ -157,9 +148,9 @@ export function AnalysisResultCard({
       </div>
       <div className="opacity-30 group-hover/header:opacity-100 transition-opacity">
         {isExpanded(section) ? (
-            <ChevronUp className="h-4 w-4" />
+          <ChevronUp className="h-4 w-4" />
         ) : (
-            <ChevronDown className="h-4 w-4" />
+          <ChevronDown className="h-4 w-4" />
         )}
       </div>
     </button>
@@ -170,13 +161,13 @@ export function AnalysisResultCard({
       <div className="p-6 border-b border-[var(--doc-border)] bg-muted/10">
         <div className="flex items-center gap-3 mb-3">
           <div className="p-2 bg-primary/10 rounded-lg">
-             <ClipboardList className="h-5 w-5 text-primary" />
+            <ClipboardList className="h-5 w-5 text-primary" />
           </div>
           <span className="uppercase tracking-[0.2em] text-[10px] font-bold text-primary/60">
             {t("requirements.analysis.badge", "Requirement Analysis Report")}
           </span>
         </div>
-        
+
         <h2 className="text-xl font-bold tracking-tight mb-2">
           {isEditing ? (
             <input
@@ -188,10 +179,11 @@ export function AnalysisResultCard({
               className="w-full bg-background/50 px-3 py-1.5 border border-primary/20 rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30"
             />
           ) : (
-            data.title || t("requirements.analysis.untitled", "Untitled Requirement")
+            data.title ||
+            t("requirements.analysis.untitled", "Untitled Requirement")
           )}
         </h2>
-        
+
         {data.summary && (
           <div className="text-sm text-muted-foreground/80 leading-relaxed max-w-3xl">
             {isEditing ? (
@@ -216,40 +208,53 @@ export function AnalysisResultCard({
           data.functional_requirements.length > 0 && (
             <div className="space-y-3">
               <SectionHeader
-                title={t("requirements.analysis.functionalRequirements", "Functional Requirements")}
+                title={t(
+                  "requirements.analysis.functionalRequirements",
+                  "Functional Requirements",
+                )}
                 icon={ListTodo}
                 section="functional"
                 count={data.functional_requirements.length}
               />
               {isExpanded("functional") && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pl-2">
-                    {data.functional_requirements.map((req) => (
-                      <div
-                        key={req.id}
-                        className="p-4 bg-background border border-[var(--doc-border)] rounded-xl hover:border-primary/20 transition-all group/req"
-                      >
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <span className="text-[10px] font-mono font-bold opacity-30 group-hover/req:opacity-100 transition-opacity">{req.id}</span>
-                          <Badge
-                            variant="secondary"
-                            className={cn("text-[10px] font-bold uppercase tracking-tighter px-1.5 py-0", getPriorityColor(req.priority))}
-                          >
-                            {req.priority}
-                          </Badge>
-                        </div>
-                        <p className="text-sm font-medium mb-3">{req.description}</p>
-                        {req.acceptance_criteria?.length > 0 && (
-                          <div className="space-y-1.5 border-t border-border/40 pt-3">
-                            {req.acceptance_criteria.map((criteria, idx) => (
-                              <div key={idx} className="flex items-start gap-2 text-[11px] text-muted-foreground/70">
-                                <Check className="h-3 w-3 mt-0.5 text-primary/50 shrink-0" />
-                                <span>{criteria}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                  {data.functional_requirements.map((req) => (
+                    <div
+                      key={req.id}
+                      className="p-4 bg-background border border-[var(--doc-border)] rounded-xl hover:border-primary/20 transition-all group/req"
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <span className="text-[10px] font-mono font-bold opacity-30 group-hover/req:opacity-100 transition-opacity">
+                          {req.id}
+                        </span>
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "text-[10px] font-bold uppercase tracking-tighter px-1.5 py-0",
+                            getPriorityColor(req.priority),
+                          )}
+                        >
+                          {req.priority}
+                        </Badge>
                       </div>
-                    ))}
+                      <p className="text-sm font-medium mb-3">
+                        {req.description}
+                      </p>
+                      {req.acceptance_criteria?.length > 0 && (
+                        <div className="space-y-1.5 border-t border-border/40 pt-3">
+                          {req.acceptance_criteria.map((criteria, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-start gap-2 text-[11px] text-muted-foreground/70"
+                            >
+                              <Check className="h-3 w-3 mt-0.5 text-primary/50 shrink-0" />
+                              <span>{criteria}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -266,29 +271,48 @@ export function AnalysisResultCard({
             />
             {isExpanded("stories") && (
               <div className="space-y-3 pl-2">
-                  {data.user_stories.map((story) => (
-                    <div key={story.id} className="p-4 bg-background border border-[var(--doc-border)] rounded-xl">
-                      <div className="text-[10px] font-mono font-bold opacity-30 mb-2">{story.id}</div>
-                      <div className="text-[15px] leading-relaxed">
-                        <span className="text-muted-foreground font-medium italic">{t("requirements.analysis.asA", "As a")}</span>{" "}
-                        <span className="font-bold underline decoration-primary/20">{story.role}</span>,{" "}
-                        <span className="text-muted-foreground font-medium italic">{t("requirements.analysis.iWant", "I want to")}</span>{" "}
-                        <span className="font-bold">{story.action}</span>,{" "}
-                        <span className="text-muted-foreground font-medium italic">{t("requirements.analysis.soThat", "so that")}</span>{" "}
-                        <span className="text-muted-foreground">{story.benefit}</span>
-                      </div>
-                      {story.acceptance_criteria?.length > 0 && (
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          {story.acceptance_criteria.map((criteria, idx) => (
-                            <span key={idx} className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-muted/30 text-[11px] text-muted-foreground border border-border/40">
-                              <Check className="h-3 w-3 text-primary/40" />
-                              {criteria}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                {data.user_stories.map((story) => (
+                  <div
+                    key={story.id}
+                    className="p-4 bg-background border border-[var(--doc-border)] rounded-xl"
+                  >
+                    <div className="text-[10px] font-mono font-bold opacity-30 mb-2">
+                      {story.id}
                     </div>
-                  ))}
+                    <div className="text-[15px] leading-relaxed">
+                      <span className="text-muted-foreground font-medium italic">
+                        {t("requirements.analysis.asA", "As a")}
+                      </span>{" "}
+                      <span className="font-bold underline decoration-primary/20">
+                        {story.role}
+                      </span>
+                      ,{" "}
+                      <span className="text-muted-foreground font-medium italic">
+                        {t("requirements.analysis.iWant", "I want to")}
+                      </span>{" "}
+                      <span className="font-bold">{story.action}</span>,{" "}
+                      <span className="text-muted-foreground font-medium italic">
+                        {t("requirements.analysis.soThat", "so that")}
+                      </span>{" "}
+                      <span className="text-muted-foreground">
+                        {story.benefit}
+                      </span>
+                    </div>
+                    {story.acceptance_criteria?.length > 0 && (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {story.acceptance_criteria.map((criteria, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-muted/30 text-[11px] text-muted-foreground border border-border/40"
+                          >
+                            <Check className="h-3 w-3 text-primary/40" />
+                            {criteria}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -296,60 +320,80 @@ export function AnalysisResultCard({
 
         {/* Technical Suggestions & Risks */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {data.technical_suggestions && data.technical_suggestions.length > 0 && (
-                <div className="space-y-3">
-                   <SectionHeader
-                        title={t("requirements.analysis.technicalSuggestions", "Technical Suggestions")}
-                        icon={Lightbulb}
-                        section="technical"
-                    />
-                    {isExpanded("technical") && (
-                        <div className="space-y-3 pl-2">
-                        {data.technical_suggestions.map((suggestion, idx) => (
-                            <div key={idx} className="p-3 bg-muted/20 border-l-2 border-primary/20 rounded-r-lg">
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-primary/60 block mb-1">
-                                    {suggestion.area}
-                                </span>
-                                <p className="text-sm font-bold mb-1 leading-snug">
-                                    {suggestion.suggestion}
-                                </p>
-                                <p className="text-xs text-muted-foreground/70 italic">
-                                    {suggestion.rationale}
-                                </p>
-                            </div>
-                        ))}
-                        </div>
-                    )}
-                </div>
+          {data.technical_suggestions &&
+            data.technical_suggestions.length > 0 && (
+              <div className="space-y-3">
+                <SectionHeader
+                  title={t(
+                    "requirements.analysis.technicalSuggestions",
+                    "Technical Suggestions",
+                  )}
+                  icon={Lightbulb}
+                  section="technical"
+                />
+                {isExpanded("technical") && (
+                  <div className="space-y-3 pl-2">
+                    {data.technical_suggestions.map((suggestion, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3 bg-muted/20 border-l-2 border-primary/20 rounded-r-lg"
+                      >
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-primary/60 block mb-1">
+                          {suggestion.area}
+                        </span>
+                        <p className="text-sm font-bold mb-1 leading-snug">
+                          {suggestion.suggestion}
+                        </p>
+                        <p className="text-xs text-muted-foreground/70 italic">
+                          {suggestion.rationale}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
 
-            {data.risks && data.risks.length > 0 && (
-                <div className="space-y-3">
-                   <SectionHeader
-                        title={t("requirements.analysis.risks", "Risks & Mitigations")}
-                        icon={ShieldAlert}
-                        section="risks"
-                    />
-                    {isExpanded("risks") && (
-                        <div className="space-y-3 pl-2">
-                        {data.risks.map((risk, idx) => (
-                            <div key={idx} className="p-3 bg-red-500/5 border-l-2 border-red-500/40 rounded-r-lg">
-                                <div className="flex items-center justify-between mb-2">
-                                    <Badge variant="outline" className={cn("text-[9px] font-bold uppercase", getImpactColor(risk.impact))}>
-                                        {risk.impact} Impact
-                                    </Badge>
-                                </div>
-                                <p className="text-sm font-bold mb-1">{risk.description}</p>
-                                <div className="text-xs text-muted-foreground/80 mt-2 bg-background/50 p-2 rounded border border-red-500/10">
-                                    <span className="font-bold text-[9px] uppercase tracking-tighter mr-1">{t("requirements.analysis.mitigation", "Mitigation")}:</span>{" "}
-                                    {risk.mitigation}
-                                </div>
-                            </div>
-                        ))}
-                        </div>
-                    )}
+          {data.risks && data.risks.length > 0 && (
+            <div className="space-y-3">
+              <SectionHeader
+                title={t("requirements.analysis.risks", "Risks & Mitigations")}
+                icon={ShieldAlert}
+                section="risks"
+              />
+              {isExpanded("risks") && (
+                <div className="space-y-3 pl-2">
+                  {data.risks.map((risk, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 bg-red-500/5 border-l-2 border-red-500/40 rounded-r-lg"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[9px] font-bold uppercase",
+                            getImpactColor(risk.impact),
+                          )}
+                        >
+                          {risk.impact} Impact
+                        </Badge>
+                      </div>
+                      <p className="text-sm font-bold mb-1">
+                        {risk.description}
+                      </p>
+                      <div className="text-xs text-muted-foreground/80 mt-2 bg-background/50 p-2 rounded border border-red-500/10">
+                        <span className="font-bold text-[9px] uppercase tracking-tighter mr-1">
+                          {t("requirements.analysis.mitigation", "Mitigation")}:
+                        </span>{" "}
+                        {risk.mitigation}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-            )}
+              )}
+            </div>
+          )}
         </div>
 
         {/* Feedback Input */}
@@ -361,7 +405,7 @@ export function AnalysisResultCard({
             <Textarea
               placeholder={t(
                 "requirements.analysis.feedbackPlaceholder",
-                "Enter your feedback here if you need any adjustments..."
+                "Enter your feedback here if you need any adjustments...",
               )}
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
@@ -385,13 +429,21 @@ export function AnalysisResultCard({
               {t("requirements.analysis.requestChanges", "Request Changes")}
             </Button>
           )}
-          <Button variant="ghost" size="sm" onClick={() => setIsEditing(!isEditing)} className="text-muted-foreground hover:text-foreground font-bold">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsEditing(!isEditing)}
+            className="text-muted-foreground hover:text-foreground font-bold"
+          >
             {isEditing
               ? t("common.cancel", "Cancel Edit")
               : t("common.edit", "Edit Content")}
           </Button>
         </div>
-        <Button onClick={handleConfirm} className="gap-2 rounded-full px-8 font-bold shadow-lg shadow-primary/20">
+        <Button
+          onClick={handleConfirm}
+          className="gap-2 rounded-full px-8 font-bold shadow-lg shadow-primary/20"
+        >
           <CheckCircle className="h-4 w-4" />
           {isEditing
             ? t("requirements.analysis.saveAndConfirm", "Save & Confirm")

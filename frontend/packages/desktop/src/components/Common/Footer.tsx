@@ -1,7 +1,7 @@
 import { FaGithub, FaLinkedinIn } from "react-icons/fa"
 import { FaXTwitter } from "react-icons/fa6"
 
-const socialLinks = [
+const _socialLinks = [
   {
     icon: FaGithub,
     href: "https://github.com/evoloop",
@@ -24,9 +24,7 @@ export function Footer() {
   return (
     <footer className="border-t border-border py-4 px-6">
       <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-        <p className="text-muted-foreground text-sm">
-          {t("footer.copyright")}
-        </p>
+        <p className="text-muted-foreground text-sm">{t("footer.copyright")}</p>
         <div className="flex items-center gap-4">
           {/*socialLinks.map(({ icon: Icon, href, label }) => (
             <a

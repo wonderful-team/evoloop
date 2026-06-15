@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react"
 import { ProjectsService } from "@/client/sdk.gen"
-import { useProjectStore, isGlobalProject } from "@/stores/projectStore"
 import { isLoggedIn } from "@/hooks/useAuth"
+import { isGlobalProject, useProjectStore } from "@/stores/projectStore"
 
 // Determine which API to use based on auth state, or just use a new dedicated service method.
 // Since `ProjectsService` is auto-generated, we might need a manual fetch or extend it.
@@ -27,7 +27,7 @@ export function useProjectStatus() {
   useEffect(() => {
     // Skip if not logged in
     if (!isLoggedIn()) return
-    
+
     if (!currentProject) return
 
     // Skip status polling for global project (no indexing needed)

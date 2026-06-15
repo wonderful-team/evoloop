@@ -1,6 +1,3 @@
-import { Link as RouterLink } from "@tanstack/react-router"
-import { ChevronsUpDown, Crown, LifeBuoy, LogOut, Settings } from "lucide-react"
-import { useTranslation } from "react-i18next"
 import { Avatar, AvatarFallback } from "@evoloop/shared/components/ui/avatar"
 import {
   DropdownMenu,
@@ -16,6 +13,9 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@evoloop/shared/components/ui/sidebar"
+import { Link as RouterLink } from "@tanstack/react-router"
+import { ChevronsUpDown, Crown, LifeBuoy, LogOut, Settings } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import useAuth from "@/hooks/useAuth"
 import { useServicer } from "@/hooks/useServicer" // Add import
 import { getInitials } from "@/utils"

@@ -1,25 +1,22 @@
+import { cn } from "@evoloop/shared/lib/utils"
 import { createFileRoute, redirect } from "@tanstack/react-router"
-import { isLoggedIn } from "@/hooks/useAuth"
-import { useTranslation } from "react-i18next"
+import {
+  AlertTriangle,
+  Brain,
+  Mic,
+  Palette,
+  Settings,
+  User,
+} from "lucide-react"
 import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import GeneralSettings from "@/components/Settings/GeneralSettings"
 import { ModelSettings } from "@/components/Settings/ModelSettings"
+import { VoiceControlSettings } from "@/components/Settings/VoiceControlSettings"
+import { AccountSettings } from "@/components/UserSettings/AccountSettings"
 import AppearanceSettings from "@/components/UserSettings/AppearanceSettings"
 import DeleteAccount from "@/components/UserSettings/DeleteAccount"
-import { AccountSettings } from "@/components/UserSettings/AccountSettings"
-import { VoiceControlSettings } from "@/components/Settings/VoiceControlSettings"
-import { 
-  Settings, 
-  Brain, 
-  Mic, 
-  User, 
-  Lock, 
-  Palette, 
-  AlertTriangle 
-} from "lucide-react"
-import useAuth from "@/hooks/useAuth"
-import { cn } from "@evoloop/shared/lib/utils"
-import { Footer } from "@/components/Common/Footer"
+import useAuth, { isLoggedIn } from "@/hooks/useAuth"
 import { isTauri } from "@/lib/tauri"
 
 const NavConfig = () => {
@@ -64,7 +61,9 @@ const NavConfig = () => {
     },
   ]
   if (!isTauri()) {
-    return items.filter(item => item.value !== "models" && item.value !== "voice")
+    return items.filter(
+      (item) => item.value !== "models" && item.value !== "voice",
+    )
   }
   return items
 }
@@ -85,8 +84,8 @@ export const Route = createFileRoute("/_layout/settings")({
   }),
 })
 
-import { SettingsProvider } from "@/components/Settings/SettingsContext"
 import { SettingsActionBar } from "@/components/Settings/SettingsActionBar"
+import { SettingsProvider } from "@/components/Settings/SettingsContext"
 
 function UserSettings() {
   const { t } = useTranslation()
@@ -98,7 +97,9 @@ function UserSettings() {
 
   const { user: currentUser } = useAuth()
   const navItems = NavConfig()
-  const ActiveComponent = navItems.find(item => item.value === activeTab)?.component || GeneralSettings
+  const ActiveComponent =
+    navItems.find((item) => item.value === activeTab)?.component ||
+    GeneralSettings
 
   if (!currentUser) {
     return null
@@ -126,24 +127,32 @@ function UserSettings() {
                     onClick={() => setActiveTab(item.value)}
                     className={cn(
                       "group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200",
-                      isActive 
-                        ? "bg-primary text-primary-foreground" 
+                      isActive
+                        ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                      item.variant === "danger" && !isActive && "hover:bg-destructive/10 hover:text-destructive"
+                      item.variant === "danger" &&
+                        !isActive &&
+                        "hover:bg-destructive/10 hover:text-destructive",
                     )}
                   >
-                    <Icon className={cn(
-                      "h-4 w-4 transition-transform group-hover:scale-110",
-                      isActive ? "text-primary-foreground" : "text-muted-foreground",
-                      item.variant === "danger" && !isActive && "group-hover:text-destructive"
-                    )} />
+                    <Icon
+                      className={cn(
+                        "h-4 w-4 transition-transform group-hover:scale-110",
+                        isActive
+                          ? "text-primary-foreground"
+                          : "text-muted-foreground",
+                        item.variant === "danger" &&
+                          !isActive &&
+                          "group-hover:text-destructive",
+                      )}
+                    />
                     {item.title}
                   </button>
                 )
               })}
             </nav>
           </aside>
-            
+
           <main className="flex-1 min-w-0">
             <div className="animate-in fade-in slide-in-from-right-4 duration-300">
               <ActiveComponent />

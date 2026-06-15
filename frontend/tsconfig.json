@@ -23,7 +23,12 @@
       "@evoloop/shared/*": ["./packages/shared/src/*"]
     }
   },
-  "include": ["packages/desktop/src", "packages/shared/src", "tests", "playwright.config.ts"],
+  "include": [
+    "packages/desktop/src",
+    "packages/shared/src",
+    "tests",
+    "playwright.config.ts"
+  ],
   "references": [
     {
       "path": "./tsconfig.node.json"

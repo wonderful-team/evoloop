@@ -1,6 +1,3 @@
-import { useEffect, useState } from "react"
-import { Brain, Loader2, Eye } from "lucide-react"
-import { useTranslation } from "react-i18next"
 import {
   Select,
   SelectContent,
@@ -17,8 +14,11 @@ import {
   TooltipTrigger,
 } from "@evoloop/shared/components/ui/tooltip"
 import { cn } from "@evoloop/shared/lib/utils"
-import { llmPlatformService, type LLMModel } from "@/services/llmPlatform"
+import { Brain, Eye, Loader2 } from "lucide-react"
+import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { isLoggedIn } from "@/hooks/useAuth"
+import { type LLMModel, llmPlatformService } from "@/services/llmPlatform"
 
 interface ModelSelectorProps {
   value: string | null
@@ -26,7 +26,11 @@ interface ModelSelectorProps {
   disabled?: boolean
 }
 
-export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps) {
+export function ModelSelector({
+  value,
+  onChange,
+  disabled,
+}: ModelSelectorProps) {
   const { t } = useTranslation()
   const [models, setModels] = useState<LLMModel[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -71,7 +75,7 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
               <SelectTrigger
                 className={cn(
                   "h-8 w-auto min-w-[120px] max-w-[260px] px-2 text-xs border-0 bg-transparent hover:bg-muted/50 focus:ring-0 focus:ring-offset-0 font-medium",
-                  disabled && "opacity-50 cursor-not-allowed"
+                  disabled && "opacity-50 cursor-not-allowed",
                 )}
               >
                 {isLoading ? (
@@ -97,25 +101,24 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
               <SelectContent align="start" className="w-[280px]">
                 {/* 平台模型 */}
                 {platformModels.length > 0 && (
-                  <>
-                    <SelectGroup>
-                      <SelectLabel className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
-                        {t("chat.modelSelector.platformModels")}
-                      </SelectLabel>
-                      {platformModels.map((model) => (
-                        <SelectItem
-                          key={model.id}
-                          value={model.id}
-                          className="text-xs py-2"
-                        >
-                          <span className="flex items-center gap-2 w-full">
-                            {model.supports_vision ? (
-                              <Eye className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                            ) : (
-                              <Brain className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                            )}
-                            <span className="flex-1 truncate">{model.name}</span>
-                            {/*model.quota_required && (
+                  <SelectGroup>
+                    <SelectLabel className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                      {t("chat.modelSelector.platformModels")}
+                    </SelectLabel>
+                    {platformModels.map((model) => (
+                      <SelectItem
+                        key={model.id}
+                        value={model.id}
+                        className="text-xs py-2"
+                      >
+                        <span className="flex items-center gap-2 w-full min-w-0">
+                          {model.supports_vision ? (
+                            <Eye className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          ) : (
+                            <Brain className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          )}
+                          <span className="flex-1 truncate">{model.name}</span>
+                          {/*model.quota_required && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Star className="h-3 w-3 text-amber-500 fill-amber-500 flex-shrink-0" />
@@ -125,42 +128,40 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
                                 </TooltipContent>
                               </Tooltip>
                             )*/}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 )}
 
                 {/* 自定义模型 */}
                 {customModels.length > 0 && (
-                  <>
-                    <SelectGroup>
-                      <SelectLabel className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
-                        {t("chat.modelSelector.customModels")}
-                      </SelectLabel>
-                      {customModels.map((model) => (
-                        <SelectItem
-                          key={model.id}
-                          value={model.id}
-                          className="text-xs py-2"
-                        >
-                          <span className="flex items-center gap-2 w-full">
-                            <Brain className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="flex-1 truncate">{model.name}</span>
-                            <span className="text-[10px] text-muted-foreground flex-shrink-0">
-                              {model.provider}
-                              {model.provider_type && model.provider_type !== "openai" && (
+                  <SelectGroup>
+                    <SelectLabel className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                      {t("chat.modelSelector.customModels")}
+                    </SelectLabel>
+                    {customModels.map((model) => (
+                      <SelectItem
+                        key={model.id}
+                        value={model.id}
+                        className="text-xs py-2"
+                      >
+                        <span className="flex items-center gap-2 w-full min-w-0">
+                          <Brain className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="flex-1 truncate">{model.name}</span>
+                          <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                            {model.provider}
+                            {model.provider_type &&
+                              model.provider_type !== "openai" && (
                                 <span className="ml-1 px-1 py-0.5 bg-muted rounded text-[9px]">
                                   {model.provider_type}
                                 </span>
                               )}
-                            </span>
                           </span>
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 )}
 
                 {models.length === 0 && !isLoading && (
@@ -174,8 +175,7 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
         </TooltipTrigger>
         <TooltipContent side="top">
           <p className="text-xs">
-            {selectedModel?.description ||
-              t("chat.modelSelector.tooltip")}
+            {selectedModel?.description || t("chat.modelSelector.tooltip")}
           </p>
         </TooltipContent>
       </Tooltip>

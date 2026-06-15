@@ -1,23 +1,18 @@
-import { useQuery } from "@tanstack/react-query"
-import { createFileRoute } from "@tanstack/react-router"
-import {
-  FileCode,
-  Loader2,
-  Search,
-  X,
-} from "lucide-react"
-import { useState } from "react"
-import { useTranslation } from "react-i18next"
-import { FilesService } from "@/client"
-import { FileTree } from "@/components/Files/FileTree"
-import { FilePreview } from "@/components/Files/FilePreview"
+import { Input } from "@evoloop/shared/components/ui/input"
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@evoloop/shared/components/ui/resizable"
-import { Input } from "@evoloop/shared/components/ui/input"
 import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
+import { useQuery } from "@tanstack/react-query"
+import { createFileRoute } from "@tanstack/react-router"
+import { FileCode, Loader2, Search, X } from "lucide-react"
+import { useState } from "react"
+import { useTranslation } from "react-i18next"
+import { FilesService } from "@/client"
+import { FilePreview } from "@/components/Files/FilePreview"
+import { FileTree } from "@/components/Files/FileTree"
 
 export const Route = createFileRoute("/_layout/projects/$projectId/files")({
   component: FilesPage,
@@ -107,7 +102,9 @@ function FilesPage() {
             <div className="flex-1 overflow-hidden flex flex-col">
               <div className="px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex justify-between items-center">
                 <span>{t("files.searchResults")}</span>
-                {isLoadingSearch && <Loader2 className="h-3 w-3 animate-spin" />}
+                {isLoadingSearch && (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                )}
               </div>
               <ScrollArea className="flex-1">
                 <div className="p-2 space-y-1">
@@ -133,11 +130,13 @@ function FilesPage() {
                       </div>
                     </div>
                   ))}
-                  {isSearching && !isLoadingSearch && searchResults?.length === 0 && (
-                    <div className="text-center py-8 text-muted-foreground text-xs italic">
-                      {t("files.noMatches")}
-                    </div>
-                  )}
+                  {isSearching &&
+                    !isLoadingSearch &&
+                    searchResults?.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground text-xs italic">
+                        {t("files.noMatches")}
+                      </div>
+                    )}
                 </div>
               </ScrollArea>
             </div>

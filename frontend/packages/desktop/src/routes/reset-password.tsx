@@ -1,17 +1,3 @@
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useMutation } from "@tanstack/react-query"
-import {
-  createFileRoute,
-  Link as RouterLink,
-  redirect,
-  useNavigate,
-} from "@tanstack/react-router"
-import { useForm } from "react-hook-form"
-import { useTranslation } from "react-i18next"
-import { useEffect } from "react"
-import { z } from "zod"
-
-import { AuthLayout } from "@/components/Common/AuthLayout"
 import {
   Form,
   FormControl,
@@ -22,8 +8,21 @@ import {
 } from "@evoloop/shared/components/ui/form"
 import { LoadingButton } from "@evoloop/shared/components/ui/loading-button"
 import { PasswordInput } from "@evoloop/shared/components/ui/password-input"
-import { isLoggedIn } from "@/hooks/useAuth"
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useMutation } from "@tanstack/react-query"
+import {
+  createFileRoute,
+  Link as RouterLink,
+  redirect,
+  useNavigate,
+} from "@tanstack/react-router"
+import { useEffect } from "react"
+import { useForm } from "react-hook-form"
+import { useTranslation } from "react-i18next"
+import { z } from "zod"
+import { AuthLayout } from "@/components/Common/AuthLayout"
+import { isLoggedIn } from "@/hooks/useAuth"
 import { handleError } from "@/utils"
 
 const searchSchema = z.object({

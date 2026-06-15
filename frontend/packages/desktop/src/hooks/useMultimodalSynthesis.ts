@@ -1,22 +1,22 @@
 import { useCallback, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { safeInvoke } from "@/lib/tauri"
 import { LearningService } from "@/client/sdk.gen"
+import { safeInvoke } from "@/lib/tauri"
 
 export interface SynthesisResult {
-    success: boolean
-    skill_id: number | null
-    skill_name: string | null
-    skill_yaml: string | null
-    error: string | null
-    processing_time_seconds: number
-    frames_analyzed: number
-    events_processed: number
+  success: boolean
+  skill_id: number | null
+  skill_name: string | null
+  skill_yaml: string | null
+  error: string | null
+  processing_time_seconds: number
+  frames_analyzed: number
+  events_processed: number
 }
 
 export interface UseMultimodalSynthesisOptions {
-    onSuccess?: (result: SynthesisResult) => void
-    onError?: (error: Error) => void
+  onSuccess?: (result: SynthesisResult) => void
+  onError?: (error: Error) => void
 }
 
 /**
@@ -44,73 +44,77 @@ export interface UseMultimodalSynthesisOptions {
  * }
  * ```
  */
-export function useMultimodalSynthesis(options: UseMultimodalSynthesisOptions = {}) {
-    const { t } = useTranslation()
-    const { onSuccess, onError } = options
-    const [isSynthesizing, setIsSynthesizing] = useState(false)
-    const [progress, setProgress] = useState<string>("")
+export function useMultimodalSynthesis(
+  options: UseMultimodalSynthesisOptions = {},
+) {
+  const { t } = useTranslation()
+  const { onSuccess, onError } = options
+  const [isSynthesizing, setIsSynthesizing] = useState(false)
+  const [progress, setProgress] = useState<string>("")
 
-    const synthesize = useCallback(async (params: {
-        videoPath: string
-        sessionId: string
-        taskDescription: string
-        threadId?: string
+  const synthesize = useCallback(
+    async (params: {
+      videoPath: string
+      sessionId: string
+      taskDescription: string
+      threadId?: string
     }): Promise<SynthesisResult | null> => {
-        setIsSynthesizing(true)
-        setProgress(t("learning.synthesizingProgress"))
+      setIsSynthesizing(true)
+      setProgress(t("learning.synthesizingProgress"))
 
-        try {
-            const result = await LearningService.synthesizeFromRecording({
-                requestBody: {
-                    video_path: params.videoPath,
-                    session_id: params.sessionId,
-                    task_description: params.taskDescription,
-                    thread_id: params.threadId,
-                    // [v3 Unified] Events are already persisted via real-time APIs
-                    // Backend reads from TraceEvent table by session_id
-                },
-            })
+      try {
+        const result = await LearningService.synthesizeFromRecording({
+          requestBody: {
+            video_path: params.videoPath,
+            session_id: params.sessionId,
+            task_description: params.taskDescription,
+            thread_id: params.threadId,
+            // [v3 Unified] Events are already persisted via real-time APIs
+            // Backend reads from TraceEvent table by session_id
+          },
+        })
 
-            if (result.success) {
-                onSuccess?.(result as SynthesisResult)
-                return result as SynthesisResult
-            } else {
-                throw new Error(result.error || t("learning.synthesisFailed"))
-            }
-        } catch (error) {
-            const err = error instanceof Error ? error : new Error(String(error))
-            onError?.(err)
-            return null
-        } finally {
-            setIsSynthesizing(false)
-            setProgress("")
+        if (result.success) {
+          onSuccess?.(result as SynthesisResult)
+          return result as SynthesisResult
         }
-    }, [onSuccess, onError])
+        throw new Error(result.error || t("learning.synthesisFailed"))
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error))
+        onError?.(err)
+        return null
+      } finally {
+        setIsSynthesizing(false)
+        setProgress("")
+      }
+    },
+    [onSuccess, onError],
+  )
 
-    /**
-     * 预览录制数据（调试用）
-     */
-    const previewRecording = useCallback(async (params: {
-        videoPath: string
-        sessionId: string
-    }) => {
-        try {
-            return await LearningService.previewRecordingData({
-                sessionId: params.sessionId,
-                videoPath: params.videoPath,
-            })
-        } catch (error) {
-            console.error("Preview failed:", error)
-            return null
-        }
-    }, [])
+  /**
+   * 预览录制数据（调试用）
+   */
+  const previewRecording = useCallback(
+    async (params: { videoPath: string; sessionId: string }) => {
+      try {
+        return await LearningService.previewRecordingData({
+          sessionId: params.sessionId,
+          videoPath: params.videoPath,
+        })
+      } catch (error) {
+        console.error("Preview failed:", error)
+        return null
+      }
+    },
+    [],
+  )
 
-    return {
-        synthesize,
-        previewRecording,
-        isSynthesizing,
-        progress,
-    }
+  return {
+    synthesize,
+    previewRecording,
+    isSynthesizing,
+    progress,
+  }
 }
 
 /**
@@ -119,75 +123,75 @@ export function useMultimodalSynthesis(options: UseMultimodalSynthesisOptions = 
  * 管理录制状态 + Skill 合成
  */
 export function useRecordingWithSynthesis() {
-    const [recordingState, setRecordingState] = useState<{
-        isRecording: boolean
-        sessionId: string | null
-        videoPath: string | null
-    }>({
-        isRecording: false,
-        sessionId: null,
-        videoPath: null,
+  const [recordingState, setRecordingState] = useState<{
+    isRecording: boolean
+    sessionId: string | null
+    videoPath: string | null
+  }>({
+    isRecording: false,
+    sessionId: null,
+    videoPath: null,
+  })
+
+  const synthesis = useMultimodalSynthesis()
+
+  const startRecording = useCallback(async () => {
+    const sessionId = `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+
+    await safeInvoke("start_screen_recording")
+
+    setRecordingState({
+      isRecording: true,
+      sessionId,
+      videoPath: null,
     })
 
-    const synthesis = useMultimodalSynthesis()
+    return sessionId
+  }, [])
 
-    const startRecording = useCallback(async () => {
-        const sessionId = `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+  const stopRecording = useCallback(async () => {
+    if (!recordingState.isRecording) return null
 
-        await safeInvoke("start_screen_recording")
+    try {
+      const videoPath = await safeInvoke<string>("stop_screen_recording")
 
-        setRecordingState({
-            isRecording: true,
-            sessionId,
-            videoPath: null,
-        })
+      setRecordingState((prev) => ({
+        ...prev,
+        isRecording: false,
+        videoPath,
+      }))
 
-        return sessionId
-    }, [])
-
-    const stopRecording = useCallback(async () => {
-        if (!recordingState.isRecording) return null
-
-        try {
-            const videoPath = await safeInvoke<string>("stop_screen_recording")
-
-            setRecordingState(prev => ({
-                ...prev,
-                isRecording: false,
-                videoPath,
-            }))
-
-            return {
-                sessionId: recordingState.sessionId!,
-                videoPath,
-            }
-        } catch (error) {
-            console.error("Failed to stop recording:", error)
-            return null
-        }
-    }, [recordingState.isRecording, recordingState.sessionId])
-
-    const synthesizeFromRecording = useCallback(async (
-        taskDescription: string,
-        threadId?: string
-    ) => {
-        if (!recordingState.videoPath || !recordingState.sessionId) {
-            throw new Error("No recording available")
-        }
-
-        return synthesis.synthesize({
-            videoPath: recordingState.videoPath,
-            sessionId: recordingState.sessionId,
-            taskDescription,
-            threadId,
-        })
-    }, [recordingState, synthesis])
-
-    return {
-        ...recordingState,
-        startRecording,
-        stopRecording,
-        synthesizeFromRecording,
-        isSynthesizing: synthesis.isSynthesizing,
+      return {
+        sessionId: recordingState.sessionId!,
+        videoPath,
+      }
+    } catch (error) {
+      console.error("Failed to stop recording:", error)
+      return null
     }
+  }, [recordingState.isRecording, recordingState.sessionId])
+
+  const synthesizeFromRecording = useCallback(
+    async (taskDescription: string, threadId?: string) => {
+      if (!recordingState.videoPath || !recordingState.sessionId) {
+        throw new Error("No recording available")
+      }
+
+      return synthesis.synthesize({
+        videoPath: recordingState.videoPath,
+        sessionId: recordingState.sessionId,
+        taskDescription,
+        threadId,
+      })
+    },
+    [recordingState, synthesis],
+  )
+
+  return {
+    ...recordingState,
+    startRecording,
+    stopRecording,
+    synthesizeFromRecording,
+    isSynthesizing: synthesis.isSynthesizing,
+  }
 }

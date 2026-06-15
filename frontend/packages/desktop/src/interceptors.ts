@@ -1,8 +1,8 @@
-import { toast } from 'sonner'
-import { OpenAPI } from '@/client/core/OpenAPI.ts'
-import type { AxiosResponse, AxiosError } from 'axios'
-import i18n from '@evoloop/shared/i18n'
-import { useBenefitStore } from '@/stores/benefitStore'
+import i18n from "@evoloop/shared/i18n"
+import type { AxiosError, AxiosResponse } from "axios"
+import { toast } from "sonner"
+import { OpenAPI } from "@/client/core/OpenAPI.ts"
+import { useBenefitStore } from "@/stores/benefitStore"
 
 /**
  * 初始化 API 拦截器
@@ -28,9 +28,11 @@ export function initApiInterceptors() {
  * 检查是否为权益错误（不显示toast，只返回boolean）
  */
 function checkIsBenefitError(data: any): boolean {
-  return data?.detail?.code === 'BENEFIT_REQUIRED' ||
-    data?.code === 'BENEFIT_REQUIRED' ||
-    data?.code === 'SUBSCRIPTION_REQUIRED'
+  return (
+    data?.detail?.code === "BENEFIT_REQUIRED" ||
+    data?.code === "BENEFIT_REQUIRED" ||
+    data?.code === "SUBSCRIPTION_REQUIRED"
+  )
 }
 
 /**
@@ -43,7 +45,7 @@ function handleBenefitError(data: any): boolean {
   if (!isBenefitError) {
     // 处理其他403错误
     if (data?.detail?.message || data?.message) {
-      toast.error(i18n.t('subscription.errors.insufficientPermission'), {
+      toast.error(i18n.t("subscription.errors.insufficientPermission"), {
         description: data.detail?.message || data.message,
         duration: 3000,
       })
@@ -60,7 +62,7 @@ function handleBenefitError(data: any): boolean {
     featureName: info.featureName,
     requiredPlan: info.requiredPlan,
     message: info.message,
-    upgradeUrl: info.upgradeUrl
+    upgradeUrl: info.upgradeUrl,
   })
 
   return true
@@ -71,9 +73,9 @@ function handleBenefitError(data: any): boolean {
  */
 function extractBenefitInfo(data: any): BenefitErrorInfo {
   // API层格式
-  if (data?.detail?.code === 'BENEFIT_REQUIRED') {
+  if (data?.detail?.code === "BENEFIT_REQUIRED") {
     return {
-      code: 'BENEFIT_REQUIRED',
+      code: "BENEFIT_REQUIRED",
       feature: data.detail.feature,
       featureName: data.detail.feature_name,
       requiredPlan: data.detail.required_plan,
@@ -83,9 +85,9 @@ function extractBenefitInfo(data: any): BenefitErrorInfo {
   }
 
   // 工具层格式
-  if (data?.code === 'BENEFIT_REQUIRED') {
+  if (data?.code === "BENEFIT_REQUIRED") {
     return {
-      code: 'BENEFIT_REQUIRED',
+      code: "BENEFIT_REQUIRED",
       feature: data.feature,
       featureName: data.feature_name,
       requiredPlan: data.required_plan,
@@ -95,16 +97,16 @@ function extractBenefitInfo(data: any): BenefitErrorInfo {
   }
 
   // 旧版格式
-  if (data?.code === 'SUBSCRIPTION_REQUIRED') {
+  if (data?.code === "SUBSCRIPTION_REQUIRED") {
     return {
-      code: 'SUBSCRIPTION_REQUIRED',
+      code: "SUBSCRIPTION_REQUIRED",
       feature: data.feature || data.detail?.feature,
       requiredPlan: data.required_plan || data.detail?.required_plan,
       message: data.message || data.detail?.message,
     }
   }
 
-  return { code: 'UNKNOWN' }
+  return { code: "UNKNOWN" }
 }
 
 // 权益错误信息接口
@@ -122,8 +124,8 @@ export class BenefitRequiredError extends Error {
   public info: BenefitErrorInfo
 
   constructor(info: BenefitErrorInfo) {
-    super(info.message || i18n.t('subscription.errors.subscriptionRequired'))
-    this.name = 'BenefitRequiredError'
+    super(info.message || i18n.t("subscription.errors.subscriptionRequired"))
+    this.name = "BenefitRequiredError"
     this.info = info
   }
 }
@@ -136,8 +138,10 @@ export function isBenefitRequiredError(error: unknown): boolean {
     return true
   }
   if (error instanceof Error) {
-    return error.message === 'BENEFIT_REQUIRED' ||
-      error.name === 'BenefitRequiredError'
+    return (
+      error.message === "BENEFIT_REQUIRED" ||
+      error.name === "BenefitRequiredError"
+    )
   }
   return false
 }
@@ -158,7 +162,7 @@ export function getBenefitErrorInfo(error: unknown): BenefitErrorInfo | null {
  * 返回 true 表示是权益错误（已由拦截器处理），false 表示不是
  */
 export function handleApiError(error: unknown): boolean {
-  if (typeof error === 'object' && error !== null) {
+  if (typeof error === "object" && error !== null) {
     const axiosError = error as AxiosError
 
     if (axiosError.response?.status === 403) {

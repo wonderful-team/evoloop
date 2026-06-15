@@ -1,10 +1,17 @@
-import { File as FileIcon, X, MessageSquare, Music, Loader2, AlertCircle } from "lucide-react"
 import { cn } from "@evoloop/shared/lib/utils"
+import {
+  AlertCircle,
+  File as FileIcon,
+  Loader2,
+  MessageSquare,
+  Music,
+  X,
+} from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 export interface PickedFile {
   id: string
-  url: string | number  // Can be string (URL) or number (skill ID)
+  url: string | number // Can be string (URL) or number (skill ID)
   name: string
   type: "image" | "file" | "reference" | "message" | "audio" | "skill"
   status?: "uploading" | "success" | "error"
@@ -23,10 +30,7 @@ interface FilePreviewProps {
   onRemove: (id: string) => void
 }
 
-export function FilePreview({
-  pickedFiles,
-  onRemove,
-}: FilePreviewProps) {
+export function FilePreview({ pickedFiles, onRemove }: FilePreviewProps) {
   const { t } = useTranslation()
   if (pickedFiles.length === 0) return null
 
@@ -37,7 +41,7 @@ export function FilePreview({
           key={file.id}
           className={cn(
             "relative group flex items-center gap-2 pr-7 pl-2 py-1.5 rounded-md border border-border text-xs font-medium transition-all animate-in fade-in zoom-in-95",
-            file.status === "error" 
+            file.status === "error"
               ? "bg-red-500/10 border-red-500/20 text-red-700 dark:text-red-400"
               : file.type === "message"
                 ? "bg-green-500/10 border-green-500/20 text-green-700 dark:text-green-400"
@@ -48,7 +52,7 @@ export function FilePreview({
                     : file.type === "skill"
                       ? "bg-indigo-500/10 border-indigo-500/20 text-indigo-700 dark:text-indigo-400"
                       : "bg-blue-500/10 border-blue-500/20 text-blue-700 dark:text-blue-400",
-            file.status === "uploading" && "opacity-70"
+            file.status === "uploading" && "opacity-70",
           )}
           title={file.name}
         >
@@ -58,14 +62,20 @@ export function FilePreview({
             <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-500" />
           ) : file.type === "image" ? (
             <div className="relative w-4 h-4 overflow-hidden rounded-sm shrink-0">
-              <img src={String(file.url)} alt={t("common.preview")} className="w-full h-full object-cover" />
+              <img
+                src={String(file.url)}
+                alt={t("common.preview")}
+                className="w-full h-full object-cover"
+              />
             </div>
           ) : file.type === "message" ? (
             <MessageSquare className="w-3.5 h-3.5 shrink-0 opacity-70" />
           ) : file.type === "audio" ? (
             <Music className="w-3.5 h-3.5 shrink-0 text-amber-500" />
           ) : file.type === "skill" ? (
-            <span className="w-3.5 h-3.5 shrink-0 text-purple-500 font-bold text-[10px]">S</span>
+            <span className="w-3.5 h-3.5 shrink-0 text-purple-500 font-bold text-[10px]">
+              S
+            </span>
           ) : (
             <FileIcon className="w-3.5 h-3.5 shrink-0 opacity-70" />
           )}
@@ -73,10 +83,14 @@ export function FilePreview({
           <div className="flex flex-col min-w-0">
             <span className="truncate max-w-[120px]">{file.name}</span>
             {file.status === "uploading" && (
-              <span className="text-[9px] text-muted-foreground opacity-80 mt-0.5">{t("chat.interface.uploading", "上传中...")}</span>
+              <span className="text-[9px] text-muted-foreground opacity-80 mt-0.5">
+                {t("chat.interface.uploading", "上传中...")}
+              </span>
             )}
             {file.status === "error" && (
-              <span className="text-[9px] text-red-500 mt-0.5">{t("chat.interface.uploadFailed", "上传失败")}</span>
+              <span className="text-[9px] text-red-500 mt-0.5">
+                {t("chat.interface.uploadFailed", "上传失败")}
+              </span>
             )}
           </div>
 

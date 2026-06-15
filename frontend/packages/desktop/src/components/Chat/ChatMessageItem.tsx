@@ -1,27 +1,39 @@
-import { memo, useEffect } from "react"
-import { motion } from "framer-motion"
-import {
-  Copy, RotateCcw, Undo,
-  Brain, Quote, ChevronRight, Loader2
-} from "lucide-react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
+import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
   Collapsible,
   CollapsibleContent,
-  CollapsibleTrigger
+  CollapsibleTrigger,
 } from "@evoloop/shared/components/ui/collapsible"
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { MessageContent } from "./MessageContent"
+import { motion } from "framer-motion"
+import {
+  Brain,
+  ChevronRight,
+  Copy,
+  Loader2,
+  Quote,
+  RotateCcw,
+  Undo,
+} from "lucide-react"
+import { memo, useEffect } from "react"
+import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
+import { useAutoSpeak, useTTS } from "@/hooks/useTTS"
 import { ChangesetSnapshot } from "./ChangesetSnapshotView"
+import { MessageContent } from "./MessageContent"
 import { MessageReferences } from "./MessageReferences"
 import { TTSButton } from "./TTSButton"
-import { useTTS, useAutoSpeak } from "@/hooks/useTTS"
 
 export interface MessageReference {
   id: string
-  type: 'file' | 'image' | 'audio' | 'message' | 'artifact' | 'changeset' | 'skill'
+  type:
+    | "file"
+    | "image"
+    | "audio"
+    | "message"
+    | "artifact"
+    | "changeset"
+    | "skill"
   target_id: string
   target_name: string
   meta_data?: Record<string, any>
@@ -33,7 +45,13 @@ export interface Message {
   content: string
   thinking?: string
   timestamp?: string
-  status?: "pending" | "streaming" | "running" | "completed" | "failed" | "waiting_human"
+  status?:
+    | "pending"
+    | "streaming"
+    | "running"
+    | "completed"
+    | "failed"
+    | "waiting_human"
   run_id?: string
   tool_name?: string
   input?: any
@@ -48,7 +66,7 @@ export interface Message {
 
   changeset_files?: Array<{
     path: string
-    operation: 'added' | 'modified' | 'deleted' | 'renamed'
+    operation: "added" | "modified" | "deleted" | "renamed"
   }>
   humanRequest?: any
   has_file_operations?: boolean
@@ -60,7 +78,7 @@ export interface Message {
 const formatSmartTimestamp = (timestamp?: string) => {
   if (!timestamp) return ""
   const date = new Date(timestamp)
-  if (isNaN(date.getTime())) return ""
+  if (Number.isNaN(date.getTime())) return ""
 
   const now = new Date()
   const isToday =
@@ -68,14 +86,19 @@ const formatSmartTimestamp = (timestamp?: string) => {
     date.getMonth() === now.getMonth() &&
     date.getFullYear() === now.getFullYear()
 
-  const timeStr = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  const timeStr = date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  })
 
   if (isToday) {
     return timeStr
-  } else {
-    const dateStr = date.toLocaleDateString([], { month: "short", day: "numeric" })
-    return `${dateStr} ${timeStr}`
   }
+  const dateStr = date.toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+  })
+  return `${dateStr} ${timeStr}`
 }
 
 interface ChatMessageItemProps {
@@ -86,11 +109,18 @@ interface ChatMessageItemProps {
   onRewind?: (msg: Message) => void
   onRetry?: (msg: Message) => void
   onQuote?: () => void
-  onViewChangeset?: (messageId: string | number, path?: string, diff?: string) => void
+  onViewChangeset?: (
+    messageId: string | number,
+    path?: string,
+    diff?: string,
+  ) => void
   isActivelyStreaming?: boolean
 }
 
-const chatMessagePropsAreEqual = (prevProps: ChatMessageItemProps, nextProps: ChatMessageItemProps) => {
+const chatMessagePropsAreEqual = (
+  prevProps: ChatMessageItemProps,
+  nextProps: ChatMessageItemProps,
+) => {
   return (
     prevProps.msg.id === nextProps.msg.id &&
     prevProps.msg.content === nextProps.msg.content &&
@@ -106,7 +136,17 @@ const chatMessagePropsAreEqual = (prevProps: ChatMessageItemProps, nextProps: Ch
 }
 
 const ChatMessageItem = memo(
-  ({ msg, isActivelyStreaming, onAddToMemory, onRewind, onRetry, onQuote, onViewChangeset, isGrouped, showAvatar }: ChatMessageItemProps) => {
+  ({
+    msg,
+    isActivelyStreaming,
+    onAddToMemory,
+    onRewind,
+    onRetry,
+    onQuote,
+    onViewChangeset,
+    isGrouped,
+    showAvatar,
+  }: ChatMessageItemProps) => {
     const { t } = useTranslation()
 
     // Hide system prompts from main chat
@@ -115,7 +155,10 @@ const ChatMessageItem = memo(
     }
 
     const isUser = msg.role === "human"
-    const actionContent = msg.effective_content !== undefined && msg.effective_content.trim() !== "" ? msg.effective_content : msg.content
+    const actionContent =
+      msg.effective_content !== undefined && msg.effective_content.trim() !== ""
+        ? msg.effective_content
+        : msg.content
 
     // Render Tool Message (Flat & Compact)
     if (msg.role === "tool") {
@@ -127,13 +170,22 @@ const ChatMessageItem = memo(
           transition={{ duration: 0.1 }}
         >
           <div className="w-1.5 h-1.5 rounded-full bg-primary/50 shrink-0" />
-          <span className="truncate flex-1" title={msg.tool_meta?.display_name || msg.tool_name || "TOOL"}>
+          <span
+            className="truncate flex-1"
+            title={msg.tool_meta?.display_name || msg.tool_name || "TOOL"}
+          >
             {msg.tool_meta?.display_name || msg.tool_name || "TOOL"}
           </span>
-          {msg.status === "running" && <Loader2 className="h-3 w-3 animate-spin text-primary ml-2 shrink-0" />}
+          {msg.status === "running" && (
+            <Loader2 className="h-3 w-3 animate-spin text-primary ml-2 shrink-0" />
+          )}
           {msg.changeset_count !== undefined && msg.changeset_count > 0 && (
-            <Badge variant="secondary" className="h-4 px-1.5 text-[9px] bg-primary/10 text-primary border-none shrink-0 ml-auto">
-              {msg.changeset_count} {t("chat.interface.files", { defaultValue: "FILES" })}
+            <Badge
+              variant="secondary"
+              className="h-4 px-1.5 text-[9px] bg-primary/10 text-primary border-none shrink-0 ml-auto"
+            >
+              {msg.changeset_count}{" "}
+              {t("chat.interface.files", { defaultValue: "FILES" })}
             </Badge>
           )}
         </motion.div>
@@ -153,28 +205,61 @@ const ChatMessageItem = memo(
           {/* Absolute Hover Action Pill (Folded into top-right corner on hover, saving vertical space) */}
           <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/90 backdrop-blur-sm px-1 py-0.5 rounded-md shadow-sm border border-border/40 z-10">
             {/* Copy */}
-            <Button variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-muted text-muted-foreground/80 hover:text-foreground" onClick={() => { navigator.clipboard.writeText(actionContent || ""); toast.success(t("chat.interface.copied")) }} title={t("chat.interface.copy")}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 rounded hover:bg-muted text-muted-foreground/80 hover:text-foreground"
+              onClick={() => {
+                navigator.clipboard.writeText(actionContent || "")
+                toast.success(t("chat.interface.copied"))
+              }}
+              title={t("chat.interface.copy")}
+            >
               <Copy className="h-3 w-3" />
             </Button>
             {/* Quote */}
-            <Button variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-muted text-muted-foreground/80 hover:text-foreground" onClick={onQuote} title={t("chat.interface.quote")}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 rounded hover:bg-muted text-muted-foreground/80 hover:text-foreground"
+              onClick={onQuote}
+              title={t("chat.interface.quote")}
+            >
               <Quote className="h-3 w-3" />
             </Button>
             {/* Memorize */}
             {onAddToMemory && actionContent && (
-              <Button variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-muted text-muted-foreground/80 hover:text-foreground" onClick={() => onAddToMemory(actionContent)} title={t("chat.interface.memorize")}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 rounded hover:bg-muted text-muted-foreground/80 hover:text-foreground"
+                onClick={() => onAddToMemory(actionContent)}
+                title={t("chat.interface.memorize")}
+              >
                 <Brain className="h-3 w-3" />
               </Button>
             )}
             {/* Rewind */}
             {onRewind && (
-              <Button variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-orange-500/10 text-muted-foreground/80 hover:text-orange-500" onClick={() => onRewind(msg)} title={t("chat.interface.rewind")}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 rounded hover:bg-orange-500/10 text-muted-foreground/80 hover:text-orange-500"
+                onClick={() => onRewind(msg)}
+                title={t("chat.interface.rewind")}
+              >
                 <Undo className="h-3 w-3" />
               </Button>
             )}
             {/* Retry */}
             {onRetry && (
-              <Button variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-primary/10 text-muted-foreground/80 hover:text-primary" onClick={() => onRetry(msg)} title={t("chat.interface.retry")}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 rounded hover:bg-primary/10 text-muted-foreground/80 hover:text-primary"
+                onClick={() => onRetry(msg)}
+                title={t("chat.interface.retry")}
+              >
                 <RotateCcw className="h-3 w-3" />
               </Button>
             )}
@@ -184,7 +269,8 @@ const ChatMessageItem = memo(
     }
 
     // 2. AI Message Layout (Compact transparent document flow with bottom action bar)
-    const isCurrentlyStreaming = isActivelyStreaming ?? (msg.status === 'streaming')
+    const isCurrentlyStreaming =
+      isActivelyStreaming ?? msg.status === "streaming"
     return (
       <motion.div
         className="group relative flex flex-col mx-4 my-1 text-foreground text-[14px] transition-all"
@@ -193,15 +279,26 @@ const ChatMessageItem = memo(
         {/* Thinking section (tight margin) */}
         {msg.thinking && (
           <Collapsible className="mb-2 overflow-hidden">
-            <CollapsibleTrigger asChild disabled={!msg.content && isCurrentlyStreaming}>
-              <Button variant="ghost" size="sm" className="group/trigger h-6 px-2 rounded text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors hover:bg-muted/40 flex items-center gap-1.5">
+            <CollapsibleTrigger
+              asChild
+              disabled={!msg.content && isCurrentlyStreaming}
+            >
+              <Button
+                variant="ghost"
+                size="sm"
+                className="group/trigger h-6 px-2 rounded text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors hover:bg-muted/40 flex items-center gap-1.5"
+              >
                 <Brain className="h-3 w-3 text-primary/70" />
                 <span>
-                  {(!msg.content && isCurrentlyStreaming)
-                    ? t("chat.interface.thinking", { defaultValue: "Thinking..." })
-                    : t("chat.interface.thinkingProcess", { defaultValue: "Worked for thought" })}
+                  {!msg.content && isCurrentlyStreaming
+                    ? t("chat.interface.thinking", {
+                        defaultValue: "Thinking...",
+                      })
+                    : t("chat.interface.thinkingProcess", {
+                        defaultValue: "Worked for thought",
+                      })}
                 </span>
-                {(!msg.content && isCurrentlyStreaming) ? (
+                {!msg.content && isCurrentlyStreaming ? (
                   <Loader2 className="h-3 w-3 animate-spin text-muted-foreground/50" />
                 ) : (
                   <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]/trigger:rotate-90 text-muted-foreground/50" />
@@ -210,7 +307,13 @@ const ChatMessageItem = memo(
             </CollapsibleTrigger>
             {(msg.content || !isCurrentlyStreaming) && (
               <CollapsibleContent className="mt-1 pl-3 py-1 border-l-1 border-border/60 text-[12px] text-muted-foreground/80 leading-relaxed font-mono">
-                <MessageContent content={typeof msg.thinking === 'string' ? msg.thinking : JSON.stringify(msg.thinking, null, 2)} />
+                <MessageContent
+                  content={
+                    typeof msg.thinking === "string"
+                      ? msg.thinking
+                      : JSON.stringify(msg.thinking, null, 2)
+                  }
+                />
               </CollapsibleContent>
             )}
           </Collapsible>
@@ -221,12 +324,19 @@ const ChatMessageItem = memo(
           <div className="doc-message-content w-full prose-compact transition-opacity leading-relaxed">
             <MessageContent content={msg.content} />
             <MessageReferences
-              references={(msg.references || []).filter(r => r.type !== 'artifact')}
+              references={(msg.references || []).filter(
+                (r) => r.type !== "artifact",
+              )}
               onReferenceClick={(ref) => {
-                if (ref.type === 'changeset') {
+                if (ref.type === "changeset") {
                   onViewChangeset?.(msg.id)
-                } else if ((ref.type === 'file' || ref.type === 'image' || ref.type === 'audio') && ref.target_id) {
-                  window.open(ref.target_id, '_blank')
+                } else if (
+                  (ref.type === "file" ||
+                    ref.type === "image" ||
+                    ref.type === "audio") &&
+                  ref.target_id
+                ) {
+                  window.open(ref.target_id, "_blank")
                 }
               }}
             />
@@ -239,7 +349,9 @@ const ChatMessageItem = memo(
             <ChangesetSnapshot
               files={msg.changeset_files || []}
               totalCount={msg.changeset_count}
-              onViewDetails={(path, diff) => onViewChangeset?.(msg.id, path, diff)}
+              onViewDetails={(path, diff) =>
+                onViewChangeset?.(msg.id, path, diff)
+              }
             />
           </div>
         )}
@@ -249,14 +361,26 @@ const ChatMessageItem = memo(
           <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-border/15 text-[11px] text-muted-foreground/40 font-mono">
             <span className="flex items-center gap-1.5 font-mono">
               <span>{formatSmartTimestamp(msg.timestamp)}</span>
-              {msg.turnDuration && <span className="opacity-60 text-[10px]">({msg.turnDuration})</span>}
+              {msg.turnDuration && (
+                <span className="opacity-60 text-[10px]">
+                  ({msg.turnDuration})
+                </span>
+              )}
             </span>
 
             <div className="flex items-center gap-0.5 text-muted-foreground/60">
-              {actionContent && <TTSButton text={actionContent} size="sm" className="h-6 w-6 rounded hover:bg-muted/60 hover:text-foreground text-muted-foreground/70 transition-colors" />}
+              {actionContent && (
+                <TTSButton
+                  text={actionContent}
+                  size="sm"
+                  className="h-6 w-6 rounded hover:bg-muted/60 hover:text-foreground text-muted-foreground/70 transition-colors"
+                />
+              )}
 
               <Button
-                variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-muted/60 hover:text-foreground text-muted-foreground/70 transition-colors"
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 rounded hover:bg-muted/60 hover:text-foreground text-muted-foreground/70 transition-colors"
                 onClick={() => {
                   navigator.clipboard.writeText(actionContent || "")
                   toast.success(t("chat.interface.copied"))
@@ -267,7 +391,9 @@ const ChatMessageItem = memo(
               </Button>
 
               <Button
-                variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-muted/60 hover:text-foreground text-muted-foreground/70 transition-colors"
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 rounded hover:bg-muted/60 hover:text-foreground text-muted-foreground/70 transition-colors"
                 onClick={onQuote}
                 title={t("chat.interface.quote")}
               >
@@ -276,7 +402,9 @@ const ChatMessageItem = memo(
 
               {onAddToMemory && actionContent && (
                 <Button
-                  variant="ghost" size="icon" className="h-6 w-6 rounded hover:bg-muted/60 hover:text-foreground text-muted-foreground/70 transition-colors"
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 rounded hover:bg-muted/60 hover:text-foreground text-muted-foreground/70 transition-colors"
                   onClick={() => onAddToMemory(actionContent)}
                   title={t("chat.interface.memorize")}
                 >
@@ -289,7 +417,7 @@ const ChatMessageItem = memo(
       </motion.div>
     )
   },
-  chatMessagePropsAreEqual
+  chatMessagePropsAreEqual,
 )
 
 ChatMessageItem.displayName = "ChatMessageItem"
@@ -310,7 +438,10 @@ const SmartChatMessageItem = memo((props: ChatMessageItemProps) => {
       return
     }
 
-    const speakContent = msg.effective_content !== undefined && msg.effective_content.trim() !== "" ? msg.effective_content : msg.content;
+    const speakContent =
+      msg.effective_content !== undefined && msg.effective_content.trim() !== ""
+        ? msg.effective_content
+        : msg.content
 
     if (
       autoSpeak &&
@@ -325,7 +456,17 @@ const SmartChatMessageItem = memo((props: ChatMessageItemProps) => {
       }, 500)
       return () => clearTimeout(timer)
     }
-  }, [autoSpeak, msg.role, msg.content, msg.effective_content, msg.status, isSpeaking, speak, msg.id, msg.timestamp])
+  }, [
+    autoSpeak,
+    msg.role,
+    msg.content,
+    msg.effective_content,
+    msg.status,
+    isSpeaking,
+    speak,
+    msg.id,
+    msg.timestamp,
+  ])
 
   return <ChatMessageItem {...props} />
 }, chatMessagePropsAreEqual)

@@ -1,12 +1,5 @@
-import { useNavigate } from "@tanstack/react-router"
-import { BookOpen, CheckCircle2, Clock, FolderOpen, FolderPlus, Layers, ListTodo, RefreshCw, XCircle } from "lucide-react"
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { useProjectStore } from "@/stores/projectStore"
-import { useProjectImportStore } from "@/stores/projectImportStore"
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
-import { toast } from "sonner"
 import {
   Card,
   CardContent,
@@ -15,12 +8,32 @@ import {
   CardHeader,
   CardTitle,
 } from "@evoloop/shared/components/ui/card"
+import { useNavigate } from "@tanstack/react-router"
+import {
+  BookOpen,
+  CheckCircle2,
+  Clock,
+  FolderOpen,
+  FolderPlus,
+  Layers,
+  ListTodo,
+  RefreshCw,
+  XCircle,
+} from "lucide-react"
+import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
+import { useProjectImportStore } from "@/stores/projectImportStore"
+import type { Project } from "@/stores/projectStore"
+import { useProjectStore } from "@/stores/projectStore"
 import AddProject from "./AddProject"
 import { ProjectActions } from "./ProjectActions"
-import type { Project } from "@/stores/projectStore"
 
 // Helper to get indexing status display info
-function getIndexingStatusDisplay(project: Project, t: (key: string) => string) {
+function getIndexingStatusDisplay(
+  project: Project,
+  t: (key: string) => string,
+) {
   // Priority 1: Real-time Redis status (indexing)
   if (project.indexing_status === "indexing") {
     return {
@@ -37,13 +50,15 @@ function getIndexingStatusDisplay(project: Project, t: (key: string) => string) 
       return {
         icon: <RefreshCw className="h-3 w-3 animate-spin" />,
         text: t("projects.status.indexing"),
-        className: "bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-200",
+        className:
+          "bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-200",
       }
     case "completed":
       return {
         icon: <CheckCircle2 className="h-3 w-3" />,
         text: t("projects.status.indexed"),
-        className: "bg-green-100 text-green-700 hover:bg-green-200 border-green-200",
+        className:
+          "bg-green-100 text-green-700 hover:bg-green-200 border-green-200",
       }
     case "failed":
       return {
@@ -55,10 +70,9 @@ function getIndexingStatusDisplay(project: Project, t: (key: string) => string) 
       return {
         icon: <Clock className="h-3 w-3" />,
         text: t("projects.status.indexPending"),
-        className: "bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border-yellow-200",
+        className:
+          "bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border-yellow-200",
       }
-    case "not_needed":
-    case "not_linked":
     default:
       return null
   }
@@ -67,9 +81,14 @@ function getIndexingStatusDisplay(project: Project, t: (key: string) => string) 
 export function ProjectList() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { projects, fetchProjects, setProject, currentProject, isLoading: isListLoading } =
-    useProjectStore()
-  
+  const {
+    projects,
+    fetchProjects,
+    setProject,
+    currentProject,
+    isLoading: isListLoading,
+  } = useProjectStore()
+
   const { scanProjects, isLoading: isScanLoading } = useProjectImportStore()
   const [isScanning, setIsScanning] = useState(false)
 
@@ -87,7 +106,7 @@ export function ProjectList() {
     try {
       await scanProjects()
       toast.success(t("projects.import.scanComplete", "Scan complete"))
-    } catch (error) {
+    } catch (_error) {
       toast.error(t("projects.import.scanFailed", "Scan failed"))
     } finally {
       setIsScanning(false)
@@ -125,12 +144,8 @@ export function ProjectList() {
             />
             {t("projects.refresh")}
           </Button>
-          
-          <Button
-            variant="outline"
-            onClick={handleScan}
-            disabled={isLoading}
-          >
+
+          <Button variant="outline" onClick={handleScan} disabled={isLoading}>
             <FolderPlus
               className={`mr-2 h-4 w-4 ${isScanning ? "animate-spin" : ""}`}
             />
@@ -161,7 +176,13 @@ export function ProjectList() {
                     <Badge
                       variant="secondary"
                       className={`gap-1 ${idxStatus.className}`}
-                      title={proj.last_indexed_at ? t("projects.status.lastIndexed", { time: proj.last_indexed_at }) : undefined}
+                      title={
+                        proj.last_indexed_at
+                          ? t("projects.status.lastIndexed", {
+                              time: proj.last_indexed_at,
+                            })
+                          : undefined
+                      }
                     >
                       {idxStatus.icon} {idxStatus.text}
                     </Badge>
@@ -169,13 +190,21 @@ export function ProjectList() {
                 })()}
                 {(proj.summarization_status === "running" ||
                   proj.summarization_status === "summarizing") && (
-                    <Badge variant="secondary" className="bg-purple-100 text-purple-700 hover:bg-purple-200 border-purple-200 gap-1">
-                      <ListTodo className="h-3 w-3 animate-pulse" /> {t("projects.status.analyzing")}
-                    </Badge>
-                  )}
+                  <Badge
+                    variant="secondary"
+                    className="bg-purple-100 text-purple-700 hover:bg-purple-200 border-purple-200 gap-1"
+                  >
+                    <ListTodo className="h-3 w-3 animate-pulse" />{" "}
+                    {t("projects.status.analyzing")}
+                  </Badge>
+                )}
                 {proj.wiki_status === "running" && (
-                  <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-200 border-green-200 gap-1">
-                    <BookOpen className="h-3 w-3 animate-pulse" /> {t("wiki.nav", "Wiki")}
+                  <Badge
+                    variant="secondary"
+                    className="bg-green-100 text-green-700 hover:bg-green-200 border-green-200 gap-1"
+                  >
+                    <BookOpen className="h-3 w-3 animate-pulse" />{" "}
+                    {t("wiki.nav", "Wiki")}
                   </Badge>
                 )}
                 <Badge variant="outline">

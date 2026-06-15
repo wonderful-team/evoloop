@@ -38,5 +38,3 @@ export function getActiveTools(steps: ToolStep[] | undefined): Set<string> {
   }
   return toolSet
 }
-
-

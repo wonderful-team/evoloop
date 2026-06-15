@@ -1,14 +1,14 @@
 /**
  * LLM Platform Service - 管理模型选择和配置
- * 
+ *
  * 功能:
  * - 获取可用模型列表 (平台模型 + 自定义模型)
  * - 管理用户选择的模型
  * - 持久化用户选择到 localStorage
  */
 
-import { toast } from "sonner"
 import i18n from "@evoloop/shared/i18n"
+import { toast } from "sonner"
 import { SystemService } from "@/client"
 
 export interface LLMModel {
@@ -36,7 +36,7 @@ class LLMPlatformService {
   private selectedModel: string | null = null
   private lastFetchTime = 0
   private readonly CACHE_TTL = 5 * 60 * 1000 // 5 minutes
-  private fetchPromise: Promise<LLMModel[]> | null = null  // 请求去重锁
+  private fetchPromise: Promise<LLMModel[]> | null = null // 请求去重锁
 
   constructor() {
     // 从 localStorage 恢复用户选择
@@ -70,7 +70,10 @@ class LLMPlatformService {
           this.lastFetchTime = now
 
           // 如果当前选择的模型不在列表中，清除选择
-          if (this.selectedModel && !this.models.find(m => m.id === this.selectedModel)) {
+          if (
+            this.selectedModel &&
+            !this.models.find((m) => m.id === this.selectedModel)
+          ) {
             this.selectedModel = null
             localStorage.removeItem(STORAGE_KEY)
           }
@@ -80,7 +83,12 @@ class LLMPlatformService {
         return []
       } catch (error) {
         console.error("[LLMPlatform] Failed to fetch models:", error)
-        toast.error(i18n.t("chat.modelSelector.fetchFailed", "Failed to fetch model list"))
+        toast.error(
+          i18n.t(
+            "chat.modelSelector.fetchFailed",
+            "Failed to fetch model list",
+          ),
+        )
         return []
       } finally {
         // 清除请求锁
@@ -121,21 +129,21 @@ class LLMPlatformService {
    * 获取模型详情
    */
   getModelById(modelId: string): LLMModel | undefined {
-    return this.models.find(m => m.id === modelId)
+    return this.models.find((m) => m.id === modelId)
   }
 
   /**
    * 获取平台模型列表 (需要配额的)
    */
   getPlatformModels(): LLMModel[] {
-    return this.models.filter(m => m.type === "platform")
+    return this.models.filter((m) => m.type === "platform")
   }
 
   /**
    * 获取自定义模型列表 (用户自己的 API Key)
    */
   getCustomModels(): LLMModel[] {
-    return this.models.filter(m => m.type === "custom")
+    return this.models.filter((m) => m.type === "custom")
   }
 
   /**

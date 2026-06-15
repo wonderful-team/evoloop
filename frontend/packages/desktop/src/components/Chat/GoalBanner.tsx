@@ -1,7 +1,7 @@
+import { AnimatePresence, motion } from "framer-motion"
 import { Target } from "lucide-react"
 import { memo } from "react"
 import { useChatStore } from "@/stores/chatStore"
-import { motion, AnimatePresence } from "framer-motion"
 
 export const GoalBanner = memo(() => {
   const sessionGoal = useChatStore((s) => s.sessionGoal)

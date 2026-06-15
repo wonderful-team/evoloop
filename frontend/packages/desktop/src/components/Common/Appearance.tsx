@@ -1,6 +1,3 @@
-import { Monitor, Moon, Sun } from "lucide-react"
-import { useTranslation } from "react-i18next"
-
 import { type Theme, useTheme } from "@evoloop/shared/components/theme-provider"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
@@ -14,6 +11,8 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@evoloop/shared/components/ui/sidebar"
+import { Monitor, Moon, Sun } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 type LucideIcon = React.FC<React.SVGProps<SVGSVGElement>>
 

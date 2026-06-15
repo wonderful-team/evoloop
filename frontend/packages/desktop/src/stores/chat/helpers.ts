@@ -4,91 +4,110 @@
  * Commits current streaming thinking buffer to the last AI message
  */
 export function commitThinkingBuffer(state: any) {
-    if (!state._streamBuffer && !state._thinkingBuffer) return {}
-    
-    const newMsgs = [...state.messages]
-    const lastAi = [...newMsgs].reverse().find(m => m.role === "ai" && m.status === "streaming")
-    if (lastAi) {
-        lastAi.thinking = (lastAi.thinking || "") + state._thinkingBuffer
-        lastAi.content = (lastAi.content || "") + state._streamBuffer
-    }
-    
-    return { 
-        messages: newMsgs, 
-        _thinkingBuffer: "",
-        _streamBuffer: ""
-    }
+  if (!state._streamBuffer && !state._thinkingBuffer) return {}
+
+  const newMsgs = [...state.messages]
+  const lastAi = [...newMsgs]
+    .reverse()
+    .find((m) => m.role === "ai" && m.status === "streaming")
+  if (lastAi) {
+    lastAi.thinking = (lastAi.thinking || "") + state._thinkingBuffer
+    lastAi.content = (lastAi.content || "") + state._streamBuffer
+  }
+
+  return {
+    messages: newMsgs,
+    _thinkingBuffer: "",
+    _streamBuffer: "",
+  }
 }
 
 /**
  * Normalizes and prepares a raw message object for the store
  */
 export function normalizeMessage(rawMsg: any): any {
-    // Mapping roles to support flat architecture (human, ai, tool)
-    let normalizedRole: "human" | "ai" | "tool" = "ai"
-    if (rawMsg.role === "human" || rawMsg.role === "user") normalizedRole = "human"
-    if (rawMsg.role === "tool") normalizedRole = "tool"
+  // Mapping roles to support flat architecture (human, ai, tool)
+  let normalizedRole: "human" | "ai" | "tool" = "ai"
+  if (rawMsg.role === "human" || rawMsg.role === "user")
+    normalizedRole = "human"
+  if (rawMsg.role === "tool") normalizedRole = "tool"
 
-    // Extract changeset info from references if not explicitly provided
-    let changesetCount = rawMsg.changeset_count || 0
-    let changesetFiles = rawMsg.changeset_files || []
-    
-    if (rawMsg.references) {
-        const csRef = rawMsg.references.find((r: any) => r.type === "changeset")
-        if (csRef && csRef.meta_data) {
-            changesetCount = csRef.meta_data.count || changesetCount
-            changesetFiles = csRef.meta_data.files || changesetFiles
-        }
+  // Extract changeset info from references if not explicitly provided
+  let changesetCount = rawMsg.changeset_count || 0
+  let changesetFiles = rawMsg.changeset_files || []
+
+  if (rawMsg.references) {
+    const csRef = rawMsg.references.find((r: any) => r.type === "changeset")
+    if (csRef?.meta_data) {
+      changesetCount = csRef.meta_data.count || changesetCount
+      changesetFiles = csRef.meta_data.files || changesetFiles
     }
+  }
 
-    return {
-        id: rawMsg.id,
-        role: normalizedRole,
-        originalRole: rawMsg.role,
-        content: rawMsg.content || "",
-        thinking: rawMsg.thinking,
-        timestamp: rawMsg.created_at || new Date().toISOString(),
-        references: rawMsg.references || [],
-        changeset_count: changesetCount,
-        changeset_files: changesetFiles,
-        has_file_operations: changesetCount > 0,
-        category: rawMsg.category,
-        status: rawMsg.status,
-        run_id: rawMsg.run_id,
-        parent_id: rawMsg.parent_id,
-        
-        // Flattened Tool Fields
-        tool_name: rawMsg.tool_name,
-        tool_call_id: rawMsg.tool_call_id,
-        input: rawMsg.input,
-        tool_meta: rawMsg.tool_meta,
+  return {
+    id: rawMsg.id,
+    role: normalizedRole,
+    originalRole: rawMsg.role,
+    content: rawMsg.content || "",
+    thinking: rawMsg.thinking,
+    timestamp: rawMsg.created_at || new Date().toISOString(),
+    references: rawMsg.references || [],
+    changeset_count: changesetCount,
+    changeset_files: changesetFiles,
+    has_file_operations: changesetCount > 0,
+    category: rawMsg.category,
+    status: rawMsg.status,
+    run_id: rawMsg.run_id,
+    parent_id: rawMsg.parent_id,
 
-        meta_data: rawMsg.meta_data || {},
-    }
+    // Flattened Tool Fields
+    tool_name: rawMsg.tool_name,
+    tool_call_id: rawMsg.tool_call_id,
+    input: rawMsg.input,
+    tool_meta: rawMsg.tool_meta,
+
+    meta_data: rawMsg.meta_data || {},
+  }
 }
 
 /**
  * Parses a system message for HITL requests
  */
 export function tryParseHumanRequest(rawMsg: any): any | null {
-    if (rawMsg.category === "HITL_REQUEST" || rawMsg.category === "INTERRUPT") {
-        try {
-            let parsed = typeof rawMsg.content === "string" ? JSON.parse(rawMsg.content) : rawMsg.content
-            if (parsed && typeof parsed.type === "string" && typeof parsed.prompt === "string") {
-                return { ...parsed, status: rawMsg.status }
-            }
-        } catch (e) {
-            console.error("[ChatStore] Failed to parse HITL_REQUEST content:", e)
-        }
+  if (rawMsg.category === "HITL_REQUEST" || rawMsg.category === "INTERRUPT") {
+    try {
+      const parsed =
+        typeof rawMsg.content === "string"
+          ? JSON.parse(rawMsg.content)
+          : rawMsg.content
+      if (
+        parsed &&
+        typeof parsed.type === "string" &&
+        typeof parsed.prompt === "string"
+      ) {
+        return { ...parsed, status: rawMsg.status }
+      }
+    } catch (e) {
+      console.error("[ChatStore] Failed to parse HITL_REQUEST content:", e)
     }
+  }
 
-    if (rawMsg.role === "system" && rawMsg.content) {
-        try {
-            let parsed = typeof rawMsg.content === "string" ? JSON.parse(rawMsg.content) : rawMsg.content
-            if (parsed && typeof parsed.type === "string" && typeof parsed.prompt === "string") {
-                return { ...parsed, status: rawMsg.status }
-            }
-        } catch { /* not JSON */ }
+  if (rawMsg.role === "system" && rawMsg.content) {
+    try {
+      const parsed =
+        typeof rawMsg.content === "string"
+          ? JSON.parse(rawMsg.content)
+          : rawMsg.content
+      if (
+        parsed &&
+        typeof parsed.type === "string" &&
+        typeof parsed.prompt === "string"
+      ) {
+        return { ...parsed, status: rawMsg.status }
+      }
+    } catch {
+      /* not JSON */
     }
-    return null
+  }
+  return null
 }

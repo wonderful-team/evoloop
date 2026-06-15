@@ -1,404 +1,511 @@
-import { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
-import { Smartphone, RefreshCcw, Monitor, StopCircle, AlertTriangle, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { safeInvoke, isTauri } from '@/lib/tauri';
-import { LearningService } from "@/client/sdk.gen";
-import { Button } from '@evoloop/shared/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@evoloop/shared/components/ui/card';
-import { Badge } from '@evoloop/shared/components/ui/badge';
-import { toast } from 'sonner';
-import { ScrollArea } from '@evoloop/shared/components/ui/scroll-area';
-import { useRecordingStore } from '@/stores/recordingStore';
+import { Badge } from "@evoloop/shared/components/ui/badge"
+import { Button } from "@evoloop/shared/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@evoloop/shared/components/ui/card"
+import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
+import { useMutation, useQuery } from "@tanstack/react-query"
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Loader2,
+  Monitor,
+  RefreshCcw,
+  Smartphone,
+  Sparkles,
+  StopCircle,
+} from "lucide-react"
+import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
+import { LearningService } from "@/client/sdk.gen"
+import { isTauri, safeInvoke } from "@/lib/tauri"
+import { useRecordingStore } from "@/stores/recordingStore"
 
 interface AndroidMirrorConsoleProps {
-    onOpenEditor?: (skillId: number) => void;
+  onOpenEditor?: (skillId: number) => void
 }
 
-export function AndroidMirrorConsole({ onOpenEditor }: AndroidMirrorConsoleProps) {
-    const { t } = useTranslation();
-    const [activeSession, setActiveSession] = useState<{ sessionId: string, deviceId: string } | null>(null);
-    const {
-        isRecording,
-        startRecording,
-        stopRecording,
-        setPostRecordingAction,
-        setSessionId,
-        setVideoPath,
-        recordingStartTime,
-        setDeviceResolution,
-    } = useRecordingStore();
-    const [lastSessionId, setLastSessionId] = useState<string | null>(null);
-    const [lastVideoPath, setLastVideoPath] = useState<string | null>(null);
-    const {
-        openAndroidMarkerOverlay,
-        closeAndroidMarkerOverlay,
-    } = useRecordingStore();
+export function AndroidMirrorConsole({
+  onOpenEditor,
+}: AndroidMirrorConsoleProps) {
+  const { t } = useTranslation()
+  const [activeSession, setActiveSession] = useState<{
+    sessionId: string
+    deviceId: string
+  } | null>(null)
+  const {
+    isRecording,
+    startRecording,
+    stopRecording,
+    setPostRecordingAction,
+    setSessionId,
+    setVideoPath,
+    recordingStartTime,
+    setDeviceResolution,
+  } = useRecordingStore()
+  const [lastSessionId, setLastSessionId] = useState<string | null>(null)
+  const [lastVideoPath, setLastVideoPath] = useState<string | null>(null)
+  const { openAndroidMarkerOverlay, closeAndroidMarkerOverlay } =
+    useRecordingStore()
 
-    const { data, isLoading, refetch, isFetching } = useQuery({
-        queryKey: ['mirror-devices'],
-        queryFn: () => LearningService.listMirrorDevices(),
-        refetchInterval: 5000,
-    });
+  const { data, isLoading, refetch, isFetching } = useQuery({
+    queryKey: ["mirror-devices"],
+    queryFn: () => LearningService.listMirrorDevices(),
+    refetchInterval: 5000,
+  })
 
-    const startMutation = useMutation({
-        mutationFn: (deviceId: string) => LearningService.startMirrorSession({ requestBody: { device_id: deviceId, record_video: true } }),
-        onSuccess: async (res) => {
-            if (res.success) {
-                // [FIX] Fetch device resolution for coordinate unification
-                try {
-                    const devices = await LearningService.listMirrorDevices();
-                    const device = devices.devices.find((d: any) => d.serial === res.device_id);
-                    if (device) {
-                        // Use ADB directly if possible, or fallback to sensible default
-                        // In v3, we can call a helper on LearningService
-                        const resolution = await LearningService.getDeviceResolution({ deviceId: res.device_id });
-                        if (resolution) {
-                            console.log("[AndroidMirrorConsole] Device resolution:", resolution);
-                            setDeviceResolution(resolution);
+  const startMutation = useMutation({
+    mutationFn: (deviceId: string) =>
+      LearningService.startMirrorSession({
+        requestBody: { device_id: deviceId, record_video: true },
+      }),
+    onSuccess: async (res) => {
+      if (res.success) {
+        // [FIX] Fetch device resolution for coordinate unification
+        try {
+          const devices = await LearningService.listMirrorDevices()
+          const device = devices.devices.find(
+            (d: any) => d.serial === res.device_id,
+          )
+          if (device) {
+            // Use ADB directly if possible, or fallback to sensible default
+            // In v3, we can call a helper on LearningService
+            const resolution = await LearningService.getDeviceResolution({
+              deviceId: res.device_id,
+            })
+            if (resolution) {
+              console.log(
+                "[AndroidMirrorConsole] Device resolution:",
+                resolution,
+              )
+              setDeviceResolution(resolution)
+            }
+          }
+        } catch (resErr) {
+          console.error(
+            "[AndroidMirrorConsole] Failed to fetch device resolution:",
+            resErr,
+          )
+        }
+
+        setActiveSession({ sessionId: res.session_id, deviceId: res.device_id })
+        // [FIX] Immediately set store to recording state as backend is already recording
+        startRecording("global", "mobile", res.device_id, res.session_id)
+        // [FIX] Set tray recording start time for Android recording
+        try {
+          await safeInvoke("set_recording_start_time")
+        } catch (e) {
+          console.error(
+            "[AndroidMirrorConsole] Failed to set recording start time:",
+            e,
+          )
+        }
+        toast.success(t("learning.mirror.active"))
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err.message || t("learning.mirror.failedToStart"))
+    },
+  })
+
+  const videoPathFromStore = useRecordingStore((state) => state.videoPath)
+  const sessionIdFromStore = useRecordingStore((state) => state.sessionId)
+  const recordingSource = useRecordingStore((state) => state.recordingSource)
+
+  // Effect when mobile recording stops - update local state to show "Create Skill" card
+  useEffect(() => {
+    if (!isRecording && recordingSource === "mobile" && activeSession) {
+      // Clear active session when recording stops
+      setActiveSession(null)
+      // Set last session info if available
+      if (sessionIdFromStore) setLastSessionId(sessionIdFromStore)
+      if (videoPathFromStore) setLastVideoPath(videoPathFromStore)
+    }
+  }, [
+    isRecording,
+    recordingSource,
+    activeSession,
+    sessionIdFromStore,
+    videoPathFromStore,
+  ])
+
+  // Get active thread ID from store for Android marker overlay
+  const activeThreadId = useRecordingStore((state) => state.activeThreadId)
+
+  // Handle Android marker overlay - open when recording starts, close when stops
+  useEffect(() => {
+    const handleRecordingState = async () => {
+      if (isRecording && activeSession?.sessionId) {
+        // Open Android marker overlay when recording starts
+        await openAndroidMarkerOverlay()
+
+        // [FIX] Wait for overlay to be ready before sending session info
+        if (isTauri()) {
+          const { listen } = await import("@tauri-apps/api/event")
+          const { emit } = await import("@tauri-apps/api/event")
+
+          // Wait for the overlay to emit 'android-marker-ready'
+          await new Promise<void>((resolve) => {
+            const unlisten = listen("android-marker-ready", () => {
+              console.log(
+                "[AndroidMirrorConsole] Overlay is ready, sending session info",
+              )
+              unlisten.then((f) => f())
+              resolve()
+            })
+
+            // Timeout after 5 seconds just in case
+            setTimeout(() => {
+              console.warn(
+                "[AndroidMirrorConsole] Timeout waiting for overlay ready, sending anyway",
+              )
+              resolve()
+            }, 5000)
+          })
+
+          // Send session ID, thread ID and start time to overlay
+          const payload = {
+            sessionId: activeSession.sessionId,
+            threadId: activeThreadId || activeSession.sessionId,
+            recordingStartTime: recordingStartTime,
+            deviceId: activeSession.deviceId,
+          }
+          console.log(
+            "[AndroidMirrorConsole] Emitting session to overlay:",
+            payload,
+          )
+          await emit("android-marker-session", payload)
+        }
+      } else {
+        // Close marker overlay when recording stops
+        await closeAndroidMarkerOverlay()
+      }
+    }
+
+    handleRecordingState()
+
+    // Cleanup on unmount
+    return () => {
+      closeAndroidMarkerOverlay()
+    }
+  }, [
+    isRecording,
+    activeSession,
+    activeThreadId,
+    recordingStartTime,
+    openAndroidMarkerOverlay,
+    closeAndroidMarkerOverlay,
+  ])
+
+  const stopMutation = useMutation({
+    mutationFn: (sessionId: string) =>
+      LearningService.stopMirrorSession({
+        requestBody: { session_id: sessionId },
+      }),
+    onSuccess: (res: any, sessionId: string) => {
+      setActiveSession(null)
+      // Only show the card if not already handled by recording flow
+      if (!sessionIdFromStore) {
+        setLastSessionId(sessionId)
+        setLastVideoPath(res.video_path || null)
+      }
+      toast.info(t("learning.mirror.stop"))
+    },
+  })
+
+  const devices = data?.devices || []
+  const scrcpyAvailable = data?.scrcpy_available ?? true
+
+  return (
+    <div className="flex flex-col h-full gap-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight flex items-center gap-2">
+            <Smartphone className="h-5 w-5 text-primary" />
+            {t("learning.mirror.title")}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {t("learning.mirror.description")}
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          className="h-9 w-9"
+        >
+          <RefreshCcw
+            className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
+          />
+        </Button>
+      </div>
+
+      {!scrcpyAvailable && (
+        <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20 flex items-center gap-3 text-destructive">
+          <AlertTriangle className="h-5 w-5 shrink-0" />
+          <div>
+            <p className="text-sm font-bold">{t("learning.mirror.warning")}</p>
+            <p className="text-xs opacity-90">
+              {t("learning.mirror.scrcpyNotInstalled")}
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
+          <Card className="border-none shadow-sm bg-card/50 backdrop-blur-md">
+            <CardHeader className="py-4 px-6 border-b border-border bg-muted/30">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground/80">
+                  {t("learning.mirror.devices")}
+                </CardTitle>
+                <Badge variant="secondary" className="font-mono text-[10px]">
+                  {devices.length} {t("learning.mirror.found")}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <ScrollArea className="h-[450px]">
+                {isLoading ? (
+                  <div className="h-[400px] flex flex-col items-center justify-center gap-3">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary/30" />
+                    <p className="text-sm text-muted-foreground/50">
+                      {t("learning.mirror.connecting")}
+                    </p>
+                  </div>
+                ) : devices.length === 0 ? (
+                  <div className="h-[400px] flex flex-col items-center justify-center text-center p-8 gap-4 opacity-40">
+                    <Smartphone className="h-12 w-12 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground max-w-[200px]">
+                      {t("learning.mirror.noDevices")}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border/50">
+                    {devices.map((device) => {
+                      const isMyActive =
+                        activeSession?.deviceId === device.serial
+                      return (
+                        <div
+                          key={device.serial}
+                          className={`group p-4 flex items-center justify-between transition-colors hover:bg-accent/5 ${isMyActive ? "bg-primary/5" : ""}`}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div
+                              className={`p-2.5 rounded-xl transition-all ${
+                                isMyActive
+                                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                                  : "bg-muted text-muted-foreground"
+                              }`}
+                            >
+                              <Smartphone className="h-5 w-5" />
+                            </div>
+                            <div className="space-y-0.5">
+                              <p className="text-sm font-bold tracking-tight">
+                                {device.serial}
+                              </p>
+                              <div className="flex items-center gap-2">
+                                <div
+                                  className={`h-1.5 w-1.5 rounded-full ${device.status === "device" ? "bg-green-500" : "bg-yellow-500"}`}
+                                />
+                                <span className="text-[10px] uppercase font-bold text-muted-foreground/60">
+                                  {device.status}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {isMyActive ? (
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() =>
+                                  stopMutation.mutate(activeSession.sessionId)
+                                }
+                                className="h-8 rounded-lg font-bold"
+                                disabled={stopMutation.isPending}
+                              >
+                                {stopMutation.isPending ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <StopCircle className="h-3 w-3 mr-1.5" />
+                                )}
+                                {t("learning.mirror.stop")}
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={
+                                  !!activeSession ||
+                                  device.status !== "device" ||
+                                  startMutation.isPending
+                                }
+                                onClick={() =>
+                                  startMutation.mutate(device.serial)
+                                }
+                                className="h-8 rounded-lg font-bold hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all"
+                              >
+                                {startMutation.isPending &&
+                                startMutation.variables === device.serial ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Monitor className="h-3 w-3 mr-1.5" />
+                                )}
+                                {t("learning.mirror.start")}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          <Card className="border-none shadow-sm bg-gradient-to-br from-primary/5 to-purple-500/5 backdrop-blur-md overflow-hidden relative group h-full flex flex-col items-center justify-center p-8 text-center border-2 border-white/5">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-[60px] rounded-full -mr-16 -mt-16 pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-500/10 blur-[60px] rounded-full -ml-16 -mb-16 pointer-events-none" />
+
+            {activeSession ? (
+              <div className="space-y-6 animate-in zoom-in-95 duration-500">
+                <div className="relative inline-block">
+                  <div className="absolute -inset-4 bg-primary/20 rounded-full blur-2xl animate-pulse" />
+                  <div className="relative h-20 w-20 bg-background rounded-2xl flex items-center justify-center border-2 border-primary/20 shadow-xl">
+                    <Monitor className="h-10 w-10 text-primary" />
+                  </div>
+                  <div className="absolute -bottom-1 -right-1 h-6 w-6 bg-green-500 rounded-full border-4 border-background flex items-center justify-center shadow-md">
+                    <CheckCircle2 className="h-3 w-3 text-white" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-bold text-lg">
+                    {t("learning.mirror.active")}
+                  </h4>
+                  <div className="flex flex-col items-center gap-1.5">
+                    <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest leading-none">
+                      {t("learning.mirror.deviceId")}
+                    </span>
+                    <code className="bg-black/20 px-2 py-0.5 rounded text-primary text-[10px] font-mono border border-primary/10">
+                      {activeSession.deviceId}
+                    </code>
+                  </div>
+                </div>
+                <Badge
+                  variant="outline"
+                  className="bg-primary/5 text-primary border-primary/20 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider"
+                >
+                  {t("learning.mirror.liveOverlay")}
+                </Badge>
+
+                <div className="pt-4 space-y-3">
+                  {isRecording ? (
+                    <Button
+                      variant="destructive"
+                      className="w-full gap-2 font-bold h-10 shadow-lg shadow-destructive/20 animate-pulse"
+                      onClick={async () => {
+                        setPostRecordingAction("synthesize")
+                        stopRecording()
+
+                        // [CRITICAL FIX]: Immediately persist events to DB from memory
+                        // so they aren't lost if the backend restarts before synthesis!
+                        if (activeSession) {
+                          try {
+                            await LearningService.persistMirrorEvents({
+                              requestBody: {
+                                session_id: activeSession.sessionId,
+                              },
+                            })
+                          } catch (e) {
+                            console.error("Failed to persist mirror events:", e)
+                          }
                         }
-                    }
-                } catch (resErr) {
-                    console.error("[AndroidMirrorConsole] Failed to fetch device resolution:", resErr);
-                }
 
-                setActiveSession({ sessionId: res.session_id, deviceId: res.device_id });
-                // [FIX] Immediately set store to recording state as backend is already recording
-                startRecording('global', 'mobile', res.device_id, res.session_id);
-                // [FIX] Set tray recording start time for Android recording
-                try {
-                    await safeInvoke('set_recording_start_time');
-                } catch (e) {
-                    console.error('[AndroidMirrorConsole] Failed to set recording start time:', e);
-                }
-                toast.success(t('learning.mirror.active'));
-            }
-        },
-        onError: (err: any) => {
-            toast.error(err.message || t('learning.mirror.failedToStart'));
-        }
-    });
-
-    const videoPathFromStore = useRecordingStore(state => state.videoPath);
-    const sessionIdFromStore = useRecordingStore(state => state.sessionId);
-    const recordingSource = useRecordingStore(state => state.recordingSource);
-
-    // Effect when mobile recording stops - update local state to show "Create Skill" card
-    useEffect(() => {
-        if (!isRecording && recordingSource === 'mobile' && activeSession) {
-            // Clear active session when recording stops
-            setActiveSession(null);
-            // Set last session info if available
-            if (sessionIdFromStore) setLastSessionId(sessionIdFromStore);
-            if (videoPathFromStore) setLastVideoPath(videoPathFromStore);
-        }
-    }, [isRecording, recordingSource, activeSession, sessionIdFromStore, videoPathFromStore]);
-
-    // Get active thread ID from store for Android marker overlay
-    const activeThreadId = useRecordingStore(state => state.activeThreadId);
-
-    // Handle Android marker overlay - open when recording starts, close when stops
-    useEffect(() => {
-        const handleRecordingState = async () => {
-            if (isRecording && activeSession?.sessionId) {
-                // Open Android marker overlay when recording starts
-                await openAndroidMarkerOverlay();
-
-                // [FIX] Wait for overlay to be ready before sending session info
-                if (isTauri()) {
-                    const { listen } = await import('@tauri-apps/api/event');
-                    const { emit } = await import('@tauri-apps/api/event');
-
-                    // Wait for the overlay to emit 'android-marker-ready'
-                    await new Promise<void>((resolve) => {
-                        const unlisten = listen('android-marker-ready', () => {
-                            console.log("[AndroidMirrorConsole] Overlay is ready, sending session info");
-                            unlisten.then(f => f());
-                            resolve();
-                        });
-
-                        // Timeout after 5 seconds just in case
-                        setTimeout(() => {
-                            console.warn("[AndroidMirrorConsole] Timeout waiting for overlay ready, sending anyway");
-                            resolve();
-                        }, 5000);
-                    });
-
-                    // Send session ID, thread ID and start time to overlay
-                    const payload = {
-                        sessionId: activeSession.sessionId,
-                        threadId: activeThreadId || activeSession.sessionId,
-                        recordingStartTime: recordingStartTime,
-                        deviceId: activeSession.deviceId
-                    };
-                    console.log("[AndroidMirrorConsole] Emitting session to overlay:", payload);
-                    await emit('android-marker-session', payload);
-                }
-            } else {
-                // Close marker overlay when recording stops
-                await closeAndroidMarkerOverlay();
-            }
-        };
-
-        handleRecordingState();
-
-        // Cleanup on unmount
-        return () => {
-            closeAndroidMarkerOverlay();
-        };
-    }, [isRecording, activeSession, activeThreadId, recordingStartTime, openAndroidMarkerOverlay, closeAndroidMarkerOverlay]);
-
-    const stopMutation = useMutation({
-        mutationFn: (sessionId: string) => LearningService.stopMirrorSession({ requestBody: { session_id: sessionId } }),
-        onSuccess: (res: any, sessionId: string) => {
-            setActiveSession(null);
-            // Only show the card if not already handled by recording flow
-            if (!sessionIdFromStore) {
-                setLastSessionId(sessionId);
-                setLastVideoPath(res.video_path || null);
-            }
-            toast.info(t('learning.mirror.stop'));
-        }
-    });
-
-    const devices = data?.devices || [];
-    const scrcpyAvailable = data?.scrcpy_available ?? true;
-
-    return (
-        <div className="flex flex-col h-full gap-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-xl font-bold tracking-tight flex items-center gap-2">
-                        <Smartphone className="h-5 w-5 text-primary" />
-                        {t('learning.mirror.title')}
-                    </h2>
-                    <p className="text-sm text-muted-foreground">{t('learning.mirror.description')}</p>
+                        // [FIX] Clear active session to update device list button state
+                        setActiveSession(null)
+                      }}
+                    >
+                      <StopCircle className="h-4 w-4" />
+                      {t("learning.mirror.recordStop")}
+                    </Button>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 text-muted-foreground animate-in fade-in">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <p className="text-[10px] font-bold uppercase tracking-widest">
+                        {t("learning.mirror.connecting")}
+                      </p>
+                    </div>
+                  )}
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest opacity-60">
+                    {isRecording
+                      ? t("learning.mirror.recordingInProgress")
+                      : t("learning.mirror.recordingAction")}
+                  </p>
+                </div>
+              </div>
+            ) : lastSessionId ? (
+              <div className="space-y-6 animate-in fade-in duration-500 text-center">
+                <div className="relative h-20 w-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto border border-primary/20">
+                  <Sparkles className="h-10 w-10 text-primary animate-pulse" />
+                </div>
+                <div className="space-y-2">
+                  <h4 className="font-bold">{t("learning.createSkill")}</h4>
+                  <p className="text-xs text-muted-foreground px-4">
+                    {t("learning.createSkillDesc")}
+                  </p>
                 </div>
                 <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => refetch()}
-                    disabled={isFetching}
-                    className="h-9 w-9"
+                  className="gap-2 font-bold"
+                  onClick={() => {
+                    // Trigger parent learning.tsx dialog by setting store values
+                    if (lastSessionId) setSessionId(lastSessionId)
+                    if (lastVideoPath) setVideoPath(lastVideoPath)
+                    setPostRecordingAction("synthesize")
+                  }}
                 >
-                    <RefreshCcw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+                  <Sparkles className="h-4 w-4" />
+                  {t("learning.synthesize")}
                 </Button>
-            </div>
-
-            {!scrcpyAvailable && (
-                <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20 flex items-center gap-3 text-destructive">
-                    <AlertTriangle className="h-5 w-5 shrink-0" />
-                    <div>
-                        <p className="text-sm font-bold">{t('learning.mirror.warning')}</p>
-                        <p className="text-xs opacity-90">{t('learning.mirror.scrcpyNotInstalled')}</p>
-                    </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setLastSessionId(null)}
+                  className="text-[10px] text-muted-foreground uppercase tracking-widest"
+                >
+                  {t("common.cancel")}
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-6 opacity-40">
+                <div className="h-20 w-20 bg-muted/50 rounded-2xl flex items-center justify-center mx-auto border-2 border-dashed border-muted-foreground/20">
+                  <Monitor className="h-10 w-10 text-muted-foreground/50" />
                 </div>
+                <div className="space-y-3">
+                  <div className="h-1.5 w-24 bg-muted rounded-full mx-auto" />
+                  <div className="h-1 w-16 bg-muted/50 rounded-full mx-auto" />
+                </div>
+                <p className="text-xs font-medium text-muted-foreground max-w-[160px] mx-auto leading-relaxed">
+                  {t("learning.mirror.description")}
+                </p>
+              </div>
             )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-4">
-                    <Card className="border-none shadow-sm bg-card/50 backdrop-blur-md">
-                        <CardHeader className="py-4 px-6 border-b border-border bg-muted/30">
-                            <div className="flex items-center justify-between">
-                                <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground/80">
-                                    {t('learning.mirror.devices')}
-                                </CardTitle>
-                                <Badge variant="secondary" className="font-mono text-[10px]">
-                                    {devices.length} {t('learning.mirror.found')}
-                                </Badge>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="p-0">
-                            <ScrollArea className="h-[450px]">
-                                {isLoading ? (
-                                    <div className="h-[400px] flex flex-col items-center justify-center gap-3">
-                                        <Loader2 className="h-8 w-8 animate-spin text-primary/30" />
-                                        <p className="text-sm text-muted-foreground/50">{t('learning.mirror.connecting')}</p>
-                                    </div>
-                                ) : devices.length === 0 ? (
-                                    <div className="h-[400px] flex flex-col items-center justify-center text-center p-8 gap-4 opacity-40">
-                                        <Smartphone className="h-12 w-12 text-muted-foreground" />
-                                        <p className="text-sm text-muted-foreground max-w-[200px]">
-                                            {t('learning.mirror.noDevices')}
-                                        </p>
-                                    </div>
-                                ) : (
-                                    <div className="divide-y divide-border/50">
-                                        {devices.map((device) => {
-                                            const isMyActive = activeSession?.deviceId === device.serial;
-                                            return (
-                                                <div
-                                                    key={device.serial}
-                                                    className={`group p-4 flex items-center justify-between transition-colors hover:bg-accent/5 ${isMyActive ? 'bg-primary/5' : ''}`}
-                                                >
-                                                    <div className="flex items-center gap-4">
-                                                        <div className={`p-2.5 rounded-xl transition-all ${isMyActive
-                                                            ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
-                                                            : 'bg-muted text-muted-foreground'
-                                                            }`}>
-                                                            <Smartphone className="h-5 w-5" />
-                                                        </div>
-                                                        <div className="space-y-0.5">
-                                                            <p className="text-sm font-bold tracking-tight">{device.serial}</p>
-                                                            <div className="flex items-center gap-2">
-                                                                <div className={`h-1.5 w-1.5 rounded-full ${device.status === 'device' ? 'bg-green-500' : 'bg-yellow-500'}`} />
-                                                                <span className="text-[10px] uppercase font-bold text-muted-foreground/60">{device.status}</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="flex items-center gap-2">
-                                                        {isMyActive ? (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="destructive"
-                                                                onClick={() => stopMutation.mutate(activeSession.sessionId)}
-                                                                className="h-8 rounded-lg font-bold"
-                                                                disabled={stopMutation.isPending}
-                                                            >
-                                                                {stopMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <StopCircle className="h-3 w-3 mr-1.5" />}
-                                                                {t('learning.mirror.stop')}
-                                                            </Button>
-                                                        ) : (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                disabled={!!activeSession || device.status !== 'device' || startMutation.isPending}
-                                                                onClick={() => startMutation.mutate(device.serial)}
-                                                                className="h-8 rounded-lg font-bold hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all"
-                                                            >
-                                                                {startMutation.isPending && startMutation.variables === device.serial ? (
-                                                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                                                ) : (
-                                                                    <Monitor className="h-3 w-3 mr-1.5" />
-                                                                )}
-                                                                {t('learning.mirror.start')}
-                                                            </Button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </ScrollArea>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                <div className="space-y-6">
-                    <Card className="border-none shadow-sm bg-gradient-to-br from-primary/5 to-purple-500/5 backdrop-blur-md overflow-hidden relative group h-full flex flex-col items-center justify-center p-8 text-center border-2 border-white/5">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-[60px] rounded-full -mr-16 -mt-16 pointer-events-none" />
-                        <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-500/10 blur-[60px] rounded-full -ml-16 -mb-16 pointer-events-none" />
-
-                        {activeSession ? (
-                            <div className="space-y-6 animate-in zoom-in-95 duration-500">
-                                <div className="relative inline-block">
-                                    <div className="absolute -inset-4 bg-primary/20 rounded-full blur-2xl animate-pulse" />
-                                    <div className="relative h-20 w-20 bg-background rounded-2xl flex items-center justify-center border-2 border-primary/20 shadow-xl">
-                                        <Monitor className="h-10 w-10 text-primary" />
-                                    </div>
-                                    <div className="absolute -bottom-1 -right-1 h-6 w-6 bg-green-500 rounded-full border-4 border-background flex items-center justify-center shadow-md">
-                                        <CheckCircle2 className="h-3 w-3 text-white" />
-                                    </div>
-                                </div>
-                                <div className="space-y-1">
-                                    <h4 className="font-bold text-lg">{t('learning.mirror.active')}</h4>
-                                    <div className="flex flex-col items-center gap-1.5">
-                                        <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest leading-none">{t('learning.mirror.deviceId')}</span>
-                                        <code className="bg-black/20 px-2 py-0.5 rounded text-primary text-[10px] font-mono border border-primary/10">
-                                            {activeSession.deviceId}
-                                        </code>
-                                    </div>
-                                </div>
-                                <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                                    {t('learning.mirror.liveOverlay')}
-                                </Badge>
-
-                                <div className="pt-4 space-y-3">
-                                    {isRecording ? (
-                                        <Button
-                                            variant="destructive"
-                                            className="w-full gap-2 font-bold h-10 shadow-lg shadow-destructive/20 animate-pulse"
-                                            onClick={async () => {
-                                                setPostRecordingAction('synthesize');
-                                                stopRecording();
-
-                                                // [CRITICAL FIX]: Immediately persist events to DB from memory
-                                                // so they aren't lost if the backend restarts before synthesis!
-                                                if (activeSession) {
-                                                    try {
-                                                        await LearningService.persistMirrorEvents({ requestBody: { session_id: activeSession.sessionId } });
-                                                    } catch (e) {
-                                                        console.error("Failed to persist mirror events:", e);
-                                                    }
-                                                }
-
-                                                // [FIX] Clear active session to update device list button state
-                                                setActiveSession(null);
-                                            }}
-                                        >
-                                            <StopCircle className="h-4 w-4" />
-                                            {t('learning.mirror.recordStop')}
-                                        </Button>
-                                    ) : (
-                                        <div className="flex flex-col items-center gap-2 text-muted-foreground animate-in fade-in">
-                                            <Loader2 className="h-5 w-5 animate-spin" />
-                                            <p className="text-[10px] font-bold uppercase tracking-widest">{t('learning.mirror.connecting')}</p>
-                                        </div>
-                                    )}
-                                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest opacity-60">
-                                        {isRecording ? t('learning.mirror.recordingInProgress') : t('learning.mirror.recordingAction')}
-                                    </p>
-                                </div>
-                            </div>
-                        ) : lastSessionId ? (
-                            <div className="space-y-6 animate-in fade-in duration-500 text-center">
-                                <div className="relative h-20 w-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto border border-primary/20">
-                                    <Sparkles className="h-10 w-10 text-primary animate-pulse" />
-                                </div>
-                                <div className="space-y-2">
-                                    <h4 className="font-bold">{t('learning.createSkill')}</h4>
-                                    <p className="text-xs text-muted-foreground px-4">
-                                        {t('learning.createSkillDesc')}
-                                    </p>
-                                </div>
-                                <Button
-                                    className="gap-2 font-bold"
-                                    onClick={() => {
-                                        // Trigger parent learning.tsx dialog by setting store values
-                                        if (lastSessionId) setSessionId(lastSessionId);
-                                        if (lastVideoPath) setVideoPath(lastVideoPath);
-                                        setPostRecordingAction('synthesize');
-                                    }}
-                                >
-                                    <Sparkles className="h-4 w-4" />
-                                    {t('learning.synthesize')}
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={() => setLastSessionId(null)} className="text-[10px] text-muted-foreground uppercase tracking-widest">
-                                    {t('common.cancel')}
-                                </Button>
-                            </div>
-                        ) : (
-                            <div className="space-y-6 opacity-40">
-                                <div className="h-20 w-20 bg-muted/50 rounded-2xl flex items-center justify-center mx-auto border-2 border-dashed border-muted-foreground/20">
-                                    <Monitor className="h-10 w-10 text-muted-foreground/50" />
-                                </div>
-                                <div className="space-y-3">
-                                    <div className="h-1.5 w-24 bg-muted rounded-full mx-auto" />
-                                    <div className="h-1 w-16 bg-muted/50 rounded-full mx-auto" />
-                                </div>
-                                <p className="text-xs font-medium text-muted-foreground max-w-[160px] mx-auto leading-relaxed">
-                                    {t('learning.mirror.description')}
-                                </p>
-                            </div>
-                        )}
-                    </Card>
-                </div>
-            </div>
-
-            {/* NOTE: Android marker overlay is now a system-level floating window */}
-            {/* It is created via Tauri WebviewWindow API when recording starts */}
+          </Card>
         </div>
-    );
+      </div>
+
+      {/* NOTE: Android marker overlay is now a system-level floating window */}
+      {/* It is created via Tauri WebviewWindow API when recording starts */}
+    </div>
+  )
 }

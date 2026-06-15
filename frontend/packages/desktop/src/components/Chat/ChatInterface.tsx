@@ -1,16 +1,13 @@
-import { useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query"
-import { Brain } from "lucide-react"
-import { useCallback, useEffect, useRef, useState, useMemo } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
+import { Button } from "@evoloop/shared/components/ui/button"
 import {
-  AgentService,
-  ConversationsService,
-  MemoryService,
-} from "@/client"
-import { ChatConnection } from "@/lib/ChatConnection"
-import { isLoggedIn } from "@/hooks/useAuth"
-
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@evoloop/shared/components/ui/dialog"
+import { Input } from "@evoloop/shared/components/ui/input"
+import { Label } from "@evoloop/shared/components/ui/label"
 import {
   ResizableHandle,
   ResizablePanel,
@@ -23,73 +20,78 @@ import {
   SheetTitle,
 } from "@evoloop/shared/components/ui/sheet"
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@evoloop/shared/components/ui/dialog"
-import { Input } from "@evoloop/shared/components/ui/input"
-import { Label } from "@evoloop/shared/components/ui/label"
-import { useChatStore } from "@/stores/chatStore"
-import { useUIStore } from "@/stores/uiStore"
-import { useProjectStore } from "@/stores/projectStore"
-import { Button } from "@evoloop/shared/components/ui/button"
-import { HITLBanner } from "./HITLBanner"
-import { BreadcrumbStatus } from "./BreadcrumbStatus"
-import { QuotaExhaustedBanner } from "./QuotaExhaustedBanner"
-import { ChatInputArea, type ChatInputAreaHandle } from "./ChatInputArea"
-import { MessageList } from "./MessageList"
-import { ChatSidebar, type Thread } from "./ChatSidebar"
-import { ContextPanel } from "./ContextPanel"
-import { RewindConfirmDialog } from "./RewindConfirmDialog"
-import { DebugManager } from "./DebugManager"
-import { HumanRequestCard } from "./HumanRequestCard"
-import { QuotaExhaustedCard } from "./QuotaExhaustedCard"
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query"
+import { Brain } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
+import { AgentService, ConversationsService, MemoryService } from "@/client"
+import { isLoggedIn } from "@/hooks/useAuth"
 import { useAgentStore } from "@/stores/agentStore"
 import { useChangesetStore } from "@/stores/changesetStore"
+import { useChatStore } from "@/stores/chatStore"
+import { useProjectStore } from "@/stores/projectStore"
+import { useUIStore } from "@/stores/uiStore"
+import { BreadcrumbStatus } from "./BreadcrumbStatus"
+import { ChatInputArea, type ChatInputAreaHandle } from "./ChatInputArea"
+import { ChatSidebar, type Thread } from "./ChatSidebar"
+import { ContextPanel } from "./ContextPanel"
+import { DebugManager } from "./DebugManager"
+import { HITLBanner } from "./HITLBanner"
+import { HumanRequestCard } from "./HumanRequestCard"
 import { useChatMutations } from "./hooks/useChatMutations"
+import { MessageList } from "./MessageList"
+import { QuotaExhaustedBanner } from "./QuotaExhaustedBanner"
+import { QuotaExhaustedCard } from "./QuotaExhaustedCard"
+import { RewindConfirmDialog } from "./RewindConfirmDialog"
 
 export function ChatInterface() {
   // --- Store State (selective subscriptions to avoid unnecessary re-renders) ---
-  const activeThreadId = useChatStore(s => s.threadId)
-  const storeProjectId = useChatStore(s => s.projectId)
-  const setThread = useChatStore(s => s.setThread)
-  const sendMessage = useChatStore(s => s.sendMessage)
-  const _truncateMessages = useChatStore(s => s._truncateMessages)
-  const status = useAgentStore(s => s.status)
-  const humanRequest = useAgentStore(s => s.humanRequest)
-  const stopAgent = useAgentStore(s => s.stopAgent)
-  const markChangeAsViewed = useChangesetStore(s => s.markChangeAsViewed)
-  const markAllChangesAsViewed = useChangesetStore(s => s.markAllChangesAsViewed)
-  const selectedModel = useChatStore(s => s.selectedModel)
+  const activeThreadId = useChatStore((s) => s.threadId)
+  const storeProjectId = useChatStore((s) => s.projectId)
+  const setThread = useChatStore((s) => s.setThread)
+  const sendMessage = useChatStore((s) => s.sendMessage)
+  const _truncateMessages = useChatStore((s) => s._truncateMessages)
+  const status = useAgentStore((s) => s.status)
+  const humanRequest = useAgentStore((s) => s.humanRequest)
+  const stopAgent = useAgentStore((s) => s.stopAgent)
+  const markChangeAsViewed = useChangesetStore((s) => s.markChangeAsViewed)
+  const markAllChangesAsViewed = useChangesetStore(
+    (s) => s.markAllChangesAsViewed,
+  )
+  const _selectedModel = useChatStore((s) => s.selectedModel)
 
   const { t } = useTranslation()
-  const currentProject = useProjectStore(s => s.currentProject)
-  const isGlobalMode = useProjectStore(s => s.isGlobalMode)
+  const currentProject = useProjectStore((s) => s.currentProject)
+  const isGlobalMode = useProjectStore((s) => s.isGlobalMode)
   const queryClient = useQueryClient()
 
   // --- UI State ---
   const [isRewindDialogOpen, setIsRewindDialogOpen] = useState(false)
-  const [rewindTargetId, setRewindTargetId] = useState<string | null>(null)
-  const [rewindRevertFiles, setRewindRevertFiles] = useState(true)
-  const [rewindContent, setRewindContent] = useState("")
+  const [_rewindTargetId, _setRewindTargetId] = useState<string | null>(null)
+  const [_rewindRevertFiles, _setRewindRevertFiles] = useState(true)
+  const [_rewindContent, setRewindContent] = useState("")
   const [confirmMode, setConfirmMode] = useState<"rewind" | "retry">("rewind")
-  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null)
-  
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(
+    null,
+  )
+
   const chatInputRef = useRef<ChatInputAreaHandle | null>(null)
 
   // Custom Hook for Mutations
   const { rewindMutation, retryMutation } = useChatMutations({
     setIsRewindDialogOpen,
     setRewindContent,
-    chatInputRef
+    chatInputRef,
   })
 
   const [sidebarActiveTab, setSidebarActiveTab] = useState<string>("chats")
   const [expandAgentChanges, setExpandAgentChanges] = useState<boolean>(false)
 
-  const projectId = (currentProject?.id ?? storeProjectId) ?? undefined
+  const projectId = currentProject?.id ?? storeProjectId ?? undefined
 
   // We maintain 'showContextPanel' locally as it involves UI preference
   // Global mode: hidden by default; Project mode: show by default
@@ -135,7 +137,11 @@ export function ChatInterface() {
 
   // Auto-show context panel when agent starts working
   useEffect(() => {
-    if (status === "running" && !showContextPanel && !hasManuallyClosedInCurrentRun.current) {
+    if (
+      status === "running" &&
+      !showContextPanel &&
+      !hasManuallyClosedInCurrentRun.current
+    ) {
       setShowContextPanel(true)
     }
   }, [status, showContextPanel])
@@ -183,10 +189,18 @@ export function ChatInterface() {
           // But the user request said "Jump to conversation... and quote...".
           // If we auto-send, the reference needs to be attached to the message being sent.
           setTimeout(() => sendMessage(pendingMessage), 500)
-          window.history.replaceState({}, '', window.location.pathname + (tid ? `?thread_id=${tid}` : ''))
+          window.history.replaceState(
+            {},
+            "",
+            window.location.pathname + (tid ? `?thread_id=${tid}` : ""),
+          )
         } else if (!shouldAutoSend && !quoteId) {
           // Just plain fill? (Need store support)
-          window.history.replaceState({}, '', window.location.pathname + (tid ? `?thread_id=${tid}` : ''))
+          window.history.replaceState(
+            {},
+            "",
+            window.location.pathname + (tid ? `?thread_id=${tid}` : ""),
+          )
         }
       }
     }
@@ -197,29 +211,40 @@ export function ChatInterface() {
     const params = new URLSearchParams(window.location.search)
     const quoteId = params.get("quoteId")
     const pendingMessage = params.get("message")
-    const shouldAutoSend = params.get("autoSend") === "true"
+    const _shouldAutoSend = params.get("autoSend") === "true"
 
     if (!quoteId) return
 
     const checkAndHandleQuote = (currentMessages: any[]) => {
       if (currentMessages.length > 0) {
-        const msg = currentMessages.find(m => m.id === quoteId || m.id.toString() === quoteId)
+        const msg = currentMessages.find(
+          (m) => m.id === quoteId || m.id.toString() === quoteId,
+        )
         if (msg) {
           // Pre-fill input if pending message exists
           if (pendingMessage) {
-            chatInputRef.current?.setInput(pendingMessage + " ")
+            chatInputRef.current?.setInput(`${pendingMessage} `)
           }
 
           // Add reference
           chatInputRef.current?.addReference({
-            type: 'message',
+            type: "message",
             id: msg.id.toString(),
-            name: msg.content.slice(0, 50) + (msg.content.length > 50 ? "..." : ""),
-            detail: msg.role
+            name:
+              msg.content.slice(0, 50) + (msg.content.length > 50 ? "..." : ""),
+            detail: msg.role,
           })
 
           // Clear URL
-          window.history.replaceState({}, '', window.location.pathname + (window.location.search.replace(/quoteId=[^&]*&?/, '').replace(/message=[^&]*&?/, '').replace(/autoSend=[^&]*&?/, '')))
+          window.history.replaceState(
+            {},
+            "",
+            window.location.pathname +
+              window.location.search
+                .replace(/quoteId=[^&]*&?/, "")
+                .replace(/message=[^&]*&?/, "")
+                .replace(/autoSend=[^&]*&?/, ""),
+          )
           return true // Handled
         }
       }
@@ -244,9 +269,11 @@ export function ChatInterface() {
       console.log("[ChatInterface] Unauthorized status detected")
       // Trigger a dummy API call to trigger the global 401 handler
       // This will show toast and redirect to login
-      ConversationsService.listConversations({ projectId: projectId! }).catch(() => {
-        // Error will be handled by main.tsx's handleApiError
-      })
+      ConversationsService.listConversations({ projectId: projectId! }).catch(
+        () => {
+          // Error will be handled by main.tsx's handleApiError
+        },
+      )
     }
   }, [status, projectId])
 
@@ -294,26 +321,31 @@ export function ChatInterface() {
   }, [threadsInfiniteData])
 
   const mappedThreads = useMemo(() => {
-    return threads.map(t => ({
+    return threads.map((t) => ({
       ...t,
       // Override status if it's the active thread, using reliable store state
-      status: t.thread_id === activeThreadId ? status : t.status
+      status: t.thread_id === activeThreadId ? status : t.status,
     }))
   }, [threads, activeThreadId, status])
 
-  const handleTogglePin = useCallback(async (id: string, isPinned: boolean) => {
-    try {
-      await ConversationsService.updateConversation({
-        threadId: id,
-        requestBody: { is_pinned: isPinned },
-      })
-      queryClient.invalidateQueries({ queryKey: ["projectConversations", projectId] })
-      toast.success(isPinned ? "已置顶会话" : "已取消置顶")
-    } catch (err) {
-      console.error(err)
-      toast.error("操作失败")
-    }
-  }, [projectId, queryClient])
+  const handleTogglePin = useCallback(
+    async (id: string, isPinned: boolean) => {
+      try {
+        await ConversationsService.updateConversation({
+          threadId: id,
+          requestBody: { is_pinned: isPinned },
+        })
+        queryClient.invalidateQueries({
+          queryKey: ["projectConversations", projectId],
+        })
+        toast.success(isPinned ? "已置顶会话" : "已取消置顶")
+      } catch (err) {
+        console.error(err)
+        toast.error("操作失败")
+      }
+    },
+    [projectId, queryClient],
+  )
 
   // --- Handlers ---
 
@@ -324,53 +356,72 @@ export function ChatInterface() {
   }, [projectId, setThread])
 
   // Wrapper for sendMessage to handle post-send actions
-  const handleSendMessage = useCallback(async (content: string, pickedFiles?: any[]) => {
-    const isNewThread = useChatStore.getState().messages.length === 0
-    
-    const sendPromise = sendMessage(content, pickedFiles)
+  const handleSendMessage = useCallback(
+    async (content: string, pickedFiles?: any[]) => {
+      const isNewThread = useChatStore.getState().messages.length === 0
 
-    // 立即触发滚动到底部，不需要等待 AI 响应完成
-    // 发送消息后强制滚到底部
-    window.dispatchEvent(new CustomEvent('chat-scroll-to-bottom'))
+      const sendPromise = sendMessage(content, pickedFiles)
 
-    await sendPromise
+      // 立即触发滚动到底部，不需要等待 AI 响应完成
+      // 发送消息后强制滚到底部
+      window.dispatchEvent(new CustomEvent("chat-scroll-to-bottom"))
 
-    // If this was a new thread (first message), refresh the conversation list
-    if (isNewThread && projectId !== undefined) {
-      queryClient.invalidateQueries({ queryKey: ["projectConversations", projectId] })
-    }
-  }, [sendMessage, projectId, queryClient])
+      await sendPromise
 
-  const handleDeleteThread = useCallback(async (id: string) => {
-    try {
-      await ConversationsService.deleteConversation({ threadId: id })
-      queryClient.invalidateQueries({ queryKey: ["projectConversations"] })
-      if (id === activeThreadId) {
-        // Switch to next or new
-        if (threads.length > 0) {
-          const next = threads.find((t) => t.thread_id !== id)
-          if (next && projectId) setThread(next.thread_id, projectId)
-          else handleNewChat()
-        } else {
-          handleNewChat()
-        }
+      // If this was a new thread (first message), refresh the conversation list
+      if (isNewThread && projectId !== undefined) {
+        queryClient.invalidateQueries({
+          queryKey: ["projectConversations", projectId],
+        })
       }
-    } catch (_e) {
-      toast.error(t("chat.interface.deleteChatError"))
-    }
-  }, [activeThreadId, threads, projectId, setThread, handleNewChat, queryClient, t])
+    },
+    [sendMessage, projectId, queryClient],
+  )
 
-  const handleStopThread = useCallback(async (id: string) => {
-    // If stopping active, use store action. Else API.
-    if (id === activeThreadId) {
-      await stopAgent()
-    } else {
-      await AgentService.stopChat({
-        requestBody: { thread_id: id, message: "" },
-      })
-      toast.info(t("chat.interface.stopAgentSuccess"))
-    }
-  }, [activeThreadId, stopAgent, t])
+  const handleDeleteThread = useCallback(
+    async (id: string) => {
+      try {
+        await ConversationsService.deleteConversation({ threadId: id })
+        queryClient.invalidateQueries({ queryKey: ["projectConversations"] })
+        if (id === activeThreadId) {
+          // Switch to next or new
+          if (threads.length > 0) {
+            const next = threads.find((t) => t.thread_id !== id)
+            if (next && projectId) setThread(next.thread_id, projectId)
+            else handleNewChat()
+          } else {
+            handleNewChat()
+          }
+        }
+      } catch (_e) {
+        toast.error(t("chat.interface.deleteChatError"))
+      }
+    },
+    [
+      activeThreadId,
+      threads,
+      projectId,
+      setThread,
+      handleNewChat,
+      queryClient,
+      t,
+    ],
+  )
+
+  const handleStopThread = useCallback(
+    async (id: string) => {
+      // If stopping active, use store action. Else API.
+      if (id === activeThreadId) {
+        await stopAgent()
+      } else {
+        await AgentService.stopChat({
+          requestBody: { thread_id: id, message: "" },
+        })
+        toast.info(t("chat.interface.stopAgentSuccess"))
+      }
+    },
+    [activeThreadId, stopAgent, t],
+  )
 
   // --- Side Effect Mutations (Keep here or move to store if generic) ---
   // These are specific to message item actions
@@ -382,7 +433,8 @@ export function ChatInterface() {
 
   const addToMemoryMutation = useMutation({
     mutationFn: async ({ text, name }: { text: string; name: string }) => {
-      if (projectId === undefined || projectId === null) throw new Error("No project")
+      if (projectId === undefined || projectId === null)
+        throw new Error("No project")
       return MemoryService.addConcept({
         projectId,
         requestBody: {
@@ -400,60 +452,72 @@ export function ChatInterface() {
     },
   })
 
-
   const handleQuoteMessage = useCallback((msg: any) => {
     if (!msg || !msg.id) return
-    const quoteText = msg.effective_content !== undefined && msg.effective_content.trim() !== "" ? msg.effective_content : msg.content;
-    
+    const quoteText =
+      msg.effective_content !== undefined && msg.effective_content.trim() !== ""
+        ? msg.effective_content
+        : msg.content
+
     // Construct reference item
     chatInputRef.current?.addReference({
-      type: 'message',
+      type: "message",
       id: msg.id.toString(),
       name: quoteText.slice(0, 50) + (quoteText.length > 50 ? "..." : ""),
-      detail: msg.role
+      detail: msg.role,
     })
   }, [])
 
   const handleQuoteFile = useCallback((file: any) => {
     chatInputRef.current?.addReference({
-      type: 'file',
+      type: "file",
       id: file.path,
       name: file.name,
-      detail: file.path
+      detail: file.path,
     })
   }, [])
 
   // Handle view changeset from message snapshot
-  const handleViewChangeset = useCallback((_messageId?: string | number, path?: string, diff?: string) => {
-    // Switch to files tab
-    setSidebarActiveTab("files")
-    // Expand Agent Changes panel
-    setExpandAgentChanges(true)
+  const handleViewChangeset = useCallback(
+    (_messageId?: string | number, path?: string, diff?: string) => {
+      // Switch to files tab
+      setSidebarActiveTab("files")
+      // Expand Agent Changes panel
+      setExpandAgentChanges(true)
 
-    const threadId = activeThreadId
-    if (threadId) {
-      if (path) {
-        if (diff) {
-          useUIStore.getState().setPreviewDiff({ path, diff })
-        } else {
-          // Find the file in the changeset and trigger diff (fallback)
-          const file = useChangesetStore.getState().changeset.find(f => f.path === path)
-          if (file) {
-            useUIStore.getState().setPreviewDiff({ path: file.path, diff: file.diff || "" })
+      const threadId = activeThreadId
+      if (threadId) {
+        if (path) {
+          if (diff) {
+            useUIStore.getState().setPreviewDiff({ path, diff })
+          } else {
+            // Find the file in the changeset and trigger diff (fallback)
+            const file = useChangesetStore
+              .getState()
+              .changeset.find((f) => f.path === path)
+            if (file) {
+              useUIStore
+                .getState()
+                .setPreviewDiff({ path: file.path, diff: file.diff || "" })
+            }
           }
+          // Mark as viewed
+          markChangeAsViewed(path, threadId)
+        } else {
+          // Mark all as viewed
+          markAllChangesAsViewed(threadId)
         }
-        // Mark as viewed
-        markChangeAsViewed(path, threadId)
-      } else {
-        // Mark all as viewed
-        markAllChangesAsViewed(threadId)
       }
-    }
-  }, [markChangeAsViewed, markAllChangesAsViewed, activeThreadId])
+    },
+    [markChangeAsViewed, markAllChangesAsViewed, activeThreadId],
+  )
 
-  const handleSetActiveThreadId = useCallback((id: string) => {
-    if (projectId !== undefined) setThread(id, projectId)
-  }, [projectId, setThread])
+  const handleSetActiveThreadId = useCallback(
+    (id: string) => {
+      if (projectId !== undefined) setThread(id, projectId)
+    },
+    [projectId, setThread],
+  )
 
   const handleSelectDiff = useCallback((path: string, diff: string) => {
     useUIStore.getState().setPreviewDiff({ path, diff })
@@ -464,42 +528,54 @@ export function ChatInterface() {
     setIsMemoryDialogOpen(true)
   }, [])
 
-  const handleRewind = useCallback((msg: any) => {
-    const currentMessages = useChatStore.getState().messages
-    const index = currentMessages.findIndex(m => m.id === msg.id)
-    const subMessages = currentMessages.slice(index)
-    const hasFiles = subMessages.some(m => m.has_file_operations)
+  const handleRewind = useCallback(
+    (msg: any) => {
+      const currentMessages = useChatStore.getState().messages
+      const index = currentMessages.findIndex((m) => m.id === msg.id)
+      const subMessages = currentMessages.slice(index)
+      const hasFiles = subMessages.some((m) => m.has_file_operations)
 
-    setSelectedMessageId(msg.id.toString())
+      setSelectedMessageId(msg.id.toString())
 
-    if (msg.role === "human") {
-      setRewindContent(msg.content)
-    } else {
-      setRewindContent("")
-    }
+      if (msg.role === "human") {
+        setRewindContent(msg.content)
+      } else {
+        setRewindContent("")
+      }
 
-    if (hasFiles) {
-      setConfirmMode("rewind")
-      setIsRewindDialogOpen(true)
-    } else {
-      rewindMutation.mutate({ revertFiles: false, messageId: msg.id.toString() })
-    }
-  }, [rewindMutation])
+      if (hasFiles) {
+        setConfirmMode("rewind")
+        setIsRewindDialogOpen(true)
+      } else {
+        rewindMutation.mutate({
+          revertFiles: false,
+          messageId: msg.id.toString(),
+        })
+      }
+    },
+    [rewindMutation],
+  )
 
-  const handleRetry = useCallback((msg: any) => {
-    const currentMessages = useChatStore.getState().messages
-    const index = currentMessages.findIndex(m => m.id === msg.id)
-    const subMessages = currentMessages.slice(index + 1)
-    const hasFiles = subMessages.some(m => m.has_file_operations)
+  const handleRetry = useCallback(
+    (msg: any) => {
+      const currentMessages = useChatStore.getState().messages
+      const index = currentMessages.findIndex((m) => m.id === msg.id)
+      const subMessages = currentMessages.slice(index + 1)
+      const hasFiles = subMessages.some((m) => m.has_file_operations)
 
-    setSelectedMessageId(msg.id.toString())
-    if (hasFiles) {
-      setConfirmMode("retry")
-      setIsRewindDialogOpen(true)
-    } else {
-      retryMutation.mutate({ revertFiles: false, messageId: msg.id.toString() })
-    }
-  }, [retryMutation])
+      setSelectedMessageId(msg.id.toString())
+      if (hasFiles) {
+        setConfirmMode("retry")
+        setIsRewindDialogOpen(true)
+      } else {
+        retryMutation.mutate({
+          revertFiles: false,
+          messageId: msg.id.toString(),
+        })
+      }
+    },
+    [retryMutation],
+  )
 
   // Auto-focus input when agent finishes
   useEffect(() => {
@@ -516,15 +592,24 @@ export function ChatInterface() {
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "start" })
         el.classList.add("ring-2", "ring-primary/20", "rounded-lg")
-        setTimeout(() => el.classList.remove("ring-2", "ring-primary/20", "rounded-lg"), 2000)
+        setTimeout(
+          () => el.classList.remove("ring-2", "ring-primary/20", "rounded-lg"),
+          2000,
+        )
       } else {
         toast.info(t("chat.interface.messageNotLoaded"))
       }
     }
 
-    window.addEventListener("chat-scroll-to-run" as any, handleScrollToRun as any)
+    window.addEventListener(
+      "chat-scroll-to-run" as any,
+      handleScrollToRun as any,
+    )
     return () => {
-      window.removeEventListener("chat-scroll-to-run" as any, handleScrollToRun as any)
+      window.removeEventListener(
+        "chat-scroll-to-run" as any,
+        handleScrollToRun as any,
+      )
     }
   }, [])
 
@@ -532,7 +617,10 @@ export function ChatInterface() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Only trigger if Agent is working and Esc is pressed
-      if (e.key === "Escape" && (status === "running" || status === "summarizing")) {
+      if (
+        e.key === "Escape" &&
+        (status === "running" || status === "summarizing")
+      ) {
         console.log("[ChatInterface] Esc pressed, stopping agent.")
         handleStopThread(activeThreadId || "")
       }
@@ -544,7 +632,10 @@ export function ChatInterface() {
 
   return (
     <div className="flex flex-col h-full w-full min-w-0 relative bg-background overflow-hidden">
-      <ResizablePanelGroup direction="horizontal" className="h-full w-full min-w-0 overflow-hidden">
+      <ResizablePanelGroup
+        direction="horizontal"
+        className="h-full w-full min-w-0 overflow-hidden"
+      >
         {/* Left Sidebar Panel */}
         <ResizablePanel
           defaultSize={16}
@@ -552,33 +643,47 @@ export function ChatInterface() {
           maxSize={40}
           className="hidden lg:block min-w-[100px] overflow-hidden"
         >
-          <div style={{ contain: 'content', height: '100%', width: '100%', minWidth: 0 }}>
-          <ChatSidebar
-            threads={mappedThreads}
-            activeThreadId={activeThreadId || ""}
-            setActiveThreadId={handleSetActiveThreadId}
-            projectId={projectId}
-            onDeleteThread={handleDeleteThread}
-            onStopThread={handleStopThread}
-            onNewChat={handleNewChat}
-            onSelectDiff={handleSelectDiff}
-            onQuoteFile={handleQuoteFile}
-            activeTab={sidebarActiveTab}
-            onTabChange={setSidebarActiveTab}
-            expandAgentChanges={expandAgentChanges}
-            fetchNextPage={fetchNextPage}
-            hasNextPage={hasNextPage}
-            isFetchingNextPage={isFetchingNextPage}
-            onTogglePin={handleTogglePin}
-          />
+          <div
+            style={{
+              contain: "content",
+              height: "100%",
+              width: "100%",
+              minWidth: 0,
+            }}
+          >
+            <ChatSidebar
+              threads={mappedThreads}
+              activeThreadId={activeThreadId || ""}
+              setActiveThreadId={handleSetActiveThreadId}
+              projectId={projectId}
+              onDeleteThread={handleDeleteThread}
+              onStopThread={handleStopThread}
+              onNewChat={handleNewChat}
+              onSelectDiff={handleSelectDiff}
+              onQuoteFile={handleQuoteFile}
+              activeTab={sidebarActiveTab}
+              onTabChange={setSidebarActiveTab}
+              expandAgentChanges={expandAgentChanges}
+              fetchNextPage={fetchNextPage}
+              hasNextPage={hasNextPage}
+              isFetchingNextPage={isFetchingNextPage}
+              onTogglePin={handleTogglePin}
+            />
           </div>
         </ResizablePanel>
 
         <ResizableHandle withHandle />
 
         {/* Center Chat Panel */}
-        <ResizablePanel defaultSize={showContextPanel ? 64 : 84} minSize={20} className="min-w-0 overflow-hidden">
-          <div className="flex flex-col h-full relative min-h-0 min-w-0 w-full overflow-hidden" style={{ contain: 'content' }}>
+        <ResizablePanel
+          defaultSize={showContextPanel ? 64 : 84}
+          minSize={20}
+          className="min-w-0 overflow-hidden"
+        >
+          <div
+            className="flex flex-col h-full relative min-h-0 min-w-0 w-full overflow-hidden"
+            style={{ contain: "content" }}
+          >
             {/* Top Right Controls */}
             <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
               {/* Toggle Context Panel Button */}
@@ -599,7 +704,10 @@ export function ChatInterface() {
             <HITLBanner />
             <QuotaExhaustedBanner />
 
-            <div className="flex-1 min-h-0 min-w-0 w-full" data-tour="chat-messages">
+            <div
+              className="flex-1 min-h-0 min-w-0 w-full"
+              data-tour="chat-messages"
+            >
               <MessageList
                 onAddToMemory={handleAddToMemory}
                 onRewind={handleRewind}
@@ -611,9 +719,7 @@ export function ChatInterface() {
                     {status === "interrupted" && humanRequest && (
                       <HumanRequestCard request={humanRequest} />
                     )}
-                    {status === "quota_exhausted" && (
-                      <QuotaExhaustedCard />
-                    )}
+                    {status === "quota_exhausted" && <QuotaExhaustedCard />}
                   </>
                 }
               />
@@ -644,7 +750,11 @@ export function ChatInterface() {
               maxSize={40}
               className="min-w-0 overflow-hidden"
             >
-              <div data-tour="chat-context" className="h-full w-full min-w-0 overflow-hidden flex flex-col" style={{ contain: 'content' }}>
+              <div
+                data-tour="chat-context"
+                className="h-full w-full min-w-0 overflow-hidden flex flex-col"
+                style={{ contain: "content" }}
+              >
                 <ContextPanel
                   projectId={currentProject?.id}
                   activeThreadId={activeThreadId || ""}
@@ -661,9 +771,14 @@ export function ChatInterface() {
       {/* Compact Window Context Sheet */}
       {isCompactWindow && (
         <Sheet open={showContextPanel} onOpenChange={setShowContextPanel}>
-          <SheetContent side="right" className="w-[320px] sm:w-[400px] max-w-[85vw] p-0 border-l border-border bg-background [&>button]:hidden shadow-2xl flex flex-col min-w-0 overflow-hidden">
+          <SheetContent
+            side="right"
+            className="w-[320px] sm:w-[400px] max-w-[85vw] p-0 border-l border-border bg-background [&>button]:hidden shadow-2xl flex flex-col min-w-0 overflow-hidden"
+          >
             <SheetHeader className="sr-only">
-              <SheetTitle>{t("chat.context.title", { defaultValue: "Agent 工作台" })}</SheetTitle>
+              <SheetTitle>
+                {t("chat.context.title", { defaultValue: "Agent 工作台" })}
+              </SheetTitle>
             </SheetHeader>
             <ContextPanel
               projectId={currentProject?.id}
@@ -690,24 +805,38 @@ export function ChatInterface() {
               <Input
                 id="name"
                 value={memoryName}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMemoryName(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setMemoryName(e.target.value)
+                }
                 placeholder={t("chat.interface.conceptPlaceholder")}
                 className="col-span-3"
                 autoFocus
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">{t("chat.interface.contentLabel")}</Label>
+              <Label className="text-right">
+                {t("chat.interface.contentLabel")}
+              </Label>
               <div className="col-span-3 text-xs text-muted-foreground line-clamp-3 bg-muted p-2 rounded">
                 {memoryContent}
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsMemoryDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setIsMemoryDialogOpen(false)}
+            >
               {t("chat.interface.cancel")}
             </Button>
-            <Button onClick={() => addToMemoryMutation.mutate({ text: memoryContent, name: memoryName })}>
+            <Button
+              onClick={() =>
+                addToMemoryMutation.mutate({
+                  text: memoryContent,
+                  name: memoryName,
+                })
+              }
+            >
               {t("chat.interface.save")}
             </Button>
           </DialogFooter>

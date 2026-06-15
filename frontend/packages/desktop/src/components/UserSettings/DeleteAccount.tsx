@@ -1,11 +1,3 @@
-import { useTranslation } from "react-i18next"
-import { AlertTriangle, Trash2, RefreshCw } from "lucide-react"
-import { SettingsCard } from "@/components/Settings/SettingsCard"
-import { isTauri } from "@/lib/tauri"
-import DeleteConfirmation from "./DeleteConfirmation"
-import { useMutation } from "@tanstack/react-query"
-import { toast } from "sonner"
-import { SystemService } from "@/client"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,6 +10,14 @@ import {
   AlertDialogTrigger,
 } from "@evoloop/shared/components/ui/alert-dialog"
 import { Button } from "@evoloop/shared/components/ui/button"
+import { useMutation } from "@tanstack/react-query"
+import { AlertTriangle, RefreshCw, Trash2 } from "lucide-react"
+import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
+import { SystemService } from "@/client"
+import { SettingsCard } from "@/components/Settings/SettingsCard"
+import { isTauri } from "@/lib/tauri"
+import DeleteConfirmation from "./DeleteConfirmation"
 
 const DeleteAccount = () => {
   const { t } = useTranslation()
@@ -27,27 +27,36 @@ const DeleteAccount = () => {
         <SettingsCard
           icon={AlertTriangle}
           title={t("settings.danger.kb_reset_title")}
-          description={t("settings.danger.kb_reset_desc", "Wipe all indexed code and memory concepts. Use this if the AI seems confused or hallucinations persist.")}
+          description={t(
+            "settings.danger.kb_reset_desc",
+            "Wipe all indexed code and memory concepts. Use this if the AI seems confused or hallucinations persist.",
+          )}
           iconClassName="text-orange-600 bg-orange-600/10"
         >
           <div className="flex flex-col items-start gap-4">
             <p className="text-sm text-muted-foreground">
-              {t("settings.danger.kb_reset_warning", "This action will force the system to rebuild its internal mapping of your project. Active chat sessions might lose some local context.")}
+              {t(
+                "settings.danger.kb_reset_warning",
+                "This action will force the system to rebuild its internal mapping of your project. Active chat sessions might lose some local context.",
+              )}
             </p>
             <ResetKnowledgeConfirmation />
           </div>
         </SettingsCard>
       )}
 
-      <SettingsCard 
-        icon={Trash2} 
-        title={t("settings.danger.title")} 
+      <SettingsCard
+        icon={Trash2}
+        title={t("settings.danger.title")}
         description={t("settings.danger.description")}
         iconClassName="text-destructive bg-destructive/10"
       >
         <div className="flex flex-col items-start gap-4">
           <p className="text-sm text-muted-foreground">
-            {t("settings.danger.delete_warning", "Permanently delete your account and all associated data. This action is irreversible.")}
+            {t(
+              "settings.danger.delete_warning",
+              "Permanently delete your account and all associated data. This action is irreversible.",
+            )}
           </p>
           <DeleteConfirmation />
         </div>
@@ -70,9 +79,7 @@ const ResetKnowledgeConfirmation = () => {
       )
     },
     onError: (err) => {
-      toast.error(
-        t("settings.danger.kb_reset_error"),
-      )
+      toast.error(t("settings.danger.kb_reset_error"))
       console.error(err)
     },
   })
@@ -118,4 +125,3 @@ const ResetKnowledgeConfirmation = () => {
 }
 
 export default DeleteAccount
-
