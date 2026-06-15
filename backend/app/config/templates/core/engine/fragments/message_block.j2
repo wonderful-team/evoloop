@@ -8,6 +8,7 @@
 Use dedicated code blocks — the system auto-renders them as interactive cards in the message feed:
 
 - **Charts**: ` ```echarts ` + valid ECharts `option` JSON object + ` ``` `
+  - **Constraints**: **DO NOT** specify `title` (the card title is rendered in the header), `backgroundColor`, custom font-families (`textStyle`), or custom color palettes. The frontend theme registry automatically applies standard styles.
 - **Maps**: ` ```map ` + GeoJSON or coordinates + ` ``` `
 
 > **Sandbox Bridging Rule**: When a Python/shell script computes chart data, have it `print()` the final ECharts `option` as a JSON string to stdout. You then embed that JSON in a ` ```echarts ``` ` block in your reply. **DO NOT** use `pyecharts.render()` or save `.html` files — the frontend renders charts natively.

@@ -32,6 +32,9 @@ class ContextMiddleware(BaseHTTPMiddleware):
             token = auth_header.split(" ")[1]
             try:
                 member_id = await identity_service.resolve_member_id_from_token(token)
+                # Store on request.state so route deps can reuse without re-resolving
+                request.state.resolved_member_id = member_id
+                request.state.resolved_token = token
             except Exception:
                 pass
 

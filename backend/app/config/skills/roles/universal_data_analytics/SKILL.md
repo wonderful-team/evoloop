@@ -81,10 +81,10 @@ Apply domain-specific analytical frameworks to the sanitized data:
 *Examples: "Compare revenue between this month and last month.", "Show the top 5 products by sales."*
 
 - **Response**: Provide a concise summary table in Markdown **and** one ECharts chart. Skip the Excel file and the full audit methodology section unless anomalies were discovered.
-- **ECharts Format**: Use the standard ` ```echarts ` code block. The content MUST be a valid ECharts `option` object.
+- **ECharts Format**: Use the standard ` ```echarts ` code block. The content MUST be a valid ECharts `option` JSON object.
+  - **Constraints**: **DO NOT** include `title` (the card title is rendered in the header), `backgroundColor`, custom font-families (`textStyle`), or custom color lists in the option JSON. The system handles native fonts, background colors, and theme adaptivity automatically.
   - **Bridging Guidance**: Do NOT generate or save HTML files (e.g. using `pyecharts`'s `.render()`) in your sandbox Python script. Instead, have your Python script `print()` the aggregated data or JSON ECharts `option` object to stdout. You (the LLM) must then capture this output and wrap it within the ` ```echarts ` markdown code block in your final chat response.
   - Choose the chart type based on data: `bar` for comparisons, `line` for trends, `pie` for proportions.
-  - Do NOT set `backgroundColor` or `color` — the system auto-adapts for dark/light mode.
   - Always include `tooltip: { "trigger": "axis" }` for interactivity.
 
 #### 🔴 Tier 3 — Complex Analysis (Multi-dimensional, requires deduplication/auditing, formal business report)

@@ -2,7 +2,7 @@
 
 import asyncio
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Optional, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -152,12 +152,16 @@ class LLMConfig(DynamicBaseModel):
 
 
 class ThinkingConfig(DynamicBaseModel):
-    """LLM 推理/思考配置"""
+    """LLM 推理意图配置（Provider 无关的抽象层）"""
     enable: bool = True
     return_reasoning: bool = True
+    # 语义化深度意图，None = 跟随模型默认，不注入任何约束
+    reasoning_effort: Literal["low", "medium", "high", "max"] | None = "high"
 
     def to_extra_body(self) -> dict[str, Any]:
-        """转换为 OpenAI SDK 的 extra_body 格式"""
+        """仅生成 OpenAI 兼容层的通用字段（enable/return 开关）
+        budget/effort 等 Provider 专属参数由 thinking_adapter 按需注入
+        """
         return {
             "enable_thinking": self.enable,
             "return_reasoning": self.return_reasoning,

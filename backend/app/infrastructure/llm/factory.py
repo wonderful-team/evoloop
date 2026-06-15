@@ -9,13 +9,22 @@ from typing import Any
 from app.infrastructure.config import SystemConfigService
 from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
 from app.infrastructure.schemas import LLMCacheStats, LLMConfig, ThinkingConfig
+from app.infrastructure.llm.thinking_adapter import (
+    detect_model_family,
+    build_anthropic_thinking_kwargs,
+    build_openai_reasoning_extra,
+    get_kimi_min_max_tokens,
+    build_zhipu_thinking_extra,
+    build_minimax_thinking_extra,
+    build_gemini_thinking_extra,
+)
 from app.utils.async_utils import LoopBoundResource
 
 logger = logging.getLogger(__name__)
 
 # Apply reasoning_content patch before any LLM creation
 try:
-    import app.core.engine.message.reasoning  # noqa: F401
+    import app.infrastructure.llm.reasoning_patch  # noqa: F401
 except Exception as e:
     logger.warning(f"[Reasoning] Failed to import patch in factory.py: {e}")
 
@@ -241,11 +250,34 @@ class LLMFactory:
         if not gateway_url:
             raise ValueError("EvoLoop Gateway URL not configured")
 
-        # Merge standard thinking config into extra_body
-        extra_body = {
-            **ThinkingConfig().to_extra_body(),
-            **config.extra_body
-        }
+        # Detect family
+        family = detect_model_family(config.model_name)
+        cfg = ThinkingConfig()
+
+        if family == "openai_reasoning":
+            reasoning_extra = build_openai_reasoning_extra(cfg)
+            extra_body = {**reasoning_extra, **config.extra_body}
+            effective_max_tokens = config.max_tokens
+        elif family == "zhipu":
+            zhipu_extra = build_zhipu_thinking_extra(cfg)
+            extra_body = {**zhipu_extra, **config.extra_body}
+            effective_max_tokens = config.max_tokens
+        elif family == "minimax":
+            minimax_extra = build_minimax_thinking_extra(cfg)
+            extra_body = {**minimax_extra, **config.extra_body}
+            effective_max_tokens = config.max_tokens
+        elif family == "gemini":
+            gemini_extra = build_gemini_thinking_extra(cfg)
+            extra_body = {**gemini_extra, **config.extra_body}
+            effective_max_tokens = config.max_tokens
+        else:
+            base_extra = cfg.to_extra_body()
+            extra_body = {**base_extra, **config.extra_body}
+            
+            effective_max_tokens = config.max_tokens
+            if family == "kimi":
+                kimi_min = get_kimi_min_max_tokens(cfg)
+                effective_max_tokens = max(config.max_tokens or 0, kimi_min)
 
         # Use the current token for initialization.
         # Note: EvoCloudPlatformAuth will automatically replace it with
@@ -258,7 +290,7 @@ class LLMFactory:
             model=config.model_name,
             temperature=config.temperature,
             streaming=config.streaming,
-            max_tokens=config.max_tokens,
+            max_tokens=effective_max_tokens,
             http_async_client=_HTTP_CLIENT_POOL.get(),
             extra_body=extra_body,
         )
@@ -287,12 +319,6 @@ class LLMFactory:
 
         logger.info(f"[LLMFactory] Custom mode: provider={custom_provider}, model={actual_model}")
 
-        # Merge standard thinking config into extra_body
-        merged_extra = {
-            **ThinkingConfig().to_extra_body(),
-            **config.extra_body
-        }
-
         return LLMFactory._build_llm_instance(
             api_key=config.api_key,
             base_url=config.base_url,
@@ -301,7 +327,7 @@ class LLMFactory:
             provider_type=config.provider_type,
             streaming=config.streaming,
             max_tokens=config.max_tokens,
-            extra_body=merged_extra,
+            extra_body=config.extra_body,
         )
 
     @staticmethod
@@ -318,12 +344,6 @@ class LLMFactory:
 
         logger.info(f"[LLMFactory] Direct mode: model={config.model_name}, base_url={config.base_url}")
 
-        # Merge standard thinking config into extra_body
-        merged_extra = {
-            **ThinkingConfig().to_extra_body(),
-            **config.extra_body
-        }
-
         return LLMFactory._build_llm_instance(
             api_key=config.api_key or "",
             base_url=config.base_url,
@@ -332,7 +352,7 @@ class LLMFactory:
             provider_type=config.provider_type,
             streaming=config.streaming,
             max_tokens=config.max_tokens,
-            extra_body=merged_extra,
+            extra_body=config.extra_body,
         )
 
     @staticmethod
@@ -356,13 +376,10 @@ class LLMFactory:
         extra_body: dict[str, Any] | None = None,
     ):
         """Build the actual LLM instance based on provider_type."""
+        cfg = ThinkingConfig()
+        family = detect_model_family(model_name, base_url)
 
-        # 统一的 thinking 配置
-        # 使用 extra_body 避免 OpenAI SDK 校验失败
-        thinking_extra = ThinkingConfig().to_extra_body()
-        merged_extra = {**thinking_extra, **(extra_body or {})}
-
-        if provider_type == "anthropic":
+        if provider_type == "anthropic" or family == "anthropic":
             from app.infrastructure.llm.anthropic_adapter import CompatibleChatAnthropic
 
             # Anthropic SDK automatically appends /v1/messages to the base_url.
@@ -374,11 +391,7 @@ class LLMFactory:
                 normalized = normalized[:-3]
 
             # Construct Anthropic-native thinking params if enabled
-            anthropic_kwargs = {}
-            if merged_extra.get("enable_thinking"):
-                # Anthropic Claude 3.7 requires a budget_tokens parameter > 1024
-                # We use a default of 4000 for reasoning.
-                anthropic_kwargs["thinking"] = {"type": "enabled", "budget_tokens": 4000}
+            thinking_kwargs = build_anthropic_thinking_kwargs(cfg)
 
             return CompatibleChatAnthropic(
                 api_key=api_key,
@@ -386,28 +399,98 @@ class LLMFactory:
                 model_name=model_name,
                 temperature=temperature,
                 streaming=streaming,
-                model_kwargs=anthropic_kwargs if anthropic_kwargs else {},
+                model_kwargs=thinking_kwargs or {},
                 http_async_client=_HTTP_CLIENT_POOL.get(),
             )
         else:
-            # openai, deepseek, moonshot, ollama, vllm, etc.
             db_headers_str = SystemConfigService.get_value("LLM_HEADERS", "{}")
             try:
                 final_headers = json.loads(db_headers_str) if db_headers_str else {}
             except Exception:
                 final_headers = {}
 
-            return AdaptiveChatOpenAI(
-                api_key=api_key,
-                base_url=base_url.rstrip("/"),
-                model=model_name,
-                temperature=temperature,
-                streaming=streaming,
-                max_tokens=max_tokens,
-                http_async_client=_HTTP_CLIENT_POOL.get(),
-                extra_body=merged_extra,
-                default_headers=final_headers if final_headers else None,
-            )
+            if family == "openai_reasoning":
+                reasoning_extra = build_openai_reasoning_extra(cfg)
+                merged_extra = {**(extra_body or {}), **reasoning_extra}
+
+                return AdaptiveChatOpenAI(
+                    api_key=api_key,
+                    base_url=base_url.rstrip("/"),
+                    model=model_name,
+                    temperature=temperature,
+                    streaming=streaming,
+                    max_tokens=max_tokens,
+                    http_async_client=_HTTP_CLIENT_POOL.get(),
+                    extra_body=merged_extra,
+                    default_headers=final_headers if final_headers else None,
+                )
+            elif family == "zhipu":
+                zhipu_extra = build_zhipu_thinking_extra(cfg)
+                merged_extra = {**(extra_body or {}), **zhipu_extra}
+
+                return AdaptiveChatOpenAI(
+                    api_key=api_key,
+                    base_url=base_url.rstrip("/"),
+                    model=model_name,
+                    temperature=temperature,
+                    streaming=streaming,
+                    max_tokens=max_tokens,
+                    http_async_client=_HTTP_CLIENT_POOL.get(),
+                    extra_body=merged_extra,
+                    default_headers=final_headers if final_headers else None,
+                )
+            elif family == "minimax":
+                minimax_extra = build_minimax_thinking_extra(cfg)
+                merged_extra = {**(extra_body or {}), **minimax_extra}
+
+                return AdaptiveChatOpenAI(
+                    api_key=api_key,
+                    base_url=base_url.rstrip("/"),
+                    model=model_name,
+                    temperature=temperature,
+                    streaming=streaming,
+                    max_tokens=max_tokens,
+                    http_async_client=_HTTP_CLIENT_POOL.get(),
+                    extra_body=merged_extra,
+                    default_headers=final_headers if final_headers else None,
+                )
+            elif family == "gemini":
+                gemini_extra = build_gemini_thinking_extra(cfg)
+                merged_extra = {**(extra_body or {}), **gemini_extra}
+
+                return AdaptiveChatOpenAI(
+                    api_key=api_key,
+                    base_url=base_url.rstrip("/"),
+                    model=model_name,
+                    temperature=temperature,
+                    streaming=streaming,
+                    max_tokens=max_tokens,
+                    http_async_client=_HTTP_CLIENT_POOL.get(),
+                    extra_body=merged_extra,
+                    default_headers=final_headers if final_headers else None,
+                )
+            else:
+                # Kimi / DeepSeek / OpenAI compat: 注入 enable_thinking/return_reasoning
+                # Kimi 额外保证 max_tokens 足够大
+                base_extra = cfg.to_extra_body()
+                merged_extra = {**base_extra, **(extra_body or {})}
+
+                effective_max_tokens = max_tokens
+                if family == "kimi":
+                    kimi_min = get_kimi_min_max_tokens(cfg)
+                    effective_max_tokens = max(max_tokens or 0, kimi_min)
+
+                return AdaptiveChatOpenAI(
+                    api_key=api_key,
+                    base_url=base_url.rstrip("/"),
+                    model=model_name,
+                    temperature=temperature,
+                    streaming=streaming,
+                    max_tokens=effective_max_tokens,
+                    http_async_client=_HTTP_CLIENT_POOL.get(),
+                    extra_body=merged_extra,
+                    default_headers=final_headers if final_headers else None,
+                )
 
     @staticmethod
     def get_cache_stats() -> LLMCacheStats:
