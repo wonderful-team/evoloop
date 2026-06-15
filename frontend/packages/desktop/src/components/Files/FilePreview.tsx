@@ -10,9 +10,7 @@ import {
 } from "lucide-react"
 import { useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
-import ReactMarkdown from "react-markdown"
-import { CodeBlock } from "@/components/Chat/CodeBlock"
-import remarkGfm from "remark-gfm"
+import { MarkdownRenderer } from "@/components/Common/MarkdownRenderer"
 import { toast } from "sonner"
 import * as XLSX from "xlsx"
 import { FilesService, OpenAPI } from "@/client"
@@ -205,27 +203,10 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
               {(fileContent as any).content}
             </div>
           ) : (
-            <div key="markdown" className="p-8 prose prose-slate dark:prose-invert max-w-none overflow-auto h-full">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  code({ node: _node, className, children, ...props }) {
-                    const match = /language-(\w+)/.exec(className || "")
-                    return match ? (
-                      <CodeBlock
-                        language={match[1]}
-                        code={String(children).replace(/\n$/, "")}
-                      />
-                    ) : (
-                      <code className={className} {...props}>
-                        {children}
-                      </code>
-                    )
-                  },
-                }}
-              >
-                {(fileContent as any)?.content || ""}
-              </ReactMarkdown>
+            <div key="markdown" className="p-8 overflow-auto h-full">
+              <MarkdownRenderer
+                content={(fileContent as any)?.content || ""}
+              />
             </div>
           )
         ) : (

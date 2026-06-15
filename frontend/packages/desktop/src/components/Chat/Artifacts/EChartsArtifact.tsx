@@ -5,6 +5,55 @@ import chinaMapData from '@/assets/maps/china.json';
 
 // 注册中国地图数据，解决 "Map china not exists" 报错
 echarts.registerMap('china', chinaMapData as any);
+
+// Register custom themes for Evoloop to standardize default styles, fonts, and dark mode adaptation natively
+const themeLight = {
+  backgroundColor: 'transparent',
+  textStyle: {
+    fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+  },
+  tooltip: {
+    trigger: 'axis',
+    borderRadius: 8,
+    padding: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+    textStyle: {
+      color: '#18181b',
+    }
+  },
+  legend: {
+    textStyle: {
+      color: '#18181b'
+    }
+  }
+};
+
+const themeDark = {
+  backgroundColor: 'transparent',
+  textStyle: {
+    fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+  },
+  tooltip: {
+    trigger: 'axis',
+    borderRadius: 8,
+    padding: 10,
+    backgroundColor: 'rgba(32, 32, 32, 0.95)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    textStyle: {
+      color: '#f4f4f5',
+    }
+  },
+  legend: {
+    textStyle: {
+      color: '#f4f4f5'
+    }
+  }
+};
+
+echarts.registerTheme('evoloop-light', themeLight);
+echarts.registerTheme('evoloop-dark', themeDark);
+
 import { Card, CardContent, CardHeader, CardTitle } from "@evoloop/shared/components/ui/card";
 import { Button } from "@evoloop/shared/components/ui/button";
 import { useTranslation } from 'react-i18next';
@@ -72,6 +121,67 @@ function validateOption(option: any): { valid: boolean; reason?: string } {
   return { valid: true };
 }
 
+/**
+ * Preprocess and sanitize option to:
+ * 1. Safely remove title option (avoid duplicating title inside canvas vs card header)
+ * 2. Configure default grid or smart-adjust grid bottoms if there's a legend to avoid label cutoffs
+ * 3. Keep option structures clean for theme blending
+ */
+function sanitizeOption(option: any): any {
+  if (!option || typeof option !== 'object') {
+    return { series: [] };
+  }
+
+  const sanitized = { ...option };
+
+  // Delete option's internal title entirely to avoid rendering duplication
+  delete sanitized.title;
+
+  const hasLegend = !!sanitized.legend;
+
+  // Safe grid adjustments
+  if (sanitized.grid) {
+    if (Array.isArray(sanitized.grid)) {
+      sanitized.grid = sanitized.grid.map((g: any) => {
+        if (g && typeof g === 'object') {
+          const newG = { containLabel: true, ...g };
+          if (newG.bottom === '3%' && hasLegend) {
+            newG.bottom = '12%';
+          }
+          return newG;
+        }
+        return g;
+      });
+    } else if (typeof sanitized.grid === 'object') {
+      const newGrid = { containLabel: true, ...sanitized.grid };
+      if (newGrid.bottom === '3%' && hasLegend) {
+        newGrid.bottom = '12%';
+      }
+      sanitized.grid = newGrid;
+    }
+  } else {
+    sanitized.grid = {
+      left: '3%',
+      right: '4%',
+      bottom: hasLegend ? '12%' : '8%',
+      containLabel: true
+    };
+  }
+
+  // Sensible animation overrides if not specified by user
+  if (sanitized.animation === undefined) {
+    sanitized.animation = true;
+  }
+  if (sanitized.animationDuration === undefined) {
+    sanitized.animationDuration = 1000;
+  }
+  if (sanitized.animationEasing === undefined) {
+    sanitized.animationEasing = 'cubicOut';
+  }
+
+  return sanitized;
+}
+
 const EChartsArtifactInner: React.FC<EChartsArtifactProps> = ({ data }) => {
   const { t } = useTranslation();
   const [isDark, setIsDark] = useState(false);
@@ -114,88 +224,14 @@ const EChartsArtifactInner: React.FC<EChartsArtifactProps> = ({ data }) => {
     };
   }, []);
 
-  const chartTheme = isDark ? 'dark' : 'light';
+  const chartTheme = isDark ? 'evoloop-dark' : 'evoloop-light';
 
   const validation = useMemo(() => validateOption(data.option), [data.option]);
 
-  // Apply default styles to the option object if not present
+  // Clean, thin-wrapper option preprocessing
   const mergedOption = useMemo(() => {
-    const baseOption = {
-      backgroundColor: 'transparent',
-      textStyle: {
-        fontFamily: 'Inter, system-ui, sans-serif',
-      },
-      tooltip: {
-        trigger: 'axis',
-        borderRadius: 8,
-        padding: 10,
-        backgroundColor: isDark ? 'rgba(32, 32, 32, 0.9)' : 'rgba(255, 255, 255, 0.9)',
-        borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-        textStyle: {
-          color: isDark ? '#f4f4f5' : '#18181b',
-        }
-      },
-      grid: {
-        left: '3%',
-        right: '4%',
-        bottom: '12%',
-        containLabel: true
-      },
-      animation: true,
-      animationDuration: 1000,
-      animationEasing: 'cubicOut'
-    };
-
-    // User's option takes priority over defaults
-    const { title, grid, legend, tooltip, ...restUserOption } = data.option || {};
-
-    // Smart grid merge: if user provided grid with dangerous bottom: "3%" AND has a legend, override it
-    let finalGrid: any;
-    if (grid) {
-      if (Array.isArray(grid)) {
-        finalGrid = grid.map(g => {
-          const newG = { containLabel: true, ...g };
-          if (newG.bottom === '3%' && legend) {
-            newG.bottom = '12%';
-          }
-          return newG;
-        });
-      } else {
-        finalGrid = { containLabel: true, ...grid };
-        if (finalGrid.bottom === '3%' && legend) {
-          finalGrid.bottom = '12%';
-        }
-      }
-    } else {
-      finalGrid = { ...baseOption.grid };
-    }
-
-    let modifiedTitle = title;
-    if (title) {
-      if (Array.isArray(title)) {
-        modifiedTitle = title.map((t, idx) => idx === 0 ? { ...t, show: false } : t);
-      } else {
-        modifiedTitle = { ...title, show: false };
-      }
-    }
-
-    return {
-      ...baseOption,
-      ...restUserOption,
-      ...(modifiedTitle ? { title: modifiedTitle } : {}),
-      grid: finalGrid,
-      ...(legend ? {
-        legend: {
-          textStyle: { color: isDark ? '#f4f4f5' : '#18181b' },
-          ...legend
-        }
-      } : {}),
-      tooltip: {
-        ...baseOption.tooltip,
-        ...(tooltip || {}),
-      },
-    };
-  }, [data.option, isDark]);
+    return sanitizeOption(data.option);
+  }, [data.option]);
 
   const handleSaveImage = async () => {
     const instance = chartRef.current?.getEchartsInstance();

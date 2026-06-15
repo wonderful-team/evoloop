@@ -7,13 +7,10 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@evoloop/shared/components/ui/sheet"
-import { AlertCircle, FileText, Loader2, RefreshCw, Rocket, Edit, Save, X } from "lucide-react"
+import { AlertCircle, FileText, Loader2, Edit, Save, X } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import ReactMarkdown from "react-markdown"
-import { CodeBlock } from "@/components/Chat/CodeBlock"
-import rehypeRaw from "rehype-raw"
-import remarkGfm from "remark-gfm"
+import { MarkdownRenderer } from "@/components/Common/MarkdownRenderer"
 import { toast } from "sonner"
 import { ProjectProfilesService } from "@/client/sdk.gen"
 
@@ -143,28 +140,8 @@ export function ProjectProfileDrawer({ projectId, open, onOpenChange }: ProjectP
                   placeholder={t("projects.profile.editPlaceholder", { defaultValue: "Enter project profile in Markdown..." })}
                 />
               ) : (
-                <div className="prose prose-sm dark:prose-invert max-w-none pb-12">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    rehypePlugins={[rehypeRaw]}
-                    components={{
-                      code({ node, inline, className, children, ...props }: any) {
-                        const match = /language-(\w+)/.exec(className || "")
-                        return !inline && match ? (
-                          <CodeBlock
-                            language={match[1]}
-                            code={String(children).replace(/\n$/, "")}
-                          />
-                        ) : (
-                          <code className={className} {...props}>
-                            {children}
-                          </code>
-                        )
-                      },
-                    }}
-                  >
-                    {profile.content!}
-                  </ReactMarkdown>
+                <div className="pb-12">
+                  <MarkdownRenderer content={profile.content!} />
                 </div>
               )
             ) : (

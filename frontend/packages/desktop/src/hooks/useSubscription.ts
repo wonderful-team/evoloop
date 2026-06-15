@@ -12,8 +12,8 @@ export const useSubscription = () => {
     const { data: status, isLoading: isLoadingStatus } = useQuery({
         queryKey: ["subscription", "status"],
         queryFn: () => SubscriptionService.getSubscriptionStatus(),
-        refetchInterval: 30000, // Poll every 30s
-        staleTime: 30000,
+        refetchInterval: 1000 * 60 * 5, // Poll every 5 min (changes are webhook-driven)
+        staleTime: 1000 * 60 * 5,
     })
 
     const { data: detail, isLoading: isLoadingDetail } = useQuery({
@@ -34,8 +34,8 @@ export const useSubscription = () => {
     const { data: quota, isLoading: isLoadingQuota, refetch: refetchQuota } = useQuery({
         queryKey: ["subscription", "quota"],
         queryFn: () => SubscriptionService.getAiQuota(),
-        refetchInterval: 60000,
-        staleTime: 60000,
+        refetchInterval: 1000 * 60 * 2, // Poll every 2 min (matches backend cache TTL)
+        staleTime: 1000 * 60 * 2,
     })
 
     // Mutation: Create Order

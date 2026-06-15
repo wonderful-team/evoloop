@@ -286,7 +286,7 @@ export const MessageContent = memo(({ content, isUser }: MessageContentProps) =>
 
                       return (
                         <code
-                          className="bg-muted px-1.5 py-0.5 rounded text-[85%] font-mono break-all"
+                          className={`${isUser ? "bg-white/15 text-white" : "bg-muted text-foreground"} px-1.5 py-0.5 rounded text-[85%] font-mono break-all`}
                           {...props}
                         >
                           {children}
@@ -307,7 +307,7 @@ export const MessageContent = memo(({ content, isUser }: MessageContentProps) =>
                       </a>
                     ),
                     blockquote: ({ children }) => (
-                      <blockquote className="border-l-4 border-primary/30 pl-3 italic text-muted-foreground my-2">
+                      <blockquote className={`${isUser ? "border-l-4 border-white/25 text-white/80" : "border-l-4 border-primary/30 text-muted-foreground"} pl-3 italic my-2`}>
                         {children}
                       </blockquote>
                     ),

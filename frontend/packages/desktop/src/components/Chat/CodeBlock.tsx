@@ -25,12 +25,13 @@ export const CodeBlock = memo(({ language, codeString, isLong, lineCount, onPrev
   const lang = Prism.languages[language] ? language : "text"
 
   const htmlContent = useMemo(() => {
+    const safeCodeString = codeString || "";
     if (lang === "text" || !Prism.languages[lang]) {
       // Escape HTML to prevent XSS
-      const escaped = codeString.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const escaped = safeCodeString.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
       return escaped;
     }
-    return Prism.highlight(codeString, Prism.languages[lang], lang)
+    return Prism.highlight(safeCodeString, Prism.languages[lang], lang)
   }, [codeString, lang])
 
   // Simple lines for rendering line numbers

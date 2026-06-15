@@ -27,7 +27,7 @@ export const QuotaExhaustedBanner = memo(() => {
                 "animate-pulse"
             )}
         >
-            <AlertTriangle size={16} className="text-red-600 shrink-0" />
+            <AlertTriangle size={16} className="text-red-600 dark:text-red-400 shrink-0" />
             <span className="text-sm font-medium text-red-700 dark:text-red-400">
                 {quotaInfo?.title || t("chat.quota.banner.title")}
             </span>

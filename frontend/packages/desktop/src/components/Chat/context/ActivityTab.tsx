@@ -49,6 +49,7 @@ interface ActivityTabProps {
 export function ActivityTab({ activeThreadId }: ActivityTabProps) {
   const { t } = useTranslation()
   const agentState = useChatStore((state) => state.agentState)
+  const status = useAgentStore((state) => state.status)
   const isAgentActive = status === "running" || status === "interrupted" || status === "summarizing"
 
   const { data: planData, isLoading: isLoadingPlan } = useQuery({

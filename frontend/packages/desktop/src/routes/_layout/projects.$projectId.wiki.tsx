@@ -11,14 +11,10 @@ import {
 } from "lucide-react"
 import { useState, useMemo } from "react"
 import { useTranslation } from "react-i18next"
-import ReactMarkdown from "react-markdown"
-import { CodeBlock } from "@/components/Chat/CodeBlock"
-import remarkGfm from "remark-gfm"
-import rehypeRaw from "rehype-raw"
+import { MarkdownRenderer } from "@/components/Common/MarkdownRenderer"
 import { toast } from "sonner"
 import { WikiService } from "@/client"
 import { Button } from "@evoloop/shared/components/ui/button"
-import { Mermaid } from "@/components/Common/Mermaid"
 import {
     ResizableHandle,
     ResizablePanel,
@@ -251,33 +247,8 @@ function WikiPage() {
                                     {t('wiki.lastUpdated')}: {new Date(selectedPage.created_at).toLocaleDateString()}
                                 </span>
                             </div>
-                            <div className="flex-1 overflow-auto p-8 prose prose-slate dark:prose-invert max-w-none">
-                                <ReactMarkdown
-                                    remarkPlugins={[remarkGfm]}
-                                    rehypePlugins={[rehypeRaw]}
-                                    components={{
-                                        code({ node: _node, className, children, ...props }) {
-                                            const match = /language-(\w+)/.exec(className || "")
-                                            const isMermaid = match && match[1] === 'mermaid'
-
-                                            if (isMermaid) {
-                                                return <Mermaid chart={String(children)} />
-                                            }
-                                            return match ? (
-                                                <CodeBlock
-                                                    language={match[1]}
-                                                    code={String(children).replace(/\n$/, "")}
-                                                />
-                                            ) : (
-                                                <code className={className} {...props}>
-                                                    {children}
-                                                </code>
-                                            )
-                                        },
-                                    }}
-                                >
-                                    {selectedPage.content}
-                                </ReactMarkdown>
+                            <div className="flex-1 overflow-auto p-8">
+                                <MarkdownRenderer content={selectedPage.content} />
                             </div>
                         </>
                     ) : (

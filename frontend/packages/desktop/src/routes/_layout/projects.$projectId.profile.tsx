@@ -10,10 +10,7 @@ import { createFileRoute, useParams } from "@tanstack/react-router"
 import { AlertCircle, FileText, Loader2, RefreshCw, Rocket, Edit, Save, X } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import ReactMarkdown from "react-markdown"
-import { CodeBlock } from "@/components/Chat/CodeBlock"
-import rehypeRaw from "rehype-raw"
-import remarkGfm from "remark-gfm"
+import { MarkdownRenderer } from "@/components/Common/MarkdownRenderer"
 import { toast } from "sonner"
 import { ProjectProfilesService } from "@/client/sdk.gen"
 import { DiscoverDialog } from "@/components/Projects/Modules/Overview/DiscoverDialog"
@@ -163,28 +160,8 @@ function ProfilePage() {
                 placeholder={t("projects.profile.editPlaceholder", "Enter project profile in Markdown...")}
               />
             ) : (
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeRaw]}
-                  components={{
-                    code({ node, inline, className, children, ...props }: any) {
-                      const match = /language-(\w+)/.exec(className || "")
-                      return !inline && match ? (
-                        <CodeBlock
-                          language={match[1]}
-                          code={String(children).replace(/\n$/, "")}
-                        />
-                      ) : (
-                        <code className={className} {...props}>
-                          {children}
-                        </code>
-                      )
-                    },
-                  }}
-                >
-                  {profile.content!}
-                </ReactMarkdown>
+              <div>
+                <MarkdownRenderer content={profile.content!} />
               </div>
             )}
           </CardContent>

@@ -8,16 +8,21 @@ import {
   Settings2,
   Monitor,
   Database,
-  CheckCircle2
+  CheckCircle2,
+  X
 } from "lucide-react";
 import { useChatStore } from "@/stores/chatStore";
 import { useAgentStore } from "@/stores/agentStore";
-import { generateMockMessages, simulateStreaming } from "./debug/mockData";
+import { generateMockMessages } from "./debug/mockData";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from 'uuid';
 import { AgentService } from "@/client/sdk.gen";
 
-export function DebugManager() {
+interface DebugManagerPanelProps {
+  onClose: () => void;
+}
+
+export function DebugManagerPanel({ onClose }: DebugManagerPanelProps) {
   const messages = useChatStore(s => s.messages);
   const clearContent = useChatStore(s => s.clearContent);
   const [isStreaming, setIsStreaming] = React.useState(false);
@@ -96,129 +101,142 @@ export function DebugManager() {
     toast.info("会话已清空");
   };
 
-  const isDev = import.meta.env.DEV;
-  if (!isDev) return null;
-
   return (
-    <div className="fixed bottom-24 left-6 z-[100] flex flex-col gap-2 scale-90 origin-bottom-left hover:scale-100 transition-all duration-300">
-      <div className="flex flex-col gap-1.5 p-2.5 bg-zinc-900/90 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl w-56">
-        {/* Header */}
-        <div className="px-2 py-1 mb-1 border-b border-white/5 flex items-center justify-between">
-          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
-            <Settings2 className="h-3 w-3 text-primary animate-pulse" />
-            Control Center
-          </span>
+    <div className="flex flex-col gap-1.5 p-2.5 w-56">
+      {/* Header */}
+      <div className="px-2 py-1 mb-1 border-b border-white/10 flex items-center justify-between">
+        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+          <Settings2 className="h-3 w-3 text-primary animate-pulse" />
+          Control Center
+        </span>
+        <div className="flex items-center gap-2">
           <div className="flex gap-1">
             <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
             <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
           </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="h-5 w-5 rounded-md text-zinc-500 hover:text-zinc-200 hover:bg-white/10"
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+      
+      {/* Actions Group */}
+      <div className="space-y-1">
+        <DebugButton 
+          icon={<Layers className="h-3.5 w-3.5" />} 
+          label="注入全域消息块 (本地)" 
+          onClick={injectMocks}
+          variant="primary"
+        />
+
+        <div className="text-[9px] text-zinc-500 font-bold px-2 py-1 mt-1 border-t border-white/5 uppercase tracking-wide">
+          后端流式场景模拟
         </div>
         
-        {/* Actions Group */}
-        <div className="space-y-1">
-          <DebugButton 
-            icon={<Layers className="h-3.5 w-3.5" />} 
-            label="注入全域消息块 (本地)" 
-            onClick={injectMocks}
-            variant="primary"
-          />
+        <DebugButton 
+          icon={<Play className="h-3.5 w-3.5" />} 
+          label="模拟：正常流程" 
+          onClick={() => startStreamingSimulation("happy_path")}
+          disabled={isStreaming}
+          loading={isStreaming && currentScenario === "happy_path"}
+        />
 
-          <div className="text-[9px] text-zinc-500 font-bold px-2 py-1 mt-1 border-t border-white/5 uppercase tracking-wide">
-            后端流式场景模拟
-          </div>
-          
-          <DebugButton 
-            icon={<Play className="h-3.5 w-3.5" />} 
-            label="模拟：正常流程" 
-            onClick={() => startStreamingSimulation("happy_path")}
-            disabled={isStreaming}
-            loading={isStreaming && currentScenario === "happy_path"}
-          />
+        <DebugButton 
+          icon={<CheckCircle2 className="h-3.5 w-3.5" />} 
+          label="模拟：交互拦截 (HITL)" 
+          onClick={() => startStreamingSimulation("hitl")}
+          disabled={isStreaming}
+          loading={isStreaming && currentScenario === "hitl"}
+        />
 
-          <DebugButton 
-            icon={<CheckCircle2 className="h-3.5 w-3.5" />} 
-            label="模拟：交互拦截 (HITL)" 
-            onClick={() => startStreamingSimulation("hitl")}
-            disabled={isStreaming}
-            loading={isStreaming && currentScenario === "hitl"}
-          />
+        <DebugButton 
+          icon={<Database className="h-3.5 w-3.5" />} 
+          label="模拟：长程任务/文件" 
+          onClick={() => startStreamingSimulation("long_task")}
+          disabled={isStreaming}
+          loading={isStreaming && currentScenario === "long_task"}
+        />
 
-          <DebugButton 
-            icon={<Database className="h-3.5 w-3.5" />} 
-            label="模拟：长程任务/文件" 
-            onClick={() => startStreamingSimulation("long_task")}
-            disabled={isStreaming}
-            loading={isStreaming && currentScenario === "long_task"}
-          />
+        <DebugButton 
+          icon={<Zap className="h-3.5 w-3.5" />} 
+          label="模拟：配额耗尽" 
+          onClick={() => startStreamingSimulation("quota_exhausted")}
+          disabled={isStreaming}
+          loading={isStreaming && currentScenario === "quota_exhausted"}
+          variant="danger"
+        />
 
-          <DebugButton 
-            icon={<Zap className="h-3.5 w-3.5" />} 
-            label="模拟：配额耗尽" 
-            onClick={() => startStreamingSimulation("quota_exhausted")}
-            disabled={isStreaming}
-            loading={isStreaming && currentScenario === "quota_exhausted"}
-            variant="danger"
-          />
-
-          <div className="text-[9px] text-zinc-500 font-bold px-2 py-1 border-t border-white/5 uppercase tracking-wide">
-            本地组件注入
-          </div>
-
-          <div className="grid grid-cols-3 gap-1">
-            <DebugButton 
-              icon={<CheckCircle2 className="h-3 w-3" />} 
-              label="审批" 
-              onClick={() => simulateHITL('approval')}
-            />
-            <DebugButton 
-              icon={<Zap className="h-3 w-3" />} 
-              label="确认" 
-              onClick={() => simulateHITL('confirmation')}
-            />
-            <DebugButton 
-              icon={<Layers className="h-3 w-3" />} 
-              label="选择" 
-              onClick={() => simulateHITL('choice')}
-            />
-            <DebugButton 
-              icon={<Play className="h-3 w-3" />} 
-              label="输入" 
-              onClick={() => simulateHITL('text_input')}
-            />
-             <DebugButton 
-              icon={<Monitor className="h-3 w-3" />} 
-              label="切换" 
-              onClick={() => simulateHITL('project_switch')}
-            />
-             <DebugButton 
-              icon={<Database className="h-3 w-3" />} 
-              label="文件" 
-              onClick={() => simulateHITL('file_select')}
-            />
-          </div>
+        <div className="text-[9px] text-zinc-500 font-bold px-2 py-1 border-t border-white/5 uppercase tracking-wide">
+          本地组件注入
         </div>
 
-        {/* System Group */}
-        <div className="mt-1 pt-2 border-t border-white/5 space-y-1">
+        <div className="grid grid-cols-3 gap-1">
           <DebugButton 
-            icon={<Trash2 className="h-3.5 w-3.5" />} 
-            label="清空当前消息" 
-            onClick={clearMessages}
-            variant="danger"
+            icon={<CheckCircle2 className="h-3 w-3" />} 
+            label="审批" 
+            onClick={() => simulateHITL('approval')}
+          />
+          <DebugButton 
+            icon={<Zap className="h-3 w-3" />} 
+            label="确认" 
+            onClick={() => simulateHITL('confirmation')}
+          />
+          <DebugButton 
+            icon={<Layers className="h-3 w-3" />} 
+            label="选择" 
+            onClick={() => simulateHITL('choice')}
+          />
+          <DebugButton 
+            icon={<Play className="h-3 w-3" />} 
+            label="输入" 
+            onClick={() => simulateHITL('text_input')}
+          />
+           <DebugButton 
+            icon={<Monitor className="h-3 w-3" />} 
+            label="切换" 
+            onClick={() => simulateHITL('project_switch')}
+          />
+           <DebugButton 
+            icon={<Database className="h-3 w-3" />} 
+            label="文件" 
+            onClick={() => simulateHITL('file_select')}
           />
         </div>
+      </div>
 
-        {/* Footer info */}
-        <div className="mt-1 pt-1.5 flex justify-between items-center opacity-40 px-1">
-          <div className="flex items-center gap-1">
-            <Database className="h-2.5 w-2.5" />
-            <span className="text-[9px] font-mono">{messages.length} MSGS</span>
-          </div>
-          <span className="text-[9px] font-mono font-bold uppercase tracking-tighter">V2.0-UNIVERSAL</span>
+      {/* System Group */}
+      <div className="mt-1 pt-2 border-t border-white/5 space-y-1">
+        <DebugButton 
+          icon={<Trash2 className="h-3.5 w-3.5" />} 
+          label="清空当前消息" 
+          onClick={clearMessages}
+          variant="danger"
+        />
+      </div>
+
+      {/* Footer info */}
+      <div className="mt-1 pt-1.5 flex justify-between items-center opacity-40 px-1">
+        <div className="flex items-center gap-1">
+          <Database className="h-2.5 w-2.5" />
+          <span className="text-[9px] font-mono">{messages.length} MSGS</span>
         </div>
+        <span className="text-[9px] font-mono font-bold uppercase tracking-tighter">V2.0-UNIVERSAL</span>
       </div>
     </div>
   );
+}
+
+/** @deprecated Use DebugManagerPanel inside AppSidebar trigger instead */
+export function DebugManager() {
+  const isDev = import.meta.env.DEV;
+  if (!isDev) return null;
+
+  return null;
 }
 
 function DebugButton({ 

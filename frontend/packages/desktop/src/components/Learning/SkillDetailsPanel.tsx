@@ -3,9 +3,7 @@ import { useQueryClient, useMutation } from "@tanstack/react-query"
 import { LearningService } from "@/client/sdk.gen"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
-import ReactMarkdown from "react-markdown"
-import remarkGfm from "remark-gfm"
-import { CodeBlock } from "@/components/Chat/CodeBlock"
+import { MarkdownRenderer } from "@/components/Common/MarkdownRenderer"
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
@@ -192,48 +190,10 @@ export function SkillDetailsPanel({
                                     {t("learning.expertStrategicGuide")}
                                 </div>
                                 <div className="bg-amber-50/30 dark:bg-amber-950/10 p-5 rounded-2xl border border-amber-500/20 shadow-[0_4px_20px_rgba(245,158,11,0.05)]">
-                                    <div className="text-[13px] leading-relaxed prose prose-sm dark:prose-invert max-w-none text-foreground/90">
-                                        <ReactMarkdown
-                                            remarkPlugins={[remarkGfm]}
-                                            components={{
-                                                code({ node, inline, className, children, ...props }: any) {
-                                                    const match = /language-(\w+)/.exec(className || "")
-                                                    const codeString = String(children).replace(/\n$/, "")
-
-                                                    if (!inline && match) {
-                                                        return (
-                                                            <div className="my-2 rounded-md overflow-hidden bg-[#1e1e1e]">
-                                                                <div className="flex items-center justify-between px-3 py-1 bg-[#252526] text-[10px] text-gray-400 border-b border-[#3e3e3e]">
-                                                                    <span>{match[1]}</span>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => navigator.clipboard.writeText(codeString)}
-                                                                        className="hover:text-white transition-colors"
-                                                                    >
-                                                                        {t("chat.messageList.copy")}
-                                                                    </button>
-                                                                </div>
-                                                                <CodeBlock
-                                                                    language={match[1]}
-                                                                    code={codeString}
-                                                                />
-                                                            </div>
-                                                        )
-                                                    }
-
-                                                    return (
-                                                        <code
-                                                            className="bg-muted px-1.5 py-0.5 rounded text-[85%] font-mono"
-                                                            {...props}
-                                                        >
-                                                            {children}
-                                                        </code>
-                                                    )
-                                                },
-                                            }}
-                                        >
-                                            {skill.instructions}
-                                        </ReactMarkdown>
+                                    <div className="text-[13px] leading-relaxed text-foreground/90">
+                                        <MarkdownRenderer
+                                            content={skill.instructions}
+                                        />
                                     </div>
                                     <div className="mt-4 flex items-center gap-2">
                                         <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[9px] font-bold">

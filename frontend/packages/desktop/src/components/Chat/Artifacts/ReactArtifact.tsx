@@ -58,7 +58,9 @@ export const ReactArtifact: React.FC<ReactArtifactProps> = ({ data }) => {
         <div className="max-h-[400px] overflow-auto no-scrollbar pt-4 bg-[#1e1e1e]">
           <CodeBlock
             language="tsx"
-            code={data.code}
+            codeString={data.code}
+            isLong={data.code.split("\n").length > 15}
+            lineCount={data.code.split("\n").length}
           />
         </div>
       </div>
