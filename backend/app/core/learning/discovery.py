@@ -10,6 +10,8 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.learning.prompts import prompt_builder
 from app.core.learning.schemas import SkillListItem, SkillMatch
+from app.core.learning.skill_importer import SkillImporter
+from app.infrastructure.config import SystemConfigService
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.llm import get_default_llm
 from app.models.learning import LearnedSkill
@@ -43,7 +45,10 @@ class SkillDiscovery:
             return
 
         try:
-            from app.core.learning.skill_importer import SkillImporter
+            # Check DB flag to ensure this is only run on first startup
+            if SystemConfigService.get_value("SYSTEM_SKILLS_SYNCED") == "true":
+                self._system_skills_synced = True
+                return
 
             # Step 1: Copy built-in skills to user skills directory
             # Built-in skills are now located in app/config/skills
@@ -60,6 +65,12 @@ class SkillDiscovery:
                 logger.info(f"[Discovery] Loading skills from {user_skills_path}")
                 await SkillImporter.import_from_directory(user_skills_path)
 
+            # Save status flag in database
+            SystemConfigService.set_value(
+                "SYSTEM_SKILLS_SYNCED", 
+                "true", 
+                "Indicates that the system skills have been successfully synchronized on first launch"
+            )
             self._system_skills_synced = True
         except Exception as e:
             logger.error(f"[Discovery] Failed to sync system SOPs: {e}")

@@ -1,5 +1,5 @@
 ---
-name: Universal Data Analytics
+name: Data Analytics
 description: "Standard Operating Procedure (SOP) for the Universal Data Analytics Agent. Triggers for data exploration, data cleaning, advanced statistical modeling, or analyzing pre-fetched data files from upstream sources."
 namespace: roles
 trigger_patterns:

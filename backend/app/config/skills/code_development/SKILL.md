@@ -1,5 +1,5 @@
 ---
-name: Universal Code Development
+name: Code Development
 description: "Standard Operating Procedure (SOP) for the Universal Code Development Agent. Triggers for any software engineering, code refactoring, bug fixing, or architectural improvement tasks."
 namespace: roles
 trigger_patterns:
