@@ -5,9 +5,8 @@ import os
 from sqlalchemy import select
 
 from app.core.evocloud import evocloud_manager
-from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.codebase.indexing.service import IndexingService
-from app.domain.project import cache as project_cache
+from app.core.project import cache as project_cache
 from app.infrastructure.database.sql.database import session_scope
 from app.models.codebase import Repository
 from app.core.file import is_ignored_path
@@ -169,7 +168,7 @@ class ProjectSyncService:
                     logger.info(f"[ProjectSync] Project '{repo_name}' created with status DETECTED (ID: {repo.id})")
 
                     # Publish NewProjectDetectedEvent for frontend notification
-                    from app.domain.project.event.publishers import publish_new_project_detected
+                    from app.core.project.event.publishers import publish_new_project_detected
 
                     await publish_new_project_detected(
                         repo_id=repo.id,
@@ -215,7 +214,7 @@ class ProjectSyncService:
         Called when cloud project exists locally.
         """
         try:
-            from app.domain.project.event.publishers import publish_project_created
+            from app.core.project.event.publishers import publish_project_created
 
             # Publish ProjectCreatedEvent to trigger indexing
             await publish_project_created(
@@ -287,7 +286,7 @@ class ProjectSyncService:
 
         # Publish ProjectCreatedEvent to trigger indexing
         try:
-            from app.domain.project.event.publishers import publish_project_created
+            from app.core.project.event.publishers import publish_project_created
 
             await publish_project_created(
                 path=repo.local_path,
@@ -424,7 +423,7 @@ class ProjectSyncService:
         # 5. Publish ProjectDeletedEvent (only once after successful DB update)
         # IndexingManager will subscribe and stop watching
         try:
-            from app.domain.project.event.publishers import publish_project_deleted
+            from app.core.project.event.publishers import publish_project_deleted
 
             await publish_project_deleted(
                 path=path,
@@ -612,7 +611,7 @@ class ProjectSyncService:
                 if repo.sync_status == "PENDING_CREATION":
                     logger.info(f"[ProjectSync] Retrying cloud sync for: {p}")
                     try:
-                        from app.domain.project.sync_tasks import sync_project_to_cloud_task
+                        from app.core.project.sync_tasks import sync_project_to_cloud_task
                         sync_project_to_cloud_task.delay(repo.id)
                     except Exception as e:
                         logger.error(f"[ProjectSync] Failed to queue retry: {e}")

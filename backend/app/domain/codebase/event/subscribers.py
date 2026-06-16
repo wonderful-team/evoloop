@@ -12,7 +12,7 @@ import os
 from app.core.events import SystemEventType
 from app.core.events.base import BaseEvent
 from app.core.events.decorators import event_register, event_subscribe
-from app.domain.project.event import (
+from app.core.project.event import (
     ProjectCreatedEvent,
     ProjectDeletedEvent,
     ProjectMovedEvent,

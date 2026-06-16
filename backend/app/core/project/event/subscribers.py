@@ -16,7 +16,7 @@ from app.core.events.decorators import event_register, event_subscribe
 from app.core.events.registry import SystemEventType
 from app.core.memory.event import MemoryContextGatherEvent
 from app.core.memory.event.types import MEMORY_CONTEXT_GATHER_EVENT_TYPE
-from app.domain.project.sync_service import ProjectSyncService
+from app.core.project.sync_service import ProjectSyncService
 from app.infrastructure.config import SystemConfigService
 from app.utils import render_template
 from .schemas import (
@@ -77,7 +77,7 @@ class ProjectSwitchWebSocketSubscriber:
             return
 
         # 4. 发布领域事件
-        from app.domain.project.event.publishers import publish_project_switched
+        from app.core.project.event.publishers import publish_project_switched
         await publish_project_switched(
             project_id=project_id if project_id is not None else DEFAULT_PROJECT_ID,
             project_name=project_name,
@@ -177,7 +177,7 @@ class ProjectLifecycleSubscriber:
         """
         Handle APP_STARTED: Initialize project discovery and reconcile state.
         """
-        from app.domain.project.discovery_manager import discovery_manager
+        from app.core.project.discovery_manager import discovery_manager
         
         root_projects_dir = SystemConfigService.get_value("WORKSPACE_ROOT")
         if not root_projects_dir:
@@ -193,7 +193,7 @@ class ProjectLifecycleSubscriber:
             discovery_manager.start(root_projects_dir)
             
             # 2. Reconcile (Sync filesystem with DB)
-            from app.domain.project.sync_service import project_sync_service
+            from app.core.project.sync_service import project_sync_service
             logger.info(f"[Project] Synchronizing projects in {root_projects_dir}...")
             await project_sync_service.reconcile_projects(root_projects_dir)
             logger.info("[Project] ✓ Discovery and synchronization complete")
@@ -204,7 +204,7 @@ class ProjectLifecycleSubscriber:
     async def on_application_stopping(self, event):
         """Handle APP_STOPPING: Stop project discovery manager."""
         try:
-            from app.domain.project.discovery_manager import discovery_manager
+            from app.core.project.discovery_manager import discovery_manager
             discovery_manager.stop()
             logger.info("[Project] Project discovery manager stopped")
         except Exception as e:
@@ -214,7 +214,7 @@ class ProjectLifecycleSubscriber:
     async def on_context_polishing(self, event):
         """Handle system-wide context polishing request."""
         try:
-            from app.domain.project.polisher import project_polisher
+            from app.core.project.polisher import project_polisher
             await project_polisher.handle_context_polishing(event)
         except Exception as e:
             logger.error(f"[Project] Context polishing failed: {e}")
@@ -233,12 +233,12 @@ class ProjectLifecycleSubscriber:
                 return
 
             try:
-                from app.domain.project.sync_service import project_sync_service
+                from app.core.project.sync_service import project_sync_service
                 logger.info(f"[Project] WORKSPACE_ROOT changed, reconciling projects in {new_value}...")
                 await project_sync_service.reconcile_projects(new_value)
                 
                 # Restart discovery manager for new path
-                from app.domain.project.discovery_manager import discovery_manager
+                from app.core.project.discovery_manager import discovery_manager
                 discovery_manager.stop()
                 discovery_manager.start(new_value)
                 logger.info(f"[Project] Discovery manager restarted for {new_value}")
@@ -283,7 +283,7 @@ class ProjectMemoryContextSubscriber:
 
     async def _build_template_context(self, project_path: str) -> dict | None:
         """Gather raw data and return a dict for the Jinja2 template."""
-        from app.domain.project.service import project_context_manager
+        from app.core.project.service import project_context_manager
 
         readme = ""
         structure = ""
@@ -355,7 +355,7 @@ class ProjectContextHydratorSubscriber:
         """Resolve project details and enrich EvoContext."""
         logger.info(f"[ProjectHydrator] Received SESSION_STARTED event for project_id: {event.data.get('project_id')}")
         from app.core.context import ContextManager
-        from app.domain.project.utils import get_project_path
+        from app.core.project.utils import get_project_path
         
         ctx = ContextManager.current()
         if not ctx:

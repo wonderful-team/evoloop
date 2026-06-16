@@ -1,7 +1,7 @@
 import logging
 import os
 
-from app.domain.project.sync_service import project_sync_service
+from app.core.project.sync_service import project_sync_service
 from app.domain.watchers import ProjectDiscoveryWatcher
 from app.infrastructure.config.service import SystemConfigService
 

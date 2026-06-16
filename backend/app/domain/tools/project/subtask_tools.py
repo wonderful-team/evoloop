@@ -14,7 +14,7 @@ from typing import Optional
 
 from app.core.context.manager import ContextManager
 from app.core.tools import evoloop_tool
-from app.domain.project.subtask_service import subtask_service
+from app.core.project.subtask_service import subtask_service
 from app.models.project import ProjectTask
 from app.infrastructure.database.sql.database import session_scope
 from app.utils.id import gen_uuid

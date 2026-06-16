@@ -6,8 +6,8 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager
 from app.core.evocloud import evocloud_manager
 from app.core.tools import evoloop_tool
-from app.domain.project.subtask_service import subtask_service
-from app.domain.project.sync_tasks import sync_tasks_to_evocloud_task
+from app.core.project.subtask_service import subtask_service
+from app.core.project.sync_tasks import sync_tasks_to_evocloud_task
 
 logger = logging.getLogger(__name__)
 

@@ -7,8 +7,7 @@ from langchain_core.output_parsers import JsonOutputParser
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.evocloud import evocloud_manager
 from app.core.monitoring.activity import activity_monitor
-from app.domain.codebase.filter import FileFilter
-from app.domain.project.service import project_context_manager
+from app.core.project.service import project_context_manager
 from app.infrastructure.database.graph.driver import get_graph_db
 from app.infrastructure.queue.factory import get_scheduler, shared_task
 from app.core import file as file_utils

@@ -246,7 +246,7 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
 
         # Get Project Structure
         # Use underlying Generator directly (no longer a tool)
-        from app.domain.project.tree_generator import AnnotatedTreeGenerator
+        from app.core.project.tree_generator import AnnotatedTreeGenerator
 
         # Smart Truncation enabled to avoid context overflow
         generator = AnnotatedTreeGenerator(root, max_depth=3, with_symbols=False, file_limit=30)

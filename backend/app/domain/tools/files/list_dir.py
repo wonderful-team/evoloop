@@ -4,7 +4,6 @@ Directory listing and management tools - Thin wrapper over core.file operations.
 This module provides the tool interface for directory operations.
 All heavy lifting is done by app.core.file module.
 """
-import json
 import os
 from typing import Annotated
 
@@ -106,7 +105,7 @@ async def handle_list(
         # Tree view using core.file
         # For with_symbols=True, fall back to existing tree generator
         if with_symbols:
-            from app.domain.project.tree_generator import AnnotatedTreeGenerator
+            from app.core.project.tree_generator import AnnotatedTreeGenerator
             try:
                 generator = AnnotatedTreeGenerator(
                     target_path,

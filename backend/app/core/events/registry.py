@@ -49,6 +49,6 @@ class SystemEventType(str, Enum):
 # - MacroEventType -> app.core.execution.macro.event.types
 # - RewindEventType -> app.core.engine.rewind.event.types
 # - Environment EventType -> app.core.environment.event.types
-# - ProjectEventType -> app.domain.project.event.types
+# - ProjectEventType -> app.core.project.event.types
 # - IndexingEventType -> app.domain.codebase.event.types
 # - FileSystemEventType -> app.core.file.event.types

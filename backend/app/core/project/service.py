@@ -45,7 +45,7 @@ class ProjectContextManager:
             logger.debug(f"[ProjectContext] Cache hit for structure: {path}")
             return self._structure_cache[path]["structure"]
 
-        from app.domain.project.tree_generator import AnnotatedTreeGenerator
+        from app.core.project.tree_generator import AnnotatedTreeGenerator
 
         logger.info(f"[ProjectContext] Generating structure for: {path}")
         # Standard constraints for Generalist Agent

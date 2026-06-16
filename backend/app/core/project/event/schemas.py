@@ -12,7 +12,7 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.events.base import BaseEvent
 
 try:
-    from app.domain.project.event.types import ProjectEventType
+    from app.core.project.event.types import ProjectEventType
 except ImportError:
     class ProjectEventType:
         PROJECT_CREATED = "project.created"

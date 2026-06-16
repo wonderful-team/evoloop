@@ -122,7 +122,7 @@ class IndexingManager:
                         # Now that we have the deep directory summary, we generate the High-Level Project Overview.
                         # This ensures the "Description" and "Concepts" reflect the actual codebase structure.
                         try:
-                            from app.domain.project.summarizer import project_summarizer
+                            from app.core.project.summarizer import project_summarizer
                             # project_summarizer internal logic checks if it's already done (project.json exists)
                             # to avoid re-running on every restart, unless we force it?
                             # For now, we rely on its internal idempotency.

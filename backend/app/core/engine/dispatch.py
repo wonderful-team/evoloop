@@ -22,7 +22,6 @@ from __future__ import annotations
 import logging
 import os
 import shutil
-import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -30,10 +29,10 @@ from typing import Any
 from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.engine.message.reference import reference_service
-from app.domain.project.utils import get_project_path
+from app.core.project.utils import get_project_path
 from app.constants import DEFAULT_PROJECT_ID
 from app.infrastructure.database.sql.database import session_scope
-from app.models import Conversation, MessageReference
+from app.models import Conversation
 
 logger = logging.getLogger(__name__)
 
