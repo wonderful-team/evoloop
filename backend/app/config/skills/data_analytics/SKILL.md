@@ -114,6 +114,6 @@ graph TD
 ```
 
 ## 🧰 Required Tools (EvoLoop Backbone)
-- **Local Sandbox**: `execute_command` (for running python analysis scripts), `read_file`, `write_file`.
+- **Local Sandbox**: `execute_command` (for running python analysis scripts), `read_file`, `write_file`, `edit_file`.
 - **Multimodal Web Access**: `browser_control`, `analyze_image` (for scraping visual BI dashboards).
 - **MCP Connectors**: SQL execution tools provided by integrated database MCP servers (e.g., `postgres`, `snowflake`, `bigquery`).

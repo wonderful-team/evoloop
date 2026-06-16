@@ -29,6 +29,7 @@ tool_bundles:
   mobile_tools:
     - "mobile_control"
     - "list_devices"
+    - "analyze_image"
   knowledge_tools:
     - "remember"
     - "recall"
