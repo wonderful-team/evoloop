@@ -1,34 +1,46 @@
-import { useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { FileTree } from "@/components/Files/FileTree"
-import { ChangesetTreeSection } from "./ChangesetTreeSection"
+import { Button } from "@evoloop/shared/components/ui/button"
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@evoloop/shared/components/ui/collapsible"
-import { ChevronDown, ChevronRight, Files, History, Globe, Wand2, Rocket, BookOpen, Edit, RefreshCw } from "lucide-react"
-import { cn } from "@evoloop/shared/lib/utils"
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger,
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@evoloop/shared/components/ui/dropdown-menu"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@evoloop/shared/components/ui/tooltip"
-import { WikiService } from "@/client"
-import { useQueryClient, useQuery } from "@tanstack/react-query"
-import { FilesService } from "@/client"
-import { useProjectStore, isGlobalProject } from "@/stores/projectStore"
-import { useChatStore } from "@/stores/chatStore"
-import { useUIStore } from "@/stores/uiStore"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@evoloop/shared/components/ui/tooltip"
+import { cn } from "@evoloop/shared/lib/utils"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  BookOpen,
+  ChevronDown,
+  ChevronRight,
+  Edit,
+  Files,
+  FolderPlus,
+  Globe,
+  History,
+  RefreshCw,
+  Upload,
+  Wand2,
+} from "lucide-react"
+import { useState } from "react"
+import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
+import { FilesService, WikiService } from "@/client"
+import { FileTree } from "@/components/Files/FileTree"
 import { DiscoverDialog } from "@/components/Projects/Modules/Overview/DiscoverDialog"
-import { Link } from "@tanstack/react-router"
-import { Button } from "@evoloop/shared/components/ui/button"
-import { FolderPlus, Upload } from "lucide-react"
+import { isGlobalProject, useProjectStore } from "@/stores/projectStore"
+import { useUIStore } from "@/stores/uiStore"
+import { ChangesetTreeSection } from "./ChangesetTreeSection"
 
 interface SidebarFilesTabProps {
   projectId?: number
@@ -38,26 +50,37 @@ interface SidebarFilesTabProps {
   expandChanges?: boolean // Whether to expand Agent Changes panel by default
 }
 
-export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuoteFile, expandChanges = false }: SidebarFilesTabProps) {
+export function SidebarFilesTab({
+  projectId,
+  activeThreadId,
+  onSelectDiff,
+  onQuoteFile,
+  expandChanges = false,
+}: SidebarFilesTabProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const currentProject = useProjectStore(s => s.currentProject)
-  const fetchProjects = useProjectStore(s => s.fetchProjects)
+  const currentProject = useProjectStore((s) => s.currentProject)
+  const fetchProjects = useProjectStore((s) => s.fetchProjects)
   const [isProjectOpen, setIsProjectOpen] = useState(true)
   const [isChangesOpen, setIsChangesOpen] = useState(expandChanges)
   const [discoverOpen, setDiscoverOpen] = useState(false)
   const [isCreatingRootFolder, setIsCreatingRootFolder] = useState(false)
 
   // Check for global mode (projectId is 0)
-  const isGlobal = isGlobalProject(projectId ? { id: projectId } as any : null)
+  const isGlobal = isGlobalProject(
+    projectId ? ({ id: projectId } as any) : null,
+  )
 
   const { data: rootFiles } = useQuery({
     queryKey: ["files", projectId || 0, ""],
-    queryFn: () => FilesService.listFiles({ projectId: projectId || 0, path: "" }),
+    queryFn: () =>
+      FilesService.listFiles({ projectId: projectId || 0, path: "" }),
     enabled: projectId !== undefined,
   })
 
-  const hasProjectProfile = Array.isArray(rootFiles) && rootFiles.some((f: any) => f.name === "PROJECT.md")
+  const hasProjectProfile =
+    Array.isArray(rootFiles) &&
+    rootFiles.some((f: any) => f.name === "PROJECT.md")
 
   const handleGenerateWiki = async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -67,16 +90,24 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
       await WikiService.generateWiki({
         requestBody: {
           project_id: projectId,
-          topic: t("wiki.topic.full_documentation", { defaultValue: "完整项目百科" }),
-          force_regenerate: true
-        }
+          topic: t("wiki.topic.full_documentation", {
+            defaultValue: "完整项目百科",
+          }),
+          force_regenerate: true,
+        },
       })
-      toast.success(t("wiki.toast.start", { defaultValue: "百科生成已开始！将在后台运行。" }))
+      toast.success(
+        t("wiki.toast.start", {
+          defaultValue: "百科生成已开始！将在后台运行。",
+        }),
+      )
       queryClient.invalidateQueries({ queryKey: ["wiki"] })
       fetchProjects()
     } catch (error) {
       console.error("Failed to start wiki generation task:", error)
-      toast.error(t("wiki.toast.error", { defaultValue: "启动百科生成任务失败" }))
+      toast.error(
+        t("wiki.toast.error", { defaultValue: "启动百科生成任务失败" }),
+      )
     }
   }
 
@@ -90,7 +121,11 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
       >
         <CollapsibleTrigger asChild>
           <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors border-b border-border bg-muted/20">
-            {isProjectOpen ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+            {isProjectOpen ? (
+              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+            )}
             {isGlobal ? (
               <Globe className="h-3.5 w-3.5 text-blue-500" />
             ) : (
@@ -98,7 +133,9 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
             )}
             <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex-1">
               {isGlobal
-                ? t("chat.sidebar.workspaceFiles", { defaultValue: "工作区文件" })
+                ? t("chat.sidebar.workspaceFiles", {
+                    defaultValue: "工作区文件",
+                  })
                 : t("chat.sidebar.projectFiles", { defaultValue: "项目文件" })}
             </span>
 
@@ -107,21 +144,33 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
                 <>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-primary" onClick={(e) => {
-                        e.stopPropagation()
-                        setIsProjectOpen(true)
-                        setIsCreatingRootFolder(true)
-                      }}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-primary"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setIsProjectOpen(true)
+                          setIsCreatingRootFolder(true)
+                        }}
+                      >
                         <FolderPlus className="h-3.5 w-3.5" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top">{t("files.newFolder", { defaultValue: "新建文件夹" })}</TooltipContent>
+                    <TooltipContent side="top">
+                      {t("files.newFolder", { defaultValue: "新建文件夹" })}
+                    </TooltipContent>
                   </Tooltip>
-                  
+
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <div className="relative h-6 w-6">
-                        <Button variant="ghost" size="icon" className="h-6 w-6 absolute inset-0 text-muted-foreground hover:text-primary" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 absolute inset-0 text-muted-foreground hover:text-primary"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <Upload className="h-3.5 w-3.5" />
                         </Button>
                         <input
@@ -135,14 +184,32 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
                             for (let i = 0; i < e.target.files.length; i++) {
                               dt.items.add(e.target.files[i])
                             }
-                            FilesService.workspaceUpload({ projectId, formData: { target_dir: "", file: e.target.files[0] as any } }) // Note: simplistic upload for root, better handled in FileTree
-                              .then(() => queryClient.invalidateQueries({ queryKey: ["files", projectId] }))
-                              .catch(() => toast.error(t("files.uploadError", { defaultValue: "上传失败" })))
+                            FilesService.workspaceUpload({
+                              projectId,
+                              formData: {
+                                target_dir: "",
+                                file: e.target.files[0] as any,
+                              },
+                            }) // Note: simplistic upload for root, better handled in FileTree
+                              .then(() =>
+                                queryClient.invalidateQueries({
+                                  queryKey: ["files", projectId],
+                                }),
+                              )
+                              .catch(() =>
+                                toast.error(
+                                  t("files.uploadError", {
+                                    defaultValue: "上传失败",
+                                  }),
+                                ),
+                              )
                           }}
                         />
                       </div>
                     </TooltipTrigger>
-                    <TooltipContent side="top">{t("files.uploadFile", { defaultValue: "上传文件" })}</TooltipContent>
+                    <TooltipContent side="top">
+                      {t("files.uploadFile", { defaultValue: "上传文件" })}
+                    </TooltipContent>
                   </Tooltip>
                 </>
               )}
@@ -151,40 +218,70 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
               <DropdownMenu>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenuTrigger
+                      asChild
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <div className="p-1 hover:bg-muted rounded-md transition-colors group/trigger">
-                        <Wand2 className={cn("h-3.5 w-3.5 text-muted-foreground/60 group-hover/trigger:text-primary transition-colors", isGlobal && "opacity-40")} />
+                        <Wand2
+                          className={cn(
+                            "h-3.5 w-3.5 text-muted-foreground/60 group-hover/trigger:text-primary transition-colors",
+                            isGlobal && "opacity-40",
+                          )}
+                        />
                       </div>
                     </DropdownMenuTrigger>
                   </TooltipTrigger>
                   {isGlobal && (
                     <TooltipContent side="top">
-                      {t("chat.sidebar.projectOnly", { defaultValue: "仅项目内可用" })}
+                      {t("chat.sidebar.projectOnly", {
+                        defaultValue: "仅项目内可用",
+                      })}
                     </TooltipContent>
                   )}
                 </Tooltip>
-                
-                <DropdownMenuContent align="end" className="w-56" onClick={(e) => e.stopPropagation()}>
+
+                <DropdownMenuContent
+                  align="end"
+                  className="w-56"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <DropdownMenuLabel className="text-[11px] font-bold uppercase tracking-tight text-muted-foreground/80">
                     {t("chat.sidebar.actions", { defaultValue: "项目操作" })}
-                    {isGlobal && <span className="ml-2 text-[10px] font-normal lowercase opacity-60">({t("chat.sidebar.projectOnly", { defaultValue: "仅项目内可用" })})</span>}
+                    {isGlobal && (
+                      <span className="ml-2 text-[10px] font-normal lowercase opacity-60">
+                        (
+                        {t("chat.sidebar.projectOnly", {
+                          defaultValue: "仅项目内可用",
+                        })}
+                        )
+                      </span>
+                    )}
                   </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                
+                  <DropdownMenuSeparator />
 
-                
-                <DropdownMenuItem 
-                  disabled={isGlobal || currentProject?.wiki_status === "running"}
-                  onClick={handleGenerateWiki}
-                  className="gap-2 text-xs py-2 cursor-pointer"
-                >
-                  <BookOpen className="h-3.5 w-3.5 text-green-500" />
-                  <span>{currentProject?.has_wiki ? t("wiki.regenerate_action", { defaultValue: "重新生成百科" }) : t("chat.sidebar.wiki", { defaultValue: "生成项目百科" })}</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  <DropdownMenuItem
+                    disabled={
+                      isGlobal || currentProject?.wiki_status === "running"
+                    }
+                    onClick={handleGenerateWiki}
+                    className="gap-2 text-xs py-2 cursor-pointer"
+                  >
+                    <BookOpen className="h-3.5 w-3.5 text-green-500" />
+                    <span>
+                      {currentProject?.has_wiki
+                        ? t("wiki.regenerate_action", {
+                            defaultValue: "重新生成百科",
+                          })
+                        : t("chat.sidebar.wiki", {
+                            defaultValue: "生成项目百科",
+                          })}
+                    </span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
-        </div>
         </CollapsibleTrigger>
         <CollapsibleContent className="flex-1 overflow-y-auto">
           <div className="p-2 h-full flex flex-col">
@@ -192,10 +289,13 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
               <>
                 <div className="mb-2">
                   {hasProjectProfile ? (
-                    <div 
-                      className="px-3 py-2 border border-muted/50 rounded-md bg-muted/10 hover:bg-muted/30 transition-colors flex items-center justify-between group cursor-pointer" 
+                    <div
+                      className="px-3 py-2 border border-muted/50 rounded-md bg-muted/10 hover:bg-muted/30 transition-colors flex items-center justify-between group cursor-pointer"
                       onClick={() => {
-                        useUIStore.getState().setPreviewFile({ path: "PROJECT.md", name: "PROJECT.md" });
+                        useUIStore.getState().setPreviewFile({
+                          path: "PROJECT.md",
+                          name: "PROJECT.md",
+                        })
                       }}
                     >
                       <div className="flex items-center gap-2 text-sm text-primary">
@@ -205,36 +305,64 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => {
-                              e.stopPropagation()
-                              setDiscoverOpen(true)
-                            }}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setDiscoverOpen(true)
+                              }}
+                            >
                               <RefreshCw className="h-3 w-3" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent side="top">{t("projects.profile.reanalyze", { defaultValue: "重新分析项目" })}</TooltipContent>
+                          <TooltipContent side="top">
+                            {t("projects.profile.reanalyze", {
+                              defaultValue: "重新分析项目",
+                            })}
+                          </TooltipContent>
                         </Tooltip>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => {
-                              e.stopPropagation()
-                              useUIStore.getState().setPreviewFile({ path: "PROJECT.md", name: "PROJECT.md" });
-                            }}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                useUIStore.getState().setPreviewFile({
+                                  path: "PROJECT.md",
+                                  name: "PROJECT.md",
+                                })
+                              }}
+                            >
                               <Edit className="h-3 w-3" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent side="top">{t("common.edit", { defaultValue: "编辑" })}</TooltipContent>
+                          <TooltipContent side="top">
+                            {t("common.edit", { defaultValue: "编辑" })}
+                          </TooltipContent>
                         </Tooltip>
                       </div>
                     </div>
                   ) : (
                     <div className="px-3 py-3 border border-dashed border-muted-foreground/30 rounded-md bg-muted/5 flex flex-col items-center justify-center gap-2 text-center">
                       <p className="text-[11px] text-muted-foreground leading-tight">
-                        {t("projects.profile.missing", { defaultValue: "缺少项目资料，这会影响 Agent 的理解。" })}
+                        {t("projects.profile.missing", {
+                          defaultValue: "缺少项目资料，这会影响 Agent 的理解。",
+                        })}
                       </p>
-                      <Button variant="outline" size="sm" className="h-7 text-xs w-full bg-background" onClick={() => setDiscoverOpen(true)}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs w-full bg-background"
+                        onClick={() => setDiscoverOpen(true)}
+                      >
                         <Wand2 className="h-3 w-3 mr-1.5 text-primary" />
-                        {t("projects.profile.discoverTitle", { defaultValue: "分析与初始化" })}
+                        {t("projects.profile.discoverTitle", {
+                          defaultValue: "分析与初始化",
+                        })}
                       </Button>
                     </div>
                   )}
@@ -243,18 +371,31 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
                   <FileTree
                     projectId={projectId}
                     onSelectFile={(file) => {
-                      useUIStore.getState().setPreviewFile({ path: file.path, name: file.name });
+                      useUIStore
+                        .getState()
+                        .setPreviewFile({ path: file.path, name: file.name })
                     }}
                     onQuoteFile={onQuoteFile}
                     isCreatingRootFolder={isCreatingRootFolder}
-                    onCancelCreateRootFolder={() => setIsCreatingRootFolder(false)}
+                    onCancelCreateRootFolder={() =>
+                      setIsCreatingRootFolder(false)
+                    }
                     onCreateRootFolder={async (name) => {
                       try {
-                        await FilesService.createDirectory({ projectId, requestBody: { path: name } })
-                        queryClient.invalidateQueries({ queryKey: ["files", projectId] })
+                        await FilesService.createDirectory({
+                          projectId,
+                          requestBody: { path: name },
+                        })
+                        queryClient.invalidateQueries({
+                          queryKey: ["files", projectId],
+                        })
                         setIsCreatingRootFolder(false)
-                      } catch (error) {
-                        toast.error(t("files.createFolderError", { defaultValue: "创建文件夹失败" }))
+                      } catch (_error) {
+                        toast.error(
+                          t("files.createFolderError", {
+                            defaultValue: "创建文件夹失败",
+                          }),
+                        )
                       }
                     }}
                   />
@@ -276,22 +417,28 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
           onOpenChange={setIsChangesOpen}
           className={cn(
             "flex flex-col min-h-0 border-t border-border transition-all duration-200 bg-background/50",
-            isChangesOpen ? "h-[40%] shrink-0" : "flex-none"
+            isChangesOpen ? "h-[40%] shrink-0" : "flex-none",
           )}
         >
           <CollapsibleTrigger asChild>
             <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors border-b border-border bg-muted/20">
-              {isChangesOpen ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+              {isChangesOpen ? (
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
               <History className="h-3.5 w-3.5 text-amber-500/70" />
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex-1">
-                {t("chat.sidebar.agentChanges", { defaultValue: "Agent 改动记录" })}
+                {t("chat.sidebar.agentChanges", {
+                  defaultValue: "Agent 改动记录",
+                })}
               </span>
             </div>
           </CollapsibleTrigger>
           <CollapsibleContent className="flex-1 overflow-y-auto bg-background/30">
             <ChangesetTreeSection
               activeThreadId={activeThreadId}
-              onSelectFile={onSelectDiff || (() => { })}
+              onSelectFile={onSelectDiff || (() => {})}
               defaultExpanded={expandChanges}
             />
           </CollapsibleContent>
@@ -304,7 +451,6 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
         onOpenChange={setDiscoverOpen}
         onDiscovered={() => fetchProjects()}
       />
-
     </div>
   )
 }

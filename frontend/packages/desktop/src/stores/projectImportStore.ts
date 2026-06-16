@@ -31,8 +31,12 @@ interface ProjectImportState {
   dismissAllProjects: () => void // 标记所有当前项目为已处理
   dismissAllAndResetManual: () => void // 标记所有项目为已处理并重置手动模式（一次性原子操作）
 
-  batchImportProjects: (ids: number[]) => Promise<{ success: number; failed: number }>
-  batchIgnoreProjects: (ids: number[]) => Promise<{ success: number; failed: number }>
+  batchImportProjects: (
+    ids: number[],
+  ) => Promise<{ success: number; failed: number }>
+  batchIgnoreProjects: (
+    ids: number[],
+  ) => Promise<{ success: number; failed: number }>
 }
 
 export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
@@ -64,7 +68,9 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
       const res = await ProjectsService.scanWorkspaceProjectsEndpoint()
       const items = (res.data || []).map((item: any) => ({
         ...item,
-        detected_at: item.detected_at ? new Date(item.detected_at).getTime() : 0,
+        detected_at: item.detected_at
+          ? new Date(item.detected_at).getTime()
+          : 0,
       }))
 
       set({
@@ -87,7 +93,7 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
     if (isDiscoveryEnabled === null) {
       isDiscoveryEnabled = await get().checkDiscoveryEnabled()
     }
-    
+
     // Skip fetching if discovery is disabled, unless forced
     if (!isDiscoveryEnabled && !force) {
       console.debug("[ProjectImport] Discovery disabled, skipping fetch")
@@ -101,12 +107,16 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
 
       const items = (res.data || []).map((item: any) => ({
         ...item,
-        detected_at: item.detected_at ? new Date(item.detected_at).getTime() : 0,
+        detected_at: item.detected_at
+          ? new Date(item.detected_at).getTime()
+          : 0,
       }))
 
       // 检查是否有新的、未处理过的项目
       const { dismissedProjectIds } = get()
-      const hasNewUnprocessed = items.some((item: DetectedProject) => !dismissedProjectIds.has(item.id))
+      const hasNewUnprocessed = items.some(
+        (item: DetectedProject) => !dismissedProjectIds.has(item.id),
+      )
 
       set({
         detectedProjects: items,
@@ -114,12 +124,17 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
       })
     } catch (error: any) {
       // Handle timeout errors gracefully - don't spam console with expected errors
-      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-        console.warn('[ProjectImport] Fetch detected projects timed out, will retry on next poll')
-      } else if (error.message?.includes('Network Error') || !navigator.onLine) {
-        console.warn('[ProjectImport] Network error, likely offline')
+      if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+        console.warn(
+          "[ProjectImport] Fetch detected projects timed out, will retry on next poll",
+        )
+      } else if (
+        error.message?.includes("Network Error") ||
+        !navigator.onLine
+      ) {
+        console.warn("[ProjectImport] Network error, likely offline")
       } else {
-        console.error('Failed to fetch detected projects:', error)
+        console.error("Failed to fetch detected projects:", error)
       }
       // Keep existing projects on error, don't clear them
       set({ hasNewDetected: false })
@@ -132,7 +147,9 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
 
       const items = (res.data || []).map((item: any) => ({
         ...item,
-        detected_at: item.detected_at ? new Date(item.detected_at).getTime() : 0,
+        detected_at: item.detected_at
+          ? new Date(item.detected_at).getTime()
+          : 0,
       }))
 
       set({ ignoredProjects: items })
@@ -204,7 +221,7 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
 
       // 检查是否还有未处理的项目
       const hasNewUnprocessed = state.detectedProjects.some(
-        (item) => !newDismissed.has(item.id)
+        (item) => !newDismissed.has(item.id),
       )
 
       return {

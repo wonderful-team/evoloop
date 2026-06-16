@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
-import { useTranslation } from 'react-i18next'
+import { useCallback, useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 
 interface UseWakeWordOptions {
   wakeWord?: string
@@ -17,31 +17,34 @@ interface UseWakeWordReturn {
   transcript: string
 }
 
-export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn {
+export function useWakeWord(
+  options: UseWakeWordOptions = {},
+): UseWakeWordReturn {
   const { t } = useTranslation()
   const {
-    wakeWord = '你好 Evo',
+    wakeWord = "你好 Evo",
     onWake,
     enabled = false,
-    language = 'zh-CN'
+    language = "zh-CN",
   } = options
 
   const [isListening, setIsListening] = useState(false)
   const [isWakeWordDetected, setIsWakeWordDetected] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [transcript, setTranscript] = useState('')
+  const [transcript, setTranscript] = useState("")
 
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Initialize speech recognition
   useEffect(() => {
-    if (!enabled || typeof window === 'undefined') return
+    if (!enabled || typeof window === "undefined") return
 
     // Check browser support
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SpeechRecognition) {
-      setError(t('voice.notSupported'))
+      setError(t("voice.notSupported"))
       return
     }
 
@@ -63,7 +66,7 @@ export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn
         setTimeout(() => {
           try {
             recognition.start()
-          } catch (e) {
+          } catch (_e) {
             // Already started
           }
         }, 100)
@@ -71,17 +74,17 @@ export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn
     }
 
     recognition.onerror = (event: any) => {
-      if (event.error === 'no-speech') {
+      if (event.error === "no-speech") {
         // Ignore no-speech errors
         return
       }
-      setError(`${t('voice.recognitionError')}: ${event.error}`)
+      setError(`${t("voice.recognitionError")}: ${event.error}`)
       setIsListening(false)
     }
 
     recognition.onresult = (event: any) => {
-      let finalTranscript = ''
-      let interimTranscript = ''
+      let finalTranscript = ""
+      let interimTranscript = ""
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript
@@ -96,17 +99,24 @@ export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn
       setTranscript(currentTranscript)
 
       // Check for wake word (case-insensitive)
-      const normalizedTranscript = currentTranscript.toLowerCase().replace(/\s+/g, ' ').trim()
-      const normalizedWakeWord = wakeWord.toLowerCase().replace(/\s+/g, ' ').trim()
+      const normalizedTranscript = currentTranscript
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .trim()
+      const normalizedWakeWord = wakeWord
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .trim()
 
       // Also check partial matches
-      const wakeWordParts = normalizedWakeWord.split(' ')
-      const transcriptParts = normalizedTranscript.split(' ')
+      const wakeWordParts = normalizedWakeWord.split(" ")
+      const transcriptParts = normalizedTranscript.split(" ")
 
       // Check if wake word is in transcript
-      const isMatch = normalizedTranscript.includes(normalizedWakeWord) ||
-        wakeWordParts.every(part => 
-          transcriptParts.some(tp => tp.includes(part) || part.includes(tp))
+      const isMatch =
+        normalizedTranscript.includes(normalizedWakeWord) ||
+        wakeWordParts.every((part) =>
+          transcriptParts.some((tp) => tp.includes(part) || part.includes(tp)),
         )
 
       if (isMatch && !isWakeWordDetected) {
@@ -119,7 +129,7 @@ export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn
         }
         timeoutRef.current = setTimeout(() => {
           setIsWakeWordDetected(false)
-          setTranscript('')
+          setTranscript("")
         }, 3000)
       }
     }
@@ -139,7 +149,7 @@ export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn
       try {
         recognitionRef.current.start()
       } catch (e) {
-        console.error('Failed to start recognition:', e)
+        console.error("Failed to start recognition:", e)
       }
     }
   }, [isListening])
@@ -161,30 +171,30 @@ export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn
     error,
     startListening,
     stopListening,
-    transcript
+    transcript,
   }
 }
 
 // Hook for managing wake word settings
 export function useWakeWordSettings() {
   const [wakeWord, setWakeWord] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('evoloop_wake_word') || '你好 Evo'
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("evoloop_wake_word") || "你好 Evo"
     }
-    return '你好 Evo'
+    return "你好 Evo"
   })
 
   const [wakeWordEnabled, setWakeWordEnabled] = useState(false)
 
   const updateWakeWord = useCallback((newWord: string) => {
     setWakeWord(newWord)
-    localStorage.setItem('evoloop_wake_word', newWord)
+    localStorage.setItem("evoloop_wake_word", newWord)
   }, [])
 
   const toggleWakeWord = useCallback(() => {
-    setWakeWordEnabled(prev => {
+    setWakeWordEnabled((prev) => {
       const newValue = !prev
-      localStorage.setItem('evoloop_wake_word_enabled', newValue.toString())
+      localStorage.setItem("evoloop_wake_word_enabled", newValue.toString())
       return newValue
     })
   }, [])
@@ -193,6 +203,6 @@ export function useWakeWordSettings() {
     wakeWord,
     wakeWordEnabled,
     updateWakeWord,
-    toggleWakeWord
+    toggleWakeWord,
   }
 }

@@ -1,19 +1,19 @@
+import { Button } from "@evoloop/shared/components/ui/button"
+import { Input } from "@evoloop/shared/components/ui/input"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   Check,
   Pencil,
+  Pin,
+  PinOff,
   Plus,
   Search,
   Trash2,
   X,
-  Pin,
-  PinOff,
 } from "lucide-react"
-import { useState, useRef, useEffect, useMemo } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { ConversationsService } from "@/client"
-import { Button } from "@evoloop/shared/components/ui/button"
-import { Input } from "@evoloop/shared/components/ui/input"
 
 export interface Thread {
   thread_id: string
@@ -59,12 +59,12 @@ function formatRelativeTime(dateString: string) {
       return `${diffDays}天前`
     }
 
-    const mm = String(date.getMonth() + 1).padStart(2, '0')
-    const dd = String(date.getDate()).padStart(2, '0')
-    const hh = String(date.getHours()).padStart(2, '0')
-    const min = String(date.getMinutes()).padStart(2, '0')
+    const mm = String(date.getMonth() + 1).padStart(2, "0")
+    const dd = String(date.getDate()).padStart(2, "0")
+    const hh = String(date.getHours()).padStart(2, "0")
+    const min = String(date.getMinutes()).padStart(2, "0")
     return `${mm}-${dd} ${hh}:${min}`
-  } catch (e) {
+  } catch (_e) {
     return ""
   }
 }
@@ -86,7 +86,11 @@ function groupThreads(threads: Thread[]): GroupedThreads {
   }
 
   const now = new Date()
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const startOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  ).getTime()
   const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000
   const startOf7DaysAgo = startOfToday - 6 * 24 * 60 * 60 * 1000
 
@@ -145,7 +149,7 @@ export function SidebarChatList({
           fetchNextPage()
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 },
     )
 
     const currentSentinel = sentinelRef.current
@@ -182,7 +186,10 @@ export function SidebarChatList({
 
   // Memoize groupThreads: only re-runs when filteredThreads changes,
   // not on every re-render caused by editingThreadId or other local state changes.
-  const groupedThreads = useMemo(() => groupThreads(filteredThreads), [filteredThreads])
+  const groupedThreads = useMemo(
+    () => groupThreads(filteredThreads),
+    [filteredThreads],
+  )
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -285,17 +292,26 @@ export function SidebarChatList({
                     </Button>
                   </div>
                 ) : (
-                  <div className="flex flex-col min-w-0 flex-1">
-                    <span className="truncate flex items-center gap-1.5 font-medium text-foreground" title={thread.title || t("chat.sidebar.untitled")}>
+                  <div className="flex flex-col min-w-0 flex-1 pr-8">
+                    <span
+                      className="truncate flex items-center gap-1.5 font-medium text-foreground"
+                      title={thread.title || t("chat.sidebar.untitled")}
+                    >
                       {thread.is_pinned && (
-                        <Pin size={10} className="shrink-0 text-amber-500 fill-amber-500/25" />
+                        <Pin
+                          size={10}
+                          className="shrink-0 text-amber-500 fill-amber-500/25"
+                        />
                       )}
                       <span className="truncate">
                         {thread.title || t("chat.sidebar.untitled")}
                       </span>
                     </span>
                     {thread.goal && (
-                      <span className="text-[11px] text-muted-foreground/80 truncate mt-0.5 block pr-8" title={thread.goal}>
+                      <span
+                        className="text-[11px] text-muted-foreground/80 truncate mt-0.5 block"
+                        title={thread.goal}
+                      >
                         {thread.goal}
                       </span>
                     )}
@@ -327,9 +343,15 @@ export function SidebarChatList({
                       title={thread.is_pinned ? "取消置顶" : "置顶会话"}
                     >
                       {thread.is_pinned ? (
-                        <PinOff size={12} className="text-amber-500 fill-amber-500/25" />
+                        <PinOff
+                          size={12}
+                          className="text-amber-500 fill-amber-500/25"
+                        />
                       ) : (
-                        <Pin size={12} className="text-muted-foreground hover:text-foreground" />
+                        <Pin
+                          size={12}
+                          className="text-muted-foreground hover:text-foreground"
+                        />
                       )}
                     </Button>
 
@@ -346,7 +368,10 @@ export function SidebarChatList({
                         }}
                         title={t("common.rename") || "重命名"}
                       >
-                        <Pencil size={12} className="text-muted-foreground hover:text-foreground" />
+                        <Pencil
+                          size={12}
+                          className="text-muted-foreground hover:text-foreground"
+                        />
                       </Button>
                     )}
 
@@ -419,7 +444,7 @@ export function SidebarChatList({
                         {section.items.map(renderThreadItem)}
                       </div>
                     </div>
-                  )
+                  ),
               )}
             </>
           )
@@ -427,7 +452,10 @@ export function SidebarChatList({
 
         {/* Infinite loading sentinel */}
         {hasNextPage && (
-          <div ref={sentinelRef} className="py-2 text-center text-xs text-muted-foreground">
+          <div
+            ref={sentinelRef}
+            className="py-2 text-center text-xs text-muted-foreground"
+          >
             {isFetchingNextPage ? "加载中..." : "加载更多"}
           </div>
         )}

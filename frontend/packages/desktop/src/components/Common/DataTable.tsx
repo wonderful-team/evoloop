@@ -1,18 +1,3 @@
-import {
-  type ColumnDef,
-  flexRender,
-  getCoreRowModel,
-  getPaginationRowModel,
-  useReactTable,
-} from "@tanstack/react-table"
-import {
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-} from "lucide-react"
-import { useTranslation } from "react-i18next"
-
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
   Select,
@@ -29,6 +14,20 @@ import {
   TableHeader,
   TableRow,
 } from "@evoloop/shared/components/ui/table"
+import {
+  type ColumnDef,
+  flexRender,
+  getCoreRowModel,
+  getPaginationRowModel,
+  useReactTable,
+} from "@tanstack/react-table"
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+} from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]

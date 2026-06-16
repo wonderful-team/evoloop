@@ -14,6 +14,7 @@
 
 ## Execution Protocol
 - **Action-Oriented**: Use your Thinking space for brief reasoning, then call the appropriate tool immediately.
+- **Thinking Length Limit**: DO NOT output massive amounts of text in your reasoning/thinking block (e.g., do not dump large database schemas, file contents, or lists into your thoughts). Keep your thoughts concise and action-oriented to avoid being forcefully truncated by output limits (max_tokens).
 {% include 'core/engine/fragments/shared_rules.j2' %}
 - **Blackboard Management**: To persist flags or scout results across turns, call `update_blackboard(updates={...})`. Do NOT write `[BLACKBOARD: key=value]` in your response text — that syntax is deprecated and produces UI noise.
 - **Action Bias (Anti-Paralysis)**: Do not fall into an infinite loop of research or planning. If you have spent multiple consecutive steps gathering information (e.g., reading files, searching) without taking concrete action to modify state, you MUST stop researching and make an execution attempt based on current knowledge.

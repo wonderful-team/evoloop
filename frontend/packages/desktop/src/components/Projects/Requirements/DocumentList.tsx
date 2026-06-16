@@ -1,16 +1,3 @@
-import { useEffect } from "react"
-import { useTranslation } from "react-i18next"
-import { FileText, Trash2, Loader2, AlertCircle } from "lucide-react"
-import { Button } from "@evoloop/shared/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@evoloop/shared/components/ui/card"
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { Skeleton } from "@evoloop/shared/components/ui/skeleton"
-import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,8 +9,16 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@evoloop/shared/components/ui/alert-dialog"
-import { useRequirementStore } from "@/stores/requirementStore"
+import { Badge } from "@evoloop/shared/components/ui/badge"
+import { Button } from "@evoloop/shared/components/ui/button"
+import { Card, CardContent } from "@evoloop/shared/components/ui/card"
+import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
+import { Skeleton } from "@evoloop/shared/components/ui/skeleton"
 import { cn } from "@evoloop/shared/lib/utils"
+import { AlertCircle, FileText, Loader2, Trash2 } from "lucide-react"
+import { useEffect } from "react"
+import { useTranslation } from "react-i18next"
+import { useRequirementStore } from "@/stores/requirementStore"
 
 interface DocumentListProps {
   projectId: number
@@ -119,7 +114,7 @@ export function DocumentList({ projectId, onViewDetail }: DocumentListProps) {
             key={doc.id}
             className={cn(
               "hover:border-primary/50 transition-colors cursor-pointer",
-              onViewDetail && "hover:bg-muted/50"
+              onViewDetail && "hover:bg-muted/50",
             )}
             onClick={() => onViewDetail?.(doc.id)}
           >
@@ -129,7 +124,7 @@ export function DocumentList({ projectId, onViewDetail }: DocumentListProps) {
                   <div
                     className={cn(
                       "w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-muted",
-                      getFileIconColor(doc.file_type)
+                      getFileIconColor(doc.file_type),
                     )}
                   >
                     <FileText className="h-5 w-5" />
@@ -156,7 +151,9 @@ export function DocumentList({ projectId, onViewDetail }: DocumentListProps) {
                         <>
                           <span>•</span>
                           <span>
-                            {t("requirements.list.analysisCount", { count: doc.analysis_count })}
+                            {t("requirements.list.analysisCount", {
+                              count: doc.analysis_count,
+                            })}
                           </span>
                         </>
                       )}
@@ -187,7 +184,9 @@ export function DocumentList({ projectId, onViewDetail }: DocumentListProps) {
                           {t("requirements.list.deleteTitle")}
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                          {t("requirements.list.deleteConfirm", { file: doc.file_name })}
+                          {t("requirements.list.deleteConfirm", {
+                            file: doc.file_name,
+                          })}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>

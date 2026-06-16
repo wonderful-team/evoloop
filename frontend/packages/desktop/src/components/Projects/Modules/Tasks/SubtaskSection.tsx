@@ -1,10 +1,10 @@
+import { Badge } from "@evoloop/shared/components/ui/badge"
+import { cn } from "@evoloop/shared/lib/utils"
 import { useQuery } from "@tanstack/react-query"
 import { ChevronDown, ChevronRight, Loader2 } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { SubtasksService } from "@/client"
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { cn } from "@evoloop/shared/lib/utils"
 import { TaskProgressEdit } from "./TaskProgressEdit"
 
 interface SubtaskSectionProps {
@@ -27,7 +27,11 @@ export function SubtaskSection({ projectId, taskId }: SubtaskSectionProps) {
   const { t } = useTranslation()
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set())
 
-  const { data: taskTree, isLoading, refetch } = useQuery({
+  const {
+    data: taskTree,
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ["task-tree", projectId, taskId],
     queryFn: async () => {
       const res: any = await SubtasksService.getTaskTree({
@@ -81,7 +85,7 @@ export function SubtaskSection({ projectId, taskId }: SubtaskSectionProps) {
           className={cn(
             "flex items-center gap-2 p-3 rounded-lg border transition-colors",
             level === 0 ? "bg-muted/30" : "bg-background",
-            "hover:border-primary/30"
+            "hover:border-primary/30",
           )}
           style={{ marginLeft: level * 24 }}
         >
@@ -105,7 +109,10 @@ export function SubtaskSection({ projectId, taskId }: SubtaskSectionProps) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-medium truncate">{node.title}</span>
-              <Badge variant="secondary" className={cn("text-xs", getStatusColor(node.status))}>
+              <Badge
+                variant="secondary"
+                className={cn("text-xs", getStatusColor(node.status))}
+              >
                 {getStatusText(node.status)}
               </Badge>
             </div>
@@ -150,13 +157,11 @@ export function SubtaskSection({ projectId, taskId }: SubtaskSectionProps) {
     )
   }
 
-  if (!taskTree || (taskTree.children?.length === 0)) {
+  if (!taskTree || taskTree.children?.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         <p>{t("projects.tasks.noSubtasks")}</p>
-        <p className="text-sm mt-1">
-          {t("projects.tasks.subtasksWillAppear")}
-        </p>
+        <p className="text-sm mt-1">{t("projects.tasks.subtasksWillAppear")}</p>
       </div>
     )
   }
@@ -172,7 +177,8 @@ export function SubtaskSection({ projectId, taskId }: SubtaskSectionProps) {
           </p>
         </div>
         <Badge variant="outline" className="text-xs">
-          {Math.round(taskTree.progress || 0)}% {t("projects.tasks.totalProgress")}
+          {Math.round(taskTree.progress || 0)}%{" "}
+          {t("projects.tasks.totalProgress")}
         </Badge>
       </div>
 

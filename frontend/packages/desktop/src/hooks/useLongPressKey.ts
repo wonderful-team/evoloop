@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef, useState } from "react"
 
 interface UseLongPressKeyOptions {
   targetKey?: string
@@ -15,13 +15,15 @@ interface UseLongPressKeyReturn {
 }
 
 // Browser-compatible version (for regular keys)
-export function useLongPressKey(options: UseLongPressKeyOptions = {}): UseLongPressKeyReturn {
+export function useLongPressKey(
+  options: UseLongPressKeyOptions = {},
+): UseLongPressKeyReturn {
   const {
-    targetKey = 'Fn',
+    targetKey = "Fn",
     duration = 500,
     onLongPressStart,
     onLongPressEnd,
-    enabled = true
+    enabled = true,
   } = options
 
   const [isPressed, setIsPressed] = useState(false)
@@ -32,11 +34,11 @@ export function useLongPressKey(options: UseLongPressKeyOptions = {}): UseLongPr
   const isLongPressTriggeredRef = useRef(false)
 
   useEffect(() => {
-    if (!enabled || typeof window === 'undefined') return
+    if (!enabled || typeof window === "undefined") return
 
     // Note: Fn key cannot be detected in browsers
     // We'll use Space or Alt as fallback for browser testing
-    const effectiveKey = targetKey === 'Fn' ? 'Alt' : targetKey
+    const effectiveKey = targetKey === "Fn" ? "Alt" : targetKey
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === effectiveKey && !isPressed) {
@@ -70,17 +72,24 @@ export function useLongPressKey(options: UseLongPressKeyOptions = {}): UseLongPr
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener("keydown", handleKeyDown)
+    window.addEventListener("keyup", handleKeyUp)
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener("keydown", handleKeyDown)
+      window.removeEventListener("keyup", handleKeyUp)
       if (timerRef.current) {
         clearTimeout(timerRef.current)
       }
     }
-  }, [targetKey, duration, onLongPressStart, onLongPressEnd, enabled, isPressed])
+  }, [
+    targetKey,
+    duration,
+    onLongPressStart,
+    onLongPressEnd,
+    enabled,
+    isPressed,
+  ])
 
   return { isPressed, isLongPressed, error }
 }
@@ -88,40 +97,43 @@ export function useLongPressKey(options: UseLongPressKeyOptions = {}): UseLongPr
 // Settings hook
 export function useLongPressSettings() {
   const [longPressKey, setLongPressKey] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('evoloop_long_press_key') || 'Fn'
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("evoloop_long_press_key") || "Fn"
     }
-    return 'Fn'
+    return "Fn"
   })
 
   const [longPressDuration, setLongPressDuration] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return parseInt(localStorage.getItem('evoloop_long_press_duration') || '500')
+    if (typeof window !== "undefined") {
+      return parseInt(
+        localStorage.getItem("evoloop_long_press_duration") || "500",
+        10,
+      )
     }
     return 500
   })
 
   const [longPressEnabled, setLongPressEnabled] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('evoloop_long_press_enabled') === 'true'
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("evoloop_long_press_enabled") === "true"
     }
     return false
   })
 
   const updateLongPressKey = useCallback((key: string) => {
     setLongPressKey(key)
-    localStorage.setItem('evoloop_long_press_key', key)
+    localStorage.setItem("evoloop_long_press_key", key)
   }, [])
 
   const updateLongPressDuration = useCallback((duration: number) => {
     setLongPressDuration(duration)
-    localStorage.setItem('evoloop_long_press_duration', duration.toString())
+    localStorage.setItem("evoloop_long_press_duration", duration.toString())
   }, [])
 
   const toggleLongPress = useCallback(() => {
-    setLongPressEnabled(prev => {
+    setLongPressEnabled((prev) => {
       const newValue = !prev
-      localStorage.setItem('evoloop_long_press_enabled', newValue.toString())
+      localStorage.setItem("evoloop_long_press_enabled", newValue.toString())
       return newValue
     })
   }, [])
@@ -132,6 +144,6 @@ export function useLongPressSettings() {
     longPressEnabled,
     updateLongPressKey,
     updateLongPressDuration,
-    toggleLongPress
+    toggleLongPress,
   }
 }

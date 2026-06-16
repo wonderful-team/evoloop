@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState, useRef, memo } from "react"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@evoloop/shared/components/ui/collapsible"
+import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
+import { cn } from "@evoloop/shared/lib/utils"
+import { useQuery } from "@tanstack/react-query"
 import {
   BrainCircuit,
   ChevronDown,
@@ -8,21 +15,14 @@ import {
   Map as MapIcon,
   Wrench,
 } from "lucide-react"
-import { MessageContent } from "../MessageContent"
-import { cn } from "@evoloop/shared/lib/utils"
+import { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { PlanningService } from "@/client"
-import { useAgentStore } from "@/stores/agentStore"
 import { LearningService } from "@/client/sdk.gen"
 import { SkillDetailsPanel } from "@/components/Learning/SkillDetailsPanel"
-import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@evoloop/shared/components/ui/collapsible"
+import { useAgentStore } from "@/stores/agentStore"
 import { useChatStore } from "@/stores/chatStore"
-import { useQuery } from "@tanstack/react-query"
+import { MessageContent } from "../MessageContent"
 
 interface PlanStep {
   id: string
@@ -49,7 +49,9 @@ interface ActivityTabProps {
 export function ActivityTab({ activeThreadId }: ActivityTabProps) {
   const { t } = useTranslation()
   const agentState = useChatStore((state) => state.agentState)
-  const isAgentActive = status === "running" || status === "interrupted" || status === "summarizing"
+  const status = useAgentStore((state) => state.status)
+  const isAgentActive =
+    status === "running" || status === "interrupted" || status === "summarizing"
 
   const { data: planData, isLoading: isLoadingPlan } = useQuery({
     queryKey: ["threadPlan", activeThreadId],
@@ -111,68 +113,70 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
 
   return (
     <div className="h-full w-full min-w-0 flex flex-col bg-muted/5 overflow-hidden">
-      <ScrollArea className={cn(
-        "w-full transition-all duration-300",
-        thinkingOpen ? "shrink-0 max-h-[50%]" : "flex-1 min-h-0"
-      )}>
+      <ScrollArea
+        className={cn(
+          "w-full transition-all duration-300",
+          thinkingOpen ? "shrink-0 max-h-[50%]" : "flex-1 min-h-0",
+        )}
+      >
         <div className="flex flex-col w-full pb-2">
-        {/* === BLOCK 0: GOAL === */}
-        {sessionGoal && (
-          <Collapsible 
-            open={goalOpen} 
-            onOpenChange={setGoalOpen} 
+          {/* === BLOCK 0: GOAL === */}
+          {sessionGoal && (
+            <Collapsible
+              open={goalOpen}
+              onOpenChange={setGoalOpen}
+              className="flex flex-col border-b border-border transition-[border-color] duration-200 shrink-0"
+            >
+              <CollapsibleTrigger asChild>
+                <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors bg-muted/20 shrink-0">
+                  {goalOpen ? (
+                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  )}
+                  <BrainCircuit className="h-3.5 w-3.5 text-primary/70" />
+                  <span className="text-[10px] font-bold text-muted-foreground flex-1">
+                    {t("chat.context.sessionGoalTitle")}
+                  </span>
+                </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="p-3 text-xs text-foreground leading-relaxed font-medium bg-background/50 border-b border-border/50">
+                  {sessionGoal}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+          {/* === BLOCK 1: PLAN === */}
+          <Collapsible
+            open={planOpen}
+            onOpenChange={(open) => {
+              planInteracted.current = true
+              setPlanOpen(open)
+            }}
             className="flex flex-col border-b border-border transition-[border-color] duration-200 shrink-0"
           >
             <CollapsibleTrigger asChild>
               <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors bg-muted/20 shrink-0">
-                {goalOpen ? (
+                {planOpen ? (
                   <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                 ) : (
                   <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                 )}
-                <BrainCircuit className="h-3.5 w-3.5 text-primary/70" />
+                <MapIcon className="h-3.5 w-3.5 text-primary/70" />
                 <span className="text-[10px] font-bold text-muted-foreground flex-1">
-                  {t("chat.context.sessionGoalTitle")}
+                  {t("chat.context.planTitle")}
+                </span>
+                <span className="text-[10px] uppercase font-bold text-muted-foreground/50">
+                  {planStatus === "no_graph"
+                    ? t("chat.context.statusOffline")
+                    : planStatus === "no_state" || planStatus === "no_plan"
+                      ? t("chat.context.statusIdle")
+                      : t("chat.context.statusActive")}
                 </span>
               </div>
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <div className="p-3 text-xs text-foreground leading-relaxed font-medium bg-background/50 border-b border-border/50">
-                {sessionGoal}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-        )}
-        {/* === BLOCK 1: PLAN === */}
-        <Collapsible 
-          open={planOpen} 
-          onOpenChange={(open) => {
-            planInteracted.current = true
-            setPlanOpen(open)
-          }}
-          className="flex flex-col border-b border-border transition-[border-color] duration-200 shrink-0"
-        >
-          <CollapsibleTrigger asChild>
-            <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors bg-muted/20 shrink-0">
-              {planOpen ? (
-                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-              )}
-              <MapIcon className="h-3.5 w-3.5 text-primary/70" />
-              <span className="text-[10px] font-bold text-muted-foreground flex-1">
-                {t("chat.context.planTitle")}
-              </span>
-              <span className="text-[10px] uppercase font-bold text-muted-foreground/50">
-                {planStatus === "no_graph"
-                  ? t("chat.context.statusOffline")
-                  : planStatus === "no_state" || planStatus === "no_plan"
-                    ? t("chat.context.statusIdle")
-                    : t("chat.context.statusActive")}
-              </span>
-            </div>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
               <div className="p-2">
                 {isLoadingPlan ? (
                   <div className="flex justify-center p-4">
@@ -236,37 +240,37 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
                   </div>
                 )}
               </div>
-          </CollapsibleContent>
-        </Collapsible>
+            </CollapsibleContent>
+          </Collapsible>
 
-        {/* === BLOCK 2: USED SKILLS === */}
-        <Collapsible 
-          open={skillsOpen} 
-          onOpenChange={(open) => {
-            skillsInteracted.current = true
-            setSkillsOpen(open)
-          }}
-          className="flex flex-col border-b border-border transition-[border-color] duration-200 shrink-0"
-        >
-          <CollapsibleTrigger asChild>
-            <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors bg-muted/20 shrink-0">
-              {skillsOpen ? (
-                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-              )}
-              <Cpu className="h-3.5 w-3.5 text-primary/70 shrink-0" />
-              <span className="text-[10px] font-bold text-muted-foreground flex-1">
-                {t("chat.usedSkillsTitle")}
-              </span>
-              {matchingSkills.length > 0 && (
-                <span className="text-[10px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded-sm">
-                  {matchingSkills.length}
+          {/* === BLOCK 2: USED SKILLS === */}
+          <Collapsible
+            open={skillsOpen}
+            onOpenChange={(open) => {
+              skillsInteracted.current = true
+              setSkillsOpen(open)
+            }}
+            className="flex flex-col border-b border-border transition-[border-color] duration-200 shrink-0"
+          >
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors bg-muted/20 shrink-0">
+                {skillsOpen ? (
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+                <Cpu className="h-3.5 w-3.5 text-primary/70 shrink-0" />
+                <span className="text-[10px] font-bold text-muted-foreground flex-1">
+                  {t("chat.usedSkillsTitle")}
                 </span>
-              )}
-            </div>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
+                {matchingSkills.length > 0 && (
+                  <span className="text-[10px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded-sm">
+                    {matchingSkills.length}
+                  </span>
+                )}
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
               <div className="p-2">
                 {isLoadingSkills ? (
                   <div className="flex justify-center p-4">
@@ -303,101 +307,104 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
                   </div>
                 )}
               </div>
-          </CollapsibleContent>
-        </Collapsible>
+            </CollapsibleContent>
+          </Collapsible>
         </div>
       </ScrollArea>
 
       {/* === BLOCK 3: THINKING === */}
-      <ThinkingBlock 
-        isAgentActive={isAgentActive} 
-        thinkingOpen={thinkingOpen} 
-        setThinkingOpen={setThinkingOpen} 
+      <ThinkingBlock
+        isAgentActive={isAgentActive}
+        thinkingOpen={thinkingOpen}
+        setThinkingOpen={setThinkingOpen}
       />
 
-        <SkillDetailsPanel
-          skill={fullSkill || null}
-          open={isSkillPanelOpen}
-          onOpenChange={(open) => {
-            setIsSkillPanelOpen(open)
-            if (!open) setTimeout(() => setSelectedSkillId(null), 200)
-          }}
-        />
+      <SkillDetailsPanel
+        skill={fullSkill || null}
+        open={isSkillPanelOpen}
+        onOpenChange={(open) => {
+          setIsSkillPanelOpen(open)
+          if (!open) setTimeout(() => setSelectedSkillId(null), 200)
+        }}
+      />
     </div>
   )
 }
 
-const ThinkingBlock = memo(({ 
-  isAgentActive,
-  thinkingOpen,
-  setThinkingOpen
-}: { 
-  isAgentActive: boolean
-  thinkingOpen: boolean
-  setThinkingOpen: (val: boolean) => void
-}) => {
-  const { t } = useTranslation()
-  const streamingThinking = useAgentStore(state => state.streamingThinking)
-  const thinking = useChatStore(state => {
-    if (streamingThinking && streamingThinking.trim().length > 0) return streamingThinking.trim();
-    for (let i = state.messages.length - 1; i >= 0; i--) {
-      if (state.messages[i].role === 'ai') {
-        return (state.messages[i].thinking || "").trim();
+const ThinkingBlock = memo(
+  ({
+    isAgentActive,
+    thinkingOpen,
+    setThinkingOpen,
+  }: {
+    isAgentActive: boolean
+    thinkingOpen: boolean
+    setThinkingOpen: (val: boolean) => void
+  }) => {
+    const { t } = useTranslation()
+    const streamingThinking = useAgentStore((state) => state.streamingThinking)
+    const thinking = useChatStore((state) => {
+      if (streamingThinking && streamingThinking.trim().length > 0)
+        return streamingThinking.trim()
+      for (let i = state.messages.length - 1; i >= 0; i--) {
+        if (state.messages[i].role === "ai") {
+          return (state.messages[i].thinking || "").trim()
+        }
       }
+      return ""
+    })
+
+    const bottomRef = useRef<HTMLDivElement>(null)
+    const [isAutoScroll, setIsAutoScroll] = useState(true)
+
+    useEffect(() => {
+      if (isAutoScroll && bottomRef.current) {
+        bottomRef.current.scrollIntoView({ behavior: "instant", block: "end" })
+      }
+    }, [thinking, isAutoScroll])
+
+    useEffect(() => {
+      if (isAgentActive) {
+        setIsAutoScroll(true)
+      }
+    }, [isAgentActive])
+
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+      const target = e.currentTarget
+      const isAtBottom =
+        target.scrollHeight - target.scrollTop - target.clientHeight < 50
+      setIsAutoScroll(isAtBottom)
     }
-    return "";
-  });
 
-  const bottomRef = useRef<HTMLDivElement>(null)
-  const [isAutoScroll, setIsAutoScroll] = useState(true)
-
-  useEffect(() => {
-    if (isAutoScroll && bottomRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: "instant", block: "end" })
-    }
-  }, [thinking, isAutoScroll])
-
-  useEffect(() => {
-    if (isAgentActive) {
-      setIsAutoScroll(true)
-    }
-  }, [isAgentActive])
-
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const target = e.currentTarget
-    const isAtBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 50
-    setIsAutoScroll(isAtBottom)
-  }
-
-  return (
-    <Collapsible 
-      open={thinkingOpen} 
-      onOpenChange={setThinkingOpen} 
-      className={cn(
-        "flex flex-col min-w-0 w-full overflow-hidden border-t border-border transition-all duration-300",
-        thinkingOpen ? "flex-1 min-h-0" : "shrink-0"
-      )}
-    >
-      <CollapsibleTrigger asChild>
-        <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors shrink-0 w-full overflow-hidden bg-muted/20">
-          {thinkingOpen ? (
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          ) : (
-            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          )}
-          <BrainCircuit className="h-3.5 w-3.5 text-primary/70 shrink-0" />
-          <span className="text-[10px] font-bold text-muted-foreground flex-1 truncate">
-            {t("chat.thinkingTitle")}
-          </span>
-          {thinking && thinking.trim().length > 0 && isAgentActive && (
-            <span className="text-[10px] text-primary shrink-0 ml-1">
-              {t("chat.thinkingActive")}
+    return (
+      <Collapsible
+        open={thinkingOpen}
+        onOpenChange={setThinkingOpen}
+        className={cn(
+          "flex flex-col min-w-0 w-full overflow-hidden border-t border-border transition-all duration-300",
+          thinkingOpen ? "flex-1 min-h-0" : "shrink-0",
+        )}
+      >
+        <CollapsibleTrigger asChild>
+          <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors shrink-0 w-full overflow-hidden bg-muted/20">
+            {thinkingOpen ? (
+              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            )}
+            <BrainCircuit className="h-3.5 w-3.5 text-primary/70 shrink-0" />
+            <span className="text-[10px] font-bold text-muted-foreground flex-1 truncate">
+              {t("chat.thinkingTitle")}
             </span>
-          )}
-        </div>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="flex-1 min-w-0 w-full overflow-hidden flex flex-col data-[state=closed]:hidden">
-          <div 
+            {thinking && thinking.trim().length > 0 && isAgentActive && (
+              <span className="text-[10px] text-primary shrink-0 ml-1">
+                {t("chat.thinkingActive")}
+              </span>
+            )}
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="flex-1 min-w-0 w-full overflow-hidden flex flex-col data-[state=closed]:hidden">
+          <div
             onScroll={handleScroll}
             className="flex-1 p-2 min-w-0 w-full overflow-y-auto"
           >
@@ -414,8 +421,9 @@ const ThinkingBlock = memo(({
             )}
             <div ref={bottomRef} className="h-1 w-full shrink-0" />
           </div>
-      </CollapsibleContent>
-    </Collapsible>
-  )
-})
+        </CollapsibleContent>
+      </Collapsible>
+    )
+  },
+)
 ThinkingBlock.displayName = "ThinkingBlock"

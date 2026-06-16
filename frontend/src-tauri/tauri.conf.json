@@ -52,16 +52,12 @@
     "resources": {
       "resources/EvoLoop Backend.app": "EvoLoop Backend.app"
     },
-    "externalBin": [
-      "binaries/evoloop-backend"
-    ],
+    "externalBin": ["binaries/evoloop-backend"],
     "macOS": {
       "signingIdentity": "-",
       "entitlements": "entitlements.plist",
       "minimumSystemVersion": "10.15",
-      "frameworks": [
-        "libs/libvosk.dylib"
-      ]
+      "frameworks": ["libs/libvosk.dylib"]
     }
   }
 }

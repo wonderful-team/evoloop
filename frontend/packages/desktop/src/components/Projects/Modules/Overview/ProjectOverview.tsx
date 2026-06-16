@@ -6,31 +6,30 @@ import {
   CardHeader,
   CardTitle,
 } from "@evoloop/shared/components/ui/card"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Link, useParams } from "@tanstack/react-router"
 import {
   Activity,
+  BookOpen,
   CheckCircle2,
   CheckSquare,
   Clock,
   FileText,
   ListTodo,
   RefreshCw,
-  Search,
-  Users,
-  BookOpen,
   Rocket,
+  Users,
 } from "lucide-react"
 import type React from "react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
 import {
   ProjectModulesService,
   ProjectProfilesService,
   TasksService,
   WikiService,
 } from "@/client/sdk.gen"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { toast } from "sonner"
 import { useProjectStore } from "@/stores/projectStore"
 import { DiscoverDialog } from "./DiscoverDialog"
 
@@ -70,16 +69,16 @@ export const ProjectOverview: React.FC = () => {
         requestBody: {
           project_id: Number(projectId),
           topic: t("wiki.topic.full_documentation"),
-          force_regenerate: true
-        }
+          force_regenerate: true,
+        },
       })
     },
     onSuccess: () => {
-      toast.success(t('wiki.toast.start'))
+      toast.success(t("wiki.toast.start"))
       queryClient.invalidateQueries({ queryKey: ["wiki"] })
     },
-    onError: (error: any) => {
-      toast.error(t('wiki.toast.error'))
+    onError: (_error: any) => {
+      toast.error(t("wiki.toast.error"))
     },
   })
 
@@ -283,7 +282,9 @@ export const ProjectOverview: React.FC = () => {
               disabled={isWikiPending}
             >
               <BookOpen className="mr-2 h-4 w-4 text-green-500" />
-              {currentProject?.has_wiki ? t('wiki.regenerate_action') : t('wiki.generate')}
+              {currentProject?.has_wiki
+                ? t("wiki.regenerate_action")
+                : t("wiki.generate")}
             </Button>
             <Link
               to="/projects/$projectId/profile"

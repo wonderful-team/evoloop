@@ -19,7 +19,10 @@ function extractErrorMessage(err: ApiError): string {
 function isBenefitError(err: ApiError): boolean {
   // 检查错误体中的 code
   const body = err.body as any
-  if (body?.detail?.code === 'BENEFIT_REQUIRED' || body?.code === 'BENEFIT_REQUIRED') {
+  if (
+    body?.detail?.code === "BENEFIT_REQUIRED" ||
+    body?.code === "BENEFIT_REQUIRED"
+  ) {
     return true
   }
   // 检查状态码
@@ -37,7 +40,7 @@ export const handleError = function (
   if (isBenefitError(err)) {
     return
   }
-  
+
   const errorMessage = extractErrorMessage(err)
   this(errorMessage)
 }

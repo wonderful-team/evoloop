@@ -8,8 +8,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { LearningService } from "@/client/sdk.gen"
 import type { DomEventData } from "@/client/types.gen"
-import { useRecordingStore } from "@/stores/recordingStore"
 import { isTauri } from "@/lib/tauri"
+import { useRecordingStore } from "@/stores/recordingStore"
 
 declare global {
   interface Window {
@@ -31,7 +31,7 @@ interface UseActionRecorderOptions {
   threadId: string
   taskName?: string
   autoFlushInterval?: number // ms, default 500
-  batchSize?: number         // max events per batch, default 50
+  batchSize?: number // max events per batch, default 50
   enabled?: boolean
   scope?: "dom" | "global" | "both"
 }
@@ -39,7 +39,9 @@ interface UseActionRecorderOptions {
 interface UseActionRecorderReturn {
   isRecording: boolean
   startRecording: () => Promise<string | null>
-  stopRecording: () => Promise<{ sessionId: string | null; eventCount: number } | undefined>
+  stopRecording: () => Promise<
+    { sessionId: string | null; eventCount: number } | undefined
+  >
   recordEvent: (event: Omit<RecordedEvent, "timestamp">) => void
   eventCount: number
   sessionId: string | null
@@ -95,8 +97,8 @@ export function useActionRecorder(
   const {
     threadId,
     taskName,
-    autoFlushInterval = 500,  // 500ms batch flush
-    batchSize = 50,           // Max 50 events per batch
+    autoFlushInterval = 500, // 500ms batch flush
+    batchSize = 50, // Max 50 events per batch
     enabled = true,
     scope = "dom",
   } = options
@@ -106,7 +108,9 @@ export function useActionRecorder(
   const [eventCount, setEventCount] = useState(0)
   const eventCountRef = useRef(0)
 
-  const recordingStartTime = useRecordingStore(state => state.recordingStartTime)
+  const recordingStartTime = useRecordingStore(
+    (state) => state.recordingStartTime,
+  )
   const recordingStartTimeRef = useRef<number | null>(null)
 
   // Sync recordingStartTime to ref for async access
@@ -128,59 +132,68 @@ export function useActionRecorder(
   }, [])
 
   // Send events batch to backend
-  const sendEventsBatch = useCallback(async (events: RecordedEvent[]): Promise<boolean> => {
-    const currentSessionId = sessionIdRef.current
-    if (!currentSessionId) {
-      console.error("[ActionRecorder] No sessionId available")
-      return false
-    }
-
-    try {
-      // Convert events to API format
-      const eventData: DomEventData[] = events.map(e => {
-        const payload = e.payload || {}
-        return {
-          timestamp: e.timestamp,
-          event_type: e.event_type,
-          selector: e.target_selector,
-          target_text: e.target_text,
-          value: payload.value as string || payload.input_value as string,
-          url: payload.url as string || window.location.href,
-          xpath: payload.xpath as string,
-          coordinates: payload.x !== undefined ? {
-            x: payload.x as number,
-            y: payload.y as number,
-            width: payload.width as number,
-            height: payload.height as number,
-          } : undefined,
-        }
-      })
-
-      const response = await LearningService.persistDomEvents({
-        requestBody: {
-          session_id: currentSessionId,
-          thread_id: threadId,
-          events: eventData
-        }
-      })
-
-      if (response.success) {
-        console.log(`[ActionRecorder] Persisted ${response.count} events`)
-        return true
-      } else {
-        console.warn("[ActionRecorder] Failed to persist events:", response.message)
+  const sendEventsBatch = useCallback(
+    async (events: RecordedEvent[]): Promise<boolean> => {
+      const currentSessionId = sessionIdRef.current
+      if (!currentSessionId) {
+        console.error("[ActionRecorder] No sessionId available")
         return false
       }
-    } catch (err) {
-      console.error("[ActionRecorder] Error sending events:", err)
-      return false
-    }
-  }, [sessionId, threadId])
+
+      try {
+        // Convert events to API format
+        const eventData: DomEventData[] = events.map((e) => {
+          const payload = e.payload || {}
+          return {
+            timestamp: e.timestamp,
+            event_type: e.event_type,
+            selector: e.target_selector,
+            target_text: e.target_text,
+            value: (payload.value as string) || (payload.input_value as string),
+            url: (payload.url as string) || window.location.href,
+            xpath: payload.xpath as string,
+            coordinates:
+              payload.x !== undefined
+                ? {
+                    x: payload.x as number,
+                    y: payload.y as number,
+                    width: payload.width as number,
+                    height: payload.height as number,
+                  }
+                : undefined,
+          }
+        })
+
+        const response = await LearningService.persistDomEvents({
+          requestBody: {
+            session_id: currentSessionId,
+            thread_id: threadId,
+            events: eventData,
+          },
+        })
+
+        if (response.success) {
+          console.log(`[ActionRecorder] Persisted ${response.count} events`)
+          return true
+        }
+        console.warn(
+          "[ActionRecorder] Failed to persist events:",
+          response.message,
+        )
+        return false
+      } catch (err) {
+        console.error("[ActionRecorder] Error sending events:", err)
+        return false
+      }
+    },
+    [sessionId, threadId],
+  )
 
   // Flush events - sends to backend in batches
   const flushEvents = useCallback(async () => {
     if (isFlushingRef.current) return
-    if (eventsBuffer.current.length === 0 && pendingQueue.current.length === 0) return
+    if (eventsBuffer.current.length === 0 && pendingQueue.current.length === 0)
+      return
 
     isFlushingRef.current = true
 
@@ -229,7 +242,10 @@ export function useActionRecorder(
       // Start batch flush timer
       flushTimerRef.current = window.setInterval(flushEvents, autoFlushInterval)
 
-      console.log("[ActionRecorder] Started recording with batch persistence, sessionId:", response.session_id)
+      console.log(
+        "[ActionRecorder] Started recording with batch persistence, sessionId:",
+        response.session_id,
+      )
       return response.session_id
     } catch (error) {
       console.error("[ActionRecorder] Failed to start recording:", error)
@@ -273,21 +289,18 @@ export function useActionRecorder(
   }, [sessionId, flushEvents])
 
   // Record a single event
-  const recordEvent = useCallback(
-    (event: Omit<RecordedEvent, "timestamp">) => {
-      if (!isRecordingRef.current) return
+  const recordEvent = useCallback((event: Omit<RecordedEvent, "timestamp">) => {
+    if (!isRecordingRef.current) return
 
-      const now = Date.now()
-      const startTime = recordingStartTimeRef.current || now
-      const relativeTimestamp = now - startTime
+    const now = Date.now()
+    const startTime = recordingStartTimeRef.current || now
+    const relativeTimestamp = now - startTime
 
-      eventsBuffer.current.push({
-        ...event,
-        timestamp: relativeTimestamp,  // Relative milliseconds from recording start
-      })
-    },
-    [],
-  )
+    eventsBuffer.current.push({
+      ...event,
+      timestamp: relativeTimestamp, // Relative milliseconds from recording start
+    })
+  }, [])
 
   // Get buffered events (for debugging)
   const getBufferedEvents = useCallback(() => {
@@ -377,15 +390,28 @@ export function useActionRecorder(
     }
   }, [])
 
-  return useMemo(() => ({
-    isRecording,
-    startRecording,
-    stopRecording,
-    recordEvent,
-    eventCount,
-    sessionId,
-    persistEvents,
-    getBufferedEvents,
-    clearBufferedEvents,
-  }), [isRecording, startRecording, stopRecording, recordEvent, eventCount, sessionId, persistEvents, getBufferedEvents, clearBufferedEvents])
+  return useMemo(
+    () => ({
+      isRecording,
+      startRecording,
+      stopRecording,
+      recordEvent,
+      eventCount,
+      sessionId,
+      persistEvents,
+      getBufferedEvents,
+      clearBufferedEvents,
+    }),
+    [
+      isRecording,
+      startRecording,
+      stopRecording,
+      recordEvent,
+      eventCount,
+      sessionId,
+      persistEvents,
+      getBufferedEvents,
+      clearBufferedEvents,
+    ],
+  )
 }

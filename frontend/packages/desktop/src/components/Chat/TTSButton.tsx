@@ -1,9 +1,4 @@
-import { Volume2, VolumeX, Loader2, Pause, Play, Settings2 } from 'lucide-react'
-import { Button } from '@evoloop/shared/components/ui/button'
-import { cn } from '@evoloop/shared/lib/utils'
-import { useTTS, useAutoSpeak, TTSVoice } from '@/hooks/useTTS'
-import { useTranslation } from 'react-i18next'
-import { useEffect, useState } from 'react'
+import { Button } from "@evoloop/shared/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,22 +6,27 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@evoloop/shared/components/ui/dropdown-menu'
+} from "@evoloop/shared/components/ui/dropdown-menu"
+import { cn } from "@evoloop/shared/lib/utils"
+import { Loader2, Pause, Play, Settings2, Volume2, VolumeX } from "lucide-react"
+import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { type TTSVoice, useAutoSpeak, useTTS } from "@/hooks/useTTS"
 
 interface TTSButtonProps {
   text: string
   className?: string
-  size?: 'sm' | 'md' | 'lg'
-  variant?: 'ghost' | 'secondary' | 'outline'
+  size?: "sm" | "md" | "lg"
+  variant?: "ghost" | "secondary" | "outline"
 }
 
 // TTSButton - 语音朗读按钮
 // 注意：前端不做权限控制，后端返回 403 时会由拦截器处理并显示升级提示
-export function TTSButton({ 
-  text, 
-  className, 
-  size = 'sm',
-  variant = 'ghost'
+export function TTSButton({
+  text,
+  className,
+  size = "sm",
+  variant = "ghost",
 }: TTSButtonProps) {
   const { t } = useTranslation()
   const { isSpeaking, isLoading, speak, stop } = useTTS()
@@ -40,15 +40,15 @@ export function TTSButton({
   }
 
   const sizeClasses = {
-    sm: 'h-6 w-6',
-    md: 'h-8 w-8',
-    lg: 'h-10 w-10',
+    sm: "h-6 w-6",
+    md: "h-8 w-8",
+    lg: "h-10 w-10",
   }
 
   const iconSizes = {
-    sm: 'h-3 w-3',
-    md: 'h-4 w-4',
-    lg: 'h-5 w-5',
+    sm: "h-3 w-3",
+    md: "h-4 w-4",
+    lg: "h-5 w-5",
   }
 
   return (
@@ -57,10 +57,14 @@ export function TTSButton({
       size="icon"
       className={cn(sizeClasses[size], className)}
       onClick={handleClick}
-      title={isSpeaking ? t('chat.tts.stop', '停止朗读') : t('chat.tts.speak', '朗读')}
+      title={
+        isSpeaking
+          ? t("chat.tts.stop", "停止朗读")
+          : t("chat.tts.speak", "朗读")
+      }
     >
       {isLoading ? (
-        <Loader2 className={cn(iconSizes[size], 'animate-spin')} />
+        <Loader2 className={cn(iconSizes[size], "animate-spin")} />
       ) : isSpeaking ? (
         <Pause className={iconSizes[size]} />
       ) : (
@@ -76,13 +80,7 @@ interface TTSControlsProps {
 
 export function TTSControls({ className }: TTSControlsProps) {
   const { t } = useTranslation()
-  const { 
-    voices, 
-    currentVoice, 
-    setCurrentVoice, 
-    fetchVoices,
-    speak,
-  } = useTTS()
+  const { voices, currentVoice, setCurrentVoice, fetchVoices, speak } = useTTS()
   const { autoSpeak, toggleAutoSpeak } = useAutoSpeak()
   const [speed, setSpeed] = useState(1.0)
 
@@ -91,7 +89,7 @@ export function TTSControls({ className }: TTSControlsProps) {
   }, [fetchVoices])
 
   const handlePreview = (voice: TTSVoice) => {
-    const text = voice.preview || t('chat.tts.preview', '你好，我是语音助手。')
+    const text = voice.preview || t("chat.tts.preview", "你好，我是语音助手。")
     speak(text, { voiceId: voice.id, speed })
   }
 
@@ -105,42 +103,46 @@ export function TTSControls({ className }: TTSControlsProps) {
         <Button
           variant="ghost"
           size="icon"
-          className={cn('h-8 w-8', className)}
-          title={t('chat.tts.settings', '语音设置')}
+          className={cn("h-8 w-8", className)}
+          title={t("chat.tts.settings", "语音设置")}
         >
           <Settings2 className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
-        <DropdownMenuLabel>{t('chat.tts.settings', '语音设置')}</DropdownMenuLabel>
+        <DropdownMenuLabel>
+          {t("chat.tts.settings", "语音设置")}
+        </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        
+
         {/* Auto-speak toggle */}
         <div className="flex items-center justify-between px-2 py-2">
-          <span className="text-sm">{t('chat.tts.autoSpeak', '自动朗读')}</span>
+          <span className="text-sm">{t("chat.tts.autoSpeak", "自动朗读")}</span>
           <button
             onClick={toggleAutoSpeak}
             className={cn(
-              'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
-              autoSpeak ? 'bg-primary' : 'bg-muted'
+              "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
+              autoSpeak ? "bg-primary" : "bg-muted",
             )}
           >
             <span
               className={cn(
-                'inline-block h-3 w-3 transform rounded-full bg-white transition-transform',
-                autoSpeak ? 'translate-x-5' : 'translate-x-1'
+                "inline-block h-3 w-3 transform rounded-full bg-white transition-transform",
+                autoSpeak ? "translate-x-5" : "translate-x-1",
               )}
             />
           </button>
         </div>
-        
+
         <DropdownMenuSeparator />
-        
+
         {/* Speed control */}
         <div className="px-2 py-2">
           <div className="flex justify-between mb-2">
-            <span className="text-sm">{t('chat.tts.speed', '语速')}</span>
-            <span className="text-sm text-muted-foreground">{speed.toFixed(1)}x</span>
+            <span className="text-sm">{t("chat.tts.speed", "语速")}</span>
+            <span className="text-sm text-muted-foreground">
+              {speed.toFixed(1)}x
+            </span>
           </div>
           <input
             type="range"
@@ -157,28 +159,35 @@ export function TTSControls({ className }: TTSControlsProps) {
             <span>2.0x</span>
           </div>
         </div>
-        
+
         <DropdownMenuSeparator />
-        
+
         {/* Voice selection */}
         <DropdownMenuLabel className="text-xs">
-          {t('chat.tts.voice', '选择音色')}
+          {t("chat.tts.voice", "选择音色")}
         </DropdownMenuLabel>
         {voices.map((voice) => (
           <DropdownMenuItem
             key={voice.id}
             className={cn(
-              'flex items-center justify-between',
-              currentVoice === voice.id && 'bg-accent'
+              "flex items-center justify-between",
+              currentVoice === voice.id && "bg-accent",
             )}
             onClick={() => setCurrentVoice(voice.id)}
           >
             <div className="flex flex-col">
               <span className="font-medium">
-                {t(`settings.tts.voiceNames.${voice.id.replace(/-/g, '')}`, voice.name)}
+                {t(
+                  `settings.tts.voiceNames.${voice.id.replace(/-/g, "")}`,
+                  voice.name,
+                )}
               </span>
               <span className="text-xs text-muted-foreground">
-                {t(`chat.tts.gender.${voice.gender}`, voice.gender)} · {t(`settings.tts.voices.${voice.id.replace(/-/g, '')}`, voice.description)}
+                {t(`chat.tts.gender.${voice.gender}`, voice.gender)} ·{" "}
+                {t(
+                  `settings.tts.voices.${voice.id.replace(/-/g, "")}`,
+                  voice.description,
+                )}
               </span>
             </div>
             <Button
@@ -209,13 +218,14 @@ export function AutoSpeakIndicator({ className }: AutoSpeakIndicatorProps) {
 
   return (
     <Button
-      variant={autoSpeak ? 'secondary' : 'ghost'}
+      variant={autoSpeak ? "secondary" : "ghost"}
       size="icon"
-      className={cn('h-8 w-8', className)}
+      className={cn("h-8 w-8", className)}
       onClick={toggleAutoSpeak}
-      title={autoSpeak 
-        ? t('chat.tts.autoSpeakOn', '自动朗读已开启') 
-        : t('chat.tts.autoSpeakOff', '自动朗读已关闭')
+      title={
+        autoSpeak
+          ? t("chat.tts.autoSpeakOn", "自动朗读已开启")
+          : t("chat.tts.autoSpeakOff", "自动朗读已关闭")
       }
     >
       {autoSpeak ? (

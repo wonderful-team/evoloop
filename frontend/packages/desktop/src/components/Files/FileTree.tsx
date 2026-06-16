@@ -1,30 +1,3 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Link } from "@tanstack/react-router"
-import {
-  ChevronDown,
-  ChevronRight,
-  FileCode,
-  Folder,
-  Loader2,
-  Quote,
-  Edit2,
-  Trash2,
-  FolderPlus,
-  Eye,
-} from "lucide-react"
-import { useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { FilesService } from "@/client"
-import { Button } from "@evoloop/shared/components/ui/button"
-import { Input } from "@evoloop/shared/components/ui/input"
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-  ContextMenuSeparator,
-} from "@evoloop/shared/components/ui/context-menu"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,7 +8,34 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@evoloop/shared/components/ui/alert-dialog"
+import { Button } from "@evoloop/shared/components/ui/button"
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@evoloop/shared/components/ui/context-menu"
+import { Input } from "@evoloop/shared/components/ui/input"
 import { cn } from "@evoloop/shared/lib/utils"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { Link } from "@tanstack/react-router"
+import {
+  ChevronDown,
+  ChevronRight,
+  Edit2,
+  Eye,
+  FileCode,
+  Folder,
+  FolderPlus,
+  Loader2,
+  Quote,
+  Trash2,
+} from "lucide-react"
+import { useState } from "react"
+import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
+import { FilesService } from "@/client"
 import { isLoggedIn } from "@/hooks/useAuth"
 
 interface FileNode {
@@ -80,12 +80,16 @@ export function FileTree({
     staleTime: 1000 * 60 * 5, // Cache for 5 mins
     enabled: isLoggedIn(), // Only fetch if user is logged in
     retry: (failureCount, error: any) => {
-      if (error?.status === 404) return false;
-      return failureCount < 3;
+      if (error?.status === 404) return false
+      return failureCount < 3
     },
   })
 
-  const handleUpload = async (targetPath: string, files: FileList, overwrite = false) => {
+  const handleUpload = async (
+    targetPath: string,
+    files: FileList,
+    overwrite = false,
+  ) => {
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       try {
@@ -95,17 +99,28 @@ export function FileTree({
             file: file as any,
             target_dir: targetPath,
             overwrite: overwrite as any,
-          }
+          },
         })
       } catch (error: any) {
-        if (error.status === 409 || error.body?.detail?.includes("already exists")) {
-          if (window.confirm(t("files.overwritePrompt", { defaultValue: `文件 ${file.name} 已存在，是否覆盖？` }))) {
+        if (
+          error.status === 409 ||
+          error.body?.detail?.includes("already exists")
+        ) {
+          if (
+            window.confirm(
+              t("files.overwritePrompt", {
+                defaultValue: `文件 ${file.name} 已存在，是否覆盖？`,
+              }),
+            )
+          ) {
             const dt = new DataTransfer()
             dt.items.add(file)
             await handleUpload(targetPath, dt.files, true)
           }
         } else {
-          toast.error(t("files.uploadError", { defaultValue: `上传 ${file.name} 失败` }))
+          toast.error(
+            t("files.uploadError", { defaultValue: `上传 ${file.name} 失败` }),
+          )
         }
       }
     }
@@ -136,19 +151,32 @@ export function FileTree({
   if (isLoading) {
     return (
       <div className="pl-4 py-1 text-xs text-muted-foreground flex items-center">
-        <Loader2 className="h-3 w-3 animate-spin mr-1" /> {t("files.loading", { defaultValue: "加载中..." })}
+        <Loader2 className="h-3 w-3 animate-spin mr-1" />{" "}
+        {t("files.loading", { defaultValue: "加载中..." })}
       </div>
     )
   }
 
   if (error) {
-    const isGlobalNotConfigured = projectId === 0 && (error as any).status === 404;
+    const isGlobalNotConfigured =
+      projectId === 0 && (error as any).status === 404
 
     return (
       <div className="pl-4 py-2 text-xs text-destructive flex flex-col items-start gap-2">
-        <span>{isGlobalNotConfigured ? t("files.workspaceNotConfigured", { defaultValue: "尚未配置全局工作区目录" }) : t("files.error", { defaultValue: "加载失败" })}</span>
+        <span>
+          {isGlobalNotConfigured
+            ? t("files.workspaceNotConfigured", {
+                defaultValue: "尚未配置全局工作区目录",
+              })
+            : t("files.error", { defaultValue: "加载失败" })}
+        </span>
         {isGlobalNotConfigured && (
-          <Button variant="outline" size="sm" className="h-6 text-[10px]" asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-6 text-[10px]"
+            asChild
+          >
             <Link to="/settings">前往设置</Link>
           </Button>
         )}
@@ -158,17 +186,23 @@ export function FileTree({
 
   if (!files || (files as any).length === 0) {
     return (
-      <div 
-        className={cn("pl-4 py-4 text-xs text-muted-foreground italic rounded-md transition-colors", isDragOver && "bg-primary/10 border-dashed border border-primary/50")}
+      <div
+        className={cn(
+          "pl-4 py-4 text-xs text-muted-foreground italic rounded-md transition-colors",
+          isDragOver && "bg-primary/10 border-dashed border border-primary/50",
+        )}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
         {level === 0 && isCreatingRootFolder && (
-          <div className="flex items-center gap-1.5 py-1 px-3 rounded-sm whitespace-nowrap mb-2" style={{ paddingLeft: `12px` }}>
+          <div
+            className="flex items-center gap-1.5 py-1 px-3 rounded-sm whitespace-nowrap mb-2"
+            style={{ paddingLeft: `12px` }}
+          >
             <span className="w-4 shrink-0" />
             <Folder size={14} className="text-blue-400/80 shrink-0" />
-            <Input 
+            <Input
               autoFocus
               className="h-6 text-xs px-1.5 py-0 border-primary/50 focus-visible:ring-1 focus-visible:ring-offset-0 w-full max-w-[200px]"
               value={rootFolderInput}
@@ -190,28 +224,37 @@ export function FileTree({
             />
           </div>
         )}
-        {t("files.empty", { defaultValue: "空文件夹" })} (Drop files here to upload)
+        {t("files.empty", { defaultValue: "空文件夹" })} (Drop files here to
+        upload)
       </div>
     )
   }
 
   // Backend returns FileNode[] directly
-  const fileList = (files as unknown as FileNode[]).filter(node => 
-    !(level === 0 && node.name === "PROJECT.md")
+  const fileList = (files as unknown as FileNode[]).filter(
+    (node) => !(level === 0 && node.name === "PROJECT.md"),
   )
 
   return (
-    <div 
-      className={cn("text-sm transition-colors rounded-md", isDragOver && level === 0 && "bg-primary/5 border-dashed border border-primary/30 min-h-[50px]")}
+    <div
+      className={cn(
+        "text-sm transition-colors rounded-md",
+        isDragOver &&
+          level === 0 &&
+          "bg-primary/5 border-dashed border border-primary/30 min-h-[50px]",
+      )}
       onDragOver={level === 0 ? handleDragOver : undefined}
       onDragLeave={level === 0 ? handleDragLeave : undefined}
       onDrop={level === 0 ? handleDrop : undefined}
     >
       {level === 0 && isCreatingRootFolder && (
-        <div className="flex items-center gap-1.5 py-1 px-3 rounded-sm whitespace-nowrap" style={{ paddingLeft: `12px` }}>
+        <div
+          className="flex items-center gap-1.5 py-1 px-3 rounded-sm whitespace-nowrap"
+          style={{ paddingLeft: `12px` }}
+        >
           <span className="w-4 shrink-0" />
           <Folder size={14} className="text-blue-400/80 shrink-0" />
-          <Input 
+          <Input
             autoFocus
             className="h-6 text-xs px-1.5 py-0 border-primary/50 focus-visible:ring-1 focus-visible:ring-offset-0 w-full max-w-[200px]"
             value={rootFolderInput}
@@ -318,18 +361,21 @@ function FileTreeNode({
     const sourcePath = e.dataTransfer.getData("application/x-evoloop-file")
     if (sourcePath) {
       // Don't move into itself or its direct parent
-      if (sourcePath !== node.path && sourcePath !== `${node.path}/${sourcePath.split('/').pop()}`) {
+      if (
+        sourcePath !== node.path &&
+        sourcePath !== `${node.path}/${sourcePath.split("/").pop()}`
+      ) {
         try {
           await FilesService.moveFile({
             projectId,
             requestBody: {
               source_path: sourcePath,
-              target_path: `${node.path}/${sourcePath.split('/').pop()}`
-            }
+              target_path: `${node.path}/${sourcePath.split("/").pop()}`,
+            },
           })
           refreshFiles()
           toast.success(t("files.moveSuccess", { defaultValue: "移动成功" }))
-        } catch (error) {
+        } catch (_error) {
           toast.error(t("files.moveError", { defaultValue: "移动失败" }))
         }
       }
@@ -346,18 +392,18 @@ function FileTreeNode({
     setIsRenaming(false)
     const newName = renameInput.trim()
     if (!newName || newName === node.name) return
-    const targetPath = node.path.substring(0, node.path.lastIndexOf('/')) + '/' + newName
-    
+    const targetPath = `${node.path.substring(0, node.path.lastIndexOf("/"))}/${newName}`
+
     try {
       await FilesService.moveFile({
         projectId,
         requestBody: {
           source_path: node.path,
-          target_path: targetPath.replace(/^\//, "") // ensure no leading slash if root
-        }
+          target_path: targetPath.replace(/^\//, ""), // ensure no leading slash if root
+        },
       })
       refreshFiles()
-    } catch (error) {
+    } catch (_error) {
       toast.error(t("files.renameError", { defaultValue: "重命名失败" }))
       setRenameInput(node.name)
     }
@@ -373,15 +419,17 @@ function FileTreeNode({
       await FilesService.createDirectory({
         projectId,
         requestBody: {
-          path: `${node.path}/${newName}`
-        }
+          path: `${node.path}/${newName}`,
+        },
       })
       setIsCreatingChild(false)
       setChildFolderInput("")
       refreshFiles()
       setIsOpen(true)
-    } catch (error) {
-      toast.error(t("files.createFolderError", { defaultValue: "创建文件夹失败" }))
+    } catch (_error) {
+      toast.error(
+        t("files.createFolderError", { defaultValue: "创建文件夹失败" }),
+      )
     }
   }
 
@@ -390,10 +438,10 @@ function FileTreeNode({
     try {
       await FilesService.deleteFile({
         projectId,
-        path: node.path
+        path: node.path,
       })
       refreshFiles()
-    } catch (error) {
+    } catch (_error) {
       toast.error(t("files.deleteError", { defaultValue: "删除失败" }))
     }
   }
@@ -402,7 +450,7 @@ function FileTreeNode({
     <div
       className={cn(
         "flex items-center gap-1.5 py-1.5 px-3 hover:bg-primary/5 cursor-pointer rounded-lg select-none whitespace-nowrap transition-all group relative",
-        isDragOver && isFolder && "bg-primary/20 ring-1 ring-primary"
+        isDragOver && isFolder && "bg-primary/20 ring-1 ring-primary",
       )}
       style={{ paddingLeft: `${level * 16 + 12}px` }}
       onClick={handleClick}
@@ -414,7 +462,11 @@ function FileTreeNode({
     >
       {isFolder ? (
         <span className="text-muted-foreground mr-0.5 shrink-0 transition-transform hover:scale-110">
-          {isOpen ? <ChevronDown size={14} className="opacity-60" /> : <ChevronRight size={14} className="opacity-60" />}
+          {isOpen ? (
+            <ChevronDown size={14} className="opacity-60" />
+          ) : (
+            <ChevronRight size={14} className="opacity-60" />
+          )}
         </span>
       ) : (
         <span className="w-4 mr-0.5 shrink-0" /> // Spacer
@@ -446,7 +498,9 @@ function FileTreeNode({
           onDoubleClick={(e) => e.stopPropagation()}
         />
       ) : (
-        <span className="truncate flex-1 text-[13px] opacity-90">{node.name}</span>
+        <span className="truncate flex-1 text-[13px] opacity-90">
+          {node.name}
+        </span>
       )}
 
       {!isFolder && onQuoteFile && !isRenaming && (
@@ -487,23 +541,30 @@ function FileTreeNode({
             </ContextMenuItem>
           )}
           {isFolder && (
-            <ContextMenuItem onClick={() => {
-              setIsOpen(true)
-              setIsCreatingChild(true)
-            }}>
+            <ContextMenuItem
+              onClick={() => {
+                setIsOpen(true)
+                setIsCreatingChild(true)
+              }}
+            >
               <FolderPlus size={14} className="mr-2" />
               {t("files.newFolder", { defaultValue: "新建文件夹" })}
             </ContextMenuItem>
           )}
           {(onQuoteFile || isFolder) && <ContextMenuSeparator />}
-          <ContextMenuItem onClick={() => {
-            setRenameInput(node.name)
-            setIsRenaming(true)
-          }}>
+          <ContextMenuItem
+            onClick={() => {
+              setRenameInput(node.name)
+              setIsRenaming(true)
+            }}
+          >
             <Edit2 size={14} className="mr-2" />
             {t("files.rename", { defaultValue: "重命名" })}
           </ContextMenuItem>
-          <ContextMenuItem onClick={() => setShowDeleteConfirm(true)} className="text-destructive focus:text-destructive">
+          <ContextMenuItem
+            onClick={() => setShowDeleteConfirm(true)}
+            className="text-destructive focus:text-destructive"
+          >
             <Trash2 size={14} className="mr-2" />
             {t("common.delete", { defaultValue: "删除" })}
           </ContextMenuItem>
@@ -513,14 +574,23 @@ function FileTreeNode({
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("common.deleteConfirmTitle", { defaultValue: "确认删除" })}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("common.deleteConfirmTitle", { defaultValue: "确认删除" })}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {t("files.deleteConfirm", { defaultValue: `确定要删除 ${node.name} 吗？` })}
+              {t("files.deleteConfirm", {
+                defaultValue: `确定要删除 ${node.name} 吗？`,
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("common.cancel", { defaultValue: "取消" })}</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive hover:bg-destructive/90 text-destructive-foreground" onClick={handleDelete}>
+            <AlertDialogCancel>
+              {t("common.cancel", { defaultValue: "取消" })}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              onClick={handleDelete}
+            >
               {t("common.delete", { defaultValue: "删除" })}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -529,15 +599,18 @@ function FileTreeNode({
 
       {isFolder && isOpen && (
         <div className="mt-0.5 relative">
-          <div 
-            className="absolute top-0 bottom-0 w-px bg-border/40" 
+          <div
+            className="absolute top-0 bottom-0 w-px bg-border/40"
             style={{ left: `${level * 16 + 21}px` }}
           />
           {isCreatingChild && (
-            <div className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg whitespace-nowrap" style={{ paddingLeft: `${(level + 1) * 16 + 12}px` }}>
+            <div
+              className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg whitespace-nowrap"
+              style={{ paddingLeft: `${(level + 1) * 16 + 12}px` }}
+            >
               <span className="w-4 shrink-0" />
               <Folder size={14} className="text-blue-400/80 shrink-0" />
-              <Input 
+              <Input
                 autoFocus
                 className="h-6 text-xs px-1.5 py-0 border-primary/50 focus-visible:ring-1 focus-visible:ring-offset-0 w-full max-w-[200px]"
                 value={childFolderInput}

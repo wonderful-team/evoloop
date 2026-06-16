@@ -1,11 +1,6 @@
-import { Loader2, Play, AlertCircle } from "lucide-react"
-import React, { useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { LearningService } from "@/client/sdk.gen"
+import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Checkbox } from "@evoloop/shared/components/ui/checkbox"
-import { Badge } from "@evoloop/shared/components/ui/badge"
 import {
   Dialog,
   DialogContent,
@@ -16,8 +11,13 @@ import {
 } from "@evoloop/shared/components/ui/dialog"
 import { Input } from "@evoloop/shared/components/ui/input"
 import { Label } from "@evoloop/shared/components/ui/label"
-import { Textarea } from "@evoloop/shared/components/ui/textarea"
 import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
+import { Textarea } from "@evoloop/shared/components/ui/textarea"
+import { AlertCircle, Loader2, Play } from "lucide-react"
+import React, { useState } from "react"
+import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
+import { LearningService } from "@/client/sdk.gen"
 import type { LearnedSkill } from "@/types/skill"
 
 interface SkillExecutionDialogProps {
@@ -45,16 +45,16 @@ export function SkillExecutionDialog({
   React.useEffect(() => {
     if (open && skill) {
       const safeParse = (data: any, defaultVal: any) => {
-        if (!data) return defaultVal;
-        if (typeof data === 'string') {
+        if (!data) return defaultVal
+        if (typeof data === "string") {
           try {
-            return JSON.parse(data);
+            return JSON.parse(data)
           } catch (e) {
-            console.error("Failed to parse", data, e);
-            return defaultVal;
+            console.error("Failed to parse", data, e)
+            return defaultVal
           }
         }
-        return data;
+        return data
       }
 
       const pArr = safeParse(skill.parameters, [])
@@ -106,7 +106,10 @@ export function SkillExecutionDialog({
               setParams((prev) => ({ ...prev, [param.name]: checked }))
             }
           />
-          <Label htmlFor={`param-${param.name}`} className="text-sm font-medium cursor-pointer flex-1">
+          <Label
+            htmlFor={`param-${param.name}`}
+            className="text-sm font-medium cursor-pointer flex-1"
+          >
             {param.description || param.name}
           </Label>
         </div>
@@ -122,7 +125,8 @@ export function SkillExecutionDialog({
           onChange={(e) =>
             setParams((prev) => ({
               ...prev,
-              [param.name]: e.target.value === "" ? "" : parseFloat(e.target.value),
+              [param.name]:
+                e.target.value === "" ? "" : parseFloat(e.target.value),
             }))
           }
           className="h-9"
@@ -161,15 +165,15 @@ export function SkillExecutionDialog({
   }
 
   const safeParse = (data: any, defaultVal: any) => {
-    if (!data) return defaultVal;
-    if (typeof data === 'string') {
+    if (!data) return defaultVal
+    if (typeof data === "string") {
       try {
-        return JSON.parse(data);
-      } catch (e) {
-        return defaultVal;
+        return JSON.parse(data)
+      } catch (_e) {
+        return defaultVal
       }
     }
-    return data;
+    return data
   }
   const pArr = safeParse(skill.parameters, [])
 
@@ -202,27 +206,35 @@ export function SkillExecutionDialog({
                           <span className="text-destructive">*</span>
                         )}
                       </Label>
-                      <Badge variant="outline" className="text-[9px] font-mono px-1.5 py-0 h-4 bg-muted/30 opacity-60">
+                      <Badge
+                        variant="outline"
+                        className="text-[9px] font-mono px-1.5 py-0 h-4 bg-muted/30 opacity-60"
+                      >
                         {param.type}
                       </Badge>
                     </div>
                   )}
-                  <div className="relative">
-                    {renderInput(param)}
-                  </div>
-                  {param.description && param.type !== "boolean" && param.description !== param.name && (
-                    <p className="text-[10px] text-muted-foreground opacity-70 px-1">
-                      {t("learning.editor.paramName")}: <span className="font-mono">{param.name}</span>
-                    </p>
-                  )}
+                  <div className="relative">{renderInput(param)}</div>
+                  {param.description &&
+                    param.type !== "boolean" &&
+                    param.description !== param.name && (
+                      <p className="text-[10px] text-muted-foreground opacity-70 px-1">
+                        {t("learning.editor.paramName")}:{" "}
+                        <span className="font-mono">{param.name}</span>
+                      </p>
+                    )}
                 </div>
               ))
             ) : (
               <div className="flex flex-col items-center justify-center py-10 text-center space-y-3 bg-muted/20 rounded-2xl border border-dashed">
                 <AlertCircle className="h-8 w-8 text-muted-foreground/30" />
                 <div className="space-y-1">
-                  <p className="text-sm font-medium">{t("learning.execution.noParams")}</p>
-                  <p className="text-xs text-muted-foreground">{t("learning.execution.description")}</p>
+                  <p className="text-sm font-medium">
+                    {t("learning.execution.noParams")}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("learning.execution.description")}
+                  </p>
                 </div>
               </div>
             )}

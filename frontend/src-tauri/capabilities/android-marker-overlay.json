@@ -2,9 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "android-marker-overlay",
   "description": "Capability for the Android marker overlay window - a floating always-on-top window for Android mirror recording region marking",
-  "windows": [
-    "android-marker-overlay"
-  ],
+  "windows": ["android-marker-overlay"],
   "permissions": [
     "core:default",
     "core:window:allow-show",

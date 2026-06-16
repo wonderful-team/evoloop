@@ -1,3 +1,9 @@
+import { Button } from "@evoloop/shared/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+} from "@evoloop/shared/components/ui/card"
 import { useParams } from "@tanstack/react-router"
 import {
   addDays,
@@ -11,8 +17,6 @@ import type React from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { TasksService } from "@/client"
-import { Button } from "@evoloop/shared/components/ui/button"
-import { Card, CardContent, CardHeader } from "@evoloop/shared/components/ui/card"
 import { type Task, TaskStatus } from "@/types/task"
 
 export const GanttChart: React.FC = () => {
@@ -46,9 +50,9 @@ export const GanttChart: React.FC = () => {
         const end = task.end_date
           ? new Date(task.end_date)
           : addDays(
-            start,
-            task.match_score ? Math.ceil(task.match_score / 20) : 2,
-          )
+              start,
+              task.match_score ? Math.ceil(task.match_score / 20) : 2,
+            )
         return {
           ...task,
           start_date: start.toISOString(),
@@ -166,14 +170,20 @@ export const GanttChart: React.FC = () => {
                 {/* Vertical Grid Lines */}
                 <div className="absolute inset-0 flex pointer-events-none pl-[25%]">
                   {calendarDays.map((_, i) => (
-                    <div key={i} className="flex-1 border-r border-border border-dashed border-muted/50 last:border-0 h-full" />
+                    <div
+                      key={i}
+                      className="flex-1 border-r border-border border-dashed border-muted/50 last:border-0 h-full"
+                    />
                   ))}
                 </div>
 
                 {tasks.map((task) => {
                   const style = getTaskStyle(task)
                   return (
-                    <div key={task.task_id} className="flex hover:bg-muted/30 relative">
+                    <div
+                      key={task.task_id}
+                      className="flex hover:bg-muted/30 relative"
+                    >
                       <div className="w-1/4 min-w-[200px] p-3 border-r border-border relative z-10 bg-background/50 truncate">
                         <div className="font-medium text-sm truncate">
                           {task.task_title}

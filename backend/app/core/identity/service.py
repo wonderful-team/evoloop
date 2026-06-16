@@ -78,21 +78,22 @@ class IdentityService:
     async def resolve_member_id_from_token(self, token: str) -> int | None:
         """
         Resolve member_id from an access token with local caching.
+        Also caches the full user profile so /member/me can serve without an extra round-trip.
         Falls back to Member Center API if not cached.
         """
         import asyncio
-        
-        # 0. Prevent cache stampede (singleflight)
+
+        # 0. Prevent cache stampede (singleflight) within this process
         if token in self._pending_resolutions:
             return await self._pending_resolutions[token]
-            
-        # 1. Check shared cache
+
+        # 1. Check shared cache (member_id only — fast path for most requests)
         cache_key = f"evoloop:token_mid:{token}"
         cached_mid_str = await cache.get(cache_key)
         if cached_mid_str:
             return int(cached_mid_str)
 
-        # 2. Validate against Member Center (wrapped in a task to allow other requests to await it)
+        # 2. Validate against Member Center (singleflight-wrapped task)
         async def _fetch():
             try:
                 from app.core.evocloud import evocloud_manager
@@ -102,7 +103,11 @@ class IdentityService:
                     member_id = data.get("member_id")
                     if member_id is not None:
                         mid = int(member_id)
+                        # Cache member_id
                         await cache.set(cache_key, str(mid), ex=TOKEN_CACHE_TTL)
+                        # Also cache full profile so /member/me can avoid a second HTTP call
+                        profile_key = f"evoloop:user_profile:{token}"
+                        await cache.set(profile_key, __import__('json').dumps(data), ex=TOKEN_CACHE_TTL)
 
                         if not settings.MULTI_TENANT_MODE:
                             stored_mid = await self.store.get_member_id()

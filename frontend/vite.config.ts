@@ -13,7 +13,7 @@ export default defineConfig(({ mode }) => {
   console.log("============================================")
 
   return {
-    base: env.VITE_API_URL + "/",
+    base: `${env.VITE_API_URL}/`,
     root: path.resolve(__dirname, "packages/desktop"),
     envDir: path.resolve(__dirname, ".."),
     resolve: {
@@ -34,7 +34,13 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
     ],
     optimizeDeps: {
-        include: ["react", "react-dom", "react-dom/client", "@radix-ui/react-collapsible", "react-resizable-panels"],
+      include: [
+        "react",
+        "react-dom",
+        "react-dom/client",
+        "@radix-ui/react-collapsible",
+        "react-resizable-panels",
+      ],
     },
     build: {
       outDir: path.resolve(__dirname, "dist"),
@@ -51,10 +57,10 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       host: true,
       proxy: {
-          "/api": {
-              target: env.VITE_API_URL || "http://127.0.0.1:8123",
-              changeOrigin: true,
-          },
+        "/api": {
+          target: env.VITE_API_URL || "http://127.0.0.1:8123",
+          changeOrigin: true,
+        },
       },
     },
     clearScreen: false,

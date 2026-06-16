@@ -1,17 +1,16 @@
-import {
-  Activity,
-  Database,
-  LayoutDashboard,
-  Loader2,
-  X,
-} from "lucide-react"
-import { memo, useState, useEffect } from "react"
-import { useTranslation } from "react-i18next"
 import { Button } from "@evoloop/shared/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@evoloop/shared/components/ui/tabs"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@evoloop/shared/components/ui/tabs"
+import { Activity, Database, LayoutDashboard, Loader2, X } from "lucide-react"
+import { memo, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { useAgentStore } from "@/stores/agentStore"
 import { ActivityTab } from "./context/ActivityTab"
 import { ContextGroupTab } from "./context/ContextGroupTab"
-import { useAgentStore } from "@/stores/agentStore"
 
 interface ContextPanelProps {
   projectId?: number
@@ -26,12 +25,20 @@ interface ContextPanelProps {
  * Two tabs: Activity (runtime) and Context (project assets).
  */
 export const ContextPanel = memo(
-  ({ projectId, activeThreadId, autoSwitchToTab, onClose }: ContextPanelProps) => {
+  ({
+    projectId,
+    activeThreadId,
+    autoSwitchToTab,
+    onClose,
+  }: ContextPanelProps) => {
     const { t } = useTranslation()
     const [activeTab, setActiveTab] = useState("activity")
 
     const status = useAgentStore((s) => s.status)
-    const isAgentActive = status === "running" || status === "interrupted" || status === "summarizing"
+    const isAgentActive =
+      status === "running" ||
+      status === "interrupted" ||
+      status === "summarizing"
 
     // Auto-switch tab based on context
     useEffect(() => {
@@ -68,7 +75,12 @@ export const ContextPanel = memo(
             <span className="truncate">{t("chat.context.title")}</span>
           </span>
           {onClose && (
-            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 ml-2" onClick={onClose}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0 ml-2"
+              onClick={onClose}
+            >
               <X className="h-4 w-4" />
             </Button>
           )}
@@ -84,21 +96,31 @@ export const ContextPanel = memo(
             <TabsList className="w-full grid grid-cols-2">
               <TabsTrigger value="activity" className="text-xs truncate">
                 <Activity className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                <span className="truncate">{t("chat.context.tabActivity")}</span>
+                <span className="truncate">
+                  {t("chat.context.tabActivity")}
+                </span>
               </TabsTrigger>
               <TabsTrigger value="context" className="text-xs truncate">
                 <Database className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                <span className="truncate">{t("chat.context.groupContext")}</span>
+                <span className="truncate">
+                  {t("chat.context.groupContext")}
+                </span>
               </TabsTrigger>
             </TabsList>
           </div>
 
           <div className="flex-1 overflow-hidden relative min-w-0 w-full flex flex-col">
-            <TabsContent value="activity" className="h-full w-full min-w-0 m-0 data-[state=inactive]:hidden overflow-hidden flex flex-col">
+            <TabsContent
+              value="activity"
+              className="h-full w-full min-w-0 m-0 data-[state=inactive]:hidden overflow-hidden flex flex-col"
+            >
               <ActivityTab activeThreadId={activeThreadId} />
             </TabsContent>
 
-            <TabsContent value="context" className="h-full w-full min-w-0 m-0 data-[state=inactive]:hidden overflow-hidden flex flex-col">
+            <TabsContent
+              value="context"
+              className="h-full w-full min-w-0 m-0 data-[state=inactive]:hidden overflow-hidden flex flex-col"
+            >
               <ContextGroupTab projectId={projectId} />
             </TabsContent>
           </div>

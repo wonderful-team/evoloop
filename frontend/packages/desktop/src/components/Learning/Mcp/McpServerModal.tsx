@@ -1,11 +1,3 @@
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { useEffect } from "react"
-import { useForm } from "react-hook-form"
-import { useTranslation } from "react-i18next"
-import { z } from "zod"
-
-import { McpService } from "@/client"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
   Dialog,
@@ -27,6 +19,13 @@ import {
 } from "@evoloop/shared/components/ui/form"
 import { Input } from "@evoloop/shared/components/ui/input"
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useEffect } from "react"
+import { useForm } from "react-hook-form"
+import { useTranslation } from "react-i18next"
+import { z } from "zod"
+import { McpService } from "@/client"
 import { handleError } from "@/utils"
 
 // Define shape match columns.tsx

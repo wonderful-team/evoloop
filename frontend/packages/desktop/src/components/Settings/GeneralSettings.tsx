@@ -1,18 +1,5 @@
-import { zodResolver } from "@hookform/resolvers/zod"
-import { Checkbox } from "@evoloop/shared/components/ui/checkbox"
-import { useQueryClient } from "@tanstack/react-query"
-import { isTauri } from "@/lib/tauri"
-import { PlayCircle, Monitor, Save, Languages } from "lucide-react"
-import { useEffect, useState } from "react"
-import { useForm } from "react-hook-form"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { z } from "zod"
-import { type SystemConfig, SystemService } from "@/client"
-import { useTour } from "@/components/Common/SpotlightTour"
 import { Button } from "@evoloop/shared/components/ui/button"
-import { useSettings } from "./SettingsContext"
-import { SettingsCard } from "./SettingsCard"
+import { Checkbox } from "@evoloop/shared/components/ui/checkbox"
 import {
   Form,
   FormControl,
@@ -30,6 +17,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@evoloop/shared/components/ui/select"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useQueryClient } from "@tanstack/react-query"
+import { Languages, Monitor, PlayCircle } from "lucide-react"
+import { useEffect, useState } from "react"
+import { useForm } from "react-hook-form"
+import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
+import { z } from "zod"
+import { type SystemConfig, SystemService } from "@/client"
+import { useTour } from "@/components/Common/SpotlightTour"
+import { isTauri } from "@/lib/tauri"
+import { SettingsCard } from "./SettingsCard"
+import { useSettings } from "./SettingsContext"
 
 const generalSettingsSchema = z.object({
   WORKSPACE_ROOT: z.string().min(1),
@@ -40,12 +40,16 @@ const generalSettingsSchema = z.object({
 
 type GeneralSettingsValues = z.infer<typeof generalSettingsSchema>
 
-
 export default function GeneralSettings() {
   const { t, i18n } = useTranslation()
   const [loading, setLoading] = useState(false)
   const { startTour } = useTour()
-  const { setComponentDirty, registerSaveHandler, unregisterSaveHandler, registerResetHandler } = useSettings()
+  const {
+    setComponentDirty,
+    registerSaveHandler,
+    unregisterSaveHandler,
+    registerResetHandler,
+  } = useSettings()
 
   const form = useForm<GeneralSettingsValues>({
     resolver: zodResolver(generalSettingsSchema) as any,
@@ -64,11 +68,11 @@ export default function GeneralSettings() {
 
   const fetchConfig = async () => {
     try {
-      const [configResponse, discoveryResponse] = await Promise.all([
+      const [configResponse, discoveryResponse] = (await Promise.all([
         SystemService.getSystemConfig(),
         SystemService.getProjectDiscoveryConfig(),
-      ]) as [any, { enabled?: boolean }]
-      
+      ])) as [any, { enabled?: boolean }]
+
       const configMap: Record<string, string> = {}
       if (Array.isArray(configResponse)) {
         ;(configResponse as unknown as SystemConfig[]).forEach((item) => {
@@ -120,7 +124,7 @@ export default function GeneralSettings() {
           requestBody: { enabled: data.PROJECT_DISCOVERY_ENABLED },
         }),
       ])
-      
+
       i18n.changeLanguage(data.LANGUAGE)
       await queryClient.invalidateQueries({ queryKey: ["systemConfig"] })
       form.reset(data) // Reset dirty state to current values
@@ -165,9 +169,9 @@ export default function GeneralSettings() {
 
   return (
     <div className="space-y-4">
-      <SettingsCard 
-        icon={Monitor} 
-        title={t("settings.general.title")} 
+      <SettingsCard
+        icon={Monitor}
+        title={t("settings.general.title")}
         description={t("settings.general.description")}
         headerExtra={
           loading && (
@@ -190,10 +194,7 @@ export default function GeneralSettings() {
                       <Languages className="h-4 w-4 text-muted-foreground" />
                       {t("settings.general.language")}
                     </FormLabel>
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                    >
+                    <Select value={field.value} onValueChange={field.onChange}>
                       <FormControl>
                         <SelectTrigger className="h-10">
                           <SelectValue
@@ -202,8 +203,12 @@ export default function GeneralSettings() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="en">{t("settings.general.languageOptions.en")}</SelectItem>
-                        <SelectItem value="zh">{t("settings.general.languageOptions.zh")}</SelectItem>
+                        <SelectItem value="en">
+                          {t("settings.general.languageOptions.en")}
+                        </SelectItem>
+                        <SelectItem value="zh">
+                          {t("settings.general.languageOptions.zh")}
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                     <FormDescription>
@@ -246,10 +251,12 @@ export default function GeneralSettings() {
                   <FormLabel>{t("settings.general.workspaceRoot")}</FormLabel>
                   <div className="flex gap-2">
                     <FormControl>
-                      <Input 
+                      <Input
                         className="h-10 transition-colors focus:border-primary"
-                        placeholder={t("settings.general.workspaceRootPlaceholder")} 
-                        {...field} 
+                        placeholder={t(
+                          "settings.general.workspaceRootPlaceholder",
+                        )}
+                        {...field}
                       />
                     </FormControl>
                     <Button
@@ -258,7 +265,9 @@ export default function GeneralSettings() {
                       className="h-10 shrink-0"
                       onClick={handleBrowse}
                       disabled={!isTauri()}
-                      title={!isTauri() ? t("settings.general.webBrowseHint") : ""}
+                      title={
+                        !isTauri() ? t("settings.general.webBrowseHint") : ""
+                      }
                     >
                       {t("settings.general.browse")}
                     </Button>
@@ -297,9 +306,9 @@ export default function GeneralSettings() {
         </Form>
       </SettingsCard>
 
-      <SettingsCard 
-        icon={PlayCircle} 
-        title={t("tour.replayTitle")} 
+      <SettingsCard
+        icon={PlayCircle}
+        title={t("tour.replayTitle")}
         description={t("tour.replayDesc")}
         iconClassName="text-blue-500 bg-blue-500/10"
       >
@@ -311,5 +320,3 @@ export default function GeneralSettings() {
     </div>
   )
 }
-
-

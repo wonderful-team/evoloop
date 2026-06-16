@@ -1,8 +1,3 @@
-import { useMutation } from "@tanstack/react-query"
-import { BookOpen, MoreVertical, Trash2, Rocket, Search } from "lucide-react"
-import { useState } from "react"
-import { Trans, useTranslation } from "react-i18next"
-import { ProjectsService, WikiService } from "@/client"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +17,11 @@ import {
   DropdownMenuTrigger,
 } from "@evoloop/shared/components/ui/dropdown-menu"
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
+import { useMutation } from "@tanstack/react-query"
+import { BookOpen, MoreVertical, Rocket, Trash2 } from "lucide-react"
+import { useState } from "react"
+import { Trans, useTranslation } from "react-i18next"
+import { ProjectsService, WikiService } from "@/client"
 import { useProjectStore } from "@/stores/projectStore"
 import { handleError } from "@/utils"
 import { DiscoverDialog } from "./Modules/Overview/DiscoverDialog"
@@ -60,12 +60,12 @@ export function ProjectActions({ project }: ProjectActionsProps) {
         requestBody: {
           project_id: project.id,
           topic: t("wiki.topic.full_documentation"),
-          force_regenerate: true
-        }
+          force_regenerate: true,
+        },
       })
     },
     onSuccess: () => {
-      showSuccessToast(t('wiki.toast.start'))
+      showSuccessToast(t("wiki.toast.start"))
       fetchProjects()
     },
     onError: handleError.bind(showErrorToast),
@@ -98,7 +98,10 @@ export function ProjectActions({ project }: ProjectActionsProps) {
               handleGenerateWiki()
             }}
           >
-            <BookOpen className="mr-2 h-4 w-4" /> {project.has_wiki ? t('wiki.regenerate_action') : t('wiki.generate')}
+            <BookOpen className="mr-2 h-4 w-4" />{" "}
+            {project.has_wiki
+              ? t("wiki.regenerate_action")
+              : t("wiki.generate")}
           </DropdownMenuItem>
           <DropdownMenuItem
             className="cursor-pointer"

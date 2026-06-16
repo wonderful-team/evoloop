@@ -1,9 +1,3 @@
-import { useQuery } from "@tanstack/react-query"
-import { CheckCircle2, Eye, EyeOff, Loader2, XCircle } from "lucide-react"
-import { motion } from "framer-motion"
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { SystemService } from "@/client"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Input } from "@evoloop/shared/components/ui/input"
 import { Label } from "@evoloop/shared/components/ui/label"
@@ -14,6 +8,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@evoloop/shared/components/ui/select"
+import { useQuery } from "@tanstack/react-query"
+import { motion } from "framer-motion"
+import { CheckCircle2, Eye, EyeOff, Loader2, XCircle } from "lucide-react"
+import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { SystemService } from "@/client"
 import { useWizard } from "../WizardContext"
 
 // Preset model type from backend
@@ -49,7 +49,7 @@ export function LLMConfigStep() {
   const selectedModelId = data.selectedModelId || ""
   const isCustom = selectedModelId === "custom"
   const selectedPreset = presetModels.find((m) => m.id === selectedModelId)
-  const isPlatformModel = selectedPreset?.type === "platform"
+  const _isPlatformModel = selectedPreset?.type === "platform"
   const isCustomModel = isCustom || selectedPreset?.type === "custom"
 
   // Initialize with first preset if empty
@@ -83,16 +83,19 @@ export function LLMConfigStep() {
   useEffect(() => {
     if (selectedModelId === "custom") {
       const newCustomId = `custom-${data.llmProvider}-${data.llmModel}`
-      if (data.defaultModelId !== newCustomId && data.llmProvider && data.llmModel) {
+      if (
+        data.defaultModelId !== newCustomId &&
+        data.llmProvider &&
+        data.llmModel
+      ) {
         setData({ defaultModelId: newCustomId })
       }
     }
   }, [data.llmProvider, data.llmModel, data.defaultModelId, setData])
 
-
   const handleModelSelect = (value: string) => {
     setTestResult(null)
-    
+
     if (value === "custom") {
       setData({
         selectedModelId: "custom",
@@ -139,15 +142,15 @@ export function LLMConfigStep() {
           success: true,
           msg: t("wizard.llm.testSuccess"),
         })
-        
+
         let finalDefaultId = data.selectedModelId
         if (data.selectedModelId === "custom") {
           finalDefaultId = `custom-${data.llmProvider}-${data.llmModel}`
         }
 
-        setData({ 
+        setData({
           llmTested: true,
-          defaultModelId: finalDefaultId 
+          defaultModelId: finalDefaultId,
         })
       } else {
         setTestResult({
@@ -166,7 +169,6 @@ export function LLMConfigStep() {
       setTesting(false)
     }
   }
-
 
   return (
     <motion.div
@@ -218,9 +220,7 @@ export function LLMConfigStep() {
                 </SelectItem>
               ))}
               <SelectItem value="custom">
-                <span className="font-medium">
-                  {t("settings.llm.custom")}
-                </span>
+                <span className="font-medium">{t("settings.llm.custom")}</span>
               </SelectItem>
             </SelectContent>
           </Select>
@@ -340,8 +340,9 @@ export function LLMConfigStep() {
 
             {testResult && (
               <div
-                className={`flex items-center gap-2 mt-3 text-sm ${testResult.success ? "text-green-600" : "text-red-600"
-                  }`}
+                className={`flex items-center gap-2 mt-3 text-sm ${
+                  testResult.success ? "text-green-600" : "text-red-600"
+                }`}
               >
                 {testResult.success ? (
                   <CheckCircle2 className="h-4 w-4" />

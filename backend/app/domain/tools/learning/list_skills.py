@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
     is_pollable=False,
     summary_template="evoloop.tool_summary.list_skills"
 )
-async def list_skills(namespace: str = None, query: str = None) -> str:
+async def list_skills(namespace: str | None = None, query: str | None = None) -> str:
     """
     List available SOPs (Standard Operating Procedures) in the skill library.
     Use this to browse available skills to accomplish your task.

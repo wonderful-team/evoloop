@@ -72,7 +72,8 @@ function useBenefitsQueryConfig() {
     gcTime: BENEFITS_CACHE_TIME,
     // 错误时重试3次
     retry: 3,
-    retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    retryDelay: (attemptIndex: number) =>
+      Math.min(1000 * 2 ** attemptIndex, 30000),
   }
 }
 
@@ -101,7 +102,7 @@ export function useFeatureAccess(feature: FeatureCode): FeatureAccessResult {
  * 性能优化：只发起一次API请求
  */
 export function useMultipleFeatureAccess(
-  features: FeatureCode[]
+  features: FeatureCode[],
 ): Record<FeatureCode, FeatureAccessResult> & { isLoading: boolean } {
   const { data: benefitsData, isLoading } = useQuery(useBenefitsQueryConfig())
 
@@ -143,7 +144,7 @@ export function useBatchFeatureCheck(features: FeatureCode[]) {
   })
 
   const results = {} as Record<FeatureCode, FeatureAccessResult>
-  
+
   for (const feature of features) {
     const hasAccess = data?.results?.[feature] ?? false
     const isExpired = data?.is_expired ?? false
@@ -157,11 +158,11 @@ export function useBatchFeatureCheck(features: FeatureCode[]) {
     }
   }
 
-  return { 
-    results, 
-    isLoading, 
+  return {
+    results,
+    isLoading,
     error,
-    levelName: data?.level_name 
+    levelName: data?.level_name,
   }
 }
 
@@ -170,7 +171,7 @@ export function useBatchFeatureCheck(features: FeatureCode[]) {
  */
 export function useRefreshBenefits() {
   const queryClient = useQueryClient()
-  
+
   return {
     refresh: async () => {
       // 使缓存失效并重新获取
@@ -179,14 +180,16 @@ export function useRefreshBenefits() {
     refreshAsync: () => {
       // 后台刷新，不阻塞UI
       queryClient.invalidateQueries({ queryKey: ["member", "benefits"] })
-    }
+    },
   }
 }
 
 /**
  * 预加载权益数据（在应用启动时调用）
  */
-export function prefetchBenefits(queryClient: ReturnType<typeof useQueryClient>) {
+export function prefetchBenefits(
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
   return queryClient.prefetchQuery(useBenefitsQueryConfig())
 }
 
@@ -210,7 +213,11 @@ export function getFeatureRequiredPlan(feature: FeatureCode): string {
 export function useHasAnyFeature(features: FeatureCode[]): boolean {
   const access = useMultipleFeatureAccess(features)
   return Object.values(access).some(
-    (r): r is FeatureAccessResult => typeof r === 'object' && r !== null && 'hasAccess' in r && r.hasAccess === true
+    (r): r is FeatureAccessResult =>
+      typeof r === "object" &&
+      r !== null &&
+      "hasAccess" in r &&
+      r.hasAccess === true,
   )
 }
 
@@ -220,6 +227,10 @@ export function useHasAnyFeature(features: FeatureCode[]): boolean {
 export function useHasAllFeatures(features: FeatureCode[]): boolean {
   const access = useMultipleFeatureAccess(features)
   return Object.values(access).every(
-    (r): r is FeatureAccessResult => typeof r !== 'object' || r === null || !('hasAccess' in r) || r.hasAccess === true
+    (r): r is FeatureAccessResult =>
+      typeof r !== "object" ||
+      r === null ||
+      !("hasAccess" in r) ||
+      r.hasAccess === true,
   )
 }

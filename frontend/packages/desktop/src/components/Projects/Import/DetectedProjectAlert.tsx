@@ -1,6 +1,3 @@
-import { useEffect, useCallback, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { FolderOpen, X, Check, FolderX, RefreshCw } from "lucide-react"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
   Dialog,
@@ -10,11 +7,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@evoloop/shared/components/ui/dialog"
+import { cn } from "@evoloop/shared/lib/utils"
+import { Check, FolderOpen, FolderX, RefreshCw, X } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { useProjectImportStore } from "@/stores/projectImportStore"
 import { useSetupWizard } from "@/components/Wizard/SetupWizardContext"
 import { isLoggedIn } from "@/hooks/useAuth"
-import { cn } from "@evoloop/shared/lib/utils"
+import { useProjectImportStore } from "@/stores/projectImportStore"
 
 export function DetectedProjectAlert() {
   const { t } = useTranslation()
@@ -51,7 +51,7 @@ export function DetectedProjectAlert() {
       console.debug("[DetectedProjectAlert] Discovery disabled, skipping poll")
       return
     }
-    
+
     // Only check for detected projects if user is logged in
     if (!isLoggedIn()) {
       return
@@ -80,30 +80,43 @@ export function DetectedProjectAlert() {
       setIsOpen(false)
       return
     }
-    
+
     // Don't show if setup wizard is open
     if (shouldSuppressOtherDialogs()) {
       setIsOpen(false)
       return
     }
-    
+
     // Only show dialog if user is logged in
     if (!isLoggedIn()) {
       return
     }
-    
+
     // Show if there are new projects OR manual mode is active
-    if ((hasNewDetected || isManualMode) && detectedProjects.length > 0 && !isOpen) {
+    if (
+      (hasNewDetected || isManualMode) &&
+      detectedProjects.length > 0 &&
+      !isOpen
+    ) {
       // Small delay to not interrupt user immediately
       const timer = setTimeout(() => {
         setIsOpen(true)
       }, 100) // Shorter delay for manual mode
       return () => clearTimeout(timer)
     }
-  }, [hasNewDetected, isManualMode, detectedProjects.length, isOpen, shouldSuppressOtherDialogs, isDiscoveryEnabled])
+  }, [
+    hasNewDetected,
+    isManualMode,
+    detectedProjects.length,
+    isOpen,
+    shouldSuppressOtherDialogs,
+    isDiscoveryEnabled,
+  ])
 
   // 过滤掉已处理的项目
-  const visibleProjects = detectedProjects.filter((p) => !dismissedProjectIds.has(p.id))
+  const visibleProjects = detectedProjects.filter(
+    (p) => !dismissedProjectIds.has(p.id),
+  )
 
   const handleClose = useCallback(() => {
     setIsOpen(false)
@@ -125,7 +138,7 @@ export function DetectedProjectAlert() {
       if (remaining.length === 0) {
         setIsOpen(false)
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error(t("projects.import.importFailed"))
     } finally {
       setImportingIds((prev) => {
@@ -148,7 +161,7 @@ export function DetectedProjectAlert() {
       if (remaining.length === 0) {
         setIsOpen(false)
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error(t("projects.import.ignoreFailed"))
     }
   }
@@ -174,12 +187,16 @@ export function DetectedProjectAlert() {
 
     if (successCount > 0) {
       toast.success(
-        t("projects.import.importAllSuccess", "{{count}} projects imported", { count: successCount })
+        t("projects.import.importAllSuccess", "{{count}} projects imported", {
+          count: successCount,
+        }),
       )
     }
     if (failCount > 0) {
       toast.error(
-        t("projects.import.importAllFailed", "{{count}} projects failed", { count: failCount })
+        t("projects.import.importAllFailed", "{{count}} projects failed", {
+          count: failCount,
+        }),
       )
     }
 
@@ -191,7 +208,7 @@ export function DetectedProjectAlert() {
   const formatPath = (path: string) => {
     const home = "/Users" // Simplified, should use actual home detection
     if (path.startsWith(home)) {
-      return "~" + path.slice(home.length)
+      return `~${path.slice(home.length)}`
     }
     return path
   }
@@ -199,10 +216,11 @@ export function DetectedProjectAlert() {
   // Format detected time
   const formatTime = (timestamp: number | string) => {
     // Handle both number (timestamp) and string (ISO date) inputs
-    const date = typeof timestamp === 'number' ? new Date(timestamp) : new Date(timestamp)
+    const date =
+      typeof timestamp === "number" ? new Date(timestamp) : new Date(timestamp)
 
     // Check if date is valid
-    if (isNaN(date.getTime())) {
+    if (Number.isNaN(date.getTime())) {
       return t("common.time.unknown")
     }
 
@@ -212,8 +230,10 @@ export function DetectedProjectAlert() {
     const hours = Math.floor(diff / 3600000)
 
     if (minutes < 1) return t("common.time.justNow")
-    if (minutes < 60) return t("common.time.minutesAgo", "{{count}}m ago", { count: minutes })
-    if (hours < 24) return t("common.time.hoursAgo", "{{count}}h ago", { count: hours })
+    if (minutes < 60)
+      return t("common.time.minutesAgo", "{{count}}m ago", { count: minutes })
+    if (hours < 24)
+      return t("common.time.hoursAgo", "{{count}}h ago", { count: hours })
     return date.toLocaleDateString()
   }
 
@@ -243,7 +263,9 @@ export function DetectedProjectAlert() {
         {importingIds.size > 0 && (
           <div className="py-2 px-3 bg-muted rounded-md text-sm text-center text-muted-foreground flex items-center justify-center gap-2">
             <RefreshCw className="h-4 w-4 animate-spin" />
-            {t("projects.import.importing", "Importing {{count}} projects...", { count: importingIds.size })}
+            {t("projects.import.importing", "Importing {{count}} projects...", {
+              count: importingIds.size,
+            })}
           </div>
         )}
 
@@ -260,7 +282,7 @@ export function DetectedProjectAlert() {
                 className={cn(
                   "flex items-center justify-between p-3 border rounded-lg",
                   "hover:bg-muted/50 transition-colors",
-                  importingIds.has(project.id) && "opacity-50"
+                  importingIds.has(project.id) && "opacity-50",
                 )}
               >
                 <div className="flex-1 min-w-0 mr-4">
@@ -268,11 +290,15 @@ export function DetectedProjectAlert() {
                     <FolderOpen className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     <p className="font-medium truncate">{project.name}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground truncate mt-1" title={project.path}>
+                  <p
+                    className="text-xs text-muted-foreground truncate mt-1"
+                    title={project.path}
+                  >
                     {formatPath(project.path)}
                   </p>
                   <p className="text-xs text-muted-foreground/70 mt-0.5">
-                    {t("projects.import.detected")} {formatTime(project.detected_at)}
+                    {t("projects.import.detected")}{" "}
+                    {formatTime(project.detected_at)}
                   </p>
                 </div>
 
@@ -306,7 +332,12 @@ export function DetectedProjectAlert() {
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
-          <Button variant="outline" onClick={handleClose} disabled={importingIds.size > 0} className="w-full sm:w-auto">
+          <Button
+            variant="outline"
+            onClick={handleClose}
+            disabled={importingIds.size > 0}
+            className="w-full sm:w-auto"
+          >
             <X className="h-4 w-4 mr-1" />
             {t("common.later")}
           </Button>

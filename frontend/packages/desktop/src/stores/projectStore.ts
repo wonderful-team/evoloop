@@ -10,7 +10,7 @@ const getLastSelectedProjectId = (): number | null => {
     const stored = localStorage.getItem(LAST_PROJECT_ID_KEY)
     if (stored) {
       const id = parseInt(stored, 10)
-      return isNaN(id) ? null : id
+      return Number.isNaN(id) ? null : id
     }
   } catch {
     // localStorage might not be available
@@ -126,15 +126,15 @@ export interface Project {
   last_sync_time_format: string
   status_text: string
   priority_text: string
-  indexing_status?: string      // Redis real-time status (idle, running, etc.)
-  db_indexing_status?: string   // DB persisted status (pending, in_progress, completed, failed, not_needed)
+  indexing_status?: string // Redis real-time status (idle, running, etc.)
+  db_indexing_status?: string // DB persisted status (pending, in_progress, completed, failed, not_needed)
   summarization_status?: string
   wiki_status?: string
   has_wiki?: boolean
-  local_status?: string | null  // SYNCED, PENDING_CREATION, DISCONNECTED, etc.
-  exists_locally?: boolean      // Whether the project exists on local filesystem
+  local_status?: string | null // SYNCED, PENDING_CREATION, DISCONNECTED, etc.
+  exists_locally?: boolean // Whether the project exists on local filesystem
   last_indexed_at?: string | null // ISO timestamp of last successful indexing
-  isGlobal?: boolean            // Flag to identify virtual global project
+  isGlobal?: boolean // Flag to identify virtual global project
 }
 
 interface ProjectState {
@@ -143,7 +143,9 @@ interface ProjectState {
   isLoading: boolean
   isGlobalMode: boolean
 
-  fetchProjects: (filterType?: 'switchable' | 'cloud_only' | 'disconnected') => Promise<void>
+  fetchProjects: (
+    filterType?: "switchable" | "cloud_only" | "disconnected",
+  ) => Promise<void>
   setProject: (project: Project) => void
   setGlobalMode: (enabled: boolean) => void
   getProject: (id: number) => Project | undefined
@@ -156,7 +158,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   isLoading: false,
   isGlobalMode: false,
 
-  fetchProjects: async (filterType?: 'switchable' | 'cloud_only' | 'disconnected') => {
+  fetchProjects: async (
+    filterType?: "switchable" | "cloud_only" | "disconnected",
+  ) => {
     set({ isLoading: true })
     try {
       let rawList: any[] = []
@@ -188,18 +192,24 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const localProjects = list.filter((p) => p.exists_locally !== false)
       const current = get().currentProject
       const isGlobal = get().isGlobalMode
-      const currentInList = current ? list.find((p) => p.id === current.id) : null
-      const lastSelectedId = getLastSelectedProjectId()
-      const lastSelectedInList = lastSelectedId !== null
-        ? list.find((p) => p.id === lastSelectedId)
+      const currentInList = current
+        ? list.find((p) => p.id === current.id)
         : null
+      const lastSelectedId = getLastSelectedProjectId()
+      const lastSelectedInList =
+        lastSelectedId !== null
+          ? list.find((p) => p.id === lastSelectedId)
+          : null
 
       if (isGlobal && current?.id === 0) {
         // Keep global mode
       } else if (current && currentInList) {
         set({ currentProject: currentInList })
       } else if (lastSelectedInList) {
-        set({ currentProject: lastSelectedInList, isGlobalMode: isGlobalProject(lastSelectedInList) })
+        set({
+          currentProject: lastSelectedInList,
+          isGlobalMode: isGlobalProject(lastSelectedInList),
+        })
       } else if (current && !currentInList) {
         if (localProjects.length > 0) {
           const firstLocal = localProjects[0]
@@ -236,7 +246,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     set({
       currentProject: project,
-      isGlobalMode: isGlobalProject(project)
+      isGlobalMode: isGlobalProject(project),
     })
   },
 
@@ -245,7 +255,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       saveLastSelectedProjectId(0) // Save global mode (id=0)
       set({
         currentProject: GLOBAL_PROJECT,
-        isGlobalMode: true
+        isGlobalMode: true,
       })
     } else {
       // Exit global mode, try to select first available local project
@@ -256,13 +266,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         saveLastSelectedProjectId(firstLocal.id)
         set({
           currentProject: firstLocal,
-          isGlobalMode: false
+          isGlobalMode: false,
         })
       } else {
         saveLastSelectedProjectId(null)
         set({
           currentProject: null,
-          isGlobalMode: false
+          isGlobalMode: false,
         })
       }
     }
@@ -291,4 +301,3 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     })
   },
 }))
-

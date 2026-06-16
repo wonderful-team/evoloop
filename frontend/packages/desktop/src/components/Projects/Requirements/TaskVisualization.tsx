@@ -1,25 +1,28 @@
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import {
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
-  Layers,
-  Link2,
-  Clock,
-  ArrowRight,
-  ChevronDown,
-  ChevronUp,
-  RefreshCw,
-  Cloud,
-  CloudOff,
-} from "lucide-react"
-import { Button } from "@evoloop/shared/components/ui/button"
 import { Badge } from "@evoloop/shared/components/ui/badge"
+import { Button } from "@evoloop/shared/components/ui/button"
 import { Progress } from "@evoloop/shared/components/ui/progress"
 import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
 import { cn } from "@evoloop/shared/lib/utils"
-import { useRequirementStore, type RequirementTask } from "@/stores/requirementStore"
+import {
+  AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Cloud,
+  CloudOff,
+  Layers,
+  Link2,
+  Loader2,
+  RefreshCw,
+} from "lucide-react"
+import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
+import {
+  type RequirementTask,
+  useRequirementStore,
+} from "@/stores/requirementStore"
 
 interface TaskVisualizationProps {
   projectId: number
@@ -121,7 +124,10 @@ export function TaskVisualization({
         <Layers className="h-12 w-12 mx-auto mb-3 opacity-30" />
         <p>{t("requirements.tasks.noTasks", "暂无任务")}</p>
         <p className="text-xs mt-1">
-          {t("requirements.tasks.analysisNotConfirmed", "请先确认分析结果以生成任务")}
+          {t(
+            "requirements.tasks.analysisNotConfirmed",
+            "请先确认分析结果以生成任务",
+          )}
         </p>
       </div>
     )
@@ -175,7 +181,8 @@ export function TaskVisualization({
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">
-                {progress.synced}/{progress.total} {t("requirements.tasks.synced", "已同步")}
+                {progress.synced}/{progress.total}{" "}
+                {t("requirements.tasks.synced", "已同步")}
               </span>
               <span className="font-medium">{progress.percentage}%</span>
             </div>
@@ -186,13 +193,15 @@ export function TaskVisualization({
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full bg-gray-400" />
               <span className="text-muted-foreground">
-                {t("requirements.tasks.pending", "待同步")}: {sync_stats.pending}
+                {t("requirements.tasks.pending", "待同步")}:{" "}
+                {sync_stats.pending}
               </span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
               <span className="text-muted-foreground">
-                {t("requirements.tasks.syncing", "同步中")}: {sync_stats.syncing}
+                {t("requirements.tasks.syncing", "同步中")}:{" "}
+                {sync_stats.syncing}
               </span>
             </div>
             <div className="flex items-center gap-1">
@@ -322,7 +331,10 @@ function TaskCard({
         <div className="flex items-center gap-2 flex-shrink-0">
           <Badge
             variant="secondary"
-            className={cn("text-xs flex items-center gap-1", getTaskSyncStatusColor(task.sync_status))}
+            className={cn(
+              "text-xs flex items-center gap-1",
+              getTaskSyncStatusColor(task.sync_status),
+            )}
           >
             {getSyncStatusIcon(task.sync_status)}
             {task.sync_status}
@@ -344,7 +356,8 @@ function TaskCard({
               <div className="flex items-center gap-2 text-sm">
                 <Clock className="h-4 w-4 text-muted-foreground" />
                 <span>
-                  {t("requirements.tasks.estimatedHours", "预计工时")}: {task.estimated_hours}h
+                  {t("requirements.tasks.estimatedHours", "预计工时")}:{" "}
+                  {task.estimated_hours}h
                 </span>
               </div>
             )}
@@ -430,22 +443,24 @@ function RequirementTaskMapping({
     <ScrollArea className="h-[400px]">
       <div className="space-y-4 pr-4">
         {/* Mapped Requirements */}
-        {Object.entries(requirementMapping.by_requirement).map(([reqRef, taskIds]) => (
-          <div key={reqRef} className="border rounded-lg p-3">
-            <div className="flex items-center gap-2 mb-3">
-              <Badge variant="outline" className="font-mono text-xs">
-                {reqRef}
-              </Badge>
-              <ArrowRight className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">
-                {taskIds.length} {t("requirements.tasks.tasks", "个任务")}
-              </span>
+        {Object.entries(requirementMapping.by_requirement).map(
+          ([reqRef, taskIds]) => (
+            <div key={reqRef} className="border rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-3">
+                <Badge variant="outline" className="font-mono text-xs">
+                  {reqRef}
+                </Badge>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">
+                  {taskIds.length} {t("requirements.tasks.tasks", "个任务")}
+                </span>
+              </div>
+              <div className="space-y-2 pl-4 border-l-2 border-primary/20">
+                {taskIds.map(renderTaskNode)}
+              </div>
             </div>
-            <div className="space-y-2 pl-4 border-l-2 border-primary/20">
-              {taskIds.map(renderTaskNode)}
-            </div>
-          </div>
-        ))}
+          ),
+        )}
 
         {/* Unmapped Tasks */}
         {requirementMapping.unmapped_tasks.length > 0 && (
@@ -455,7 +470,8 @@ function RequirementTaskMapping({
                 {t("requirements.tasks.unmapped", "未关联需求")}
               </Badge>
               <span className="text-sm text-muted-foreground">
-                {requirementMapping.unmapped_tasks.length} {t("requirements.tasks.tasks", "个任务")}
+                {requirementMapping.unmapped_tasks.length}{" "}
+                {t("requirements.tasks.tasks", "个任务")}
               </span>
             </div>
             <div className="space-y-2 pl-4 border-l-2 border-muted">

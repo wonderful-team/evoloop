@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef, useState } from "react"
 
 export interface VoiceRecorderState {
   isRecording: boolean
@@ -18,7 +18,7 @@ export function useVoiceRecorder() {
     isRecording: false,
     duration: 0,
     volume: 0,
-    error: null
+    error: null,
   })
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -41,10 +41,12 @@ export function useVoiceRecorder() {
       volumeIntervalRef.current = null
     }
     if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop())
+      mediaRecorderRef.current.stream
+        .getTracks()
+        .forEach((track) => track.stop())
       mediaRecorderRef.current = null
     }
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
       audioContextRef.current.close()
       audioContextRef.current = null
     }
@@ -58,11 +60,12 @@ export function useVoiceRecorder() {
   // 获取音量级别
   const getVolumeLevel = useCallback(() => {
     if (!analyserRef.current) return 0
-    
+
     const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount)
     analyserRef.current.getByteFrequencyData(dataArray)
-    
-    const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length
+
+    const average =
+      dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length
     return average / 255 // 归一化到 0-1
   }, [])
 
@@ -70,7 +73,7 @@ export function useVoiceRecorder() {
   const startRecording = useCallback(async () => {
     try {
       cleanup() // 确保清理之前的状态
-      
+
       // 请求麦克风权限
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -78,8 +81,8 @@ export function useVoiceRecorder() {
           noiseSuppression: true,
           autoGainControl: true,
           sampleRate: 44100,
-          channelCount: 1
-        }
+          channelCount: 1,
+        },
       })
 
       // 创建音频上下文用于分析音量
@@ -90,15 +93,15 @@ export function useVoiceRecorder() {
       source.connect(analyserRef.current)
 
       // 创建 MediaRecorder
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/webm')
-          ? 'audio/webm'
-          : 'audio/mp4'
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm")
+          ? "audio/webm"
+          : "audio/mp4"
 
       mediaRecorderRef.current = new MediaRecorder(stream, {
         mimeType,
-        audioBitsPerSecond: 128000
+        audioBitsPerSecond: 128000,
       })
 
       chunksRef.current = []
@@ -117,7 +120,7 @@ export function useVoiceRecorder() {
       // 启动计时器
       timerRef.current = setInterval(() => {
         const duration = Math.floor((Date.now() - startTimeRef.current) / 1000)
-        setState(prev => ({ ...prev, duration }))
+        setState((prev) => ({ ...prev, duration }))
       }, 1000)
 
       // 启动音量检测
@@ -128,23 +131,23 @@ export function useVoiceRecorder() {
         if (waveformRef.current.length > 100) {
           waveformRef.current.shift()
         }
-        setState(prev => ({ ...prev, volume }))
+        setState((prev) => ({ ...prev, volume }))
       }, 50)
 
       setState({
         isRecording: true,
         duration: 0,
         volume: 0,
-        error: null
+        error: null,
       })
-
     } catch (err: any) {
-      console.error('Failed to start recording:', err)
-      setState(prev => ({
+      console.error("Failed to start recording:", err)
+      setState((prev) => ({
         ...prev,
-        error: err.name === 'NotAllowedError' 
-          ? 'microphone_permission_denied'
-          : err.message || 'recording_failed'
+        error:
+          err.name === "NotAllowedError"
+            ? "microphone_permission_denied"
+            : err.message || "recording_failed",
       }))
       throw err
     }
@@ -154,35 +157,37 @@ export function useVoiceRecorder() {
   const stopRecording = useCallback(async (): Promise<VoiceRecorderResult> => {
     return new Promise((resolve, reject) => {
       const mediaRecorder = mediaRecorderRef.current
-      if (!mediaRecorder || mediaRecorder.state === 'inactive') {
-        reject(new Error('Not recording'))
+      if (!mediaRecorder || mediaRecorder.state === "inactive") {
+        reject(new Error("Not recording"))
         return
       }
 
-      const finalDuration = Math.floor((Date.now() - startTimeRef.current) / 1000)
+      const finalDuration = Math.floor(
+        (Date.now() - startTimeRef.current) / 1000,
+      )
       const finalWaveform = [...waveformRef.current]
 
       mediaRecorder.onstop = () => {
-        const mimeType = mediaRecorder.mimeType || 'audio/webm'
+        const mimeType = mediaRecorder.mimeType || "audio/webm"
         const blob = new Blob(chunksRef.current, { type: mimeType })
-        
+
         cleanup()
         setState({
           isRecording: false,
           duration: 0,
           volume: 0,
-          error: null
+          error: null,
         })
 
         resolve({
           blob,
           duration: finalDuration,
-          waveform: finalWaveform
+          waveform: finalWaveform,
         })
       }
 
-      mediaRecorder.onerror = (e) => {
-        reject(new Error('Recording error'))
+      mediaRecorder.onerror = (_e) => {
+        reject(new Error("Recording error"))
       }
 
       mediaRecorder.stop()
@@ -196,7 +201,7 @@ export function useVoiceRecorder() {
       isRecording: false,
       duration: 0,
       volume: 0,
-      error: null
+      error: null,
     })
   }, [cleanup])
 
@@ -204,6 +209,6 @@ export function useVoiceRecorder() {
     ...state,
     startRecording,
     stopRecording,
-    cancelRecording
+    cancelRecording,
   }
 }

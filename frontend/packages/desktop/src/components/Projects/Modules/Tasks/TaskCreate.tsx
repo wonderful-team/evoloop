@@ -1,7 +1,3 @@
-import React, { useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { TasksService } from "@/client"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
   Dialog,
@@ -12,7 +8,6 @@ import {
 } from "@evoloop/shared/components/ui/dialog"
 import { Input } from "@evoloop/shared/components/ui/input"
 import { Label } from "@evoloop/shared/components/ui/label"
-import { Textarea } from "@evoloop/shared/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -20,6 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@evoloop/shared/components/ui/select"
+import { Textarea } from "@evoloop/shared/components/ui/textarea"
+import type React from "react"
+import { useState } from "react"
+import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
+import { TasksService } from "@/client"
 
 interface TaskCreateProps {
   projectId: number
@@ -91,21 +92,35 @@ export const TaskCreate: React.FC<TaskCreateProps> = ({
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="priority">{t("projects.tasks.columns.priority")}</Label>
+              <Label htmlFor="priority">
+                {t("projects.tasks.columns.priority")}
+              </Label>
               <Select value={priority} onValueChange={setPriority}>
                 <SelectTrigger id="priority">
-                  <SelectValue placeholder={t("projects.tasks.columns.priority")} />
+                  <SelectValue
+                    placeholder={t("projects.tasks.columns.priority")}
+                  />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1">{t("projects.tasks.priorityLabel.low")}</SelectItem>
-                  <SelectItem value="2">{t("projects.tasks.priorityLabel.normal")}</SelectItem>
-                  <SelectItem value="3">{t("projects.tasks.priorityLabel.high")}</SelectItem>
-                  <SelectItem value="4">{t("projects.tasks.priorityLabel.urgent")}</SelectItem>
+                  <SelectItem value="1">
+                    {t("projects.tasks.priorityLabel.low")}
+                  </SelectItem>
+                  <SelectItem value="2">
+                    {t("projects.tasks.priorityLabel.normal")}
+                  </SelectItem>
+                  <SelectItem value="3">
+                    {t("projects.tasks.priorityLabel.high")}
+                  </SelectItem>
+                  <SelectItem value="4">
+                    {t("projects.tasks.priorityLabel.urgent")}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="description">{t("projects.details.description")}</Label>
+              <Label htmlFor="description">
+                {t("projects.details.description")}
+              </Label>
               <Textarea
                 id="description"
                 value={description}

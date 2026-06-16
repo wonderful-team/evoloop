@@ -1,12 +1,14 @@
-import { Brain, Monitor, Moon, Sun, Palette, Eye } from "lucide-react"
-import { useTranslation } from "react-i18next"
 import { useTheme } from "@evoloop/shared/components/theme-provider"
-import { SettingsCard } from "../Settings/SettingsCard"
 import { Label } from "@evoloop/shared/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@evoloop/shared/components/ui/radio-group"
-import { Checkbox } from "@evoloop/shared/components/ui/checkbox"
-import { useEffect, useState } from "react"
+import {
+  RadioGroup,
+  RadioGroupItem,
+} from "@evoloop/shared/components/ui/radio-group"
 import { Switch } from "@evoloop/shared/components/ui/switch"
+import { Brain, Eye, Monitor, Moon, Palette, Sun } from "lucide-react"
+import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { SettingsCard } from "../Settings/SettingsCard"
 
 const SHOW_THINKING_KEY = "evoloop:showThinking"
 
@@ -31,9 +33,9 @@ export default function AppearanceSettings() {
 
   return (
     <div className="space-y-8">
-      <SettingsCard 
-        icon={Palette} 
-        title={t("settings.appearance.title")} 
+      <SettingsCard
+        icon={Palette}
+        title={t("settings.appearance.title")}
         description={t("settings.appearance.description")}
       >
         <RadioGroup
@@ -59,8 +61,20 @@ export default function AppearanceSettings() {
                 </div>
               </div>
               <div className="flex items-center justify-center gap-2 pt-3">
-                <Sun className={cn("h-4 w-4 transition-colors", theme === "light" ? "text-primary" : "text-muted-foreground")} />
-                <span className={cn("text-sm font-medium transition-colors", theme === "light" ? "text-primary" : "text-foreground")}>
+                <Sun
+                  className={cn(
+                    "h-4 w-4 transition-colors",
+                    theme === "light"
+                      ? "text-primary"
+                      : "text-muted-foreground",
+                  )}
+                />
+                <span
+                  className={cn(
+                    "text-sm font-medium transition-colors",
+                    theme === "light" ? "text-primary" : "text-foreground",
+                  )}
+                >
                   {t("settings.appearance.light")}
                 </span>
               </div>
@@ -85,8 +99,18 @@ export default function AppearanceSettings() {
                 </div>
               </div>
               <div className="flex items-center justify-center gap-2 pt-3">
-                <Moon className={cn("h-4 w-4 transition-colors", theme === "dark" ? "text-primary" : "text-muted-foreground")} />
-                <span className={cn("text-sm font-medium transition-colors", theme === "dark" ? "text-primary" : "text-foreground")}>
+                <Moon
+                  className={cn(
+                    "h-4 w-4 transition-colors",
+                    theme === "dark" ? "text-primary" : "text-muted-foreground",
+                  )}
+                />
+                <span
+                  className={cn(
+                    "text-sm font-medium transition-colors",
+                    theme === "dark" ? "text-primary" : "text-foreground",
+                  )}
+                >
                   {t("settings.appearance.dark")}
                 </span>
               </div>
@@ -95,11 +119,7 @@ export default function AppearanceSettings() {
 
           <div className="text-center">
             <Label htmlFor="system" className="cursor-pointer group">
-              <RadioGroupItem
-                value="system"
-                id="system"
-                className="sr-only"
-              />
+              <RadioGroupItem value="system" id="system" className="sr-only" />
               <div
                 className={`overflow-hidden rounded-xl border-2 p-1.5 transition-all duration-200 group-hover:border-primary/50 ${theme === "system" ? "border-primary bg-primary/5" : "border-muted bg-transparent"}`}
               >
@@ -115,8 +135,20 @@ export default function AppearanceSettings() {
                 </div>
               </div>
               <div className="flex items-center justify-center gap-2 pt-3">
-                <Monitor className={cn("h-4 w-4 transition-colors", theme === "system" ? "text-primary" : "text-muted-foreground")} />
-                <span className={cn("text-sm font-medium transition-colors", theme === "system" ? "text-primary" : "text-foreground")}>
+                <Monitor
+                  className={cn(
+                    "h-4 w-4 transition-colors",
+                    theme === "system"
+                      ? "text-primary"
+                      : "text-muted-foreground",
+                  )}
+                />
+                <span
+                  className={cn(
+                    "text-sm font-medium transition-colors",
+                    theme === "system" ? "text-primary" : "text-foreground",
+                  )}
+                >
                   {t("settings.appearance.system")}
                 </span>
               </div>
@@ -126,9 +158,9 @@ export default function AppearanceSettings() {
       </SettingsCard>
 
       {/* Thinking/Reasoning Display Toggle */}
-      <SettingsCard 
-        icon={Eye} 
-        title={t("settings.appearance.chatDisplay")} 
+      <SettingsCard
+        icon={Eye}
+        title={t("settings.appearance.chatDisplay")}
         description={t("settings.appearance.chatDisplayDesc")}
       >
         <div className="flex items-center justify-between p-4 rounded-md border border-border/50 bg-muted/10 transition-colors hover:bg-muted/20">
@@ -137,7 +169,10 @@ export default function AppearanceSettings() {
               <Brain className="h-4 w-4" />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="show-thinking" className="text-sm cursor-pointer font-medium">
+              <Label
+                htmlFor="show-thinking"
+                className="text-sm cursor-pointer font-medium"
+              >
                 {t("settings.appearance.showThinking")}
               </Label>
               <p className="text-xs text-muted-foreground">
@@ -159,4 +194,3 @@ export default function AppearanceSettings() {
 function cn(...classes: any[]) {
   return classes.filter(Boolean).join(" ")
 }
-

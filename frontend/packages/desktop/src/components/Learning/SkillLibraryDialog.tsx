@@ -1,15 +1,5 @@
-import { BookOpen, Play, Trash2, Edit, Terminal, TrendingUp, Info, Sparkles, Layout, Paperclip } from "lucide-react"
-import type React from "react"
-import { useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { useNavigate } from "@tanstack/react-router"
-import { LearningService } from "@/client/sdk.gen"
-import type { PaginatedSkillsResponse } from "@/client/types.gen"
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
-
 import {
   Dialog,
   DialogContent,
@@ -18,10 +8,29 @@ import {
   DialogTrigger,
 } from "@evoloop/shared/components/ui/dialog"
 import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
+import { Separator } from "@evoloop/shared/components/ui/separator"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useNavigate } from "@tanstack/react-router"
+import {
+  BookOpen,
+  Edit,
+  Info,
+  Layout,
+  Paperclip,
+  Play,
+  Sparkles,
+  Terminal,
+  Trash2,
+  TrendingUp,
+} from "lucide-react"
+import type React from "react"
+import { useState } from "react"
+import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
+import { LearningService } from "@/client/sdk.gen"
+import type { PaginatedSkillsResponse } from "@/client/types.gen"
 import type { LearnedSkill } from "@/types/skill"
 import { SkillExecutionDialog } from "./SkillExecutionDialog"
-import { Separator } from "@evoloop/shared/components/ui/separator"
-
 
 interface SkillLibraryDialogProps {
   open?: boolean
@@ -29,9 +38,8 @@ interface SkillLibraryDialogProps {
   trigger?: React.ReactNode
   threadId: string
   projectId?: number
-  onSelectSkill?: (skill: LearnedSkill) => void  // New: attach skill instead of running
+  onSelectSkill?: (skill: LearnedSkill) => void // New: attach skill instead of running
 }
-
 
 export function SkillLibraryDialog({
   open,
@@ -46,7 +54,9 @@ export function SkillLibraryDialog({
   const navigate = useNavigate()
   const [selectedSkill, setSelectedSkill] = useState<LearnedSkill | null>(null)
   const [executionOpen, setExecutionOpen] = useState(false)
-  const [skillToExecute, setSkillToExecute] = useState<LearnedSkill | null>(null)
+  const [skillToExecute, setSkillToExecute] = useState<LearnedSkill | null>(
+    null,
+  )
 
   // Pagination
   const [page, setPage] = useState(1)
@@ -64,7 +74,8 @@ export function SkillLibraryDialog({
       // Handle response format
       if (result && Array.isArray(result.data)) {
         return result
-      } else if (Array.isArray((result as any).skills)) {
+      }
+      if (Array.isArray((result as any).skills)) {
         // Fallback
         return {
           data: (result as any).skills,
@@ -74,7 +85,13 @@ export function SkillLibraryDialog({
           total_pages: 1,
         } as PaginatedSkillsResponse
       }
-      return { data: [], total: 0, page: 1, page_size: pageSize, total_pages: 0 } as PaginatedSkillsResponse
+      return {
+        data: [],
+        total: 0,
+        page: 1,
+        page_size: pageSize,
+        total_pages: 0,
+      } as PaginatedSkillsResponse
     },
     enabled: open,
   })
@@ -82,8 +99,6 @@ export function SkillLibraryDialog({
   const skills = data?.data || []
   const totalPages = Number((data as any)?.total_pages || 1)
   const loading = isLoading
-
-
 
   const handleDelete = async (skillId: number) => {
     try {
@@ -110,7 +125,7 @@ export function SkillLibraryDialog({
       <Dialog
         open={open}
         onOpenChange={(val) => {
-          onOpenChange?.(val);
+          onOpenChange?.(val)
         }}
       >
         {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
@@ -121,7 +136,6 @@ export function SkillLibraryDialog({
                 <BookOpen className="h-5 w-5" />
                 {t("learning.skillLibrary")}
               </DialogTitle>
-
             </div>
           </DialogHeader>
 
@@ -138,11 +152,14 @@ export function SkillLibraryDialog({
                   {skills.map((skill) => (
                     <div
                       key={skill.id}
-                      className={`p-3 rounded-xl border cursor-pointer hover:bg-accent/50 transition-all group relative ${selectedSkill?.id === skill.id
-                        ? "bg-accent border-primary shadow-sm"
-                        : "bg-card hover:border-primary/20"
-                        }`}
-                      onClick={() => setSelectedSkill(skill as unknown as LearnedSkill)}
+                      className={`p-3 rounded-xl border cursor-pointer hover:bg-accent/50 transition-all group relative ${
+                        selectedSkill?.id === skill.id
+                          ? "bg-accent border-primary shadow-sm"
+                          : "bg-card hover:border-primary/20"
+                      }`}
+                      onClick={() =>
+                        setSelectedSkill(skill as unknown as LearnedSkill)
+                      }
                     >
                       <div className="font-semibold text-sm break-words pr-6 leading-tight">
                         {skill.name}
@@ -151,14 +168,23 @@ export function SkillLibraryDialog({
                         {skill.description}
                       </div>
                       <div className="flex gap-2 mt-2.5">
-                        <Badge variant="secondary" className="text-[10px] px-1.5 h-5 font-medium">
-                          {t("learning.toolsCount", { count: skill.tools_used.length })}
-                        </Badge>
                         <Badge
-                          variant={skill.success_count > 0 ? "default" : "outline"}
+                          variant="secondary"
                           className="text-[10px] px-1.5 h-5 font-medium"
                         >
-                          {t("learning.successCount", { count: skill.success_count })}
+                          {t("learning.toolsCount", {
+                            count: skill.tools_used.length,
+                          })}
+                        </Badge>
+                        <Badge
+                          variant={
+                            skill.success_count > 0 ? "default" : "outline"
+                          }
+                          className="text-[10px] px-1.5 h-5 font-medium"
+                        >
+                          {t("learning.successCount", {
+                            count: skill.success_count,
+                          })}
                         </Badge>
                       </div>
                     </div>
@@ -202,27 +228,43 @@ export function SkillLibraryDialog({
                       <div>
                         <div className="flex items-center gap-2 text-primary mb-2">
                           <Terminal className="h-4 w-4" />
-                          <span className="text-xs font-bold uppercase tracking-wider">{t("learning.skillDetails")}</span>
+                          <span className="text-xs font-bold uppercase tracking-wider">
+                            {t("learning.skillDetails")}
+                          </span>
                         </div>
-                        <h3 className="text-2xl font-bold">{selectedSkill.name}</h3>
-                        <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{selectedSkill.description}</p>
+                        <h3 className="text-2xl font-bold">
+                          {selectedSkill.name}
+                        </h3>
+                        <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+                          {selectedSkill.description}
+                        </p>
                       </div>
 
                       {/* Stats */}
                       <div className="grid grid-cols-2 gap-4">
                         <div className="bg-muted/30 p-3 rounded-xl border flex flex-col gap-1">
-                          <span className="text-[10px] text-muted-foreground uppercase font-bold">{t("learning.status")}</span>
+                          <span className="text-[10px] text-muted-foreground uppercase font-bold">
+                            {t("learning.status")}
+                          </span>
                           <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 text-[10px]">
-                              {t(`learning.statusBadge.${selectedSkill.status || "active"}`)}
+                            <Badge
+                              variant="outline"
+                              className="bg-primary/5 text-primary border-primary/20 text-[10px]"
+                            >
+                              {t(
+                                `learning.statusBadge.${selectedSkill.status || "active"}`,
+                              )}
                             </Badge>
                           </div>
                         </div>
                         <div className="bg-muted/30 p-3 rounded-xl border flex flex-col gap-1">
-                          <span className="text-[10px] text-muted-foreground uppercase font-bold">{t("learning.performance")}</span>
+                          <span className="text-[10px] text-muted-foreground uppercase font-bold">
+                            {t("learning.performance")}
+                          </span>
                           <div className="flex items-center gap-2 font-bold text-green-600 text-sm">
                             <TrendingUp className="h-4 w-4" />
-                            {selectedSkill.success_count || 0} {t("learning.successes")}
+                            {selectedSkill.success_count || 0}{" "}
+                            {t("learning.successes")}
                           </div>
                         </div>
                       </div>
@@ -235,16 +277,24 @@ export function SkillLibraryDialog({
                           <Info className="h-4 w-4 text-primary" />
                           {t("learning.triggerPatterns")}
                         </div>
-                        {selectedSkill.trigger_patterns && selectedSkill.trigger_patterns.length > 0 ? (
+                        {selectedSkill.trigger_patterns &&
+                        selectedSkill.trigger_patterns.length > 0 ? (
                           <div className="flex flex-wrap gap-2">
-                            {selectedSkill.trigger_patterns.map((pattern, idx) => (
-                              <code key={idx} className="bg-muted/50 px-3 py-1.5 rounded-lg text-xs font-mono border border-muted-foreground/10 block w-full">
-                                {pattern}
-                              </code>
-                            ))}
+                            {selectedSkill.trigger_patterns.map(
+                              (pattern, idx) => (
+                                <code
+                                  key={idx}
+                                  className="bg-muted/50 px-3 py-1.5 rounded-lg text-xs font-mono border border-muted-foreground/10 block w-full"
+                                >
+                                  {pattern}
+                                </code>
+                              ),
+                            )}
                           </div>
                         ) : (
-                          <p className="text-xs text-muted-foreground italic">{t("learning.editor.noTriggers")}</p>
+                          <p className="text-xs text-muted-foreground italic">
+                            {t("learning.editor.noTriggers")}
+                          </p>
                         )}
                       </section>
 
@@ -274,20 +324,32 @@ export function SkillLibraryDialog({
                           <Layout className="h-4 w-4 text-primary" />
                           {t("learning.parameters")}
                         </div>
-                        {selectedSkill.parameters && selectedSkill.parameters.length > 0 ? (
+                        {selectedSkill.parameters &&
+                        selectedSkill.parameters.length > 0 ? (
                           <div className="space-y-2">
-                            {selectedSkill.parameters.map((param: any, i: number) => (
-                              <div key={i} className="bg-muted/30 p-3 rounded-lg border border-border text-xs">
-                                <div className="font-bold flex items-center justify-between">
-                                  {param.name}
-                                  <span className="text-[9px] opacity-40 uppercase">{param.type}</span>
+                            {selectedSkill.parameters.map(
+                              (param: any, i: number) => (
+                                <div
+                                  key={i}
+                                  className="bg-muted/30 p-3 rounded-lg border border-border text-xs"
+                                >
+                                  <div className="font-bold flex items-center justify-between">
+                                    {param.name}
+                                    <span className="text-[9px] opacity-40 uppercase">
+                                      {param.type}
+                                    </span>
+                                  </div>
+                                  <p className="text-muted-foreground mt-0.5">
+                                    {param.description}
+                                  </p>
                                 </div>
-                                <p className="text-muted-foreground mt-0.5">{param.description}</p>
-                              </div>
-                            ))}
+                              ),
+                            )}
                           </div>
                         ) : (
-                          <p className="text-xs text-muted-foreground italic text-[10px]">{t("learning.execution.noParams")}</p>
+                          <p className="text-xs text-muted-foreground italic text-[10px]">
+                            {t("learning.execution.noParams")}
+                          </p>
                         )}
                       </section>
                     </div>
@@ -306,7 +368,7 @@ export function SkillLibraryDialog({
                         }}
                       >
                         <Paperclip className="h-4 w-4 mr-2" />
-                        {t("chat.attachSkill", 'Attach Skill')}
+                        {t("chat.attachSkill", "Attach Skill")}
                       </Button>
                     ) : (
                       // Run mode: execute skill immediately
@@ -324,7 +386,10 @@ export function SkillLibraryDialog({
                       className="h-9 px-3"
                       onClick={() => {
                         onOpenChange?.(false)
-                        navigate({ to: "/learning/skills/$skillId/edit", params: { skillId: selectedSkill.id.toString() } })
+                        navigate({
+                          to: "/learning/skills/$skillId/edit",
+                          params: { skillId: selectedSkill.id.toString() },
+                        })
                       }}
                     >
                       <Edit className="h-4 w-4 mr-2" />

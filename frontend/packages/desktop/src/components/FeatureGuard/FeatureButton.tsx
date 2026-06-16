@@ -1,8 +1,8 @@
 import { Button } from "@evoloop/shared/components/ui/button"
-import { Lock, Loader2 } from "lucide-react"
-import { useFeatureAccess, type FeatureCode } from "@/hooks/useFeatureAccess"
 import { cn } from "@evoloop/shared/lib/utils"
+import { Loader2, Lock } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import { type FeatureCode, useFeatureAccess } from "@/hooks/useFeatureAccess"
 
 interface FeatureButtonProps {
   feature: FeatureCode
@@ -45,7 +45,9 @@ export function FeatureButton({
         onClick={() => {
           window.location.hash = "#/subscription"
         }}
-        title={t('subscription.upgradeRequired', { plan: t(`subscription.plans.${requiredPlan}`) })}
+        title={t("subscription.upgradeRequired", {
+          plan: t(`subscription.plans.${requiredPlan}`),
+        })}
       >
         {showLockIcon && <Lock className="h-3.5 w-3.5 mr-1" />}
         {children}

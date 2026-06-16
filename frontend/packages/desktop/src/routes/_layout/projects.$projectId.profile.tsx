@@ -7,15 +7,21 @@ import {
 } from "@evoloop/shared/components/ui/card"
 import { Textarea } from "@evoloop/shared/components/ui/textarea"
 import { createFileRoute, useParams } from "@tanstack/react-router"
-import { AlertCircle, FileText, Loader2, RefreshCw, Rocket, Edit, Save, X } from "lucide-react"
+import {
+  AlertCircle,
+  Edit,
+  FileText,
+  Loader2,
+  RefreshCw,
+  Rocket,
+  Save,
+  X,
+} from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import ReactMarkdown from "react-markdown"
-import { CodeBlock } from "@/components/Chat/CodeBlock"
-import rehypeRaw from "rehype-raw"
-import remarkGfm from "remark-gfm"
 import { toast } from "sonner"
 import { ProjectProfilesService } from "@/client/sdk.gen"
+import { MarkdownRenderer } from "@/components/Common/MarkdownRenderer"
 import { DiscoverDialog } from "@/components/Projects/Modules/Overview/DiscoverDialog"
 
 export const Route = createFileRoute("/_layout/projects/$projectId/profile")({
@@ -61,20 +67,23 @@ function ProfilePage() {
     setIsSaving(true)
     try {
       // Manual call to the new endpoint
-      const response = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/v1/project-profiles/${projectId}/profile`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || ""}/api/v1/project-profiles/${projectId}/profile`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ content: editContent }),
         },
-        body: JSON.stringify({ content: editContent })
-      })
-      
+      )
+
       if (!response.ok) throw new Error("Failed to update profile")
-      
+
       const data = await response.json()
       setProfile({
         content: data.content,
-        exists: true
+        exists: true,
       })
       setIsEditing(false)
       toast.success(t("common.saveSuccess"))
@@ -133,12 +142,21 @@ function ProfilePage() {
             </>
           ) : (
             <>
-              <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} disabled={isSaving}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditing(false)}
+                disabled={isSaving}
+              >
                 <X className="h-4 w-4 mr-1" />
                 {t("common.cancel")}
               </Button>
               <Button size="sm" onClick={handleSave} disabled={isSaving}>
-                {isSaving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+                {isSaving ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-1" />
+                )}
                 {t("common.save")}
               </Button>
             </>
@@ -160,31 +178,14 @@ function ProfilePage() {
                 className="min-h-[500px] font-mono text-sm"
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
-                placeholder={t("projects.profile.editPlaceholder", "Enter project profile in Markdown...")}
+                placeholder={t(
+                  "projects.profile.editPlaceholder",
+                  "Enter project profile in Markdown...",
+                )}
               />
             ) : (
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeRaw]}
-                  components={{
-                    code({ node, inline, className, children, ...props }: any) {
-                      const match = /language-(\w+)/.exec(className || "")
-                      return !inline && match ? (
-                        <CodeBlock
-                          language={match[1]}
-                          code={String(children).replace(/\n$/, "")}
-                        />
-                      ) : (
-                        <code className={className} {...props}>
-                          {children}
-                        </code>
-                      )
-                    },
-                  }}
-                >
-                  {profile.content!}
-                </ReactMarkdown>
+              <div>
+                <MarkdownRenderer content={profile.content!} />
               </div>
             )}
           </CardContent>

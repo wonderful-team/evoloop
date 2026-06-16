@@ -1,6 +1,3 @@
-import { Link as RouterLink, useRouterState } from "@tanstack/react-router"
-import type { LucideIcon } from "lucide-react"
-
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -9,6 +6,8 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@evoloop/shared/components/ui/sidebar"
+import { Link as RouterLink, useRouterState } from "@tanstack/react-router"
+import type { LucideIcon } from "lucide-react"
 
 export type Item = {
   icon: LucideIcon
@@ -41,10 +40,7 @@ export function Main({ items }: MainProps) {
             const isActive = currentPath === item.path
 
             return (
-              <SidebarMenuItem
-                key={item.title}
-                data-tour={item.dataTour}
-              >
+              <SidebarMenuItem key={item.title} data-tour={item.dataTour}>
                 <SidebarMenuButton
                   tooltip={item.title}
                   isActive={isActive}

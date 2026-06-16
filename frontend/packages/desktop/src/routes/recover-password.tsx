@@ -1,17 +1,4 @@
-import { useState, useEffect, useRef } from "react"
-import { zodResolver } from "@hookform/resolvers/zod"
-import {
-  createFileRoute,
-  Link as RouterLink,
-  redirect,
-  useNavigate,
-} from "@tanstack/react-router"
-import { useForm } from "react-hook-form"
-import { useTranslation } from "react-i18next"
-import { z } from "zod"
-import { Phone, ShieldCheck, Loader2 } from "lucide-react"
-
-import { AuthLayout } from "@/components/Common/AuthLayout"
+import { Button } from "@evoloop/shared/components/ui/button"
 import {
   Form,
   FormControl,
@@ -23,7 +10,19 @@ import {
 import { Input } from "@evoloop/shared/components/ui/input"
 import { LoadingButton } from "@evoloop/shared/components/ui/loading-button"
 import { PasswordInput } from "@evoloop/shared/components/ui/password-input"
-import { Button } from "@evoloop/shared/components/ui/button"
+import { zodResolver } from "@hookform/resolvers/zod"
+import {
+  createFileRoute,
+  Link as RouterLink,
+  redirect,
+  useNavigate,
+} from "@tanstack/react-router"
+import { Loader2, Phone, ShieldCheck } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { useForm } from "react-hook-form"
+import { useTranslation } from "react-i18next"
+import { z } from "zod"
+import { AuthLayout } from "@/components/Common/AuthLayout"
 import useAuth, { isLoggedIn } from "@/hooks/useAuth"
 
 const createSchema = (t: any) =>
@@ -118,14 +117,14 @@ function RecoverPassword() {
         mobile: mobileValue,
         type: "findpassword",
       })
-      
+
       const data = response as any
       if (data.key) {
         setVerificationKey(data.key)
       } else if (data.data?.key) {
         setVerificationKey(data.data.key)
       }
-      
+
       setCountdown(60)
     } catch (error) {
       console.error("Failed to send code:", error)
@@ -138,7 +137,7 @@ function RecoverPassword() {
       form.setError("code", { message: t("auth.errors.invalidCode") })
       return
     }
-    
+
     resetPasswordMutation.mutate(
       {
         mobile: data.mobile,
@@ -150,7 +149,7 @@ function RecoverPassword() {
         onSuccess: () => {
           navigate({ to: "/login" })
         },
-      }
+      },
     )
   }
 

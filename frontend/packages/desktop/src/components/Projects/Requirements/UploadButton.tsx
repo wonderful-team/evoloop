@@ -1,12 +1,9 @@
+import { Button } from "@evoloop/shared/components/ui/button"
+import { Card, CardContent } from "@evoloop/shared/components/ui/card"
+import { cn } from "@evoloop/shared/lib/utils"
+import { FileText, Loader2, Upload, X } from "lucide-react"
 import { useCallback, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Upload, FileText, X, Loader2 } from "lucide-react"
-import { Button } from "@evoloop/shared/components/ui/button"
-import {
-  Card,
-  CardContent,
-} from "@evoloop/shared/components/ui/card"
-import { cn } from "@evoloop/shared/lib/utils"
 
 interface UploadButtonProps {
   onUpload: (file: File) => void
@@ -14,15 +11,7 @@ interface UploadButtonProps {
   accept?: string
 }
 
-const ALLOWED_TYPES = [
-  ".docx",
-  ".doc",
-  ".pdf",
-  ".xlsx",
-  ".xls",
-  ".md",
-  ".txt",
-]
+const ALLOWED_TYPES = [".docx", ".doc", ".pdf", ".xlsx", ".xls", ".md", ".txt"]
 
 export function UploadButton({
   onUpload,
@@ -56,7 +45,7 @@ export function UploadButton({
         }
       }
     },
-    [t]
+    [t],
   )
 
   const handleFileSelect = useCallback(
@@ -69,25 +58,23 @@ export function UploadButton({
         }
       }
     },
-    [t]
+    [t],
   )
 
   const validateFile = (file: File): boolean => {
-    const extension = "." + file.name.split(".").pop()?.toLowerCase()
+    const extension = `.${file.name.split(".").pop()?.toLowerCase()}`
     if (!ALLOWED_TYPES.includes(extension)) {
       alert(
         t(
           "requirements.upload.invalidType",
           "不支持的文件类型。请上传: {{types}}",
-          { types: ALLOWED_TYPES.join(", ") }
-        )
+          { types: ALLOWED_TYPES.join(", ") },
+        ),
       )
       return false
     }
     if (file.size > 50 * 1024 * 1024) {
-      alert(
-        t("requirements.upload.tooLarge", "文件大小不能超过 50MB")
-      )
+      alert(t("requirements.upload.tooLarge", "文件大小不能超过 50MB"))
       return false
     }
     return true
@@ -109,7 +96,7 @@ export function UploadButton({
     const k = 1024
     const sizes = ["B", "KB", "MB", "GB"]
     const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
+    return `${parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`
   }
 
   return (
@@ -120,7 +107,7 @@ export function UploadButton({
           isDragging
             ? "border-primary bg-primary/5"
             : "border-muted-foreground/25 hover:border-muted-foreground/50",
-          selectedFile && "border-solid"
+          selectedFile && "border-solid",
         )}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -138,7 +125,7 @@ export function UploadButton({
               <p className="text-xs text-muted-foreground mb-4">
                 {t(
                   "requirements.upload.dragDrop",
-                  "拖拽文件到这里，或点击选择"
+                  "拖拽文件到这里，或点击选择",
                 )}
               </p>
               <p className="text-xs text-muted-foreground/70 mb-4">

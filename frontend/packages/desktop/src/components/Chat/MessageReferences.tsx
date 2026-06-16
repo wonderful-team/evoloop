@@ -94,9 +94,16 @@ export const MessageReferences: React.FC<MessageReferencesProps> = ({
                 // We must strip it before spreading into the ECharts option, otherwise ECharts
                 // receives `title: "echarts"` (a string) and crashes in compatLayoutProperties
                 // with: Cannot use 'in' operator to search for 'x' in echarts
-                const { title: injectedTitle, option: nestedOption, ...rawOption } = data as any
+                const {
+                  title: injectedTitle,
+                  option: nestedOption,
+                  ...rawOption
+                } = data as any
                 const echartsData = {
-                  title: typeof injectedTitle === 'string' ? injectedTitle : art.target_name,
+                  title:
+                    typeof injectedTitle === "string"
+                      ? injectedTitle
+                      : art.target_name,
                   // If the data was wrapped with { option: {...} }, use that; otherwise the
                   // data itself IS the ECharts option (minus the injected title)
                   option: nestedOption || rawOption,
@@ -180,11 +187,11 @@ const ResourceChip = ({
     }
     switch (reference.type) {
       case "skill":
-        return "bg-amber-500/10 text-amber-600 border-amber-200/50 dark:border-amber-800/50"
+        return "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50 dark:border-amber-800/50"
       case "message":
-        return "bg-blue-500/10 text-blue-600 border-blue-200/50 dark:border-blue-800/50"
+        return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200/50 dark:border-blue-800/50"
       case "changeset":
-        return "bg-purple-500/10 text-purple-600 border-purple-200/50 dark:border-purple-800/50"
+        return "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200/50 dark:border-purple-800/50"
       default:
         return "bg-muted/30 text-muted-foreground border-border/40 hover:bg-muted/50 hover:border-border/80"
     }

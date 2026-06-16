@@ -1,3 +1,4 @@
+import { Button } from "@evoloop/shared/components/ui/button"
 import { useParams } from "@tanstack/react-router"
 import { Plus, RefreshCw } from "lucide-react"
 import React, { useEffect, useState } from "react"
@@ -5,11 +6,10 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { TasksService } from "@/client"
 import { DataTable } from "@/components/Common/DataTable"
-import { Button } from "@evoloop/shared/components/ui/button"
 import type { Task } from "@/types/task"
 import { getColumns } from "./columns"
-import { TaskDetail } from "./TaskDetail"
 import { TaskCreate } from "./TaskCreate"
+import { TaskDetail } from "./TaskDetail"
 
 export const TaskList: React.FC = () => {
   const { projectId } = useParams({ from: "/_layout/projects/$projectId" })

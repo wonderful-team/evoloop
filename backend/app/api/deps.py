@@ -2,7 +2,7 @@ import logging
 from collections.abc import Generator
 from typing import Annotated
 
-from fastapi import Depends, Header, HTTPException, Query, status
+from fastapi import Depends, Header, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session
 
@@ -60,20 +60,27 @@ TokenDep = Annotated[str, Depends(oauth2_scheme)]
 TokenDepOptional = Annotated[str | None, Depends(oauth2_scheme_optional)]
 
 
-async def _get_authenticated_user(token: str | None = None) -> User | None:
+async def _get_authenticated_user(request: Request, token: str | None = None) -> User | None:
     """
     Core authentication logic:
-    1. Check provided token (Primary for SaaS/Multi-user).
-    2. Check backend local session (Fallback for Embedded/Desktop mode).
+    1. Read member_id already resolved by ContextMiddleware from request.state (zero extra I/O).
+    2. Fallback: resolve from token via IdentityService (hits Redis cache, not MC).
+    3. Fallback: single-user mode stored session.
     """
     try:
-        # 1. 优先使用请求中的 Token（SaaS 多用户模式）
+        # 1. 优先复用 ContextMiddleware 已经解析并写入 request.state 的结果
         if token:
+            resolved = getattr(request.state, "resolved_member_id", None)
+            resolved_token = getattr(request.state, "resolved_token", None)
+            if resolved is not None and resolved_token == token:
+                return User(id=resolved, is_active=True)
+
+            # 2. 未命中 state（不含中间件，例如直接调用时）：走 IdentityService（走 Redis 缓存）
             member_id = await identity_service.resolve_member_id_from_token(token)
             if member_id:
                 return User(id=member_id, is_active=True)
 
-        # 2. 回退：单用户模式（无 Header Token 场景）
+        # 3. 回退：单用户模式（无 Header Token 场景）
         if not settings.MULTI_TENANT_MODE:
             member_id = await identity_service.get_member_id()
             if member_id:
@@ -87,11 +94,11 @@ async def _get_authenticated_user(token: str | None = None) -> User | None:
         return None
 
 
-async def get_current_user(token: TokenDepOptional = None) -> User:
+async def get_current_user(request: Request, token: TokenDepOptional = None) -> User:
     """
     Identify the current user. Raises 401 if not found.
     """
-    user = await _get_authenticated_user(token)
+    user = await _get_authenticated_user(request, token)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -104,12 +111,13 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
 async def get_current_user_optional(
+    request: Request,
     token: TokenDepOptional = None
 ) -> User | None:
     """
     Get user if session or token is present, otherwise return None.
     """
-    return await _get_authenticated_user(token)
+    return await _get_authenticated_user(request, token)
 
 
 CurrentUserOptional = Annotated[User | None, Depends(get_current_user_optional)]

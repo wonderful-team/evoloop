@@ -1,19 +1,16 @@
 import { createFileRoute, Link, Outlet, redirect } from "@tanstack/react-router"
-import { isLoggedIn } from "@/hooks/useAuth"
 import {
   AlertCircle,
-  BarChart2,
   BookOpen,
   CheckSquare,
   ChevronLeft,
-  ClipboardList,
-  Clock,
   FileCode,
   FileText,
   LayoutDashboard,
 } from "lucide-react"
 import { useEffect } from "react"
 import { useTranslation } from "react-i18next"
+import { isLoggedIn } from "@/hooks/useAuth"
 import { useProjectStore } from "@/stores/projectStore"
 
 export const Route = createFileRoute("/_layout/projects/$projectId")({

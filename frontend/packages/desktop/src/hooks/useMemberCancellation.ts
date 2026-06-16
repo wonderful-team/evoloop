@@ -1,6 +1,6 @@
+import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { MemberService } from "@/client/sdk.gen"
-import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
 
 type Platform = "mobile" | "desktop"
 

@@ -151,7 +151,8 @@ function FileTreeNode({
         <div>
           {isLoading ? (
             <div className="pl-6 py-1 text-xs text-muted-foreground flex items-center gap-2">
-              <Loader2 size={10} className="animate-spin" /> {t("files.loading")}
+              <Loader2 size={10} className="animate-spin" />{" "}
+              {t("files.loading")}
             </div>
           ) : (
             children?.map((child: any) => (

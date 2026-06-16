@@ -1,14 +1,13 @@
+import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
-
 import {
   AccountService,
-  MemberService,
   AuthService,
+  MemberService,
   type UserPublic,
 } from "@/client"
 import { handleError } from "@/utils"
-import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
 
 const isLoggedIn = () => {
   return localStorage.getItem("access_token") !== null
@@ -45,7 +44,9 @@ const useAuth = () => {
 
   const signUpMutation = useMutation({
     mutationFn: async (data: UserRegister) => {
-      const res = await AuthService.registerUsername({ requestBody: data as any })
+      const res = await AuthService.registerUsername({
+        requestBody: data as any,
+      })
       if (res.code !== undefined && res.code < 0) {
         throw new Error(res.message || "Registration failed")
       }
@@ -114,9 +115,14 @@ const useAuth = () => {
   })
 
   const requestMobileCodeMutation = useMutation({
-    mutationFn: async (data: { mobile: string; captcha_id?: string; captcha_code?: string; type?: string }) => {
+    mutationFn: async (data: {
+      mobile: string
+      captcha_id?: string
+      captcha_code?: string
+      type?: string
+    }) => {
       // Provide a default type 'login' if not specified
-      const requestData = { type: 'login', ...data }
+      const requestData = { type: "login", ...data }
       const res = await AuthService.sendSms({ requestBody: requestData as any })
       if (res.code !== undefined && res.code < 0) {
         throw new Error(res.message || "Failed to send code")

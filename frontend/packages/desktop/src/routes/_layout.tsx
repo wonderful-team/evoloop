@@ -1,17 +1,20 @@
+import {
+  SidebarInset,
+  SidebarProvider,
+} from "@evoloop/shared/components/ui/sidebar"
 import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router"
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { Footer } from "@/components/Common/Footer"
 import {
   SpotlightTourProvider,
   useTour,
 } from "@/components/Common/SpotlightTour"
 import { desktopTourSteps } from "@/components/Common/tourSteps"
+import { GlobalRecorderManager } from "@/components/Learning/GlobalRecorderManager"
 import AppSidebar from "@/components/Sidebar/AppSidebar"
-import { SidebarInset, SidebarProvider } from "@evoloop/shared/components/ui/sidebar"
 import { SetupWizard, useSetupRequired } from "@/components/Wizard"
 import { useSetupWizard } from "@/components/Wizard/SetupWizardContext"
 import useAuth from "@/hooks/useAuth"
-import { GlobalRecorderManager } from "@/components/Learning/GlobalRecorderManager"
 
 export const Route = createFileRoute("/_layout")({
   component: Layout,
@@ -44,7 +47,13 @@ function Layout() {
   // Exclude settings page as user is already configuring manually
   useEffect(() => {
     const isSettingsPage = pathname === "/settings"
-    if (!setupLoading && setupRequired && user && !hasShownWizard && !isSettingsPage) {
+    if (
+      !setupLoading &&
+      setupRequired &&
+      user &&
+      !hasShownWizard &&
+      !isSettingsPage
+    ) {
       setShowWizard(true)
       setHasShownWizard(true)
     }
@@ -54,11 +63,22 @@ function Layout() {
     <SpotlightTourProvider steps={desktopTourSteps}>
       <GlobalRecorderManager />
 
-      <SidebarProvider defaultOpen={false} className={isFullWidth ? "h-svh overflow-hidden" : ""}>
+      <SidebarProvider
+        defaultOpen={false}
+        className={isFullWidth ? "h-svh overflow-hidden" : ""}
+      >
         <AppSidebar />
         <SidebarInset className="min-w-0 overflow-hidden">
-          <main className={`flex-1 min-w-0 ${isFullWidth ? "overflow-hidden" : "p-6 md:p-8"}`}>
-            <div className={isFullWidth ? "h-full w-full min-w-0 overflow-hidden" : "mx-auto max-w-7xl min-w-0"}>
+          <main
+            className={`flex-1 min-w-0 ${isFullWidth ? "overflow-hidden" : "p-6 md:p-8"}`}
+          >
+            <div
+              className={
+                isFullWidth
+                  ? "h-full w-full min-w-0 overflow-hidden"
+                  : "mx-auto max-w-7xl min-w-0"
+              }
+            >
               <Outlet />
             </div>
           </main>
@@ -76,4 +96,3 @@ function Layout() {
 export { useTour }
 
 export default Layout
-

@@ -1,28 +1,36 @@
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import {
-  FileText,
-  Loader2,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  ChevronRight,
-  RefreshCw,
-  Layers,
-} from "lucide-react"
+import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
+import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
+import { Separator } from "@evoloop/shared/components/ui/separator"
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from "@evoloop/shared/components/ui/sheet"
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
-import { Separator } from "@evoloop/shared/components/ui/separator"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@evoloop/shared/components/ui/tabs"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@evoloop/shared/components/ui/tabs"
 import { cn } from "@evoloop/shared/lib/utils"
-import { useRequirementStore, type AnalysisResult } from "@/stores/requirementStore"
+import {
+  AlertCircle,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  FileText,
+  Layers,
+  Loader2,
+  RefreshCw,
+} from "lucide-react"
+import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
+import {
+  type AnalysisResult,
+  useRequirementStore,
+} from "@/stores/requirementStore"
 import { TaskVisualization } from "./TaskVisualization"
 
 interface DocumentDetailDrawerProps {
@@ -39,9 +47,15 @@ export function DocumentDetailDrawer({
   onClose,
 }: DocumentDetailDrawerProps) {
   const { t } = useTranslation()
-  const { currentDocument, isLoadingDetail, fetchDocumentDetail, formatFileSize } =
-    useRequirementStore()
-  const [selectedAnalysisId, setSelectedAnalysisId] = useState<string | null>(null)
+  const {
+    currentDocument,
+    isLoadingDetail,
+    fetchDocumentDetail,
+    formatFileSize,
+  } = useRequirementStore()
+  const [selectedAnalysisId, setSelectedAnalysisId] = useState<string | null>(
+    null,
+  )
   const [activeTab, setActiveTab] = useState("overview")
 
   useEffect(() => {
@@ -106,14 +120,16 @@ export function DocumentDetailDrawer({
         "p-4 border rounded-lg cursor-pointer transition-all",
         selectedAnalysisId === analysis.id
           ? "border-primary bg-primary/5"
-          : "hover:border-primary/50 hover:bg-muted/50"
+          : "hover:border-primary/50 hover:bg-muted/50",
       )}
       onClick={() => setSelectedAnalysisId(analysis.id)}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
           {getAnalysisStatusIcon(analysis.status)}
-          <span className="font-medium">{t("requirements.analysis.version")} {analysis.version}</span>
+          <span className="font-medium">
+            {t("requirements.analysis.version")} {analysis.version}
+          </span>
         </div>
         <Badge className={cn("text-xs", getStatusColor(analysis.status))}>
           {analysis.status}
@@ -128,18 +144,22 @@ export function DocumentDetailDrawer({
         <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
           {analysis.data.functional_requirements && (
             <span>
-              {analysis.data.functional_requirements.length} {t("requirements.analysis.functionalRequirements")}
+              {analysis.data.functional_requirements.length}{" "}
+              {t("requirements.analysis.functionalRequirements")}
             </span>
           )}
           {analysis.data.user_stories && (
             <span>
-              • {analysis.data.user_stories.length} {t("requirements.analysis.userStories")}
+              • {analysis.data.user_stories.length}{" "}
+              {t("requirements.analysis.userStories")}
             </span>
           )}
         </div>
 
         <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
-          <span>{formatDate(analysis.confirmed_at || analysis.created_at)}</span>
+          <span>
+            {formatDate(analysis.confirmed_at || analysis.created_at)}
+          </span>
           {analysis.user_edited && (
             <Badge variant="outline" className="text-xs">
               {t("requirements.analysis.edited")}
@@ -151,7 +171,8 @@ export function DocumentDetailDrawer({
           <div className="flex items-center gap-2 text-xs">
             <Layers className="h-3 w-3" />
             <span>
-              {analysis.synced_tasks}/{analysis.tasks_count} {t("requirements.analysis.tasksSynced")}
+              {analysis.synced_tasks}/{analysis.tasks_count}{" "}
+              {t("requirements.analysis.tasksSynced")}
             </span>
           </div>
         )}
@@ -162,13 +183,19 @@ export function DocumentDetailDrawer({
   const renderSelectedAnalysis = () => {
     if (!selectedAnalysisId || !currentDocument) return null
 
-    const analysis = currentDocument.analyses.find((a) => a.id === selectedAnalysisId)
+    const analysis = currentDocument.analyses.find(
+      (a) => a.id === selectedAnalysisId,
+    )
     if (!analysis) return null
 
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => setSelectedAnalysisId(null)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedAnalysisId(null)}
+          >
             <ChevronRight className="h-4 w-4 rotate-180" />
             {t("common.back")}
           </Button>
@@ -208,84 +235,98 @@ export function DocumentDetailDrawer({
               </div>
             )}
 
-            {analysis.data.functional_requirements && analysis.data.functional_requirements.length > 0 && (
+            {analysis.data.functional_requirements &&
+              analysis.data.functional_requirements.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-2">
+                    {t("requirements.analysis.functionalRequirements")}
+                  </h4>
+                  <ul className="space-y-2">
+                    {analysis.data.functional_requirements.map((req, idx) => (
+                      <li key={idx} className="text-sm p-2 bg-muted rounded">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{req.id}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {req.priority}
+                          </Badge>
+                        </div>
+                        <p className="mt-1">{req.description}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+            {analysis.data.user_stories &&
+              analysis.data.user_stories.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-2">
+                    {t("requirements.analysis.userStories")}
+                  </h4>
+                  <ul className="space-y-2">
+                    {analysis.data.user_stories.map((story, idx) => (
+                      <li key={idx} className="text-sm p-2 bg-muted rounded">
+                        <span className="font-medium">{story.id}</span>
+                        <p className="mt-1">
+                          {t("requirements.analysis.asA")} {story.role}，
+                          {t("requirements.analysis.iWant")} {story.action}，
+                          {t("requirements.analysis.soThat")} {story.benefit}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+            {analysis.data.technical_suggestions &&
+              analysis.data.technical_suggestions.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-2">
+                    {t("requirements.analysis.technicalSuggestions")}
+                  </h4>
+                  <ul className="space-y-2">
+                    {analysis.data.technical_suggestions.map(
+                      (suggestion, idx) => (
+                        <li key={idx} className="text-sm p-2 bg-muted rounded">
+                          <Badge variant="outline" className="mb-1">
+                            {suggestion.area}
+                          </Badge>
+                          <p className="font-medium">{suggestion.suggestion}</p>
+                          <p className="text-muted-foreground text-xs mt-1">
+                            {suggestion.rationale}
+                          </p>
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                </div>
+              )}
+
+            {analysis.data.risks && analysis.data.risks.length > 0 && (
               <div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                  {t("requirements.analysis.functionalRequirements")}
-              </h4>
-              <ul className="space-y-2">
-                {analysis.data.functional_requirements.map((req, idx) => (
-                  <li key={idx} className="text-sm p-2 bg-muted rounded">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{req.id}</span>
-                      <Badge variant="outline" className="text-xs">{req.priority}</Badge>
-                    </div>
-                    <p className="mt-1">{req.description}</p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {analysis.data.user_stories && analysis.data.user_stories.length > 0 && (
-            <div>
-              <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                {t("requirements.analysis.userStories")}
-              </h4>
-              <ul className="space-y-2">
-                {analysis.data.user_stories.map((story, idx) => (
-                  <li key={idx} className="text-sm p-2 bg-muted rounded">
-                    <span className="font-medium">{story.id}</span>
-                    <p className="mt-1">
-                      {t("requirements.analysis.asA")} {story.role}，
-                      {t("requirements.analysis.iWant")} {story.action}，
-                      {t("requirements.analysis.soThat")} {story.benefit}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {analysis.data.technical_suggestions && analysis.data.technical_suggestions.length > 0 && (
-            <div>
-              <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                {t("requirements.analysis.technicalSuggestions")}
-              </h4>
-              <ul className="space-y-2">
-                {analysis.data.technical_suggestions.map((suggestion, idx) => (
-                  <li key={idx} className="text-sm p-2 bg-muted rounded">
-                    <Badge variant="outline" className="mb-1">{suggestion.area}</Badge>
-                    <p className="font-medium">{suggestion.suggestion}</p>
-                    <p className="text-muted-foreground text-xs mt-1">{suggestion.rationale}</p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {analysis.data.risks && analysis.data.risks.length > 0 && (
-            <div>
-              <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                {t("requirements.analysis.risks")}
-              </h4>
-              <ul className="space-y-2">
-                {analysis.data.risks.map((risk, idx) => (
-                  <li key={idx} className="text-sm p-2 bg-muted rounded">
-                    <div className="flex items-center gap-2">
-                      <Badge className={cn("text-xs", getStatusColor(risk.impact))}>
-                        {risk.impact}
-                      </Badge>
-                    </div>
-                    <p className="mt-1">{risk.description}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {t("requirements.analysis.mitigation")}: {risk.mitigation}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+                  {t("requirements.analysis.risks")}
+                </h4>
+                <ul className="space-y-2">
+                  {analysis.data.risks.map((risk, idx) => (
+                    <li key={idx} className="text-sm p-2 bg-muted rounded">
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          className={cn("text-xs", getStatusColor(risk.impact))}
+                        >
+                          {risk.impact}
+                        </Badge>
+                      </div>
+                      <p className="mt-1">{risk.description}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {t("requirements.analysis.mitigation")}:{" "}
+                        {risk.mitigation}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="tasks" className="mt-4">
@@ -326,12 +367,20 @@ export function DocumentDetailDrawer({
                 <div className="space-y-3">
                   <div className="flex items-start justify-between">
                     <div>
-                      <h3 className="font-semibold text-lg">{currentDocument.file_name}</h3>
+                      <h3 className="font-semibold text-lg">
+                        {currentDocument.file_name}
+                      </h3>
                       <p className="text-sm text-muted-foreground">
-                        {formatFileSize(currentDocument.file_size || 0)} • {formatDate(currentDocument.created_at)}
+                        {formatFileSize(currentDocument.file_size || 0)} •{" "}
+                        {formatDate(currentDocument.created_at)}
                       </p>
                     </div>
-                    <Badge className={cn("text-xs", getStatusColor(currentDocument.status))}>
+                    <Badge
+                      className={cn(
+                        "text-xs",
+                        getStatusColor(currentDocument.status),
+                      )}
+                    >
                       <span className="flex items-center gap-1">
                         {getStatusIcon(currentDocument.status)}
                         {currentDocument.status}
@@ -360,7 +409,8 @@ export function DocumentDetailDrawer({
                       {t("requirements.detail.analysisHistory")}
                     </h4>
                     <span className="text-sm text-muted-foreground">
-                      {currentDocument.analyses.length} {t("requirements.detail.versions")}
+                      {currentDocument.analyses.length}{" "}
+                      {t("requirements.detail.versions")}
                     </span>
                   </div>
 

@@ -23,7 +23,6 @@ export interface LearnedSkill {
   } | null
 }
 
-
 export interface SkillParameter {
   name: string
   type: string
@@ -31,5 +30,3 @@ export interface SkillParameter {
   default?: any
   required?: boolean
 }
-
-

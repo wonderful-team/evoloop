@@ -81,7 +81,7 @@ export function detectRequirementAnalysis(content: string): boolean {
  * Returns null if parsing fails or content is not a valid artifact
  */
 export function parseRequirementAnalysis(
-  content: string
+  content: string,
 ): RequirementAnalysisArtifact | null {
   if (!detectRequirementAnalysis(content)) return null
 

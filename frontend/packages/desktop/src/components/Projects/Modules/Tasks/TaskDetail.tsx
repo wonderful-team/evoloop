@@ -1,3 +1,20 @@
+import { Avatar, AvatarFallback } from "@evoloop/shared/components/ui/avatar"
+import { Badge } from "@evoloop/shared/components/ui/badge"
+import { Button } from "@evoloop/shared/components/ui/button"
+import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
+import { Separator } from "@evoloop/shared/components/ui/separator"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@evoloop/shared/components/ui/sheet"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@evoloop/shared/components/ui/tabs"
 import { useNavigate } from "@tanstack/react-router"
 import {
   Activity,
@@ -14,18 +31,6 @@ import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { TasksService } from "@/client/sdk.gen"
-import { Avatar, AvatarFallback } from "@evoloop/shared/components/ui/avatar"
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { Button } from "@evoloop/shared/components/ui/button"
-import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
-import { Separator } from "@evoloop/shared/components/ui/separator"
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@evoloop/shared/components/ui/sheet"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@evoloop/shared/components/ui/tabs"
 import { SubtaskSection } from "./SubtaskSection"
 
 interface TaskDetailProps {
@@ -99,9 +104,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
         navigate({ to: "/chat", search: { thread_id: res.thread_id } })
         onOpenChange(false)
       } else {
-        toast.error(
-            (res.message || t("common.error.unknown")),
-        )
+        toast.error(res.message || t("common.error.unknown"))
       }
     } catch (error) {
       console.error("Execute task failed:", error)
@@ -151,11 +154,17 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
             ) : task ? (
               <Tabs defaultValue="details" className="w-full">
                 <TabsList className="mb-4">
-                  <TabsTrigger value="details" className="flex items-center gap-1">
+                  <TabsTrigger
+                    value="details"
+                    className="flex items-center gap-1"
+                  >
                     <Layers className="h-4 w-4" />
                     {t("projects.details.tabs.details")}
                   </TabsTrigger>
-                  <TabsTrigger value="subtasks" className="flex items-center gap-1">
+                  <TabsTrigger
+                    value="subtasks"
+                    className="flex items-center gap-1"
+                  >
                     <ListTree className="h-4 w-4" />
                     {t("projects.details.tabs.subtasks")}
                   </TabsTrigger>
@@ -169,10 +178,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                         {t("projects.details.description")}
                       </h3>
                       <div className="text-sm leading-relaxed whitespace-pre-wrap bg-muted/30 p-4 rounded-lg">
-                        {task.task_desc ||
-                          t(
-                            "projects.details.noDescription",
-                          )}
+                        {task.task_desc || t("projects.details.noDescription")}
                       </div>
                     </div>
 
@@ -185,11 +191,13 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                         <div className="flex items-center gap-2">
                           <Avatar className="h-6 w-6">
                             <AvatarFallback>
-                              {task.assignee_member_name?.substring(0, 2) || t("projects.tasks.unassigned").substring(0, 2)}
+                              {task.assignee_member_name?.substring(0, 2) ||
+                                t("projects.tasks.unassigned").substring(0, 2)}
                             </AvatarFallback>
                           </Avatar>
                           <p className="text-sm font-medium">
-                            {task.assignee_member_name || t("projects.tasks.unassigned")}
+                            {task.assignee_member_name ||
+                              t("projects.tasks.unassigned")}
                           </p>
                         </div>
                       </div>
@@ -239,11 +247,14 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                           </h3>
                           <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
                             {task.match_score || 0}
-                            <span className="text-sm text-indigo-400">/100</span>
+                            <span className="text-sm text-indigo-400">
+                              /100
+                            </span>
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-2">
-                          {task.relevance_analysis || t("projects.tasks.noAnalysis")}
+                          {task.relevance_analysis ||
+                            t("projects.tasks.noAnalysis")}
                         </p>
                       </div>
 
@@ -256,7 +267,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                           </h3>
                           <div className="flex flex-wrap gap-2">
                             {task.key_modules_list &&
-                              task.key_modules_list.length > 0 ? (
+                            task.key_modules_list.length > 0 ? (
                               task.key_modules_list.map(
                                 (mod: string, i: number) => (
                                   <Badge
@@ -280,13 +291,11 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                         <div className="space-y-2">
                           <h3 className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                             <Zap className="h-4 w-4" />{" "}
-                            {t(
-                              "projects.tasks.techDifficulty",
-                            )}
+                            {t("projects.tasks.techDifficulty")}
                           </h3>
                           <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
                             {task.technical_challenges_list &&
-                              task.technical_challenges_list.length > 0 ? (
+                            task.technical_challenges_list.length > 0 ? (
                               task.technical_challenges_list.map(
                                 (challenge: string, i: number) => (
                                   <li key={i}>{challenge}</li>
@@ -316,9 +325,9 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                 </TabsContent>
 
                 <TabsContent value="subtasks" className="mt-0">
-                  <SubtaskSection 
-                    projectId={task.project_id || task.projectId} 
-                    taskId={task.task_id || task.id} 
+                  <SubtaskSection
+                    projectId={task.project_id || task.projectId}
+                    taskId={task.task_id || task.id}
                   />
                 </TabsContent>
               </Tabs>
@@ -337,7 +346,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
             onClick={handleExecuteTask}
           >
             {executing ? (
-              <>{t("projects.tasks.processing")}</>
+              t("projects.tasks.processing")
             ) : (
               <>
                 <Play className="w-4 h-4 mr-2 fill-current" />

@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any
 
@@ -8,6 +9,7 @@ from app.api.responses import BaseAPIResponse
 from app.api.schemas.member import ChangePasswordRequest, UpdateUserRequest, BatchCheckRequest, BatchCheckResponse
 from app.core.evocloud import evocloud_manager
 from app.core.identity import identity_service
+from app.infrastructure.cache import cache
 from app.models import User, UserPublic
 from app.models.schemas.auth import CacheInvalidateResponse, EvoCloudProxyResponse, MemberBenefitsResponse
 from app.services.benefit_service import benefit_service
@@ -97,12 +99,30 @@ def _map_mc_user_to_user(data: dict) -> User:
 async def read_user_me(current_user: CurrentUser, token: TokenDepOptional = None) -> Any:
     """
     Get current user info from Member Center.
-    Fields are aligned with Member Center /api/member/info response.
+    Reads from the profile cache populated by IdentityService to avoid a redundant
+    network round-trip on every request.  Falls back to a live call only when cold.
     """
+    # Fast path: read from profile cache (populated by IdentityService.resolve_member_id_from_token)
+    if token:
+        profile_key = f"evoloop:user_profile:{token}"
+        cached_profile_str = await cache.get(profile_key)
+        if cached_profile_str:
+            try:
+                data = json.loads(cached_profile_str)
+                return _map_mc_user_to_user(data)
+            except (json.JSONDecodeError, Exception):
+                pass  # fall through to live call
+
+    # Cold path: live call to Member Center (cache miss or no token)
     try:
         result = await evocloud_manager.api.get_user_info(token=token)
         if result.get("code") == 0:
             data = result.get("data", {})
+            # Replenish cache for next call
+            if token:
+                profile_key = f"evoloop:user_profile:{token}"
+                from app.core.identity.service import TOKEN_CACHE_TTL
+                await cache.set(profile_key, json.dumps(data), ex=TOKEN_CACHE_TTL)
             return _map_mc_user_to_user(data)
         else:
             logger.warning(f"Failed to get user info from MC: {result.get('message')}")

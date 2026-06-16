@@ -1,21 +1,32 @@
-import {
-  FolderOpen,
-  MessageSquare,
-  Settings,
-  ListTodo,
-  GraduationCap,
-  BookOpen,
-} from "lucide-react"
-import { useTranslation } from "react-i18next"
-import { SidebarAppearance } from "@/components/Common/Appearance"
 import { Logo } from "@evoloop/shared/components/Logo"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@evoloop/shared/components/ui/popover"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
   useSidebar,
 } from "@evoloop/shared/components/ui/sidebar"
+import {
+  BookOpen,
+  Bug,
+  FolderOpen,
+  GraduationCap,
+  ListTodo,
+  MessageSquare,
+  Settings,
+} from "lucide-react"
+import React from "react"
+import { useTranslation } from "react-i18next"
+import { DebugManagerPanel } from "@/components/Chat/DebugManager"
+import { SidebarAppearance } from "@/components/Common/Appearance"
 import useAuth from "@/hooks/useAuth"
 // 注意：Sidebar 不再根据权限过滤菜单，所有功能都显示
 // 权限控制统一由后端处理，前端捕获错误后提示升级
@@ -26,6 +37,8 @@ export function AppSidebar() {
   const { t } = useTranslation()
   const { user: currentUser } = useAuth()
   const { toggleSidebar } = useSidebar()
+  const [debugOpen, setDebugOpen] = React.useState(false)
+  const isDev = import.meta.env.DEV
 
   const publicItems: Item[] = [
     {
@@ -87,6 +100,32 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter>
         <SidebarAppearance />
+        {isDev && (
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <Popover open={debugOpen} onOpenChange={setDebugOpen}>
+                <PopoverTrigger asChild>
+                  <SidebarMenuButton
+                    tooltip="Debug Control Center"
+                    isActive={debugOpen}
+                    className="text-amber-500/70 hover:text-amber-400 hover:bg-amber-500/10 data-[active=true]:bg-amber-500/10 data-[active=true]:text-amber-400"
+                  >
+                    <Bug className="h-4 w-4 shrink-0" />
+                    <span>Debug</span>
+                  </SidebarMenuButton>
+                </PopoverTrigger>
+                <PopoverContent
+                  side="right"
+                  align="end"
+                  sideOffset={8}
+                  className="w-auto p-0 bg-zinc-900/95 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl"
+                >
+                  <DebugManagerPanel onClose={() => setDebugOpen(false)} />
+                </PopoverContent>
+              </Popover>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        )}
         <User user={currentUser} />
       </SidebarFooter>
     </Sidebar>

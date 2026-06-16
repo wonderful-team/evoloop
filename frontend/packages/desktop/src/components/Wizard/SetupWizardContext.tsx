@@ -1,5 +1,5 @@
 import type React from "react"
-import { createContext, useContext, useState, useCallback } from "react"
+import { createContext, useCallback, useContext, useState } from "react"
 
 interface SetupWizardContextType {
   /** Whether the setup wizard is currently open */
@@ -46,9 +46,7 @@ export function SetupWizardProvider({
 export function useSetupWizard() {
   const context = useContext(SetupWizardContext)
   if (!context) {
-    throw new Error(
-      "useSetupWizard must be used within SetupWizardProvider"
-    )
+    throw new Error("useSetupWizard must be used within SetupWizardProvider")
   }
   return context
 }

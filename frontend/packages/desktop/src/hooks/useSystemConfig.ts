@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
-import { SystemService, type SystemConfig } from "@/client"
+import { type SystemConfig, SystemService } from "@/client"
 
 export function useSystemConfig() {
   return useQuery({
@@ -8,7 +8,7 @@ export function useSystemConfig() {
       const response = await SystemService.getSystemConfig()
       const configMap: Record<string, string> = {}
       if (Array.isArray(response)) {
-        (response as unknown as SystemConfig[]).forEach((item) => {
+        ;(response as unknown as SystemConfig[]).forEach((item) => {
           configMap[item.key] = item.value
         })
       }

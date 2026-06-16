@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query"
+import { Button } from "@evoloop/shared/components/ui/button"
 import Editor from "@monaco-editor/react"
+import { useQuery } from "@tanstack/react-query"
 import { renderAsync } from "docx-preview"
 import {
   ExternalLink,
@@ -10,13 +11,10 @@ import {
 } from "lucide-react"
 import { useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
-import ReactMarkdown from "react-markdown"
-import { CodeBlock } from "@/components/Chat/CodeBlock"
-import remarkGfm from "remark-gfm"
 import { toast } from "sonner"
 import * as XLSX from "xlsx"
 import { FilesService, OpenAPI } from "@/client"
-import { Button } from "@evoloop/shared/components/ui/button"
+import { MarkdownRenderer } from "@/components/Common/MarkdownRenderer"
 
 export interface FilePreviewProps {
   projectId: number
@@ -42,19 +40,42 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
   const getLanguage = (name: string) => {
     const ext = name.split(".").pop()?.toLowerCase() || ""
     const map: Record<string, string> = {
-      js: "javascript", jsx: "javascript", ts: "typescript", tsx: "typescript",
-      py: "python", sh: "shell", bash: "shell", zsh: "shell",
-      yml: "yaml", yaml: "yaml", md: "markdown", html: "html",
-      css: "css", json: "json", java: "java", c: "c", cpp: "cpp",
-      go: "go", rs: "rust", sql: "sql", php: "php", rb: "ruby",
-      xml: "xml", vue: "html", svelte: "html", toml: "ini",
-      ini: "ini", env: "ini", dockerfile: "dockerfile"
+      js: "javascript",
+      jsx: "javascript",
+      ts: "typescript",
+      tsx: "typescript",
+      py: "python",
+      sh: "shell",
+      bash: "shell",
+      zsh: "shell",
+      yml: "yaml",
+      yaml: "yaml",
+      md: "markdown",
+      html: "html",
+      css: "css",
+      json: "json",
+      java: "java",
+      c: "c",
+      cpp: "cpp",
+      go: "go",
+      rs: "rust",
+      sql: "sql",
+      php: "php",
+      rb: "ruby",
+      xml: "xml",
+      vue: "html",
+      svelte: "html",
+      toml: "ini",
+      ini: "ini",
+      env: "ini",
+      dockerfile: "dockerfile",
     }
     return map[ext] || ext || "text"
   }
 
   const fileType = file ? getFileType(file.name) : "text"
-  const isText = fileType === "text" || fileType === "markdown" || fileType === "csv"
+  const isText =
+    fileType === "text" || fileType === "markdown" || fileType === "csv"
 
   const { data: fileContent, isLoading: isContentLoading } = useQuery({
     queryKey: ["fileContent", projectId, file?.path],
@@ -145,14 +166,30 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
   return (
     <div className="h-full flex flex-col bg-background min-w-0">
       <div className="h-10 border-b px-4 flex items-center gap-2 bg-muted/5 text-sm shrink-0">
-        {fileType === "image" && <FileCode className="h-4 w-4 text-muted-foreground" />}
-        {fileType === "pdf" && <FileText className="h-4 w-4 text-muted-foreground" />}
-        {fileType === "xlsx" && <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />}
-        {fileType === "csv" && <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />}
-        {fileType === "docx" && <FileText className="h-4 w-4 text-muted-foreground" />}
-        {fileType === "markdown" && <FileCode className="h-4 w-4 text-muted-foreground" />}
-        {fileType === "text" && <FileCode className="h-4 w-4 text-muted-foreground" />}
-        <span className="font-medium truncate max-w-[200px]" title={file.name}>{file.name}</span>
+        {fileType === "image" && (
+          <FileCode className="h-4 w-4 text-muted-foreground" />
+        )}
+        {fileType === "pdf" && (
+          <FileText className="h-4 w-4 text-muted-foreground" />
+        )}
+        {fileType === "xlsx" && (
+          <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
+        )}
+        {fileType === "csv" && (
+          <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
+        )}
+        {fileType === "docx" && (
+          <FileText className="h-4 w-4 text-muted-foreground" />
+        )}
+        {fileType === "markdown" && (
+          <FileCode className="h-4 w-4 text-muted-foreground" />
+        )}
+        {fileType === "text" && (
+          <FileCode className="h-4 w-4 text-muted-foreground" />
+        )}
+        <span className="font-medium truncate max-w-[200px]" title={file.name}>
+          {file.name}
+        </span>
         <span
           className="text-xs text-muted-foreground ml-auto opacity-50 font-mono truncate max-w-[300px]"
           title={file.path}
@@ -195,41 +232,31 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
             className="w-full h-full overflow-auto bg-white p-4"
           />
         ) : isContentLoading ? (
-          <div key="loading" className="h-full flex items-center justify-center text-muted-foreground text-sm">
+          <div
+            key="loading"
+            className="h-full flex items-center justify-center text-muted-foreground text-sm"
+          >
             <Loader2 className="h-4 w-4 animate-spin mr-2" />
             {t("files.loadingContent", "Loading content...")}
           </div>
         ) : fileType === "markdown" ? (
           (fileContent as any)?.content?.length > 50000 ? (
-            <div key="markdown-fallback" className="p-4 bg-[#1e1e1e] text-[#d4d4d4] font-mono text-[13px] whitespace-pre min-h-full overflow-auto">
+            <div
+              key="markdown-fallback"
+              className="p-4 bg-[#1e1e1e] text-[#d4d4d4] font-mono text-[13px] whitespace-pre min-h-full overflow-auto"
+            >
               {(fileContent as any).content}
             </div>
           ) : (
-            <div key="markdown" className="p-8 prose prose-slate dark:prose-invert max-w-none overflow-auto h-full">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  code({ node: _node, className, children, ...props }) {
-                    const match = /language-(\w+)/.exec(className || "")
-                    return match ? (
-                      <CodeBlock
-                        language={match[1]}
-                        code={String(children).replace(/\n$/, "")}
-                      />
-                    ) : (
-                      <code className={className} {...props}>
-                        {children}
-                      </code>
-                    )
-                  },
-                }}
-              >
-                {(fileContent as any)?.content || ""}
-              </ReactMarkdown>
+            <div key="markdown" className="p-8 overflow-auto h-full">
+              <MarkdownRenderer content={(fileContent as any)?.content || ""} />
             </div>
           )
         ) : (
-          <div key="text" className="h-full overflow-hidden relative bg-[#1e1e1e]">
+          <div
+            key="text"
+            className="h-full overflow-hidden relative bg-[#1e1e1e]"
+          >
             {!(fileContent as any)?.content && !isContentLoading && (
               <div className="text-center text-muted-foreground mt-10">
                 {t("files.previewNotAvailable", "Preview not available")}
@@ -259,7 +286,7 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
                   fontFamily: "var(--font-mono)",
                   lineNumbersMinChars: 3,
                   folding: true,
-                  domReadOnly: true
+                  domReadOnly: true,
                 }}
                 loading={
                   <div className="h-full flex items-center justify-center text-muted-foreground text-sm">

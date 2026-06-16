@@ -1,10 +1,3 @@
-import { useQuery } from "@tanstack/react-query"
-import type React from "react"
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { type SystemConfig, SystemService } from "@/client"
-import GeneralSettings from "@/components/Settings/GeneralSettings"
-import { useSetupWizard } from "@/components/Wizard/SetupWizardContext"
 import {
   AlertDialog,
   AlertDialogContent,
@@ -12,6 +5,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@evoloop/shared/components/ui/alert-dialog"
+import { useQuery } from "@tanstack/react-query"
+import type React from "react"
+import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { type SystemConfig, SystemService } from "@/client"
+import GeneralSettings from "@/components/Settings/GeneralSettings"
+import { useSetupWizard } from "@/components/Wizard/SetupWizardContext"
 import useAuth from "@/hooks/useAuth"
 
 export default function InitializationCheck({
@@ -66,7 +66,9 @@ export default function InitializationCheck({
       <AlertDialog open={open}>
         <AlertDialogContent className="max-w-3xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("system.initializationTitle")}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("system.initializationTitle")}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {t("system.initializationDesc")}
             </AlertDialogDescription>

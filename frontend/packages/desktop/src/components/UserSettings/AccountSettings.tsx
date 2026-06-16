@@ -1,5 +1,5 @@
-import UserInformation from "./UserInformation"
 import ChangePassword from "./ChangePassword"
+import UserInformation from "./UserInformation"
 
 export function AccountSettings() {
   return (
