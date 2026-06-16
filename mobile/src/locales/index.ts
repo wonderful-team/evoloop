@@ -7,6 +7,28 @@ import * as RNLocalize from 'react-native-localize';
 import zh from './zh.json';
 import en from './en.json';
 
+if (typeof Intl === 'undefined') {
+  (globalThis as any).Intl = {
+    PluralRules: class {
+      select(n: number) {
+        return n === 1 ? 'one' : 'other';
+      }
+      resolvedOptions() {
+        return { pluralCategories: ['one', 'other'] };
+      }
+    },
+  };
+} else if (typeof Intl.PluralRules === 'undefined') {
+  (Intl as any).PluralRules = class {
+    select(n: number) {
+      return n === 1 ? 'one' : 'other';
+    }
+    resolvedOptions() {
+      return { pluralCategories: ['one', 'other'] };
+    }
+  };
+}
+
 const resources = {
   'zh': { translation: zh },
   'zh-CN': { translation: zh },
@@ -31,8 +53,6 @@ i18n
     react: {
       useSuspense: false,
     },
-    // 使用 compatibilityJSON v3 避免 Intl API 警告
-    compatibilityJSON: 'v3',
   });
 
 export default i18n;
