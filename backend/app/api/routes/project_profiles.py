@@ -47,13 +47,6 @@ async def _ensure_project_discovery_skill() -> LearnedSkill | None:
 
     # 2. Not found — trigger import from built-in skills directory
     try:
-        from app.core.config import settings
-        from app.core.learning.skill_importer import SkillImporter
-
-        import_path = os.path.join(settings.SKILLS_DIR, "roles", "project_discovery")
-        if os.path.isdir(import_path):
-            await SkillImporter.import_from_directory(settings.SKILLS_DIR)
-
         # Re-query after import
         async with session_scope() as session:
             from sqlalchemy import select
