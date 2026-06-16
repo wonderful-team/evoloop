@@ -18,6 +18,9 @@ export class GatewayClient extends EventEmitter {
   private reconnectTimer: NodeJS.Timeout | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private state: ConnectionState = ConnectionState.DISCONNECTED;
+  private readonly GRACE_PERIOD_MS = 30000; // 静默重连缓冲期 30s，期间不通知 UI
+  private isInGracePeriod = false;
+  private graceTimer: NodeJS.Timeout | null = null;
   private static instance: GatewayClient | null = null;
 
   constructor(url: string = WS_BASE_URL || 'ws://127.0.0.1') {
@@ -88,7 +91,7 @@ export class GatewayClient extends EventEmitter {
         this.ws = new WebSocket(url);
 
         this.ws.onopen = () => {
-          this.setState(ConnectionState.CONNECTED);
+          this.cancelGracePeriod();
           this.setState(ConnectionState.CONNECTED);
           this.reconnectAttempts = 0;
           this.startHeartbeat();
@@ -119,12 +122,16 @@ export class GatewayClient extends EventEmitter {
         this.ws.onclose = (event) => {
           console.log('Gateway WebSocket 已关闭:', event.code, event.reason);
           this.stopHeartbeat();
-          this.setState(ConnectionState.DISCONNECTED);
           this.emit('disconnected', event);
 
           // 正常关闭 (1000) 或 端点离开 (1001) 不重连，其余异常都自动重连
           if (event.code !== 1000 && event.code !== 1001) {
+            // 异常断开：先设内部状态，由 scheduleReconnect 决定是否通知 UI
+            this.state = ConnectionState.DISCONNECTED;
             this.scheduleReconnect();
+          } else {
+            // 主动断开：正常通知 UI
+            this.setState(ConnectionState.DISCONNECTED);
           }
         };
       } catch (error) {
@@ -136,6 +143,7 @@ export class GatewayClient extends EventEmitter {
 
   // 断开连接
   disconnect(): void {
+    this.cancelGracePeriod();
     this.stopHeartbeat();
     this.clearReconnectTimer();
 
@@ -256,7 +264,10 @@ export class GatewayClient extends EventEmitter {
   private setState(state: ConnectionState): void {
     if (this.state !== state) {
       this.state = state;
-      this.emit('stateChange', state);
+      // 静默重连期间只通知 CONNECTED，其余状态不通知 UI（用户无感知）
+      if (!this.isInGracePeriod || state === ConnectionState.CONNECTED) {
+        this.emit('stateChange', state);
+      }
     }
   }
 
@@ -287,10 +298,19 @@ export class GatewayClient extends EventEmitter {
     return delay + jitter;
   }
 
-  // 安排重连（无限重连 + 指数退避）
+  // 安排重连（无限重连 + 指数退避 + 缓冲期）
   private scheduleReconnect(): void {
     this.reconnectAttempts++;
-    this.setState(ConnectionState.RECONNECTING);
+
+    // 首次异常断开时启动缓冲期：期间静默重连，不通知 UI
+    if (this.reconnectAttempts === 1) {
+      this.startGracePeriod();
+    }
+
+    // 缓冲期内不通知 UI 重连中状态
+    if (!this.isInGracePeriod) {
+      this.setState(ConnectionState.RECONNECTING);
+    }
 
     const delay = this.getReconnectDelay();
     console.log(`计划重连... 尝试次数: ${this.reconnectAttempts}, 延迟: ${Math.round(delay)}ms`);
@@ -305,6 +325,7 @@ export class GatewayClient extends EventEmitter {
   // 重置退避计数（App 回到前台、网络恢复时调用，可立即尝试连接）
   resetBackoff(): void {
     this.reconnectAttempts = 0;
+    this.cancelGracePeriod();
     this.clearReconnectTimer();
     if (!this.isConnected() && this.state !== ConnectionState.CONNECTING) {
       this.connect().catch(() => {
@@ -318,6 +339,27 @@ export class GatewayClient extends EventEmitter {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
+    }
+  }
+
+  // 启动静默重连缓冲期：不通知 UI，APP 端不显示“重连中”
+  private startGracePeriod(): void {
+    this.isInGracePeriod = true;
+    this.graceTimer = setTimeout(() => {
+      this.isInGracePeriod = false;
+      // 缓冲期结束仍未连上，通知 UI 显示重连提示
+      if (!this.isConnected()) {
+        this.setState(ConnectionState.RECONNECTING);
+      }
+    }, this.GRACE_PERIOD_MS);
+  }
+
+  // 取消缓冲期（连接成功或主动断开时调用）
+  private cancelGracePeriod(): void {
+    this.isInGracePeriod = false;
+    if (this.graceTimer) {
+      clearTimeout(this.graceTimer);
+      this.graceTimer = null;
     }
   }
 }
