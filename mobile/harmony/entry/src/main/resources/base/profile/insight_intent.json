@@ -1,0 +1,25 @@
+{
+  "insightIntents": [
+    {
+      "intentName": "PlayVoiceChat",
+      "domain": "VoiceChatDomain",
+      "intentVersion": "1.0.0",
+      "srcEntry": "./ets/entryability/EntryAbility.ets",
+      "displayName": "语音聊天",
+      "uiAbility": {
+        "ability": "EntryAbility",
+        "executeMode": [
+          "foreground"
+        ]
+      },
+      "inputParams": [
+        {
+          "name": "queryText",
+          "type": "string",
+          "required": true,
+          "description": "用户说出的聊天或指令内容"
+        }
+      ]
+    }
+  ]
+}

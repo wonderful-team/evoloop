@@ -1,29 +1,30 @@
-import type { RNPackageContext, RNOHPackage } from '@rnoh/react-native-openharmony';
+import type { RNPackageContext, RNPackage } from '@rnoh/react-native-openharmony';
 import { createRNOHPackages as createRNOHPackagesAutolinking } from "./RNOHPackagesFactory"
 import { EvoLoopMobileCustomPackage } from "./custom_modules/EvoLoopMobileCustomPackage"
+import GestureHandlerPackage from '@react-native-oh-tpl/react-native-gesture-handler';
 
 // Manual package imports for skipped libraries
-import { ReanimatedPackage } from '@react-native-oh-tpl/react-native-reanimated';
-import { DocumentPickerPackage } from '@react-native-oh-tpl/react-native-document-picker';
+import { ReanimatedPackage } from '@react-native-ohos/react-native-reanimated';
+import { DocumentPickerPackage } from '@react-native-oh-tpl/react-native-document-picker/ts';
 import { FsPackage } from '@react-native-oh-tpl/react-native-fs';
-import { PermissionsPackage } from '@react-native-oh-tpl/react-native-permissions';
-import { WebViewPackage } from '@react-native-oh-tpl/react-native-webview';
+import { PermissionsPackage } from '@react-native-ohos/react-native-permissions';
+import { WebViewPackage } from '@react-native-ohos/react-native-webview';
 import { AsyncStoragePackage } from '@react-native-oh-tpl/async-storage';
 import { RNAudioRecorderPlayerPackage } from '@react-native-oh-tpl/react-native-audio-recorder-player';
-import { SafeAreaViewPackage } from '@react-native-oh-tpl/react-native-safe-area-context';
-import { RNCVideoPackage } from '@react-native-oh-tpl/react-native-video';
-import { NetInfoPackage } from '@react-native-oh-tpl/netinfo';
-import { ImageCropPickerPackage } from '@react-native-oh-tpl/react-native-image-crop-picker';
+import { SafeAreaViewPackage } from '@react-native-ohos/react-native-safe-area-context';
+import { RNCVideoPackage } from '@react-native-ohos/react-native-video/ts';
+import { ImageCropPickerPackage } from '@react-native-ohos/react-native-image-crop-picker';
 import { RNSharePackage } from '@react-native-oh-tpl/react-native-share';
 import { RNHapticFeedbackPackage } from '@react-native-oh-tpl/react-native-haptic-feedback';
 import { RNLocalizePackage } from '@react-native-oh-tpl/react-native-localize';
-import { ClipboardPackage } from '@react-native-oh-tpl/clipboard';
+import { ClipboardPackage } from '@react-native-ohos/clipboard';
 import { VisionCameraModulePackage, VisionCameraViewPackage } from '@react-native-ohos/react-native-vision-camera';
 
-export function getRNOHPackages(ctx: RNPackageContext): RNOHPackage[] {
+export function getRNOHPackages(ctx: RNPackageContext): RNPackage[] {
   return [
     ...createRNOHPackagesAutolinking(ctx),
     new EvoLoopMobileCustomPackage(ctx),
+    new GestureHandlerPackage(ctx),
     new ReanimatedPackage(ctx),
     new DocumentPickerPackage(ctx),
     new FsPackage(ctx),
@@ -33,7 +34,6 @@ export function getRNOHPackages(ctx: RNPackageContext): RNOHPackage[] {
     new RNAudioRecorderPlayerPackage(ctx),
     new SafeAreaViewPackage(ctx),
     new RNCVideoPackage(ctx),
-    new NetInfoPackage(ctx),
     new ImageCropPickerPackage(ctx),
     new RNSharePackage(ctx),
     new RNHapticFeedbackPackage(ctx),

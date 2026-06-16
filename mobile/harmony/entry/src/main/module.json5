@@ -70,14 +70,18 @@
         "name": "halfLeading",
         "value": "true",
       },
+      {
+        "name": "ohos.extension.insight_intent",
+        "resource": "$profile:insight_intent"
+      },
     ],
     "abilities": [
       {
         "name": "EntryAbility",
         "srcEntry": "./ets/entryability/EntryAbility.ets",
         "description": "$string:EntryAbility_desc",
-        "icon": "$media:layered_image",
-        "label": "$string:EntryAbility_label",
+        "icon": "$media:app_icon",
+        "label": "$string:EntryAbility_label_custom",
         "startWindowIcon": "$media:startIcon",
         "startWindowBackground": "$color:start_window_background",
         "visible": true,

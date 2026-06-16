@@ -23,7 +23,7 @@ if (Platform.OS === 'harmony') {
           try {
             return await RNEvoLoopDeviceModule.getPushToken();
           } catch (e) {
-            console.error('[EvoLoopDevice] Failed to get push token:', e);
+            console.warn('[EvoLoopDevice] Failed to get push token:', e);
             return '';
           }
         },
@@ -31,14 +31,14 @@ if (Platform.OS === 'harmony') {
           try {
             return await RNEvoLoopDeviceModule.requestNotificationPermission();
           } catch (e) {
-            console.error('[EvoLoopDevice] Failed to request notification permission:', e);
+            console.warn('[EvoLoopDevice] Failed to request notification permission:', e);
             return false;
           }
         }
       };
     }
   } catch (e) {
-    console.error('[EvoLoopDevice] Failed to require NativeEvoLoopDeviceModule:', e);
+    console.warn('[EvoLoopDevice] Failed to require NativeEvoLoopDeviceModule:', e);
   }
 }
 

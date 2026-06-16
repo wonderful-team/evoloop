@@ -1,8 +1,9 @@
 // 实时音频流录制器 - 使用 react-native-live-audio-stream 实现原生流式录制
-import LiveAudioStream from 'react-native-live-audio-stream';
 import { Buffer } from 'buffer';
 import { Platform, PermissionsAndroid, TurboModuleRegistry, DeviceEventEmitter } from 'react-native';
 import i18n from '@/locales';
+
+const LiveAudioStream = Platform.OS !== 'harmony' ? require('react-native-live-audio-stream').default : null;
 
 const HarmonyAudioStream = Platform.OS === 'harmony' ? TurboModuleRegistry.get('RNLiveAudioStream') : null;
 
@@ -68,17 +69,19 @@ export class AudioStreamRecorder {
     }
   }
 
-  // 计算音量 (RMS 模型)
+  // 计算音量 (RMS 模型，带子采样优化以降低 JS CPU 开销)
   private calculateRMS(data: Uint8Array): number {
     let sum = 0;
-    // 假设是 16bit PCM，每两个字节一个样本
-    for (let i = 0; i < data.length; i += 2) {
+    let count = 0;
+    // 子采样：每 4 个样本采 1 个（步长 8 字节），精度对音量表示足够，速度提升 4 倍
+    for (let i = 0; i < data.length; i += 8) {
       const sample = (data[i + 1] << 8) | data[i];
       // 转换为有符号 16bit
       const signedSample = sample >= 0x8000 ? sample - 0x10000 : sample;
       sum += signedSample * signedSample;
+      count++;
     }
-    const rms = Math.sqrt(sum / (data.length / 2));
+    const rms = Math.sqrt(sum / (count || 1));
     return Math.min(1, rms / 10000); // 归一化到 0-1
   }
 

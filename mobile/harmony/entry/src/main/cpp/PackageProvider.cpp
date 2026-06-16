@@ -11,10 +11,11 @@
 #include "RNAudioRecorderPlayerPackage.h"
 #include "SafeAreaViewPackage.h"
 #include "RNCVideoPackage.h"
-#include "RNCNetInfoPackage.h"
 #include "FlashListPackage.h"
 #include "ClipboardPackage.h"
 #include "VisionCameraPackage.h"
+#include "GestureHandlerPackage.h"
+#include "ImageCropPickerPackage.h"
 
 using namespace rnoh;
 
@@ -32,10 +33,11 @@ std::vector<std::shared_ptr<Package>> PackageProvider::getPackages(
   packages.push_back(std::make_shared<RNAudioRecorderPlayerPackage>(ctx));
   packages.push_back(std::make_shared<SafeAreaViewPackage>(ctx));
   packages.push_back(std::make_shared<RNCVideoPackage>(ctx));
-  packages.push_back(std::make_shared<RNCNetInfoPackage>(ctx));
   packages.push_back(std::make_shared<FlashListPackage>(ctx));
   packages.push_back(std::make_shared<ClipboardPackage>(ctx));
   packages.push_back(std::make_shared<VisionCameraPackage>(ctx));
+  packages.push_back(std::make_shared<GestureHandlerPackage>(ctx));
+  packages.push_back(std::make_shared<ImageCropPickerPackage>(ctx));
   
   return packages;
 }

@@ -20,6 +20,7 @@ import {
   Dialog,
   Button,
 } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   MessageList,
   VoiceInputWithNLS,
@@ -33,6 +34,7 @@ import { useDeviceControl } from '@/hooks/useDeviceControl';
 import { useCommands } from '@/hooks/useCommands';
 import { useTTS, useAutoSpeak } from '@/hooks/useTTS';
 import { useWakeWord, useWakeWordSettings } from '@/hooks/useWakeWord';
+import { useSystemIntent } from '@/hooks/useSystemIntent';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import { useConversationStore } from '@/stores/conversationStore';
 import { useTheme } from '@/theme';
@@ -48,6 +50,7 @@ import { generateUUID } from '@/utils/uuid';
 import { ConnectionState } from '@/services/gateway/types';
 import { getErrorMessage, isQuotaError } from '@/utils/error';
 import { debugManager } from '@/utils/debugManager';
+import { requestMicrophonePermission as requestMicPermission } from '@/utils/permissions';
 import { Menu, Divider } from 'react-native-paper';
 
 
@@ -55,6 +58,8 @@ export default function ChatScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
+  const insets = useSafeAreaInsets();
+  console.warn('[Diagnostic] Platform.OS is:', Platform.OS);
 
   // 从 MC 拉取项目列表（登录后才请求）
   // 从 MC 拉取项目列表（登录后才请求）
@@ -484,27 +489,15 @@ export default function ChatScreen() {
     }
   }, [currentConversationId, sendMessageToDevice, selectedDevice, addMessage, saveDeviceConversation, updateMessageStatus, updateStreamMessage, flushTTSBuffer, enqueueTTS, cleanForTTS]);
 
+  useSystemIntent(
+    useCallback((text) => {
+      handleSendMessage(text);
+    }, [handleSendMessage])
+  );
+
   // 请求麦克风权限
   const requestMicrophonePermission = useCallback(async () => {
-    if (Platform.OS === 'android') {
-      try {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-          {
-            title: t('chat.micPermission.title'),
-            message: t('chat.micPermission.message'),
-            buttonPositive: t('chat.micPermission.allow'),
-            buttonNegative: t('chat.micPermission.deny'),
-          }
-        );
-        return granted === PermissionsAndroid.RESULTS.GRANTED;
-      } catch (err) {
-        console.error('请求录音权限失败:', err);
-        return false;
-      }
-    }
-    // iOS 权限在 Info.plist 中配置，首次使用时会自动请求
-    return true;
+    return requestMicPermission();
   }, []);
 
   // ========== 按住说话模式（前置检查，实际录音由 VoiceInputWithNLS 内部管理） ==========
@@ -737,73 +730,80 @@ export default function ChatScreen() {
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : (Platform.OS === 'harmony' ? 'height' : undefined)}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         {/* ===== 头部 ===== */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            {/* 历史按钮 */}
-            <TouchableOpacity
-              style={styles.iconBtn}
-              onPress={() => {
-                if (!isLoggedIn) {
-                  // 未登录时从下往上滑出登录页
-                  router.push('Auth');
-                } else {
-                  setShowHistoryDrawer(true);
-                }
-              }}
-            >
-              <MaterialIcons name="history" size={24} color={colors.primary} />
-            </TouchableOpacity>
+        <View
+          style={[
+            styles.header,
+            Platform.OS === 'harmony' && {
+              paddingTop: insets.top,
+              height: 56 + insets.top,
+            },
+          ]}
+          collapsable={false}
+        >
+          {/* 历史按钮 */}
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => {
+              if (!isLoggedIn) {
+                // 未登录时从下往上滑出登录页
+                router.push('Auth');
+              } else {
+                setShowHistoryDrawer(true);
+              }
+            }}
+          >
+            <MaterialIcons name="history" size={24} color={colors.primary} />
+          </TouchableOpacity>
 
-            {/* 设备选择器 - 点击进入设备列表页面 */}
-            <TouchableOpacity
-              style={styles.projectSelector}
-              onPress={() => router.push('Devices')}
+          {/* 设备选择器 - 点击进入设备列表页面 */}
+          <TouchableOpacity
+            style={styles.projectSelector}
+            onPress={() => router.push('Devices')}
+          >
+            <MaterialIcons
+              name="devices"
+              size={18}
+              color={selectedDevice ? colors.success : colors.onSurfaceVariant}
+            />
+            <Text
+              variant="titleMedium"
+              style={[styles.projectName, { color: selectedDevice ? colors.success : colors.onSurfaceVariant }]}
+              numberOfLines={1}
             >
-              <MaterialIcons
-                name="devices"
-                size={18}
-                color={selectedDevice ? colors.success : colors.onSurfaceVariant}
-              />
-              <Text
-                variant="titleMedium"
-                style={[styles.projectName, { color: selectedDevice ? colors.success : colors.onSurfaceVariant }]}
-                numberOfLines={1}
-              >
-                {selectedDevice?.name || t('chat.selectDevice')}
-              </Text>
-              <MaterialIcons name="chevron-right" size={20} color={colors.onSurfaceVariant} />
-            </TouchableOpacity>
+              {selectedDevice?.name || t('chat.selectDevice')}
+            </Text>
+            <MaterialIcons name="chevron-right" size={20} color={colors.onSurfaceVariant} />
+          </TouchableOpacity>
 
-            {/* 项目选择器 - 独立于设备，支持全局模式 */}
-            <TouchableOpacity
-              style={styles.projectSelector}
-              onPress={() => {
-                if (!isLoggedIn) {
-                  router.push('Auth');
-                } else {
-                  router.push('Projects');
-                }
-              }}
+          {/* 项目选择器 - 独立于设备，支持全局模式 */}
+          <TouchableOpacity
+            style={styles.projectSelector}
+            onPress={() => {
+              if (!isLoggedIn) {
+                router.push('Auth');
+              } else {
+                router.push('Projects');
+              }
+            }}
+          >
+            <MaterialIcons
+              name={currentProject?.isGlobal ? 'public' : 'folder'}
+              size={18}
+              color={colors.primary}
+            />
+            <Text
+              variant="titleMedium"
+              style={[styles.projectName, { color: colors.onSurface }]}
+              numberOfLines={1}
             >
-              <MaterialIcons
-                name={currentProject?.isGlobal ? 'public' : 'folder'}
-                size={18}
-                color={colors.primary}
-              />
-              <Text
-                variant="titleMedium"
-                style={[styles.projectName, { color: colors.onSurface }]}
-                numberOfLines={1}
-              >
-                {currentProject?.name || (isGlobalMode ? t('projects.currentGlobalMode') : t('projects.selectProject'))}
-              </Text>
-              <MaterialIcons name="chevron-right" size={20} color={colors.onSurfaceVariant} />
-            </TouchableOpacity>
-          </View>
+              {currentProject?.name || (isGlobalMode ? t('projects.currentGlobalMode') : t('projects.selectProject'))}
+            </Text>
+            <MaterialIcons name="chevron-right" size={20} color={colors.onSurfaceVariant} />
+          </TouchableOpacity>
 
           {/* 右侧我的按钮 */}
           {__DEV__ ? (
@@ -1080,6 +1080,8 @@ export default function ChatScreen() {
   );
 }
 
+const isHarmony = Platform.OS === 'harmony';
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1089,6 +1091,7 @@ const styles = StyleSheet.create({
   },
   // 头部
   header: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1110,6 +1113,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
+    ...(isHarmony ? { height: 48 } : {}),
   },
   projectName: {
     marginLeft: 6,

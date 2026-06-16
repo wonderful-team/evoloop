@@ -40,6 +40,9 @@ import AudioRecorderPlayer, {
           console.warn(err);
           return false;
         }
+      } else if (Platform.OS === 'harmony') {
+        const { requestMicrophonePermission } = require('@/utils/permissions');
+        return requestMicrophonePermission();
       }
       return true;
     }
@@ -53,6 +56,7 @@ import AudioRecorderPlayer, {
       const path = Platform.select({
         ios: `${fileName || 'hello'}.m4a`,
         android: `${RNFS.CachesDirectoryPath}/${fileName || 'hello'}.mp3`,
+        harmony: `${RNFS.CachesDirectoryPath}/${fileName || 'hello'}.mp3`,
       });
   
       const audioSet = {

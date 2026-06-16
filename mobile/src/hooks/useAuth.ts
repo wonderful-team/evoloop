@@ -18,7 +18,7 @@ export function useAuth() {
   const { isLoggedIn, userInfo, login, logout } = useAuthStore();
   const { isLoading, error, execute, reset } = useLoading({
     onError: (err) => {
-      console.error('Auth error:', err);
+      console.warn('Auth error:', err);
     },
   });
 

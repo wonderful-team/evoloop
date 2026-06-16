@@ -13,6 +13,11 @@ import { getRNOHPackages } from '../PackageProvider';
 struct Index {
   @StorageLink('RNOHCoreContext') private rnohCoreContext: RNOHCoreContext | undefined = undefined
 
+  onBackPress(): boolean | undefined {
+    this.rnohCoreContext?.dispatchBackPress()
+    return true
+  }
+
   build() {
     Column() {
       if (this.rnohCoreContext) {
@@ -23,7 +28,12 @@ struct Index {
           rnInstanceConfig: {
             name: "EvoLoopMobile",
             createRNPackages: getRNOHPackages,
-            fontResourceByFontFamily: {},
+            fontResourceByFontFamily: {
+              'Material Icons': $rawfile('fonts/MaterialIcons.ttf'),
+              'MaterialIcons': $rawfile('fonts/MaterialIcons.ttf'),
+              'Material Design Icons': $rawfile('fonts/MaterialCommunityIcons.ttf'),
+              'MaterialCommunityIcons': $rawfile('fonts/MaterialCommunityIcons.ttf')
+            },
             enableDebugger: this.rnohCoreContext?.isDebugModeEnabled,
           },
           appKey: "EvoLoopMobile",

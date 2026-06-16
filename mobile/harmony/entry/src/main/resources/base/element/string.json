@@ -10,7 +10,11 @@
     },
     {
       "name": "EntryAbility_label",
-      "value": "EvoLoopMobile"
+      "value": "EvoLoop AI"
+    },
+    {
+      "name": "EntryAbility_label_custom",
+      "value": "EvoLoop AI"
     },
     {
       "name": "microphone_reason",

@@ -309,6 +309,7 @@ async function fetchSSE(url: string, body: any, options: SSEOptions): Promise<vo
 
     xhr.onreadystatechange = () => {
       if (xhr.readyState === 4) {
+        console.log('[fetchSSE] request completed. status:', xhr.status, 'response:', xhr.responseText);
         // 请求完成但状态码错误
         if (xhr.status < 200 || xhr.status >= 300) {
           let errMsg = `HTTP ${xhr.status}`;

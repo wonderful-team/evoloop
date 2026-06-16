@@ -1,6 +1,6 @@
 import 'react-native-gesture-handler';
 import React, { useEffect, useState } from 'react';
-import { LogBox, View, ActivityIndicator, Platform } from 'react-native';
+import { LogBox, View, ActivityIndicator, Platform, Image, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -33,6 +33,10 @@ LogBox.ignoreLogs([
   '`new NativeEventEmitter()` was called with a non-null argument without the required `addListener` method.',
   '`new NativeEventEmitter()` was called with a non-null argument without the required `removeListeners` method.',
 ]);
+
+if (Platform.OS === 'harmony') {
+  LogBox.ignoreAllLogs(true);
+}
 
 function App(): React.JSX.Element {
   const [isReady, setIsReady] = useState(false);
@@ -80,8 +84,22 @@ function App(): React.JSX.Element {
   // 等待初始化完成
   if (!isReady) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={lightTheme.colors.primary} />
+      <View style={{ flex: 1, backgroundColor: '#FFFFFF', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 80 }}>
+        <View style={{ height: 40 }} />
+        
+        <View style={{ alignItems: 'center' }}>
+          <Image
+            source={require('./src/assets/images/splash-icon.png')}
+            style={{ width: 120, height: 120, resizeMode: 'contain' }}
+          />
+          <ActivityIndicator size="small" color={lightTheme.colors.primary} style={{ marginTop: 24 }} />
+        </View>
+
+        <View style={{ alignItems: 'center' }}>
+          <Text style={{ fontSize: 16, color: '#555555', fontWeight: '500', letterSpacing: 1.5 }}>
+            拥有属于你的AI数字员工
+          </Text>
+        </View>
       </View>
     );
   }

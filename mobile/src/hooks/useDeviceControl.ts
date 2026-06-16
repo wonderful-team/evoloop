@@ -239,11 +239,14 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
         break;
     }
 
-    // 构建多轮对话消息上下文
+    // 构建多轮对话消息上下文（映射为标准 OpenAI/Anthropic 角色：user/assistant）
     const contextMessages = useConversationStore.getState().messages
       .filter(m => m.role === 'human' || m.role === 'ai')
-      .map(m => ({ role: m.role, content: m.content }));
-    contextMessages.push({ role: 'human', content: userContent });
+      .map(m => ({ 
+        role: m.role === 'human' ? 'user' : 'assistant', 
+        content: m.content 
+      }));
+    contextMessages.push({ role: 'user', content: userContent });
 
     // SSE 流式请求
     let fullText = '';

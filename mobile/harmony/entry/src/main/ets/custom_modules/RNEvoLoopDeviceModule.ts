@@ -1,10 +1,10 @@
 import { TurboModule, TurboModuleContext } from '@rnoh/react-native-openharmony/ts';
-import { RNEvoLoopDeviceModule } from '../codegen/generated/turboModules/RNEvoLoopDeviceModule';
+import { RNEvoLoopDeviceModule as RNEvoLoopDeviceModuleCodegen } from '../codegen/generated/turboModules/RNEvoLoopDeviceModule';
 import { pushService } from '@kit.PushKit';
 import { notificationManager } from '@kit.NotificationKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 
-export class RNEvoLoopDeviceModule extends TurboModule implements RNEvoLoopDeviceModule.Spec {
+export class RNEvoLoopDeviceModule extends TurboModule implements RNEvoLoopDeviceModuleCodegen.Spec {
   constructor(ctx: TurboModuleContext) {
     super(ctx);
   }

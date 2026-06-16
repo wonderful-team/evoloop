@@ -12,6 +12,8 @@ export class RNLiveAudioStreamTurboModule extends TurboModule implements RNLiveA
   private channels: number = 1;
   private bitsPerSample: number = 16;
   private audioSource: number = 0; // MIC
+  private bufferSize: number = 4096;
+  private accumulatedBuffer: Uint8Array = new Uint8Array(0);
 
   constructor(ctx: TurboModuleContext) {
     super(ctx);
@@ -29,6 +31,8 @@ export class RNLiveAudioStreamTurboModule extends TurboModule implements RNLiveA
     this.channels = options.channels;
     this.bitsPerSample = options.bitsPerSample;
     this.audioSource = options.audioSource;
+    this.bufferSize = options.bufferSize || 4096;
+    this.accumulatedBuffer = new Uint8Array(0);
 
     try {
       // 1. Map options to AudioStreamInfo
@@ -58,6 +62,7 @@ export class RNLiveAudioStreamTurboModule extends TurboModule implements RNLiveA
       // 3. Create AudioCapturer instance
       if (this.capturer) {
         try {
+          this.capturer.off('readData');
           this.capturer.release();
         } catch (e) {
           // ignore
@@ -65,22 +70,42 @@ export class RNLiveAudioStreamTurboModule extends TurboModule implements RNLiveA
         this.capturer = null;
       }
 
-      this.capturer = audio.createAudioCapturerSync(capturerOptions);
-      console.info(`[RNLiveAudioStream] AudioCapturer created successfully`);
+      audio.createAudioCapturer(capturerOptions).then((capturer) => {
+        this.capturer = capturer;
+        console.info(`[RNLiveAudioStream] AudioCapturer created successfully`);
 
-      // 4. Setup readData callback
-      this.capturer.on('readData', (buffer: ArrayBuffer) => {
-        if (!this.isRecording) {
-          return;
+        // 4. Setup readData callback
+        this.capturer.on('readData', (buffer: ArrayBuffer) => {
+          if (!this.isRecording) {
+            return;
+          }
+          try {
+            const uint8Array = new Uint8Array(buffer);
+            
+            // Append to accumulatedBuffer
+            const temp = new Uint8Array(this.accumulatedBuffer.length + uint8Array.length);
+            temp.set(this.accumulatedBuffer, 0);
+            temp.set(uint8Array, this.accumulatedBuffer.length);
+            this.accumulatedBuffer = temp;
+
+            // Emit in chunks of bufferSize
+            while (this.accumulatedBuffer.length >= this.bufferSize) {
+              const chunkToEmit = this.accumulatedBuffer.slice(0, this.bufferSize);
+              this.accumulatedBuffer = this.accumulatedBuffer.slice(this.bufferSize);
+              const base64Str = this.base64Helper.encodeToStringSync(chunkToEmit);
+              this.ctx.rnInstance.emitDeviceEvent('data', base64Str);
+            }
+          } catch (err) {
+            console.error(`[RNLiveAudioStream] Error in readData callback: ${JSON.stringify(err)}`);
+          }
+        });
+
+        // If start was called during async initialization
+        if (this.isRecording) {
+          this.startCapturerInternal();
         }
-        try {
-          const uint8Array = new Uint8Array(buffer);
-          const base64Str = this.base64Helper.encodeToStringSync(uint8Array);
-          // Emit the 'data' event directly via the RNInstance
-          this.ctx.rnInstance.emitDeviceEvent('data', base64Str);
-        } catch (err) {
-          console.error(`[RNLiveAudioStream] Error in readData callback: ${JSON.stringify(err)}`);
-        }
+      }).catch((err: BusinessError) => {
+        console.error(`[RNLiveAudioStream] Failed to create AudioCapturer: ${JSON.stringify(err)}`);
       });
 
     } catch (err) {
@@ -92,23 +117,29 @@ export class RNLiveAudioStreamTurboModule extends TurboModule implements RNLiveA
 
   public start(): void {
     console.info(`[RNLiveAudioStream] start recording`);
-    if (!this.capturer) {
-      console.error(`[RNLiveAudioStream] capturer is null, cannot start`);
-      return;
-    }
-
     if (this.isRecording) {
       console.warn(`[RNLiveAudioStream] capturer is already recording`);
       return;
     }
+    this.isRecording = true;
 
+    if (this.capturer) {
+      this.startCapturerInternal();
+    } else {
+      console.info(`[RNLiveAudioStream] capturer not ready yet, will start when initialized`);
+    }
+  }
+
+  private startCapturerInternal(): void {
+    if (!this.capturer) {
+      return;
+    }
     try {
       this.capturer.start((err) => {
         if (err) {
           console.error(`[RNLiveAudioStream] Failed to start capturer: ${JSON.stringify(err)}`);
           return;
         }
-        this.isRecording = true;
         console.info(`[RNLiveAudioStream] capturer started successfully`);
       });
     } catch (err) {
@@ -119,8 +150,20 @@ export class RNLiveAudioStreamTurboModule extends TurboModule implements RNLiveA
 
   public stop(): void {
     console.info(`[RNLiveAudioStream] stop recording`);
-    if (!this.capturer || !this.isRecording) {
-      console.warn(`[RNLiveAudioStream] capturer is not recording`);
+    this.isRecording = false;
+
+    if (this.accumulatedBuffer.length > 0) {
+      try {
+        const base64Str = this.base64Helper.encodeToStringSync(this.accumulatedBuffer);
+        this.ctx.rnInstance.emitDeviceEvent('data', base64Str);
+      } catch (err) {
+        // ignore
+      }
+      this.accumulatedBuffer = new Uint8Array(0);
+    }
+
+    if (!this.capturer) {
+      console.warn(`[RNLiveAudioStream] capturer was not ready, stopped initial request`);
       return;
     }
 
@@ -130,7 +173,6 @@ export class RNLiveAudioStreamTurboModule extends TurboModule implements RNLiveA
           console.error(`[RNLiveAudioStream] Failed to stop capturer: ${JSON.stringify(err)}`);
           return;
         }
-        this.isRecording = false;
         console.info(`[RNLiveAudioStream] capturer stopped successfully`);
       });
     } catch (err) {
