@@ -1,4 +1,5 @@
 import os
+import platform
 import secrets
 import warnings
 from typing import Annotated, Any, Literal
@@ -329,7 +330,7 @@ class Settings(BaseSettings):
 
     # Client / Device Info
     EVOCLOUD_ACCESS_TOKEN: str | None = Field(None, validation_alias="EVOCLOUD_ACCESS_TOKEN")
-    EVOCLOUD_DEVICE_NAME: str | None = Field("EvoLoop-Desktop", validation_alias="EVOCLOUD_DEVICE_NAME")
+    EVOCLOUD_DEVICE_NAME: str | None = Field(default_factory=lambda: platform.node() or "EvoLoop-Desktop", validation_alias="EVOCLOUD_DEVICE_NAME")
     EVOCLOUD_SSL_VERIFY: bool = Field(True, validation_alias="EVOCLOUD_SSL_VERIFY")
 
     # Mobile Sync
