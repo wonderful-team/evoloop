@@ -24,6 +24,7 @@ from app.api.schemas.projects import (
     BatchImportRequest,
 )
 from app.core.evocloud import evocloud_manager
+from app.core.project.sync_service import project_sync_service
 from app.domain.codebase.indexing.manager import indexing_manager
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.database.sql.database import session_scope
@@ -590,9 +591,6 @@ async def scan_workspace_projects_endpoint(_token: TokenDep):
     Manually scan WORKSPACE_ROOT for new projects.
     Forces reconciliation even if automatic discovery is disabled.
     """
-    from app.domain.project.sync_service import project_sync_service
-    from app.infrastructure.config.service import SystemConfigService
-
     workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
     if not workspace_root:
         raise HTTPException(400, "WORKSPACE_ROOT not configured. Please set it in Settings.")
@@ -633,9 +631,6 @@ async def get_detected_projects(
     Note: Returns empty list if project discovery is disabled via configuration, 
     unless force=True is specified.
     """
-    from app.domain.project.sync_service import project_sync_service
-    from app.infrastructure.config.service import SystemConfigService
-
     if not force:
         # Check if project discovery is enabled via System Config (DB)
         config_value = SystemConfigService.get_value("PROJECT_DISCOVERY_ENABLED")
@@ -672,8 +667,6 @@ async def import_detected_project(repo_id: int, _token: TokenDep):
     2. Start file watching and indexing
     3. Dispatch cloud sync task
     """
-    from app.domain.project.sync_service import project_sync_service
-
     try:
         repo = await project_sync_service.import_project(repo_id)
         return ImportProjectResponse(
@@ -696,8 +689,6 @@ async def ignore_detected_project(repo_id: int, _token: TokenDep):
 
     Marks the project as IGNORED. Can be restored later.
     """
-    from app.domain.project.sync_service import project_sync_service
-
     try:
         await project_sync_service.ignore_project(repo_id)
         return IgnoreProjectResponse(status="ignored", repo_id=repo_id)
@@ -718,8 +709,6 @@ async def get_ignored_projects(
 
     These projects can be restored (un-ignored) later.
     """
-    from app.domain.project.sync_service import project_sync_service
-
     try:
         member_id = current_user.id if current_user else None
         repos = await project_sync_service.get_ignored_projects(member_id=member_id)
@@ -746,8 +735,6 @@ async def unignore_project(repo_id: int, _token: TokenDep):
 
     Allows the project to be imported.
     """
-    from app.domain.project.sync_service import project_sync_service
-
     try:
         repo = await project_sync_service.unignore_project(repo_id)
         return UnignoreProjectResponse(
@@ -772,8 +759,6 @@ async def batch_import_projects(req: BatchImportRequest, _token: TokenDep):
     1. Import each project sequentially
     2. Return summary of successes and failures
     """
-    from app.domain.project.sync_service import project_sync_service
-
     results: dict[str, list[BatchResultItem]] = {
         "success": [],
         "failed": [],
@@ -810,8 +795,6 @@ async def batch_ignore_projects(req: BatchImportRequest, _token: TokenDep):
     """
     Ignore multiple detected projects in batch.
     """
-    from app.domain.project.sync_service import project_sync_service
-
     results: dict[str, list[BatchResultItem]] = {
         "success": [],
         "failed": [],

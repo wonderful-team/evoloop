@@ -4,7 +4,6 @@ import shutil
 import subprocess
 import sys
 import time
-from typing import Optional
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile, Form
 from fastapi.responses import FileResponse
@@ -24,8 +23,8 @@ from app.api.schemas.files import (
 from app.api.schemas.responses import BaseAPIResponse
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
-from app.domain.project.utils import get_project_path
-from app.core.file import TreeService, FileSearcher, FileTraverser, read_file, is_ignored_path
+from app.core.project.utils import get_project_path
+from app.core.file import TreeService, FileSearcher, FileTraverser, read_file
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects/{project_id}/files", tags=["files"])

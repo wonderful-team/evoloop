@@ -20,7 +20,7 @@ from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.engine.state.blackboard import BlackboardState
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
-from app.domain.project.utils import get_project_path
+from app.core.project.utils import get_project_path
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.database.sql.database import session_scope
 from app.models.learning import LearnedSkill
