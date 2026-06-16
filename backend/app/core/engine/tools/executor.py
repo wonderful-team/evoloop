@@ -129,7 +129,14 @@ class AgentToolExecutor:
             # Update context if modified
             if pre_result.modified_context and pre_result.modified_context.tool_input is not None:
                 tool_input = pre_result.modified_context.tool_input
-                tool_args = tool_input.args if tool_input.args else tool_args
+                if tool_input.args:
+                    tool_args = tool_input.args
+                else:
+                    # Sync flat fields from ToolInput back to tool_args dictionary
+                    for field in ["command", "path", "content", "query"]:
+                        val = getattr(tool_input, field)
+                        if val is not None and field in tool_args:
+                            tool_args[field] = val
 
             # Track tool execution history and detect repetitions (thread-safe)
             tool_sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
@@ -174,7 +181,6 @@ class AgentToolExecutor:
             config["metadata"] = {**existing_metadata, "_evoloop_tool_call_id": tool_id}
             content = await self._tool_executor.execute(tool, tool_args, config=config)  # type: ignore[arg-type]
 
-            # === HOOK: PostToolUse ===
             post_ctx = HookContext(
                 thread_id=thread_id,
                 member_id=member_id,
@@ -184,15 +190,14 @@ class AgentToolExecutor:
                 tool_result=ToolResult(output=content),
                 tool_use_id=tool_id,
                 blackboard=self.state.blackboard,
+                extra=pre_result.modified_context.extra if (pre_result and pre_result.modified_context) else pre_ctx.extra,
             )
-            # Fire-and-forget hook with error handling wrapper
-            async def _fire_hook():
-                try:
-                    await hook_system.trigger(HookEvent.POST_TOOL_USE, post_ctx)
-                except Exception as hook_err:
-                    logger.warning(f"[ToolExecutor] POST_TOOL_USE hook failed: {hook_err}")
-
-            asyncio.create_task(_fire_hook())
+            try:
+                post_result = await hook_system.trigger(HookEvent.POST_TOOL_USE, post_ctx, blocking=True)
+                if post_result and post_result.modified_context and post_result.modified_context.tool_result:
+                    content = post_result.modified_context.tool_result.output
+            except Exception as hook_err:
+                logger.warning(f"[ToolExecutor] POST_TOOL_USE hook failed: {hook_err}")
 
             # Generate message ID for the ToolMessage ahead of time 
             # so that diff tracking can correctly link to it.
@@ -226,6 +231,7 @@ class AgentToolExecutor:
                 error=e,
                 error_message=str(e),
                 blackboard=self.state.blackboard,
+                extra=pre_result.modified_context.extra if ('pre_result' in locals() and pre_result and pre_result.modified_context) else pre_ctx.extra,
             )
             # Fire-and-forget hook with error handling wrapper
             async def _fire_fail_hook():

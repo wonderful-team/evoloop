@@ -1206,6 +1206,7 @@
       "requirements": "需求",
       "tasks": "任务",
       "timesheet": "工时",
+      "vault": "密码箱",
       "wiki": "百科"
     },
     "tasks": {
@@ -1975,6 +1976,54 @@
       "start": "开始配置",
       "subtitle": "您的通用智能体即将就绪！只需 2 分钟完成以下配置，即可开始使用。",
       "title": "欢迎使用 EvoLoop"
+    }
+  },
+  "vault": {
+    "title": "安全密码箱",
+    "description": "管理此项目上下文的加密密码、访问令牌和服务器密钥。",
+    "addCredential": "添加凭证",
+    "addFirstCredential": "添加您的第一个凭证",
+    "confirmDelete": "您确定要删除凭证 '{{identifier}}' 吗？",
+    "empty": {
+      "title": "暂无安全凭证",
+      "description": "存储 SSH 密钥、数据库密码或环境变量，以安全地与私有环境进行交互。"
+    },
+    "guide": {
+      "title": "零信任通用占位符替换机制",
+      "text": "此处添加的凭证在后端使用 AES-256 (Fernet) 进行加密，且永远不会以明文形式返回。您可以使用通用占位符格式安全地将这些密钥注入智能体命令或代码模板中。当智能体触发命令时，后端将动态自动替换值，并自动过滤脱敏任何原始输出。",
+      "exampleLabel": "在工具中的使用示例："
+    },
+    "fields": {
+      "identifier": "标识符",
+      "type": "类型",
+      "description": "描述"
+    },
+    "actions": {
+      "copyPlaceholder": "复制使用占位符"
+    },
+    "dialog": {
+      "editTitle": "编辑凭证",
+      "addTitle": "添加凭证",
+      "editDescription": "编辑凭证元数据。由于安全加密策略，现有的机密无法被读取；保存将覆盖它们。",
+      "addDescription": "添加新凭证。字段键和值将被安全加密。",
+      "warningTitle": "安全警告：",
+      "warningText": "编辑此凭证需要再次输入所有值。任何留空或遗漏的字段将不会被保留。",
+      "fields": {
+        "identifier": "凭证标识符",
+        "identifierHelp": "在代码/模板中使用的唯一字符串。仅限字母、数字、下划线和连字符。",
+        "type": "凭证类型",
+        "description": "描述",
+        "descriptionPlaceholder": "说明此凭证的用途...",
+        "payload": "凭证字段"
+      },
+      "actions": {
+        "addField": "添加字段"
+      }
+    },
+    "errors": {
+      "identifierRequired": "标识符是必填项",
+      "invalidIdentifier": "标识符只能包含字母、数字、下划线或连字符",
+      "payloadRequired": "至少需要一个凭证字段"
     }
   }
 }

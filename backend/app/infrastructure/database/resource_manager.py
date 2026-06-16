@@ -97,9 +97,10 @@ class DatabaseResourceManager:
                     db_uri,
                     echo=settings.DB_ECHO,
                     future=True,
+                    poolclass=NullPool,
                     connect_args={"check_same_thread": False},
                 )
-                self._sync_engine = create_sync_engine(sync_db_uri, connect_args={"check_same_thread": False})
+                self._sync_engine = create_sync_engine(sync_db_uri, poolclass=NullPool, connect_args={"check_same_thread": False})
             else:
                 self._engine = create_async_engine(
                     db_uri,
@@ -115,6 +116,9 @@ class DatabaseResourceManager:
                     max_overflow=settings.DB_MAX_OVERFLOW,
                     connect_args={"connect_timeout": settings.DB_CONNECT_TIMEOUT},
                 )
+
+            pool_class = type(self._engine.sync_engine.pool).__name__
+            logger.info(f"[ResourceManager] SQL Engine: {db_uri} (pool={pool_class})")
 
             self._session_factory = async_sessionmaker(
                 bind=self._engine,
@@ -213,6 +217,10 @@ class DatabaseResourceManager:
         if self._engine:
             await self._engine.dispose()
 
+        if self._sync_engine:
+            self._sync_engine.dispose()
+            self._sync_engine = None
+
         if self._db_pool:
             await self._db_pool.close()
 
@@ -227,6 +235,11 @@ class DatabaseResourceManager:
             if self._engine:
                 await self._engine.dispose()
             self._engine = None
+            
+            if self._sync_engine:
+                self._sync_engine.dispose()
+                self._sync_engine = None
+
             self._session_factory = None
             self._initialized = False
             logger.info("🔌 Database resources closed and reset.")

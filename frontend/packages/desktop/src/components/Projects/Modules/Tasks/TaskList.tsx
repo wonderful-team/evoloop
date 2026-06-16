@@ -55,9 +55,9 @@ export const TaskList: React.FC = () => {
       } else {
         setTasks([])
       }
-    } catch (error) {
-      console.error(error)
-      toast.error(t("projects.tasks.failedToLoad"))
+    } catch (error: any) {
+      const message = error?.body?.detail || error?.message || t("projects.tasks.failedToLoad")
+      toast.error(message)
     } finally {
       setIsLoading(false)
     }

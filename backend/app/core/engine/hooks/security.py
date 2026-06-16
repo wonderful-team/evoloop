@@ -98,4 +98,186 @@ async def dangerous_command_gate(context: HookContext) -> HookResult:
     return HookResult(success=True)
 
 
-logger.info("[SecurityHooks] Security hooks registered: elevated_privilege_gate, dangerous_command_gate")
+@hook_system.register(HookEvent.PRE_TOOL_USE, matcher="^(view_file|grep_search|read_file|replace_file_content|multi_replace_file_content|write_to_file)$", priority=4)
+async def sensitive_file_protection_gate(context: HookContext) -> HookResult:
+    """
+    Hard security check to block the Agent from reading or modifying sensitive config/env files.
+    This prevents credentials from leaking into the LLM context.
+    """
+    tool_name = context.tool_name or ""
+    tool_input = context.tool_input
+    if not tool_input:
+        return HookResult(success=True)
+
+    # 1. Gather all potential path arguments
+    paths_to_check = []
+    if tool_input.path:
+        paths_to_check.append(tool_input.path)
+    if tool_input.args:
+        # Check standard file tool parameters
+        for key in ("AbsolutePath", "TargetFile", "SearchPath", "TargetDirectory", "DirectoryPath"):
+            val = tool_input.args.get(key)
+            if val and isinstance(val, str):
+                paths_to_check.append(val)
+
+    # 2. Check path inputs for sensitive directories/files
+    for path in paths_to_check:
+        path_lower = path.lower()
+        if ".env" in path_lower or "deploy/profiles/" in path_lower:
+            logger.warning(f"[SecurityHook] Blocked sensitive file access via {tool_name} to: {path}")
+            return HookResult(
+                success=False,
+                block=True,
+                message=(
+                    f"[SECURITY VIOLATION] Access Denied: Reading or modifying system environment configurations "
+                    f"or customer profiles ({path}) is strictly prohibited to prevent credential leakage."
+                )
+            )
+
+    # 3. Check grep query to prevent searching for secrets in env files
+    if tool_name == "grep_search" and tool_input.args:
+        query = tool_input.args.get("Query") or ""
+        search_path = tool_input.args.get("SearchPath") or ""
+        if search_path:
+            search_path_lower = search_path.lower()
+            if ".env" in search_path_lower or "deploy/profiles/" in search_path_lower:
+                logger.warning(f"[SecurityHook] Blocked sensitive grep search in: {search_path}")
+                return HookResult(
+                    success=False,
+                    block=True,
+                    message="[SECURITY VIOLATION] Access Denied: Searching inside system environment configurations or customer profiles is prohibited."
+                )
+
+    return HookResult(success=True)
+
+
+@hook_system.register(HookEvent.PRE_TOOL_USE, matcher=".*", priority=3)
+async def sensitive_file_placeholder_replacement_gate(context: HookContext) -> HookResult:
+    """
+    Scan tool inputs recursively for {{vault.id.key}} placeholders, decrypt values,
+    and substitute them in-place. Record injected raw values in context.extra for post-execution censorship.
+    """
+    tool_input = context.tool_input
+    if not tool_input:
+        return HookResult(success=True)
+
+    from app.infrastructure.config.vault import SecureVaultService
+    from typing import Any
+    
+    # Store decrypted secrets locally to avoid fetching multiple times and to use for post-execution mask
+    decrypted_cache = {}
+    injected_secrets = set()
+    project_id = context.project_id
+
+    # Pattern for {{vault.id.key}}
+    pattern = re.compile(r"\{\{\s*vault\.([\w\-]+)\.([\w\-]+)\s*\}\}")
+
+    def substitute_value(val: Any) -> Any:
+        if isinstance(val, str):
+            matches = list(pattern.finditer(val))
+            if not matches:
+                return val
+                
+            # Perform substitutions from right to left to avoid index shift issues
+            new_val = val
+            for match in reversed(matches):
+                placeholder = match.group(0)
+                identifier = match.group(1)
+                key = match.group(2)
+                
+                try:
+                    if identifier not in decrypted_cache:
+                        decrypted_cache[identifier] = SecureVaultService.get_credential_payload(
+                            identifier, project_id=project_id
+                        )
+                    
+                    payload = decrypted_cache[identifier]
+                    if key in payload:
+                        secret_value = str(payload[key])
+                        injected_secrets.add(secret_value)
+                        new_val = new_val.replace(placeholder, secret_value)
+                    else:
+                        logger.warning(f"[SecureVault] Key '{key}' not found in credential '{identifier}'")
+                except (KeyError, PermissionError) as e:
+                    raise ValueError(f"Failed to resolve secure placeholder {placeholder}: {e}")
+            return new_val
+            
+        elif isinstance(val, dict):
+            return {k: substitute_value(v) for k, v in val.items()}
+        elif isinstance(val, list):
+            return [substitute_value(x) for x in val]
+        return val
+
+    try:
+        # Substitute placeholders in all standard tool input fields
+        if tool_input.command:
+            tool_input.command = substitute_value(tool_input.command)
+        if tool_input.path:
+            tool_input.path = substitute_value(tool_input.path)
+        if tool_input.content:
+            tool_input.content = substitute_value(tool_input.content)
+        if tool_input.query:
+            tool_input.query = substitute_value(tool_input.query)
+        if tool_input.args:
+            tool_input.args = substitute_value(tool_input.args)
+    except ValueError as e:
+        logger.error(f"[SecureVault] Substitution failed: {e}")
+        return HookResult(
+            success=False,
+            block=True,
+            message=f"[SECURITY ERROR] {e}"
+        )
+
+    # Save injected secrets in context.extra for post-execution sanitization
+    if injected_secrets:
+        context.extra["injected_secrets"] = list(injected_secrets)
+        from app.core.context.manager import ContextManager
+        try:
+            ctx = ContextManager.current()
+            if not hasattr(ctx, "injected_secrets") or ctx.injected_secrets is None:
+                ctx.injected_secrets = set()
+            ctx.injected_secrets.update(injected_secrets)
+        except Exception as e:
+            logger.warning(f"Failed to save injected_secrets to EvoContext: {e}")
+
+    return HookResult(success=True, modified_context=context)
+
+
+@hook_system.register(HookEvent.POST_TOOL_USE, matcher=".*", priority=100)
+async def sensitive_file_censorship_gate(context: HookContext) -> HookResult:
+    """
+    Censor any raw secrets in tool outputs (stdout, stderr, returned dicts, etc.)
+    by replacing them with '******'.
+    """
+    injected_secrets = context.extra.get("injected_secrets")
+    logger.info(f"[CENSOR DEBUG] injected_secrets={injected_secrets}, has_tool_result={context.tool_result is not None}, output={context.tool_result.output if context.tool_result else None}")
+    if not injected_secrets or not context.tool_result:
+        return HookResult(success=True)
+
+    from typing import Any
+
+    def sanitize_value(val: Any) -> Any:
+        if isinstance(val, str):
+            sanitized = val
+            for secret in injected_secrets:
+                if secret and secret in sanitized:
+                    sanitized = sanitized.replace(secret, "******")
+            return sanitized
+        elif isinstance(val, dict):
+            return {k: sanitize_value(v) for k, v in val.items()}
+        elif isinstance(val, list):
+            return [sanitize_value(x) for x in val]
+        return val
+
+    # Sanitize outputs
+    if context.tool_result.output:
+        context.tool_result.output = sanitize_value(context.tool_result.output)
+    if context.tool_result.error:
+        context.tool_result.error = sanitize_value(context.tool_result.error)
+    if context.tool_result.data:
+        context.tool_result.data = sanitize_value(context.tool_result.data)
+
+    return HookResult(success=True, modified_context=context)
+
+
+logger.info("[SecurityHooks] Security hooks registered: elevated_privilege_gate, dangerous_command_gate, sensitive_file_protection_gate, sensitive_file_placeholder_replacement_gate, sensitive_file_censorship_gate")

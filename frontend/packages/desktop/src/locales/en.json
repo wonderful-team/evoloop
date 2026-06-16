@@ -1206,6 +1206,7 @@
       "requirements": "Requirements",
       "tasks": "Tasks",
       "timesheet": "Timesheet",
+      "vault": "Vault",
       "wiki": "Wiki"
     },
     "tasks": {
@@ -1975,6 +1976,54 @@
       "start": "Get Started",
       "subtitle": "Your Universal AI Agent is almost ready! Just 2 minutes to complete the setup.",
       "title": "Welcome to EvoLoop"
+    }
+  },
+  "vault": {
+    "title": "Secure Vault",
+    "description": "Manage encrypted passwords, access tokens, and server keys for this project context.",
+    "addCredential": "Add Credential",
+    "addFirstCredential": "Add Your First Credential",
+    "confirmDelete": "Are you sure you want to delete credential '{{identifier}}'?",
+    "empty": {
+      "title": "No Secure Credentials",
+      "description": "Store SSH keys, database passwords, or environment variables to interact with private environments securely."
+    },
+    "guide": {
+      "title": "Zero-Trust Universal Placeholder Substitution",
+      "text": "Credentials added here are encrypted at the backend using AES-256 (Fernet) and never return in cleartext. You can inject these keys into agent commands or code templates securely using the universal placeholder format. When the agent triggers a command, the backend substitutes the value dynamically and automatically censors any raw output.",
+      "exampleLabel": "Usage example in tools:"
+    },
+    "fields": {
+      "identifier": "Identifier",
+      "type": "Type",
+      "description": "Description"
+    },
+    "actions": {
+      "copyPlaceholder": "Copy usage placeholder"
+    },
+    "dialog": {
+      "editTitle": "Edit Credential",
+      "addTitle": "Add Credential",
+      "editDescription": "Edit credential metadata. Due to secure encryption policies, existing secrets cannot be retrieved; saving will overwrite them.",
+      "addDescription": "Add a new credential. The payload keys and values will be securely encrypted.",
+      "warningTitle": "Security Warning:",
+      "warningText": "Editing this credential requires entering all values again. Any fields left blank or omitted will not be preserved.",
+      "fields": {
+        "identifier": "Credential Identifier",
+        "identifierHelp": "Unique string used in code/templates. Letters, numbers, underscores, and hyphens only.",
+        "type": "Credential Type",
+        "description": "Description",
+        "descriptionPlaceholder": "Explain what this credential is for...",
+        "payload": "Credential Fields"
+      },
+      "actions": {
+        "addField": "Add Field"
+      }
+    },
+    "errors": {
+      "identifierRequired": "Identifier is required",
+      "invalidIdentifier": "Identifier must only contain letters, numbers, underscores, or hyphens",
+      "payloadRequired": "At least one credential field is required"
     }
   }
 }

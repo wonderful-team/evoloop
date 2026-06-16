@@ -12,20 +12,47 @@ async def get_pending_hitl_call(graph, config: dict) -> dict | None:
     """
     try:
         current_state = await graph.aget_state(config)
-        if not current_state.values or "messages" not in current_state.values:
-            return None
-        
-        history = current_state.values["messages"]
-        if not history:
-            return None
-            
-        last_msg = history[-1]
-        if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
-            last_tool_call = last_msg.tool_calls[-1]
-            if is_hitl_tool(last_tool_call["name"]):
-                return last_tool_call
+        if current_state.values and "messages" in current_state.values:
+            history = current_state.values["messages"]
+            if history:
+                last_msg = history[-1]
+                if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
+                    last_tool_call = last_msg.tool_calls[-1]
+                    if is_hitl_tool(last_tool_call["name"]):
+                        return last_tool_call
     except Exception as e:
         logger.warning(f"Failed to detect pending HITL call: {e}")
+        
+    # --- FALLBACK: Query Database for pending/running HITL tool call ---
+    try:
+        thread_id = config.get("configurable", {}).get("thread_id")
+        if thread_id:
+            from app.infrastructure.database.sql.database import session_scope
+            from app.models import Message
+            from sqlalchemy import select
+            
+            async with session_scope() as session:
+                # Find the latest running tool message
+                stmt = select(Message).where(
+                    Message.thread_id == thread_id,
+                    Message.role == "tool",
+                    Message.status == "running"
+                ).order_by(Message.sequence_number.desc())
+                res = await session.execute(stmt)
+                last_running = res.scalars().first()
+                
+                if last_running and last_running.meta_data:
+                    t_name = last_running.meta_data.get("tool_name")
+                    t_call_id = last_running.meta_data.get("tool_call_id")
+                    if t_name and t_call_id and is_hitl_tool(t_name):
+                        logger.info(f"[HITL] Located pending tool call {t_name} from database fallback.")
+                        return {
+                            "id": t_call_id,
+                            "name": t_name,
+                            "args": last_running.meta_data.get("input") or {}
+                        }
+    except Exception as e:
+        logger.warning(f"Failed database fallback for pending HITL call: {e}")
         
     return None
 

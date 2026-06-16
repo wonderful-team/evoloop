@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   FileCode,
   FileText,
+  Key,
   LayoutDashboard,
 } from "lucide-react"
 import { useEffect } from "react"
@@ -102,6 +103,12 @@ function ProjectLayout() {
       label: t("projects.tabs.profile"),
       icon: FileText,
       path: "/profile",
+    },
+    {
+      id: "vault",
+      label: t("projects.tabs.vault", "Vault"),
+      icon: Key,
+      path: "/vault",
     },
     // { id: 'reports', label: t('projects.tabs.reports'), icon: PieChart, path: '/reports' },
   ]
