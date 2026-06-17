@@ -1,4 +1,5 @@
 import logging
+import re
 from pathlib import Path
 
 import yaml
@@ -80,9 +81,84 @@ class SkillValidator:
         )
 
     @staticmethod
+    def _fix_yaml_frontmatter(yaml_text: str) -> str:
+        """
+        Auto-fix common YAML syntax errors in LLM-generated frontmatter.
+        
+        Common issues:
+        - Unquoted scalar values containing ': ' (colon + space)
+        - Unquoted values starting with '#'
+        """
+        lines = yaml_text.split('\n')
+        fixed_lines = []
+        
+        for line in lines:
+            stripped = line.strip()
+            
+            # Skip empty lines, comments, document separators
+            if not stripped or stripped.startswith('#') or stripped == '---':
+                fixed_lines.append(line)
+                continue
+            
+            # Skip list items (lines starting with '- ')
+            if stripped.startswith('- '):
+                fixed_lines.append(line)
+                continue
+            
+            # Match key: value pattern
+            # Capture indent, key, and the rest as value
+            match = re.match(r'^(\s*)(\w+):\s*(.*)$', line)
+            if not match:
+                fixed_lines.append(line)
+                continue
+            
+            indent, key, value = match.groups()
+            
+            # Skip if no value after colon
+            if not value:
+                fixed_lines.append(line)
+                continue
+            
+            # Skip if already quoted
+            if (value.startswith('"') and value.endswith('"')) or \
+               (value.startswith("'") and value.endswith("'")):
+                fixed_lines.append(line)
+                continue
+            
+            # Skip if value looks like a nested mapping start (e.g., "foo: bar")
+            if re.match(r'^\w+:\s', value):
+                fixed_lines.append(line)
+                continue
+            
+            # Skip if value is a list or dict literal
+            if value.startswith('[') or value.startswith('{') or value.startswith('-'):
+                fixed_lines.append(line)
+                continue
+            
+            # Fix unquoted values containing ': ' which breaks YAML parsing
+            if ': ' in value:
+                # Escape existing double quotes
+                escaped_value = value.replace('"', '\\"')
+                line = f'{indent}{key}: "{escaped_value}"'
+                logger.debug(f"[SkillValidator] Auto-quoted value for key '{key}'")
+            
+            # Fix unquoted values starting with '#' which YAML treats as comments
+            elif value.startswith('#'):
+                escaped_value = value.replace('"', '\\"')
+                line = f'{indent}{key}: "{escaped_value}"'
+                logger.debug(f"[SkillValidator] Auto-quoted comment-like value for key '{key}'")
+            
+            fixed_lines.append(line)
+        
+        return '\n'.join(fixed_lines)
+
+    @staticmethod
     def _parse_skill_md(file_path: Path) -> tuple[dict | None, str]:
         """
         Internal parser for SKILL.md.
+        
+        Tries to parse YAML frontmatter. If initial parse fails due to common
+        LLM-generated syntax errors, attempts auto-fix and retries.
         """
         try:
             content = file_path.read_text(encoding="utf-8")
@@ -93,9 +169,37 @@ class SkillValidator:
             if len(parts) < 3:
                 return None, content
 
-            metadata = yaml.safe_load(parts[1])
+            frontmatter_text = parts[1]
             instructions = parts[2].strip()
-            return metadata, instructions
+            
+            # First attempt: parse as-is
+            try:
+                metadata = yaml.safe_load(frontmatter_text)
+                if isinstance(metadata, dict):
+                    # Check if any string values were incorrectly parsed as None
+                    # (e.g., unquoted values starting with '#' are treated as comments)
+                    needs_fix = any(
+                        metadata.get(k) is None 
+                        for k in ["name", "description", "namespace"]
+                    )
+                    if not needs_fix:
+                        return metadata, instructions
+            except yaml.YAMLError as e:
+                logger.warning(f"[SkillValidator] Initial YAML parse failed for {file_path}: {e}")
+            
+            # Second attempt: auto-fix common LLM errors and retry
+            fixed_frontmatter = SkillValidator._fix_yaml_frontmatter(frontmatter_text)
+            try:
+                metadata = yaml.safe_load(fixed_frontmatter)
+                if isinstance(metadata, dict):
+                    logger.info(f"[SkillValidator] Auto-fixed YAML frontmatter for {file_path}")
+                    return metadata, instructions
+            except yaml.YAMLError as e2:
+                logger.error(f"[SkillValidator] Auto-fix failed for {file_path}: {e2}")
+            
+            # Both attempts failed
+            return None, instructions
+            
         except Exception as e:
-            logger.error(f"Failed to parse {file_path}: {e}")
+            logger.error(f"[SkillValidator] Failed to parse {file_path}: {e}")
             return None, ""
