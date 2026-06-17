@@ -3,6 +3,10 @@ Memory System Configuration
 
 Centralized configuration for the memory system to avoid scattered settings access.
 All memory-related settings are encapsulated in the MemoryConfig dataclass.
+
+支持两级存储：
+- 用户级 (user_memory_root): ~/.evoloop/memory/ - 偏好、经验教训、通用领域术语
+- 项目级 (project_memory_root): {project}/.evoloop/memory/ - 项目上下文、决策、架构
 """
 
 import logging
@@ -16,22 +20,47 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 logger = logging.getLogger(__name__)
 
 
-def _default_memory_root() -> Path:
-    """Resolve memory root from EVOLOOP_APP_DATA_DIR."""
+def _default_user_memory_root() -> Path:
+    """Resolve user-level memory root from EVOLOOP_APP_DATA_DIR."""
     return Path(settings.APP_DATA_DIR) / "memory"
+
+
+def get_project_memory_root(project_path: str) -> Path:
+    """
+    Get project-level memory root.
+    
+    Args:
+        project_path: 项目本地路径
+        
+    Returns:
+        Path 指向 {project}/.evoloop/memory/
+    """
+    from app.core.project.utils import get_memory_path
+    return get_memory_path(project_path)
 
 
 class MemoryConfig(DynamicBaseModel):
     """
     Centralized configuration for the memory system.
-
+    
+    支持两级存储架构：
+    - user_memory_root: 用户级记忆（偏好、经验教训、通用术语）
+    - project_memory_root: 项目级记忆（上下文、决策、架构）
+    
     Usage:
         config = MemoryConfig.from_settings()
+        
+        # 用户级操作
+        user_storage = MemoryStore(str(config.user_memory_root))
+        
+        # 项目级操作
+        project_root = config.get_project_memory_root("/path/to/project")
+        project_storage = MemoryStore(str(project_root))
     """
 
     # Storage settings
-    memory_root: Path = Field(default_factory=_default_memory_root)
-    """Root directory for file-based memory storage."""
+    user_memory_root: Path = Field(default_factory=_default_user_memory_root)
+    """Root directory for user-level memory storage (preferences, lessons, domain terms)."""
 
     # Extraction settings
     extraction_interval: int = 1
@@ -84,8 +113,7 @@ class MemoryConfig(DynamicBaseModel):
         from app.core.config import settings
 
         return cls(
-            memory_root=Path(getattr(settings, 'BRAIN_MEMORY_ROOT',
-                                     _default_memory_root())),
+            user_memory_root=Path(getattr(settings, 'BRAIN_MEMORY_ROOT', _default_user_memory_root())),
             extraction_interval=getattr(settings, 'AUTO_MEMORY_EXTRACTION_INTERVAL', 1),
             min_messages_for_extraction=getattr(settings, 'MIN_MESSAGES_FOR_EXTRACTION', 4),
             max_extraction_turns=getattr(settings, 'MAX_EXTRACTION_TURNS', 5),
@@ -100,6 +128,11 @@ class MemoryConfig(DynamicBaseModel):
             context_window_size=getattr(settings, 'CONTEXT_WINDOW_SIZE', 20),
             log_level=getattr(settings, 'MEMORY_LOG_LEVEL', 'INFO'),
         )
+
+    @staticmethod
+    def get_project_memory_root(project_path: str) -> Path:
+        """Get project-level memory root path."""
+        return get_project_memory_root(project_path)
 
     @property
     def extraction_enabled(self) -> bool:

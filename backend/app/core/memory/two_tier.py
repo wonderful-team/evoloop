@@ -28,7 +28,7 @@ Usage:
     from app.core.memory.retrieval import MemoryRetriever
 
     config = MemoryConfig.from_settings()
-    storage = MemoryStore(str(config.memory_root))
+    storage = MemoryStore(str(config.user_memory_root))
     retriever = MemoryRetriever(storage=storage, config=config)
 
     manager = TwoTierMemoryManager(storage=storage, config=config)
@@ -142,7 +142,7 @@ class TwoTierMemoryManager:
         self._retriever: Any = None
 
         if config is not None:
-            self.root = config.memory_root
+            self.root = config.user_memory_root
         elif root_path is not None:
             self.root = Path(root_path)
         else:

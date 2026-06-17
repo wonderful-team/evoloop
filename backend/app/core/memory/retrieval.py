@@ -12,7 +12,7 @@ Usage:
     from app.core.memory.store import MemoryStore
 
     config = MemoryConfig.from_settings()
-    storage = MemoryStore(str(config.memory_root))
+    storage = MemoryStore(str(config.user_memory_root))
     retriever = MemoryRetriever(storage=storage, config=config)
 
     results = await retriever.find_relevant(
@@ -48,7 +48,7 @@ class MemoryRetriever:
         from app.core.memory.config import MemoryConfig
 
         config = MemoryConfig.from_settings()
-        storage = MemoryStore(str(config.memory_root))
+        storage = MemoryStore(str(config.user_memory_root))
         retriever = MemoryRetriever(storage=storage, config=config)
     """
 
