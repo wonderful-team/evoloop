@@ -6,28 +6,34 @@ import os
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 
-from app.api.deps import TokenDep, TokenDepOptional, CurrentUserOptional
+from app.api.deps import CurrentUserOptional, TokenDep, TokenDepOptional
 from app.api.responses import ListResponse
 from app.api.schemas.projects import (
-    IndexingRequest,
+    BatchImportRequest,
+    BatchImportResponse,
+    BatchResultItem,
     CreateProjectRequest,
+    DetectedProjectItem,
+    IgnoreProjectResponse,
+    ImportProjectResponse,
+    IndexingRequest,
+    IndexingRunResponse,
+    ProjectDeleteResponse,
     ProjectStatusActivity,
     ProjectStatusResponse,
-    ProjectDeleteResponse,
-    IndexingRunResponse,
-    DetectedProjectItem,
-    ImportProjectResponse,
-    IgnoreProjectResponse,
     UnignoreProjectResponse,
-    BatchResultItem,
-    BatchImportResponse,
-    BatchImportRequest,
 )
 from app.core.evocloud import evocloud_manager
+from app.core.file import FileTraverser
 from app.core.project.sync_service import project_sync_service
+from app.core.project.utils import backfill_project_json, get_project_path
 from app.domain.codebase.indexing.manager import indexing_manager
+from app.domain.wiki.service import wiki_service
+from app.infrastructure.cache import cache
 from app.infrastructure.config.service import SystemConfigService
+from app.infrastructure.database.graph.driver import GraphManager
 from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database.vector import get_vector_store
 from app.models import Repository
 from app.utils.time import utcnow
 
@@ -67,7 +73,7 @@ def _scan_workspace_projects() -> dict[str, str]:
         return {}
 
     local_projects = {}
-    from app.core.file import FileTraverser
+
     try:
         # Level 1: Direct children of WORKSPACE_ROOT
         for entry in FileTraverser.list_entries(workspace_root):
@@ -92,7 +98,7 @@ async def get_projects(
     page: int = 1,
     page_size: int = 100,
     filter_type: str | None = None,
-    _token: TokenDepOptional = None
+    _token: TokenDepOptional = None,
 ):
     # 1. Fetch from Cloud and extract projects
     res = await evocloud_manager.api.get_projects(page, page_size, token=_token)
@@ -113,7 +119,7 @@ async def get_projects(
     # Fallback: If cloud returns empty but we have linked repos in DB, use those
     fallback_to_db = False
     if not projects:
-        logger.warning(f"[ProjectsAPI] Cloud returned empty project list, will use DB fallback for linked projects")
+        logger.warning("[ProjectsAPI] Cloud returned empty project list, will use DB fallback for linked projects")
         fallback_to_db = True
 
     try:
@@ -139,6 +145,7 @@ async def get_projects(
 
                     # Find matching repo record (may or may not have project_id)
                     repo = repo_by_name.get(project_name)
+                    last_indexed_at = repo.last_indexed_at.isoformat() if repo.last_indexed_at else None
 
                     if repo and repo.project_id == project_id:
                         # Already linked to this cloud project
@@ -147,24 +154,22 @@ async def get_projects(
                             "exists_locally": os.path.exists(actual_path),
                             "local_path": actual_path,
                             "indexing_status": repo.indexing_status,
-                            "last_indexed_at": repo.last_indexed_at.isoformat() if repo.last_indexed_at else None
+                            "last_indexed_at": last_indexed_at,
                         }
                     elif repo and repo.project_id is None:
                         # Local exists but not linked - update it to link
                         repo.project_id = project_id
                         repo.sync_status = "SYNCED"
                         repo.imported_at = utcnow()
-                        logger.info(f"[ProjectsAPI] Auto-linked project '{project_name}' to cloud ID {project_id}")
                         local_status_map[project_id] = {
                             "status": "SYNCED",
                             "exists_locally": True,
                             "local_path": actual_path,
                             "indexing_status": repo.indexing_status,
-                            "last_indexed_at": repo.last_indexed_at.isoformat() if repo.last_indexed_at else None
+                            "last_indexed_at": last_indexed_at,
                         }
                     elif repo and repo.project_id != project_id:
                         # Cloud is authoritative - update local binding to match
-                        logger.info(f"[ProjectsAPI] Updating project '{project_name}' cloud binding: {repo.project_id} -> {project_id}")
                         repo.project_id = project_id
                         repo.sync_status = "SYNCED"
                         repo.imported_at = utcnow()
@@ -173,7 +178,7 @@ async def get_projects(
                             "exists_locally": True,
                             "local_path": actual_path,
                             "indexing_status": repo.indexing_status,
-                            "last_indexed_at": repo.last_indexed_at.isoformat() if repo.last_indexed_at else None
+                            "last_indexed_at": last_indexed_at,
                         }
                     else:
                         # No local repo record - create one and auto-link
@@ -194,7 +199,7 @@ async def get_projects(
                             "exists_locally": True,
                             "local_path": actual_path,
                             "indexing_status": "pending",
-                            "last_indexed_at": None
+                            "last_indexed_at": None,
                         }
 
             logger.info(f"[ProjectsAPI] Matched {matched_count} cloud projects with local workspace")
@@ -210,11 +215,12 @@ async def get_projects(
 
             # 3.5. Fallback: If cloud is empty, build projects from linked DB repos + workspace scan
             if fallback_to_db and filter_type == "switchable":
-                logger.info(f"[ProjectsAPI] Cloud unavailable, using DB fallback for switchable projects")
+                logger.info("[ProjectsAPI] Cloud unavailable, using DB fallback for switchable projects")
                 # Find all repos that have project_id and exist in workspace
                 for repo in repos:
                     if repo.project_id and repo.name and repo.name in workspace_projects:
                         actual_path = workspace_projects[repo.name]
+                        last_indexed_at = repo.last_indexed_at.isoformat() if repo.last_indexed_at else None
                         if os.path.exists(actual_path):
                             projects.append({
                                 "project_id": repo.project_id,
@@ -229,7 +235,7 @@ async def get_projects(
                                 "exists_locally": True,
                                 "local_path": actual_path,
                                 "db_indexing_status": repo.indexing_status,
-                                "last_indexed_at": repo.last_indexed_at.isoformat() if repo.last_indexed_at else None,
+                                "last_indexed_at": last_indexed_at,
                                 "has_wiki": False,  # Will be updated below
                             })
                             local_status_map[repo.project_id] = {
@@ -237,7 +243,7 @@ async def get_projects(
                                 "exists_locally": True,
                                 "local_path": actual_path,
                                 "indexing_status": repo.indexing_status,
-                                "last_indexed_at": repo.last_indexed_at.isoformat() if repo.last_indexed_at else None
+                                "last_indexed_at": last_indexed_at,
                             }
                 if projects:
                     logger.info(f"[ProjectsAPI] Built {len(projects)} projects from DB fallback")
@@ -269,7 +275,9 @@ async def get_projects(
     # 3.5. Filter out ignored projects from the cloud list
     # Projects that were linked but then ignored should not appear
     original_count = len(projects)
-    projects = [p for p in projects if (_resolve_project_id(p)) not in ignored_project_ids]
+    projects = [
+        p for p in projects if (_resolve_project_id(p)) not in ignored_project_ids
+    ]
     filtered_count = original_count - len(projects)
     if filtered_count > 0:
         logger.info(f"[ProjectsAPI] Filtered {filtered_count} ignored projects from cloud list")
@@ -302,11 +310,12 @@ async def get_projects(
             switchable_ids = cloud_project_ids & valid_local_ids
 
             projects = [
-                p for p in projects
-                if (_resolve_project_id(p)) in switchable_ids
+                p for p in projects if (_resolve_project_id(p)) in switchable_ids
             ]
-            logger.info(f"[ProjectsAPI] Filtered to switchable projects: {len(projects)} of {original_count} "
-                       f"(cloud={len(cloud_project_ids)}, valid_local={len(valid_local_ids)}, intersection={len(switchable_ids)})")
+            logger.info(
+                f"[ProjectsAPI] Filtered to switchable projects: {len(projects)} of {original_count} "
+                f"(cloud={len(cloud_project_ids)}, valid_local={len(valid_local_ids)}, intersection={len(switchable_ids)})"
+            )
         elif filter_type == "cloud_only":
             # STRICT: Cloud only = in cloud list but NOT linked locally
             cloud_project_ids = {_resolve_project_id(p) for p in projects}
@@ -315,8 +324,7 @@ async def get_projects(
             cloud_only_ids = cloud_project_ids - local_linked_ids
 
             projects = [
-                p for p in projects
-                if (_resolve_project_id(p)) in cloud_only_ids
+                p for p in projects if (_resolve_project_id(p)) in cloud_only_ids
             ]
             logger.info(f"[ProjectsAPI] Filtered to cloud-only projects: {len(projects)} of {original_count}")
         elif filter_type == "disconnected":
@@ -331,15 +339,11 @@ async def get_projects(
             disconnected_ids = cloud_project_ids & disconnected_ids
 
             projects = [
-                p for p in projects
-                if (_resolve_project_id(p)) in disconnected_ids
+                p for p in projects if (_resolve_project_id(p)) in disconnected_ids
             ]
             logger.info(f"[ProjectsAPI] Filtered to disconnected projects: {len(projects)} of {original_count}")
 
     logger.info(f"[ProjectsAPI] Final response: {len(projects)} projects")
-
-    # 4. Enrich with Local system status (cache) and Wiki Existence (DB)
-    from app.domain.wiki.service import wiki_service
 
     # Collect IDs for batch DB query (only for locally existing projects)
     project_ids = []
@@ -356,9 +360,6 @@ async def get_projects(
     except Exception as e:
         logger.warning(f"Failed to check wiki existence: {e}")
 
-    # Batch enrichment for Local System Status (Cache)
-    from app.infrastructure.cache import cache
-
     pipe = cache.pipeline()
     project_keys = []
     for p in projects:
@@ -367,7 +368,7 @@ async def get_projects(
             keys = [
                 f"sys:{pid}:wiki",
                 f"sys:{pid}:indexing",
-                f"sys:{pid}:summarization"
+                f"sys:{pid}:summarization",
             ]
             project_keys.append(pid)
             for k in keys:
@@ -380,9 +381,9 @@ async def get_projects(
     status_map = {}
     for i, pid in enumerate(project_keys):
         # Each project has 3 keys in pipeline
-        wiki_res = pipeline_results[i*3]
-        idx_res = pipeline_results[i*3 + 1]
-        sum_res = pipeline_results[i*3 + 2]
+        wiki_res = pipeline_results[i * 3]
+        idx_res = pipeline_results[i * 3 + 1]
+        sum_res = pipeline_results[i * 3 + 2]
 
         status_map[pid] = {
             "wiki_status": wiki_res.get("status", "idle") if wiki_res else "idle",
@@ -395,7 +396,11 @@ async def get_projects(
         pid = _resolve_project_id(p)
         if pid:
             # Local Status from map
-            statuses = status_map.get(pid, {"wiki_status": "idle", "indexing_status": "idle", "summarization_status": "idle"})
+            statuses = status_map.get(pid, {
+                "wiki_status": "idle",
+                "indexing_status": "idle",
+                "summarization_status": "idle",
+            })
             p.update(statuses)
 
             # Wiki Existence (from DB)
@@ -435,16 +440,23 @@ async def create_project(req: CreateProjectRequest, _token: TokenDep):
 
     try:
         os.makedirs(project_path, exist_ok=True)
-        # Create skeleton .evoloop/project.json
+        # Create skeleton .evoloop/project.json (project_id will be backfilled after cloud sync)
         meta_dir = os.path.join(project_path, ".evoloop")
         os.makedirs(meta_dir, exist_ok=True)
-        with open(os.path.join(meta_dir, "project.json"), "w") as f:
-            f.write(f'{{"name": "{req.name}", "description": "Created via EvoLoop"}}')
+        description = "Created via EvoLoop"
+        skeleton = {
+            "name": req.name,
+            "description": description,
+            "project_id": None,
+        }
+        with open(os.path.join(meta_dir, "project.json"), "w", encoding="utf-8") as f:
+            json.dump(skeleton, f, indent=2, ensure_ascii=False)
 
         # Sync with Member Center
-        res = await evocloud_manager.api.create_project(req.name, "Created via EvoLoop", project_path, token=_token)
+        res = await evocloud_manager.api.create_project(req.name, description, project_path, token=_token)
         if res.get("code") != 0:
             logger.warning(f"Failed to sync project creation to Member Center: {res}")
+            raise HTTPException(500, f"Failed to create project in cloud: {res.get('message')}")
 
         # Invalidate cache to ensure fresh data
         evocloud_manager.invalidate_projects_cache()
@@ -452,7 +464,14 @@ async def create_project(req: CreateProjectRequest, _token: TokenDep):
         # Re-scan to get ID/Color
         projects = await evocloud_manager.scan_projects()
         new_proj = next((p for p in projects if p["name"] == req.name), None)
-        return new_proj or {"name": req.name}
+        if not new_proj:
+            raise HTTPException(500, "Project created in cloud but ID could not be resolved")
+
+        project_id = _resolve_project_id(new_proj)
+        if project_id is not None:
+            backfill_project_json(project_path, project_id)
+
+        return new_proj
     except Exception as e:
         logger.error(f"Failed to create project: {e}")
         raise HTTPException(500, str(e))
@@ -468,7 +487,6 @@ async def get_project_status(project_id: int):
     summarization_key = f"sys:{project_id}:summarization"
     wiki_key = f"sys:{project_id}:wiki"
 
-    from app.infrastructure.cache import cache
     pipe = cache.pipeline()
     pipe.hgetall(indexing_key)
     pipe.hgetall(summarization_key)
@@ -478,7 +496,8 @@ async def get_project_status(project_id: int):
 
     # Helper to parse activity data (mirrors get_activity logic but for raw hgetall results)
     def parse_act(data):
-        if not data: return {"status": "idle"}
+        if not data:
+            return {"status": "idle"}
         try:
             return {
                 "status": data.get("status", "idle"),
@@ -486,12 +505,13 @@ async def get_project_status(project_id: int):
                 "agent_state": json.loads(data.get("agent_state", "{}")),
                 "steps": json.loads(data.get("steps", "[]")),
             }
-        except: return {"status": "idle"}
+        except Exception:
+            return {"status": "idle"}
 
     return ProjectStatusResponse(
         indexing=ProjectStatusActivity.model_validate(parse_act(results[0])),
         summarization=ProjectStatusActivity.model_validate(parse_act(results[1])),
-        wiki=ProjectStatusActivity.model_validate(parse_act(results[2]))
+        wiki=ProjectStatusActivity.model_validate(parse_act(results[2])),
     )
 
 
@@ -511,62 +531,66 @@ async def delete_project(project_id: int, _token: TokenDep):
 
     # 2. Clean up local data (best effort - don't fail the API if cleanup fails)
     try:
+        project_path = await get_project_path(project_id)
+        repo: Repository | None = None
         async with session_scope() as session:
             stmt = select(Repository).where(Repository.project_id == project_id)
             result = await session.execute(stmt)
             repo = result.scalars().first()
 
-            if repo:
-                # Stop file watching
-                if repo.local_path:
-                    await indexing_manager.stop_watching(repo.local_path)
+        if repo:
+            # Resolve the actual local path; fall back to the stored local_path if resolution fails.
+            local_project_path = project_path or repo.local_path
+            # Stop file watching
+            if local_project_path:
+                await indexing_manager.stop_watching(local_project_path)
 
-                # Clear Redis cache
-                try:
-                    from app.infrastructure.cache import cache
-                    pipe = cache.pipeline()
-                    pipe.delete(f"sys:{project_id}:indexing")
-                    pipe.delete(f"sys:{project_id}:summarization")
-                    pipe.delete(f"sys:{project_id}:wiki")
-                    await pipe.execute()
-                except Exception as e:
-                    logger.warning(f"[ProjectsAPI] Failed to clear Redis cache for project {project_id}: {e}")
+            # Clear Redis cache
+            try:
+                from app.infrastructure.cache import cache
 
-                # Clean up graph data
-                from app.infrastructure.database.graph.driver import GraphManager
-                try:
-                    driver = GraphManager.get_driver()
-                    await driver.execute_query(
-                        """
-                        MATCH (f:File {project_id: $pid})
-                        OPTIONAL MATCH (f)-[:CONTAINS]->(e)
-                        DETACH DELETE e
-                        DETACH DELETE f
-                        """,
-                        pid=project_id,
-                    )
-                except NotImplementedError:
-                    logger.debug(f"[ProjectsAPI] Graph cleanup skipped (not supported in embedded mode)")
-                except Exception as e:
-                    logger.warning(f"[ProjectsAPI] Failed to cleanup graph data for project {project_id}: {e}")
+                pipe = cache.pipeline()
+                pipe.delete(f"sys:{project_id}:indexing")
+                pipe.delete(f"sys:{project_id}:summarization")
+                pipe.delete(f"sys:{project_id}:wiki")
+                await pipe.execute()
+            except Exception as e:
+                logger.warning(f"[ProjectsAPI] Failed to clear Redis cache for project {project_id}: {e}")
 
-                # Clean up vector store data (if enabled)
-                try:
-                    from app.infrastructure.database.vector import get_vector_store
-                    vector_store = get_vector_store()
-                    # Delete all chunks for this repository
-                    await asyncio.to_thread(vector_store.delete_by_repository, str(repo.id))
-                except Exception as e:
-                    logger.warning(f"[ProjectsAPI] Failed to cleanup vector store for project {project_id}: {e}")
+            try:
+                driver = GraphManager.get_driver(project_path=local_project_path)
+                await driver.execute_query(
+                    """
+                    MATCH (f:File {project_id: $pid})
+                    OPTIONAL MATCH (f)-[:CONTAINS]->(e)
+                    DETACH DELETE e
+                    DETACH DELETE f
+                    """,
+                    pid=project_id,
+                )
+            except NotImplementedError:
+                logger.debug("[ProjectsAPI] Graph cleanup skipped (not supported in embedded mode)")
+            except Exception as e:
+                logger.warning(f"[ProjectsAPI] Failed to cleanup graph data for project {project_id}: {e}")
 
-                # Delete Repository (cascade deletes SourceFile, CodeChunk, CodeEntity, CodeRelation)
-                await session.delete(repo)
-                logger.info(f"[ProjectsAPI] Deleted local repository and all associated data for project {project_id}")
-            else:
-                logger.info(f"[ProjectsAPI] No local repository found for project {project_id}")
+            # Clean up vector store data (if enabled)
+            try:
+                vector_store = get_vector_store(project_path=local_project_path)
+                # Delete all chunks for this repository
+                await asyncio.to_thread(vector_store.delete_by_repository, str(repo.id))
+            except Exception as e:
+                logger.warning(f"[ProjectsAPI] Failed to cleanup vector store for project {project_id}: {e}")
+
+            # Delete Repository (cascade deletes SourceFile, CodeChunk, CodeEntity, CodeRelation)
+            async with session_scope() as session:
+                repo_to_delete = await session.get(Repository, repo.id)
+                if repo_to_delete:
+                    await session.delete(repo_to_delete)
+                    logger.info(f"[ProjectsAPI] Deleted local repository and all associated data for project {project_id}")
+        else:
+            logger.info(f"[ProjectsAPI] No local repository found for project {project_id}")
     except Exception as e:
         logger.error(f"[ProjectsAPI] Failed to cleanup local data for project {project_id}: {e}")
-        # Don't raise - cloud deletion succeeded, local cleanup is best effort
 
     evocloud_manager.invalidate_projects_cache()
     return ProjectDeleteResponse(status="success", id=project_id)
@@ -585,6 +609,7 @@ async def run_indexing_endpoint(req: IndexingRequest):
 # Project Import Management Endpoints
 # ============================================================================
 
+
 @router.post("/scan", response_model=ListResponse[DetectedProjectItem])
 async def scan_workspace_projects_endpoint(_token: TokenDep):
     """
@@ -598,7 +623,7 @@ async def scan_workspace_projects_endpoint(_token: TokenDep):
     try:
         # Force reconciliation to find new projects
         await project_sync_service.reconcile_projects(workspace_root, force=True)
-        
+
         # Return currently detected projects
         repos = await project_sync_service.get_detected_projects()
         return ListResponse[DetectedProjectItem](
@@ -628,13 +653,18 @@ async def get_detected_projects(
 
     Returns projects with sync_status="DETECTED" that need to be imported or ignored.
 
-    Note: Returns empty list if project discovery is disabled via configuration, 
+    Note: Returns empty list if project discovery is disabled via configuration,
     unless force=True is specified.
     """
     if not force:
         # Check if project discovery is enabled via System Config (DB)
         config_value = SystemConfigService.get_value("PROJECT_DISCOVERY_ENABLED")
-        if config_value is not None and config_value.lower() not in ("true", "1", "yes", "on"):
+        if config_value is not None and config_value.lower() not in (
+            "true",
+            "1",
+            "yes",
+            "on",
+        ):
             logger.debug("[ProjectsAPI] Project discovery disabled by system config, returning empty detected list")
             return {"data": []}
 
@@ -673,7 +703,7 @@ async def import_detected_project(repo_id: int, _token: TokenDep):
             status="success",
             repo_id=repo.id,
             name=repo.name,
-            message=f"Project '{repo.name}' imported successfully"
+            message=f"Project '{repo.name}' imported successfully",
         )
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -741,7 +771,7 @@ async def unignore_project(repo_id: int, _token: TokenDep):
             status="restored",
             repo_id=repo.id,
             name=repo.name,
-            message=f"Project '{repo.name}' restored to detected state"
+            message=f"Project '{repo.name}' restored to detected state",
         )
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -767,26 +797,17 @@ async def batch_import_projects(req: BatchImportRequest, _token: TokenDep):
     for repo_id in req.repo_ids:
         try:
             repo = await project_sync_service.import_project(repo_id)
-            results["success"].append(BatchResultItem(
-                repo_id=repo.id,
-                name=repo.name
-            ))
+            results["success"].append(BatchResultItem(repo_id=repo.id, name=repo.name))
         except ValueError as e:
-            results["failed"].append(BatchResultItem(
-                repo_id=repo_id,
-                error=str(e)
-            ))
+            results["failed"].append(BatchResultItem(repo_id=repo_id, error=str(e)))
         except Exception as e:
             logger.error(f"Failed to import project {repo_id}: {e}")
-            results["failed"].append(BatchResultItem(
-                repo_id=repo_id,
-                error=str(e)
-            ))
+            results["failed"].append(BatchResultItem(repo_id=repo_id, error=str(e)))
 
     return BatchImportResponse(
         status="completed",
         summary=f"Imported {len(results['success'])} of {len(req.repo_ids)} projects",
-        results=results
+        results=results,
     )
 
 
@@ -805,19 +826,13 @@ async def batch_ignore_projects(req: BatchImportRequest, _token: TokenDep):
             await project_sync_service.ignore_project(repo_id)
             results["success"].append(BatchResultItem(repo_id=repo_id))
         except ValueError as e:
-            results["failed"].append(BatchResultItem(
-                repo_id=repo_id,
-                error=str(e)
-            ))
+            results["failed"].append(BatchResultItem(repo_id=repo_id, error=str(e)))
         except Exception as e:
             logger.error(f"Failed to ignore project {repo_id}: {e}")
-            results["failed"].append(BatchResultItem(
-                repo_id=repo_id,
-                error=str(e)
-            ))
+            results["failed"].append(BatchResultItem(repo_id=repo_id, error=str(e)))
 
     return BatchImportResponse(
         status="completed",
         summary=f"Ignored {len(results['success'])} of {len(req.repo_ids)} projects",
-        results=results
+        results=results,
     )

@@ -4,8 +4,9 @@ Replaces PostgreSQL + pgvector with embedded file-based storage.
 """
 
 import hashlib
+import threading
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import lancedb
 import pyarrow as pa
@@ -15,41 +16,42 @@ from app.core.config import settings
 from app.infrastructure.database.vector.base import BaseVectorStore
 from app.logging import logger
 from app.utils.time import utcnow
-from datetime import datetime
 
 
 class LanceVectorStore(BaseVectorStore):
     """
     LanceDB-based vector storage for local client mode.
 
+    支持项目级隔离：每个 project_path 对应一个独立的 LanceVectorStore 实例，
+    数据存储在项目目录的 .evoloop/vectors/ 下。
+
     Tables:
         - code_chunks: Code embeddings with metadata
         - doc_chunks: Document embeddings
         - kb_chunks: Knowledge base chunks
         - memories: Semantic memory embeddings
-        - skills: Learned skill embeddings
+        - skills: Learned skill embeddings (全局共享)
         - concepts: Graph concept embeddings
     """
 
-    _instance: Optional["LanceVectorStore"] = None
+    def __init__(self, db_path: str):
+        """
+        初始化 LanceVectorStore。
 
-    def __new__(cls, db_path: str | None = None):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
-
-    def __init__(self, db_path: str | None = None):
-        if self._initialized:
-            return
-
-        self.db_path = Path(db_path or settings.LANCEDB_PATH)
+        Args:
+            db_path: LanceDB 存储目录路径。
+                    项目级: {project}/.evoloop/vectors/
+                    全局级: ~/.evoloop/vectors/ (用于 skills 等)
+        """
+        self.db_path = Path(db_path)
         self.db_path.mkdir(parents=True, exist_ok=True)
         self.client = lancedb.connect(str(self.db_path))
+        # Serialize write operations on this store instance. Multiple worker
+        # threads may share the same cached LanceVectorStore for a project.
+        self._lock = threading.Lock()
 
         # Initialize tables
         self._init_tables()
-        self._initialized = True
 
         logger.info(f"[LanceVectorStore] Initialized at {self.db_path}")
 
@@ -191,6 +193,8 @@ class LanceVectorStore(BaseVectorStore):
         Upsert code chunks with embeddings.
 
         Uses delete-then-add to avoid LanceDB merge_insert concurrency issues.
+        The whole operation is serialized with a per-store lock so that
+        concurrent upserts for the same file do not interleave.
         """
         if len(chunks) != len(embeddings):
             raise ValueError("chunks and embeddings must have same length")
@@ -198,36 +202,37 @@ class LanceVectorStore(BaseVectorStore):
         if not chunks:
             return 0
 
-        #    (avoids LanceDB merge_insert concurrency bugs)
-        file_paths = {c["file_path"] for c in chunks}
-        for fp in file_paths:
-            safe_fp = fp.replace("'", "''")
-            self.code_table.delete(f"file_path = '{safe_fp}'")
+        with self._lock:
+            #    (avoids LanceDB merge_insert concurrency bugs)
+            file_paths = {c["file_path"] for c in chunks}
+            for fp in file_paths:
+                safe_fp = fp.replace("'", "''")
+                self.code_table.delete(f"file_path = '{safe_fp}'")
 
-        # 2. Generate IDs from content hash
-        ids = [
-            hashlib.md5(f"{c['file_path']}:{c['start_line']}:{c['content'][:100]}".encode()).hexdigest()
-            for c in chunks
-        ]
+            # 2. Generate IDs from content hash
+            ids = [
+                hashlib.md5(f"{c['file_path']}:{c['start_line']}:{c['content'][:100]}".encode()).hexdigest()
+                for c in chunks
+            ]
 
-        table_data = pa.table({
-            "id": ids,
-            "vector": embeddings,
-            "content": [c["content"] for c in chunks],
-            "file_path": [c["file_path"] for c in chunks],
-            "repository_id": [c.get("repository_id", "") for c in chunks],
-            "chunk_type": [c.get("chunk_type", "unknown") for c in chunks],
-            "identifier": [c.get("identifier", "") for c in chunks],
-            "start_line": [c.get("start_line", 0) for c in chunks],
-            "end_line": [c.get("end_line", 0) for c in chunks],
-            "language": [c.get("language", "unknown") for c in chunks],
-            "checksum": [hashlib.md5(c["content"].encode()).hexdigest()[:16] for c in chunks],
-            "created_at": [utcnow() for _ in chunks],
-        })
+            table_data = pa.table({
+                "id": ids,
+                "vector": embeddings,
+                "content": [c["content"] for c in chunks],
+                "file_path": [c["file_path"] for c in chunks],
+                "repository_id": [c.get("repository_id", "") for c in chunks],
+                "chunk_type": [c.get("chunk_type", "unknown") for c in chunks],
+                "identifier": [c.get("identifier", "") for c in chunks],
+                "start_line": [c.get("start_line", 0) for c in chunks],
+                "end_line": [c.get("end_line", 0) for c in chunks],
+                "language": [c.get("language", "unknown") for c in chunks],
+                "checksum": [hashlib.md5(c["content"].encode()).hexdigest()[:16] for c in chunks],
+                "created_at": [utcnow() for _ in chunks],
+            })
 
-        self.code_table.add(table_data)
-        logger.debug(f"[LanceVectorStore] Upserted {len(chunks)} code chunks")
-        return len(chunks)
+            self.code_table.add(table_data)
+            logger.debug(f"[LanceVectorStore] Upserted {len(chunks)} code chunks")
+            return len(chunks)
 
     def search_code(
         self,
@@ -303,8 +308,9 @@ class LanceVectorStore(BaseVectorStore):
     def delete_by_repository(self, repository_id: str) -> int:
         """Delete all chunks for a repository."""
         try:
-            self.code_table.delete(f"repository_id = '{repository_id.replace(chr(39), chr(39)+chr(39))}'")
-            logger.info(f"[LanceVectorStore] Deleted chunks for repo {repository_id}")
+            with self._lock:
+                self.code_table.delete(f"repository_id = '{repository_id.replace(chr(39), chr(39)+chr(39))}'")
+                logger.info(f"[LanceVectorStore] Deleted chunks for repo {repository_id}")
             return 1
         except Exception as e:
             logger.warning(f"[LanceVectorStore] Failed to delete repo {repository_id}: {e}")
@@ -319,33 +325,34 @@ class LanceVectorStore(BaseVectorStore):
         if not records:
             return 0
 
-        # Delete existing chunks for these doc_ids first
-        doc_ids = {r["source_id"] for r in records}
-        for doc_id in doc_ids:
-            try:
-                # Use parameterized-style filtering to avoid injection
-                self.kb_table.delete(f"source_id = '" + doc_id.replace("'", "''") + "'")
-            except Exception:
-                pass
+        with self._lock:
+            # Delete existing chunks for these doc_ids first
+            doc_ids = {r["source_id"] for r in records}
+            for doc_id in doc_ids:
+                try:
+                    # Use parameterized-style filtering to avoid injection
+                    self.kb_table.delete("source_id = '" + doc_id.replace("'", "''") + "'")
+                except Exception:
+                    pass
 
-        # Ensure datetime precision matches schema (ms, no microseconds)
-        now = utcnow().replace(microsecond=0)
-        table_data = pa.table({
-            "id": [r["id"] for r in records],
-            "vector": [r["vector"] for r in records],
-            "content": [r["content"] for r in records],
-            "source_type": [r.get("source_type", "kb") for r in records],
-            "source_id": [r["source_id"] for r in records],
-            "title": [r.get("title", "") for r in records],
-            "chunk_index": [r.get("chunk_index", 0) for r in records],
-            "collection": [r.get("collection", "default") for r in records],
-            "tags": [r.get("tags", "") for r in records],
-            "created_at": [r.get("created_at", now).replace(microsecond=0) for r in records],
-        })
+            # Ensure datetime precision matches schema (ms, no microseconds)
+            now = utcnow().replace(microsecond=0)
+            table_data = pa.table({
+                "id": [r["id"] for r in records],
+                "vector": [r["vector"] for r in records],
+                "content": [r["content"] for r in records],
+                "source_type": [r.get("source_type", "kb") for r in records],
+                "source_id": [r["source_id"] for r in records],
+                "title": [r.get("title", "") for r in records],
+                "chunk_index": [r.get("chunk_index", 0) for r in records],
+                "collection": [r.get("collection", "default") for r in records],
+                "tags": [r.get("tags", "") for r in records],
+                "created_at": [r.get("created_at", now).replace(microsecond=0) for r in records],
+            })
 
-        self.kb_table.add(table_data)
-        logger.debug(f"[LanceVectorStore] Upserted {len(records)} KB chunks")
-        return len(records)
+            self.kb_table.add(table_data)
+            logger.debug(f"[LanceVectorStore] Upserted {len(records)} KB chunks")
+            return len(records)
 
     def search_kb(
         self,
@@ -378,7 +385,8 @@ class LanceVectorStore(BaseVectorStore):
     def delete_kb_by_doc(self, doc_id: str) -> int:
         """Delete all chunks for a given document (T-3.1)."""
         try:
-            self.kb_table.delete(f"source_id = '{doc_id}'")
+            with self._lock:
+                self.kb_table.delete(f"source_id = '{doc_id}'")
             return 1
         except Exception as e:
             logger.warning(f"[LanceVectorStore] KB delete failed: {e}")
@@ -393,23 +401,24 @@ class LanceVectorStore(BaseVectorStore):
 
         now = utcnow().replace(microsecond=0)
 
-        # Delete existing memories for these IDs first
-        ids = {r["id"] for r in records}
-        for mid in ids:
-            self.memory_table.delete(f"id = '{mid.replace(chr(39), chr(39)+chr(39))}'")
+        with self._lock:
+            # Delete existing memories for these IDs first
+            ids = {r["id"] for r in records}
+            for mid in ids:
+                self.memory_table.delete(f"id = '{mid.replace(chr(39), chr(39)+chr(39))}'")
 
-        table_data = pa.table({
-            "id": [r["id"] for r in records],
-            "vector": [r["vector"] for r in records],
-            "text": [r.get("text", "") or r.get("content", "") for r in records],
-            "project_id": [r.get("project_id") if r.get("project_id") is not None else DEFAULT_PROJECT_ID for r in records],
-            "member_id": [r.get("member_id") for r in records],
-            "created_at": [r.get("created_at", now).replace(microsecond=0) for r in records],
-        })
+            table_data = pa.table({
+                "id": [r["id"] for r in records],
+                "vector": [r["vector"] for r in records],
+                "text": [r.get("text", "") or r.get("content", "") for r in records],
+                "project_id": [r.get("project_id") if r.get("project_id") is not None else DEFAULT_PROJECT_ID for r in records],
+                "member_id": [r.get("member_id") for r in records],
+                "created_at": [r.get("created_at", now).replace(microsecond=0) for r in records],
+            })
 
-        self.memory_table.add(table_data)
-        logger.debug(f"[LanceVectorStore] Upserted {len(records)} memory chunks")
-        return len(records)
+            self.memory_table.add(table_data)
+            logger.debug(f"[LanceVectorStore] Upserted {len(records)} memory chunks")
+            return len(records)
 
     def search_memory(
         self,
@@ -426,7 +435,7 @@ class LanceVectorStore(BaseVectorStore):
                 where_clauses.append(f"project_id = {filters['project_id']}")
             if "member_id" in filters and filters["member_id"] is not None:
                 where_clauses.append(f"member_id = {filters['member_id']}")
-            
+
             if where_clauses:
                 query = query.where(" AND ".join(where_clauses))
 
@@ -445,13 +454,15 @@ class LanceVectorStore(BaseVectorStore):
 
     def delete_memory_by_id(self, memory_id: str) -> bool:
         """Remove a specific memory entry by its ID."""
-        self.memory_table.delete(f"id = '{memory_id.replace(chr(39), chr(39)+chr(39))}'")
+        with self._lock:
+            self.memory_table.delete(f"id = '{memory_id.replace(chr(39), chr(39)+chr(39))}'")
         return True
 
     def delete_all_memories(self) -> int:
         """Wipe all memory entries."""
-        count = self.memory_table.count_rows()
-        self.memory_table.delete("true")
+        with self._lock:
+            count = self.memory_table.count_rows()
+            self.memory_table.delete("true")
         return count
 
     # -- skills -----------------------------------------------------------
@@ -474,22 +485,23 @@ class LanceVectorStore(BaseVectorStore):
             "created_at": [r.get("created_at", now).replace(microsecond=0) for r in records],
         })
 
-        self.skills_table.add(table_data)
+        with self._lock:
+            self.skills_table.add(table_data)
         return len(records)
 
     def search_skills(self, query_vector: list[float], bundle_id: str | None = None, platform: str | None = None, top_k: int = 10) -> list[dict[str, Any]]:
         """Semantic search over learned skills with Atlas filtering."""
         query = self.skills_table.search(query_vector)
-        
+
         filters = []
         if bundle_id:
             filters.append(f"bundle_id = '{bundle_id}'")
         if platform:
             filters.append(f"platform = '{platform}'")
-        
+
         if filters:
             query = query.where(" AND ".join(filters))
-            
+
         results = query.limit(top_k).to_list()
         return [
             {
@@ -522,7 +534,8 @@ class LanceVectorStore(BaseVectorStore):
             "created_at": [r.get("created_at", now).replace(microsecond=0) for r in records],
         })
 
-        self.concepts_table.add(table_data)
+        with self._lock:
+            self.concepts_table.add(table_data)
         return len(records)
 
     def search_concepts(self, query_vector: list[float], top_k: int = 10) -> list[dict[str, Any]]:
@@ -555,19 +568,21 @@ class LanceVectorStore(BaseVectorStore):
 
     def compact(self):
         """Compact database files."""
-        self.code_table.compact_files()
-        self.doc_table.compact_files()
-        self.memory_table.compact_files()
-        self.skills_table.compact_files()
-        self.concepts_table.compact_files()
+        with self._lock:
+            self.code_table.compact_files()
+            self.doc_table.compact_files()
+            self.memory_table.compact_files()
+            self.skills_table.compact_files()
+            self.concepts_table.compact_files()
         logger.info("[LanceVectorStore] Database compacted")
 
     def truncate_all(self) -> None:
         """Wipe all data from all LanceDB tables."""
-        for table_name in ["code_chunks", "doc_chunks", "kb_chunks", "memories", "skills", "concepts"]:
-            try:
-                table = self.client.open_table(table_name)
-                table.delete("true")
-            except Exception as e:
-                logger.warning(f"[LanceVectorStore] Failed to truncate {table_name}: {e}")
+        with self._lock:
+            for table_name in ["code_chunks", "doc_chunks", "kb_chunks", "memories", "skills", "concepts"]:
+                try:
+                    table = self.client.open_table(table_name)
+                    table.delete("true")
+                except Exception as e:
+                    logger.warning(f"[LanceVectorStore] Failed to truncate {table_name}: {e}")
         logger.info("[LanceVectorStore] All tables truncated")

@@ -25,6 +25,7 @@ from app.core.engine.dispatch import dispatch_agent_run
 from app.core.environment.capabilities.registry import ActionRegistry, ActionDef
 from app.core.environment.controllers.mirror_session import mirror_manager
 from app.core.execution.macro.service import MacroService
+from app.core.events.publishers import publish_skill_mutated
 from app.core.learning.discovery import skill_discovery
 from app.core.learning.multimodal_synthesizer import (
     MultimodalSkillSynthesizer,
@@ -384,14 +385,17 @@ async def synthesize_skill(body: SynthesizeRequest, current_user: CurrentUserOpt
                 macro_script=skill.macro_script,  # Already YAML string
             )
             db.add(db_skill)
-            await db.flush()  # Get ID
+            await db.flush()
 
-            return SynthesizeSkillResponse(
-                success=True,
-                skill_id=db_skill.id,
-                skill_name=unique_name,
-                skill_yaml=skill.to_yaml(),
-            )
+        # Notify sync service
+        await publish_skill_mutated(skill_id=db_skill.id, action="create")
+
+        return SynthesizeSkillResponse(
+            success=True,
+            skill_id=db_skill.id,
+            skill_name=unique_name,
+            skill_yaml=skill.to_yaml(),
+        )
 
     except Exception as e:
         logger.exception(f"Skill synthesis failed: {str(e)}")
@@ -548,7 +552,17 @@ async def delete_skill(skill_id: int, current_user: CurrentUserOptional = None):
             # 3. Physical Delete from DB
             await db.delete(skill)
             await db.flush()
-            
+
+            # Capture info before session closes
+            _deleted_namespace = skill.namespace
+            _deleted_name = skill.name
+
+        # Notify sync service
+        await publish_skill_mutated(
+            skill_id=skill_id, action="delete",
+            namespace=_deleted_namespace, name=_deleted_name,
+        )
+
         return BaseAPIResponse(success=True, message=f"Skill {skill_id} physically deleted")
     finally:
         # 4. Invalidate Cache
@@ -613,7 +627,10 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest, current_user: Cu
 
             # 3. Commit (Automatic via session_scope exit, but we want to return updated data)
             await db.flush()
-            
+
+        # Notify sync service
+        await publish_skill_mutated(skill_id=skill_id, action="update")
+
         return UpdateSkillResponse(
             success=True,
             message=f"Skill {skill_id} updated",
@@ -1249,8 +1266,11 @@ async def synthesize_from_recording(request: SynthesizeFromRecordingRequest, cur
                 db_skill.validation_report = verification
                 await db.flush()
 
-            # 生成 YAML 输出
-            skill_yaml = f"""---
+        # Notify sync service
+        await publish_skill_mutated(skill_id=db_skill.id, action="create")
+
+        # 生成 YAML 输出
+        skill_yaml = f"""---
 name: {skill_data['name']}
 namespace: {skill_data.get('namespace', 'misc')}
 description: {skill_data['description']}
@@ -1261,20 +1281,20 @@ parameters: {json.dumps(skill_data.get('parameters', []))}
 {skill_data['instructions']}
 """
 
-            processing_time = time.time() - start_time
+        processing_time = time.time() - start_time
 
-            return SynthesizeFromRecordingResponse(
-                success=True,
-                skill_id=db_skill.id,
-                skill_name=skill_data["name"],
-                skill_yaml=skill_yaml,
-                macro_script=skill_data.get("macro_script"),  # Should be YAML string from synthesizer
-                verification=verification,
-                error=None,
-                processing_time_seconds=round(processing_time, 2),
-                frames_analyzed=metadata["frames_analyzed"],
-                events_processed=metadata["events_processed"]
-            )
+        return SynthesizeFromRecordingResponse(
+            success=True,
+            skill_id=db_skill.id,
+            skill_name=skill_data["name"],
+            skill_yaml=skill_yaml,
+            macro_script=skill_data.get("macro_script"),  # Should be YAML string from synthesizer
+            verification=verification,
+            error=None,
+            processing_time_seconds=round(processing_time, 2),
+            frames_analyzed=metadata["frames_analyzed"],
+            events_processed=metadata["events_processed"]
+        )
 
     except HTTPException:
         raise
@@ -1822,22 +1842,24 @@ async def confirm_learned_skill(skill_id: int, current_user: CurrentUserOptional
             raise HTTPException(status_code=404, detail="Skill not found")
 
         if skill.status != "pending_review":
-            return BaseAPIResponse(
-                success=False, 
-                message=f"Skill is not in pending_review status (current: {skill.status})"
+            raise HTTPException(
+                status_code=400,
+                detail=f"Skill is not in pending_review status (current: {skill.status})"
             )
 
         # 更新状态
         skill.status = "verified"
         skill.is_active = True
         
-        # 记录日志
         logger.info(f"Skill {skill.id} ({skill.name}) confirmed by user.")
-        
-        return BaseAPIResponse(
-            success=True, 
-            message=f"Skill '{skill.name}' confirmed and activated."
-        )
+
+    # Notify sync service
+    await publish_skill_mutated(skill_id=skill_id, action="update")
+
+    return BaseAPIResponse(
+        success=True, 
+        message=f"Skill '{skill.name}' confirmed and activated."
+    )
 
 
 
@@ -1904,14 +1926,16 @@ async def create_skill_from_yaml(
             )
             db.add(skill)
             await db.flush()
-            
-            return CreateSkillFromYamlResponse(
-                success=True,
-                skill_id=skill.id,
-                skill_name=unique_name,
-                step_count=len(macro_script),
-            )
-            
+
+        # Notify sync service
+        await publish_skill_mutated(skill_id=skill.id, action="create")
+
+        return CreateSkillFromYamlResponse(
+            success=True,
+            skill_id=skill.id,
+            skill_name=unique_name,
+            step_count=len(macro_script),
+        )
     except YAMLError as e:
         raise HTTPException(status_code=400, detail=f"YAML error: {str(e)}")
     except Exception as e:
@@ -1998,7 +2022,10 @@ async def update_skill_yaml(
             
             skill.macro_script = yaml_content
             await db.flush()
-            
+
+        # Notify sync service
+        await publish_skill_mutated(skill_id=skill_id, action="update")
+
         # Return step count by parsing
         steps = macro_from_yaml(yaml_content)
         return UpdateSkillFromYamlResponse(

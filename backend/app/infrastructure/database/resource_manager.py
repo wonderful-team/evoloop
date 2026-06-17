@@ -7,18 +7,26 @@ including SQLAlchemy (Async), SQLModel (Sync), Raw PG/SQLite pools, and Vector s
 
 Unified lifespan management for both EMBEDDED_MODE and Full Mode.
 Handles Table Creation and Initial Data Seeding.
+
+Thread-safety note:
+    Huey runs worker threads with independent asyncio event loops. SQLAlchemy's
+    async engine and aiosqlite connections are bound to the loop that created
+    them, so this manager keeps a separate async engine / session factory /
+    checkpointer per event loop. The synchronous engine is shared across threads.
 """
 
 import asyncio
 import logging
 import threading
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncGenerator
+from typing import Any
 
-from sqlalchemy import text, NullPool
+from sqlalchemy import NullPool, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlmodel import SQLModel, create_engine as create_sync_engine
+from sqlmodel import SQLModel
+from sqlmodel import create_engine as create_sync_engine
 
 from app.core.config import settings
 
@@ -29,29 +37,42 @@ class DatabaseResourceManager:
     """
     Singleton manager for all database resources.
     """
+
     _instance = None
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
-            # Use threading.Lock instead of asyncio.Lock to avoid
-            # "bound to a different event loop" errors when Huey worker
-            # threads call initialize() concurrently with the main loop.
             cls._instance._init_lock = threading.Lock()
-            cls._instance._engine = None  # Async Engine
-            cls._instance._sync_engine = None  # Sync Engine
-            cls._instance._session_factory = None
-            cls._instance._db_pool = None  # Postgres pool
-            cls._instance._sqlite_conn = None  # Shared SQLite connection
-            cls._instance._checkpointer = None
-            cls._instance._vector_store = None
+            cls._instance._sync_engine = None  # Sync Engine (shared across threads)
+
+            # Per-event-loop async resources. asyncio objects are bound to the
+            # loop that created them; sharing them between Huey worker threads
+            # causes "bound to a different event loop" errors.
+            cls._instance._engines: dict[int, Any] = {}
+            cls._instance._session_factories: dict[int, Any] = {}
+            cls._instance._sqlite_conns: dict[int, Any] = {}
+            cls._instance._checkpointers: dict[int, Any] = {}
+            cls._instance._vector_stores: dict[int, Any] = {}
+            cls._instance._initialized_loops: set[int] = set()
+            cls._instance._tables_ensured = False
+            cls._instance._seeded = False
+
+            cls._instance._db_pool = None  # Postgres pool (full mode, global)
             cls._instance._task_queue_path = None
         return cls._instance
 
+    def _current_loop_id(self) -> int:
+        """Return the id of the currently running event loop, or -1 if none."""
+        try:
+            return id(asyncio.get_running_loop())
+        except RuntimeError:
+            return -1
+
     @property
     def engine(self):
-        return self._engine
+        """Return the async engine for the current event loop."""
+        return self._engines.get(self._current_loop_id())
 
     @property
     def sync_engine(self):
@@ -59,15 +80,18 @@ class DatabaseResourceManager:
 
     @property
     def session_factory(self):
-        return self._session_factory
+        """Return the session factory for the current event loop."""
+        return self._session_factories.get(self._current_loop_id())
 
     @property
     def checkpointer(self):
-        return self._checkpointer
+        """Return the checkpointer for the current event loop."""
+        return self._checkpointers.get(self._current_loop_id())
 
     @property
     def vector_store(self):
-        return self._vector_store
+        """Return the vector store for the current event loop."""
+        return self._vector_stores.get(self._current_loop_id())
 
     @property
     def writes_table(self) -> str:
@@ -81,28 +105,42 @@ class DatabaseResourceManager:
 
     async def initialize(self, create_tables: bool = True, seed_data: bool = True):
         """Initialize all database resources (SQL, Checkpointer, Vector)."""
+        loop_id = self._current_loop_id()
+        if loop_id == -1:
+            raise RuntimeError(
+                "DatabaseResourceManager.initialize() must be called from a running event loop"
+            )
+
         with self._init_lock:
-            if self._initialized:
+            if loop_id in self._initialized_loops:
                 return
 
-            logger.info(f"🚀 Initializing Unified Database System (EMBEDDED_MODE={settings.EMBEDDED_MODE})")
+            logger.info(
+                f"🚀 Initializing Unified Database System (EMBEDDED_MODE={settings.EMBEDDED_MODE}, loop={loop_id})"
+            )
 
             # 1. Initialize Engines (Async and Sync)
             db_uri = settings.SQLALCHEMY_DATABASE_URI
-            sync_db_uri = str(db_uri).replace("+aiosqlite", "").replace("+asyncpg",
-                                                                        "")  # Strip async drivers for sync engine
+            sync_db_uri = (
+                str(db_uri).replace("+aiosqlite", "").replace("+asyncpg", "")
+            )  # Strip async drivers for sync engine
 
             if settings.EMBEDDED_MODE:
-                self._engine = create_async_engine(
+                engine = create_async_engine(
                     db_uri,
                     echo=settings.DB_ECHO,
                     future=True,
                     poolclass=NullPool,
                     connect_args={"check_same_thread": False},
                 )
-                self._sync_engine = create_sync_engine(sync_db_uri, poolclass=NullPool, connect_args={"check_same_thread": False})
+                if self._sync_engine is None:
+                    self._sync_engine = create_sync_engine(
+                        sync_db_uri,
+                        poolclass=NullPool,
+                        connect_args={"check_same_thread": False},
+                    )
             else:
-                self._engine = create_async_engine(
+                engine = create_async_engine(
                     db_uri,
                     echo=settings.DB_ECHO,
                     future=True,
@@ -110,47 +148,58 @@ class DatabaseResourceManager:
                     max_overflow=settings.DB_MAX_OVERFLOW,
                     connect_args={"connect_timeout": settings.DB_CONNECT_TIMEOUT},
                 )
-                self._sync_engine = create_sync_engine(
-                    sync_db_uri,
-                    pool_size=settings.DB_POOL_SIZE,
-                    max_overflow=settings.DB_MAX_OVERFLOW,
-                    connect_args={"connect_timeout": settings.DB_CONNECT_TIMEOUT},
-                )
+                if self._sync_engine is None:
+                    self._sync_engine = create_sync_engine(
+                        sync_db_uri,
+                        pool_size=settings.DB_POOL_SIZE,
+                        max_overflow=settings.DB_MAX_OVERFLOW,
+                        connect_args={"connect_timeout": settings.DB_CONNECT_TIMEOUT},
+                    )
 
-            pool_class = type(self._engine.sync_engine.pool).__name__
-            logger.info(f"[ResourceManager] SQL Engine: {db_uri} (pool={pool_class})")
+            self._engines[loop_id] = engine
+            pool_class = type(engine.sync_engine.pool).__name__
+            logger.info(
+                f"[ResourceManager] SQL Engine: {db_uri} (pool={pool_class}, loop={loop_id})"
+            )
 
-            self._session_factory = async_sessionmaker(
-                bind=self._engine,
-                class_=AsyncSession,
-                expire_on_commit=False
+            self._session_factories[loop_id] = async_sessionmaker(
+                bind=engine, class_=AsyncSession, expire_on_commit=False
             )
 
             # 2. Initialize Checkpointer Resources
             # IMPORTANT: We must set journal mode BEFORE other engines touch the DB to avoid locking issues
-            await self._init_checkpointer()
+            await self._init_checkpointer(loop_id)
 
-            # 3. Initialize Tables & Extensions
-            if create_tables:
-                await self._ensure_tables_exist()
+            # 3. Initialize Tables & Extensions (once globally)
+            if create_tables and not self._tables_ensured:
+                await self._ensure_tables_exist(engine)
+                self._tables_ensured = True
 
             # 4. Vector Store Initialization
             from app.infrastructure.database.vector import get_vector_store
-            self._vector_store = get_vector_store()
 
-            # 5. Seed Initial Data
-            if seed_data:
+            self._vector_stores[loop_id] = get_vector_store()
+
+            # 5. Seed Initial Data (once globally)
+            if seed_data and not self._seeded:
                 await self._seed_initial_data()
+                self._seeded = True
 
-            self._initialized = True
+            self._initialized_loops.add(loop_id)
 
-    async def _ensure_tables_exist(self):
+    async def _ensure_tables_exist(self, engine):
         """Execute metadata.create_all and handle extensions."""
         from app.infrastructure.database.sql.database import Base
-        from app.models import conversation, checkpoint, codebase, learning, memory  # noqa: F401
+        from app.models import (  # noqa: F401
+            checkpoint,
+            codebase,
+            conversation,
+            learning,
+            memory,
+        )
 
         logger.info("[ResourceManager] Ensuring tables exist...")
-        async with self._engine.begin() as conn:
+        async with engine.begin() as conn:
             if not settings.EMBEDDED_MODE:
                 await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
 
@@ -159,46 +208,67 @@ class DatabaseResourceManager:
 
         logger.info("[ResourceManager] Tables and extensions verified")
 
-    async def _init_checkpointer(self):
-        """Initialize the appropriate LangGraph checkpointer."""
+    async def _init_checkpointer(self, loop_id: int):
+        """Initialize the appropriate LangGraph checkpointer for the given loop."""
         if settings.EMBEDDED_MODE:
             import aiosqlite
             # AsyncSqliteSaver is imported inside FixedAsyncSqliteSaver's module
 
             db_uri_raw = settings.SQLALCHEMY_DATABASE_URI
-            sqlite_path = db_uri_raw.replace("sqlite+aiosqlite:///", "").replace("sqlite://", "")
+            sqlite_path = db_uri_raw.replace("sqlite+aiosqlite:///", "").replace(
+                "sqlite://", ""
+            )
 
-            self._sqlite_conn = await aiosqlite.connect(sqlite_path)
+            sqlite_conn = await aiosqlite.connect(sqlite_path)
             # FIX: Use DELETE journal mode instead of WAL to prevent checkpoint loss.
             # WAL mode can cause intermittent write failures under certain conditions,
             # leading to missing checkpoints while messages continue to be saved.
-            await self._sqlite_conn.execute("PRAGMA journal_mode=DELETE")
-            await self._sqlite_conn.execute("PRAGMA busy_timeout=30000")
-            await self._sqlite_conn.commit()
-            from app.infrastructure.database.checkpoint_saver import FixedAsyncSqliteSaver
-            self._checkpointer = FixedAsyncSqliteSaver(conn=self._sqlite_conn)
-            await self._checkpointer.setup()
-            logger.info("[ResourceManager] SQLite checkpointer initialized (DELETE mode, busy_timeout=30s)")
-        else:
-            from psycopg_pool import AsyncConnectionPool
-            from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-
-            self._db_pool = AsyncConnectionPool(
-                conninfo=str(settings.SQLALCHEMY_DATABASE_URI).replace("+psycopg", ""),
-                max_size=settings.DB_CHECKPOINTER_POOL_SIZE,
-                kwargs={"autocommit": True, "connect_timeout": settings.DB_CONNECT_TIMEOUT},
-                open=False
+            await sqlite_conn.execute("PRAGMA journal_mode=DELETE")
+            await sqlite_conn.execute("PRAGMA busy_timeout=30000")
+            await sqlite_conn.commit()
+            from app.infrastructure.database.checkpoint_saver import (
+                FixedAsyncSqliteSaver,
             )
-            await self._db_pool.open()
-            self._checkpointer = AsyncPostgresSaver(self._db_pool)
-            await self._checkpointer.setup()
-            logger.info("[ResourceManager] Postgres checkpointer initialized")
+
+            checkpointer = FixedAsyncSqliteSaver(conn=sqlite_conn)
+            await checkpointer.setup()
+
+            self._sqlite_conns[loop_id] = sqlite_conn
+            self._checkpointers[loop_id] = checkpointer
+            logger.info(
+                f"[ResourceManager] SQLite checkpointer initialized (loop={loop_id})"
+            )
+        else:
+            from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+            from psycopg_pool import AsyncConnectionPool
+
+            if self._db_pool is None:
+                self._db_pool = AsyncConnectionPool(
+                    conninfo=str(settings.SQLALCHEMY_DATABASE_URI).replace(
+                        "+psycopg", ""
+                    ),
+                    max_size=settings.DB_CHECKPOINTER_POOL_SIZE,
+                    kwargs={
+                        "autocommit": True,
+                        "connect_timeout": settings.DB_CONNECT_TIMEOUT,
+                    },
+                    open=False,
+                )
+                await self._db_pool.open()
+
+            checkpointer = AsyncPostgresSaver(self._db_pool)
+            await checkpointer.setup()
+            self._checkpointers[loop_id] = checkpointer
+            logger.info(
+                f"[ResourceManager] Postgres checkpointer initialized (loop={loop_id})"
+            )
 
     async def _seed_initial_data(self):
         """Trigger data seeding (initial_data.init)."""
         try:
             from app.initial_data import init as seed_init
-            # Seed init usually uses the sync engine via app.core.db 
+
+            # Seed init usually uses the sync engine via app.core.db
             # (which we are about to replace with a proxy to our sync_engine)
             await asyncio.to_thread(seed_init)
             logger.info("[ResourceManager] Initial data seeding complete")
@@ -209,13 +279,17 @@ class DatabaseResourceManager:
         """Close all connections and pools."""
         logger.info("🔌 Shutting down Database Resources")
 
-        # Close vector store
-        if self._vector_store and hasattr(self._vector_store, "close"):
-            self._vector_store.close()
-            logger.info("[ResourceManager] Vector store closed")
+        # Close vector stores
+        for vs in self._vector_stores.values():
+            if vs and hasattr(vs, "close"):
+                vs.close()
+        self._vector_stores.clear()
+        logger.info("[ResourceManager] Vector stores closed")
 
-        if self._engine:
-            await self._engine.dispose()
+        for engine in self._engines.values():
+            await engine.dispose()
+        self._engines.clear()
+        self._session_factories.clear()
 
         if self._sync_engine:
             self._sync_engine.dispose()
@@ -223,32 +297,43 @@ class DatabaseResourceManager:
 
         if self._db_pool:
             await self._db_pool.close()
+            self._db_pool = None
 
-        if self._sqlite_conn:
-            await self._sqlite_conn.close()
+        for conn in self._sqlite_conns.values():
+            await conn.close()
+        self._sqlite_conns.clear()
+        self._checkpointers.clear()
 
-        self._initialized = False
+        self._initialized_loops.clear()
+        self._tables_ensured = False
+        self._seeded = False
 
     async def close(self):
         """Close all database resources."""
         with self._init_lock:
-            if self._engine:
-                await self._engine.dispose()
-            self._engine = None
-            
+            for engine in self._engines.values():
+                await engine.dispose()
+            self._engines.clear()
+            self._session_factories.clear()
+
             if self._sync_engine:
                 self._sync_engine.dispose()
                 self._sync_engine = None
 
-            self._session_factory = None
-            self._initialized = False
+            for conn in self._sqlite_conns.values():
+                await conn.close()
+            self._sqlite_conns.clear()
+            self._checkpointers.clear()
+
+            self._vector_stores.clear()
+            self._initialized_loops.clear()
+            self._tables_ensured = False
+            self._seeded = False
             logger.info("🔌 Database resources closed and reset.")
 
     async def reset(self):
         """Alias for close() to match testing patterns."""
         await self.close()
-
-        self._initialized = False
 
     @property
     def task_queue_path(self) -> Path:
@@ -256,6 +341,7 @@ class DatabaseResourceManager:
         if not self._task_queue_path:
             # Consistent with previous default but managed here
             from app.core.config import settings
+
             self._task_queue_path = Path(settings.SQLITE_PATH).parent / "task_queue.db"
         return self._task_queue_path
 
@@ -264,8 +350,11 @@ class DatabaseResourceManager:
         """Provides a raw database connection suitable for non-ORM SQL tasks."""
         if settings.EMBEDDED_MODE:
             import aiosqlite
+
             db_uri_raw = settings.SQLALCHEMY_DATABASE_URI
-            sqlite_path = db_uri_raw.replace("sqlite+aiosqlite:///", "").replace("sqlite://", "")
+            sqlite_path = db_uri_raw.replace("sqlite+aiosqlite:///", "").replace(
+                "sqlite://", ""
+            )
             async with aiosqlite.connect(sqlite_path) as conn:
                 await conn.execute("PRAGMA busy_timeout=30000")
                 yield conn
