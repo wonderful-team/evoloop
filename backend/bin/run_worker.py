@@ -11,8 +11,8 @@ Environment:
 """
 
 import argparse
+import asyncio
 import logging
-import os
 import signal
 import sys
 from pathlib import Path
@@ -23,20 +23,20 @@ sys.path.insert(0, str(PROJECT_DIR))
 
 # Configure logging before importing app modules
 logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("worker")
 
 
 def setup_signal_handlers(consumer):
     """Setup graceful shutdown on SIGINT/SIGTERM."""
+
     def signal_handler(signum, frame):
         logger.info(f"[Worker] Received signal {signum}, shutting down gracefully...")
         if consumer:
             consumer.stop()
         sys.exit(0)
-    
+
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
@@ -45,17 +45,17 @@ def run_huey_worker(workers: int = 2, verbose: bool = False):
     """Run Huey worker as standalone process."""
     from app.infrastructure.queue.huey_queue import get_huey_scheduler
     from huey.consumer import Consumer
-    
+
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
         # Ensure task-related loggers are verbose
-        for name in ['app.core.engine.tasks', 'app.infrastructure.queue']:
+        for name in ["app.core.engine.tasks", "app.infrastructure.queue"]:
             logging.getLogger(name).setLevel(logging.DEBUG)
     else:
         # Even in non-verbose mode, ensure we see task errors
-        logging.getLogger('app.core.engine.tasks').setLevel(logging.INFO)
-        logging.getLogger('app.infrastructure.queue').setLevel(logging.INFO)
-    
+        logging.getLogger("app.core.engine.tasks").setLevel(logging.INFO)
+        logging.getLogger("app.infrastructure.queue").setLevel(logging.INFO)
+
     logger.info("=" * 60)
     logger.info("EvoLoop Task Queue Worker")
     logger.info("=" * 60)
@@ -63,24 +63,38 @@ def run_huey_worker(workers: int = 2, verbose: bool = False):
     logger.info(f"Workers: {workers}")
     logger.info(f"Worker Type: thread (SQLite compatible)")
     logger.info("=" * 60)
-    
+
     # Get Huey scheduler
     scheduler = get_huey_scheduler()
-    
+
     # Pre-load all task modules before starting consumer
     # This ensures tasks are registered in the worker process
     logger.info("[Worker] Pre-loading task modules...")
     scheduler._preload_task_modules()
-    
+
+    # Warm up Embedder model so worker threads share the cached instance.
+    logger.info("[Worker] Pre-loading embedding model...")
+    try:
+        from app.infrastructure.embeddings.factory import EmbedderFactory
+        from app.infrastructure.embeddings.local import LocalEmbedder
+
+        embedder = EmbedderFactory.get_embedder()
+        # Force the actual model load now so tasks never pay the cost.
+        if isinstance(embedder, LocalEmbedder):
+            asyncio.run(embedder._get_model())
+        logger.info(f"[Worker] Embedding model loaded: {type(embedder).__name__}")
+    except Exception as e:
+        logger.warning(f"[Worker] Failed to pre-load embedding model: {e}")
+
     huey = scheduler.get_huey()
-    
+
     logger.info(f"[Worker] Initializing Huey Consumer...")
-    
+
     # Create consumer
     consumer = Consumer(
         huey,
         workers=workers,
-        worker_type='thread',
+        worker_type="thread",
         initial_delay=0.1,
         max_delay=60.0,
         backoff=1.15,
@@ -89,15 +103,15 @@ def run_huey_worker(workers: int = 2, verbose: bool = False):
         check_worker_health=True,
         health_check_interval=10,
     )
-    
+
     logger.info(f"[Worker] Consumer created with {workers} workers")
-    
+
     # Setup signal handlers for graceful shutdown
     setup_signal_handlers(consumer)
-    
+
     logger.info("[Worker] Starting consumer (Press Ctrl+C to stop)...")
     logger.info("-" * 60)
-    
+
     try:
         # Run consumer (blocks until stopped)
         consumer.run()
@@ -112,19 +126,19 @@ def run_huey_worker(workers: int = 2, verbose: bool = False):
 def run_celery_worker(workers: int = 2, verbose: bool = False):
     """Run Celery worker as standalone process."""
     from app.infrastructure.queue.factory import get_scheduler
-    
+
     logger.info("=" * 60)
     logger.info("EvoLoop Celery Worker")
     logger.info("=" * 60)
     logger.info(f"Workers: {workers}")
-    
+
     argv = [
         "worker",
         "--loglevel=debug" if verbose else "--loglevel=info",
         f"--concurrency={workers}",
         "--queues=celery",
     ]
-    
+
     logger.info(f"[Worker] Starting Celery with args: {argv}")
     scheduler = get_scheduler()
     scheduler.worker_main(argv=argv)
@@ -146,25 +160,25 @@ Based on EMBEDDED_MODE setting:
   EMBEDDED_MODE=false → Celery worker (requires Redis)
         """
     )
-    
+
     parser.add_argument(
         "--workers",
         type=int,
         default=2,
         help="Number of worker threads/processes (default: 2)"
     )
-    
+
     parser.add_argument(
         "--verbose", "-v",
         action="store_true",
         help="Enable verbose (debug) logging"
     )
-    
+
     args = parser.parse_args()
-    
+
     # Import settings after setting up logging
     from app.core.config import settings
-    
+
     if settings.EMBEDDED_MODE:
         logger.info("[Worker] Embedded mode: starting Huey worker")
         run_huey_worker(args.workers, args.verbose)
