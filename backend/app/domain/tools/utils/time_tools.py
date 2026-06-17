@@ -7,7 +7,6 @@ logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
-    is_pollable=True,
     is_state_mutating=True,
     is_hidden=True,
     summary_template="evoloop.tool_summary.wait_for"

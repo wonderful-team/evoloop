@@ -152,7 +152,6 @@ async def cancel_request(request_id: str) -> bool:
 @evoloop_tool(
     "ask_human",
     args_schema=RequestHumanInputArgs,
-    is_pollable=True,
     is_hitl=True,
     summary_template="evoloop.tool_summary.ask_user",
     handle_tool_error=False,  # HITL must propagate interrupt exception
@@ -284,7 +283,6 @@ async def ask_human(
 @evoloop_tool(
     "ask_confirm",
     args_schema=RequestApprovalArgs,
-    is_pollable=True,
     is_hitl=True,
     summary_template="evoloop.tool_summary.ask_user",
     handle_tool_error=False,  # HITL must propagate interrupt exception

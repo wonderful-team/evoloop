@@ -7,7 +7,6 @@ logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
-    is_pollable=False,
     summary_template="evoloop.tool_summary.list_skills"
 )
 async def list_skills(namespace: str | None = None, query: str | None = None) -> str:

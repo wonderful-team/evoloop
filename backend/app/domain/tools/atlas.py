@@ -8,7 +8,6 @@ logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
-    is_pollable=True,
     is_hidden=True,
     summary_template="evoloop.tool_summary.query_app_atlas"
 )
@@ -42,7 +41,6 @@ async def query_app_atlas(
 
 
 @evoloop_tool(
-    is_pollable=True,
     is_hidden=True,
     summary_template="evoloop.tool_summary.list_app_atlas"
 )
@@ -68,7 +66,6 @@ async def list_app_atlas() -> str:
 
 
 @evoloop_tool(
-    is_pollable=False,
     summary_template="evoloop.tool_summary.clear_app_atlas"
 )
 async def clear_app_atlas() -> str:

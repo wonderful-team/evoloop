@@ -8,7 +8,6 @@ logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
-    is_pollable=False,
     summary_template="evoloop.tool_summary.read_skill_sop"
 )
 async def read_skill_sop(skill_id: int) -> str:

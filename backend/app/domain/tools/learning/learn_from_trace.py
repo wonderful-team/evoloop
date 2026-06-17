@@ -3,8 +3,9 @@ import time
 
 from sqlalchemy import select
 
+from app.core.events.publishers import publish_skill_mutated
 from app.core.learning.skill_synthesizer import WorkflowSynthesizer
-from app.core.tools.base import evoloop_tool
+from app.core.tools import evoloop_tool
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.models.learning import LearnedSkill
@@ -54,6 +55,8 @@ async def learn_from_trace(thread_id: str, session_id: str | None = None) -> str
             )
             db.add(new_skill)
             # Commit happens automatically on exit of session_scope
+
+        await publish_skill_mutated(skill_id=new_skill.id, action="create")
 
         return i18n.get(
             "domain_tools.learning.success",
