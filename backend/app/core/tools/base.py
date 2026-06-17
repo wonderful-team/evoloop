@@ -58,7 +58,6 @@ def get_working_directory(config: RunnableConfig | None = None) -> str:
 def evoloop_tool(
     *args,
     config: EvoLoopToolConfig | None = None,
-    is_pollable: bool = False,
     is_state_mutating: bool = False,
     affected_path_keys: list[str] | None = None,
     summary_template: str | None = None,
@@ -76,7 +75,6 @@ def evoloop_tool(
     # Build config from legacy kwargs when not provided explicitly
     if config is None:
         config = EvoLoopToolConfig(
-            is_pollable=is_pollable,
             is_state_mutating=is_state_mutating,
             affected_path_keys=affected_path_keys or [],
             summary_template=summary_template,
@@ -105,25 +103,19 @@ def evoloop_tool(
                         if not has_benefit:
                             from app.api.deps import create_benefit_error_detail
                             error_detail = create_benefit_error_detail(config.required_benefit)
-                            from app.core.tools.schemas import ToolRegistryMetadata
-                            metadata = ToolRegistryMetadata(summary_template=config.summary_template)
-                            display_name = metadata.get_display_name(func_name, args=input_data)
+                            display_name = config.get_display_name(func_name, args=input_data)
                             return ToolResult(
                                 json.dumps(error_detail.model_dump(), ensure_ascii=False),
                                 meta={"status": "error", "error": "permission_denied"},
                                 display_name=display_name
                             )
                     except Exception:
-                        # In embedded/test mode, if benefit check fails due to infra,
-                        # allow the tool to proceed (graceful degradation)
                         if not settings.EMBEDDED_MODE:
                             raise
                 elif not settings.EMBEDDED_MODE:
                     from app.api.deps import create_benefit_error_detail
                     error_detail = create_benefit_error_detail(config.required_benefit)
-                    from app.core.tools.schemas import ToolRegistryMetadata
-                    metadata = ToolRegistryMetadata(summary_template=config.summary_template)
-                    display_name = metadata.get_display_name(func_name, args=input_data)
+                    display_name = config.get_display_name(func_name, args=input_data)
                     return ToolResult(
                         json.dumps(error_detail.model_dump(), ensure_ascii=False),
                         meta={"status": "error", "error": "permission_denied"},
@@ -167,9 +159,7 @@ def evoloop_tool(
                     result = str(result)
 
             # Render display_name and Wrap in ToolResult
-            from app.core.tools.schemas import ToolRegistryMetadata
-            metadata = ToolRegistryMetadata(summary_template=config.summary_template)
-            display_name = metadata.get_display_name(func_name, args={**input_data, **result_meta})
+            display_name = config.get_display_name(func_name, args={**input_data, **result_meta})
 
             return ToolResult(result, meta=result_meta, display_name=display_name)
 
@@ -188,57 +178,17 @@ def evoloop_tool(
                     result = await func(*args_f, **kwargs_f)
                     return _process_result(result, func.__name__, input_data)
                 except Exception as e:
-                    from app.core.tools.schemas import ToolRegistryMetadata
-                    metadata = ToolRegistryMetadata(summary_template=config.summary_template)
-                    display_name = metadata.get_display_name(func.__name__, args=input_data)
+                    display_name = config.get_display_name(func.__name__, args=input_data)
                     return ToolResult(f"Error: {str(e)}", meta={"status": "error", "error": str(e)}, display_name=display_name)
         else:
             @functools.wraps(func)
             def wrapper(*args_f, **kwargs_f):
-                # 提取 input_data 用于 display_name 渲染
                 input_data = {k: v for k, v in kwargs_f.items() if k != "config" and not k.startswith("_")}
-                
-                # Check permission (sync wrapper)
-                if config.required_benefit:
-                    # In a sync context, we need to run the async permission check
-                    # We use a helper to ensure it runs correctly in the current event loop or a new one
-                    try:
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
-                            # This is risky if called from the main thread, but sync tools are 
-                            # usually called from threads.
-                            # For safety, we use a more robust way if asgiref is available, 
-                            # but here we'll use a simple approach.
-                            import threading
-                            result_container = []
-                            def run_in_thread():
-                                try:
-                                    res = asyncio.run(_check_permission(func.__name__, input_data))
-                                    result_container.append(res)
-                                except Exception as e:
-                                    result_container.append(e)
-                            
-                            t = threading.Thread(target=run_in_thread)
-                            t.start()
-                            t.join()
-                            perm_error = result_container[0]
-                        else:
-                            perm_error = asyncio.run(_check_permission(func.__name__, input_data))
-                    except RuntimeError:
-                        perm_error = asyncio.run(_check_permission(func.__name__, input_data))
-                    
-                    if isinstance(perm_error, Exception):
-                        raise perm_error
-                    if perm_error:
-                        return perm_error
-
                 try:
                     result = func(*args_f, **kwargs_f)
                     return _process_result(result, func.__name__, input_data)
                 except Exception as e:
-                    from app.core.tools.schemas import ToolRegistryMetadata
-                    metadata = ToolRegistryMetadata(summary_template=config.summary_template)
-                    display_name = metadata.get_display_name(func.__name__, args=input_data)
+                    display_name = config.get_display_name(func.__name__, args=input_data)
                     return ToolResult(f"Error: {str(e)}", meta={"status": "error", "error": str(e)}, display_name=display_name)
 
         # Mark for Auto-Discovery on the wrapper function
@@ -251,7 +201,6 @@ def evoloop_tool(
         if tool_instance.metadata is None:
             tool_instance.metadata = {}
 
-        tool_instance.metadata["is_pollable"] = config.is_pollable
         tool_instance.metadata["is_state_mutating"] = config.is_state_mutating
         tool_instance.metadata["affected_path_keys"] = config.affected_path_keys
         tool_instance.metadata["summary_template"] = config.summary_template

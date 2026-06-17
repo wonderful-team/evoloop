@@ -27,7 +27,7 @@ class CodeExplorationEngine:
     """
     
     def __init__(self):
-        from app.domain.tools.coding.lsp import LSPManager
+        from app.infrastructure.solidlsp.manager import LSPManager
         self.lsp_manager = LSPManager.get_instance()
     
     async def find_symbol(
