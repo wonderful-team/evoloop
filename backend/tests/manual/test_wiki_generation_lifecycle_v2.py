@@ -351,7 +351,7 @@ async def _ensure_skill(force_reimport: bool = True):
     from app.core.config import settings
     from app.core.learning.skill_importer import SkillImporter
 
-    import_path = os.path.join(settings.SKILLS_DIR, "roles", "wiki_generation")
+    import_path = os.path.join(settings.SKILLS_DIR, "wiki_generation")
     if os.path.isdir(import_path):
         logger.info("[Test] Importing Wiki Generation skill...")
         await SkillImporter.import_from_directory(settings.SKILLS_DIR)

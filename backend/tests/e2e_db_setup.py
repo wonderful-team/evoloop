@@ -1,14 +1,12 @@
 """
 E2E 测试数据库初始化 —— 绕过 vector store（lancedb/pyarrow 架构不兼容）。
 """
-import asyncio
 import logging
 import os
 import tempfile
 from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel, create_engine as create_sync_engine
 
 from app.core.config import settings
@@ -47,7 +45,7 @@ async def init_test_database():
 
     # Create tables
     from app import models  # noqa: F401 - Register all models
-    from app.domain.project.requirements import models as _req_models  # noqa: F401
+    from app.core.project import models as _req_models  # noqa: F401
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
