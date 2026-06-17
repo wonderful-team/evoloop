@@ -99,3 +99,33 @@ async def publish_user_logged_out() -> None:
             data={},
         )
     )
+
+
+async def publish_skill_mutated(
+    skill_id: int,
+    action: str,
+    namespace: str | None = None,
+    name: str | None = None,
+) -> None:
+    """Publish a skill lifecycle event (created/updated/deleted)."""
+    event_type_map = {
+        "create": SystemEventType.SKILL_CREATED,
+        "update": SystemEventType.SKILL_UPDATED,
+        "delete": SystemEventType.SKILL_DELETED,
+    }
+    event_type = event_type_map.get(action)
+    if not event_type:
+        return
+
+    await system_bus.publish(
+        BaseEvent(
+            event_type=event_type,
+            source="learning",
+            data={
+                "skill_id": skill_id,
+                "action": action,
+                "namespace": namespace,
+                "name": name,
+            },
+        )
+    )

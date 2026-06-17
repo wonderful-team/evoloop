@@ -26,11 +26,11 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.engine.message.reference import reference_service
 from app.core.project.utils import get_project_path
-from app.constants import DEFAULT_PROJECT_ID
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Conversation
 
@@ -101,6 +101,14 @@ async def dispatch_agent_run(
         if project_path:
             working_directory = project_path
             thread_context_store.set_working_directory(thread_id, project_path)
+        elif project_id != DEFAULT_PROJECT_ID:
+            # Project mode but path cannot be resolved: do NOT fall back to
+            # WORKSPACE_ROOT or default_root. This prevents the agent from
+            # operating on the wrong directory.
+            logger.error(
+                f"[Dispatch] Failed to resolve local path for project_id={project_id}; "
+                "refusing to fall back to WORKSPACE_ROOT"
+            )
     if not working_directory:
         working_directory = thread_context_store.get_working_directory(thread_id)
 
@@ -118,7 +126,7 @@ async def dispatch_agent_run(
         if working_directory:
             update_data["working_directory"] = working_directory
         context = context.model_copy(update=update_data)
-    
+
     ContextManager.set(context)
     await ContextManager.save(thread_id)
 
@@ -128,7 +136,7 @@ async def dispatch_agent_run(
     if upload_session_id:
         tmp_dir = os.path.join(settings.CHAT_UPLOAD_DIR, f"tmp_{upload_session_id}")
         final_dir = os.path.join(settings.CHAT_UPLOAD_DIR, thread_id)
-        
+
         if os.path.exists(tmp_dir) and os.path.isdir(tmp_dir):
             try:
                 # If final_dir already exists (multi-upload), merge contents
@@ -229,7 +237,7 @@ async def dispatch_agent_run(
             if msg_id:
                 from app.core.engine.message.factory import MessageBlockFactory
                 from app.core.engine.message.publisher import MessagePublisher
-                
+
                 block = MessageBlockFactory.from_event(
                     thread_id=thread_id,
                     sequence_number=seq,
@@ -307,11 +315,11 @@ async def persist_user_message(
             category="user",
             is_visible=True,
         )
-        
+
         if msg_id:
             from app.core.engine.message.factory import MessageBlockFactory
             from app.core.engine.message.publisher import MessagePublisher
-            
+
             block = MessageBlockFactory.from_event(
                 thread_id=thread_id,
                 sequence_number=seq,
@@ -324,5 +332,5 @@ async def persist_user_message(
             resolved_project_id = project_id if project_id is not None else conversation.project_id
             publisher = MessagePublisher(thread_id=thread_id, project_id=resolved_project_id)
             await publisher.publish(block, channels={"sse"})
-            
+
         return msg_id

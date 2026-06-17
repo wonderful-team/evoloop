@@ -9,6 +9,7 @@ Provides security gates for tool execution:
 
 import logging
 import re
+from typing import Any
 
 from app.core.engine.hooks.core import HookContext, HookEvent, HookResult, hook_system
 
@@ -36,10 +37,10 @@ _DANGEROUS_PATTERNS = [
 async def elevated_privilege_gate(context: HookContext) -> HookResult:
     """
     Block commands requiring elevated privileges (sudo, su, pkexec).
-    
+
     This prevents the Agent from getting stuck waiting for password input,
     which would cause a timeout without clear error indication.
-    
+
     Priority 5 (lower than default 100) ensures this runs early in the hook chain.
     """
     command = context.tool_input.command if context.tool_input else ""
@@ -61,7 +62,7 @@ async def elevated_privilege_gate(context: HookContext) -> HookResult:
                     f"1. 寻找无需{description}的替代方案\n"
                     f"2. 使用 `ask_human` 工具请求用户协助执行\n"
                     f"3. 如需长期使用，请配置免密 sudo 或使用容器环境"
-                )
+                ),
             )
 
     return HookResult(success=True)
@@ -71,7 +72,7 @@ async def elevated_privilege_gate(context: HookContext) -> HookResult:
 async def dangerous_command_gate(context: HookContext) -> HookResult:
     """
     Block potentially dangerous system commands.
-    
+
     These commands may cause system instability or security risks.
     Priority 6 runs after elevated_privilege_gate.
     """
@@ -92,13 +93,17 @@ async def dangerous_command_gate(context: HookContext) -> HookResult:
                     f"此类命令可能影响系统安全或稳定性。\n\n"
                     f"**如需执行**：\n"
                     f"使用 `ask_human` 工具请求用户明确确认后手动执行"
-                )
+                ),
             )
 
     return HookResult(success=True)
 
 
-@hook_system.register(HookEvent.PRE_TOOL_USE, matcher="^(view_file|grep_search|read_file|replace_file_content|multi_replace_file_content|write_to_file)$", priority=4)
+@hook_system.register(
+    HookEvent.PRE_TOOL_USE,
+    matcher="^(view_file|grep_search|read_file|replace_file_content|multi_replace_file_content|write_to_file)$",
+    priority=4,
+)
 async def sensitive_file_protection_gate(context: HookContext) -> HookResult:
     """
     Hard security check to block the Agent from reading or modifying sensitive config/env files.
@@ -115,7 +120,13 @@ async def sensitive_file_protection_gate(context: HookContext) -> HookResult:
         paths_to_check.append(tool_input.path)
     if tool_input.args:
         # Check standard file tool parameters
-        for key in ("AbsolutePath", "TargetFile", "SearchPath", "TargetDirectory", "DirectoryPath"):
+        for key in (
+            "AbsolutePath",
+            "TargetFile",
+            "SearchPath",
+            "TargetDirectory",
+            "DirectoryPath",
+        ):
             val = tool_input.args.get(key)
             if val and isinstance(val, str):
                 paths_to_check.append(val)
@@ -131,12 +142,23 @@ async def sensitive_file_protection_gate(context: HookContext) -> HookResult:
                 message=(
                     f"[SECURITY VIOLATION] Access Denied: Reading or modifying system environment configurations "
                     f"or customer profiles ({path}) is strictly prohibited to prevent credential leakage."
-                )
+                ),
+            )
+        # Protect project metadata so project_id -> path mappings cannot be altered or deleted by the agent.
+        if ".evoloop" in path_lower:
+            logger.warning(f"[SecurityHook] Blocked access to project metadata via {tool_name}: {path}")
+            return HookResult(
+                success=False,
+                block=True,
+                message=(
+                    f"[SECURITY VIOLATION] Access Denied: Reading or modifying project metadata ({path}) is "
+                    "prohibited to protect project identity and local path mappings."
+                ),
             )
 
     # 3. Check grep query to prevent searching for secrets in env files
     if tool_name == "grep_search" and tool_input.args:
-        query = tool_input.args.get("Query") or ""
+        tool_input.args.get("Query") or ""
         search_path = tool_input.args.get("SearchPath") or ""
         if search_path:
             search_path_lower = search_path.lower()
@@ -145,7 +167,14 @@ async def sensitive_file_protection_gate(context: HookContext) -> HookResult:
                 return HookResult(
                     success=False,
                     block=True,
-                    message="[SECURITY VIOLATION] Access Denied: Searching inside system environment configurations or customer profiles is prohibited."
+                    message="[SECURITY VIOLATION] Access Denied: Searching inside system environment configurations or customer profiles is prohibited.",
+                )
+            if ".evoloop" in search_path_lower:
+                logger.warning(f"[SecurityHook] Blocked grep search in project metadata: {search_path}")
+                return HookResult(
+                    success=False,
+                    block=True,
+                    message="[SECURITY VIOLATION] Access Denied: Searching inside project metadata is prohibited.",
                 )
 
     return HookResult(success=True)
@@ -162,8 +191,7 @@ async def sensitive_file_placeholder_replacement_gate(context: HookContext) -> H
         return HookResult(success=True)
 
     from app.infrastructure.config.vault import SecureVaultService
-    from typing import Any
-    
+
     # Store decrypted secrets locally to avoid fetching multiple times and to use for post-execution mask
     decrypted_cache = {}
     injected_secrets = set()
@@ -177,20 +205,20 @@ async def sensitive_file_placeholder_replacement_gate(context: HookContext) -> H
             matches = list(pattern.finditer(val))
             if not matches:
                 return val
-                
+
             # Perform substitutions from right to left to avoid index shift issues
             new_val = val
             for match in reversed(matches):
                 placeholder = match.group(0)
                 identifier = match.group(1)
                 key = match.group(2)
-                
+
                 try:
                     if identifier not in decrypted_cache:
                         decrypted_cache[identifier] = SecureVaultService.get_credential_payload(
                             identifier, project_id=project_id
                         )
-                    
+
                     payload = decrypted_cache[identifier]
                     if key in payload:
                         secret_value = str(payload[key])
@@ -201,7 +229,7 @@ async def sensitive_file_placeholder_replacement_gate(context: HookContext) -> H
                 except (KeyError, PermissionError) as e:
                     raise ValueError(f"Failed to resolve secure placeholder {placeholder}: {e}")
             return new_val
-            
+
         elif isinstance(val, dict):
             return {k: substitute_value(v) for k, v in val.items()}
         elif isinstance(val, list):
@@ -222,16 +250,13 @@ async def sensitive_file_placeholder_replacement_gate(context: HookContext) -> H
             tool_input.args = substitute_value(tool_input.args)
     except ValueError as e:
         logger.error(f"[SecureVault] Substitution failed: {e}")
-        return HookResult(
-            success=False,
-            block=True,
-            message=f"[SECURITY ERROR] {e}"
-        )
+        return HookResult(success=False, block=True, message=f"[SECURITY ERROR] {e}")
 
     # Save injected secrets in context.extra for post-execution sanitization
     if injected_secrets:
         context.extra["injected_secrets"] = list(injected_secrets)
         from app.core.context.manager import ContextManager
+
         try:
             ctx = ContextManager.current()
             if not hasattr(ctx, "injected_secrets") or ctx.injected_secrets is None:
@@ -250,7 +275,21 @@ async def sensitive_file_censorship_gate(context: HookContext) -> HookResult:
     by replacing them with '******'.
     """
     injected_secrets = context.extra.get("injected_secrets")
-    logger.info(f"[CENSOR DEBUG] injected_secrets={injected_secrets}, has_tool_result={context.tool_result is not None}, output={context.tool_result.output if context.tool_result else None}")
+    # Fallback to EvoContext-scoped secrets if this hook context was reset between tool calls.
+    if not injected_secrets:
+        try:
+            from app.core.context.manager import ContextManager
+
+            ctx = ContextManager.current()
+            ctx_secrets = getattr(ctx, "injected_secrets", None)
+            if ctx_secrets:
+                injected_secrets = list(ctx_secrets)
+        except Exception as e:
+            logger.debug(f"[CENSOR] Failed to read EvoContext injected_secrets: {e}")
+
+    logger.info(
+        f"[CENSOR DEBUG] injected_secrets={injected_secrets}, has_tool_result={context.tool_result is not None}, output={context.tool_result.output if context.tool_result else None}"
+    )
     if not injected_secrets or not context.tool_result:
         return HookResult(success=True)
 
@@ -278,6 +317,3 @@ async def sensitive_file_censorship_gate(context: HookContext) -> HookResult:
         context.tool_result.data = sanitize_value(context.tool_result.data)
 
     return HookResult(success=True, modified_context=context)
-
-
-logger.info("[SecurityHooks] Security hooks registered: elevated_privilege_gate, dangerous_command_gate, sensitive_file_protection_gate, sensitive_file_placeholder_replacement_gate, sensitive_file_censorship_gate")

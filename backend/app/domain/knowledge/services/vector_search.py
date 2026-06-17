@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 class KBVectorSearchService:
     """
     Semantic vector search for knowledge base documents.
+    
+    支持项目级隔离：每个方法调用时根据 project_path 获取对应的 vector store。
 
     Usage:
         service = KBVectorSearchService()
@@ -26,15 +28,22 @@ class KBVectorSearchService:
             title="Document Title",
             content="full content...",
             collection="myapp",
-            tags=["api", "auth"]
+            tags=["api", "auth"],
+            project_path="/path/to/project"
         )
 
-        results = await service.search("authentication methods", collection="myapp", top_k=5)
+        results = await service.search("authentication methods", collection="myapp", top_k=5, project_path="/path/to/project")
     """
 
     def __init__(self, vector_store: Optional[BaseVectorStore] = None):
-        self.vector_store = vector_store or get_vector_store()
+        self._default_vector_store = vector_store  # For backward compatibility
         self._embedder = None
+
+    def _get_vector_store(self, project_path: str | None = None) -> BaseVectorStore:
+        """Get vector store for the given project."""
+        if self._default_vector_store and project_path is None:
+            return self._default_vector_store
+        return get_vector_store(project_path=project_path)
 
     async def _get_embedder(self):
         """Lazy-load embedder."""
@@ -84,6 +93,7 @@ class KBVectorSearchService:
         content: str,
         collection: str = "default",
         tags: Optional[list[str]] = None,
+        project_path: str | None = None,
     ) -> int:
         """
         Chunk, embed, and index a document for semantic search.
@@ -94,6 +104,7 @@ class KBVectorSearchService:
             content: Full document content
             collection: Collection name
             tags: List of tags
+            project_path: 项目本地路径（用于获取项目级 vector store）
 
         Returns:
             Number of chunks indexed
@@ -122,7 +133,8 @@ class KBVectorSearchService:
                     "created_at": datetime.utcnow(),
                 })
 
-            await asyncio.to_thread(self.vector_store.upsert_kb_chunks, records)
+            vector_store = self._get_vector_store(project_path)
+            await asyncio.to_thread(vector_store.upsert_kb_chunks, records)
             return len(records)
 
         except Exception as e:
@@ -134,6 +146,7 @@ class KBVectorSearchService:
         query: str,
         collection: Optional[str] = None,
         top_k: int = 10,
+        project_path: str | None = None,
     ) -> list[dict]:
         """
         Semantic search over knowledge base chunks.
@@ -142,6 +155,7 @@ class KBVectorSearchService:
             query: Natural language query
             collection: Filter by collection
             top_k: Maximum results
+            project_path: 项目本地路径（用于获取项目级 vector store）
 
         Returns:
             List of results with content, doc_id, title, score
@@ -149,8 +163,9 @@ class KBVectorSearchService:
         try:
             embedder = await self._get_embedder()
             query_vector = await embedder.embed_query(query)
+            vector_store = self._get_vector_store(project_path)
             return await asyncio.to_thread(
-                self.vector_store.search_kb,
+                vector_store.search_kb,
                 query_vector=query_vector,
                 top_k=top_k,
                 collection=collection,
@@ -159,9 +174,10 @@ class KBVectorSearchService:
             logger.warning(f"Vector search failed: {e}")
             return []
 
-    def delete_document(self, doc_id: str) -> int:
+    def delete_document(self, doc_id: str, project_path: str | None = None) -> int:
         """Remove all vector chunks for a document."""
-        return self.vector_store.delete_kb_by_doc(doc_id)
+        vector_store = self._get_vector_store(project_path)
+        return vector_store.delete_kb_by_doc(doc_id)
 
 
 # Singleton instance

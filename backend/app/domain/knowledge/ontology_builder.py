@@ -11,21 +11,25 @@ class OntologyBuilder:
     Transforms 'Call Graph' into 'Architecture Graph'.
     """
 
-    async def infer_relationships(self, project_id: int):
+    async def infer_relationships(self, project_path: str, project_id: int):
         """
         Main entry point to infer relationships.
         Strategies:
         1. Dependency Inference (Directory Level)
         2. Inheritance Inference (Concept Level)
+        
+        Args:
+            project_path: 项目本地路径（用于获取项目级 graph driver）
+            project_id: 项目 ID（用于图数据查询）
         """
-        await self._infer_directory_dependencies(project_id)
-        # await self._infer_concept_inheritance(project_id) # V2
+        await self._infer_directory_dependencies(project_path, project_id)
+        # await self._infer_concept_inheritance(project_path, project_id) # V2
 
-    async def _infer_directory_dependencies(self, project_id: int):
+    async def _infer_directory_dependencies(self, project_path: str, project_id: int):
         """
         If many files in Dir A call files in Dir B, then Dir A DEPENDS_ON Dir B.
         """
-        driver = await get_graph_db()
+        driver = await get_graph_db(project_path=project_path)
 
         try:
             # Cypher Logic:

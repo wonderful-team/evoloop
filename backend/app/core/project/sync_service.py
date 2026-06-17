@@ -5,11 +5,12 @@ import os
 from sqlalchemy import select
 
 from app.core.evocloud import evocloud_manager
-from app.domain.codebase.indexing.service import IndexingService
+from app.core.file import is_ignored_path
 from app.core.project import cache as project_cache
+from app.core.project.utils import backfill_project_json
+from app.domain.codebase.indexing.service import IndexingService
 from app.infrastructure.database.sql.database import session_scope
 from app.models.codebase import Repository
-from app.core.file import is_ignored_path
 from app.utils.time import utcnow
 
 logger = logging.getLogger(__name__)
@@ -74,6 +75,8 @@ class ProjectSyncService:
 
             repo_name = os.path.basename(cloud_path)
             repo = await self._indexing_service.get_or_create_repo(cloud_path, repo_name)
+            if repo.project_id:
+                backfill_project_json(cloud_path, repo.project_id)
             await indexing_manager.start_watching(cloud_path, repo.id)
 
         except Exception as e:
@@ -135,6 +138,7 @@ class ProjectSyncService:
                         name=repo_name,
                         url="local",
                         local_path=path,
+                        relative_path=repo_name,
                         sync_status="SYNCED",  # Directly synced
                         indexing_status="pending",  # Will be indexed after auto-link
                         detected_at=utcnow(),
@@ -147,6 +151,9 @@ class ProjectSyncService:
 
                     logger.info(f"[ProjectSync] Project '{repo_name}' auto-linked and SYNCED (ID: {repo.id})")
 
+                    # Persist project_id into local .evoloop/project.json
+                    backfill_project_json(abs_path, cloud_project_id)
+
                     # Auto-trigger indexing (no user confirmation needed)
                     await self._trigger_auto_indexing(repo, path)
 
@@ -156,6 +163,7 @@ class ProjectSyncService:
                         name=repo_name,
                         url="local",
                         local_path=path,
+                        relative_path=repo_name,
                         sync_status="DETECTED",
                         indexing_status="not_needed",  # Not indexed until user imports
                         detected_at=utcnow(),
@@ -168,7 +176,9 @@ class ProjectSyncService:
                     logger.info(f"[ProjectSync] Project '{repo_name}' created with status DETECTED (ID: {repo.id})")
 
                     # Publish NewProjectDetectedEvent for frontend notification
-                    from app.core.project.event.publishers import publish_new_project_detected
+                    from app.core.project.event.publishers import (
+                        publish_new_project_detected,
+                    )
 
                     await publish_new_project_detected(
                         repo_id=repo.id,
@@ -267,6 +277,7 @@ class ProjectSyncService:
             logger.info(f"[ProjectSync] Project '{repo.name}' imported by user (ID: {repo_id})")
 
             # Sync to Cloud synchronously
+            cloud_project_id = None
             try:
                 res = await evocloud_manager.api.create_project(
                     name=repo.name,
@@ -277,12 +288,17 @@ class ProjectSyncService:
                     new_pid = res["data"]["project_id"]
                     repo.project_id = new_pid
                     repo.sync_status = "SYNCED"
+                    cloud_project_id = new_pid
                     evocloud_manager.invalidate_projects_cache()
                     logger.info(f"[ProjectSync] Project '{repo.name}' synced to cloud (ID: {new_pid})")
                 else:
                     logger.warning(f"[ProjectSync] Cloud create failed: {res.get('message')}")
             except Exception as e:
                 logger.error(f"[ProjectSync] Cloud sync failed: {e}")
+
+        # Persist project_id into local .evoloop/project.json
+        if cloud_project_id and repo.local_path:
+            backfill_project_json(repo.local_path, cloud_project_id)
 
         # Publish ProjectCreatedEvent to trigger indexing
         try:
@@ -382,21 +398,21 @@ class ProjectSyncService:
         Includes an idempotency guard to prevent infinite event loops.
         """
         repo_name = os.path.basename(path)
-        
+
         # 1. Fetch ALL records for this path (handling duplicates)
         try:
             async with session_scope() as session:
                 stmt = select(Repository).where(Repository.local_path == path)
                 result = await session.execute(stmt)
                 all_repos = result.scalars().all()
-                
+
                 if not all_repos:
                     logger.debug(f"[ProjectSync] No repository records found for path: {path}")
                     return
 
                 # 2. Filter records that are NOT yet marked as DISCONNECTED
                 to_disconnect = [r for r in all_repos if r.sync_status != "DISCONNECTED"]
-                
+
                 # 3. Guard: If all are already DISCONNECTED, stop here to prevent infinite event loop
                 if not to_disconnect:
                     logger.debug(f"[ProjectSync] Project {repo_name} already marked as DISCONNECTED. Skipping.")
@@ -408,14 +424,14 @@ class ProjectSyncService:
                     db_repo = await session.get(Repository, r.id)
                     if db_repo:
                         db_repo.sync_status = "DISCONNECTED"
-                
-                
+
+
                 # Metadata for event (use the first updated record)
                 repo_id = to_disconnect[0].id
                 project_id = to_disconnect[0].project_id
-                
+
                 logger.info(f"[ProjectSync] Project {repo_name} marked as DISCONNECTED ({len(to_disconnect)} records updated).")
-                
+
         except Exception as e:
             logger.error(f"[ProjectSync] Error updating disconnect status for {path}: {e}")
             return
@@ -481,12 +497,14 @@ class ProjectSyncService:
             r = await session.get(type(repo), repo.id)
             if r:
                 r.local_path = dest_path
+                r.relative_path = new_name
                 r.name = new_name
                 # If it was disconnected, moving it might reconnect it?
                 if r.sync_status == "DISCONNECTED":
                     r.sync_status = "SYNCED"
                 session.add(r)
 
+        # Note: .evoloop/project.json moves with the directory, so project_id is preserved.
         # 6. Start New Watch
         await indexing_manager.start_watching(dest_path, repo.id)
 
@@ -519,13 +537,13 @@ class ProjectSyncService:
         from app.infrastructure.config.service import SystemConfigService
         discovery_config = SystemConfigService.get_value("PROJECT_DISCOVERY_ENABLED")
         is_discovery_enabled = force or discovery_config is None or discovery_config.lower() in ("true", "1", "yes", "on")
-        
+
         if not is_discovery_enabled:
-            logger.info(f"[ProjectSync] Project discovery is disabled. Skipping new project detection.")
-        
+            logger.info("[ProjectSync] Project discovery is disabled. Skipping new project detection.")
+
         if force:
-            logger.info(f"[ProjectSync] Forced reconciliation triggered. Ignoring discovery config.")
-        
+            logger.info("[ProjectSync] Forced reconciliation triggered. Ignoring discovery config.")
+
         logger.info(f"[ProjectSync] Starting Reconciliation on {root_path}...")
 
         # 1. Scan Filesystem (Direct subdirectories only using unified traverser)
@@ -591,7 +609,7 @@ class ProjectSyncService:
                     async with session_scope() as session:
                         r = await session.get(Repository, repo.id)
                         if r:
-                            # If it has project_id, it was likely SYNCED. 
+                            # If it has project_id, it was likely SYNCED.
                             # If not, it was DETECTED or PENDING_CREATION.
                             if r.project_id:
                                 r.sync_status = "SYNCED"
@@ -611,7 +629,9 @@ class ProjectSyncService:
                 if repo.sync_status == "PENDING_CREATION":
                     logger.info(f"[ProjectSync] Retrying cloud sync for: {p}")
                     try:
-                        from app.core.project.sync_tasks import sync_project_to_cloud_task
+                        from app.core.project.sync_tasks import (
+                            sync_project_to_cloud_task,
+                        )
                         sync_project_to_cloud_task.delay(repo.id)
                     except Exception as e:
                         logger.error(f"[ProjectSync] Failed to queue retry: {e}")

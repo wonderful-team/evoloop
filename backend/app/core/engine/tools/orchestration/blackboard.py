@@ -7,7 +7,7 @@ internal state mutations are never leaked into the user-facing chat stream.
 
 import logging
 
-from app.core.tools.base import evoloop_tool
+from app.core.tools import evoloop_tool
 
 logger = logging.getLogger(__name__)
 

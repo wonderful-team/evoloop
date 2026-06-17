@@ -5,12 +5,12 @@ import os
 from langchain_core.output_parsers import JsonOutputParser
 
 from app.constants import DEFAULT_PROJECT_ID
+from app.core import file as file_utils
 from app.core.evocloud import evocloud_manager
 from app.core.monitoring.activity import activity_monitor
 from app.core.project.service import project_context_manager
 from app.infrastructure.database.graph.driver import get_graph_db
 from app.infrastructure.queue.factory import get_scheduler, shared_task
-from app.core import file as file_utils
 from app.utils import json as json_utils
 from app.utils.async_utils import flush_loop_bound_resources
 
@@ -55,7 +55,7 @@ async def _summarize_project_logic(name: str, path: str):
         # 1. Fetch Deep Architectural Summary from Graph (if available)
         arch_summary = "Not available yet."
         try:
-            driver = await get_graph_db()
+            driver = await get_graph_db(project_path=path)
             async with driver.session() as session:
                 # Check for Root Directory Node
                 # Logic: path should match exactly.
@@ -74,7 +74,7 @@ async def _summarize_project_logic(name: str, path: str):
                     # Try fallback: maybe path needs trailing slash?
                     pass
         except NotImplementedError:
-            logger.debug(f"[ProjectSummarizer] Graph summary not available in embedded mode")
+            logger.debug("[ProjectSummarizer] Graph summary not available in embedded mode")
         except Exception as e:
             logger.warning(f"[ProjectSummarizer] Failed to fetch graph summary: {e}")
 
@@ -124,6 +124,9 @@ async def _summarize_project_logic(name: str, path: str):
         os.makedirs(meta_dir, exist_ok=True)
 
         meta_file = os.path.join(meta_dir, "project.json")
+        # Ensure project_id is persisted in the local metadata file
+        if project_id is not None:
+            result["project_id"] = project_id
         file_utils.write_file(meta_file, json_utils.dumps(result, indent=2))
 
         logger.info(f"[ProjectSummarizer] Saved metadata for {name}: {result}")
@@ -187,7 +190,7 @@ def summarize_project_task(name: str, path: str):
             await _summarize_project_logic(name, path)
         finally:
             await flush_loop_bound_resources()
-            
+
     asyncio.run(_run_with_flush())
 
 

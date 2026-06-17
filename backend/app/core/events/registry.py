@@ -43,6 +43,11 @@ class SystemEventType(str, Enum):
     # External Service / Infrastructure Events
     EMBEDDING_UPDATED = "system.embedding_updated"
 
+    # Skill Lifecycle Events
+    SKILL_CREATED = "learning.skill_created"
+    SKILL_UPDATED = "learning.skill_updated"
+    SKILL_DELETED = "learning.skill_deleted"
+
 
 # Note: Module-specific event types are defined in their respective modules:
 # - AgentEventType -> app.core.engine.event.types

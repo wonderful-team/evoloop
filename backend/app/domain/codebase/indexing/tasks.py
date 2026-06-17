@@ -2,6 +2,8 @@
 Codebase Indexing Background Tasks.
 
 Runs in Huey (embedded mode) or Celery (full mode) worker.
+All tasks have a built-in timeout so a single hanging file can't
+stall the entire worker queue.
 """
 
 import asyncio
@@ -12,36 +14,69 @@ from app.utils.async_utils import flush_loop_bound_resources
 
 logger = logging.getLogger(__name__)
 
+_INDEX_TIMEOUT = 120.0
+"""Max seconds a single index_file call may take before asyncio.TimeoutError."""
+
 
 @shared_task(name="codebase_index_file")
-async def index_file_task(file_path: str, repo_id: int):
+async def index_file_task(file_path: str, repo_id: int) -> None:
     """Background task to index a single modified file."""
     from app.domain.codebase.indexing.service import IndexingService
 
     service = IndexingService()
-    await service.index_file(file_path, repo_id)
+    try:
+        await asyncio.wait_for(
+            service.index_file(file_path, repo_id),
+            timeout=_INDEX_TIMEOUT,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            f"[Task] index_file timed out after {_INDEX_TIMEOUT}s: {file_path}"
+        )
+    except Exception:
+        logger.exception(f"[Task] index_file failed: {file_path}")
 
 
 @shared_task(name="codebase_remove_file")
-async def remove_file_task(file_path: str, repo_id: int):
+async def remove_file_task(file_path: str, repo_id: int) -> None:
     """Background task to remove a single file from the index."""
     from app.domain.codebase.indexing.service import IndexingService
 
     service = IndexingService()
-    await service.remove_file(file_path, repo_id)
+    try:
+        await asyncio.wait_for(
+            service.remove_file(file_path, repo_id),
+            timeout=_INDEX_TIMEOUT,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            f"[Task] remove_file timed out after {_INDEX_TIMEOUT}s: {file_path}"
+        )
+    except Exception:
+        logger.exception(f"[Task] remove_file failed: {file_path}")
 
 
 @shared_task(name="codebase_move_file")
-async def move_file_task(src_path: str, dest_path: str, repo_id: int):
+async def move_file_task(src_path: str, dest_path: str, repo_id: int) -> None:
     """Background task to move/rename a single file in the index."""
     from app.domain.codebase.indexing.service import IndexingService
 
     service = IndexingService()
-    await service.move_file(src_path, dest_path, repo_id)
+    try:
+        await asyncio.wait_for(
+            service.move_file(src_path, dest_path, repo_id),
+            timeout=_INDEX_TIMEOUT,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            f"[Task] move_file timed out after {_INDEX_TIMEOUT}s: {src_path} -> {dest_path}"
+        )
+    except Exception:
+        logger.exception(f"[Task] move_file failed: {src_path} -> {dest_path}")
 
 
 @shared_task(name="run_full_indexing")
-async def run_full_indexing_task(project_id: int, rebuild: bool = False):
+async def run_full_indexing_task(project_id: int, rebuild: bool = False) -> None:
     """
     Celery/Huey task to run full indexing in a background worker.
     """
@@ -56,12 +91,15 @@ async def run_full_indexing_task(project_id: int, rebuild: bool = False):
         await activity_monitor.start_run(sys_tid, "Full Codebase Indexing")
         await activity_monitor.update_agent_state(sys_tid, "Indexing", "Indexing Codebase", "Initializing...")
 
-        # TODO: We should enhance trigger_full_index to accept a progress callback
         await indexing_manager.trigger_full_index(project_id, rebuild)
 
         await activity_monitor.end_run(sys_tid, "done")
         logger.info(f"[Task] Full Indexing Completed for Project {project_id}")
 
+    except asyncio.CancelledError:
+        logger.warning(f"[Task] Full indexing cancelled for Project {project_id}")
+        await activity_monitor.end_run(sys_tid, "cancelled")
+        raise
     except Exception as e:
         logger.error(f"[Task] Indexing Task Failed: {e}")
         await activity_monitor.end_run(sys_tid, "failed")

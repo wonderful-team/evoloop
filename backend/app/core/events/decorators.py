@@ -79,13 +79,11 @@ def register_instance_handlers(instance: Any, bus: Any = None) -> None:
             for event_type in event_types:
                 bus.subscribe(event_type, method)
                 registered_count += 1
-                logger.debug(f"[EventRegister] {instance_class.__name__}.{method_name} -> {event_type}")
 
         # 2. Global Subscriptions (Subscribe All)
         if hasattr(method, "_is_event_handler_all"):
             bus.subscribe_all(method)
             registered_count += 1
-            logger.debug(f"[EventRegister] {instance_class.__name__}.{method_name} -> [ALL EVENTS]")
 
     if registered_count > 0:
         logger.info(f"[EventRegister] {instance_class.__name__}: {registered_count} handlers registered")

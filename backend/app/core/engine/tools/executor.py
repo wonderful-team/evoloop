@@ -1,4 +1,7 @@
 from __future__ import annotations
+
+from app.core.tools import get_working_directory
+
 """
 Shared tool execution logic for AgentEngine.
 
@@ -150,7 +153,6 @@ class AgentToolExecutor:
             
             if self.enable_diff_tracking and is_mutating:
                 from app.core.tools.registry import get_tool_affected_paths
-                from app.core.tools.base import get_working_directory
                 from app.core.file import resolve_path
                 from app.utils.diff import diff_tracker
                 

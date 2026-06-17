@@ -11,7 +11,7 @@ class DirectorySummarizer:
     Creates `Directory` nodes in Neo4j that aggregate `File` and child `Directory` summaries.
     """
 
-    async def summarize_directory(self, project_id: int, dir_path: str, recursive: bool = True, model: str | None = None):
+    async def summarize_directory(self, project_path: str, project_id: int, dir_path: str, recursive: bool = True, model: str | None = None):
         """
         Summarize a directory.
         1. Find all Files in this directory (direct children).
@@ -19,9 +19,16 @@ class DirectorySummarizer:
         3. If recursive, summarize sub-directories first (Bottom-up).
         4. Aggregate summaries and generate own summary.
         5. Store in Neo4j.
+        
+        Args:
+            project_path: 项目本地路径（用于获取项目级 graph driver）
+            project_id: 项目 ID（用于图数据查询）
+            dir_path: 目录相对路径
+            recursive: 是否递归处理子目录
+            model: 使用的 LLM 模型
         """
         from app.infrastructure.database.graph.driver import GraphManager
-        driver = GraphManager.get_driver()
+        driver = GraphManager.get_driver(project_path=project_path)
 
         try:
             # 1. Identify Children (Files and Subdirs)
@@ -57,7 +64,7 @@ class DirectorySummarizer:
             child_summaries = []
             if recursive:
                 for subdir in direct_subdirs:
-                    sub_summary = await self.summarize_directory(project_id, subdir, recursive=True, model=model)
+                    sub_summary = await self.summarize_directory(project_path, project_id, subdir, recursive=True, model=model)
                     child_summaries.append({"type": "directory", "name": subdir, "summary": sub_summary})
 
             # 3. Process Files

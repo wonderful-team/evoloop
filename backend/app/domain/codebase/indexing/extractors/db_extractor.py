@@ -41,15 +41,21 @@ class DBExtractor(SemanticExtractorBase[DBTable]):
             logger.error(f"DB Extraction failed for {file_path}: {e}")
             return []
 
-    async def sync_to_graph(self, project_id: int, entities: list[DBTable]):
-        """Sync database tables to graph."""
+    async def sync_to_graph(self, project_path: str, project_id: int, entities: list[DBTable]):
+        """Sync database tables to graph.
+        
+        Args:
+            project_path: 项目本地路径（用于获取项目级 graph driver）
+            project_id: 项目 ID（用于图数据中的 project_id 属性）
+            entities: DB table entities to sync
+        """
         if not entities:
             return
 
         try:
             from app.infrastructure.database.graph.driver import GraphManager
 
-            driver = GraphManager.get_driver()
+            driver = GraphManager.get_driver(project_path=project_path)
             for t in entities:
                 # 1. Upsert DBTable node
                 await driver.upsert_node("DBTable", "name", {

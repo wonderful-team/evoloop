@@ -17,8 +17,10 @@ from app.core.events.registry import SystemEventType
 from app.core.memory.event import MemoryContextGatherEvent
 from app.core.memory.event.types import MEMORY_CONTEXT_GATHER_EVENT_TYPE
 from app.core.project.sync_service import ProjectSyncService
+from app.core.project.utils import get_project_path
 from app.infrastructure.config import SystemConfigService
 from app.utils import render_template
+
 from .schemas import (
     ProjectCreatedEvent,
     ProjectDeletedEvent,
@@ -44,6 +46,7 @@ class ProjectSwitchWebSocketSubscriber:
         # 1. 使用标准化模型解析 (兼容 payload/content 各种嵌套)
         try:
             from app.core.evocloud.schemas import RemoteCommand
+
             cmd = RemoteCommand.model_validate(event.payload)
             action = cmd.get_action()
             payload = cmd.get_payload()
@@ -62,13 +65,23 @@ class ProjectSwitchWebSocketSubscriber:
 
         # 3. 路径解析/补全逻辑
         if project_id and (not path or not project_name):
-            from app.core.evocloud import evocloud_manager
+            from app.core.project.utils import get_project_path
+
             try:
-                project = await evocloud_manager.get_project_by_id(project_id)
-                if project:
-                    path = path or project.path
-                    project_name = project_name or project.name
-                    logger.info(f"[ProjectSwitchWS] Auto-resolved project {project_id} -> {path} (Name: {project_name})")
+                resolved_path = await get_project_path(project_id)
+                if resolved_path:
+                    path = resolved_path
+                    project_name = project_name or os.path.basename(path)
+                    logger.info(f"[ProjectSwitchWS] Auto-resolved project {project_id} -> {path}")
+                else:
+                    # Fallback to cloud API only when local resolution fails
+                    from app.core.evocloud import evocloud_manager
+
+                    project = await evocloud_manager.get_project_by_id(project_id)
+                    if project:
+                        path = path or project.path
+                        project_name = project_name or project.name
+                        logger.info(f"[ProjectSwitchWS] Auto-resolved project {project_id} -> {path} (Name: {project_name}) via cloud fallback")
             except Exception as e:
                 logger.error(f"[ProjectSwitchWS] Failed to resolve project {project_id}: {e}")
 
@@ -76,8 +89,20 @@ class ProjectSwitchWebSocketSubscriber:
             logger.warning(f"[ProjectSwitchWS] Project switch ignored: project_id={project_id} (payload={payload}) has no resolvable path")
             return
 
+        # Prefer authoritative local path even when payload provided a path
+        if project_id:
+            from app.core.project.utils import get_project_path
+
+            try:
+                resolved_path = await get_project_path(project_id)
+                if resolved_path and os.path.isdir(resolved_path):
+                    path = resolved_path
+            except Exception as e:
+                logger.debug(f"[ProjectSwitchWS] Local path resolution failed, keeping event path: {e}")
+
         # 4. 发布领域事件
         from app.core.project.event.publishers import publish_project_switched
+
         await publish_project_switched(
             project_id=project_id if project_id is not None else DEFAULT_PROJECT_ID,
             project_name=project_name,
@@ -124,6 +149,7 @@ class ProjectDomainSubscriber:
         """Sync current cloud project to local workspace on app start (if token exists)."""
         try:
             from app.core.identity import identity_service
+
             if await identity_service.get_access_token():
                 await self._sync_service.sync_cloud_project()
             else:
@@ -178,12 +204,12 @@ class ProjectLifecycleSubscriber:
         Handle APP_STARTED: Initialize project discovery and reconcile state.
         """
         from app.core.project.discovery_manager import discovery_manager
-        
+
         root_projects_dir = SystemConfigService.get_value("WORKSPACE_ROOT")
         if not root_projects_dir:
             logger.warning("[Project] WORKSPACE_ROOT not configured. Skipping discovery.")
             return
-            
+
         if not os.path.exists(root_projects_dir):
             logger.warning(f"[Project] WORKSPACE_ROOT '{root_projects_dir}' does not exist.")
             return
@@ -191,9 +217,10 @@ class ProjectLifecycleSubscriber:
         try:
             # 1. Start Manager
             discovery_manager.start(root_projects_dir)
-            
+
             # 2. Reconcile (Sync filesystem with DB)
             from app.core.project.sync_service import project_sync_service
+
             logger.info(f"[Project] Synchronizing projects in {root_projects_dir}...")
             await project_sync_service.reconcile_projects(root_projects_dir)
             logger.info("[Project] ✓ Discovery and synchronization complete")
@@ -205,6 +232,7 @@ class ProjectLifecycleSubscriber:
         """Handle APP_STOPPING: Stop project discovery manager."""
         try:
             from app.core.project.discovery_manager import discovery_manager
+
             discovery_manager.stop()
             logger.info("[Project] Project discovery manager stopped")
         except Exception as e:
@@ -215,6 +243,7 @@ class ProjectLifecycleSubscriber:
         """Handle system-wide context polishing request."""
         try:
             from app.core.project.polisher import project_polisher
+
             await project_polisher.handle_context_polishing(event)
         except Exception as e:
             logger.error(f"[Project] Context polishing failed: {e}")
@@ -236,13 +265,14 @@ class ProjectLifecycleSubscriber:
                 from app.core.project.sync_service import project_sync_service
                 logger.info(f"[Project] WORKSPACE_ROOT changed, reconciling projects in {new_value}...")
                 await project_sync_service.reconcile_projects(new_value)
-                
+
                 # Restart discovery manager for new path
                 from app.core.project.discovery_manager import discovery_manager
+
                 discovery_manager.stop()
                 discovery_manager.start(new_value)
                 logger.info(f"[Project] Discovery manager restarted for {new_value}")
-                
+
             except Exception as e:
                 logger.error(f"[Project] Failed to handle WORKSPACE_ROOT change: {e}")
 
@@ -264,7 +294,7 @@ class ProjectMemoryContextSubscriber:
         if project_id is None:
             return
 
-        project_path = SystemConfigService.get_value("WORKSPACE_ROOT")
+        project_path = await get_project_path(project_id)
         if not project_path:
             logger.debug("[ProjectContextProvider] WORKSPACE_ROOT not set, skipping.")
             return
@@ -334,7 +364,7 @@ class ProjectMemoryContextSubscriber:
             path = os.path.join(project_path, norm_file)
             if os.path.exists(path) and os.path.isfile(path):
                 try:
-                    with open(path, "r", encoding="utf-8") as f:
+                    with open(path, encoding="utf-8") as f:
                         # PROJECT.md is the canonical project profile; give it more space
                         quota = 5000 if norm_file == "PROJECT.md" else 1000
                         content = f.read(quota)
@@ -354,9 +384,9 @@ class ProjectContextHydratorSubscriber:
     async def on_session_started(self, event) -> None:
         """Resolve project details and enrich EvoContext."""
         logger.info(f"[ProjectHydrator] Received SESSION_STARTED event for project_id: {event.data.get('project_id')}")
-        from app.core.context import ContextManager
+        from app.core.context import ContextManager, thread_context_store
         from app.core.project.utils import get_project_path
-        
+
         ctx = ContextManager.current()
         if not ctx:
             return
@@ -366,20 +396,31 @@ class ProjectContextHydratorSubscriber:
         if project_id is None or project_id == DEFAULT_PROJECT_ID:
             return
 
-        # We always want to fetch and update if we have a valid project_id
-        # since ctx.working_directory might just be the default fallback root.
+        # Only overwrite the working directory when it is missing or still points
+        # to the workspace root. If dispatch already resolved a project path, keep it.
+        workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT", "")
+        current_cwd = ctx.working_directory
+        if current_cwd and current_cwd != workspace_root and os.path.isdir(current_cwd):
+            logger.debug(
+                f"[ProjectHydrator] Keeping existing working_directory: {current_cwd}"
+            )
+            thread_context_store.set_working_directory(ctx.thread_id, current_cwd)
+            thread_context_store.set_active_project(ctx.thread_id, project_id)
+            return
 
         try:
             working_dir = await get_project_path(project_id)
-            if working_dir:
-                logger.info(f"[ProjectHydrator] Resolved project {project_id} path: {working_dir}")
-                
-                # Update Context
-                ctx.working_directory = working_dir
-                
-                # Update legacy thread_context_store for backward compatibility
-                from app.core.context import thread_context_store
-                thread_context_store.set_working_directory(ctx.thread_id, working_dir)
-                thread_context_store.set_active_project(ctx.thread_id, project_id)
+            if not working_dir:
+                logger.warning(f"[ProjectHydrator] Could not resolve path for project {project_id}")
+                return
+
+            logger.info(f"[ProjectHydrator] Resolved project {project_id} path: {working_dir}")
+
+            # Update Context
+            ctx.working_directory = working_dir
+
+            # Update legacy thread_context_store for backward compatibility
+            thread_context_store.set_working_directory(ctx.thread_id, working_dir)
+            thread_context_store.set_active_project(ctx.thread_id, project_id)
         except Exception as e:
             logger.warning(f"[ProjectHydrator] Failed to resolve project {project_id}: {e}")

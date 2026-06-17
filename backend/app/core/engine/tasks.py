@@ -369,6 +369,7 @@ async def reconcile_skill_macro_task(skill_id: int, thread_id: str, model: str |
     """
     Background task to reconcile a broken skill macro.
     """
+    from app.core.events.publishers import publish_skill_mutated
     from app.core.learning.skill_synthesizer import WorkflowSynthesizer
     from app.models.learning import LearnedSkill, TraceEvent
 
@@ -407,6 +408,7 @@ async def reconcile_skill_macro_task(skill_id: int, thread_id: str, model: str |
                 if repaired_skill.instructions:
                     original_skill.instructions = repaired_skill.instructions
                 logger.info(f"[Celery] ✅ Skill {skill_id} has been self-healed.")
+                await publish_skill_mutated(skill_id=skill_id, action="update")
     finally:
         ContextManager.reset(token)
 
