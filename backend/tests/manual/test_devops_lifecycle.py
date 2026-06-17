@@ -83,9 +83,22 @@ class ExecutionMetrics:
 
 async def init_backend(project_id: int = DEFAULT_PROJECT_ID):
     from app.infrastructure.database.resource_manager import db_resource_manager
+    from app.infrastructure.config.service import SystemConfigService
 
     logger.info("[Test] Initializing database...")
     await db_resource_manager.initialize(create_tables=True, seed_data=True)
+
+    # Ensure WORKSPACE_ROOT points to the parent of EVOLOOP_ROOT so project path
+    # resolution (used by the authorization gate) can locate .evoloop/project.json.
+    workspace_root = os.path.dirname(EVOLOOP_ROOT)
+    current_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+    if not current_root:
+        SystemConfigService.set_value(
+            "WORKSPACE_ROOT",
+            workspace_root,
+            description="Workspace root for local project discovery",
+        )
+        logger.info(f"[Test] Set WORKSPACE_ROOT={workspace_root}")
 
     from app.core.environment import awaken
     logger.info("[Test] Awakening agent environment...")
@@ -144,7 +157,7 @@ async def run_agent_with_hitl(
     from langchain_core.messages import ToolMessage
 
     from app.core.engine.background_agent import run_agent_background
-    from app.core.engine.hitl import HITLOrchestrator, get_pending_hitl_call
+    from app.core.hitl.orchestrator import HITLOrchestrator, get_pending_hitl_call
     from app.core.globals import get_graph
 
     metrics = ExecutionMetrics()
@@ -665,8 +678,13 @@ async def main():
 
     finally:
         from app.infrastructure.database.resource_manager import db_resource_manager
-        if db_resource_manager._initialized:
-            await db_resource_manager.shutdown()
+
+        try:
+            loop_id = db_resource_manager._current_loop_id()
+            if loop_id in db_resource_manager._initialized_loops:
+                await db_resource_manager.shutdown()
+        except Exception as e:
+            logger.warning(f"[Test] Cleanup warning: {e}")
         logger.info("[Test] Cleanup complete.")
 
 

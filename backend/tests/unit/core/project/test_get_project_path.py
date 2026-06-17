@@ -2,7 +2,7 @@ import json
 import os
 import shutil
 import tempfile
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -57,15 +57,19 @@ class TestGetProjectPath:
 
     @pytest.mark.asyncio
     async def test_relative_path_fallback(self, workspace, mock_repo):
-        mock_session = AsyncMock()
-        mock_session.execute = AsyncMock()
-        mock_session.execute.return_value.scalar_one_or_none = MagicMock(
-            return_value=mock_repo
-        )
+        async def fake_execute(_stmt):
+            class FakeResult:
+                def scalar_one_or_none(self):
+                    return mock_repo
+            return FakeResult()
+
+        class FakeSession:
+            async def execute(self, stmt):
+                return await fake_execute(stmt)
 
         class FakeScope:
             async def __aenter__(self):
-                return mock_session
+                return FakeSession()
 
             async def __aexit__(self, exc_type, exc, tb):
                 return False
@@ -77,8 +81,11 @@ class TestGetProjectPath:
             "app.core.project.utils.local_project_index.get_path",
             return_value=None,
         ), patch(
-            "app.infrastructure.database.sql.database.session_scope",
+            "app.core.project.utils.session_scope",
             FakeScope,
+        ), patch(
+            "app.core.project.utils.os.path.isdir",
+            return_value=True,
         ):
             path = await get_project_path(101)
             assert path == os.path.join(workspace, "project_x")
@@ -88,15 +95,19 @@ class TestGetProjectPath:
         mock_repo.relative_path = None
         mock_repo.local_path = os.path.join(workspace, "project_x")
 
-        mock_session = AsyncMock()
-        mock_session.execute = AsyncMock()
-        mock_session.execute.return_value.scalar_one_or_none = MagicMock(
-            return_value=mock_repo
-        )
+        async def fake_execute(_stmt):
+            class FakeResult:
+                def scalar_one_or_none(self):
+                    return mock_repo
+            return FakeResult()
+
+        class FakeSession:
+            async def execute(self, stmt):
+                return await fake_execute(stmt)
 
         class FakeScope:
             async def __aenter__(self):
-                return mock_session
+                return FakeSession()
 
             async def __aexit__(self, exc_type, exc, tb):
                 return False
@@ -108,8 +119,11 @@ class TestGetProjectPath:
             "app.core.project.utils.local_project_index.get_path",
             return_value=None,
         ), patch(
-            "app.infrastructure.database.sql.database.session_scope",
+            "app.core.project.utils.session_scope",
             FakeScope,
+        ), patch(
+            "app.core.project.utils.os.path.isdir",
+            return_value=True,
         ):
             path = await get_project_path(101)
             assert path == os.path.join(workspace, "project_x")
@@ -132,9 +146,6 @@ class TestGetProjectPath:
         ), patch(
             "app.infrastructure.database.sql.database.session_scope",
             FailingScope,
-        ), patch(
-            "app.core.project.utils.evocloud_manager.get_project_by_id",
-            side_effect=Exception("cloud unavailable"),
         ):
             path = await get_project_path(999)
             assert path == ""

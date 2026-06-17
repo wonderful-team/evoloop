@@ -15,7 +15,7 @@ from app.core.globals import set_graph, get_graph
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.message.repository import MessageRepository
-from app.core.engine.hitl import HITLOrchestrator
+from app.core.hitl.orchestrator import HITLOrchestrator
 from app.core.engine.rewind import RewindOrchestrator
 from app.core.engine.message.event_bus import get_event_bus
 from app.core.memory.lifespan import MemoryLifespanManager

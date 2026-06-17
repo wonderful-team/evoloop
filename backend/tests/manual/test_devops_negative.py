@@ -110,7 +110,7 @@ async def run_agent_with_hitl(thread_id: str, inputs: dict, model: str, project_
     from langchain_core.messages import ToolMessage
 
     from app.core.engine.background_agent import run_agent_background
-    from app.core.engine.hitl import HITLOrchestrator, get_pending_hitl_call
+    from app.core.hitl.orchestrator import HITLOrchestrator, get_pending_hitl_call
     from app.core.globals import get_graph
 
     metrics = ExecutionMetrics()

@@ -101,10 +101,11 @@ async def test_tool_layer():
     logger.info("="*60)
 
     from app.core.exceptions import AgentHumanInterruptException
-    from app.domain.tools.human_input import (
-        ask_human, ask_confirm, create_request, complete_request, cancel_request,
+    from app.core.hitl import (
+        create_request, complete_request, cancel_request,
         get_pending_requests_for_thread
     )
+    from app.domain.tools.human_input import ask_human, ask_confirm
 
     results = []
 
@@ -367,7 +368,7 @@ async def _test_api_layer():
     logger.info("\n📌 Test 8: /hitl/cancel 端点")
     try:
         # 创建一个 pending HITL 请求
-        from app.domain.tools.human_input import create_request
+        from app.core.hitl import create_request
         req = await create_request(thread_id=thread_id, request_type="approval", prompt="确认？")
 
         class MockGraph:
