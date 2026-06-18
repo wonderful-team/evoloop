@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.database.sql.database import Base
@@ -10,6 +10,16 @@ from app.utils.time import utcnow
 
 class Repository(Base):
     __tablename__ = "repositories"
+
+    __table_args__ = (
+        Index(
+            "ux_repositories_active_project_id",
+            "project_id",
+            unique=True,
+            postgresql_where=text("sync_status NOT IN ('IGNORED', 'DISCONNECTED')"),
+            sqlite_where=text("sync_status NOT IN ('IGNORED', 'DISCONNECTED')"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     # project_id is now a loose reference to the external project ID

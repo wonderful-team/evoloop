@@ -89,7 +89,7 @@ export function ProjectList() {
     isLoading: isListLoading,
   } = useProjectStore()
 
-  const { scanProjects, isLoading: isScanLoading } = useProjectImportStore()
+  const { scanProjects } = useProjectImportStore()
   const [isScanning, setIsScanning] = useState(false)
 
   // Trigger fetch on mount

@@ -8,8 +8,9 @@ Covers:
 4. Local cleanup partial failure (cache/graph/vector) → best effort, API still succeeds
 """
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
 from fastapi import HTTPException
 
 
@@ -30,10 +31,13 @@ class TestDeleteProject:
         """Create a mock async SQLAlchemy session."""
         session = AsyncMock()
 
-        # Mock execute() -> result -> scalars().first()
+        # Mock execute() -> result -> scalars().all()
         result_mock = MagicMock()
-        result_mock.scalars.return_value.first.return_value = mock_repo
+        result_mock.scalars.return_value.all.return_value = [mock_repo]
         session.execute.return_value = result_mock
+
+        # Mock session.get() to return the repo so deletion targets the right object.
+        session.get = AsyncMock(return_value=mock_repo)
 
         return session
 
@@ -70,13 +74,13 @@ class TestDeleteProject:
         cache_mock = MagicMock()
         cache_mock.pipeline.return_value = pipe
 
-        with patch("app.infrastructure.cache.cache", cache_mock):
+        with patch("app.api.routes.projects.cache", cache_mock):
             yield cache_mock, pipe
 
     @pytest.fixture
     def mock_graph_disabled(self):
         """Mock graph as disabled."""
-        with patch("app.infrastructure.database.graph.driver.is_graph_enabled", return_value=False):
+        with patch("app.api.routes.projects.is_graph_enabled", return_value=False):
             yield
 
     @pytest.fixture
@@ -84,7 +88,8 @@ class TestDeleteProject:
         """Mock graph as enabled with mock driver."""
         driver = AsyncMock()
 
-        with patch("app.infrastructure.database.graph.driver.GraphManager.get_driver", return_value=driver):
+        with patch("app.api.routes.projects.is_graph_enabled", return_value=True), \
+             patch("app.api.routes.projects.GraphManager.get_driver", return_value=driver):
             yield driver
 
     @pytest.fixture
@@ -93,7 +98,7 @@ class TestDeleteProject:
         vs = MagicMock()
         vs.delete_by_repository = MagicMock(return_value=5)
 
-        with patch("app.infrastructure.database.vector.get_vector_store", return_value=vs):
+        with patch("app.api.routes.projects.get_vector_store", return_value=vs):
             yield vs
 
     @pytest.fixture
@@ -105,7 +110,7 @@ class TestDeleteProject:
         mock_ctx = MagicMock()
         mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
 
-        async def _aexit(*args):
+        async def _aexit(*_):
             await mock_session.commit()
             return False
 
@@ -138,18 +143,19 @@ class TestDeleteProject:
         """Cloud delete succeeds, local repo exists → all cleanup executed."""
         from app.api.routes.projects import delete_project
 
-        result = await delete_project(123)
+        result = await delete_project(123, None)
 
         # Verify cloud deletion called
-        mock_cloud_success.api.delete_project.assert_awaited_once_with(123)
+        mock_cloud_success.api.delete_project.assert_awaited_once_with(123, token=None)
 
         # Verify local cleanup
         mock_indexing_manager.stop_watching.assert_awaited_once_with("/workspace/test-project")
 
         _, pipe = mock_cache
-        pipe.delete.assert_any_call("sys:123:indexing")
-        pipe.delete.assert_any_call("sys:123:summarization")
-        pipe.delete.assert_any_call("sys:123:wiki")
+        pipe.delete.assert_any_call("sys:42:indexing")
+        pipe.delete.assert_any_call("sys:42:summarization")
+        pipe.delete.assert_any_call("sys:42:wiki")
+        pipe.delete.assert_any_call("indexing:cancel:42")
         pipe.execute.assert_awaited_once()
 
         driver = mock_graph_enabled
@@ -180,12 +186,12 @@ class TestDeleteProject:
         """Cloud delete succeeds, but no local repo → no local cleanup errors."""
         from app.api.routes.projects import delete_project
 
-        # Override session to return no repo
-        mock_session.execute.return_value.scalars.return_value.first.return_value = None
+        # Override session to return no repos
+        mock_session.execute.return_value.scalars.return_value.all.return_value = []
 
-        result = await delete_project(123)
+        result = await delete_project(123, None)
 
-        mock_cloud_success.api.delete_project.assert_awaited_once_with(123)
+        mock_cloud_success.api.delete_project.assert_awaited_once_with(123, token=None)
         mock_indexing_manager.stop_watching.assert_not_awaited()
 
         _, pipe = mock_cache
@@ -209,11 +215,11 @@ class TestDeleteProject:
         from app.api.routes.projects import delete_project
 
         with pytest.raises(HTTPException) as exc_info:
-            await delete_project(123)
+            await delete_project(123, None)
 
         assert exc_info.value.status_code == 500
         assert "project not found" in exc_info.value.detail
-        mock_cloud_failure.api.delete_project.assert_awaited_once_with(123)
+        mock_cloud_failure.api.delete_project.assert_awaited_once_with(123, token=None)
         mock_cloud_failure.invalidate_projects_cache.assert_not_called()
 
     @pytest.mark.asyncio
@@ -229,7 +235,7 @@ class TestDeleteProject:
             mock.invalidate_projects_cache = MagicMock()
 
             with pytest.raises(HTTPException) as exc_info:
-                await delete_project(123)
+                await delete_project(123, None)
 
             assert exc_info.value.status_code == 500
             assert "timeout" in exc_info.value.detail
@@ -253,10 +259,10 @@ class TestDeleteProject:
         """Cache cleanup fails → API still succeeds."""
         from app.api.routes.projects import delete_project
 
-        with patch("app.infrastructure.cache.cache") as bad_cache:
+        with patch("app.api.routes.projects.cache") as bad_cache:
             bad_cache.pipeline = MagicMock(side_effect=RuntimeError("cache down"))
 
-            result = await delete_project(123)
+            result = await delete_project(123, None)
 
         assert result.status == "success"
         mock_session.delete.assert_awaited_once_with(mock_repo)
@@ -275,15 +281,16 @@ class TestDeleteProject:
         """Graph cleanup fails → API still succeeds."""
         from app.api.routes.projects import delete_project
 
-        bad_driver = MagicMock()
-        bad_driver.session = MagicMock(side_effect=RuntimeError("graph down"))
+        bad_driver = AsyncMock()
+        bad_driver.execute_query = AsyncMock(side_effect=RuntimeError("graph down"))
 
-        with patch("app.infrastructure.database.graph.driver.is_graph_enabled", return_value=True), \
-             patch("app.infrastructure.database.graph.driver.get_graph_db", AsyncMock(return_value=bad_driver)):
+        with patch("app.api.routes.projects.is_graph_enabled", return_value=True), \
+             patch("app.api.routes.projects.GraphManager.get_driver", return_value=bad_driver):
 
-            result = await delete_project(123)
+            result = await delete_project(123, None)
 
         assert result.status == "success"
+        bad_driver.execute_query.assert_awaited_once()
         mock_session.delete.assert_awaited_once_with(mock_repo)
 
     @pytest.mark.asyncio
@@ -304,7 +311,7 @@ class TestDeleteProject:
         bad_vs.delete_by_repository = MagicMock(side_effect=RuntimeError("vector down"))
 
         with patch("app.infrastructure.database.vector.get_vector_store", return_value=bad_vs):
-            result = await delete_project(123)
+            result = await delete_project(123, None)
 
         assert result.status == "success"
         mock_session.delete.assert_awaited_once_with(mock_repo)
@@ -323,10 +330,10 @@ class TestDeleteProject:
         """Graph disabled → graph cleanup skipped entirely."""
         from app.api.routes.projects import delete_project
 
-        with patch("app.infrastructure.database.graph.driver.is_graph_enabled", return_value=False), \
-             patch("app.infrastructure.database.graph.driver.get_graph_db") as mock_get_db:
+        with patch("app.api.routes.projects.is_graph_enabled", return_value=False), \
+             patch("app.api.routes.projects.GraphManager.get_driver") as mock_get_driver:
 
-            result = await delete_project(123)
+            result = await delete_project(123, None)
 
-        mock_get_db.assert_not_called()
+        mock_get_driver.assert_not_called()
         assert result.status == "success"

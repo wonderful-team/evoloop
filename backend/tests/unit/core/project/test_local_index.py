@@ -110,6 +110,39 @@ class TestLocalProjectIndex:
 
         assert index.get_path(101, workspace) is None
 
+    def test_get_entry_returns_path_and_repo_id(self, workspace):
+        tmp = tempfile.mkdtemp(prefix="test_entry_workspace_")
+        try:
+            self._write_meta(tmp, "with_repo", {"project_id": 201, "repo_id": 301, "name": "with_repo"})
+            self._write_meta(tmp, "without_repo", {"project_id": 202, "name": "without_repo"})
+
+            index = LocalProjectIndex()
+            entry_with = index.get_entry(201, tmp)
+            assert entry_with is not None
+            assert entry_with.path == os.path.join(tmp, "with_repo")
+            assert entry_with.repo_id == 301
+            assert entry_with.name == "with_repo"
+
+            entry_without = index.get_entry(202, tmp)
+            assert entry_without is not None
+            assert entry_without.repo_id is None
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_refresh_returns_entries(self, workspace):
+        index = LocalProjectIndex()
+        mapping = index.refresh(workspace)
+        assert 101 in mapping
+        assert mapping[101].path == os.path.join(workspace, "project_a")
+
+    def test_repo_id_string_is_coerced(self, workspace):
+        self._write_meta(workspace, "string_repo", {"project_id": 103, "repo_id": "999"})
+
+        index = LocalProjectIndex()
+        entry = index.get_entry(103, workspace)
+        assert entry is not None
+        assert entry.repo_id == 999
+
     def test_empty_workspace(self):
         tmp = tempfile.mkdtemp(prefix="empty_workspace_")
         try:

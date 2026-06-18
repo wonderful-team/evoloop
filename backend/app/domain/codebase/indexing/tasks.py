@@ -10,7 +10,6 @@ import asyncio
 import logging
 
 from app.infrastructure.queue.factory import shared_task
-from app.utils.async_utils import flush_loop_bound_resources
 
 logger = logging.getLogger(__name__)
 
@@ -76,28 +75,28 @@ async def move_file_task(src_path: str, dest_path: str, repo_id: int) -> None:
 
 
 @shared_task(name="run_full_indexing")
-async def run_full_indexing_task(project_id: int, rebuild: bool = False) -> None:
+async def run_full_indexing_task(repo_id: int, rebuild: bool = False) -> None:
     """
     Celery/Huey task to run full indexing in a background worker.
     """
-    logger.info(f"[Task] Starting Full Indexing for Project {project_id} (Rebuild={rebuild})")
+    logger.info(f"[Task] Starting Full Indexing for Repo {repo_id} (Rebuild={rebuild})")
 
     from app.core.monitoring.activity import activity_monitor
     from app.domain.codebase.indexing.manager import indexing_manager
 
-    sys_tid = f"sys:{project_id}:indexing"
+    sys_tid = f"sys:{repo_id}:indexing"
 
     try:
         await activity_monitor.start_run(sys_tid, "Full Codebase Indexing")
         await activity_monitor.update_agent_state(sys_tid, "Indexing", "Indexing Codebase", "Initializing...")
 
-        await indexing_manager.trigger_full_index(project_id, rebuild)
+        await indexing_manager.trigger_full_index_repo(repo_id, rebuild)
 
         await activity_monitor.end_run(sys_tid, "done")
-        logger.info(f"[Task] Full Indexing Completed for Project {project_id}")
+        logger.info(f"[Task] Full Indexing Completed for Repo {repo_id}")
 
     except asyncio.CancelledError:
-        logger.warning(f"[Task] Full indexing cancelled for Project {project_id}")
+        logger.warning(f"[Task] Full indexing cancelled for Repo {repo_id}")
         await activity_monitor.end_run(sys_tid, "cancelled")
         raise
     except Exception as e:

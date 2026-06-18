@@ -134,6 +134,8 @@ export interface Project {
   local_status?: string | null // SYNCED, PENDING_CREATION, DISCONNECTED, etc.
   exists_locally?: boolean // Whether the project exists on local filesystem
   last_indexed_at?: string | null // ISO timestamp of last successful indexing
+  files_count?: number // Number of files in the project (optional, from API)
+  created_at?: string | null // ISO timestamp of project creation (optional, from API)
   isGlobal?: boolean // Flag to identify virtual global project
 }
 
@@ -146,7 +148,7 @@ interface ProjectState {
   fetchProjects: (
     filterType?: "switchable" | "cloud_only" | "disconnected",
   ) => Promise<void>
-  setProject: (project: Project) => void
+  setProject: (project: Project | null) => void
   setGlobalMode: (enabled: boolean) => void
   getProject: (id: number) => Project | undefined
   updateProjectStatus: (id: number, statusUpdates: Partial<Project>) => void
@@ -185,6 +187,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         indexing_status: item.indexing_status || "unknown",
         local_status: item.local_status || null,
         exists_locally: item.exists_locally === true,
+        files_count: item.files_count,
+        created_at: item.created_at,
       }))
 
       set({ projects: list, isLoading: false })
@@ -224,8 +228,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           set({ currentProject: GLOBAL_PROJECT, isGlobalMode: true })
         }
       } else if (localProjects.length > 0) {
-        saveLastSelectedProjectId(0)
-        set({ currentProject: GLOBAL_PROJECT, isGlobalMode: true })
+        const firstLocal = localProjects[0]
+        saveLastSelectedProjectId(firstLocal.id)
+        set({ currentProject: firstLocal, isGlobalMode: false })
       } else if (list.length > 0) {
         const first = list[0]
         saveLastSelectedProjectId(first.id)
@@ -240,7 +245,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
   },
 
-  setProject: (project) => {
+  setProject: (project: Project | null) => {
     // Persist selection to localStorage
     saveLastSelectedProjectId(project?.id ?? null)
 

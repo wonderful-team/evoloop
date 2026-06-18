@@ -9,8 +9,20 @@ per project, so the overhead on local SSD is negligible. Simpler and safer.
 import json
 import logging
 import os
+from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class LocalProjectEntry:
+    """A single local project mapping discovered from .evoloop/project.json."""
+
+    path: str
+    project_id: int
+    repo_id: int | None = None
+    name: str | None = None
 
 
 class LocalProjectIndex:
@@ -26,7 +38,7 @@ class LocalProjectIndex:
     """
 
     def __init__(self):
-        self._id_to_path: dict[int, str] = {}
+        self._id_to_entry: dict[int, LocalProjectEntry] = {}
         self._path_to_id: dict[str, int] = {}
 
     def _read_project_meta(self, meta_path: str) -> dict | None:
@@ -43,13 +55,23 @@ class LocalProjectIndex:
             logger.warning(f"[LocalProjectIndex] Failed to read {meta_path}: {e}")
             return None
 
-    def refresh(self, workspace_root: str) -> dict[int, str]:
+    def _coerce_repo_id(self, value: Any) -> int | None:
+        """Coerce a repo_id value from project.json to int or None."""
+        if value is None:
+            return None
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and value.isdigit():
+            return int(value)
+        return None
+
+    def refresh(self, workspace_root: str) -> dict[int, LocalProjectEntry]:
         """
         Synchronously scan workspace_root and rebuild the index.
 
-        Returns the rebuilt id -> path mapping.
+        Returns the rebuilt id -> entry mapping.
         """
-        self._id_to_path.clear()
+        self._id_to_entry.clear()
         self._path_to_id.clear()
 
         if not workspace_root or not os.path.isdir(workspace_root):
@@ -82,23 +104,36 @@ class LocalProjectIndex:
                 )
                 continue
 
-            if project_id in self._id_to_path:
+            if project_id in self._id_to_entry:
+                existing = self._id_to_entry[project_id]
                 logger.warning(
                     f"[LocalProjectIndex] project_id {project_id} conflict: "
-                    f"found at {self._id_to_path[project_id]} and {path}; "
+                    f"found at {existing.path} and {path}; "
                     "keeping first discovered, please reconcile manually"
                 )
                 continue
 
-            self._id_to_path[project_id] = path
+            repo_id = self._coerce_repo_id(meta.get("repo_id"))
+            local_entry = LocalProjectEntry(
+                path=path,
+                project_id=project_id,
+                repo_id=repo_id,
+                name=meta.get("name"),
+            )
+            self._id_to_entry[project_id] = local_entry
             self._path_to_id[path] = project_id
 
-        return dict(self._id_to_path)
+        return dict(self._id_to_entry)
+
+    def get_entry(self, project_id: int, workspace_root: str) -> LocalProjectEntry | None:
+        """Return the local project entry for a project_id, or None if not found."""
+        self.refresh(workspace_root)
+        return self._id_to_entry.get(project_id)
 
     def get_path(self, project_id: int, workspace_root: str) -> str | None:
         """Return the local absolute path for a project_id, or None if not found."""
-        self.refresh(workspace_root)
-        return self._id_to_path.get(project_id)
+        entry = self.get_entry(project_id, workspace_root)
+        return entry.path if entry else None
 
     def get_project_id(self, path: str, workspace_root: str) -> int | None:
         """Return project_id for a given local absolute path, or None."""

@@ -47,7 +47,7 @@ export function ProjectActions({ project }: ProjectActionsProps) {
 
       // If deleted project was selected, clear selection
       if (currentProject?.id === project.id) {
-        setProject(null as any)
+        setProject(null)
         // Redirect logic should technically handle this in the main view
       }
     },

@@ -3,11 +3,10 @@ import logging
 import os
 import threading
 
-from sqlalchemy import select
-
-from app.core.project.utils import get_project_path
+from app.core.project.utils import get_project_path, resolve_project_to_repo
 from app.domain.codebase.indexing.service import IndexingService
 from app.domain.watchers import RepoWatcher
+from app.infrastructure.cache import cache
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Repository
@@ -15,16 +14,68 @@ from app.models import Repository
 logger = logging.getLogger(__name__)
 
 
+def _indexing_status_key(repo_id: int) -> str:
+    """Cache hash key used to expose real-time repo indexing status."""
+    return f"sys:{repo_id}:indexing"
+
+
+def _cancel_key(repo_id: int) -> str:
+    """Cache key used to request cancellation of a repo indexing job."""
+    return f"indexing:cancel:{repo_id}"
+
+
+async def _set_indexing_status(repo_id: int, status: str, details: dict | None = None) -> None:
+    """Persist repo indexing status to cache for real-time API reads."""
+    try:
+        mapping = {"status": status}
+        if details:
+            import json
+
+            for key, value in details.items():
+                mapping[key] = json.dumps(value) if isinstance(value, (dict, list)) else str(value)
+        await cache.hset(_indexing_status_key(repo_id), mapping=mapping)
+    except Exception as e:
+        logger.warning(f"[IndexingManager] Failed to write status cache for repo {repo_id}: {e}")
+
+
+async def _clear_cancel_flag(repo_id: int) -> None:
+    """Clear any pending cancellation request for a repo."""
+    try:
+        await cache.delete(_cancel_key(repo_id))
+    except Exception as e:
+        logger.warning(f"[IndexingManager] Failed to clear cancel flag for repo {repo_id}: {e}")
+
+
+async def _request_cancel(repo_id: int) -> None:
+    """Request cancellation of a repo indexing job via persistent cache flag."""
+    try:
+        await cache.set(_cancel_key(repo_id), "1")
+    except Exception as e:
+        logger.warning(f"[IndexingManager] Failed to set cancel flag for repo {repo_id}: {e}")
+
+
+async def _is_cancel_requested(repo_id: int) -> bool:
+    """Return True if cancellation has been requested for this repo."""
+    try:
+        return bool(await cache.get(_cancel_key(repo_id)))
+    except Exception as e:
+        logger.warning(f"[IndexingManager] Failed to read cancel flag for repo {repo_id}: {e}")
+        return False
+
+
 class IndexingManager:
     """
-    Manages active watchers for projects and handles manual indexing triggers.
+    Manages active watchers for repositories and handles manual indexing triggers.
     Singleton-ish usage recommended.
 
+    Internal scheduling, status tracking and cancellation are keyed by repo_id.
+    project_id is only used for project-level side effects (summarization,
+    standards, graph sync) and for frontend-facing events/status aggregation.
+
     Cancellation:
-        Call ``cancel_indexing(project_id)`` to set a cancellation flag.
-        ``trigger_full_index`` checks this flag between phases and before
-        each repository is indexed, so cancellation is prompt but not
-        immediate (no thread interruption).
+        Call ``cancel_repo_index(repo_id)`` (or ``cancel_indexing(project_id)``)
+        to set a persistent cancellation flag. ``trigger_full_index_repo`` checks
+        this flag between phases so cancellation is prompt but not immediate.
     """
 
     def __init__(self):
@@ -33,41 +84,54 @@ class IndexingManager:
         # singleton that may be accessed by multiple Huey worker threads.
         self._lock = threading.Lock()
 
-        # Track Active Jobs: project_id -> status dict
+        # Track Active Jobs: repo_id -> status dict
         # Status: "queuing", "indexing", "error", "done", "cancelled"
         self._active_jobs: dict[int, str] = {}
-        # Cancellation flags — checked during trigger_full_index
-        self._cancel_flags: dict[int, threading.Event] = {}
 
-    def get_project_status(self, project_id: int) -> str:
-        """Get the current indexing status for a project."""
+    def get_repo_status(self, repo_id: int) -> str:
+        """Get the current in-memory indexing status for a repository."""
         with self._lock:
-            return self._active_jobs.get(project_id, "idle")
+            return self._active_jobs.get(repo_id, "idle")
+
+    async def cancel_repo_index(self, repo_id: int) -> None:
+        """Request cancellation of an active full-index job for a repository."""
+        await _request_cancel(repo_id)
+        with self._lock:
+            self._active_jobs[repo_id] = "cancelled"
+        logger.info(f"[IndexingManager] Cancel requested for repo {repo_id}")
 
     def cancel_indexing(self, project_id: int) -> None:
-        """Request cancellation of an active full-index job for a project."""
-        with self._lock:
-            flag = self._cancel_flags.get(project_id)
-            if flag is not None:
-                flag.set()
-                logger.info(
-                    f"[IndexingManager] Cancel requested for project {project_id}"
-                )
-            else:
-                logger.warning(
-                    f"[IndexingManager] No active job to cancel for project {project_id}"
-                )
+        """
+        Request cancellation of active full-index job(s) for a project.
 
-    def _check_cancelled(self, project_id: int) -> bool:
-        """Return True if cancellation has been requested for this project."""
-        with self._lock:
-            flag = self._cancel_flags.get(project_id)
-            if flag and flag.is_set():
-                logger.info(f"[IndexingManager] Job cancelled for project {project_id}")
-                self._active_jobs[project_id] = "cancelled"
-                self._cancel_flags.pop(project_id, None)
-                return True
-            return False
+        This synchronous wrapper schedules async cancellation for all repos
+        associated with the project. It exists for backward compatibility.
+        """
+        try:
+            asyncio.create_task(self._cancel_by_project(project_id))
+        except RuntimeError:
+            # No running event loop; schedule via thread-safe call.
+            loop = asyncio.get_event_loop()
+            loop.call_soon_threadsafe(lambda: asyncio.create_task(self._cancel_by_project(project_id)))
+
+    async def _cancel_by_project(self, project_id: int) -> None:
+        """Resolve active repo(s) for a project and request cancellation."""
+        repo = await resolve_project_to_repo(project_id)
+        if repo:
+            await self.cancel_repo_index(repo.id)
+        else:
+            logger.warning(
+                f"[IndexingManager] No active repo to cancel for project {project_id}"
+            )
+
+    async def _check_cancelled(self, repo_id: int) -> bool:
+        """Return True if cancellation has been requested for this repo."""
+        if await _is_cancel_requested(repo_id):
+            logger.info(f"[IndexingManager] Job cancelled for repo {repo_id}")
+            with self._lock:
+                self._active_jobs[repo_id] = "cancelled"
+            return True
+        return False
 
     async def start_watching(self, path: str, repo_id: int):
         """
@@ -121,152 +185,199 @@ class IndexingManager:
             self._watchers.clear()
             logger.info("Stopped all watchers")
 
-    async def trigger_full_index(self, project_id: int, rebuild: bool = False):
+    async def trigger_full_index_repo(self, repo_id: int, rebuild: bool = False):
         """
-        Trigger a full index for a given project.
-        Resolves project -> repositories and indexes each.
+        Trigger a full index for a specific repository.
+
         Args:
+            repo_id: The local repository ID to index.
             rebuild: If True, forces re-indexing of all files.
         """
-        logger.info(
-            f"Triggering full index for Project ID: {project_id} (Rebuild={rebuild})"
-        )
-        # Use a local service instance so concurrent calls do not share mutable
-        # component state across threads.
+        logger.info(f"Triggering full index for Repo ID: {repo_id} (Rebuild={rebuild})")
+
         service = IndexingService()
         with self._lock:
-            self._active_jobs[project_id] = "indexing"
-            self._cancel_flags[project_id] = threading.Event()
+            self._active_jobs[repo_id] = "indexing"
+        await _clear_cancel_flag(repo_id)
 
         try:
             async with session_scope() as session:
-                # 1. Fetch Repositories for Project
-                stmt = select(Repository).where(Repository.project_id == project_id)
-                result = await session.execute(stmt)
-                repos = result.scalars().all()
-
-                if not repos:
-                    logger.warning(f"No repositories found for Project ID {project_id}")
+                repo = await session.get(Repository, repo_id)
+                if not repo:
+                    logger.warning(f"Repository {repo_id} not found")
                     with self._lock:
-                        self._active_jobs[project_id] = "done"
+                        self._active_jobs[repo_id] = "error"
+                    await _set_indexing_status(repo_id, "error")
                     return
 
-                for repo in repos:
-                    if self._check_cancelled(project_id):
-                        return
+                project_id = repo.project_id
+                repo_path = await self._resolve_repo_path(repo)
+                if not repo_path:
+                    logger.warning(
+                        f"[IndexingManager] Could not resolve local path for repo {repo_id}"
+                    )
+                    with self._lock:
+                        self._active_jobs[repo_id] = "error"
+                    await _set_indexing_status(repo_id, "error")
+                    await self._update_indexing_status(repo_id, "failed")
+                    return
 
-                    repo_path = await self._resolve_repo_path(repo)
-                    if not repo_path:
-                        logger.warning(
-                            f"[IndexingManager] Could not resolve local path for repo {repo.id} (project {repo.project_id}). Skipping."
+                await self._update_indexing_status(repo_id, "in_progress")
+                await _set_indexing_status(repo_id, "indexing")
+                await self._publish_status(project_id, repo_id, "indexing")
+
+                if await self._check_cancelled(repo_id):
+                    return
+
+                await service.index_repository(repo_path, repo_id, force=rebuild)
+
+                if await self._check_cancelled(repo_id):
+                    return
+
+                # --- Phase 7: Auto-Hierarchy ---
+                try:
+                    from app.domain.codebase.indexing.directory_summarizer import (
+                        directory_summarizer,
+                    )
+
+                    await directory_summarizer.summarize_directory(
+                        repo_path, project_id, "", recursive=True
+                    )
+                except Exception as e:
+                    logger.error(f"Directory Summarization Failed: {e}")
+
+                if await self._check_cancelled(repo_id):
+                    return
+
+                # --- Project Cognitive Summary ---
+                try:
+                    from app.core.project.summarizer import project_summarizer
+
+                    await project_summarizer.add_project(repo.name, repo_path)
+                except Exception as e:
+                    logger.error(f"Project Summarization Trigger Failed: {e}")
+
+                if await self._check_cancelled(repo_id):
+                    return
+
+                # --- Standards & Patterns Analysis ---
+                try:
+                    from app.domain.codebase.indexing.standards import (
+                        project_standards_analyst,
+                    )
+
+                    await project_standards_analyst.analyze_standards(
+                        project_id, repo_path
+                    )
+                except Exception as e:
+                    logger.error(f"Standards Analysis Failed: {e}")
+
+                if await self._check_cancelled(repo_id):
+                    return
+
+                # --- Tier 4 Dynamic Indexing (Omniscience) ---
+                try:
+                    from app.domain.codebase.indexing.classifier import (
+                        ProjectType,
+                        project_classifier,
+                    )
+
+                    p_type = project_classifier.classify(repo_path)
+
+                    if p_type == ProjectType.SOFTWARE:
+                        logger.info(
+                            "Project classified as SOFTWARE. Running Semantic Extraction (API/DB)..."
                         )
-                        continue
-
-                    await service.index_repository(repo_path, repo.id, force=rebuild)
-
-                    if self._check_cancelled(project_id):
-                        return
-
-                    # --- Phase 7: Auto-Hierarchy ---
-                    try:
-                        from app.domain.codebase.indexing.directory_summarizer import (
-                            directory_summarizer,
+                        await self._run_semantic_extraction(repo_path, project_id)
+                    else:
+                        logger.info(
+                            f"Project classified as {p_type}. Skipping Semantic Extraction."
                         )
 
-                        await directory_summarizer.summarize_directory(
-                            repo_path, repo.project_id, "", recursive=True
-                        )
-                    except Exception as e:
-                        logger.error(f"Directory Summarization Failed: {e}")
-
-                    if self._check_cancelled(project_id):
-                        return
-
-                    # --- Project Cognitive Summary ---
-                    try:
-                        from app.core.project.summarizer import project_summarizer
-
-                        await project_summarizer.add_project(repo.name, repo_path)
-                    except Exception as e:
-                        logger.error(f"Project Summarization Trigger Failed: {e}")
-
-                    if self._check_cancelled(project_id):
-                        return
-
-                    # --- Standards & Patterns Analysis ---
-                    try:
-                        from app.domain.codebase.indexing.standards import (
-                            project_standards_analyst,
-                        )
-
-                        await project_standards_analyst.analyze_standards(
-                            repo.project_id, repo_path
-                        )
-                    except Exception as e:
-                        logger.error(f"Standards Analysis Failed: {e}")
-
-                    if self._check_cancelled(project_id):
-                        return
-
-                    # --- Tier 4 Dynamic Indexing (Omniscience) ---
-                    try:
-                        from app.domain.codebase.indexing.classifier import (
-                            ProjectType,
-                            project_classifier,
-                        )
-
-                        p_type = project_classifier.classify(repo_path)
-
-                        if p_type == ProjectType.SOFTWARE:
-                            logger.info(
-                                "Project classified as SOFTWARE. Running Semantic Extraction (API/DB)..."
-                            )
-                            await self._run_semantic_extraction(
-                                repo_path, repo.project_id
-                            )
-                        else:
-                            logger.info(
-                                f"Project classified as {p_type}. Skipping Semantic Extraction."
-                            )
-
-                    except Exception as e:
-                        logger.error(f"Semantic Extraction Failed: {e}")
+                except Exception as e:
+                    logger.error(f"Semantic Extraction Failed: {e}")
 
                 with self._lock:
-                    self._active_jobs[project_id] = "done"
-                # Update all repos for this project to completed
-                await self._update_indexing_status_by_project(project_id, "completed")
+                    self._active_jobs[repo_id] = "done"
+                await _set_indexing_status(repo_id, "done")
+                await self._publish_status(project_id, repo_id, "done")
+                await self._update_indexing_status(repo_id, "completed")
 
-        except Exception as e:
-            logger.error(f"Full Index Failed for Project {project_id}: {e}")
+        except asyncio.CancelledError:
+            logger.info(f"Full Index Cancelled for Repo {repo_id}")
             with self._lock:
-                self._active_jobs[project_id] = "error"
-            await self._update_indexing_status_by_project(project_id, "failed")
+                self._active_jobs[repo_id] = "cancelled"
+            await _set_indexing_status(repo_id, "cancelled")
+            await self._publish_status(project_id, repo_id, "cancelled")
+            await self._update_indexing_status(repo_id, "failed")
+            raise
+        except Exception as e:
+            logger.error(f"Full Index Failed for Repo {repo_id}: {e}")
+            with self._lock:
+                self._active_jobs[repo_id] = "error"
+            await _set_indexing_status(repo_id, "error")
+            await self._publish_status(project_id, repo_id, "error")
+            await self._update_indexing_status(repo_id, "failed")
 
     def dispatch_full_index(self, project_id: int, rebuild: bool = False):
         """
-        Dispatch the indexing task to Celery worker.
-        Clears any previous cancellation flag for this project.
+        Dispatch the indexing task for a project.
+
+        Resolves the project to its active local repo and queues a repo-level
+        indexing task. Keeps the external API surface on project_id.
         """
         try:
-            from app.domain.codebase.indexing.tasks import run_full_indexing_task
+            # Synchronous resolution path: schedule an async helper to look up the
+            # repo and dispatch. This keeps the API endpoint non-blocking while
+            # still ensuring we only dispatch for resolvable repos.
+            coro = self._resolve_and_dispatch_repo_task(project_id, rebuild)
+            try:
+                asyncio.create_task(coro)
+            except RuntimeError:
+                loop = asyncio.get_event_loop()
+                loop.call_soon_threadsafe(lambda: asyncio.create_task(coro))
 
-            with self._lock:
-                self._active_jobs[project_id] = "queued"
-                self._cancel_flags.pop(project_id, None)  # Reset cancel flag
-            # Update repository indexing_status to "in_progress"
-            run_full_indexing_task.delay(project_id, rebuild)
             logger.info(f"Dispatched full index task for Project {project_id}")
         except Exception as e:
             logger.error(f"Failed to dispatch indexing task: {e}")
-            with self._lock:
-                self._active_jobs[project_id] = "error_dispatch"
+
+    async def _resolve_and_dispatch_repo_task(self, project_id: int, rebuild: bool) -> None:
+        """Async helper to resolve project -> repo and dispatch the indexing task."""
+        try:
+            repo = await resolve_project_to_repo(project_id)
+            if not repo:
+                logger.warning(
+                    f"[IndexingManager] Could not resolve active repo for project {project_id}, skipping dispatch"
+                )
+                return
+
+            await self._dispatch_repo_index(repo.id, rebuild)
+        except Exception as e:
+            logger.error(f"[IndexingManager] Error dispatching index for project {project_id}: {e}")
+
+    async def _dispatch_repo_index(self, repo_id: int, rebuild: bool = False) -> None:
+        """Dispatch a repo-level full-index task to the queue."""
+        from app.domain.codebase.indexing.tasks import run_full_indexing_task
+
+        project_id = None
+        try:
+            async with session_scope() as session:
+                repo = await session.get(Repository, repo_id)
+                project_id = repo.project_id if repo else None
+        except Exception as e:
+            logger.warning(f"[IndexingManager] Could not resolve project_id for repo {repo_id}: {e}")
+
+        with self._lock:
+            self._active_jobs[repo_id] = "queued"
+        await _clear_cancel_flag(repo_id)
+        await _set_indexing_status(repo_id, "queued")
+        await self._publish_status(project_id, repo_id, "queued")
+        run_full_indexing_task.delay(repo_id, rebuild)
+        logger.info(f"Dispatched full index task for Repo {repo_id}")
 
     async def _update_indexing_status(self, repo_id: int, status: str):
         """Update indexing_status and last_indexed_at for a repository."""
         async with session_scope() as session:
-            from app.models import Repository
-
             repo = await session.get(Repository, repo_id)
             if repo:
                 repo.indexing_status = status
@@ -278,32 +389,20 @@ class IndexingManager:
                     f"[IndexingManager] Updated repo {repo_id} indexing_status to {status}"
                 )
 
-    async def _update_indexing_status_by_project(self, project_id: int, status: str):
-        """Update indexing_status for all repositories of a project."""
-        async with session_scope() as session:
-            from app.models import Repository
-
-            stmt = select(Repository).where(Repository.project_id == project_id)
-            result = await session.execute(stmt)
-            repos = result.scalars().all()
-            for repo in repos:
-                repo.indexing_status = status
-                if status in ("completed", "failed"):
-                    from app.utils.time import utcnow
-
-                    repo.last_indexed_at = utcnow()
-            logger.debug(
-                f"[IndexingManager] Updated project {project_id} repos indexing_status to {status}"
+    async def _publish_status(self, project_id: int | None, repo_id: int, status: str) -> None:
+        """Notify frontend of status change via SSE."""
+        if project_id is None:
+            return
+        try:
+            from app.domain.codebase.event.publishers import (
+                publish_indexing_status_changed,
             )
 
-        # Notify frontend of status change via SSE
-        try:
-            from app.domain.codebase.event.publishers import publish_indexing_status_changed
-            await publish_indexing_status_changed(project_id, status)
+            await publish_indexing_status_changed(project_id, status, repo_id=repo_id)
         except Exception as e:
             logger.warning(f"[IndexingManager] Failed to publish indexing status event: {e}")
 
-    async def _run_semantic_extraction(self, repo_path: str, project_id: int):
+    async def _run_semantic_extraction(self, repo_path: str, project_id: int | None):
         """
         Run semantic extractors for Software Projects (API endpoints, DB schemas).
         """
@@ -315,8 +414,6 @@ class IndexingManager:
 
         file_filter = FileFilter()
 
-        # Walk once. Offload the synchronous filesystem walk to a thread so it
-        # does not block the asyncio event loop for large repositories.
         try:
             file_paths = await asyncio.to_thread(
                 lambda: list(
@@ -326,25 +423,20 @@ class IndexingManager:
             for full_path in file_paths:
                 ext = os.path.splitext(full_path)[1].lower()
 
-                # Check if file is a supported semantic language type
                 if ext not in SEMANTIC_EXTENSIONS:
                     continue
 
-                # API Extraction
                 entities = await api_extractor.extract(full_path)
                 if entities:
                     await api_extractor.sync_to_graph(repo_path, project_id, entities)
 
-                # DB Extraction (Currently limited to Python)
                 if ext in SEMANTIC_LANGUAGE_MAP["python"]:
                     tables = await db_extractor.extract(full_path)
                     if tables:
                         await db_extractor.sync_to_graph(repo_path, project_id, tables)
 
         except Exception as e:
-            logger.error(f"Full Index Failed for Project {project_id}: {e}")
-            with self._lock:
-                self._active_jobs[project_id] = "error"
+            logger.error(f"Semantic Extraction Failed: {e}")
 
     async def _resolve_repo_path(self, repo: Repository) -> str | None:
         """Resolve the local filesystem path for a repository.
@@ -363,40 +455,10 @@ class IndexingManager:
     async def trigger_full_index_for_repo(self, repo_id: int):
         """
         Trigger full index for a specific repo by ID.
-        Useful when we already have the repo object (e.g. within switch handler).
+
+        Deprecated: use trigger_full_index_repo instead.
         """
-        # Note: This method is per-repo. To map to project status, we need project_id.
-        # Ideally, we should fetch project_id and update status too.
-        async with session_scope() as session:
-            repo = await session.get(Repository, repo_id)
-            if not repo:
-                logger.warning(f"Repository {repo_id} not found")
-                return
-
-            repo_path = await self._resolve_repo_path(repo)
-            if not repo_path:
-                logger.warning(f"Repository {repo_id} has no resolvable local path")
-                return
-
-            project_id = repo.project_id
-            if project_id is not None:
-                with self._lock:
-                    self._active_jobs[project_id] = "indexing"
-
-            logger.info(f"Triggering full index for Repo ID: {repo_id} ({repo.name})")
-
-            # Use a local service instance for thread safety.
-            service = IndexingService()
-            try:
-                await service.index_repository(repo_path, repo.id)
-                if project_id is not None:
-                    with self._lock:
-                        self._active_jobs[project_id] = "done"
-            except Exception as e:
-                logger.error(f"Repo Index failed: {e}")
-                if project_id is not None:
-                    with self._lock:
-                        self._active_jobs[project_id] = "error_repo"
+        await self.trigger_full_index_repo(repo_id)
 
     async def run_indexing_background(self, repo_id: int):
         """
@@ -405,22 +467,7 @@ class IndexingManager:
         NOTE: This is an async method but should NOT be awaited by caller.
         Use asyncio.create_task(run_indexing_background(...)) instead.
         """
-        # Fire and forget - create task without awaiting
-        asyncio.create_task(self._resolve_and_dispatch(repo_id))
-
-    async def _resolve_and_dispatch(self, repo_id: int):
-        """Async helper to resolve repo and dispatch indexing."""
-        try:
-            async with session_scope() as session:
-                repo = await session.get(Repository, repo_id)
-                if repo and repo.project_id:
-                    self.dispatch_full_index(repo.project_id)
-                else:
-                    logger.warning(
-                        f"Could not resolve project for repo {repo_id}, skipping dispatch"
-                    )
-        except Exception as e:
-            logger.error(f"Error in _resolve_and_dispatch for repo {repo_id}: {e}")
+        asyncio.create_task(self._dispatch_repo_index(repo_id))
 
 
 # Global Instance

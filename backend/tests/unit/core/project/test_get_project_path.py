@@ -7,7 +7,96 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.constants import DEFAULT_PROJECT_ID
-from app.core.project.utils import get_project_path
+from app.core.project.utils import get_project_path, resolve_project_to_repo
+
+
+def _make_fake_session_scope(get_return=None, all_return=None):
+    """Build a fake session_scope that returns a session with get()/execute()."""
+
+    class FakeSession:
+        async def get(self, model, obj_id):
+            return get_return
+
+        async def execute(self, stmt):
+            class FakeResult:
+                def scalars(self):
+                    return self
+
+                def all(self):
+                    return all_return or []
+
+            return FakeResult()
+
+    class FakeScope:
+        async def __aenter__(self):
+            return FakeSession()
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+    return FakeScope
+
+
+class TestResolveProjectToRepo:
+    """Unit tests for resolve_project_to_repo."""
+
+    @pytest.mark.asyncio
+    async def test_default_project_id_returns_none(self):
+        with patch("app.core.project.utils._get_workspace_root", return_value="/tmp/ws"):
+            repo = await resolve_project_to_repo(DEFAULT_PROJECT_ID)
+            assert repo is None
+
+    @pytest.mark.asyncio
+    async def test_local_repo_id_trusts_json_and_verifies_db(self):
+        repo_mock = MagicMock()
+        repo_mock.id = 7
+        repo_mock.sync_status = "SYNCED"
+
+        with patch(
+            "app.core.project.utils._get_workspace_root", return_value="/tmp/ws"
+        ), patch(
+            "app.core.project.utils.local_project_index.get_entry",
+            return_value=MagicMock(path="/tmp/ws/proj", repo_id=7, project_id=101),
+        ), patch(
+            "app.core.project.utils.session_scope",
+            _make_fake_session_scope(get_return=repo_mock),
+        ):
+            repo = await resolve_project_to_repo(101)
+            assert repo is repo_mock
+
+    @pytest.mark.asyncio
+    async def test_no_local_repo_id_falls_back_to_db_query(self):
+        repo_mock = MagicMock()
+        repo_mock.id = 8
+        repo_mock.sync_status = "SYNCED"
+        repo_mock.local_path = "/tmp/ws/proj"
+        repo_mock.relative_path = None
+
+        with patch(
+            "app.core.project.utils._get_workspace_root", return_value="/tmp/ws"
+        ), patch(
+            "app.core.project.utils.local_project_index.get_entry",
+            return_value=MagicMock(path="/tmp/ws/proj", repo_id=None, project_id=101),
+        ), patch(
+            "app.core.project.utils.session_scope",
+            _make_fake_session_scope(all_return=[repo_mock]),
+        ):
+            repo = await resolve_project_to_repo(101)
+            assert repo is repo_mock
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_no_local_or_db_match(self):
+        with patch(
+            "app.core.project.utils._get_workspace_root", return_value="/tmp/ws"
+        ), patch(
+            "app.core.project.utils.local_project_index.get_entry",
+            return_value=None,
+        ), patch(
+            "app.core.project.utils.session_scope",
+            _make_fake_session_scope(all_return=[]),
+        ):
+            repo = await resolve_project_to_repo(101)
+            assert repo is None
 
 
 class TestGetProjectPath:

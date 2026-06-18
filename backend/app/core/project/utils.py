@@ -55,26 +55,38 @@ def get_memory_path(project_path: str) -> Path:
     return get_evoloop_dir(project_path) / "memory"
 
 
-def backfill_project_json(path: str, project_id: int) -> None:
-    """Write or update project_id in {path}/.evoloop/project.json."""
-    meta_file = os.path.join(path, ".evoloop", "project.json")
-    meta: dict = {}
-    if os.path.exists(meta_file):
-        try:
-            with open(meta_file, encoding="utf-8") as f:
-                meta = json.load(f)
-        except Exception as e:
-            logger.warning(f"[ProjectUtils] Failed to read {meta_file}: {e}")
+def get_project_json_path(project_path: str) -> str:
+    """Return the path to {project_path}/.evoloop/project.json."""
+    return os.path.join(project_path, ".evoloop", "project.json")
 
-    if meta.get("project_id") == project_id:
-        return
 
-    meta["project_id"] = project_id
+def read_project_json(project_path: str) -> dict:
+    """Read {project_path}/.evoloop/project.json if it exists."""
+    meta_file = get_project_json_path(project_path)
+    if not os.path.exists(meta_file):
+        return {}
+    try:
+        with open(meta_file, encoding="utf-8") as f:
+            return json.load(f) or {}
+    except Exception as e:
+        logger.warning(f"[ProjectUtils] Failed to read {meta_file}: {e}")
+        return {}
+
+
+def write_project_json(project_path: str, data: dict) -> None:
+    """Write data to {project_path}/.evoloop/project.json, merging with existing content.
+
+    Existing keys are preserved unless explicitly overwritten by `data`.
+    This keeps local project.json as the truth source while allowing
+    callers to update specific fields (e.g. project_id, description).
+    """
+    meta_file = get_project_json_path(project_path)
+    meta = read_project_json(project_path)
+    meta.update(data)
     try:
         os.makedirs(os.path.dirname(meta_file), exist_ok=True)
         with open(meta_file, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2, ensure_ascii=False)
-        logger.info(f"[ProjectUtils] Backfilled project_id {project_id} into {meta_file}")
     except Exception as e:
         logger.warning(f"[ProjectUtils] Failed to write {meta_file}: {e}")
 
@@ -87,7 +99,7 @@ async def get_project_path(project_id: int) -> str:
     - project_id == DEFAULT_PROJECT_ID (0, Global Mode): Returns WORKSPACE_ROOT
     - project_id > 0:
         1. Local .evoloop/project.json scan (authoritative)
-        2. Repository.relative_path / local_path (fallback + backfill)
+        2. Repository.relative_path / local_path (fallback, read-only)
     """
     # 全局模式特判：返回 WORKSPACE_ROOT 作为文件读/搜索的基准目录
     # 注意：上传写入不走此函数，由 API 层直接路由至 settings.CHAT_UPLOAD_DIR
@@ -97,11 +109,14 @@ async def get_project_path(project_id: int) -> str:
     workspace_root = _get_workspace_root()
 
     # 1. Local project.json scan (authoritative)
-    local_path = local_project_index.get_path(project_id, workspace_root)
-    if local_path and os.path.isdir(local_path):
-        return local_path
+    local_entry = local_project_index.get_entry(project_id, workspace_root)
+    if local_entry and os.path.isdir(local_entry.path):
+        return local_entry.path
 
-    # 2. Fallback: Repository.relative_path / local_path
+    # 2. Fallback: Repository.relative_path / local_path (read-only)
+    # This is a transitional fallback for projects that haven't written their
+    # project_id into .evoloop/project.json yet. We intentionally do NOT mutate
+    # project.json here to keep local-first authority intact.
     try:
         async with session_scope() as session:
             stmt = select(Repository).where(Repository.project_id == project_id)
@@ -112,13 +127,75 @@ async def get_project_path(project_id: int) -> str:
                 if repo.relative_path and workspace_root:
                     candidate = os.path.join(workspace_root, repo.relative_path)
                     if os.path.isdir(candidate):
-                        backfill_project_json(candidate, project_id)
                         return candidate
 
                 if repo.local_path and os.path.isdir(repo.local_path):
-                    backfill_project_json(repo.local_path, project_id)
                     return repo.local_path
     except Exception as e:
         logger.debug(f"DB lookup failed for {project_id}: {e}")
 
     return ""
+
+
+async def resolve_project_to_repo(project_id: int) -> Repository | None:
+    """
+    Resolve a project_id to the single active Repository on this device.
+
+    Resolution order:
+    1. Local .evoloop/project.json (authoritative for path, may contain repo_id)
+    2. Database lookup for active Repository with matching project_id
+
+    Returns None if no active repository can be resolved. Logs a warning if
+    multiple active repositories are found (the DB partial unique index should
+    prevent this, but we defensively handle the case).
+    """
+    if project_id == DEFAULT_PROJECT_ID:
+        return None
+
+    workspace_root = _get_workspace_root()
+    local_entry = local_project_index.get_entry(project_id, workspace_root)
+
+    try:
+        async with session_scope() as session:
+            # If local project.json contains a repo_id, trust it first.
+            if local_entry and local_entry.repo_id is not None:
+                repo = await session.get(Repository, local_entry.repo_id)
+                if repo and repo.sync_status not in ("IGNORED", "DISCONNECTED"):
+                    return repo
+
+            # Otherwise, query by project_id among active repos.
+            stmt = (
+                select(Repository)
+                .where(Repository.project_id == project_id)
+                .where(Repository.sync_status.notin_(["IGNORED", "DISCONNECTED"]))
+            )
+            result = await session.execute(stmt)
+            repos = result.scalars().all()
+
+            if not repos:
+                return None
+
+            if len(repos) > 1:
+                logger.warning(
+                    f"[ProjectUtils] Multiple active repositories found for project_id "
+                    f"{project_id}; using repo_id={repos[0].id}. This should not happen "
+                    f"after the active-project unique index is enforced."
+                )
+
+            # Prefer a repo whose path matches the local entry if available.
+            if local_entry:
+                for repo in repos:
+                    repo_path = repo.local_path or (
+                        os.path.join(workspace_root, repo.relative_path)
+                        if repo.relative_path and workspace_root
+                        else None
+                    )
+                    if repo_path and os.path.abspath(repo_path) == os.path.abspath(
+                        local_entry.path
+                    ):
+                        return repo
+
+            return repos[0]
+    except Exception as e:
+        logger.warning(f"[ProjectUtils] Failed to resolve project_id {project_id} to repo: {e}")
+        return None
