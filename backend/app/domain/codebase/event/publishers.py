@@ -7,7 +7,12 @@ Helper functions for publishing codebase indexing events.
 
 from app.core.events import system_bus
 
-from .schemas import FileModifiedEvent, FileMovedEvent, FileRemovedEvent
+from .schemas import (
+    FileModifiedEvent,
+    FileMovedEvent,
+    FileRemovedEvent,
+    IndexingStatusChangedEvent,
+)
 
 
 async def publish_file_modified(repo_id: int, file_path: str) -> None:
@@ -23,3 +28,14 @@ async def publish_file_removed(repo_id: int, file_path: str) -> None:
 async def publish_file_moved(repo_id: int, src_path: str, dest_path: str) -> None:
     """Publish a file moved event."""
     await system_bus.publish(FileMovedEvent(repo_id=repo_id, src_path=src_path, dest_path=dest_path))
+
+
+async def publish_indexing_status_changed(project_id: int, status: str, repo_id: int | None = None) -> None:
+    """Publish a public indexing status change event (bridged to frontend SSE)."""
+    await system_bus.publish(
+        IndexingStatusChangedEvent(
+            project_id=project_id,
+            repo_id=repo_id,
+            status=status,
+        )
+    )

@@ -444,10 +444,13 @@ async def create_project(req: CreateProjectRequest, _token: TokenDep):
         meta_dir = os.path.join(project_path, ".evoloop")
         os.makedirs(meta_dir, exist_ok=True)
         description = "Created via EvoLoop"
+        from app.core.hitl.policies import DEFAULT_SENSITIVE_PATTERNS
         skeleton = {
             "name": req.name,
             "description": description,
             "project_id": None,
+            "sensitive_patterns": DEFAULT_SENSITIVE_PATTERNS,
+            "authorized_paths": [],
         }
         with open(os.path.join(meta_dir, "project.json"), "w", encoding="utf-8") as f:
             json.dump(skeleton, f, indent=2, ensure_ascii=False)
@@ -631,7 +634,7 @@ async def scan_workspace_projects_endpoint(_token: TokenDep):
                 DetectedProjectItem(
                     id=r.id,
                     name=r.name,
-                    path=r.local_path,
+                    path=await get_project_path(r.project_id) if r.project_id else r.local_path,
                     detected_at=r.detected_at.isoformat() if r.detected_at else None,
                 )
                 for r in repos
@@ -676,7 +679,7 @@ async def get_detected_projects(
                 DetectedProjectItem(
                     id=r.id,
                     name=r.name,
-                    path=r.local_path,
+                    path=await get_project_path(r.project_id) if r.project_id else r.local_path,
                     detected_at=r.detected_at.isoformat() if r.detected_at else None,
                 )
                 for r in repos
@@ -747,7 +750,7 @@ async def get_ignored_projects(
                 DetectedProjectItem(
                     id=r.id,
                     name=r.name,
-                    path=r.local_path,
+                    path=await get_project_path(r.project_id) if r.project_id else r.local_path,
                     detected_at=r.detected_at.isoformat() if r.detected_at else None,
                 )
                 for r in repos

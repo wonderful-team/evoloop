@@ -3481,6 +3481,14 @@ export type StreamStreamChatData = {
 
 export type StreamStreamChatResponse = (unknown);
 
+export type StreamStreamSystemData = {
+    guestId?: (string | null);
+    token?: (string | null);
+    xGuestId?: (string | null);
+};
+
+export type StreamStreamSystemResponse = (unknown);
+
 export type SubscriptionGetSubscriptionPlansResponse = (unknown);
 
 export type SubscriptionCalculateUpgradePriceData = {

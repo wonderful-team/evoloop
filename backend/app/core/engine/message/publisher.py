@@ -16,8 +16,8 @@ MessagePublisher —— 统一消息分发器。
     await publisher.publish(block)
 """
 
+import json
 import logging
-import time
 from datetime import datetime
 from typing import Any
 
@@ -25,9 +25,9 @@ from app.core.config import settings
 from app.core.engine.message.event_bus import get_event_bus
 from app.core.engine.message.mapper import BlockMapper
 from app.core.engine.message.schemas import MessageBlock
-from app.models.schemas.events import BaseStreamEvent
-from app.infrastructure.pydantic_base import EventBase
 from app.core.evocloud import evocloud_manager
+from app.infrastructure.pydantic_base import EventBase
+from app.models.schemas.events import BaseStreamEvent
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +40,9 @@ class MessagePublisher:
         self.project_id = project_id
 
     async def publish(
-        self, 
-        payload: MessageBlock | BaseStreamEvent | EventBase, 
-        channels: set[str] | None = None, 
+        self,
+        payload: MessageBlock | BaseStreamEvent | EventBase,
+        channels: set[str] | None = None,
         action: str = "create"
     ) -> None:
         """
@@ -67,7 +67,7 @@ class MessagePublisher:
         """推送数据到 Web UI (SSE)"""
         try:
             channel = f"chat:{self.thread_id}:events"
-            
+
             if isinstance(payload, MessageBlock):
                 event = BlockMapper.to_sse(payload, action=action)
                 data_json = event.model_dump_json()
@@ -83,6 +83,21 @@ class MessagePublisher:
             await bus.publish(channel, data_json)
         except Exception as e:
             logger.warning(f"[Publisher] SSE send failed: {e}")
+
+    async def publish_custom_event(self, event_type: str, data: dict[str, Any]) -> None:
+        """Publish a custom structured event to the chat SSE channel."""
+        try:
+            payload = {
+                "type": event_type,
+                "data": data,
+                "thread_id": self.thread_id,
+                "project_id": self.project_id,
+            }
+            bus = get_event_bus()
+            await bus.publish(f"chat:{self.thread_id}:events", json.dumps(payload))
+            logger.debug(f"[Publisher] Published custom event {event_type} for thread {self.thread_id}")
+        except Exception as e:
+            logger.warning(f"[Publisher] Custom event publish failed: {e}")
 
     async def _publish_mobile(self, block: MessageBlock) -> None:
         """通过 EvoCloud Gateway WebSocket 推送到 Mobile"""

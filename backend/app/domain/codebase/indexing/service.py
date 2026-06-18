@@ -12,12 +12,12 @@ from app.domain.codebase.indexing.components.content_indexer import ContentIndex
 from app.domain.codebase.indexing.components.file_preparer import FilePreparer
 from app.domain.codebase.indexing.components.graph_syncer import GraphSyncer
 from app.domain.codebase.indexing.components.sql_persister import SQLPersister
-from app.domain.codebase.indexing.extractors.treesitter_extractor import (
-    TreeSitterExtractor,
-)
+from app.domain.codebase.indexing.extractors.treesitter_extractor import TreeSitterExtractor
+from app.domain.codebase.schemas import IndexedContent, PreparedFile
 from app.infrastructure.database.graph.driver import get_graph_db
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.embeddings.base import BaseEmbedder
+from app.infrastructure.embeddings.batched import BatchedEmbedder
 from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.models import (
     Repository,
@@ -123,11 +123,53 @@ class IndexingService:
             return repo.local_path
         return None
 
-    async def index_file(self, file_path: str, repo_id: int, force: bool = False):
+    async def index_file(
+        self,
+        file_path: str,
+        repo_id: int,
+        force: bool = False,
+        *,
+        prepared_override: PreparedFile | None = None,
+        indexed_override: IndexedContent | None = None,
+        content_indexer: ContentIndexer | None = None,
+    ):
         """
         Index a single file using the component-based pipeline.
+
+        Args:
+            prepared_override: Optional pre-prepared file metadata. If provided,
+                the prepare step is skipped and this value is used. Caller must
+                provide a session that already contains this record.
+            indexed_override: Optional pre-indexed content. If provided, content
+                extraction/embedding is skipped. Useful for batched embedding
+                scenarios.
+            content_indexer: Optional ContentIndexer to use for extraction and
+                embedding. When called from index_repository, a BatchedEmbedder
+                is passed here to combine texts across files.
         """
         logger.info(f"[index_file] Enter: {file_path} repo_id={repo_id}")
+
+        indexer = content_indexer or self.content_indexer
+
+        prepared = prepared_override
+        indexed = indexed_override
+        repo_path: str | None = None
+
+        # If we already have indexed content, we only need repo metadata for
+        # graph/vector persistence. Resolve it without starting a session here.
+        if indexed_override is not None:
+            async with self.session_factory() as session:
+                repo = await session.get(Repository, repo_id)
+                if not repo:
+                    logger.error(f"Repository {repo_id} not found")
+                    return
+                repo_path = await self._resolve_project_path(repo)
+            if repo_path is None:
+                logger.warning(
+                    f"[index_file] No resolvable project path for repo {repo_id}. Skipping {file_path}."
+                )
+                return
+
         async with self.session_factory() as session:
             try:
                 repo = await session.get(Repository, repo_id)
@@ -142,21 +184,21 @@ class IndexingService:
                     )
                     return
 
-                # 1. Prepare
-                prepared = await self.file_preparer.prepare(
-                    file_path, repo, session, force=force, repo_path=repo_path
-                )
-                if not prepared:
-                    return
+                # 1. Prepare (skip if provided by caller)
+                if prepared is None:
+                    prepared = await self.file_preparer.prepare(
+                        file_path, repo, session, force=force, repo_path=repo_path
+                    )
+                    if not prepared:
+                        return
 
-                # 2. Index Content
-                indexed = await self.content_indexer.index(
-                    file_path, prepared.content, prepared.rel_path
-                )
-                if not indexed:
-                    # Safe Indexing: Skip wiping database to preserve "Last Known Good"
-                    # This happens for substantial files (>50 chars) where extraction fails.
-                    return
+                # 2. Index Content (skip if provided by caller)
+                if indexed is None:
+                    indexed = await indexer.index(
+                        file_path, prepared.content, prepared.rel_path
+                    )
+                    if not indexed:
+                        return
 
                 # 3. Persist SQL
                 source_file = await self.file_preparer.create_or_update_source_file(
@@ -186,17 +228,14 @@ class IndexingService:
                                 "language": get_file_ext(prepared.file_path),
                             }
                         )
-                    # Run synchronous vector store I/O in a thread to avoid blocking
-                    # the event loop (especially for PgVectorStore network calls).
+
                     await asyncio.to_thread(
                         vector_store.upsert_code_chunks,
                         chunks_for_vec,
                         indexed.embeddings,
                     )
                 else:
-                    logger.warning(
-                        f"Skipping vector upsert for {prepared.rel_path}: No embeddings generated (provider might be unconfigured)."
-                    )
+                    logger.warning(f"Skipping vector upsert for {prepared.rel_path}: No embeddings generated (provider might be unconfigured).")
 
                 # 4. Sync Graph
                 try:
@@ -210,18 +249,112 @@ class IndexingService:
                         repo_path=repo_path,
                     )
                 except NotImplementedError:
-                    logger.debug(
-                        "[IndexingService] Graph sync skipped (not supported in embedded mode)"
-                    )
+                    logger.debug("[IndexingService] Graph sync skipped (not supported in embedded mode)")
 
             except Exception as e:
                 logger.error(f"Error indexing file {file_path}: {e}")
                 await session.rollback()
 
-    async def remove_file(self, file_path: str, repo_id: int):
-        """
-        Handle file deletion.
-        """
+    async def _prepare_and_extract(
+        self,
+        file_path: str,
+        repo_id: int,
+        force: bool,
+        content_indexer: ContentIndexer,
+    ) -> tuple[PreparedFile, IndexedContent] | None:
+        """Prepare and extract a single file without embedding."""
+        async with self.session_factory() as session:
+            try:
+                repo = await session.get(Repository, repo_id)
+                if not repo:
+                    logger.error(f"Repository {repo_id} not found")
+                    return None
+
+                repo_path = await self._resolve_project_path(repo)
+                if not repo_path:
+                    return None
+
+                prepared = await self.file_preparer.prepare(
+                    file_path, repo, session, force=force, repo_path=repo_path
+                )
+                if not prepared:
+                    return None
+
+                extracted = await content_indexer.extract(
+                    file_path, prepared.content, prepared.rel_path
+                )
+                if extracted is None:
+                    return None
+
+                all_docs, entities, relations, file_summary_doc = extracted
+                indexed = IndexedContent(
+                    documents=all_docs,
+                    entities=entities,
+                    relations=relations,
+                    embeddings=[],
+                    file_summary_doc=file_summary_doc,
+                )
+                return prepared, indexed
+            except Exception as e:
+                logger.error(f"Error preparing/extracting {file_path}: {e}")
+                await session.rollback()
+                return None
+
+    async def _embed_all(
+        self,
+        items: list[tuple[PreparedFile, IndexedContent]],
+        batched_embedder: BatchedEmbedder,
+    ) -> None:
+        """Embed all collected texts and attach embeddings to each IndexedContent."""
+        if not items or not batched_embedder:
+            return
+
+        # Build a flat list of texts with pointers back to (item_index, doc_index).
+        texts: list[str] = []
+        text_map: list[tuple[int, int]] = []
+        for item_idx, (_, indexed) in enumerate(items):
+            for doc_idx, doc in enumerate(indexed.documents):
+                skel = doc.metadata.get("skeleton")
+                if skel:
+                    text = skel
+                else:
+                    text = doc.content[:8000]
+                texts.append(text)
+                text_map.append((item_idx, doc_idx))
+
+        if not texts:
+            return
+
+        logger.info(f"[_embed_all] Embedding {len(texts)} texts across {len(items)} files")
+        embeddings = await batched_embedder.embed_documents(texts)
+        if len(embeddings) != len(texts):
+            raise RuntimeError(
+                f"Expected {len(texts)} embeddings, got {len(embeddings)}"
+            )
+
+        for (item_idx, _doc_idx), embedding in zip(text_map, embeddings, strict=False):
+            items[item_idx][1].embeddings.append(embedding)
+
+    async def _persist_indexed(
+        self,
+        file_path: str,
+        repo_id: int,
+        prepared: PreparedFile,
+        indexed: IndexedContent,
+    ) -> bool:
+        """Persist a pre-prepared, pre-embedded file to SQL, vector and graph stores."""
+        try:
+            await self.index_file(
+                file_path,
+                repo_id,
+                prepared_override=prepared,
+                indexed_override=indexed,
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Error persisting {file_path}: {e}")
+            return False
+
         async with self.session_factory() as session:
             try:
                 repo = await session.get(Repository, repo_id)
@@ -347,43 +480,86 @@ class IndexingService:
             f"Found {len(filtered_files)} valid files to index (Applied .gitignore)."
         )
 
-        # Concurrent indexing with bounded parallelism. In embedded mode the
-        # SQLite backend and the shared local embedder do not scale with high
-        # fan-out. We use a very small semaphore to avoid SQLite/vector-store
-        # lock contention while still making some progress.
-        CONCURRENT_FILES = 2
-        _index_semaphore = asyncio.Semaphore(CONCURRENT_FILES)
         total_files = len(filtered_files)
-        indexed_count = 0
-        error_count = 0
 
-        async def _index_one(file_path: str) -> None:
-            async with _index_semaphore:
-                await self.index_file(file_path, repo_id, force=force)
+        # Split the pipeline into three phases so that the CPU-bound embedding
+        # step is not held inside the persistence semaphore. In embedded mode
+        # SQLite/LanceDB persistence does not scale with high fan-out, but text
+        # extraction is cheap and embedding benefits from larger batches.
+        EXTRACT_CONCURRENCY = 4
+        PERSIST_CONCURRENCY = 2
+        extract_semaphore = asyncio.Semaphore(EXTRACT_CONCURRENCY)
+        persist_semaphore = asyncio.Semaphore(PERSIST_CONCURRENCY)
 
-        for i in range(0, total_files, CONCURRENT_FILES):
-            batch = filtered_files[i : i + CONCURRENT_FILES]
+        batched_embedder = BatchedEmbedder(
+            self.embedder, max_batch_size=32, max_wait_ms=50
+        )
+        batched_content_indexer = ContentIndexer(self.extractor, batched_embedder)
 
-            # Create tasks for concurrent execution
-            tasks = [_index_one(f) for f in batch]
+        async def _extract_one(file_path: str) -> tuple[PreparedFile, IndexedContent] | None:
+            async with extract_semaphore:
+                return await self._prepare_and_extract(
+                    file_path, repo_id, force, batched_content_indexer
+                )
 
-            # Execute batch concurrently, capture exceptions
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Phase 1: prepare + extract all files concurrently.
+        logger.info(f"Phase 1/3: extracting up to {total_files} files")
+        extract_tasks = [asyncio.create_task(_extract_one(f)) for f in filtered_files]
+        extract_results = await asyncio.gather(*extract_tasks, return_exceptions=True)
 
-            # Process results
-            for idx, result in enumerate(results):
-                if isinstance(result, Exception):
-                    error_count += 1
-                    logger.error(f"Failed to index {batch[idx]}: {result}")
-                else:
-                    indexed_count += 1
-
-            # Progress logging
-            progress = min(i + CONCURRENT_FILES, total_files)
-            logger.info(
-                f"Progress: {progress}/{total_files} files ({indexed_count} success, {error_count} errors)"
-            )
+        prepared_items: list[tuple[PreparedFile, IndexedContent]] = []
+        extract_error_count = 0
+        for file_path, result in zip(filtered_files, extract_results, strict=False):
+            if isinstance(result, Exception):
+                extract_error_count += 1
+                logger.error(f"Failed to extract {file_path}: {result}")
+            elif result is not None:
+                prepared_items.append(result)
 
         logger.info(
-            f"Full indexing complete. Indexed: {indexed_count}, Errors: {error_count}"
+            f"Phase 1 complete: {len(prepared_items)} files extracted, "
+            f"{extract_error_count} errors"
         )
+
+        # Phase 2: embed all collected texts in batches.
+        logger.info("Phase 2/3: embedding collected texts")
+        embed_start = asyncio.get_event_loop().time()
+        await self._embed_all(prepared_items, batched_embedder)
+        await batched_embedder.close()
+        embed_elapsed = asyncio.get_event_loop().time() - embed_start
+        logger.info(f"Phase 2 complete: embedding took {embed_elapsed:.1f}s")
+
+        # Phase 3: persist all files concurrently (bounded by SQLite/LanceDB).
+        logger.info(f"Phase 3/3: persisting {len(prepared_items)} files")
+        indexed_count = 0
+        persist_error_count = 0
+
+        async def _persist_one(item: tuple[PreparedFile, IndexedContent]) -> bool:
+            async with persist_semaphore:
+                prepared, indexed = item
+                return await self._persist_indexed(
+                    prepared.file_path, repo_id, prepared, indexed
+                )
+
+        persist_tasks = [
+            asyncio.create_task(_persist_one(item)) for item in prepared_items
+        ]
+        persist_results = await asyncio.gather(*persist_tasks, return_exceptions=True)
+
+        for result in persist_results:
+            if isinstance(result, Exception):
+                persist_error_count += 1
+                logger.error(f"Persist batch failed: {result}")
+            elif result:
+                indexed_count += 1
+            else:
+                persist_error_count += 1
+
+        error_count = extract_error_count + persist_error_count
+
+        # Progress logging
+        for i in range(0, total_files, PERSIST_CONCURRENCY):
+            progress = min(i + PERSIST_CONCURRENCY, total_files)
+            logger.info(f"Progress: {progress}/{total_files} files ({indexed_count} success, {error_count} errors)")
+
+        logger.info(f"Full indexing complete. Indexed: {indexed_count}, Errors: {error_count}")

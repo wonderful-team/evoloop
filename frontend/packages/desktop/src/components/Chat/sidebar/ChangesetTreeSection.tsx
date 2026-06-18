@@ -4,7 +4,6 @@ import { FileCode } from "lucide-react"
 import { useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { OpenAPI } from "@/client"
-import { useAgentStore } from "@/stores/agentStore"
 import { useChangesetStore } from "@/stores/changesetStore"
 
 export interface ChangesetNode {
@@ -25,21 +24,21 @@ interface ChangesetTreeSectionProps {
 export function ChangesetTreeSection({
   activeThreadId,
   onSelectFile,
-  defaultExpanded = false,
+  defaultExpanded: _defaultExpanded = false,
 }: ChangesetTreeSectionProps) {
   const { t } = useTranslation()
   const setChangeset = useChangesetStore((s) => s.setChangeset)
   const markChangeAsViewed = useChangesetStore((s) => s.markChangeAsViewed)
   const viewedChanges = useChangesetStore((s) => s.viewedChanges)
-  const status = useAgentStore((s) => s.status)
-  const isAgentActive =
-    status === "running" || status === "interrupted" || status === "summarizing"
 
-  const { data: changeset, isLoading } = useQuery<ChangesetNode[]>({
+  const {
+    data: changeset,
+    isLoading,
+    refetch,
+  } = useQuery<ChangesetNode[]>({
     queryKey: ["threadChangeset", activeThreadId],
     queryFn: async () => {
       if (!activeThreadId) return []
-      // Cookie Session is sent automatically by fetch.
       const res = await fetch(
         `${OpenAPI.BASE}/api/v1/conversations/${activeThreadId}/changeset`,
       )
@@ -47,8 +46,24 @@ export function ChangesetTreeSection({
       return res.json()
     },
     enabled: !!activeThreadId,
-    refetchInterval: isAgentActive ? 5000 : false,
   })
+
+  useEffect(() => {
+    const handleChangesetUpdate = (e: CustomEvent) => {
+      if (e.detail?.threadId === activeThreadId) {
+        refetch()
+      }
+    }
+    window.addEventListener(
+      "chat-changeset-updated",
+      handleChangesetUpdate as EventListener,
+    )
+    return () =>
+      window.removeEventListener(
+        "chat-changeset-updated",
+        handleChangesetUpdate as EventListener,
+      )
+  }, [activeThreadId, refetch])
 
   // Sync changeset to chatStore for badge count
   useEffect(() => {

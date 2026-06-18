@@ -9,7 +9,12 @@ preventing infrastructure/domain layers from directly accessing the event bus.
 """
 
 from app.core.events import BaseEvent, SystemEventType, system_bus
-from app.core.events.schemas import AppStartedEvent, AppStoppingEvent, UserLoggedInEvent, UserLoggedOutEvent
+from app.core.events.schemas import (
+    AppStartedEvent,
+    AppStoppingEvent,
+    UserLoggedInEvent,
+    UserLoggedOutEvent,
+)
 
 
 async def publish_app_started(startup_time: float) -> None:
@@ -97,6 +102,19 @@ async def publish_user_logged_out() -> None:
         UserLoggedOutEvent(
             source="auth",
             data={},
+        )
+    )
+
+
+async def publish_subscription_changed(member_id: int | None = None, event: str | None = None) -> None:
+    """Publish a subscription changed event (bridged to frontend SSE)."""
+    from app.core.events.schemas import SubscriptionChangedEvent
+
+    await system_bus.publish(
+        SubscriptionChangedEvent(
+            source="subscription",
+            member_id=member_id,
+            event=event,
         )
     )
 

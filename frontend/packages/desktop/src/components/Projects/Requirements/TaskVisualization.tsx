@@ -51,13 +51,6 @@ export function TaskVisualization({
   useEffect(() => {
     fetchAnalysisTasks(projectId, docId, analysisId)
     fetchSyncProgress(projectId, docId, analysisId)
-
-    // Poll for progress updates
-    const interval = setInterval(() => {
-      fetchSyncProgress(projectId, docId, analysisId)
-    }, 5000)
-
-    return () => clearInterval(interval)
   }, [projectId, docId, analysisId, fetchAnalysisTasks, fetchSyncProgress])
 
   const toggleTask = (taskId: string) => {
@@ -417,7 +410,7 @@ function RequirementTaskMapping({
   tasks,
   requirementMapping,
   getSyncStatusIcon,
-  getPriorityColor,
+  getPriorityColor: _getPriorityColor,
   getCategoryIcon,
 }: RequirementTaskMappingProps) {
   const { t } = useTranslation()

@@ -127,6 +127,10 @@ async def _summarize_project_logic(name: str, path: str):
         # Ensure project_id is persisted in the local metadata file
         if project_id is not None:
             result["project_id"] = project_id
+        # Ensure authorization defaults exist
+        from app.core.hitl.policies import DEFAULT_SENSITIVE_PATTERNS
+        result.setdefault("sensitive_patterns", DEFAULT_SENSITIVE_PATTERNS)
+        result.setdefault("authorized_paths", [])
         file_utils.write_file(meta_file, json_utils.dumps(result, indent=2))
 
         logger.info(f"[ProjectSummarizer] Saved metadata for {name}: {result}")

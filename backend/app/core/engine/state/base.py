@@ -105,9 +105,10 @@ class AgentState(AgentStateBase):
 
         return self
 
-
 class StateUpdate(AgentStateBase):
     """Standardized state update returned by LangGraph nodes."""
+
     messages: list[BaseMessage] | None = None
     next_node: str | None = None
     iteration_count: int | None = None
+    resume_tool_call: dict[str, Any] | None = None

@@ -1,20 +1,19 @@
 import logging
 from contextlib import asynccontextmanager
-
 from sqlalchemy.orm import DeclarativeBase
+from app.infrastructure.database.resource_manager import db_resource_manager
 
 logger = logging.getLogger(__name__)
 
 
-from app.infrastructure.database.resource_manager import db_resource_manager
-
 class DatabaseResourceProxy:
     """
-    Proxy object that delegates all calls and attribute access to the actual 
+    Proxy object that delegates all calls and attribute access to the actual
     database resource (engine or session factory) only when used.
-    
+
     This solves the 'import-time capture of None' problem.
     """
+
     def __init__(self, resource_name: str):
         self._resource_name = resource_name
 
@@ -25,7 +24,7 @@ class DatabaseResourceProxy:
             res = db_resource_manager.session_factory
         else:
             raise AttributeError(f"Unknown resource name: {self._resource_name}")
-            
+
         if res is None:
             raise RuntimeError(
                 f"Database {self._resource_name} accessed before initialization. "
@@ -94,6 +93,3 @@ async def session_scope():
             raise
         finally:
             await session.close()
-
-
-# Aliases for compatibility handled by __getattr__

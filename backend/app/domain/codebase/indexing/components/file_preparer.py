@@ -137,5 +137,6 @@ class FilePreparer:
             source_file.checksum = prepared.checksum
             source_file.last_indexed_at = datetime.now(timezone.utc)
             session.add(source_file)
+            await session.flush()
 
         return source_file

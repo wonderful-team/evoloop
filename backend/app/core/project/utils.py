@@ -6,7 +6,6 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.constants import DEFAULT_PROJECT_ID
-from app.core.evocloud import evocloud_manager
 from app.core.project.local_index import local_project_index
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Repository
@@ -22,6 +21,7 @@ logger = logging.getLogger(__name__)
 def _get_workspace_root() -> str:
     """Return WORKSPACE_ROOT from SystemConfigService, or empty string."""
     from app.infrastructure.config.service import SystemConfigService
+
     return SystemConfigService.get_value("WORKSPACE_ROOT", "") or ""
 
 
@@ -88,7 +88,6 @@ async def get_project_path(project_id: int) -> str:
     - project_id > 0:
         1. Local .evoloop/project.json scan (authoritative)
         2. Repository.relative_path / local_path (fallback + backfill)
-        3. Cloud API path (last resort + backfill)
     """
     # 全局模式特判：返回 WORKSPACE_ROOT 作为文件读/搜索的基准目录
     # 注意：上传写入不走此函数，由 API 层直接路由至 settings.CHAT_UPLOAD_DIR
@@ -121,15 +120,5 @@ async def get_project_path(project_id: int) -> str:
                     return repo.local_path
     except Exception as e:
         logger.debug(f"DB lookup failed for {project_id}: {e}")
-
-    # 3. Last resort: Cloud API path
-    try:
-        project = await evocloud_manager.get_project_by_id(project_id)
-        cloud_path = project.get("path") if project else None
-        if cloud_path and os.path.isdir(cloud_path):
-            backfill_project_json(cloud_path, project_id)
-            return cloud_path
-    except Exception as e:
-        logger.debug(f"Cloud lookup failed for {project_id}: {e}")
 
     return ""

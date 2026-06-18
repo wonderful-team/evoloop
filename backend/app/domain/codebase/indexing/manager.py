@@ -296,6 +296,13 @@ class IndexingManager:
                 f"[IndexingManager] Updated project {project_id} repos indexing_status to {status}"
             )
 
+        # Notify frontend of status change via SSE
+        try:
+            from app.domain.codebase.event.publishers import publish_indexing_status_changed
+            await publish_indexing_status_changed(project_id, status)
+        except Exception as e:
+            logger.warning(f"[IndexingManager] Failed to publish indexing status event: {e}")
+
     async def _run_semantic_extraction(self, repo_path: str, project_id: int):
         """
         Run semantic extractors for Software Projects (API endpoints, DB schemas).

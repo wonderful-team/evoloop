@@ -3,10 +3,10 @@ Pre-compact hook handler — saves checkpoint state before context compression.
 """
 
 import logging
-import yaml
 from datetime import datetime
 from typing import Any
 
+import yaml
 from langchain_core.messages import BaseMessage
 
 from app.core.engine.hooks.core import HookContext, HookResult
@@ -99,7 +99,7 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
 
         # Save to memory (ensuring human-readable Unicode)
         save_start = datetime.utcnow()
-        
+
         # Extract source_message_id from last message
         source_message_id = None
         if context.messages:

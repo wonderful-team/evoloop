@@ -877,7 +877,7 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks, _current_us
         )
 
     # [HITL Resume Fix]: Check if we need to auto-complete a Tool Call
-    from app.core.engine.hitl import HITLOrchestrator
+    from app.core.hitl.orchestrator import HITLOrchestrator
     pending_tool = await HITLOrchestrator.get_pending_request(graph, req.thread_id, req.model)
     
     if pending_tool:
@@ -945,7 +945,7 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
         )
 
     # [HITL Cancel Fix]: Send cancellation as ToolMessage instead of HumanMessage
-    from app.core.engine.hitl import HITLOrchestrator
+    from app.core.hitl.orchestrator import HITLOrchestrator
     pending_tool = await HITLOrchestrator.get_pending_request(graph, req.thread_id, req.model)
     
     # [HITL Closure]: Clear human request from activity monitor

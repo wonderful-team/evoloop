@@ -158,6 +158,15 @@ async def create_plan(
             
             lines.append("\n*Tip: Use `update_step_status` with the Step ID to track progress.*")
             return_text = "\n".join(lines)
+        
+        # Notify frontend plan panel to refresh
+        try:
+            from app.core.engine.message.publisher import MessagePublisher
+            publisher = MessagePublisher(thread_id=thread_id)
+            await publisher.publish_custom_event("plan.updated", {"plan_id": plan_id})
+        except Exception as e:
+            logger.warning(f"[create_plan] Failed to publish plan updated event: {e}")
+        
         return return_text, meta
 
     except Exception as e:
@@ -214,6 +223,28 @@ async def update_step_status(
             "result": result,
             "execution_run_id": execution_run_id
         }
+
+        # Notify frontend plan panel to refresh
+        try:
+            from app.core.engine.message.publisher import MessagePublisher
+            # Extract thread_id from execution_run_id or use plan lookup as fallback
+            thread_id = None
+            if execution_run_id and execution_run_id.startswith("thread_"):
+                thread_id = execution_run_id.replace("thread_", "", 1)
+            if not thread_id:
+                # Fallback: look up thread_id from plan_id
+                from app.infrastructure.database.sql.database import session_scope
+                from app.models.planning import Plan as DBPlan
+                async with session_scope() as session:
+                    db_plan = await session.get(DBPlan, plan_id)
+                    if db_plan:
+                        thread_id = db_plan.thread_id
+            if thread_id:
+                publisher = MessagePublisher(thread_id=thread_id)
+                await publisher.publish_custom_event("plan.updated", {"plan_id": plan_id, "step_id": step_id, "status": status})
+        except Exception as e:
+            logger.warning(f"[update_step_status] Failed to publish plan updated event: {e}")
+
         return msg, meta
     except Exception as e:
         return f"Error: {str(e)}", {"status": "error"}

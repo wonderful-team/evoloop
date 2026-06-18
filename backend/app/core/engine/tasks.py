@@ -139,6 +139,13 @@ async def persist_file_operation_task(
     # 原有的细粒度通知逻辑保留
     await _notify_file_operation(thread_id, message_id, file_path, operation)
 
+    # Notify sidebar changeset panel to refresh
+    try:
+        publisher = MessagePublisher(thread_id=thread_id)
+        await publisher.publish_custom_event("changeset.updated", {"message_id": message_id, "file_path": file_path, "operation": operation})
+    except Exception as e:
+        logger.warning(f"[Celery] Failed to publish changeset updated event: {e}")
+
 
 @shared_task(name="engine_harvest_concepts")
 async def harvest_concepts_task(concepts_data: list[dict], project_id: int):

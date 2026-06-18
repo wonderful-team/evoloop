@@ -86,7 +86,7 @@ class LocalEmbedder(BaseEmbedder):
             if loading:
                 # This coroutine/thread is responsible for loading.
                 try:
-                    loaded = await self._load_model()
+                    loaded = await asyncio.to_thread(self._load_model_sync)
                     with LocalEmbedder._model_load_lock:
                         LocalEmbedder._shared_model_cache[cache_key] = loaded
                         self._model = loaded
@@ -100,20 +100,30 @@ class LocalEmbedder(BaseEmbedder):
                 while not loading_event.is_set():
                     await asyncio.sleep(0.05)
 
-    async def _load_model(self):
-        """Construct the SentenceTransformer model (called once per process)."""
+    def _load_model_sync(self):
+        """Construct the SentenceTransformer model synchronously."""
         # Force offline mode to guarantee zero network requests to HuggingFace.
         # Must be set BEFORE importing sentence_transformers/huggingface_hub
         # so the library picks it up during module initialization.
         os.environ["HF_HUB_OFFLINE"] = "1"
+
+        # Limit PyTorch/OpenMP threads to avoid over-subscription on CPUs with
+        # many cores. With the default 16 threads, a single encode() call hogs
+        # the CPU and concurrent worker threads cannot make progress. 4 threads
+        # provides nearly the same throughput while leaving room for other work.
+        os.environ.setdefault("OMP_NUM_THREADS", "4")
+        os.environ.setdefault("MKL_NUM_THREADS", "4")
+
+        import torch
+
+        torch.set_num_threads(4)
 
         from sentence_transformers import SentenceTransformer
 
         logger.info(
             f"[LocalEmbedder] Loading model '{self.model_name}' on {self.device}..."
         )
-        loaded = await asyncio.to_thread(
-            SentenceTransformer,
+        loaded = SentenceTransformer(
             self.model_name,
             device=self.device,
             trust_remote_code=True,
@@ -138,11 +148,11 @@ class LocalEmbedder(BaseEmbedder):
         logger.debug(f"[LocalEmbedder] Embedding {len(documents)} documents...")
 
         # Serialize encode() across worker threads. The lock is held only for
-        # the duration of the (CPU-bound) encode call; loading happens above.
+        # the duration of the (CPU-bound) encode call. encode() is called
+        # synchronously to avoid asyncio.to_thread / PyTorch thread-pool
+        # deadlocks observed in Huey worker threads on macOS.
         with LocalEmbedder._encode_lock:
-            embeddings = await asyncio.to_thread(
-                lambda: model.encode(processed_docs, convert_to_numpy=True)
-            )
+            embeddings = model.encode(processed_docs, convert_to_numpy=True)
         return embeddings.tolist()
 
     async def embed_query(self, query: str) -> list[float]:
@@ -159,9 +169,7 @@ class LocalEmbedder(BaseEmbedder):
 
         # Serialize encode() across worker threads.
         with LocalEmbedder._encode_lock:
-            embedding = await asyncio.to_thread(
-                lambda: model.encode(processed_query, convert_to_numpy=True)
-            )
+            embedding = model.encode(processed_query, convert_to_numpy=True)
         return embedding.tolist()
 
     # LangChain-compatible aliases

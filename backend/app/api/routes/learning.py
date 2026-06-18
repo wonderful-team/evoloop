@@ -8,33 +8,51 @@ import math
 import os
 import shutil
 import subprocess
+import time
 import traceback
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
-from app.constants import DEFAULT_PROJECT_ID
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Body,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+)
+from sqlalchemy import func, or_, select, delete
 
-from fastapi import Depends, APIRouter, BackgroundTasks, Body, File, HTTPException, Query, Response, UploadFile
-from sqlalchemy import or_, func, select
-
-from app.api.deps import require_benefit, CurrentUserOptional
+from app.api.deps import CurrentUserOptional, require_benefit
 from app.api.responses import BaseAPIResponse
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
-from app.core.environment.capabilities.registry import ActionRegistry, ActionDef
+from app.core.environment.capabilities.registry import ActionDef, ActionRegistry
 from app.core.environment.controllers.mirror_session import mirror_manager
-from app.core.execution.macro.service import MacroService
 from app.core.events.publishers import publish_skill_mutated
+from app.core.execution.macro.service import MacroService
+from app.core.hitl import (
+    cancel_request,
+    cleanup_old_requests,
+    complete_request,
+    get_all_pending_requests,
+    get_pending_request,
+    get_pending_requests_for_thread,
+)
 from app.core.learning.discovery import skill_discovery
 from app.core.learning.multimodal_synthesizer import (
     MultimodalSkillSynthesizer,
     RecordingSession,
 )
 from app.core.learning.schemas import (
-    AnnotationResponse,
     AndroidExtractPointRequest,
     AndroidExtractPointResponse,
+    AnnotationResponse,
     CleanupRecordingResponse,
     CreateSkillFromYamlRequest,
     CreateSkillFromYamlResponse,
@@ -58,8 +76,8 @@ from app.core.learning.schemas import (
     PreviewVideoInfo,
     RecordingSessionsResponse,
     RespondRequest,
-    SkillDTO,
     SkillDetailResponse,
+    SkillDTO,
     SmartSynthesisRequest,
     SmartSynthesisResponse,
     StartMirrorRecordingRequest,
@@ -85,14 +103,6 @@ from app.core.learning.schemas import (
 from app.core.learning.skill_importer import SkillImporter
 from app.core.learning.skill_synthesizer import WorkflowSynthesizer
 from app.core.learning.skill_validator import SkillValidator
-from app.domain.tools.human_input import (
-    cancel_request,
-    cleanup_old_requests,
-    complete_request,
-    get_all_pending_requests,
-    get_pending_request,
-    get_pending_requests_for_thread,
-)
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.drivers.adb import adb_driver
 from app.models import (
@@ -101,7 +111,7 @@ from app.models import (
     TraceEvent,
 )
 from app.utils import render_template
-from app.utils.yaml import macro_from_yaml, YAMLError, validate_macro_yaml
+from app.utils.yaml import YAMLError, macro_from_yaml, validate_macro_yaml
 
 logger = logging.getLogger(__name__)
 
@@ -369,7 +379,7 @@ async def synthesize_skill(body: SynthesizeRequest, current_user: CurrentUserOpt
             if unique_name != base_name:
                 logger.info(f"Skill name collision: {base_name} -> {unique_name}")
 
-            db_skill = LearnedSkill(member_id=current_user.id if current_user else 0, 
+            db_skill = LearnedSkill(member_id=current_user.id if current_user else 0,
                 name=unique_name,
                 description=skill.description,
                 trigger_patterns=json.dumps(skill.trigger_patterns),
@@ -616,7 +626,7 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest, current_user: Cu
 
             if body.execution_mode is not None:
                 skill.execution_mode = body.execution_mode
-                
+
             if body.macro_script is not None:
                 # Validate it's valid YAML before saving
                 try:
@@ -664,10 +674,10 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest, current_user: Cu
 
 
 async def execute_macro_with_fallback(
-    thread_id: str, 
-    project_id: int, 
-    skill: LearnedSkill, 
-    macro_payload: list, 
+    thread_id: str,
+    project_id: int,
+    skill: LearnedSkill,
+    macro_payload: list,
     params: dict
 ):
     """
@@ -685,19 +695,19 @@ async def execute_macro_with_fallback(
     execution_params = params.copy() if params else {}
     execution_params["_skill_id"] = skill.id
     execution_params["_skill_name"] = skill.name
-    
+
     # Pass skill to MacroService for unified policy enforcement
     result = await MacroService.run(
-        thread_id=thread_id, 
-        script_input=macro_payload, 
+        thread_id=thread_id,
+        script_input=macro_payload,
         params=execution_params,
         skill=skill
     )
-    
+
     # Check if fallback is needed
     if result.get("status") != "fallback_required":
         return
-    
+
     # Check if self-healing is allowed (unified policy already checked in MacroService)
     if not result.get("allow_self_healing", True):
         logger.warning(
@@ -709,13 +719,13 @@ async def execute_macro_with_fallback(
 
     logger.warning(f"[{thread_id}] Macro failed, triggering Agentic Fallback...")
     fallback_ctx = result.get("fallback_context", {})
-    
+
     fallback_msg = render_template(
         "core/learning/self_healing.prompt.j2",
         skill_name=skill.name,
         failure_context=fallback_ctx,
     )
-    
+
     from app.core.engine.dispatch import dispatch_agent_run
     result = await dispatch_agent_run(
         thread_id=thread_id,
@@ -764,24 +774,24 @@ async def execute_skill(
     # 4. Trigger the desired execution mode
     # Use provided execution_mode from request, fallback to skill's execution_mode
     execution_mode = body.execution_mode or skill.execution_mode
-    
+
     if execution_mode == "deterministic" and skill.macro_script:
         import copy
-        
+
         # Parse YAML to Python objects for execution
         try:
             macro_steps = macro_from_yaml(skill.macro_script)
         except YAMLError as e:
             raise HTTPException(status_code=500, detail=f"Failed to parse macro YAML: {e}")
-        
+
         # Deepcopy to avoid mutating
         macro_payload = copy.deepcopy(macro_steps)
         bg_tasks.add_task(
-            execute_macro_with_fallback, 
-            thread_id=body.thread_id, 
+            execute_macro_with_fallback,
+            thread_id=body.thread_id,
             project_id=body.project_id if body.project_id is not None else DEFAULT_PROJECT_ID,
             skill=skill,  # Pass full skill object for unified policy
-            macro_payload=macro_payload, 
+            macro_payload=macro_payload,
             params=body.params
         )
         return ExecuteSkillResponse(success=True, message=f"Deterministic Macro execution queued for '{skill_name}'", execution_mode=execution_mode)
@@ -798,7 +808,7 @@ async def execute_skill(
             raise HTTPException(status_code=500, detail=result.error)
 
         bg_tasks.add_task(run_agent_background, body.thread_id, result.inputs)
-    
+
         return ExecuteSkillResponse(success=True, message=f"Agentic execution queued for '{skill_name}'", execution_mode=execution_mode)
 
 
@@ -939,7 +949,7 @@ async def persist_mirror_events(body: PersistMirrorEventsRequest, current_user: 
                 source = event_data.get("source") or "mobile"
                 thread_id = body.thread_id or "global"
 
-                trace_event = TraceEvent(member_id=current_user.id if current_user else 0, 
+                trace_event = TraceEvent(member_id=current_user.id if current_user else 0,
                     session_id=body.session_id,
                     recording_session_id=body.session_id,
                     thread_id=thread_id,
@@ -996,11 +1006,11 @@ async def persist_global_events(body: GlobalEventsRequest, current_user: Current
                 }
                 # Remove None values
                 payload = {k: v for k, v in payload.items() if v is not None}
-                
+
                 # [v3] Standardize source and app name
                 source = event.source or "global"
                 app_name = event.app_name
-                
+
                 # [FIX] For mobile events, sync package name from mirror session
                 if source == "mobile":
                     session = mirror_manager.get_session(body.session_id)
@@ -1008,12 +1018,12 @@ async def persist_global_events(body: GlobalEventsRequest, current_user: Current
                         resolved_pkg = session.get_current_package()
                         if resolved_pkg:
                             app_name = resolved_pkg
-                
+
                 # Ensure package_name is also in the payload for downstream consumers (like synthesizer)
                 if app_name:
                     payload["package_name"] = app_name
 
-                trace_event = TraceEvent(member_id=current_user.id if current_user else 0, 
+                trace_event = TraceEvent(member_id=current_user.id if current_user else 0,
                     session_id=body.session_id,
                     recording_session_id=body.session_id,
                     thread_id=body.thread_id,
@@ -1073,7 +1083,7 @@ async def persist_dom_events(body: DomEventsRequest, current_user: CurrentUserOp
                 action_type = "region_extract" if is_region_extract else "user_interaction"
                 node_name = "region_marker" if is_region_extract else "dom_recorder"
 
-                trace_event = TraceEvent(member_id=current_user.id if current_user else 0, 
+                trace_event = TraceEvent(member_id=current_user.id if current_user else 0,
                     session_id=body.session_id,
                     recording_session_id=body.session_id,
                     thread_id=body.thread_id,
@@ -1231,7 +1241,7 @@ async def synthesize_from_recording(request: SynthesizeFromRecordingRequest, cur
                 skill_data["name"] = unique_name
 
             # 创建 Skill 记录
-            db_skill = LearnedSkill(member_id=current_user.id if current_user else 0, 
+            db_skill = LearnedSkill(member_id=current_user.id if current_user else 0,
                 name=skill_data["name"],
                 description=skill_data["description"],
                 namespace=skill_data.get("namespace", "misc"),
@@ -1249,7 +1259,7 @@ async def synthesize_from_recording(request: SynthesizeFromRecordingRequest, cur
             )
             db.add(db_skill)
             await db.flush()
-            
+
             # [Fix 2] 在技能落库之后执行 Dry-run 验证
             verification = {"status": "skipped"}
             if db_skill.macro_script:
@@ -1261,7 +1271,7 @@ async def synthesize_from_recording(request: SynthesizeFromRecordingRequest, cur
                         "status": "failed",
                         "error_message": str(e)
                     }
-                
+
                 # 更新验证结果
                 db_skill.validation_report = verification
                 await db.flush()
@@ -1322,8 +1332,8 @@ async def preview_recording_data(
 
     返回关键帧提取计划和事件统计，不实际调用 LLM。
     """
-    from app.core.learning.multimodal_synthesizer import MultimodalSkillSynthesizer
     from app.core.learning.frame_compressor import KeyframeSelector
+    from app.core.learning.multimodal_synthesizer import MultimodalSkillSynthesizer
 
     try:
         # 获取视频信息
@@ -1425,7 +1435,6 @@ async def create_android_extract_point(body: AndroidExtractPointRequest, current
 
     用户通过悬浮按钮标记需要提取数据的屏幕位置，支持框选区域或单点标记。
     """
-    import time
     from app.models import TraceEvent
 
     # 如果未提供时间戳，使用当前时间
@@ -1436,7 +1445,7 @@ async def create_android_extract_point(body: AndroidExtractPointRequest, current
         region_width = body.width if body.width is not None else 0.02  # 默认 2% 区域
         region_height = body.height if body.height is not None else 0.02
 
-        trace_event = TraceEvent(member_id=current_user.id if current_user else 0, 
+        trace_event = TraceEvent(member_id=current_user.id if current_user else 0,
             session_id=body.session_id,
             recording_session_id=body.session_id,
             thread_id=body.thread_id,
@@ -1563,7 +1572,7 @@ async def start_smart_synthesis(
             )
 
         # 创建合成任务
-        job = SynthesisJob(member_id=current_user.id if current_user else 0, 
+        job = SynthesisJob(member_id=current_user.id if current_user else 0,
             session_id=session_id,
             thread_id=body.thread_id,
             task_goal=body.task_goal,
@@ -1606,7 +1615,6 @@ async def run_smart_synthesis(
     [Scheme A] 使用 TraceEvent 替代 RecordingAnnotation
     """
     from app.core.learning.smart_synthesizer import SmartSynthesizer
-    from sqlalchemy import select
 
     async with session_scope() as db:
         # 更新任务状态为 processing
@@ -1660,7 +1668,7 @@ async def run_smart_synthesis(
 
             # 保存到 LearnedSkill 表
             try:
-                new_skill = LearnedSkill(member_id=current_user.id if current_user else 0, 
+                new_skill = LearnedSkill(member_id=current_user.id if current_user else 0,
                     name=skill_dict.get("name", "unnamed_skill"),
                     description=skill_dict.get("description", ""),
                     namespace=skill_dict.get("namespace", "misc"),
@@ -1683,6 +1691,18 @@ async def run_smart_synthesis(
 
             await db.commit()
 
+        # Notify frontend of synthesis completion
+        try:
+            from app.core.learning.event.publishers import publish_synthesis_completed
+            await publish_synthesis_completed(
+                job_id=job_id,
+                status="completed",
+                skill_id=job.skill_id,
+                session_id=session_id,
+            )
+        except Exception as e:
+            logger.warning(f"[Job {job_id}] Failed to publish synthesis completed event: {e}")
+
     except Exception as e:
         logger.exception(f"Smart synthesis failed for job {job_id}: {e}")
 
@@ -1696,6 +1716,17 @@ async def run_smart_synthesis(
             job.error_traceback = traceback.format_exc()
             job.completed_at = datetime.now()
             await db.commit()
+
+        # Notify frontend of synthesis failure
+        try:
+            from app.core.learning.event.publishers import publish_synthesis_completed
+            await publish_synthesis_completed(
+                job_id=job_id,
+                status="failed",
+                session_id=session_id,
+            )
+        except Exception as pub_e:
+            logger.warning(f"[Job {job_id}] Failed to publish synthesis failed event: {pub_e}")
 
 
 @router.get("/synthesis-jobs/{job_id}", response_model=SynthesisJobResponse)
@@ -1781,9 +1812,6 @@ async def cleanup_recording_session(
 
     [Scheme A] 已废弃 RecordingAnnotation 表，标注数据统一存储在 TraceEvent 中
     """
-    from sqlalchemy import delete
-    import os
-
     deleted_counts = {
         "events": 0,
         "jobs": 0,
@@ -1850,22 +1878,19 @@ async def confirm_learned_skill(skill_id: int, current_user: CurrentUserOptional
         # 更新状态
         skill.status = "verified"
         skill.is_active = True
-        
+
         logger.info(f"Skill {skill.id} ({skill.name}) confirmed by user.")
 
     # Notify sync service
     await publish_skill_mutated(skill_id=skill_id, action="update")
 
     return BaseAPIResponse(
-        success=True, 
+        success=True,
         message=f"Skill '{skill.name}' confirmed and activated."
     )
 
 
-
 # ============ YAML Macro Support (NEW) ============
-
-
 @router.post("/skills/from-yaml", response_model=CreateSkillFromYamlResponse)
 async def create_skill_from_yaml(
     body: CreateSkillFromYamlRequest,
@@ -1891,18 +1916,18 @@ async def create_skill_from_yaml(
         is_valid, errors = validate_macro_yaml(body.yaml_content)
         if not is_valid:
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail=f"Invalid YAML format: {'; '.join(errors)}"
             )
-        
+
         macro_script = macro_from_yaml(body.yaml_content)
-        
+
         async with session_scope() as db:
             # Check name uniqueness
             base_name = body.name
             unique_name = base_name
             counter = 1
-            
+
             while True:
                 # TODO: 后续接入云端 Skill 市场，需扩展共享技能查询范围
                 stmt = select(LearnedSkill).where(or_(LearnedSkill.member_id == 0, LearnedSkill.member_id == (current_user.id if current_user else 0))).where(LearnedSkill.name == unique_name)
@@ -1911,8 +1936,8 @@ async def create_skill_from_yaml(
                     break
                 unique_name = f"{base_name}_{counter}"
                 counter += 1
-            
-            skill = LearnedSkill(member_id=current_user.id if current_user else 0, 
+
+            skill = LearnedSkill(member_id=current_user.id if current_user else 0,
                 name=unique_name,
                 description=body.description or f"Created from YAML ({len(macro_script)} steps)",
                 namespace=body.namespace,
@@ -1951,12 +1976,12 @@ async def validate_skill_yaml(body: ValidateYamlRequest, current_user: CurrentUs
     """
     try:
         is_valid, errors = validate_macro_yaml(body.yaml_content)
-        
+
         step_count = 0
         if is_valid:
             steps = macro_from_yaml(body.yaml_content)
             step_count = len(steps)
-        
+
         return ValidateYamlResponse(
             valid=is_valid,
             errors=errors,
@@ -1981,13 +2006,13 @@ async def get_skill_yaml(skill_id: int, current_user: CurrentUserOptional = None
         skill = await db.get(LearnedSkill, skill_id)
         if not skill:
             raise HTTPException(status_code=404, detail="Skill not found")
-        
+
         if not skill.macro_script:
             return Response(
                 content="# No macro script defined for this skill\n",
                 media_type="text/yaml"
             )
-        
+
         # macro_script is already stored as YAML string
         return Response(
             content=skill.macro_script,
@@ -2010,16 +2035,16 @@ async def update_skill_yaml(
         is_valid, errors = validate_macro_yaml(yaml_content)
         if not is_valid:
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail=f"Invalid YAML: {'; '.join(errors)}"
             )
-        
+
         # Store YAML directly as string
         async with session_scope() as db:
             skill = await db.get(LearnedSkill, skill_id)
             if not skill:
                 raise HTTPException(status_code=404, detail="Skill not found")
-            
+
             skill.macro_script = yaml_content
             await db.flush()
 
@@ -2033,7 +2058,7 @@ async def update_skill_yaml(
             message="Skill updated from YAML",
             step_count=len(steps),
         )
-        
+
     except YAMLError as e:
         raise HTTPException(status_code=400, detail=f"YAML parse error: {str(e)}")
     except Exception as e:

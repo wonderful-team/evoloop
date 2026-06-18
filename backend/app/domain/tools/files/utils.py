@@ -6,7 +6,6 @@ from app.core.config import settings
 from app.core.file import resolve_path
 from app.core.tools import get_working_directory
 from app.i18n.service import i18n
-from app.infrastructure.config.service import SystemConfigService
 
 
 async def resolve_and_validate_path(
@@ -20,8 +19,8 @@ async def resolve_and_validate_path(
       → 物理根切换为 settings.CHAT_UPLOAD_DIR (~/.evoloop/uploads/)
       → 聊天附件统一存放在此，与项目模式完全无关
     - 其他路径
-      → 使用 WORKSPACE_ROOT（或 working_directory）作为物理根
-      → 如果目标文件不存在，自动回退到 CHAT_UPLOAD_DIR 中查找
+      → 使用 get_working_directory() 返回的根目录（已按 EvoContext.working_directory /
+        config["configurable"]["working_directory"] / WORKSPACE_ROOT / os.getcwd() 优先级处理）
 
     Raises ValueError on security violation or resolution failure.
     """
@@ -64,11 +63,8 @@ async def resolve_and_validate_path(
         )
         target_path = resolve_path(filename, base_path=root)
     else:
-        # 【常规路径】尝试从 WORKSPACE_ROOT 解析
-        workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
-        if workspace_root:
-            root = workspace_root
-
+        # 【常规路径】使用 get_working_directory 提供的根目录
+        # 该函数已按优先级处理 EvoContext.working_directory / config / WORKSPACE_ROOT
         target_path = resolve_path(path, base_path=root)
 
     if not target_path:

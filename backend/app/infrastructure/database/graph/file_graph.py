@@ -8,12 +8,14 @@ Suitable for small-to-medium projects.
 import json
 import logging
 import math
+import re
 import threading
 from pathlib import Path
 from typing import Any
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
+from app.infrastructure.database.vector import get_vector_store
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +51,7 @@ class FileGraphDriver:
         """
         if project_path:
             from app.core.project.utils import get_graph_path
+
             self.graph_file = get_graph_path(project_path)
             self.project_path = project_path
         else:
@@ -69,12 +72,15 @@ class FileGraphDriver:
         """Load graph from JSON file or create new."""
         try:
             import networkx as nx
+
             if self.graph_file.exists():
-                with open(self.graph_file, encoding='utf-8') as f:
+                with open(self.graph_file, encoding="utf-8") as f:
                     data = json.load(f)
                 self._graph = nx.node_link_graph(data)
-                logger.info(f"[FileGraph] Loaded {self._graph.number_of_nodes()} nodes, "
-                           f"{self._graph.number_of_edges()} edges from {self.graph_file}")
+                logger.info(
+                    f"[FileGraph] Loaded {self._graph.number_of_nodes()} nodes, "
+                    f"{self._graph.number_of_edges()} edges from {self.graph_file}"
+                )
             else:
                 self._graph = nx.DiGraph()
                 logger.info("[FileGraph] Created new graph")
@@ -98,7 +104,7 @@ class FileGraphDriver:
             data = nx.node_link_data(self._graph)
             # 确保目录存在
             self.graph_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.graph_file, 'w', encoding='utf-8') as f:
+            with open(self.graph_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             logger.debug(f"[FileGraph] Saved graph to {self.graph_file}")
         except Exception as e:
@@ -152,7 +158,7 @@ class FileGraphDriver:
                             "from_state": s1_attrs.get("state_id"),
                             "label": edge_data.get("action_label"),
                             "type": edge_data.get("action_type"),
-                            "to_state": s2_attrs.get("state_id")
+                            "to_state": s2_attrs.get("state_id"),
                         })
             return results
 
@@ -187,16 +193,16 @@ class FileGraphDriver:
                 if a.get("type") == "concept":
                     title = a.get("title") or a.get("name")
                     # Count outgoing LINKED_TO to Memory
-                    links = [v_id for v_id in self._graph.successors(n_id)
-                             if self._graph.get_edge_data(n_id, v_id).get("type") == "LINKED_TO"]
+                    links = [
+                        v_id for v_id in self._graph.successors(n_id)
+                        if self._graph.get_edge_data(n_id, v_id).get("type") == "LINKED_TO"
+                    ]
                     counts[title] = len(links)
             return [{"name": k, "count": v} for k, v in counts.items()]
 
         # 4. Cleanup Pattern: MATCH (n:LABEL) DETACH DELETE n
         # Also supports MATCH (n:LABEL {prop: $val}) and MATCH (n {prop: $val})
         if "DETACH DELETE N" in query_upper:
-            import re
-
             # Try MATCH (n:LABEL) or MATCH (n:LABEL {prop: $val})
             match = re.search(r"MATCH\s*\(\s*(\w+)\s*:\s*(\w+)", query_upper)
             if match:
@@ -229,13 +235,17 @@ class FileGraphDriver:
                 for n_id, a in self._graph.nodes(data=True):
                     if a.get("_label") == "CodeEntity" and a.get("project_id") == pid:
                         # Check incoming CONTAINS from File
-                        has_file = any(self._graph.nodes[u_id].get("_label") == "File"
-                                     for u_id, v_id, d in self._graph.in_edges(n_id, data=True)
-                                     if d.get("type") == "CONTAINS")
+                        has_file = any(
+                            self._graph.nodes[u_id].get("_label") == "File"
+                            for u_id, v_id, d in self._graph.in_edges(n_id, data=True)
+                            if d.get("type") == "CONTAINS"
+                        )
                         # Check incoming REFERENCES from Concept
-                        has_concept = any(self._graph.nodes[u_id].get("_label") == "Concept"
-                                        for u_id, v_id, d in self._graph.in_edges(n_id, data=True)
-                                        if d.get("type") == "REFERENCES")
+                        has_concept = any(
+                            self._graph.nodes[u_id].get("_label") == "Concept"
+                            for u_id, v_id, d in self._graph.in_edges(n_id, data=True)
+                            if d.get("type") == "REFERENCES"
+                        )
 
                         if not has_file and not has_concept:
                             to_delete.append(n_id)
@@ -253,7 +263,7 @@ class FileGraphDriver:
                     results.append({
                         "name": a.get("name") or a.get("title"),
                         "desc": a.get("description") or a.get("content"),
-                        "id": a.get("id")
+                        "id": a.get("id"),
                     })
             return results
 
@@ -267,7 +277,7 @@ class FileGraphDriver:
 
         # 8. Memory Concept Aggregation: MATCH (c)-[:LINKED_TO]->(e:Memory) ... RETURN c.title as name, count(e) as count
         if "LINKED_TO" in query_upper and "COUNT(E)" in query_upper and "CONCEPT" in query_upper:
-            counts = {} # title -> count
+            counts = {}  # title -> count
             for u, _v, d in self._graph.edges(data=True):
                 if d.get("type") == "LINKED_TO":
                     src = self._graph.nodes[u]
@@ -284,11 +294,17 @@ class FileGraphDriver:
             return [{
                 "name": n.get("name") or n.get("title"),
                 "desc": n.get("desc") or n.get("description"),
-                "id": n.get("id")
+                "id": n.get("id"),
             } for n in nodes]
 
         # 7. Index/Constraint/Maintenance (Silent handling)
-        MAINTENANCE_KEYWORDS = ["DROP INDEX", "CREATE INDEX", "DROP CONSTRAINT", "CREATE CONSTRAINT", "CALL DB.INDEX"]
+        MAINTENANCE_KEYWORDS = [
+            "DROP INDEX",
+            "CREATE INDEX",
+            "DROP CONSTRAINT",
+            "CREATE CONSTRAINT",
+            "CALL DB.INDEX",
+        ]
         if any(kw in query_upper for kw in MAINTENANCE_KEYWORDS):
             logger.info(f"[FileGraph] Maintenance query handled silently: {query[:50]}...")
             return []
@@ -301,7 +317,6 @@ class FileGraphDriver:
     @staticmethod
     def _extract_inline_filters(query: str, params: dict) -> dict:
         """Extract {key: $param} or {key: value} from a Cypher MATCH clause."""
-        import re
         filters = {}
         match = re.search(r"\{\s*([^}]+)\s*\}", query)
         if match:
@@ -353,14 +368,13 @@ class FileGraphDriver:
             # [NEW] Sync Concept embeddings to unified vector store for better performance/standardization
             if label == "Concept" and "embedding" in properties:
                 try:
-                    from app.infrastructure.database.vector import get_vector_store
                     vector_store = get_vector_store()
                     vector_store.upsert_concept_chunks([{
                         "id": node_id,
                         "name": properties.get("name") or properties.get("title", ""),
                         "description": properties.get("description") or properties.get("content", ""),
                         "project_id": properties.get("project_id", DEFAULT_PROJECT_ID),
-                        "vector": properties["embedding"]
+                        "vector": properties["embedding"],
                     }])
                 except Exception as ve:
                     logger.warning(f"[FileGraph] Failed to sync Concept vector to store: {ve}")
@@ -368,7 +382,9 @@ class FileGraphDriver:
             self._save_graph()
             return dict(self._graph.nodes[internal_id])
 
-    async def find_nodes(self, label: str, filters: dict[str, Any] | None = None, limit: int = 100) -> list[dict[str, Any]]:
+    async def find_nodes(
+        self, label: str, filters: dict[str, Any] | None = None, limit: int = 100
+    ) -> list[dict[str, Any]]:
         """Find nodes matching filters using networkx."""
         if self._graph is None:
             return []
@@ -431,10 +447,14 @@ class FileGraphDriver:
             return False
 
         with self._lock:
-            src_nodes = [nid for nid, attrs in self._graph.nodes(data=True)
-                         if attrs.get("_label") == src_label and all(attrs.get(k) == v for k, v in src_filters.items())]
-            tgt_nodes = [nid for nid, attrs in self._graph.nodes(data=True)
-                         if attrs.get("_label") == tgt_label and all(attrs.get(k) == v for k, v in tgt_filters.items())]
+            src_nodes = [
+                nid for nid, attrs in self._graph.nodes(data=True)
+                if attrs.get("_label") == src_label and all(attrs.get(k) == v for k, v in src_filters.items())
+            ]
+            tgt_nodes = [
+                nid for nid, attrs in self._graph.nodes(data=True)
+                if attrs.get("_label") == tgt_label and all(attrs.get(k) == v for k, v in tgt_filters.items())
+            ]
 
             if not src_nodes or not tgt_nodes:
                 return False
@@ -463,8 +483,10 @@ class FileGraphDriver:
         if self._graph is None:
             return []
 
-        start_nodes = [nid for nid, attrs in self._graph.nodes(data=True)
-                       if attrs.get("_label") == start_label and all(attrs.get(k) == v for k, v in start_filters.items())]
+        start_nodes = [
+            nid for nid, attrs in self._graph.nodes(data=True)
+            if attrs.get("_label") == start_label and all(attrs.get(k) == v for k, v in start_filters.items())
+        ]
 
         results = []
         seen = set()
@@ -504,7 +526,6 @@ class FileGraphDriver:
             return []
 
         if label == "Concept":
-            from app.infrastructure.database.vector import get_vector_store
             vector_store = get_vector_store()
 
             # 1. Search in unified vector store
@@ -592,10 +613,10 @@ class FileGraphSession:
 
         # Extract node info from MERGE (n:Label {prop: $val})
         # Simplified parsing - assumes single node merge
-        node_id = parameters.get('path') or parameters.get('name') or str(hash(str(parameters)))
+        node_id = parameters.get("path") or parameters.get("name") or str(hash(str(parameters)))
 
         with self.driver._lock:
-            if 'DETACH DELETE' in query.upper():
+            if "DETACH DELETE" in query.upper():
                 # Handle delete
                 if node_id in self.driver._graph:
                     self.driver._graph.remove_node(node_id)
@@ -622,20 +643,20 @@ class FileGraphSession:
         has_optional_delete = "OPTIONAL MATCH" in query and "DETACH DELETE" in query
 
         # Find by property
-        name = parameters.get('name')
-        raw_pid = parameters.get('pid')
-        pid = raw_pid if raw_pid is not None else parameters.get('project_id')
-        path = parameters.get('path')
+        name = parameters.get("name")
+        raw_pid = parameters.get("pid")
+        pid = raw_pid if raw_pid is not None else parameters.get("project_id")
+        path = parameters.get("path")
 
         matched_nodes = []
 
         for node_id, attrs in G.nodes(data=True):
             match = True
-            if name and attrs.get('name') != name:
+            if name and attrs.get("name") != name:
                 match = False
-            if pid is not None and attrs.get('project_id') != pid:
+            if pid is not None and attrs.get("project_id") != pid:
                 match = False
-            if path and attrs.get('path') != path:
+            if path and attrs.get("path") != path:
                 match = False
 
             if match:
@@ -649,10 +670,10 @@ class FileGraphSession:
                                 matched_nodes.append(succ)
                 else:
                     results.append({
-                        "full_name": attrs.get('full_name', node_id),
-                        "type": attrs.get('type', 'unknown'),
-                        "file_path": attrs.get('path', ''),
-                        "score": attrs.get('score', 0),
+                        "full_name": attrs.get("full_name", node_id),
+                        "type": attrs.get("type", "unknown"),
+                        "file_path": attrs.get("path", ""),
+                        "score": attrs.get("score", 0),
                     })
 
         if is_delete:

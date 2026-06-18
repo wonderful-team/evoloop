@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { useSetupWizard } from "@/components/Wizard/SetupWizardContext"
 import { isLoggedIn } from "@/hooks/useAuth"
+import { useSystemEvent } from "@/hooks/useSystemEvent"
 import { useProjectImportStore } from "@/stores/projectImportStore"
 
 export function DetectedProjectAlert() {
@@ -44,27 +45,11 @@ export function DetectedProjectAlert() {
     }
   }, [checkDiscoveryEnabled])
 
-  // Poll for new detected projects every 30 seconds (only when logged in and discovery enabled)
-  useEffect(() => {
-    // Skip if discovery is disabled
-    if (isDiscoveryEnabled === false) {
-      console.debug("[DetectedProjectAlert] Discovery disabled, skipping poll")
-      return
-    }
-
-    // Only check for detected projects if user is logged in
-    if (!isLoggedIn()) {
-      return
-    }
-
+  // Listen for server-pushed project detection events
+  useSystemEvent("project.new_detected", () => {
+    if (!isLoggedIn()) return
     fetchDetected()
-    const interval = setInterval(() => {
-      if (isLoggedIn()) {
-        fetchDetected()
-      }
-    }, 30000)
-    return () => clearInterval(interval)
-  }, [fetchDetected, isDiscoveryEnabled])
+  })
 
   // Close dialog when discovery is disabled AND not in manual mode
   useEffect(() => {

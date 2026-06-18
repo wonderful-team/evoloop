@@ -104,22 +104,24 @@ async def dangerous_command_gate(context: HookContext) -> HookResult:
     matcher="^(view_file|grep_search|read_file|replace_file_content|multi_replace_file_content|write_to_file)$",
     priority=4,
 )
-async def sensitive_file_protection_gate(context: HookContext) -> HookResult:
+async def project_metadata_protection_gate(context: HookContext) -> HookResult:
     """
-    Hard security check to block the Agent from reading or modifying sensitive config/env files.
-    This prevents credentials from leaking into the LLM context.
+    Protect project metadata (.evoloop directory) from agent access.
+
+    Project_id -> local_path mappings and other metadata must not be altered or
+    deleted by the agent.  Project-level sensitive files (e.g. .env,
+    deploy/profiles/) are now handled by the authorization_gate hook instead of
+    being hard-blocked here.
     """
     tool_name = context.tool_name or ""
     tool_input = context.tool_input
     if not tool_input:
         return HookResult(success=True)
 
-    # 1. Gather all potential path arguments
     paths_to_check = []
     if tool_input.path:
         paths_to_check.append(tool_input.path)
     if tool_input.args:
-        # Check standard file tool parameters
         for key in (
             "AbsolutePath",
             "TargetFile",
@@ -131,21 +133,8 @@ async def sensitive_file_protection_gate(context: HookContext) -> HookResult:
             if val and isinstance(val, str):
                 paths_to_check.append(val)
 
-    # 2. Check path inputs for sensitive directories/files
     for path in paths_to_check:
-        path_lower = path.lower()
-        if ".env" in path_lower or "deploy/profiles/" in path_lower:
-            logger.warning(f"[SecurityHook] Blocked sensitive file access via {tool_name} to: {path}")
-            return HookResult(
-                success=False,
-                block=True,
-                message=(
-                    f"[SECURITY VIOLATION] Access Denied: Reading or modifying system environment configurations "
-                    f"or customer profiles ({path}) is strictly prohibited to prevent credential leakage."
-                ),
-            )
-        # Protect project metadata so project_id -> path mappings cannot be altered or deleted by the agent.
-        if ".evoloop" in path_lower:
+        if ".evoloop" in path.lower():
             logger.warning(f"[SecurityHook] Blocked access to project metadata via {tool_name}: {path}")
             return HookResult(
                 success=False,
@@ -156,26 +145,15 @@ async def sensitive_file_protection_gate(context: HookContext) -> HookResult:
                 ),
             )
 
-    # 3. Check grep query to prevent searching for secrets in env files
     if tool_name == "grep_search" and tool_input.args:
-        tool_input.args.get("Query") or ""
         search_path = tool_input.args.get("SearchPath") or ""
-        if search_path:
-            search_path_lower = search_path.lower()
-            if ".env" in search_path_lower or "deploy/profiles/" in search_path_lower:
-                logger.warning(f"[SecurityHook] Blocked sensitive grep search in: {search_path}")
-                return HookResult(
-                    success=False,
-                    block=True,
-                    message="[SECURITY VIOLATION] Access Denied: Searching inside system environment configurations or customer profiles is prohibited.",
-                )
-            if ".evoloop" in search_path_lower:
-                logger.warning(f"[SecurityHook] Blocked grep search in project metadata: {search_path}")
-                return HookResult(
-                    success=False,
-                    block=True,
-                    message="[SECURITY VIOLATION] Access Denied: Searching inside project metadata is prohibited.",
-                )
+        if search_path and ".evoloop" in search_path.lower():
+            logger.warning(f"[SecurityHook] Blocked grep search in project metadata: {search_path}")
+            return HookResult(
+                success=False,
+                block=True,
+                message="[SECURITY VIOLATION] Access Denied: Searching inside project metadata is prohibited.",
+            )
 
     return HookResult(success=True)
 

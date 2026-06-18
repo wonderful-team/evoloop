@@ -19,7 +19,7 @@ from app.core.evocloud.schemas import (
     WebSocketHandshake,
     WebSocketPing,
 )
-from app.core.device_fingerprint import get_hardware_fingerprint
+from app.core.fingerprint import get_hardware_fingerprint
 from app.core.identity import identity_service
 from app.utils.async_utils import run_in_thread
 

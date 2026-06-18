@@ -1,7 +1,7 @@
 """Blackboard state models and merge reducer."""
 import logging
 from enum import Enum
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import Field, model_validator
 
@@ -122,6 +122,17 @@ class AuditInputData(DynamicBaseModel):
     key_messages_digest: str = ""       # Optional: recent 10 messages digest
 
 
+class PendingApproval(DynamicBaseModel):
+    """A HITL authorization request that is waiting for user response."""
+    tool_name: str = ""
+    tool_call_id: str = ""
+    resource_path: str = ""
+    action: str = ""
+    risk_level: str = "medium"
+    requested_at: str = ""  # ISO timestamp
+    tool_args: dict[str, Any] = Field(default_factory=dict)
+
+
 class BlackboardMetadata(DynamicBaseModel):
     tool_memory: dict | None = None
     final_outcome: str | None = None
@@ -138,6 +149,8 @@ class BlackboardMetadata(DynamicBaseModel):
     audit_input_data: AuditInputData | None = None
     audit_anomalies: list[AuditAnomaly] = Field(default_factory=list)
     force_comprehensive_audit: bool | None = None
+    # Authorization framework state
+    pending_approvals: list[PendingApproval] = Field(default_factory=list)
 
 
 class WorkflowStepResult(DynamicBaseModel):
@@ -252,7 +265,7 @@ class BlackboardState(DynamicBaseModel):
     )
 
 
-def _resolve_field_policy(field_name: str, field_info: Any) -> tuple[MergePolicy, str | None]:
+def _resolve_field_policy(_field_name: str, field_info: Any) -> tuple[MergePolicy, str | None]:
     """Read merge_policy (and optional dedup_key) from Field json_schema_extra."""
     extra = field_info.json_schema_extra
     policy = MergePolicy.REPLACE
@@ -301,7 +314,7 @@ def merge_blackboard(old: Any, new: Any) -> BlackboardState | None:
             new_dict = new_val.model_dump() if hasattr(new_val, "model_dump") else (new_val if isinstance(new_val, dict) else {})
             # Only overwrite with non-None new values to avoid wiping existing state
             merged_dict = {**old_dict, **{k: v for k, v in new_dict.items() if v is not None}}
-            
+
             cls_to_use = None
             if hasattr(old_meta, "model_validate"):
                 cls_to_use = type(old_meta)
@@ -312,7 +325,7 @@ def merge_blackboard(old: Any, new: Any) -> BlackboardState | None:
                 field_info = merged.model_fields.get(field_name)
                 if field_info:
                     cls_to_use = field_info.annotation
-                    
+
             if cls_to_use and hasattr(cls_to_use, "model_validate"):
                 setattr(merged, field_name, cls_to_use.model_validate(merged_dict))
             else:
