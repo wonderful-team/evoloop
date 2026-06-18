@@ -2440,6 +2440,19 @@ export const DomEventsRequestSchema = {
     description: '请求模型：接收 DOM 事件'
 } as const;
 
+export const DownloadFileRequestSchema = {
+    properties: {
+        path: {
+            type: 'string',
+            title: 'Path'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['path'],
+    title: 'DownloadFileRequest'
+} as const;
+
 export const EmbeddingApplyResponseSchema = {
     properties: {
         success: {
@@ -5042,6 +5055,32 @@ export const ProjectStatusResponseSchema = {
     required: ['indexing', 'summarization', 'wiki'],
     title: 'ProjectStatusResponse',
     description: 'Real-time project system status.'
+} as const;
+
+export const ReadFileRequestSchema = {
+    properties: {
+        path: {
+            type: 'string',
+            title: 'Path'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['path'],
+    title: 'ReadFileRequest'
+} as const;
+
+export const ReadFileResponseSchema = {
+    properties: {
+        content: {
+            type: 'string',
+            title: 'Content'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['content'],
+    title: 'ReadFileResponse'
 } as const;
 
 export const RecordingSessionItemSchema = {

@@ -10,16 +10,20 @@ class FileNode(DynamicBaseModel):
     type: str  # 'file' or 'directory'
     children: list["FileNode"] | None = None
 
+
 class FileContent(DynamicBaseModel):
     content: str
     language: str
 
+
 class OpenFileRequest(DynamicBaseModel):
     path: str
+
 
 class OpenFileResponse(BaseAPIResponse):
     """Response for opening a file."""
     status: str
+
 
 class FileUploadResponse(BaseAPIResponse):
     """Response for uploading a file."""
@@ -27,11 +31,13 @@ class FileUploadResponse(BaseAPIResponse):
     filename: str
     path: str
 
+
 class FileSearchResult(DynamicBaseModel):
     """Single file content search result."""
     file: str
     line: int
     content: str
+
 
 class FileNameSearchResult(DynamicBaseModel):
     """Single file name search result."""
@@ -39,13 +45,28 @@ class FileNameSearchResult(DynamicBaseModel):
     path: str
     type: str
 
+
 class CreateFileRequest(DynamicBaseModel):
     path: str
     content: str
 
+
 class MkdirRequest(DynamicBaseModel):
     path: str
+
 
 class MoveFileRequest(DynamicBaseModel):
     source_path: str
     target_path: str
+
+
+class ReadFileRequest(DynamicBaseModel):
+    path: str
+
+
+class ReadFileResponse(DynamicBaseModel):
+    content: str
+
+
+class DownloadFileRequest(DynamicBaseModel):
+    path: str

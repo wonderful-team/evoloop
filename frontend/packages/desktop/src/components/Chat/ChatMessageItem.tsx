@@ -19,6 +19,8 @@ import { memo, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { useAutoSpeak, useTTS } from "@/hooks/useTTS"
+import { previewFile } from "@/utils/fileLinkHandler"
+import { resolveReferencePreview } from "@/utils/fileUtils"
 import { ChangesetSnapshot } from "./ChangesetSnapshotView"
 import { MessageContent } from "./MessageContent"
 import { MessageReferences } from "./MessageReferences"
@@ -330,13 +332,12 @@ const ChatMessageItem = memo(
               onReferenceClick={(ref) => {
                 if (ref.type === "changeset") {
                   onViewChangeset?.(msg.id)
-                } else if (
-                  (ref.type === "file" ||
-                    ref.type === "image" ||
-                    ref.type === "audio") &&
-                  ref.target_id
-                ) {
-                  window.open(ref.target_id, "_blank")
+                  return
+                }
+
+                const preview = resolveReferencePreview(ref)
+                if (preview) {
+                  previewFile(preview.path, preview.name)
                 }
               }}
             />

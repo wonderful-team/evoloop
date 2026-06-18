@@ -7,7 +7,7 @@ export interface PreviewDiffState {
 
 export interface PreviewFileState {
   path: string
-  content: string
+  name: string
 }
 
 export interface UIState {

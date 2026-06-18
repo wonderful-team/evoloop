@@ -664,6 +664,11 @@ export type DomEventsRequest = {
     events: Array<DomEventData>;
 };
 
+export type DownloadFileRequest = {
+    path: string;
+    [key: string]: unknown | string;
+};
+
 export type EmbeddingApplyResponse = {
     success?: boolean;
     message?: string;
@@ -1398,6 +1403,16 @@ export type ProjectStatusResponse = {
     summarization: ProjectStatusActivity;
     wiki: ProjectStatusActivity;
     [key: string]: unknown | boolean | string | ProjectStatusActivity;
+};
+
+export type ReadFileRequest = {
+    path: string;
+    [key: string]: unknown | string;
+};
+
+export type ReadFileResponse = {
+    content: string;
+    [key: string]: unknown | string;
 };
 
 export type RecordingSessionItem = {
@@ -2634,7 +2649,7 @@ export type FilesGetFileContentResponse = (FileContent);
 
 export type FilesGetRawFileData = {
     path: string;
-    projectId: number;
+    projectId?: (number | null);
 };
 
 export type FilesGetRawFileResponse = (unknown);
@@ -2687,6 +2702,18 @@ export type FilesMoveFileData = {
 };
 
 export type FilesMoveFileResponse = (FileNode);
+
+export type FilesReadAnyFileData = {
+    requestBody: ReadFileRequest;
+};
+
+export type FilesReadAnyFileResponse = (ReadFileResponse);
+
+export type FilesDownloadAnyFileData = {
+    requestBody: DownloadFileRequest;
+};
+
+export type FilesDownloadAnyFileResponse = (unknown);
 
 export type KnowledgeUploadDocumentData = {
     formData: Body_knowledge_upload_document;

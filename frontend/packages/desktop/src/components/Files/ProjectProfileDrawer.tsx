@@ -141,7 +141,7 @@ export function ProjectProfileDrawer({
           </div>
         </SheetHeader>
 
-        <div className="flex-1 overflow-auto p-6 relative">
+        <div className="flex-1 overflow-auto px-6 relative">
           {loading ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -157,7 +157,7 @@ export function ProjectProfileDrawer({
                 })}
               />
             ) : (
-              <div className="pb-12">
+              <div className="pb-6">
                 <MarkdownRenderer content={profile.content!} />
               </div>
             )
