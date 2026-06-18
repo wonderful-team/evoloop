@@ -84,7 +84,7 @@ async def list_files(
     return [FileNode(**node) for node in nodes_data]
 
 
-@router.get("/files/content", response_model=FileContent)
+@router.get("/content", response_model=FileContent)
 async def get_file_content(
     project_id: int = Query(...),
     path: str = Query(..., min_length=1),
@@ -128,7 +128,7 @@ def _resolve_upload_file(normalized: str) -> str | None:
     return None
 
 
-@router.get("/files/raw")
+@router.get("/raw")
 async def get_raw_file(
     path: str = Query(..., min_length=1),
     project_id: int | None = Query(None),
@@ -176,16 +176,9 @@ async def get_raw_file(
     if not os.path.exists(target_file) or not os.path.isfile(target_file):
         raise HTTPException(404, "File not found")
     return FileResponse(target_file)
-    if not os.path.commonpath([root_path, target_file]) == root_path:
-        raise HTTPException(403, "Access denied")
-
-    if not os.path.exists(target_file) or not os.path.isfile(target_file):
-        raise HTTPException(404, "File not found")
-
-    return FileResponse(target_file)
 
 
-@router.post("/files/open")
+@router.post("/open")
 async def open_file(
     req: OpenFileRequest,
     project_id: int = Query(...),
@@ -248,7 +241,7 @@ async def create_file(
         raise HTTPException(500, f"Failed to write file: {str(e)}")
 
 
-@router.post("/files/upload")
+@router.post("/upload")
 async def upload_file(
     project_id: int = Query(...),
     file: UploadFile = File(...),
@@ -289,7 +282,7 @@ async def upload_file(
         # 逻辑路径依然返回 uploads/{filename}，前端不需要感知物理子目录
         # 系统会在 resolve_path 时自动结合 thread_id 定位
         rel_path = f"uploads/{filename}"
-        url = f"/api/v1/files/raw?project_id={project_id}&path={rel_path}"
+        url = f"/api/v1/raw?project_id={project_id}&path={rel_path}"
         if thread_id:
             url += f"&thread_id={thread_id}"
 
@@ -300,7 +293,7 @@ async def upload_file(
         raise HTTPException(500, f"Failed to upload file: {str(e)}")
 
 
-@router.post("/files/workspace_upload", response_model=FileNode)
+@router.post("/workspace_upload", response_model=FileNode)
 async def workspace_upload(
     project_id: int = Query(...),
     file: UploadFile = File(...),
@@ -341,7 +334,7 @@ async def workspace_upload(
         raise HTTPException(500, f"Failed to upload to workspace: {str(e)}")
 
 
-@router.get("/files/search", response_model=list[FileSearchResult])
+@router.get("/search", response_model=list[FileSearchResult])
 async def search_files(
     q: str,
     project_id: int = Query(...),
@@ -368,7 +361,7 @@ async def search_files(
     ]
 
 
-@router.get("/files/search_name", response_model=list[FileNameSearchResult])
+@router.get("/search_name", response_model=list[FileNameSearchResult])
 async def search_files_by_name(
     q: str,
     project_id: int = Query(...),
@@ -400,7 +393,7 @@ async def search_files_by_name(
     return results
 
 
-@router.post("/files/mkdir", response_model=FileNode)
+@router.post("/mkdir", response_model=FileNode)
 async def create_directory(
     req: MkdirRequest,
     project_id: int = Query(...),
@@ -426,7 +419,7 @@ async def create_directory(
         raise HTTPException(500, f"Failed to create directory: {str(e)}")
 
 
-@router.post("/files/move", response_model=FileNode)
+@router.post("/move", response_model=FileNode)
 async def move_file(
     req: MoveFileRequest,
     project_id: int = Query(...),
@@ -463,7 +456,7 @@ async def move_file(
         raise HTTPException(500, f"Failed to move: {str(e)}")
 
 
-@router.delete("/files", response_model=BaseAPIResponse)
+@router.delete("/", response_model=BaseAPIResponse)
 async def delete_file(
     project_id: int = Query(...),
     path: str = Query(..., min_length=1),
@@ -495,7 +488,7 @@ async def delete_file(
         raise HTTPException(500, f"Failed to delete: {str(e)}")
 
 
-@router.post("/files/read", response_model=ReadFileResponse)
+@router.post("/read", response_model=ReadFileResponse)
 async def read_any_file(req: ReadFileRequest):
     """读取任意本地文件内容。
 
@@ -523,7 +516,7 @@ async def read_any_file(req: ReadFileRequest):
         raise HTTPException(500, "Error reading file")
 
 
-@router.post("/files/download")
+@router.post("/download")
 async def download_any_file(req: DownloadFileRequest):
     """下载任意本地文件。
 
