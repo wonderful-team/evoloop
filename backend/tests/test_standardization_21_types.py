@@ -76,14 +76,12 @@ async def run_standardization_test():
             )
         },
         {
-            "name": "Resources: File, Image, Audio, Message, Skill",
+            "name": "Resources: File, Image, Audio",
             "prompt": (
-                "Repeat these exact patterns in your text response to trigger the extractor:\n"
-                "- uploads/doc.pdf\n"
-                "- uploads/img.png\n"
-                "- uploads/snd.mp3\n"
-                "- @[message:00000000-0000-0000-0000-000000000000]\n"
-                "- @[skill:skill_test]"
+                "Repeat these exact patterns in your text response using standard Markdown links to trigger the extractor:\n"
+                "- [doc.pdf](uploads/doc.pdf)\n"
+                "- ![img.png](uploads/img.png)\n"
+                "- [snd.mp3](uploads/snd.mp3)"
             )
         },
         {
