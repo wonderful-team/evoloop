@@ -109,15 +109,24 @@ export function DeviceCard({
           </View>
 
           {/* 状态指示器 */}
-          <View style={[styles.statusBadge, { backgroundColor: getStatusBgColor(device.status) }]}>
-            <View style={[
-              styles.statusDot,
-              { backgroundColor: getStatusColor(device.status) },
-              device.status === 'online' && styles.statusDotOnline,
-            ]} />
-            <Text style={[styles.statusText, { color: getStatusColor(device.status) }]}>
-              {getStatusText(device.status)}
-            </Text>
+          <View style={styles.rightSection}>
+            {(device.unreadCount ?? 0) > 0 && (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadBadgeText}>
+                  {device.unreadCount! > 99 ? '99+' : device.unreadCount}
+                </Text>
+              </View>
+            )}
+            <View style={[styles.statusBadge, { backgroundColor: getStatusBgColor(device.status) }]}>
+              <View style={[
+                styles.statusDot,
+                { backgroundColor: getStatusColor(device.status) },
+                device.status === 'online' && styles.statusDotOnline,
+              ]} />
+              <Text style={[styles.statusText, { color: getStatusColor(device.status) }]}>
+                {getStatusText(device.status)}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -163,13 +172,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
   },
+  rightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  unreadBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  unreadBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    marginLeft: 8,
   },
   statusDot: {
     width: 8,

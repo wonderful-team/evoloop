@@ -142,6 +142,7 @@ export interface Device {
   status: 'online' | 'offline' | 'busy';
   type?: string;
   lastSeen?: string;
+  unreadCount?: number;
 }
 
 export interface DeviceBindingRequest {

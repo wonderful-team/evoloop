@@ -1,4 +1,4 @@
-import React, { useState, useCallback, memo } from 'react';
+import React, { useState, useCallback, memo, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -135,7 +135,52 @@ export const EChartsChart = memo(function EChartsChart({ data }: EChartsChartPro
     );
   }
 
-  const finalOption = data.option || data;
+  // Pre-process and sanitize option for mobile (mirroring the desktop wrapper logic)
+  const finalOption = useMemo(() => {
+    const opt = { ...(data.option || data) };
+    
+    // 1. Remove title to prevent duplicate titles in header and chart canvas
+    delete opt.title;
+
+    const hasLegend = !!opt.legend;
+
+    // 2. Adjust grid bottom spacing and ensure containLabel is true
+    if (opt.grid) {
+      if (Array.isArray(opt.grid)) {
+        opt.grid = opt.grid.map((g: any) => {
+          if (g && typeof g === 'object') {
+            const newG = { containLabel: true, ...g };
+            if (newG.bottom === '3%' && hasLegend) {
+              newG.bottom = '12%';
+            }
+            return newG;
+          }
+          return g;
+        });
+      } else if (typeof opt.grid === 'object') {
+        const newGrid = { containLabel: true, ...opt.grid };
+        if (newGrid.bottom === '3%' && hasLegend) {
+          newGrid.bottom = '12%';
+        }
+        opt.grid = newGrid;
+      }
+    } else {
+      opt.grid = {
+        left: '3%',
+        right: '4%',
+        bottom: hasLegend ? '12%' : '8%',
+        containLabel: true
+      };
+    }
+
+    // 3. Animation defaults
+    if (opt.animation === undefined) {
+      opt.animation = true;
+    }
+
+    return opt;
+  }, [data]);
+
   const htmlContent = generateEChartsHtml(finalOption, isDark);
 
   // 处理标题显示逻辑：支持字符串或 ECharts 标题对象

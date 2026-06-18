@@ -37,6 +37,9 @@ export enum GatewayMessageType {
   // 状态广播
   STATUS_UPDATE = 'status_update',
 
+  // 设备状态更新（Gateway → Mobile）
+  DEVICE_STATUS_UPDATE = 'device_status_update',
+
   // 消息同步（Agent → Gateway → Mobile 统一协议）
   MESSAGE_SYNC = 'message_sync',
 
@@ -210,6 +213,17 @@ export interface HumanCancelMessage extends GatewayMessage {
     sessionId: string;
     requestId: string;
     reason?: string;
+  };
+}
+
+// 设备状态更新消息
+export interface DeviceStatusUpdateMessage extends GatewayMessage {
+  type: GatewayMessageType.DEVICE_STATUS_UPDATE;
+  payload: {
+    device_key: string;
+    status: 'online' | 'offline' | 'busy';
+    client_id?: string;
+    device_name?: string;
   };
 }
 

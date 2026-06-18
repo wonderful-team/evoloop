@@ -1,10 +1,13 @@
 // 设备管理 Hook
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useMemo } from 'react';
 import { AppState } from 'react-native';
 import { DeviceManager } from '@/services/devices/DeviceManager';
 import { useDeviceStore } from '@/stores/deviceStore';
+import { useConversationStore } from '@/stores/conversationStore';
 import { Device } from '@/types';
+import { GatewayClient } from '@/services/gateway/GatewayClient';
+import { GatewayMessageType } from '@/services/gateway/types';
 
 interface UseDevicesOptions {
   autoFetch?: boolean;
@@ -15,10 +18,23 @@ export function useDevices(options: UseDevicesOptions = {}) {
   const { autoFetch = true, refetchInterval = 10000 } = options;
   const store = useDeviceStore();
   const { devices, currentDevice, isLoading, error } = store;
+  const { unreadCounts, conversationDeviceMap } = useConversationStore();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // 确保 devices 是数组
   const safeDevices = devices || [];
+
+  // 计算每个设备的未读总数
+  const devicesWithUnread = useMemo(() => {
+    return safeDevices.map((device) => {
+      const conversationIds = conversationDeviceMap[device.deviceKey] || [];
+      const unreadCount = conversationIds.reduce(
+        (sum, id) => sum + (unreadCounts[id] || 0),
+        0
+      );
+      return { ...device, unreadCount };
+    });
+  }, [safeDevices, unreadCounts, conversationDeviceMap]);
 
   // 启动轮询
   const startPolling = useCallback(() => {
@@ -62,6 +78,35 @@ export function useDevices(options: UseDevicesOptions = {}) {
     };
   }, [autoFetch, startPolling, stopPolling]);
 
+  // 监听 Gateway 推送的设备状态变化
+  useEffect(() => {
+    if (!autoFetch) return;
+
+    const gateway = GatewayClient.getInstance();
+
+    const handleDeviceStatusUpdate = (message: any) => {
+      const payload = message?.payload || message?.data;
+      if (!payload) return;
+
+      const { device_key, status, device_name } = payload;
+      if (!device_key) return;
+
+      if (status === 'online' || status === 'offline' || status === 'busy') {
+        store.updateDeviceStatus(device_key, status);
+      }
+
+      if (device_name) {
+        store.updateDevice(device_key, { name: device_name });
+      }
+    };
+
+    gateway.on(GatewayMessageType.DEVICE_STATUS_UPDATE, handleDeviceStatusUpdate);
+
+    return () => {
+      gateway.off(GatewayMessageType.DEVICE_STATUS_UPDATE, handleDeviceStatusUpdate);
+    };
+  }, [autoFetch, store]);
+
   // 刷新设备列表
   const refresh = useCallback(async () => {
     return DeviceManager.fetchDevices();
@@ -94,7 +139,7 @@ export function useDevices(options: UseDevicesOptions = {}) {
   const onlineCount = safeDevices.filter((d) => d.status === 'online').length;
 
   return {
-    devices: safeDevices,
+    devices: devicesWithUnread,
     currentDevice,
     isLoading,
     error,

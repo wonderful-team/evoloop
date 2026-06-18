@@ -13,6 +13,7 @@ const CHECK_INTERVAL_BACKGROUND = 5 * 60 * 1000; // 5分钟
 import { syncMessages } from '@/services/api/conversations';
 import i18n from '@/locales';
 import { isAuthError } from '@/utils/error';
+import { useConversationStore } from '@/stores/conversationStore';
 
 // 检查新消息
 async function checkNewMessages(): Promise<boolean> {
@@ -37,6 +38,18 @@ async function checkNewMessages(): Promise<boolean> {
     const { messages, serverTime } = await syncMessages(lastTime);
 
     if (messages && messages.length > 0) {
+      // 后台收到新消息时累加未读计数
+      try {
+        const conversationStore = useConversationStore.getState();
+        messages.forEach((m: any) => {
+          if (m.thread_id) {
+            conversationStore.incrementUnread(m.thread_id);
+          }
+        });
+      } catch (e) {
+        console.error('[BackgroundTask] Failed to increment unread:', e);
+      }
+
       // 由于后端已经过滤了 role = 'assistant' 和 last_read_time，这些都是有效的新消息
       // 为了防骚扰，只弹最新的一条消息内容，提示有 N 条新消息
       const latestMessage = messages[0]; // 后端是按 create_time desc 返回的
