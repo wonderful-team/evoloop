@@ -26,7 +26,6 @@ class ReferenceService:
         references_input: list[dict[str, Any]],
         session: AsyncSession,
         root_path: str | None = None,
-        thread_id: str | None = None,
         project_id: int = DEFAULT_PROJECT_ID
     ) -> ReferenceContext:
         """
@@ -72,16 +71,12 @@ class ReferenceService:
                     reference_notes.append(note)
 
                 # 为数据库持久化记录引用
-                url = f"/api/v1/projects/{project_id}/files/raw?path={att_id}"
-                if thread_id:
-                    url += f"&thread_id={thread_id}"
-
                 references.append({
                     "id": str(uuid.uuid4()),
                     "type": "file",
-                    "target_id": url,
+                    "target_id": f"/api/v1/files/raw?project_id={project_id}&path={att_id}",
                     "target_name": att_name,
-                    "metadata": {"filename": att_name}
+                    "metadata": {"filename": att_name},
                 })
 
             # 3. Direct Image References
@@ -106,17 +101,36 @@ class ReferenceService:
                     "text": f"[Audio: {att_name}]({att_id})"
                 })
                 reference_notes.append(f"Audio Reference: {att_name} (Path: {att_id})")
+                references.append({
+                    "id": str(uuid.uuid4()),
+                    "type": "audio",
+                    "target_id": att_id,
+                    "target_name": att_name,
+                    "metadata": {"filename": att_name},
+                })
 
             # 5. Skill References
             elif att_type == "skill":
                 metadata = att.get("metadata") or att.get("meta_data") or {}
                 skill_id = metadata.get("skill_id") or att_id
                 skill_name = metadata.get("skill_name") or att_name
+                skill_description = metadata.get("description", "")
                 reference_notes.append(f"Skill: {skill_name} (ID: {skill_id})")
                 quotes_data.append({
                     "type": "Skill",
                     "name": skill_name,
                     "content": f"Using learned skill: {skill_name}"
+                })
+                references.append({
+                    "id": str(uuid.uuid4()),
+                    "type": "skill",
+                    "target_id": skill_id,
+                    "target_name": skill_name,
+                    "metadata": {
+                        "skill_id": skill_id,
+                        "skill_name": skill_name,
+                        "description": skill_description,
+                    },
                 })
 
             else:
