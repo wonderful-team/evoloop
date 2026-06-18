@@ -1,11 +1,9 @@
 import { createFileRoute, Link, Outlet, redirect } from "@tanstack/react-router"
 import {
-  Activity,
   AlertCircle,
   BookOpen,
   CheckSquare,
   ChevronLeft,
-  Clock,
   FileCode,
   FileText,
   Key,
@@ -111,18 +109,6 @@ function ProjectLayout() {
       label: t("projects.tabs.vault", "Vault"),
       icon: Key,
       path: "/vault",
-    },
-    {
-      id: "gantt",
-      label: t("projects.tabs.gantt", "Gantt"),
-      icon: Activity,
-      path: "/gantt",
-    },
-    {
-      id: "timesheet",
-      label: t("projects.tabs.timesheet", "Timesheet"),
-      icon: Clock,
-      path: "/timesheet",
     },
     // { id: 'reports', label: t('projects.tabs.reports'), icon: PieChart, path: '/reports' },
   ]
