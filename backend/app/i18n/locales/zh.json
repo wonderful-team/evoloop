@@ -68,7 +68,8 @@
       "low": "低",
       "medium": "中",
       "high": "高",
-      "critical": "严重"
+      "critical": "严重",
+      "label": "风险等级：{level}"
     }
   },
   "optimizer": {
@@ -375,7 +376,11 @@
       "consequences": "**潜在后果**:\n{conseq}",
       "error_options": "错误：当输入类型为 'choice' 时必须提供 'options'",
       "request_template": "\n## ⏸️ 请求用户输入\n\n**请求 ID**: `{id}`\n**类型**: {type}\n**提示**: {prompt}{context_section}{options_section}{default_section}\n\n---\n⚠️ **工作流已暂停**。等待用户响应。\n前端将显示此请求并收集用户输入。\n",
-      "approval_template": "\n## 🔐 需要批准\n\n**请求 ID**: `{id}`\n{approval_context}\n---\n⚠️ **工作流已暂停**。等待用户批准。\n请回复 APPROVE 或 REJECT。\n"
+      "approval_template": "\n## 🔐 需要批准\n\n**请求 ID**: `{id}`\n{approval_context}\n---\n⚠️ **工作流已暂停**。等待用户批准。\n请回复 APPROVE 或 REJECT。\n",
+      "authorization": {
+        "resource": "**资源**: `{path}`",
+        "action": "**操作**: {action}"
+      }
     },
     "manage_todo": {
       "error_title": "错误：添加待办事项必须提供 'title'。",
