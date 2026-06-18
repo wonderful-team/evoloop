@@ -82,8 +82,8 @@ class ExecutionMetrics:
 
 
 async def init_backend(project_id: int = DEFAULT_PROJECT_ID):
-    from app.infrastructure.database.resource_manager import db_resource_manager
     from app.infrastructure.config.service import SystemConfigService
+    from app.infrastructure.database.resource_manager import db_resource_manager
 
     logger.info("[Test] Initializing database...")
     await db_resource_manager.initialize(create_tables=True, seed_data=True)
@@ -154,11 +154,9 @@ async def run_agent_with_hitl(
     project_id: int = DEFAULT_PROJECT_ID,
     timeout: int = DEFAULT_TIMEOUT,
 ) -> ExecutionMetrics:
-    from langchain_core.messages import ToolMessage
-
     from app.core.engine.background_agent import run_agent_background
-    from app.core.hitl.orchestrator import HITLOrchestrator, get_pending_hitl_call
     from app.core.globals import get_graph
+    from app.core.hitl.orchestrator import get_pending_hitl_call
 
     metrics = ExecutionMetrics()
     start = time.time()
@@ -192,14 +190,6 @@ async def run_agent_with_hitl(
             logger.info(f"[Test] HITL interrupt detected: {tool_name} (id={pending['id']})")
             logger.info("[Test] Auto-approving...")
 
-            normalized = await HITLOrchestrator.handle_resume(
-                thread_id, pending, "approved"
-            )
-            tool_msg = ToolMessage(
-                tool_call_id=pending["id"],
-                content=normalized,
-            )
-
             resume_config = {
                 "configurable": {
                     "thread_id": thread_id,
@@ -213,10 +203,9 @@ async def run_agent_with_hitl(
             try:
                 await asyncio.wait_for(
                     run_agent_background(thread_id, {
-                        "messages": [tool_msg.model_dump()],
                         "project_id": project_id,
                         "model": model,
-                        "hitl_resume_response": normalized,
+                        "hitl_resume_response": "approved",
                     }),
                     timeout=timeout,
                 )

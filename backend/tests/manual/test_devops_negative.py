@@ -110,8 +110,8 @@ async def run_agent_with_hitl(thread_id: str, inputs: dict, model: str, project_
     from langchain_core.messages import ToolMessage
 
     from app.core.engine.background_agent import run_agent_background
-    from app.core.hitl.orchestrator import HITLOrchestrator, get_pending_hitl_call
     from app.core.globals import get_graph
+    from app.core.hitl.orchestrator import HITLOrchestrator, get_pending_hitl_call
 
     metrics = ExecutionMetrics()
     start = time.time()
@@ -397,8 +397,12 @@ async def main():
         sys.exit(1)
     finally:
         from app.infrastructure.database.resource_manager import db_resource_manager
-        if db_resource_manager._initialized:
-            await db_resource_manager.shutdown()
+        try:
+            loop_id = db_resource_manager._current_loop_id()
+            if loop_id in db_resource_manager._initialized_loops:
+                await db_resource_manager.shutdown()
+        except Exception as e:
+            logger.warning(f"[Test] Cleanup warning: {e}")
         logger.info("[Test] Cleanup complete.")
 
 

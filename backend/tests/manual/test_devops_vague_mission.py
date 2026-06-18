@@ -157,13 +157,18 @@ async def run_agent_turn(
     Returns True if the agent executed commands in this turn.
     """
     from langchain_core.messages import ToolMessage
+
     from app.core.context import thread_context_store
     from app.core.engine.background_agent import run_agent_background
     from app.core.engine.dispatch import dispatch_agent_run
-    from app.core.hitl.orchestrator import HITLOrchestrator, get_pending_hitl_call
     from app.core.engine.state.blackboard import BlackboardState
-    from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket, TicketParameters
+    from app.core.engine.state.config import (
+        AgentRuntimeConfig,
+        ExecutionTicket,
+        TicketParameters,
+    )
     from app.core.globals import get_graph
+    from app.core.hitl.orchestrator import HITLOrchestrator, get_pending_hitl_call
 
     thread_context_store.set_working_directory(thread_id, EVOLOOP_ROOT)
 
@@ -279,9 +284,10 @@ async def run_agent_turn(
             break
 
     # Check if this turn had any execute_command
+    from sqlalchemy import select
+
     from app.infrastructure.database.sql.database import session_scope
     from app.models import Message
-    from sqlalchemy import select
 
     has_exec = False
     async with session_scope() as session:
