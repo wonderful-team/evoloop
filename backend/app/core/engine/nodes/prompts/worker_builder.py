@@ -57,12 +57,12 @@ class WorkerPromptBuilder(BasePromptBuilder):
             "cwd": self.get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", "")),
         }
 
-        # Protocol flags based on authorized tools (Static for the node)
-        authorized_tools = self.agent_config.tools if self.agent_config else []
-        has_desktop_tool = any(t in authorized_tools for t in ["desktop_control", "open_app"])
-        has_mobile_tool = any(t in authorized_tools for t in ["mobile_control", "list_devices"])
-        has_browser_tool = "browser_control" in authorized_tools
-        has_wiki_tools = any(t in authorized_tools for t in ["write_wiki_page", "edit_wiki_page", "save_concepts"])
+        # Protocol flags based on the node's tool list (Static for the node)
+        node_tools = self.agent_config.tools if self.agent_config else []
+        has_desktop_tool = any(t in node_tools for t in ["desktop_control", "open_app"])
+        has_mobile_tool = any(t in node_tools for t in ["mobile_control", "list_devices"])
+        has_browser_tool = "browser_control" in node_tools
+        has_wiki_tools = any(t in node_tools for t in ["write_wiki_page", "edit_wiki_page", "save_concepts"])
 
         logger.info(f"[WorkerPromptBuilder] Static Protocol flags: "
                    f"browser={has_browser_tool}, desktop={has_desktop_tool}, mobile={has_mobile_tool}, wiki={has_wiki_tools}")

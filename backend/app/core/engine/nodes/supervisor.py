@@ -48,8 +48,7 @@ class SupervisorNode(BaseAgentNode):
     Responsibilities:
     1. Sense environment via tools (telemetry, search_native_tools, search_skills)
     2. LLM-driven routing decisions via ReAct loop
-    3. Tool authorization via authorized_tools
-    4. Context building (tools, memory, project structure)
+    3. Context building (tools, memory, project structure)
     """
 
     def __init__(self):
