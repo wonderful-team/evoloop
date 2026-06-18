@@ -7,6 +7,7 @@ from typing import Any
 
 import httpx
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
 from app.core.evocloud.routes import RouteTarget, get_endpoint_route
@@ -17,7 +18,6 @@ from app.models.schemas.auth import EvoCloudProxyResponse, LoginResult
 from app.utils import http as http_utils
 from app.utils import json as json_utils
 from app.utils.security import generate_hmac_signature
-from app.constants import DEFAULT_PROJECT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +205,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             # Handle token expiration (401 or specific error code)
             resp_json = (resp.json() if resp.status_code == 200 else None) or {}
             is_token_expired = (
-                resp.status_code == 401 or 
+                resp.status_code == 401 or
                 resp_json.get("code") in [-10009, -10010] or
                 resp_json.get("message") == "TOKEN_EXPIRE"
             )
@@ -572,6 +572,24 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
                 "os_info": os_info,
             },
         token=token)
+
+    async def sync_device_info(self, device_key: str, info: dict[str, Any], token: str | None = None) -> dict:
+        """Synchronize generic desktop device metadata to Member Center.
+
+        Args:
+            device_key: Server-issued device identifier.
+            info: Metadata fields such as device_name, device_type, os_info.
+
+        Returns:
+            API response dict.
+        """
+        payload = {"device_key": device_key, **info}
+        return await self.request(
+            "POST",
+            "/evolooplink/api/device/updateInfo",
+            data=payload,
+            token=token,
+        )
 
     async def send_heartbeat(self, device_key: str, token: str | None = None):
         await self.request("POST", f"/api/v1/devices/{device_key}/heartbeat", token=token)
