@@ -31,11 +31,11 @@ class GraphService:
     
     Works with both FileGraph (embedded) and Neo4j (production).
     Natural-language queries require Neo4j and are disabled in embedded mode.
+    
+    支持项目级隔离：每个方法调用时根据 project_path 获取对应的 driver。
     """
 
     def __init__(self):
-        # Always initialize driver through GraphManager
-        self._driver = GraphManager.get_driver()
         self._embedded_mode = settings.EMBEDDED_MODE
         
         if self._embedded_mode:
@@ -49,20 +49,31 @@ class GraphService:
         if self._graph:
             logger.info("GraphService initialized with manual schema")
 
+    def _get_driver(self, project_path: str | None = None):
+        """Get the graph driver for the given project."""
+        return GraphManager.get_driver(project_path=project_path)
+
     # =================================================================================
     # Structured Queries (from former GraphRetrievalService)
     # =================================================================================
 
-    async def find_symbol_definition(self, symbol_name: str, project_id: int) -> list[dict[str, Any]]:
-        """Find a symbol definition using high-level API."""
+    async def find_symbol_definition(self, symbol_name: str, project_id: int, project_path: str | None = None) -> list[dict[str, Any]]:
+        """Find a symbol definition using high-level API.
+        
+        Args:
+            symbol_name: Name of the symbol to find
+            project_id: Project ID for filtering
+            project_path: 项目本地路径（用于获取项目级 graph driver）
+        """
+        driver = self._get_driver(project_path)
         # MATCH (e:CodeEntity {name: $name, project_id: $pid})
         # MATCH (f:File)-[:CONTAINS]->(e)
-        entities = await self._driver.find_nodes("CodeEntity", {"name": symbol_name, "project_id": project_id})
+        entities = await driver.find_nodes("CodeEntity", {"name": symbol_name, "project_id": project_id})
         
         results = []
         for e in entities:
             # 1. Reverse traverse: Entity -> File (who CONTAINS me)
-            files = await self._driver.traverse(
+            files = await driver.traverse(
                 "CodeEntity", {"full_name": e["full_name"]},
                 rel_type="CONTAINS",
                 direction="in",
@@ -71,7 +82,7 @@ class GraphService:
             file_path = files[0]["path"] if files else "unknown"
 
             # 2. Forward traverse: Entity -> (what I call/reference)
-            outgoing = await self._driver.traverse(
+            outgoing = await driver.traverse(
                 "CodeEntity", {"full_name": e["full_name"]},
                 rel_type="RELATION",
                 direction="out",
@@ -87,16 +98,23 @@ class GraphService:
             })
         return results
 
-    async def find_usages(self, symbol_name: str, project_id: int) -> list[dict[str, Any]]:
-        """Find who uses (calls/references) this symbol."""
+    async def find_usages(self, symbol_name: str, project_id: int, project_path: str | None = None) -> list[dict[str, Any]]:
+        """Find who uses (calls/references) this symbol.
+        
+        Args:
+            symbol_name: Name of the symbol to find
+            project_id: Project ID for filtering
+            project_path: 项目本地路径（用于获取项目级 graph driver）
+        """
+        driver = self._get_driver(project_path)
         # Find the target entity first
-        targets = await self._driver.find_nodes("CodeEntity", {"name": symbol_name, "project_id": project_id})
+        targets = await driver.find_nodes("CodeEntity", {"name": symbol_name, "project_id": project_id})
         
         results = []
         for target in targets:
             # Traverse any relationship incoming to this target
             # Note: rel_type="RELATION" is used for generic links
-            sources = await self._driver.traverse(
+            sources = await driver.traverse(
                 "CodeEntity", {"full_name": target["full_name"]},
                 rel_type="RELATION",
                 direction="in",
@@ -105,7 +123,7 @@ class GraphService:
             
             for src in sources:
                 # Find file for source
-                files = await self._driver.traverse(
+                files = await driver.traverse(
                     "CodeEntity", {"full_name": src["full_name"]},
                     rel_type="CONTAINS",
                     direction="in",

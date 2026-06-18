@@ -8,7 +8,6 @@ logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
-    is_pollable=False,
     summary_template="evoloop.tool_summary.read_skill_sop"
 )
 async def read_skill_sop(skill_id: int) -> str:
@@ -34,6 +33,9 @@ async def read_skill_sop(skill_id: int) -> str:
 
         content = f"### Found Skill: {match.skill_name}\n\n"
         content += f"**Description**: {skill_obj.description}\n\n"
+        if skill_obj.resource_path:
+            content += f"**Skill Resource Path**: `{skill_obj.resource_path}`\n"
+            content += f"All relative paths in this SOP are relative to the project root (the parent directory of `skills/`).\n\n"
         content += f"#### SOP (Standard Operating Procedure):\n{skill_obj.instructions}\n\n"
         if tools_req:
             content += f"**Required Tools**: {', '.join(tools_req)}\n\n"

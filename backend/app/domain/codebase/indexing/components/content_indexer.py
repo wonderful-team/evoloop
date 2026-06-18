@@ -8,8 +8,10 @@ from app.domain.codebase.indexing.extractors.treesitter_extractor import (
 )
 from app.domain.codebase.schemas import (
     Document,
+    ExtractedEntity,
+    ExtractedRelation,
+    IndexedContent,
 )
-from app.domain.codebase.schemas import IndexedContent
 from app.infrastructure.embeddings.base import BaseEmbedder
 from app.infrastructure.embeddings.factory import EmbedderFactory
 
@@ -27,19 +29,19 @@ class ContentIndexer:
         self.extractor = extractor or TreeSitterExtractor()
         self.embedder = embedder or EmbedderFactory.get_embedder()
 
-    async def index(
+    async def extract(
         self,
         file_path: str,
         content: str,
         rel_path: str
-    ) -> IndexedContent | None:
+    ) -> tuple[list[Document], list[ExtractedEntity], list[ExtractedRelation], Document] | None:
         """
-        Extract and embed file content.
+        Extract code structure without generating embeddings.
 
         Returns:
-            IndexedContent if extraction succeeded, None if no data extracted.
+            (documents, entities, relations, file_summary_doc) or None if
+            extraction produced no usable data.
         """
-        # Extract
         extraction_result = await self.extractor.extract(file_path, content, module_path=rel_path)
 
         # Handle both list and ExtractionResult returns
@@ -74,10 +76,29 @@ class ContentIndexer:
             },
         )
 
-        # Prepend to docs
         all_docs = [file_summary_doc] + docs
+        return all_docs, entities, relations, file_summary_doc
+
+    async def index(
+        self,
+        file_path: str,
+        content: str,
+        rel_path: str
+    ) -> IndexedContent | None:
+        """
+        Extract and embed file content.
+
+        Returns:
+            IndexedContent if extraction succeeded, None if no data extracted.
+        """
+        extracted = await self.extract(file_path, content, rel_path)
+        if extracted is None:
+            return None
+
+        all_docs, entities, relations, file_summary_doc = extracted
 
         # Generate embeddings
+        embeddings = []
         if all_docs and self.embedder is not None:
             texts = []
             for d in all_docs:
@@ -88,8 +109,6 @@ class ContentIndexer:
                     texts.append(d.content[:8000])  # Safety cap
 
             embeddings = await self.embedder.embed_documents(texts)
-        else:
-            embeddings = []
 
         return IndexedContent(
             documents=all_docs,

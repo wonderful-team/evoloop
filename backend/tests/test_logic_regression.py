@@ -11,7 +11,7 @@ pytestmark = pytest.mark.skip(reason="Integration test - requires full backend w
 os.environ["EMBEDDED_MODE"] = "true"
 
 from app.core.engine.message.repository import MessageRepository
-from app.core.engine.hitl import HITLOrchestrator
+from app.core.hitl.orchestrator import HITLOrchestrator
 from app.core.engine.dispatch import dispatch_agent_run
 from app.models import Message
 

@@ -11,6 +11,7 @@ import sys
 sys.path.insert(0, '/Users/huangjinhuan/项目/develop-assistant.cn/evoloop/backend')
 
 from unittest.mock import AsyncMock, MagicMock, patch
+import uuid
 import asyncio
 
 
@@ -107,7 +108,7 @@ async def test_handler_reads_meta_from_context():
 
         mock_repo = MagicMock()
         mock_repo.resolve_tool_input = AsyncMock(return_value={"path": "src/"})
-        mock_repo.update = AsyncMock(return_value=True)
+        mock_repo.update = AsyncMock(return_value=str(uuid.uuid4()))
         handler._repository = mock_repo
 
         mock_meta = MagicMock()
@@ -160,7 +161,7 @@ async def test_handler_fallback_parsing():
 
         mock_repo = MagicMock()
         mock_repo.resolve_tool_input = AsyncMock(return_value={"path": "src/"})
-        mock_repo.update = AsyncMock(return_value=True)
+        mock_repo.update = AsyncMock(return_value=str(uuid.uuid4()))
         handler._repository = mock_repo
 
         mock_meta = MagicMock()

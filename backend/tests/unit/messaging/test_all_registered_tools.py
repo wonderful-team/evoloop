@@ -124,7 +124,7 @@ async def test_tuple_tools_agent_gets_plain_text():
     from app.core.tools.base import ToolResult
     from app.domain.tools.files.list_dir import list_dir
     from app.domain.tools.files.grep_search import grep_search
-    from app.domain.tools.files.multiedit_file import multiedit_file
+
 
     # --- list_dir ---
     result = await list_dir.ainvoke({"path": ".", "mode": "flat"})
@@ -148,29 +148,6 @@ async def test_tuple_tools_agent_gets_plain_text():
     assert hasattr(result, "display_name"), "grep_search: ToolResult 应该有 .display_name"
     snippet = result[:200].replace('\n', '\\n')
     print(f"✅ grep_search: Agent 得到纯文本 \"{snippet}...\", meta={result.meta}, display_name='{result.display_name}'")
-
-    # --- multiedit_file ---
-    # 在工作目录内创建临时文件（避免安全路径检查失败）
-    import os
-    tmpfile = os.path.join(os.getcwd(), "test_multiedit_registered.txt")
-    with open(tmpfile, "w") as f:
-        f.write("hello world\nfoo bar\n")
-    try:
-        result = await multiedit_file.ainvoke({
-            "path": tmpfile,
-            "edits": [{"target": "foo", "replacement": "baz"}],
-        })
-        assert isinstance(result, str), f"multiedit_file: Agent 应该得到 str，得到 {type(result)}"
-        assert not result.strip().startswith("{"), f"multiedit_file: Agent 不应该得到 JSON 字符串: {result[:100]}"
-        assert isinstance(result, ToolResult), f"multiedit_file: 应该是 ToolResult，得到 {type(result)}"
-        assert hasattr(result, "meta") and isinstance(result.meta, dict), "multiedit_file: ToolResult 应该有 .meta dict"
-        assert "count" in result.meta, f"multiedit_file: .meta 应该有 count，得到 {result.meta}"
-        assert hasattr(result, "display_name"), "multiedit_file: ToolResult 应该有 .display_name"
-        snippet = result[:200].replace('\n', '\\n')
-        print(f"✅ multiedit_file: Agent 得到纯文本 \"{snippet}\", meta={result.meta}, display_name='{result.display_name}'")
-    finally:
-        if os.path.exists(tmpfile):
-            os.remove(tmpfile)
 
 
 async def test_plain_text_tools_still_work():

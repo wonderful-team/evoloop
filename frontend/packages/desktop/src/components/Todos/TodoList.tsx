@@ -33,6 +33,7 @@ import {
 import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
+import { useSystemEvent } from "@/hooks/useSystemEvent"
 import { useProjectStore } from "@/stores/projectStore"
 import {
   type TodoPriority,
@@ -88,9 +89,11 @@ export function TodoList() {
 
   useEffect(() => {
     fetchTodos()
-    const interval = setInterval(fetchTodos, 30000)
-    return () => clearInterval(interval)
   }, [])
+
+  useSystemEvent("todo.updated", () => {
+    fetchTodos()
+  })
 
   const getDateLocale = () => {
     return i18n.language === "zh" ? zhCN : enUS
@@ -108,8 +111,7 @@ export function TodoList() {
           priority: newPriority,
           category: newCategory || undefined,
           due_date: newDueDate ? newDueDate.toISOString() : undefined,
-          // @ts-expect-error - project_id added to backend but SDK not regenerated
-          project_id: currentProject?.id,
+          project_id: currentProject?.id ?? null,
         },
       })
       setTodos((prev) => [newTodo, ...prev])
@@ -188,10 +190,14 @@ export function TodoList() {
       if (sortBy === "date") {
         if (!a.due_date) return 1
         if (!b.due_date) return -1
-        return new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
+        const aDue = new Date(a.due_date).getTime()
+        const bDue = new Date(b.due_date).getTime()
+        return aDue - bDue
       }
       // Default created (newest first)
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      const aCreated = a.created_at ? new Date(a.created_at).getTime() : 0
+      const bCreated = b.created_at ? new Date(b.created_at).getTime() : 0
+      return bCreated - aCreated
     })
   }, [filteredTodos, sortBy])
 
@@ -655,15 +661,14 @@ export function TodoList() {
                         <Link
                           to="/chat"
                           search={{
-                            // @ts-expect-error
-                            thread_id: (todo as any).source_conversation_id,
+                            thread_id: todo.source_conversation_id,
                             message: `${t("todos.executeTaskPrefix")}${todo.title}\n${todo.description || ""}`,
                             autoSend: "true",
-                            quoteId: (todo as any).source_message_id,
+                            quoteId: todo.source_message_id,
                           }}
                           className={cn(
                             "ml-1",
-                            !(todo as any).source_conversation_id && "ml-auto",
+                            !todo.source_conversation_id && "ml-auto",
                           )}
                         >
                           <Button

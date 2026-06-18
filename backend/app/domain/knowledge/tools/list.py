@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
-    is_pollable=True,
     summary_template="evoloop.tool_summary.kb_list",
     affected_path_keys=["path"]
 )

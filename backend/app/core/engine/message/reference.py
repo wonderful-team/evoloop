@@ -53,7 +53,7 @@ class ReferenceService:
                     quotes_data.append({"type": "Message", "name": att_name, "content": snippet})
                 if note:
                     reference_notes.append(note)
-                
+
                 # 为数据库持久化记录引用
                 references.append({
                     "id": str(uuid.uuid4()),
@@ -70,7 +70,7 @@ class ReferenceService:
                     quotes_data.append({"type": "File", "name": att_name, "content": content})
                 if note:
                     reference_notes.append(note)
-                
+
                 # 为数据库持久化记录引用
                 url = f"/api/v1/projects/{project_id}/files/raw?path={att_id}"
                 if thread_id:
@@ -121,7 +121,7 @@ class ReferenceService:
 
             else:
                 reference_notes.append(f"Reference ({att_type}): {att_name}")
-        
+
         # Render quotes using template
         updated_message = message_text
         if quotes_data:

@@ -1,6 +1,7 @@
 """
 GraphSyncer: Handles graph database synchronization.
 """
+
 import logging
 
 from app.core.file.service import is_test_file
@@ -25,41 +26,58 @@ class GraphSyncer:
         indexed: IndexedContent,
         file_line_count: int,
         source_file_pg_id: int,
-        entity_pg_ids: dict[str, int]
+        entity_pg_ids: dict[str, int],
+        repo_path: str | None = None,
     ):
         """
         Sync file and its entities to graph.
+
+        Args:
+            repo_path: Optional resolved project root. Falls back to
+                       prepared.repo.local_path if not provided.
         """
         try:
-            driver = await get_graph_db()
+            # 获取项目级 graph driver
+            root_path = repo_path if repo_path else prepared.repo.local_path
+            driver = await get_graph_db(project_path=root_path)
             project_id = prepared.repo.project_id
 
             # 1. Sync File node
-            await driver.upsert_node("File", "path", {
-                "path": prepared.rel_path,
-                "project_id": project_id,
-                "lines": file_line_count,
-                "is_test": is_test_file(prepared.file_path),
-                "pg_id": source_file_pg_id
-            })
+            await driver.upsert_node(
+                "File",
+                "path",
+                {
+                    "path": prepared.rel_path,
+                    "project_id": project_id,
+                    "lines": file_line_count,
+                    "is_test": is_test_file(prepared.file_path),
+                    "pg_id": source_file_pg_id,
+                },
+            )
 
             # 2. Sync Entities and link to File
             for ent in indexed.entities:
-                await driver.upsert_node("CodeEntity", "full_name", {
-                    "full_name": ent.full_name,
-                    "project_id": project_id,
-                    "name": ent.name,
-                    "type": ent.type,
-                    "start_line": ent.start_line,
-                    "end_line": ent.end_line,
-                    "pg_id": entity_pg_ids.get(ent.full_name)
-                })
-                
+                await driver.upsert_node(
+                    "CodeEntity",
+                    "full_name",
+                    {
+                        "full_name": ent.full_name,
+                        "project_id": project_id,
+                        "name": ent.name,
+                        "type": ent.type,
+                        "start_line": ent.start_line,
+                        "end_line": ent.end_line,
+                        "pg_id": entity_pg_ids.get(ent.full_name),
+                    },
+                )
+
                 # Link File -> CONTAINS -> CodeEntity
                 await driver.link_nodes(
-                    "File", {"path": prepared.rel_path, "project_id": project_id},
-                    "CodeEntity", {"full_name": ent.full_name, "project_id": project_id},
-                    "CONTAINS"
+                    "File",
+                    {"path": prepared.rel_path, "project_id": project_id},
+                    "CodeEntity",
+                    {"full_name": ent.full_name, "project_id": project_id},
+                    "CONTAINS",
                 )
 
             # 3. Sync Relations (Entity -> RELATION -> Entity)
@@ -68,10 +86,12 @@ class GraphSyncer:
                     continue
 
                 await driver.link_nodes(
-                    "CodeEntity", {"full_name": rel.source_full_name, "project_id": project_id},
-                    "CodeEntity", {"full_name": rel.target_full_name, "project_id": project_id},
+                    "CodeEntity",
+                    {"full_name": rel.source_full_name, "project_id": project_id},
+                    "CodeEntity",
+                    {"full_name": rel.target_full_name, "project_id": project_id},
                     "RELATION",
-                    rel_props={"type": rel.relation_type}
+                    rel_props={"type": rel.relation_type},
                 )
 
         except Exception as e:

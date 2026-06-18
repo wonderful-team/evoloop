@@ -4,10 +4,10 @@ Core Event Schemas - Lifecycle
 
 Event schemas for system-wide lifecycle and status events.
 """
-from typing import Any, List, Optional
+from typing import Any
 
 from langchain_core.messages import BaseMessage
-from pydantic import Field, BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from app.core.events.base import BaseEvent
 from app.core.events.registry import SystemEventType
@@ -18,25 +18,25 @@ class SessionCompletedData(BaseModel):
     thread_id: str
     run_id: str | None = None
     project_id: int | None = None
-    member_id: Optional[int] = None
-    messages: List[BaseMessage] = Field(default_factory=list)
+    member_id: int | None = None
+    messages: list[BaseMessage] = Field(default_factory=list)
     blackboard_dict: dict = Field(default_factory=dict, description="Serialized blackboard state")
-    summary: Optional[str] = None
-    outcome: Optional[str] = None
-    audit_tier: Optional[str] = None
+    summary: str | None = None
+    outcome: str | None = None
+    audit_tier: str | None = None
     duration_ms: float = 0.0
     # Extra context for learning and domain modules
     model: str | None = None
-    original_skill_id: Optional[Any] = None
-    ticket_topic: Optional[str] = None
-    ticket_reason: Optional[str] = None
+    original_skill_id: Any | None = None
+    ticket_topic: str | None = None
+    ticket_reason: str | None = None
 
 
 class SessionCompletedEvent(BaseEvent):
     """Event published when an agent session reaches a successful conclusion."""
     event_type: str = SystemEventType.SESSION_COMPLETED
     data: SessionCompletedData
-    
+
     # Enable automatic bridging to UI
     is_public: bool = True
     broadcast_channel: str = "chat"
@@ -62,12 +62,12 @@ class ExtractionRequest(BaseModel):
     name: str
     description: str
     schema_dict: dict = Field(..., description="The pydantic output_schema as a dict, or raw json schema dict")
-    
-    
+
+
 class ExtractionRequestedEvent(BaseEvent):
     """Event published to gather schemas from domains before running extraction LLM."""
     event_type: str = SystemEventType.EXTRACTION_REQUESTED
-    requests: List[ExtractionRequest] = Field(default_factory=list)
+    requests: list[ExtractionRequest] = Field(default_factory=list)
     thread_id: str
     is_public: bool = False
 
@@ -78,7 +78,7 @@ class ExtractionCompletedEvent(BaseEvent):
     thread_id: str
     run_id: str | None = None
     project_id: int | None = None
-    member_id: Optional[int] = None
+    member_id: int | None = None
     extracted_data: dict = Field(default_factory=dict, description="The raw structured output from LLM")
     is_public: bool = False
 
@@ -128,6 +128,22 @@ class UserLoggedOutEvent(BaseEvent):
     event_type: str = SystemEventType.USER_LOGGED_OUT
     is_public: bool = True
     broadcast_channel: str = "system"
+
+
+class SubscriptionChangedEvent(BaseEvent):
+    """Event published when a user's subscription or benefits change."""
+    event_type: str = "subscription.changed"
+    source: str = "subscription"
+    member_id: int | None = None
+    event: str | None = None  # e.g. subscription_created, subscription_renewed
+    is_public: bool = True
+    broadcast_channel: str = "system"
+
+    def model_post_init(self, __context: Any) -> None:
+        self.data = {
+            "member_id": self.member_id,
+            "event": self.event,
+        }
 
 
 class SystemLogEvent(BaseEvent):

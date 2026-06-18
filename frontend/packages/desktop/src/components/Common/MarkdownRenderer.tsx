@@ -22,17 +22,35 @@ const defaultRehypePlugins = [rehypeRaw]
 const defaultComponents = {
   code({ node, inline, className, children, ...props }: any) {
     const match = /language-(\w+)/.exec(className || "")
-    const codeString = String(children).replace(/\n$/, "")
+    // react-markdown v9 removed the `inline` prop.
+    // Fenced code blocks always yield children ending with '\n'; inline code never does.
+    const rawChildren = String(children)
+    const codeString = rawChildren.replace(/\n$/, "")
     const lineCount = codeString.split("\n").length
     const isLong = lineCount > 15
+    const isBlock =
+      inline === false ||
+      (inline == null && (!!match || rawChildren.endsWith("\n")))
 
-    if (!inline && match) {
+    if (isBlock && match) {
       if (match[1] === "mermaid") {
         return <Mermaid chart={codeString} />
       }
       return (
         <CodeBlock
           language={match[1]}
+          codeString={codeString}
+          isLong={isLong}
+          lineCount={lineCount}
+        />
+      )
+    }
+
+    // Fenced block with no language tag — route to CodeBlock as plain text
+    if (isBlock) {
+      return (
+        <CodeBlock
+          language="text"
           codeString={codeString}
           isLong={isLong}
           lineCount={lineCount}
@@ -90,7 +108,7 @@ const defaultComponents = {
     </td>
   ),
   h1: ({ children }: any) => (
-    <h1 className="text-2xl font-bold mt-6 mb-4">{children}</h1>
+    <h1 className="text-2xl font-bold mt-4 mb-4">{children}</h1>
   ),
   h2: ({ children }: any) => (
     <h2 className="text-xl font-bold mt-5 mb-3">{children}</h2>
@@ -99,6 +117,10 @@ const defaultComponents = {
     <h3 className="text-lg font-bold mt-4 mb-2">{children}</h3>
   ),
   hr: () => <hr className="my-6 border-border" />,
+  // Replace react-markdown's outer <pre> wrapper with a plain fragment so that
+  // Tailwind Typography's pre styles (bg, padding, line-height) don't leak into
+  // CodeBlock's own <pre> and break line-number alignment.
+  pre: ({ children }: any) => <>{children}</>,
 }
 
 export function MarkdownRenderer({

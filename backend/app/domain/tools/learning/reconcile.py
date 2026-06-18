@@ -1,7 +1,7 @@
 import logging
 
 from app.core.engine.tasks import reconcile_skill_macro_task
-from app.core.tools.base import evoloop_tool
+from app.core.tools import evoloop_tool
 
 logger = logging.getLogger(__name__)
 

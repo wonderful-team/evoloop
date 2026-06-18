@@ -4,7 +4,7 @@ from pydantic import Field
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager
-from app.core.tools.base import evoloop_tool
+from app.core.tools import evoloop_tool
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)

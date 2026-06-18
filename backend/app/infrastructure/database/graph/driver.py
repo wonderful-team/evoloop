@@ -7,6 +7,7 @@ a full Neo4j graph database or a local file-based graph (FileGraph).
 
 import asyncio
 import logging
+import threading
 from typing import Any, Protocol, runtime_checkable
 
 from app.core.config import settings
@@ -77,44 +78,64 @@ class IGraphDriver(Protocol):
 
 class GraphManager:
     """
-    Manages graph database drivers across multiple event loops.
+    Manages graph database drivers across multiple event loops and projects.
     Dispatches to Neo4j or FileGraph based on configuration.
+
+    缓存策略：
+    - Embedded Mode: 按 (loop, project_path) 缓存 FileGraphDriver 实例
+    - Full Mode: 按 loop 缓存 Neo4jDriver 实例（Neo4j 是全局共享的）
+
+    Thread-safety:
+        A threading.Lock protects the shared driver cache so that multiple
+        Huey worker threads can safely call get_driver concurrently.
     """
-    _drivers: dict[asyncio.AbstractEventLoop, IGraphDriver] = {}
+    # Key: (event_loop, project_path) for FileGraph; (event_loop, None) for Neo4j
+    _drivers: dict[tuple[asyncio.AbstractEventLoop, str | None], IGraphDriver] = {}
+    _lock = threading.Lock()
 
     @classmethod
-    def get_driver(cls) -> IGraphDriver:
+    def get_driver(cls, project_path: str | None = None) -> IGraphDriver:
         """
-        Get the graph driver for the current event loop.
-        In Embedded Mode, returns FileGraphDriver.
-        In Full Mode, returns Neo4jDriver.
+        Get the graph driver for the current event loop and project.
+
+        Args:
+            project_path: 项目本地路径（如 /Users/xujin/Projects/evoloop）。
+                         Embedded Mode 下，每个 project_path 对应一个独立的 FileGraphDriver。
+                         None 表示全局 driver（Atlas 等非项目数据使用）。
+
+        Returns:
+            IGraphDriver: FileGraphDriver (embedded) 或 Neo4jDriver (full mode)
         """
         # 1. Handle Embedded Mode (File-based Graph)
         if settings.EMBEDDED_MODE:
             from app.infrastructure.database.graph.file_graph import FileGraphDriver
 
-            # We don't cache FileGraphDriver per loop since it's typically used
-            # in single-threaded/embedded scenarios, but for consistency we can.
-            # However, FileGraphDriver handles its own state.
             try:
                 loop = asyncio.get_running_loop()
-                if loop not in cls._drivers:
-                    cls._drivers[loop] = FileGraphDriver()
-                return cls._drivers[loop]
             except RuntimeError:
-                # Fallback for non-async context if needed (though rare in backend)
-                return FileGraphDriver()
+                # Fallback for non-async context
+                return FileGraphDriver(project_path=project_path)
 
-        # 2. Handle Full Mode (Neo4j)
+            cache_key = (loop, project_path)
+            with cls._lock:
+                if cache_key not in cls._drivers:
+                    cls._drivers[cache_key] = FileGraphDriver(project_path=project_path)
+                    logger.debug(f"[GraphManager] Created FileGraphDriver for project_path={project_path}")
+                return cls._drivers[cache_key]
+
+        # 2. Handle Full Mode (Neo4j) - Neo4j is global, no project isolation
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             raise RuntimeError("Cannot get Graph driver without a running event loop")
 
-        if loop in cls._drivers:
-            return cls._drivers[loop]
+        cache_key = (loop, None)
+        with cls._lock:
+            if cache_key in cls._drivers:
+                return cls._drivers[cache_key]
 
-        # Initialize Neo4j Driver
+        # Initialize Neo4j Driver outside the lock so the (potentially slow)
+        # connection setup does not block other threads.
         from app.infrastructure.database.graph.neo4j import Neo4jDriver
 
         driver = Neo4jDriver(
@@ -122,31 +143,42 @@ class GraphManager:
             user=settings.NEO4J_USER or "neo4j",
             password=settings.NEO4J_PASSWORD
         )
-        cls._drivers[loop] = driver
-        logger.info(f"Connected to Neo4j (Loop: {id(loop)})")
-        return driver
+
+        with cls._lock:
+            if cache_key not in cls._drivers:
+                cls._drivers[cache_key] = driver
+            logger.info(f"Connected to Neo4j (Loop: {id(loop)})")
+            return cls._drivers[cache_key]
 
     @classmethod
-    async def close_driver(cls):
-        """Close driver for the current loop."""
+    async def close_driver(cls, project_path: str | None = None):
+        """Close driver for the current loop and project."""
         try:
             loop = asyncio.get_running_loop()
-            if loop in cls._drivers:
-                driver = cls._drivers.pop(loop)
-                await driver.close()
-                logger.info(f"Closed Graph connection (Loop: {id(loop)})")
         except RuntimeError:
-            pass
+            return
+
+        cache_key = (loop, project_path)
+        with cls._lock:
+            if cache_key not in cls._drivers:
+                return
+            driver = cls._drivers.pop(cache_key)
+        await driver.close()
+        logger.info(f"Closed Graph connection (Loop: {id(loop)}, project: {project_path})")
 
     @classmethod
     async def close_all(cls):
-        """Close drivers for all loops (e.g. on shutdown)."""
-        for loop, driver in list(cls._drivers.items()):
+        """Close drivers for all loops and projects (e.g. on shutdown)."""
+        with cls._lock:
+            # Copy the items so we can close them without mutating the dict
+            # while iterating.
+            items = list(cls._drivers.items())
+            cls._drivers.clear()
+        for cache_key, driver in items:
             try:
                 await driver.close()
             except Exception as e:
-                logger.warning(f"Error closing Graph driver for loop {id(loop)}: {e}")
-        cls._drivers.clear()
+                logger.warning(f"Error closing Graph driver for {cache_key}: {e}")
 
     @classmethod
     def is_enabled(cls) -> bool:
@@ -162,9 +194,15 @@ class GraphManager:
 # Standard Helper Functions
 # =============================================================================
 
-async def get_graph_db() -> IGraphDriver:
-    """Convenience helper to get the active graph driver."""
-    return GraphManager.get_driver()
+async def get_graph_db(project_path: str | None = None) -> IGraphDriver:
+    """
+    Convenience helper to get the active graph driver.
+
+    Args:
+        project_path: 项目本地路径。Embedded Mode 下用于获取项目级 driver。
+                     None 表示全局 driver。
+    """
+    return GraphManager.get_driver(project_path=project_path)
 
 
 def is_graph_enabled() -> bool:

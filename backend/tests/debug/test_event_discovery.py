@@ -8,7 +8,6 @@ Verifies that all @event_register decorated classes are properly discovered.
 
 import importlib
 import inspect
-import pkgutil
 from typing import Set, Type
 
 import pytest
@@ -181,7 +180,7 @@ class TestSpecificHandlers:
 
     def test_project_sync_handler(self):
         """Verify ProjectSyncHandler exists."""
-        from app.domain.project.handlers import ProjectSyncHandler
+        from app.core.project import ProjectSyncHandler
         from app.core.events.discovery import _has_auto_register_decorator
         
         assert _has_auto_register_decorator(ProjectSyncHandler), "ProjectSyncHandler not decorated"

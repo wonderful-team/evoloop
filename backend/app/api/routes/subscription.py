@@ -1,9 +1,16 @@
+import hashlib
+import hmac
 import logging
 
 from fastapi import APIRouter, HTTPException
 
 from app.api.deps import TokenDep
-from app.api.schemas.subscription import CreateOrderRequest, BenefitsUpdateWebhook, SubscriptionWebhookResponse
+from app.api.schemas.subscription import (
+    BenefitsUpdateWebhook,
+    CreateOrderRequest,
+    SubscriptionWebhookResponse,
+)
+from app.core.config import settings
 from app.core.evocloud import evocloud_manager
 from app.services.benefit_service import benefit_service
 
@@ -76,29 +83,25 @@ async def get_ai_quota_history(page: int = 1, page_size: int = 20, _token: Token
 async def handle_benefits_update_webhook(payload: BenefitsUpdateWebhook):
     """
     接收来自PHP后端的权益更新Webhook
-    
+
     当会员订阅状态变更时，PHP后端会调用此接口通知Python后端刷新缓存
     """
-    import hmac
-    import hashlib
-    
     # 验证签名（使用与PHP相同的密钥）
-    from app.core.config import settings
-    webhook_secret = getattr(settings, "WEBHOOK_SECRET", "")
-    
+    webhook_secret = settings.WEBHOOK_SECRET
+
     if webhook_secret:
         expected_signature = hmac.new(
             webhook_secret.encode(),
             f"{payload.member_id}:{payload.event}:{payload.timestamp}".encode(),
             hashlib.sha256
         ).hexdigest()
-        
+
         if not hmac.compare_digest(payload.signature, expected_signature):
             raise HTTPException(status_code=401, detail="Invalid signature")
-    
+
     # 根据事件类型处理
     logger.info(f"[Webhook] Received benefits update: {payload.event} for member {payload.member_id}")
-    
+
     # 清除该用户的所有缓存
     if payload.event in [
         "subscription_created", "subscription_renewed", "subscription_upgraded",
@@ -106,7 +109,17 @@ async def handle_benefits_update_webhook(payload: BenefitsUpdateWebhook):
     ]:
         benefit_service.invalidate_cache(payload.member_id)
         logger.info(f"[Webhook] Benefits cache invalidated due to {payload.event}")
-    
+
+        # Notify frontend of subscription change via SSE
+        try:
+            from app.core.events.publishers import publish_subscription_changed
+            await publish_subscription_changed(
+                member_id=payload.member_id,
+                event=payload.event,
+            )
+        except Exception as e:
+            logger.warning(f"[Webhook] Failed to publish subscription changed event: {e}")
+
     return SubscriptionWebhookResponse(
         code=0,
         message="Webhook processed successfully"

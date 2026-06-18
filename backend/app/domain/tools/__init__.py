@@ -1,27 +1,10 @@
-"""
-Domain Tools - Tool collection for the EvoLoop agent system.
+"""Domain Tools - Tool collection for the EvoLoop agent system.
 
-This module organizes tools by functionality:
-- files: File operations (read, write, edit, search)
-- environment: UI automation (browser, desktop, mobile)
-- learning: Skill and knowledge management
-- coding: Code analysis and LSP integration
+Tools are auto-discovered via AutoDiscoveryRegistry.scan("app.domain").
+No manual imports are required for registration.
 """
 
-# Import submodules to ensure tools are registered
+# Registry auto-discovery handles all tool registration.
+# Individual modules and sub-packages are scanned recursively.
 
-# Import sub-packages
-from app.domain.tools import (
-    coding,  # LSP internal classes (not tools)
-    environment,
-    files,
-    learning,
-)
-
-__all__ = [
-    # Sub-packages
-    "files",
-    "environment",
-    "learning",
-    "coding",
-]
+__all__ = []

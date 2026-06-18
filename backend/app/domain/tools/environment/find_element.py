@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
-    is_pollable=True,
     summary_template="evoloop.tool_summary.find_element"
 )
 async def find_element(

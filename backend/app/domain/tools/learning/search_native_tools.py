@@ -4,7 +4,6 @@ from app.core.tools import evoloop_tool
 
 
 @evoloop_tool(
-    is_pollable=True,
     is_hidden=True,
     summary_template="evoloop.tool_summary.search_native_tools"
 )

@@ -302,6 +302,7 @@ export type ChatRequest = {
 }> | null);
     skill_ids?: (Array<(number)> | null);
     revert_files?: boolean;
+    scenario?: (string | null);
 };
 
 export type CheckMobileRequest = {
@@ -471,6 +472,24 @@ export type CreateSkillFromYamlResponse = {
     skill_name: string;
     step_count: number;
     [key: string]: unknown | boolean | string | number;
+};
+
+export type CredentialCreate = {
+    identifier: string;
+    type: string;
+    payload: {
+        [key: string]: unknown;
+    };
+    project_id?: (number | null);
+    description?: (string | null);
+};
+
+export type CredentialListItem = {
+    id: (number | null);
+    identifier: string;
+    type: string;
+    project_id: (number | null);
+    description: (string | null);
 };
 
 /**
@@ -643,6 +662,11 @@ export type DomEventsRequest = {
     thread_id: string;
     session_id: string;
     events: Array<DomEventData>;
+};
+
+export type DownloadFileRequest = {
+    path: string;
+    [key: string]: unknown | string;
 };
 
 export type EmbeddingApplyResponse = {
@@ -985,9 +1009,12 @@ export type LLMConfigRequest = {
      * Selected Default Model ID
      */
     default_model_id?: (string | null);
+    /**
+     * 自定义请求头 (JSON 字典)
+     */
     headers?: ({
-        [key: string]: (string);
-    } | null);
+    [key: string]: (string);
+} | null);
     [key: string]: unknown | string;
 };
 
@@ -1376,6 +1403,16 @@ export type ProjectStatusResponse = {
     summarization: ProjectStatusActivity;
     wiki: ProjectStatusActivity;
     [key: string]: unknown | boolean | string | ProjectStatusActivity;
+};
+
+export type ReadFileRequest = {
+    path: string;
+    [key: string]: unknown | string;
+};
+
+export type ReadFileResponse = {
+    content: string;
+    [key: string]: unknown | string;
 };
 
 export type RecordingSessionItem = {
@@ -2612,7 +2649,7 @@ export type FilesGetFileContentResponse = (FileContent);
 
 export type FilesGetRawFileData = {
     path: string;
-    projectId: number;
+    projectId?: (number | null);
 };
 
 export type FilesGetRawFileResponse = (unknown);
@@ -2665,6 +2702,18 @@ export type FilesMoveFileData = {
 };
 
 export type FilesMoveFileResponse = (FileNode);
+
+export type FilesReadAnyFileData = {
+    requestBody: ReadFileRequest;
+};
+
+export type FilesReadAnyFileResponse = (ReadFileResponse);
+
+export type FilesDownloadAnyFileData = {
+    requestBody: DownloadFileRequest;
+};
+
+export type FilesDownloadAnyFileResponse = (unknown);
 
 export type KnowledgeUploadDocumentData = {
     formData: Body_knowledge_upload_document;
@@ -3459,6 +3508,14 @@ export type StreamStreamChatData = {
 
 export type StreamStreamChatResponse = (unknown);
 
+export type StreamStreamSystemData = {
+    guestId?: (string | null);
+    token?: (string | null);
+    xGuestId?: (string | null);
+};
+
+export type StreamStreamSystemResponse = (unknown);
+
 export type SubscriptionGetSubscriptionPlansResponse = (unknown);
 
 export type SubscriptionCalculateUpgradePriceData = {
@@ -3719,6 +3776,29 @@ export type UtilsHealthCheckResponse = (boolean);
 export type UtilsGetEvoloopStatusResponse = (EvoloopStatusResponse);
 
 export type UtilsGetAiConfigResponse = (unknown);
+
+export type VaultListCredentialsData = {
+    projectId?: (number | null);
+};
+
+export type VaultListCredentialsResponse = (Array<CredentialListItem>);
+
+export type VaultAddCredentialData = {
+    requestBody: CredentialCreate;
+};
+
+export type VaultAddCredentialResponse = ({
+    [key: string]: unknown;
+});
+
+export type VaultDeleteCredentialData = {
+    identifier: string;
+    projectId?: (number | null);
+};
+
+export type VaultDeleteCredentialResponse = ({
+    [key: string]: unknown;
+});
 
 export type WikiGetWikiPagesData = {
     projectId: number;

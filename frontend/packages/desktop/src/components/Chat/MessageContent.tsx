@@ -7,10 +7,12 @@ import {
 import { FileText, Loader2, Music, X } from "lucide-react"
 import { memo, useCallback, useDeferredValue, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import ReactMarkdown from "react-markdown"
+import ReactMarkdown, { defaultUrlTransform } from "react-markdown"
 // TEMP: syntax-highlighter disabled for performance profiling
 import remarkGfm from "remark-gfm"
 import { Mermaid } from "@/components/Common/Mermaid"
+import { openExternalLink, previewFile } from "@/utils/fileLinkHandler"
+import { resolveHrefPreview } from "@/utils/fileUtils"
 import { EChartsArtifact } from "./Artifacts/EChartsArtifact"
 import { extractArtifactsFromContent } from "./Artifacts/utils"
 import { ChangesetSnapshot } from "./ChangesetSnapshotView"
@@ -108,7 +110,12 @@ export const MessageContent = memo(
     const artifactParts = extractArtifactsFromContent(displayContent)
 
     const handleFileClick = (url: string) => {
-      window.open(url, "_blank")
+      const preview = resolveHrefPreview(url)
+      if (preview) {
+        previewFile(preview.path, preview.name)
+      } else if (url.startsWith("http") || url.startsWith("/api/")) {
+        openExternalLink(url)
+      }
     }
 
     return (
@@ -230,6 +237,10 @@ export const MessageContent = memo(
                   <ReactMarkdown
                     key={index}
                     remarkPlugins={[remarkGfm]}
+                    urlTransform={(url) => {
+                      if (url.startsWith("file://")) return url
+                      return defaultUrlTransform(url)
+                    }}
                     components={{
                       code({
                         node,
@@ -239,7 +250,9 @@ export const MessageContent = memo(
                         ...props
                       }: any) {
                         const match = /language-(\w+)/.exec(className || "")
-                        const codeString = String(children).replace(/\n$/, "")
+                        // react-markdown v9 removed `inline` prop; detect fenced blocks by trailing '\n'
+                        const rawChildren = String(children)
+                        const codeString = rawChildren.replace(/\n$/, "")
                         const lineCount = codeString.split("\n").length
                         const isLong = lineCount > 15
 
@@ -350,6 +363,19 @@ export const MessageContent = memo(
                           )
                         }
 
+                        // Fenced block with no language tag
+                        // react-markdown v9: inline is undefined; detect by trailing '\n'
+                        if (inline !== true && !match && rawChildren.endsWith("\n")) {
+                          return (
+                            <CodeBlock
+                              language="text"
+                              codeString={codeString}
+                              isLong={isLong}
+                              lineCount={lineCount}
+                            />
+                          )
+                        }
+
                         return (
                           <code
                             className={`${isUser ? "bg-white/15 text-white" : "bg-muted text-foreground"} px-1.5 py-0.5 rounded text-[85%] font-mono break-all`}
@@ -372,16 +398,30 @@ export const MessageContent = memo(
                           {children}
                         </ol>
                       ),
-                      a: ({ href, children }) => (
-                        <a
-                          href={href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={`${isUser ? "text-inherit" : "text-primary"} underline underline-offset-4 hover:opacity-80 break-all`}
-                        >
-                          {children}
-                        </a>
-                      ),
+                      a: ({ href, children }) => {
+                        const preview = resolveHrefPreview(href || "")
+                        const isExternal =
+                          href?.startsWith("http") || href?.startsWith("/api/")
+                        return (
+                          <a
+                            href={href}
+                            target={preview ? undefined : "_blank"}
+                            rel="noopener noreferrer"
+                            onClick={(e) => {
+                              if (preview) {
+                                e.preventDefault()
+                                previewFile(preview.path, preview.name)
+                              } else if (isExternal) {
+                                e.preventDefault()
+                                openExternalLink(href || "")
+                              }
+                            }}
+                            className={`${isUser ? "text-inherit" : "text-primary"} underline underline-offset-4 hover:opacity-80 break-all`}
+                          >
+                            {children}
+                          </a>
+                        )
+                      },
                       blockquote: ({ children }) => (
                         <blockquote
                           className={`${isUser ? "border-l-4 border-white/25 text-white/80" : "border-l-4 border-primary/30 text-muted-foreground"} pl-3 italic my-2`}

@@ -54,7 +54,7 @@ class MemoryQualityAnalyzer:
         from app.core.memory.store import MemoryStore
 
         config = MemoryConfig.from_settings()
-        storage = MemoryStore(str(config.memory_root))
+        storage = MemoryStore(str(config.user_memory_root))
         analyzer = MemoryQualityAnalyzer(storage=storage, config=config)
     """
 

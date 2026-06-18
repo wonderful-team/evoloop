@@ -123,7 +123,7 @@ plugin_registry = ContextPluginRegistry()
 class WorkspaceProvider(Protocol):
     """
     Protocol for providing workspace-level context, such as project file structure.
-    Normally implemented by the domain layer (e.g., app.domain.project).
+    Normally implemented by the domain layer (e.g., app.core.project).
     """
     async def get_project_structure(self, path: str) -> str:
         """Returns a string representation of the project structure at the given path."""

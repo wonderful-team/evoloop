@@ -16,7 +16,7 @@ from app.constants import FORGET_SAFETY_WINDOW
 from app.core.context.manager import ContextManager
 from app.core.memory.short_term import SqlShortTermMemory
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
-from app.core.tools.base import evoloop_tool
+from app.core.tools import evoloop_tool
 from app.utils import ContentFormatter
 from .retrieval import get_relevant_memories
 
@@ -227,7 +227,6 @@ async def forget_memory(memory_id: str) -> str:
 # ========================================================================
 
 @evoloop_tool(
-    is_pollable=True,
     is_memory_tool=True,
     summary_template="evoloop.tool_summary.search_history"
 )

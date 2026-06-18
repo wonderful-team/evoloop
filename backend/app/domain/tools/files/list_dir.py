@@ -4,7 +4,7 @@ Directory listing and management tools - Thin wrapper over core.file operations.
 This module provides the tool interface for directory operations.
 All heavy lifting is done by app.core.file module.
 """
-import json
+import fnmatch
 import os
 from typing import Annotated
 
@@ -16,6 +16,7 @@ from app.core.file import (
     generate_tree as core_generate_tree,
 )
 from app.core.tools import evoloop_tool
+from app.infrastructure.config import SystemConfigService
 from .utils import resolve_and_validate_path
 
 
@@ -70,7 +71,6 @@ async def handle_list(
         entries = list(core_list_directory(target_path, recursive=False, filter_pattern=filter_pattern))
         # In flat mode with filter, only show directories whose names also match the filter
         if filter_pattern:
-            import fnmatch
             entries = [e for e in entries if not e.is_dir or fnmatch.fnmatch(e.name, filter_pattern)]
         lines = []
         for e in entries:
@@ -90,7 +90,6 @@ async def handle_list(
         # 【虚拟注入】在根目录列表中注入 uploads/ 条目
         # 无论全局模式还是项目模式，uploads/ 都指向 CHAT_UPLOAD_DIR (~/.evoloop/uploads/)
         # 让 Agent 在任何模式下都能清楚地"看到"聊天附件的存放位置
-        from app.infrastructure.config.service import SystemConfigService
         workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
         is_root_listing = (path in (".", "") or
                           (workspace_root and target_path == workspace_root) or
@@ -106,7 +105,7 @@ async def handle_list(
         # Tree view using core.file
         # For with_symbols=True, fall back to existing tree generator
         if with_symbols:
-            from app.domain.project.tree_generator import AnnotatedTreeGenerator
+            from app.core.project.tree_generator import AnnotatedTreeGenerator
             try:
                 generator = AnnotatedTreeGenerator(
                     target_path,
@@ -132,7 +131,6 @@ async def handle_list(
 
 
 @evoloop_tool(
-    is_pollable=True,
     summary_template="evoloop.tool_summary.list_files",
     affected_path_keys=["path"],
 )

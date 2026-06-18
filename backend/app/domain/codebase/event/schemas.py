@@ -9,7 +9,9 @@ from typing import Any
 
 from pydantic import Field
 
+from app.core.events.base import BaseEvent
 from app.infrastructure.pydantic_base import DynamicBaseModel
+
 from .types import IndexingEventType
 
 
@@ -40,3 +42,24 @@ class FileMovedEvent(DynamicBaseModel):
     repo_id: int
     src_path: str
     dest_path: str
+
+
+class IndexingStatusChangedEvent(BaseEvent):
+    """
+    Public event triggered when a project's indexing status changes.
+    Bridged to the frontend via UniversalBridgeSubscriber.
+    """
+    event_type: str = IndexingEventType.INDEXING_STATUS_CHANGED
+    source: str = "indexing"
+    project_id: int
+    repo_id: int | None = None
+    status: str
+    is_public: bool = True
+    broadcast_channel: str = "system"
+
+    def model_post_init(self, __context: Any) -> None:
+        self.data = {
+            "project_id": self.project_id,
+            "repo_id": self.repo_id,
+            "status": self.status,
+        }

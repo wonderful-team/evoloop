@@ -133,6 +133,19 @@ export const useChatStore = create<ChatState>((set, get) => {
           onRunStart: agentStore._handleRunStart,
           onRunEnd: agentStore._handleRunEnd,
           onSessionCompleted: agentStore._handleSessionCompleted,
+          onPlanUpdated: () => {
+            window.dispatchEvent(new CustomEvent("chat-plan-updated"))
+          },
+          onChangesetUpdated: () => {
+            if (threadId) {
+              useChangesetStore.getState().fetchChangeset(threadId)
+              window.dispatchEvent(
+                new CustomEvent("chat-changeset-updated", {
+                  detail: { threadId },
+                }),
+              )
+            }
+          },
           onAuthExpired: (ev) => toast.error(ev.message),
           onError: agentStore._setError,
           onUnauthorized: () => {
@@ -164,7 +177,8 @@ export const useChatStore = create<ChatState>((set, get) => {
         const msgs = (data.data || []).map(normalizeMessage)
         set((state) => {
           const serverIds = new Set(msgs.map((m) => String(m.id)))
-          const activeRunId = useAgentStore.getState().agentState?.run_id
+          const activeRunId = (useAgentStore.getState().agentState as any)
+            ?.run_id
 
           const localMsgsToKeep = state.messages.filter((m) => {
             const idStr = String(m.id)

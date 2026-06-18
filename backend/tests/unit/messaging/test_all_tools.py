@@ -2,9 +2,6 @@
 全面测试所有修改过的工具
 覆盖：list_dir、grep_search、multiedit_file、read_file、write_file、edit_file
 """
-import sys
-sys.path.insert(0, '/Users/huangjinhuan/项目/develop-assistant.cn/evoloop/backend')
-
 from unittest.mock import AsyncMock, MagicMock, patch
 import asyncio
 import os
@@ -44,9 +41,10 @@ async def test_grep_search():
     test_dir = os.path.join(os.getcwd(), "test_all_search")
     os.makedirs(test_dir, exist_ok=True)
     try:
-        open(os.path.join(test_dir, "foo.py"), "w").close()
+        with open(os.path.join(test_dir, "foo.py"), "w") as f:
+            f.write("foo content\n")
 
-        result = await grep_search.ainvoke({"pattern": "foo", "path": test_dir, "search_in_name": True})
+        result = await grep_search.ainvoke({"pattern": "foo", "path": test_dir})
 
         assert isinstance(result, ToolResult)
         assert "foo.py" in str(result)
@@ -163,7 +161,8 @@ async def test_message_handler_with_all_tools():
     handler = MessageHandler(thread_id="test-all", project_id=1)
     mock_repo = MagicMock()
     mock_repo.resolve_tool_input = AsyncMock(return_value={"path": "src/"})
-    mock_repo.update = AsyncMock(return_value=True)
+    import uuid
+    mock_repo.update = AsyncMock(return_value=str(uuid.uuid4()))
     handler._repository = mock_repo
 
     tools_to_test = [

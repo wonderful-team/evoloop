@@ -1,6 +1,7 @@
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { SubscriptionService } from "@/client"
+import { useSystemEvent } from "@/hooks/useSystemEvent"
 import type {
   AiQuota,
   OrderStatus,
@@ -17,7 +18,6 @@ export const useSubscription = () => {
   const { data: status, isLoading: isLoadingStatus } = useQuery({
     queryKey: ["subscription", "status"],
     queryFn: () => SubscriptionService.getSubscriptionStatus(),
-    refetchInterval: 1000 * 60 * 5, // Poll every 5 min (changes are webhook-driven)
     staleTime: 1000 * 60 * 5,
   })
 
@@ -25,14 +25,14 @@ export const useSubscription = () => {
     queryKey: ["subscription", "detail"],
     queryFn: () => SubscriptionService.getSubscriptionDetail(),
     enabled: !!status && (status as any).code === 0,
-    staleTime: 1000 * 60 * 2, // 2 minutes
+    staleTime: 1000 * 60 * 2,
   })
 
   // Query: Available Plans
   const { data: plans, isLoading: isLoadingPlans } = useQuery({
     queryKey: ["subscription", "plans"],
     queryFn: () => SubscriptionService.getSubscriptionPlans(),
-    staleTime: 1000 * 60 * 60, // 1 hour
+    staleTime: 1000 * 60 * 60,
   })
 
   // Query: AI Quota (统一配额池)
@@ -43,8 +43,12 @@ export const useSubscription = () => {
   } = useQuery({
     queryKey: ["subscription", "quota"],
     queryFn: () => SubscriptionService.getAiQuota(),
-    refetchInterval: 1000 * 60 * 2, // Poll every 2 min (matches backend cache TTL)
     staleTime: 1000 * 60 * 2,
+  })
+
+  // Server-pushed subscription changes invalidate local cache
+  useSystemEvent("subscription.changed", () => {
+    queryClient.invalidateQueries({ queryKey: ["subscription"] })
   })
 
   // Mutation: Create Order

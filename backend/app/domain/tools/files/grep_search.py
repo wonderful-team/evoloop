@@ -51,7 +51,6 @@ async def grep_search_internal(
 
 
 @evoloop_tool(
-    is_pollable=True,
     affected_path_keys=["path"],
     summary_template="evoloop.tool_summary.search_result",
 )

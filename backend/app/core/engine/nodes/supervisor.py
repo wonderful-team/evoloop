@@ -48,8 +48,7 @@ class SupervisorNode(BaseAgentNode):
     Responsibilities:
     1. Sense environment via tools (telemetry, search_native_tools, search_skills)
     2. LLM-driven routing decisions via ReAct loop
-    3. Tool authorization via authorized_tools
-    4. Context building (tools, memory, project structure)
+    3. Context building (tools, memory, project structure)
     """
 
     def __init__(self):
@@ -363,6 +362,14 @@ class SupervisorNode(BaseAgentNode):
                 logger.debug(
                     "[Supervisor] 📋 DB plan step synced on signal consume"
                 )
+
+                # Notify frontend plan panel to refresh
+                try:
+                    from app.core.engine.message.publisher import MessagePublisher
+                    publisher = MessagePublisher(thread_id=thread_id)
+                    await publisher.publish_custom_event("plan.updated", {"thread_id": thread_id})
+                except Exception as e:
+                    logger.debug(f"[Supervisor] Failed to publish plan updated event: {e}")
         except Exception as e:
             logger.debug(f"[Supervisor] DB plan step sync skipped: {e}")
 

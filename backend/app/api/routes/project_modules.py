@@ -15,12 +15,6 @@ def get_token(authorization: str | None = Header(None)):
         return authorization.replace("Bearer ", "")
 
 
-# The get_token helper is replaced by TokenDep in the new route definitions.
-
-
-# --- Budget & Timesheet ---
-
-
 @router.get("/budget/list")
 async def get_budget_list(project_id: int, page: int = 1, page_size: int = 50, token: TokenDep = None):
     return await evocloud_manager.api.get_budget_list(project_id, page, page_size, token=token)
@@ -59,9 +53,6 @@ async def quick_add_timesheet(
             status_code=400, detail=res.get("message", "Failed to add timesheet")
         )
     return res
-
-
-# --- Statistics Routes ---
 
 
 @router.get("/statistics/project")

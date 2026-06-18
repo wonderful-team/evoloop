@@ -28,6 +28,7 @@ import { Route as LayoutProjectsIndexRouteImport } from './routes/_layout/projec
 import { Route as LayoutProjectsProjectIdRouteImport } from './routes/_layout/projects.$projectId'
 import { Route as LayoutProjectsProjectIdIndexRouteImport } from './routes/_layout/projects.$projectId.index'
 import { Route as LayoutProjectsProjectIdWikiRouteImport } from './routes/_layout/projects.$projectId.wiki'
+import { Route as LayoutProjectsProjectIdVaultRouteImport } from './routes/_layout/projects.$projectId.vault'
 import { Route as LayoutProjectsProjectIdTasksRouteImport } from './routes/_layout/projects.$projectId.tasks'
 import { Route as LayoutProjectsProjectIdReportsRouteImport } from './routes/_layout/projects.$projectId.reports'
 import { Route as LayoutProjectsProjectIdProfileRouteImport } from './routes/_layout/projects.$projectId.profile'
@@ -131,6 +132,12 @@ const LayoutProjectsProjectIdWikiRoute =
     path: '/wiki',
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
+const LayoutProjectsProjectIdVaultRoute =
+  LayoutProjectsProjectIdVaultRouteImport.update({
+    id: '/vault',
+    path: '/vault',
+    getParentRoute: () => LayoutProjectsProjectIdRoute,
+  } as any)
 const LayoutProjectsProjectIdTasksRoute =
   LayoutProjectsProjectIdTasksRouteImport.update({
     id: '/tasks',
@@ -190,6 +197,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/profile': typeof LayoutProjectsProjectIdProfileRoute
   '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
   '/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
+  '/projects/$projectId/vault': typeof LayoutProjectsProjectIdVaultRoute
   '/projects/$projectId/wiki': typeof LayoutProjectsProjectIdWikiRoute
   '/projects/$projectId/': typeof LayoutProjectsProjectIdIndexRoute
   '/learning/skills/$skillId/edit': typeof LayoutLearningSkillsSkillIdEditRoute
@@ -214,6 +222,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId/profile': typeof LayoutProjectsProjectIdProfileRoute
   '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
   '/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
+  '/projects/$projectId/vault': typeof LayoutProjectsProjectIdVaultRoute
   '/projects/$projectId/wiki': typeof LayoutProjectsProjectIdWikiRoute
   '/projects/$projectId': typeof LayoutProjectsProjectIdIndexRoute
   '/learning/skills/$skillId/edit': typeof LayoutLearningSkillsSkillIdEditRoute
@@ -242,6 +251,7 @@ export interface FileRoutesById {
   '/_layout/projects/$projectId/profile': typeof LayoutProjectsProjectIdProfileRoute
   '/_layout/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
   '/_layout/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
+  '/_layout/projects/$projectId/vault': typeof LayoutProjectsProjectIdVaultRoute
   '/_layout/projects/$projectId/wiki': typeof LayoutProjectsProjectIdWikiRoute
   '/_layout/projects/$projectId/': typeof LayoutProjectsProjectIdIndexRoute
   '/_layout/learning/skills/$skillId/edit': typeof LayoutLearningSkillsSkillIdEditRoute
@@ -270,6 +280,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/profile'
     | '/projects/$projectId/reports'
     | '/projects/$projectId/tasks'
+    | '/projects/$projectId/vault'
     | '/projects/$projectId/wiki'
     | '/projects/$projectId/'
     | '/learning/skills/$skillId/edit'
@@ -294,6 +305,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/profile'
     | '/projects/$projectId/reports'
     | '/projects/$projectId/tasks'
+    | '/projects/$projectId/vault'
     | '/projects/$projectId/wiki'
     | '/projects/$projectId'
     | '/learning/skills/$skillId/edit'
@@ -321,6 +333,7 @@ export interface FileRouteTypes {
     | '/_layout/projects/$projectId/profile'
     | '/_layout/projects/$projectId/reports'
     | '/_layout/projects/$projectId/tasks'
+    | '/_layout/projects/$projectId/vault'
     | '/_layout/projects/$projectId/wiki'
     | '/_layout/projects/$projectId/'
     | '/_layout/learning/skills/$skillId/edit'
@@ -471,6 +484,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutProjectsProjectIdWikiRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
+    '/_layout/projects/$projectId/vault': {
+      id: '/_layout/projects/$projectId/vault'
+      path: '/vault'
+      fullPath: '/projects/$projectId/vault'
+      preLoaderRoute: typeof LayoutProjectsProjectIdVaultRouteImport
+      parentRoute: typeof LayoutProjectsProjectIdRoute
+    }
     '/_layout/projects/$projectId/tasks': {
       id: '/_layout/projects/$projectId/tasks'
       path: '/tasks'
@@ -545,6 +565,7 @@ interface LayoutProjectsProjectIdRouteChildren {
   LayoutProjectsProjectIdProfileRoute: typeof LayoutProjectsProjectIdProfileRoute
   LayoutProjectsProjectIdReportsRoute: typeof LayoutProjectsProjectIdReportsRoute
   LayoutProjectsProjectIdTasksRoute: typeof LayoutProjectsProjectIdTasksRoute
+  LayoutProjectsProjectIdVaultRoute: typeof LayoutProjectsProjectIdVaultRoute
   LayoutProjectsProjectIdWikiRoute: typeof LayoutProjectsProjectIdWikiRoute
   LayoutProjectsProjectIdIndexRoute: typeof LayoutProjectsProjectIdIndexRoute
 }
@@ -557,6 +578,7 @@ const LayoutProjectsProjectIdRouteChildren: LayoutProjectsProjectIdRouteChildren
     LayoutProjectsProjectIdProfileRoute: LayoutProjectsProjectIdProfileRoute,
     LayoutProjectsProjectIdReportsRoute: LayoutProjectsProjectIdReportsRoute,
     LayoutProjectsProjectIdTasksRoute: LayoutProjectsProjectIdTasksRoute,
+    LayoutProjectsProjectIdVaultRoute: LayoutProjectsProjectIdVaultRoute,
     LayoutProjectsProjectIdWikiRoute: LayoutProjectsProjectIdWikiRoute,
     LayoutProjectsProjectIdIndexRoute: LayoutProjectsProjectIdIndexRoute,
   }

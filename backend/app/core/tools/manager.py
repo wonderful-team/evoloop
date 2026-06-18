@@ -33,11 +33,11 @@ class ToolManager:
         Nodes no longer need to manually parse execution_tickets or talk to MCP.
         """
         from app.core.mcp import mcp_client_manager
-        from app.core.tools.registry import get_node_tools as _legacy_get_node_tools
+        from app.core.tools.registry import get_node_tools
 
         # 1. Fetch statically configured tools for this role (Native + specifically requested MCP if defined in yaml)
         try:
-            tools = _legacy_get_node_tools(node_name)
+            tools = get_node_tools(node_name)
         except (TypeError, ValueError, RuntimeError, OSError) as e:
             logger.error(f"[ToolManager] Failed to fetch static tools for {node_name}: {e}")
             tools = []
@@ -115,9 +115,9 @@ class ToolManager:
         Used purely for `search_native_tools` tool-lookup.
         """
         from app.core.mcp import mcp_client_manager
-        from app.core.tools.registry import get_all_tools as _legacy_get_all_tools
+        from app.core.tools.registry import get_all_tools
 
-        native_tools = _legacy_get_all_tools()
+        native_tools = get_all_tools()
         mcp_tools = await mcp_client_manager.aget_all_tools()
 
         return list(native_tools) + list(mcp_tools)

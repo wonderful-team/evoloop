@@ -4,35 +4,64 @@ import shutil
 import subprocess
 import sys
 import time
-from typing import Optional
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile, Form
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 
 from app.api.schemas.files import (
-    FileNode,
+    CreateFileRequest,
+    DownloadFileRequest,
     FileContent,
+    FileNameSearchResult,
+    FileNode,
+    FileSearchResult,
+    FileUploadResponse,
+    MkdirRequest,
+    MoveFileRequest,
     OpenFileRequest,
     OpenFileResponse,
-    FileUploadResponse,
-    FileSearchResult,
-    FileNameSearchResult,
-    CreateFileRequest,
-    MkdirRequest,
-    MoveFileRequest
+    ReadFileRequest,
+    ReadFileResponse,
 )
 from app.api.schemas.responses import BaseAPIResponse
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
-from app.domain.project.utils import get_project_path
-from app.core.file import TreeService, FileSearcher, FileTraverser, read_file, is_ignored_path
+from app.core.file import (
+    FileSearcher,
+    FileTraverser,
+    TreeService,
+    read_file,
+    resolve_path,
+)
+from app.core.project.utils import get_project_path
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/projects/{project_id}/files", tags=["files"])
+router = APIRouter(tags=["files"])
 
 
-@router.get("", response_model=list[FileNode])
-async def list_files(project_id: int, path: str | None = None):
+def _assert_path_allowed(target_path: str) -> None:
+    """Check path against the same security boundary as Agent tools."""
+    normalized = os.path.realpath(os.path.expanduser(target_path))
+
+    # Allow chat upload directory
+    upload_dir = os.path.realpath(settings.CHAT_UPLOAD_DIR)
+    if normalized.startswith(upload_dir):
+        return
+
+    # Allow all ALLOWED_PATH_PREFIXES (same as resolve_and_validate_path)
+    for prefix in settings.ALLOWED_PATH_PREFIXES:
+        expanded = os.path.realpath(os.path.expanduser(prefix))
+        if normalized.startswith(expanded):
+            return
+
+    raise HTTPException(403, "Access denied: path not in allowed prefixes")
+
+
+@router.get("/", response_model=list[FileNode])
+async def list_files(
+    project_id: int = Query(...),
+    path: str | None = None,
+):
     """
     Get file tree for a project.
     If project_id is DEFAULT_PROJECT_ID (0, global mode), returns workspace root files.
@@ -45,18 +74,21 @@ async def list_files(project_id: int, path: str | None = None):
             raise HTTPException(status_code=404, detail="WORKSPACE_ROOT not configured")
     else:
         root_path = await get_project_path(project_id)
-        
+
     if not root_path:
         raise HTTPException(status_code=404, detail="Project path not found")
 
     # Use unified TreeService for JSON tree generation
     nodes_data = TreeService.get_json_tree(root_path, rel_path=path or "", max_depth=1)
-    
+
     return [FileNode(**node) for node in nodes_data]
 
 
 @router.get("/content", response_model=FileContent)
-async def get_file_content(project_id: int, path: str = Query(..., min_length=1)):
+async def get_file_content(
+    project_id: int = Query(...),
+    path: str = Query(..., min_length=1),
+):
     """
     Read file content.
     """
@@ -70,7 +102,7 @@ async def get_file_content(project_id: int, path: str = Query(..., min_length=1)
 
     # Extension detection
     ext = os.path.splitext(full_path)[1].lower()
-    
+
     try:
         result = read_file(full_path)
         return FileContent(content=result.content, language=ext.lstrip("."))
@@ -79,51 +111,78 @@ async def get_file_content(project_id: int, path: str = Query(..., min_length=1)
         raise HTTPException(status_code=500, detail="Error reading file")
 
 
+def _resolve_upload_file(normalized: str) -> str | None:
+    """Resolve uploads/{filename} to a physical file in CHAT_UPLOAD_DIR."""
+    rel_path = normalized[len("uploads/"):]
+    target_file = os.path.join(settings.CHAT_UPLOAD_DIR, rel_path)
+
+    # 如果根目录下没有，尝试在子目录中找（适配隔离后的路径）
+    if not os.path.exists(target_file):
+        for root, _dirs, files in os.walk(settings.CHAT_UPLOAD_DIR):
+            if rel_path in files:
+                target_file = os.path.join(root, rel_path)
+                break
+
+    if target_file and os.path.exists(target_file) and os.path.isfile(target_file):
+        return target_file
+    return None
+
+
 @router.get("/raw")
-async def get_raw_file(project_id: int, path: str = Query(..., min_length=1)):
+async def get_raw_file(
+    path: str = Query(..., min_length=1),
+    project_id: int | None = Query(None),
+):
     """
     Get raw file content (for previewing images, PDFs, etc).
+
+    两种模式：
+    1. 带 project_id：项目内文件（相对路径）
+    2. 不带 project_id：外部绝对路径或 uploads/ 路径，受 ALLOWED_PATH_PREFIXES 限制
     """
     normalized = path.lstrip("/")
 
-    # 聊天附件统一路由：任何 project_id 下，uploads/ 路径都指向 CHAT_UPLOAD_DIR
-    # 聊天上传的文件现在支持会话隔离：~/.evoloop/uploads/{thread_id}/
+    # 聊天附件统一路由：uploads/ 路径都指向 CHAT_UPLOAD_DIR
     if normalized.startswith("uploads/"):
-        rel_path = normalized[len("uploads/"):]
+        target_file = _resolve_upload_file(normalized)
+        if target_file:
+            return FileResponse(target_file)
+        raise HTTPException(404, "File not found")
 
-        # 临时方案：搜索所有子目录寻找该文件 (用于预览兼容性)
-        # 正式方案：在 resolve_and_validate_path 中处理 Agent 读取，这里处理 UI 预览
-        target_file = os.path.join(settings.CHAT_UPLOAD_DIR, rel_path)
+    # 带 project_id：项目内文件
+    if project_id is not None:
+        root_path = await get_project_path(project_id)
+        if not root_path:
+            raise HTTPException(status_code=404, detail="Project path not found")
 
-        # 如果根目录下没有，尝试在子目录中找（适配隔离后的路径）
-        if not os.path.exists(target_file):
-            for root, dirs, files in os.walk(settings.CHAT_UPLOAD_DIR):
-                if rel_path in files:
-                    target_file = os.path.join(root, rel_path)
-                    break
-                    
-        if not target_file or not os.path.exists(target_file) or not os.path.isfile(target_file):
+        target_file = os.path.join(root_path, normalized)
+
+        # Security check
+        if not os.path.commonpath([root_path, target_file]) == root_path:
+            raise HTTPException(403, "Access denied")
+
+        if not os.path.exists(target_file) or not os.path.isfile(target_file):
             raise HTTPException(404, "File not found")
         return FileResponse(target_file)
 
-    root_path = await get_project_path(project_id)
-    if not root_path:
-        raise HTTPException(status_code=404, detail="Project path not found")
+    # 不带 project_id：外部绝对路径
+    expanded = os.path.expanduser(path)
+    target_file = resolve_path(expanded, base_path=None)
+    if not target_file:
+        raise HTTPException(400, f"Invalid path: {path}")
 
-    target_file = os.path.join(root_path, normalized)
-
-    # Security check
-    if not os.path.commonpath([root_path, target_file]) == root_path:
-        raise HTTPException(403, "Access denied")
+    _assert_path_allowed(target_file)
 
     if not os.path.exists(target_file) or not os.path.isfile(target_file):
         raise HTTPException(404, "File not found")
-
     return FileResponse(target_file)
 
 
 @router.post("/open")
-async def open_file(project_id: int, req: OpenFileRequest):
+async def open_file(
+    req: OpenFileRequest,
+    project_id: int = Query(...),
+):
     """
     Open file in system default application.
     """
@@ -153,8 +212,11 @@ async def open_file(project_id: int, req: OpenFileRequest):
         raise HTTPException(500, f"Failed to open file: {str(e)}")
 
 
-@router.post("", response_model=FileNode)
-async def create_file(project_id: int, req: CreateFileRequest):
+@router.post("/", response_model=FileNode)
+async def create_file(
+    req: CreateFileRequest,
+    project_id: int = Query(...),
+):
     """
     Create or overwrite a file.
     """
@@ -181,10 +243,10 @@ async def create_file(project_id: int, req: CreateFileRequest):
 
 @router.post("/upload")
 async def upload_file(
-    project_id: int, 
+    project_id: int = Query(...),
     file: UploadFile = File(...),
     thread_id: str | None = Form(None),
-    session_id: str | None = Form(None)
+    session_id: str | None = Form(None),
 ):
     """
     聊天输入框附件上传。
@@ -220,10 +282,10 @@ async def upload_file(
         # 逻辑路径依然返回 uploads/{filename}，前端不需要感知物理子目录
         # 系统会在 resolve_path 时自动结合 thread_id 定位
         rel_path = f"uploads/{filename}"
-        url = f"/api/v1/projects/{project_id}/files/raw?path={rel_path}"
+        url = f"/api/v1/raw?project_id={project_id}&path={rel_path}"
         if thread_id:
             url += f"&thread_id={thread_id}"
-            
+
         return FileUploadResponse(url=url, filename=filename, path=rel_path)
 
     except Exception as e:
@@ -233,10 +295,10 @@ async def upload_file(
 
 @router.post("/workspace_upload", response_model=FileNode)
 async def workspace_upload(
-    project_id: int,
+    project_id: int = Query(...),
     file: UploadFile = File(...),
     target_dir: str = Form(""),
-    overwrite: bool = Form(False)
+    overwrite: bool = Form(False),
 ):
     """
     Upload a binary file directly into the project workspace.
@@ -248,7 +310,7 @@ async def workspace_upload(
     # Clean target_dir to prevent directory traversal
     target_dir = target_dir.lstrip("/")
     target_dir_path = os.path.join(root_path, target_dir)
-    
+
     filename = os.path.basename(file.filename or "uploaded_file")
     target_file = os.path.join(target_dir_path, filename)
 
@@ -273,7 +335,10 @@ async def workspace_upload(
 
 
 @router.get("/search", response_model=list[FileSearchResult])
-async def search_files(project_id: int, q: str):
+async def search_files(
+    q: str,
+    project_id: int = Query(...),
+):
     """
     Search for text content within project files (standardized search).
     """
@@ -286,7 +351,7 @@ async def search_files(project_id: int, q: str):
 
     # Use unified FileSearcher
     results_data = await FileSearcher.search_content(q, root_path, limit=50)
-    
+
     return [
         FileSearchResult(
             file=os.path.relpath(r["file"], root_path),
@@ -297,7 +362,10 @@ async def search_files(project_id: int, q: str):
 
 
 @router.get("/search_name", response_model=list[FileNameSearchResult])
-async def search_files_by_name(project_id: int, q: str):
+async def search_files_by_name(
+    q: str,
+    project_id: int = Query(...),
+):
     """
     Search for files by name (standardized traversal).
     """
@@ -312,7 +380,7 @@ async def search_files_by_name(project_id: int, q: str):
     q_lower = q.lower()
     results = []
     count = 0
-    
+
     for full_path in FileTraverser.walk(root_path):
         file_name = os.path.basename(full_path)
         if q_lower in file_name.lower():
@@ -324,8 +392,12 @@ async def search_files_by_name(project_id: int, q: str):
 
     return results
 
+
 @router.post("/mkdir", response_model=FileNode)
-async def create_directory(project_id: int, req: MkdirRequest):
+async def create_directory(
+    req: MkdirRequest,
+    project_id: int = Query(...),
+):
     """
     Create an empty directory.
     """
@@ -346,8 +418,12 @@ async def create_directory(project_id: int, req: MkdirRequest):
         logger.error(f"Failed to create directory {target_dir}: {e}")
         raise HTTPException(500, f"Failed to create directory: {str(e)}")
 
+
 @router.post("/move", response_model=FileNode)
-async def move_file(project_id: int, req: MoveFileRequest):
+async def move_file(
+    req: MoveFileRequest,
+    project_id: int = Query(...),
+):
     """
     Move or rename a file or directory.
     """
@@ -372,15 +448,19 @@ async def move_file(project_id: int, req: MoveFileRequest):
     try:
         os.makedirs(os.path.dirname(target_file), exist_ok=True)
         shutil.move(source_file, target_file)
-        
+
         is_dir = os.path.isdir(target_file)
         return FileNode(name=os.path.basename(target_file), path=req.target_path, type="directory" if is_dir else "file")
     except Exception as e:
         logger.error(f"Failed to move {source_file} to {target_file}: {e}")
         raise HTTPException(500, f"Failed to move: {str(e)}")
 
-@router.delete("", response_model=BaseAPIResponse)
-async def delete_file(project_id: int, path: str = Query(..., min_length=1)):
+
+@router.delete("/", response_model=BaseAPIResponse)
+async def delete_file(
+    project_id: int = Query(...),
+    path: str = Query(..., min_length=1),
+):
     """
     Delete a file or directory.
     """
@@ -406,3 +486,56 @@ async def delete_file(project_id: int, path: str = Query(..., min_length=1)):
     except Exception as e:
         logger.error(f"Failed to delete {target_file}: {e}")
         raise HTTPException(500, f"Failed to delete: {str(e)}")
+
+
+@router.post("/read", response_model=ReadFileResponse)
+async def read_any_file(req: ReadFileRequest):
+    """读取任意本地文件内容。
+
+    安全边界复用 Agent 工具的路径权限（ALLOWED_PATH_PREFIXES + uploads）。
+    不绑定 project_id，支持 file:// 链接点击预览。
+    """
+    # Resolve path (supports ~, absolute, relative)
+    expanded = os.path.expanduser(req.path)
+    target_path = resolve_path(expanded, base_path=None)
+    if not target_path:
+        raise HTTPException(400, f"Invalid path: {req.path}")
+
+    _assert_path_allowed(target_path)
+
+    if not os.path.exists(target_path):
+        raise HTTPException(404, f"File not found: {req.path}")
+    if not os.path.isfile(target_path):
+        raise HTTPException(400, f"Not a file: {req.path}")
+
+    try:
+        result = read_file(target_path)
+        return ReadFileResponse(content=result.content)
+    except Exception as e:
+        logger.error(f"Error reading file {target_path}: {e}")
+        raise HTTPException(500, "Error reading file")
+
+
+@router.post("/download")
+async def download_any_file(req: DownloadFileRequest):
+    """下载任意本地文件。
+
+    返回 FileResponse，文件名从 path 取 basename。
+    安全边界与 read_any_file 相同。
+    """
+    expanded = os.path.expanduser(req.path)
+    target_path = resolve_path(expanded, base_path=None)
+    if not target_path:
+        raise HTTPException(400, f"Invalid path: {req.path}")
+
+    _assert_path_allowed(target_path)
+
+    if not os.path.exists(target_path) or not os.path.isfile(target_path):
+        raise HTTPException(404, "File not found")
+
+    filename = os.path.basename(target_path)
+    return FileResponse(
+        target_path,
+        filename=filename,
+        media_type="application/octet-stream",
+    )

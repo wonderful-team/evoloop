@@ -18,6 +18,7 @@ from .conversation import HumanRequest as HumanRequest
 from .conversation import Message as Message
 from .conversation import MessageReference as MessageReference
 from .conversation import ThreadSequence as ThreadSequence
+from .credential import SecureCredential as SecureCredential
 from .file_operation import FileOperation as FileOperation
 from .learning import LearnedSkill as LearnedSkill
 from .learning import SynthesisJob as SynthesisJob
@@ -55,6 +56,7 @@ __all__ = [
     "MessageReference",
     "FileOperation",
     "LearnedSkill",
+    "SecureCredential",
     "SynthesisJob",
     "TraceEvent",
     "MemoryConcept",

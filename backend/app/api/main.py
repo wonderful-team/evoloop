@@ -27,6 +27,7 @@ from app.api.routes import (
     todos,
     tools,
     utils,
+    vault,
     wiki,
 )
 
@@ -52,6 +53,7 @@ api_router.include_router(system.router)
 api_router.include_router(utils.router)
 api_router.include_router(auth_proxy.router, prefix="/auth", tags=["auth"])
 api_router.include_router(resources.router)
+api_router.include_router(vault.router)
 
 # Project Management Modules (Proxy)
 api_router.include_router(tasks.router, prefix="/tasks")

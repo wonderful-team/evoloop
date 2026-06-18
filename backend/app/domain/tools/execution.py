@@ -562,7 +562,6 @@ async def _execute_command_with_timeout(
 
 
 @evoloop_tool(
-    is_pollable=True,
     is_hidden=True,  # Internal polling for background commands, not user-facing
     summary_template="evoloop.tool_summary.query_command_status"
 )
@@ -645,7 +644,6 @@ async def query_command_status(
 
 
 @evoloop_tool(
-    is_pollable=True,
     summary_template="evoloop.tool_summary.cancel_command"
 )
 async def cancel_command(
@@ -697,7 +695,6 @@ async def cancel_command(
 
 
 @evoloop_tool(
-    is_pollable=True,
     is_state_mutating=True,
     summary_template="evoloop.tool_summary.run_macro"
 )
@@ -830,3 +827,6 @@ async def run_macro(
             fallback_context=result.get("fallback_context"),
             suggestions=result.get("suggestions", [])
         )
+
+
+

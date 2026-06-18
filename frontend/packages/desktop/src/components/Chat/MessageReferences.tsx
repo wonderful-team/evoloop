@@ -11,6 +11,8 @@ import {
 } from "lucide-react"
 import type React from "react"
 import { useTranslation } from "react-i18next"
+import { downloadFile } from "@/utils/fileLinkHandler"
+import { cleanFileUrl, isAbsolutePath } from "@/utils/fileUtils"
 import { EChartsArtifact } from "./Artifacts/EChartsArtifact"
 import { HtmlArtifact } from "./Artifacts/HtmlArtifact"
 import { MapArtifact } from "./Artifacts/MapArtifact"
@@ -208,9 +210,21 @@ const ResourceChip = ({
     >
       {getIcon()}
       <span className="max-w-[180px] truncate">{reference.target_name}</span>
-      {reference.type === "file" && (
-        <Download className="w-3 h-3 opacity-40 ml-1" />
-      )}
+      {reference.type === "file" &&
+        isAbsolutePath(
+          reference.meta_data?.source_path || reference.target_id,
+        ) && (
+          <Download
+            className="w-3 h-3 opacity-40 ml-1 hover:opacity-100 cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation()
+              const path =
+                reference.meta_data?.source_path ||
+                cleanFileUrl(reference.target_id)
+              if (path) downloadFile(path)
+            }}
+          />
+        )}
     </button>
   )
 }

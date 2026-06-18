@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import time
 from typing import Any
@@ -11,15 +10,16 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.context.thread_store import thread_context_store
+from app.core.engine.background_agent.errors import handle_task_exception
 from app.core.engine.callbacks.database_logger import DatabaseCallbackHandler
 from app.core.engine.callbacks.transparent import TransparentCallbackHandler
 from app.core.engine.message.converter import EvoMessageConverter
 from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
+
 # Graph
 from app.core.globals import get_graph
+from app.core.hitl.resume import build_resume_command
 from app.core.monitoring.activity import activity_monitor
-from app.core.engine.background_agent.errors import handle_task_exception
-from app.core.engine.background_agent.hitl import build_resume_command
 
 logger = logging.getLogger(__name__)
 
@@ -91,14 +91,14 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                 ctx.working_directory = working_dir
                 ctx.command_id = inputs.command_id
                 ctx.active_model = inputs.model or ctx.active_model
-            
+
             # Allow tests/metadata to inject member_id for benefit-gated tools
             if not ctx.member_id and inputs.metadata.get("member_id"):
                 try:
                     ctx.member_id = int(inputs.metadata["member_id"])
                 except (ValueError, TypeError):
                     pass
-                
+
             ContextManager.set(ctx)
 
             # The hydrator might have updated the working_dir in context
@@ -124,7 +124,7 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
 
             # Initialize Handlers
             callback = TransparentCallbackHandler(thread_id=thread_id)
-            
+
             # Message management handler (handles persistence and streaming)
             # We always initialize it to ensure UI streaming works even if DB persistence is skipped.
             db_callback = DatabaseCallbackHandler(
@@ -136,14 +136,14 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
 
             # 4. Prepare Workflow Inputs
             inputs_dict = inputs.model_dump()
-            
+
             # Instantiate Blackboard
             from app.core.engine.state.blackboard import BlackboardState
             if "blackboard" not in inputs_dict:
                 inputs_dict["blackboard"] = BlackboardState().model_dump()
-            
+
             blackboard = BlackboardState.model_validate(inputs_dict["blackboard"])
-            
+
             # Extract last human msg for predictive memory
             from app.core.engine.message.utils import get_last_human_message
             last_human_msg = get_last_human_message(raw_messages) or ""
@@ -159,7 +159,7 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                 is_subtask=False,
                 iteration_count=inputs.iteration_count
             )
-            
+
             # Update inputs with hydrated blackboard
             inputs_dict["blackboard"] = blackboard.model_dump()
 
@@ -176,7 +176,7 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                 raise ValueError("Global Graph not initialized")
 
             input_payload = inputs_dict
-            
+
             # 5.5 Authoritative session_goal distillation
             input_payload["session_goal"] = inputs.session_goal or ""
 

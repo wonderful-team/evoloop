@@ -73,15 +73,21 @@ class APIExtractor(SemanticExtractorBase[APIEndpoint]):
             logger.error(f"API Extraction failed for {file_path}: {e}")
             return []
 
-    async def sync_to_graph(self, project_id: int, entities: list[APIEndpoint]):
-        """Sync API endpoints to graph."""
+    async def sync_to_graph(self, project_path: str, project_id: int, entities: list[APIEndpoint]):
+        """Sync API endpoints to graph.
+        
+        Args:
+            project_path: 项目本地路径（用于获取项目级 graph driver）
+            project_id: 项目 ID（用于图数据中的 project_id 属性）
+            entities: API endpoint entities to sync
+        """
         if not entities:
             return
     
         try:
             from app.infrastructure.database.graph.driver import GraphManager
     
-            driver = GraphManager.get_driver()
+            driver = GraphManager.get_driver(project_path=project_path)
             for ep in entities:
                 full_name = f"{ep.method} {ep.path}"
                 # 1. Upsert APIEndpoint node

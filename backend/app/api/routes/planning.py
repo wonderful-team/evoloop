@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/conversations/{thread_id}/plan", tags=["planning"])
 
+
 @router.get("", response_model=PlanResponse)
 async def get_plan(thread_id: str):
     """

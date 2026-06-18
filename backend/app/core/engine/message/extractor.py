@@ -7,10 +7,10 @@ AttachmentExtractor — AI 回复产出物自动提取器。
 3. 无副作用：仅做数据提取，不操作数据库或文件系统
 """
 
+import json
 import logging
 import re
 import uuid
-import json
 from typing import Any
 
 from app.constants import DEFAULT_PROJECT_ID
@@ -163,7 +163,7 @@ class AttachmentExtractor:
         # --- 4. 扫描文件路径（Legacy uploads/ 路径）---
         for match in _PATH_PATTERN.finditer(content):
             path = match.group(0)
-            
+
             # 按扩展名推断类型
             lower_path = path.lower()
             ext = "." + lower_path.rsplit(".", 1)[-1] if "." in lower_path else ""
@@ -198,14 +198,14 @@ class AttachmentExtractor:
         for match in _REFERENCE_PATTERN.finditer(content):
             ref_type = match.group(1)
             target_id = match.group(2)
-            
+
             key = f"ref:{ref_type}:{target_id}"
             if key in seen_targets:
                 continue
             seen_targets.add(key)
 
             target_name = "引用消息" if ref_type == "message" else "引用技能"
-            
+
             references.append({
                 "id": str(uuid.uuid4()),
                 "type": ref_type,

@@ -26,7 +26,7 @@ async def stream_chat(thread_id: str):
     """
     SSE endpoint to stream chat updates for a thread.
     Uses cache Pub/Sub for real-time event streaming.
-    
+
     Event Types:
     - activity: Initial lightweight state snapshot (sent once on connect)
     - artifact: New artifact created/updated (incremental)
@@ -87,7 +87,7 @@ async def stream_chat(thread_id: str):
                     # Timeout is normal, loop again for heartbeat
                     if isinstance(e, asyncio.TimeoutError):
                         continue
-                        
+
                     reconnect_attempts += 1
                     if reconnect_attempts > MAX_RECONNECT_ATTEMPTS:
                         yield f"event: error\ndata: {json.dumps({'error': 'Stream connection lost after maximum retries'})}\n\n"
@@ -123,7 +123,7 @@ async def stream_chat(thread_id: str):
                             msg_data = event_data.get('data', {})
                             msg_data = MessageNormalizer.normalize_dict(msg_data)
                             yield f"event: message\ndata: {json.dumps(msg_data)}\n\n"
-                        
+
                         # 2. 标准化流式事件 (Token, Thinking, Progress, Status, etc.)
                         # 所有继承自 BaseStreamEvent 的事件直接透传，其 type 即为 SSE event 名
                         else:
@@ -138,6 +138,107 @@ async def stream_chat(thread_id: str):
             logger.info(f"Stream cancelled: {thread_id}")
         except Exception as e:
             logger.error(f"Stream error: {e}", exc_info=True)
+            yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+        finally:
+            if pubsub:
+                await pubsub.close()
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.get("/system", dependencies=[Depends(verify_guest_access)])
+async def stream_system():
+    """
+    SSE endpoint for system-wide public events.
+
+    Bridges internal events marked with is_public=True and broadcast_channel="system"
+    to the frontend. Events are published to the "system:events" pub/sub channel by
+    UniversalBridgeSubscriber.
+
+    Event Types (dynamic, matching event.event_type):
+    - project.new_detected: New project directory detected
+    - indexing.status: Indexing status changed
+    - todo.updated: Todo list changed
+    - device.connected / device.disconnected: Android mirror device changes
+    - synthesis.completed: Smart synthesis finished
+    - subscription.changed: Subscription/quota changed
+    """
+
+    async def event_generator():
+        pubsub = None
+
+        try:
+            pubsub = cache.pubsub()
+            channel = "system:events"
+            await pubsub.subscribe(channel)
+            logger.info(f"[SSE] Subscribed to system Pub/Sub channel: {channel}")
+
+            reconnect_attempts = 0
+            MAX_RECONNECT_ATTEMPTS = 10
+            BASE_BACKOFF = 0.5
+            last_heartbeat = asyncio.get_event_loop().time()
+
+            while True:
+                try:
+                    now = asyncio.get_event_loop().time()
+                    if now - last_heartbeat > 15.0:
+                        yield ": ping\n\n"
+                        last_heartbeat = now
+
+                    message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                    reconnect_attempts = 0
+                except (ConnectionError, asyncio.TimeoutError) as e:
+                    if isinstance(e, asyncio.TimeoutError):
+                        continue
+
+                    reconnect_attempts += 1
+                    if reconnect_attempts > MAX_RECONNECT_ATTEMPTS:
+                        yield f"event: error\ndata: {json.dumps({'error': 'System stream connection lost after maximum retries'})}\n\n"
+                        break
+                    backoff = min(BASE_BACKOFF * (2 ** (reconnect_attempts - 1)), 30.0)
+                    logger.warning(f"[SSE] PubSub read error for system stream: {e}. Re-subscribing in {backoff}s...")
+                    await asyncio.sleep(backoff)
+                    await pubsub.subscribe(channel)
+                    continue
+                except Exception as e:
+                    if "Buffer is closed" in str(e):
+                        reconnect_attempts += 1
+                        if reconnect_attempts > MAX_RECONNECT_ATTEMPTS:
+                            logger.error("[SSE] System stream cache buffer closed, max retries exceeded.")
+                            yield f"event: error\ndata: {json.dumps({'error': 'System stream connection lost after maximum retries'})}\n\n"
+                            break
+                        backoff = min(BASE_BACKOFF * (2 ** (reconnect_attempts - 1)), 30.0)
+                        logger.error(f"[SSE] System stream cache buffer is closed. Re-initializing in {backoff}s...")
+                        await asyncio.sleep(backoff)
+                        await pubsub.subscribe(channel)
+                        continue
+                    raise e
+
+                if message and message["type"] == "message":
+                    raw_data = message["data"]
+
+                    try:
+                        event_data = json.loads(raw_data)
+                        # UniversalBridgeSubscriber wraps events with {"type": "system_event", "event": "..."}
+                        event_name = event_data.get("event", "system_event")
+                        yield f"event: {event_name}\ndata: {raw_data}\n\n"
+                    except Exception as e:
+                        yield f"event: error\ndata: {json.dumps({'error': 'Failed to process system event', 'details': str(e)})}\n\n"
+
+                await asyncio.sleep(0.01)
+
+        except asyncio.CancelledError:
+            logger.info("System stream cancelled")
+        except Exception as e:
+            logger.error(f"System stream error: {e}", exc_info=True)
             yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
         finally:
             if pubsub:

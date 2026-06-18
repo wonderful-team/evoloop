@@ -15,6 +15,7 @@ from app.core.events.base import AsyncEventBus
 from app.core.events.decorators import event_register, event_subscribe, register_instance_handlers
 from app.core.events.schemas import SessionCompletedEvent
 from app.core.learning.event.schemas import TraceCleanupEvent
+from app.core.learning.skill_sync_service import skill_sync_service
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Message
 
@@ -49,7 +50,15 @@ class LearningLifecycleSubscriber:
         except Exception as e:
             logger.warning(f"[Learning] Skill synchronization failed: {e}")
 
-        # 2. Warm up caches
+        # 2. Start skills file watcher
+        try:
+            from app.core.learning.skill_file_watcher import skills_file_watcher
+            skills_file_watcher.start()
+            logger.info("[Learning] ✓ Skills file watcher started")
+        except Exception as e:
+            logger.warning(f"[Learning] Failed to start skills file watcher: {e}")
+
+        # 3. Warm up caches
         try:
             skills = await skill_discovery.get_active_skills_list()
             logger.info(f"[Learning] ✓ Skills cache warmed: {len(skills)} skills")
@@ -63,6 +72,34 @@ class LearningLifecycleSubscriber:
             logger.info(f"[Learning] ✓ User preferences cached: language={lang_pref}")
         except Exception as e:
             logger.warning(f"[Learning] User preferences caching failed: {e}")
+
+    @event_subscribe(SystemEventType.APP_STOPPING)
+    async def on_app_stopping(self, event):
+        """Stop the skills file watcher on shutdown."""
+        from app.core.learning.skill_file_watcher import skills_file_watcher
+        skills_file_watcher.stop()
+
+    @event_subscribe(SystemEventType.SKILL_CREATED)
+    async def on_skill_created(self, event):
+        """Handle SKILL_CREATED: export skill to filesystem."""
+        data = event.data
+        await skill_sync_service.export_skill_to_file(data["skill_id"])
+
+    @event_subscribe(SystemEventType.SKILL_UPDATED)
+    async def on_skill_updated(self, event):
+        """Handle SKILL_UPDATED: export updated skill to filesystem."""
+        data = event.data
+        await skill_sync_service.export_skill_to_file(data["skill_id"])
+
+    @event_subscribe(SystemEventType.SKILL_DELETED)
+    async def on_skill_deleted(self, event):
+        """Handle SKILL_DELETED: remove skill file from filesystem."""
+        data = event.data
+        await skill_sync_service.delete_skill_file(
+            skill_id=data["skill_id"],
+            namespace=data.get("namespace"),
+            name=data.get("name"),
+        )
 
     @event_subscribe(SystemEventType.SESSION_COMPLETED)
     async def on_session_completed(self, event: SessionCompletedEvent):

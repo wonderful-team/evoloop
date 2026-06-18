@@ -1086,6 +1086,17 @@ export const ChatRequestSchema = {
             type: 'boolean',
             title: 'Revert Files',
             default: true
+        },
+        scenario: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Scenario'
         }
     },
     type: 'object',
@@ -1703,6 +1714,98 @@ export const CreateSkillFromYamlResponseSchema = {
     type: 'object',
     required: ['skill_id', 'skill_name', 'step_count'],
     title: 'CreateSkillFromYamlResponse'
+} as const;
+
+export const CredentialCreateSchema = {
+    properties: {
+        identifier: {
+            type: 'string',
+            title: 'Identifier'
+        },
+        type: {
+            type: 'string',
+            title: 'Type'
+        },
+        payload: {
+            additionalProperties: true,
+            type: 'object',
+            title: 'Payload'
+        },
+        project_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Project Id'
+        },
+        description: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Description'
+        }
+    },
+    type: 'object',
+    required: ['identifier', 'type', 'payload'],
+    title: 'CredentialCreate'
+} as const;
+
+export const CredentialListItemSchema = {
+    properties: {
+        id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Id'
+        },
+        identifier: {
+            type: 'string',
+            title: 'Identifier'
+        },
+        type: {
+            type: 'string',
+            title: 'Type'
+        },
+        project_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Project Id'
+        },
+        description: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Description'
+        }
+    },
+    type: 'object',
+    required: ['id', 'identifier', 'type', 'project_id', 'description'],
+    title: 'CredentialListItem'
 } as const;
 
 export const DebugStatusResponseSchema = {
@@ -2335,6 +2438,19 @@ export const DomEventsRequestSchema = {
     required: ['thread_id', 'session_id', 'events'],
     title: 'DomEventsRequest',
     description: '请求模型：接收 DOM 事件'
+} as const;
+
+export const DownloadFileRequestSchema = {
+    properties: {
+        path: {
+            type: 'string',
+            title: 'Path'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['path'],
+    title: 'DownloadFileRequest'
 } as const;
 
 export const EmbeddingApplyResponseSchema = {
@@ -3793,6 +3909,17 @@ export const MessageChangesetFileSchema = {
         operation: {
             type: 'string',
             title: 'Operation'
+        },
+        diff: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Diff'
         }
     },
     additionalProperties: true,
@@ -4928,6 +5055,32 @@ export const ProjectStatusResponseSchema = {
     required: ['indexing', 'summarization', 'wiki'],
     title: 'ProjectStatusResponse',
     description: 'Real-time project system status.'
+} as const;
+
+export const ReadFileRequestSchema = {
+    properties: {
+        path: {
+            type: 'string',
+            title: 'Path'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['path'],
+    title: 'ReadFileRequest'
+} as const;
+
+export const ReadFileResponseSchema = {
+    properties: {
+        content: {
+            type: 'string',
+            title: 'Content'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['content'],
+    title: 'ReadFileResponse'
 } as const;
 
 export const RecordingSessionItemSchema = {

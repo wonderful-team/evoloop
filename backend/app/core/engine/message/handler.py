@@ -503,6 +503,7 @@ class MessageHandler:
         tool_call_id: str | None = None,
         tool_name: str | None = None,
         parent_id: str | None = None,
+        metadata: dict | None = None,
     ) -> MessageHandlerResult:
         """处理人机交互请求（HITL）"""
         logger.info(
@@ -521,13 +522,13 @@ class MessageHandler:
         )
 
         # Generate tool_meta if tool information is provided
-        metadata = {}
+        final_metadata = dict(metadata) if metadata else {}
         if tool_name:
             from app.core.tools.registry import get_tool_metadata
 
             tool_meta = get_tool_metadata(tool_name)
             if tool_meta and tool_meta.summary_template:
-                metadata["tool_meta"] = {
+                final_metadata["tool_meta"] = {
                     "name": tool_name,
                     "display_name": tool_meta.get_display_name(
                         tool_name, {"request_type": request_type, "prompt": prompt}
@@ -546,7 +547,7 @@ class MessageHandler:
             content_type="json",
             tool_call_id=tool_call_id or request_id,  # Fallback to request_id
             tool_name=tool_name,
-            metadata=metadata if metadata else None,
+            metadata=final_metadata if final_metadata else None,
             parent_id=effective_parent_id,
         )
         await self._dispatch_block(
@@ -557,7 +558,7 @@ class MessageHandler:
             sequence_number=seq,
             tool_name=tool_name,
             tool_call_id=tool_call_id or request_id,
-            metadata=metadata if metadata else None,
+            metadata=final_metadata if final_metadata else None,
             channels={"sse", "mobile"},
             parent_id=effective_parent_id,
         )

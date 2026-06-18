@@ -20,7 +20,7 @@ from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.engine.state.blackboard import BlackboardState
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
-from app.domain.project.utils import get_project_path
+from app.core.project.utils import get_project_path
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.database.sql.database import session_scope
 from app.models.learning import LearnedSkill
@@ -47,13 +47,6 @@ async def _ensure_project_discovery_skill() -> LearnedSkill | None:
 
     # 2. Not found — trigger import from built-in skills directory
     try:
-        from app.core.config import settings
-        from app.core.learning.skill_importer import SkillImporter
-
-        import_path = os.path.join(settings.SKILLS_DIR, "roles", "project_discovery")
-        if os.path.isdir(import_path):
-            await SkillImporter.import_from_directory(settings.SKILLS_DIR)
-
         # Re-query after import
         async with session_scope() as session:
             from sqlalchemy import select

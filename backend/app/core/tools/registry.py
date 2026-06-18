@@ -18,41 +18,12 @@ from pathlib import Path
 import yaml
 from langchain_core.tools import BaseTool
 
-from app.core.tools.schemas import ToolRegistryMetadata
+from app.core.tools.schemas import EvoLoopToolConfig
 
 logger = logging.getLogger(__name__)
 
 # Default YAML config path
 DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "engine" / "config" / "agent_main.yaml"
-
-
-# --- Fallback Metadata for System/External Tools ---
-# Used for tools that are not decorated with @evoloop_tool or are external (MCP/Built-in)
-SYSTEM_TOOL_METADATA = {
-    "execute_command": {
-        "summary_template": "evoloop.tool_summary.execute_command",
-        "is_state_mutating": True,
-    },
-    "task_boundary": {
-        "summary_template": "evoloop.tool_summary.task_boundary",
-        "is_pollable": True,
-    },
-    "write_to_file": {
-        "summary_template": "evoloop.tool_summary.write_file",
-        "affected_path_keys": ["TargetFile"],
-        "is_state_mutating": True,
-    },
-    "replace_file_content": {
-        "summary_template": "evoloop.tool_summary.edit_file",
-        "affected_path_keys": ["TargetFile"],
-        "is_state_mutating": True,
-    },
-    "multi_replace_file_content": {
-        "summary_template": "evoloop.tool_summary.edit_file",
-        "affected_path_keys": ["TargetFile"],
-        "is_state_mutating": True,
-    },
-}
 
 
 class AutoDiscoveryRegistry:
@@ -361,43 +332,23 @@ def is_state_mutating_tool(tool_name: str) -> bool:
     return tool_map[tool_name].metadata.get("is_state_mutating", False)
 
 
-def is_pollable_tool(tool_name: str) -> bool:
-    """Return True if the tool is safe to poll repeatedly without causing a dedup error."""
-    tool_map = get_tool_map()
-    if tool_name not in tool_map:
-        return False
-    # Check custom EvoLoop metadata injected via @evoloop_tool(is_pollable=True)
-    return tool_map[tool_name].metadata.get("is_pollable", False)
-
-
 def is_hitl_tool(tool_name: str) -> bool:
     """Return True if the tool triggers a human-in-the-loop request."""
     tool_map = get_tool_map()
     if tool_name not in tool_map:
-        # Check system fallbacks
-        if tool_name in SYSTEM_TOOL_METADATA:
-            return SYSTEM_TOOL_METADATA[tool_name].get("is_hitl", False)
         return False
-    # Check custom EvoLoop metadata injected via @evoloop_tool(is_hitl=True)
     return tool_map[tool_name].metadata.get("is_hitl", False)
 
 
-def get_tool_metadata(tool_name: str) -> ToolRegistryMetadata:
-    """Return the metadata for a tool by name, merging with system fallbacks."""
+def get_tool_metadata(tool_name: str) -> EvoLoopToolConfig:
+    """Return the metadata for a tool by name."""
     tool_map = get_tool_map()
     metadata: dict = {}
 
     if tool_name in tool_map:
         metadata = tool_map[tool_name].metadata or {}
 
-    # Merge with system fallback if missing key metadata
-    if tool_name in SYSTEM_TOOL_METADATA:
-        fallback = SYSTEM_TOOL_METADATA[tool_name]
-        for k, v in fallback.items():
-            if k not in metadata or not metadata[k]:
-                metadata[k] = v
-
-    return ToolRegistryMetadata.model_validate(metadata)
+    return EvoLoopToolConfig.model_validate(metadata)
 
 
 def get_tool_affected_paths(tool_name: str, tool_args: dict) -> list[str]:

@@ -22,6 +22,7 @@ import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { LearningService } from "@/client/sdk.gen"
+import { useSystemEvent } from "@/hooks/useSystemEvent"
 import { isTauri, safeInvoke } from "@/lib/tauri"
 import { useRecordingStore } from "@/stores/recordingStore"
 
@@ -30,7 +31,7 @@ interface AndroidMirrorConsoleProps {
 }
 
 export function AndroidMirrorConsole({
-  onOpenEditor,
+  onOpenEditor: _onOpenEditor,
 }: AndroidMirrorConsoleProps) {
   const { t } = useTranslation()
   const [activeSession, setActiveSession] = useState<{
@@ -55,7 +56,14 @@ export function AndroidMirrorConsole({
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["mirror-devices"],
     queryFn: () => LearningService.listMirrorDevices(),
-    refetchInterval: 5000,
+  })
+
+  useSystemEvent("environment.device_connected", () => {
+    refetch()
+  })
+
+  useSystemEvent("environment.device_disconnected", () => {
+    refetch()
   })
 
   const startMutation = useMutation({
@@ -217,7 +225,10 @@ export function AndroidMirrorConsole({
     },
   })
 
-  const devices = data?.devices || []
+  const devices = (data?.devices || []) as Array<{
+    serial: string
+    status: string
+  }>
   const scrcpyAvailable = data?.scrcpy_available ?? true
 
   return (
@@ -327,7 +338,9 @@ export function AndroidMirrorConsole({
                                 size="sm"
                                 variant="destructive"
                                 onClick={() =>
-                                  stopMutation.mutate(activeSession.sessionId)
+                                  stopMutation.mutate(
+                                    activeSession?.sessionId || "",
+                                  )
                                 }
                                 className="h-8 rounded-lg font-bold"
                                 disabled={stopMutation.isPending}

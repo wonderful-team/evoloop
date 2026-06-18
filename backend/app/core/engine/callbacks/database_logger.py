@@ -27,6 +27,30 @@ current_node_source: contextvars.ContextVar[str | None] = contextvars.ContextVar
 logger = logging.getLogger(__name__)
 
 
+def _censor_secrets(val: Any) -> Any:
+    """Censor any raw secrets stored in the EvoContext's injected_secrets."""
+    from app.core.context.manager import ContextManager
+    try:
+        ctx = ContextManager.current()
+        injected_secrets = getattr(ctx, "injected_secrets", None)
+        if not injected_secrets:
+            return val
+
+        if isinstance(val, str):
+            sanitized = val
+            for secret in injected_secrets:
+                if secret and secret in val:
+                    sanitized = sanitized.replace(secret, "******")
+            return sanitized
+        elif isinstance(val, dict):
+            return {k: _censor_secrets(v) for k, v in val.items()}
+        elif isinstance(val, list):
+            return [_censor_secrets(x) for x in val]
+    except Exception as e:
+        logger.warning(f"Error during secret censorship in callback: {e}")
+    return val
+
+
 class DatabaseCallbackHandler(AsyncCallbackHandler):
     """
     数据库日志回调处理器
@@ -188,6 +212,9 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             tool_name = 'unknown_tool'
             tool_call_id = run_id_str # 假设 run_id 就是 tool_call_id（符合 Engine 行为）
 
+        # Censor raw secrets before writing to the database log
+        output = _censor_secrets(output)
+
         # 委托给统一处理器，传入 sequence_number 以 UPDATE 记录
         result = await self._handler.handle_tool_output(
             tool_name=tool_name,
@@ -253,6 +280,8 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
         # Parse input data
         input_data = parse_tool_input(input_str)
+        # Censor raw secrets before writing to the database log
+        input_data = _censor_secrets(input_data)
 
         # Pre-insert running record via MessageHandler
         result = await self._handler.handle_tool_start(
@@ -291,6 +320,11 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         tool_name = tool_info.get("name", "unknown_tool")
         tool_call_id = tool_info.get("tool_call_id", run_id_str)
         seq = tool_info.get("seq")
+
+        # Censor error message if it contains secrets
+        censored_message = _censor_secrets(str(error))
+        if censored_message != str(error):
+            error = Exception(censored_message)
 
         await self._handler.handle_tool_error(
             tool_name=tool_name,

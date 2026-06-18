@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
-    is_pollable=True,
     required_benefit="desktop_control",
     summary_template="evoloop.tool_summary.desktop_control"
 )
@@ -187,7 +186,6 @@ async def desktop_control(
 
 
 @evoloop_tool(
-    is_pollable=True,
     summary_template="evoloop.tool_summary.verify_ui_state"
 )
 async def verify_ui_state(
@@ -210,7 +208,6 @@ async def verify_ui_state(
 
 
 @evoloop_tool(
-    is_pollable=True,
     summary_template="evoloop.tool_summary.quick_check_screen"
 )
 async def quick_check_screen(

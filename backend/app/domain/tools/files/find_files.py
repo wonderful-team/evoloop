@@ -131,7 +131,6 @@ async def find_files_internal(
 
 
 @evoloop_tool(
-    is_pollable=True,
     affected_path_keys=["path"],
     summary_template="evoloop.tool_summary.search_result",
 )

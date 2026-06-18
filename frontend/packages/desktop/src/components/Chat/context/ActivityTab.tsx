@@ -48,20 +48,34 @@ interface ActivityTabProps {
  */
 export function ActivityTab({ activeThreadId }: ActivityTabProps) {
   const { t } = useTranslation()
-  const agentState = useChatStore((state) => state.agentState)
+  const agentState = useAgentStore((state) => state.agentState)
   const status = useAgentStore((state) => state.status)
   const isAgentActive =
     status === "running" || status === "interrupted" || status === "summarizing"
 
-  const { data: planData, isLoading: isLoadingPlan } = useQuery({
+  const {
+    data: planData,
+    isLoading: isLoadingPlan,
+    refetch: refetchPlan,
+  } = useQuery({
     queryKey: ["threadPlan", activeThreadId],
     queryFn: async () => {
       if (!activeThreadId) return null
       return PlanningService.getPlan({ threadId: activeThreadId })
     },
     enabled: !!activeThreadId,
-    refetchInterval: isAgentActive ? 3000 : false,
   })
+
+  useEffect(() => {
+    const handlePlanUpdate = () => {
+      if (activeThreadId) {
+        refetchPlan()
+      }
+    }
+    window.addEventListener("chat-plan-updated", handlePlanUpdate)
+    return () =>
+      window.removeEventListener("chat-plan-updated", handlePlanUpdate)
+  }, [activeThreadId, refetchPlan])
 
   const typedPlanData = planData as any
   const plan = typedPlanData?.plan as Plan | null
@@ -320,7 +334,7 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
       />
 
       <SkillDetailsPanel
-        skill={fullSkill || null}
+        skill={(fullSkill as any) || null}
         open={isSkillPanelOpen}
         onOpenChange={(open) => {
           setIsSkillPanelOpen(open)

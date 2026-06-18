@@ -1,9 +1,4 @@
 from __future__ import annotations
-"""
-Shared tool execution logic for AgentEngine.
-
-Consolidates duplicate code from _execute_react_loop and _execute_single_shot.
-"""
 
 import asyncio
 import json
@@ -19,11 +14,19 @@ from app.core.engine.hooks import HookContext, HookEvent, ToolResult, hook_syste
 from app.core.engine.hooks.schemas import ToolInput
 from app.core.engine.signals.schemas import AgentSignal
 from app.core.engine.state import AgentState, RunnableConfigMetadata
+from app.core.exceptions import AgentHumanInterruptException
+from app.core.tools import get_working_directory
 from app.infrastructure.queue.factory import get_scheduler
 from app.utils.diff import diff_tracker
 from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
+
+"""
+Shared tool execution logic for AgentEngine.
+
+Consolidates duplicate code from _execute_react_loop and _execute_single_shot.
+"""
 
 
 class ToolExecutionResult(BaseModel):
@@ -129,7 +132,14 @@ class AgentToolExecutor:
             # Update context if modified
             if pre_result.modified_context and pre_result.modified_context.tool_input is not None:
                 tool_input = pre_result.modified_context.tool_input
-                tool_args = tool_input.args if tool_input.args else tool_args
+                if tool_input.args:
+                    tool_args = tool_input.args
+                else:
+                    # Sync flat fields from ToolInput back to tool_args dictionary
+                    for field in ["command", "path", "content", "query"]:
+                        val = getattr(tool_input, field)
+                        if val is not None and field in tool_args:
+                            tool_args[field] = val
 
             # Track tool execution history and detect repetitions (thread-safe)
             tool_sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
@@ -140,13 +150,11 @@ class AgentToolExecutor:
             # Only state-mutating tools can produce meaningful diffs
             is_mutating = tool.metadata.get("is_state_mutating", False)
             logger.debug(f"[{self.name}] Diff tracking check: enabled={self.enable_diff_tracking}, is_mutating={is_mutating}")
-            
+
             if self.enable_diff_tracking and is_mutating:
                 from app.core.tools.registry import get_tool_affected_paths
-                from app.core.tools.base import get_working_directory
-                from app.core.file import resolve_path
                 from app.utils.diff import diff_tracker
-                
+
                 snapshot_paths = get_tool_affected_paths(tool_name, tool_args)
                 resolved_abs_paths = []
                 for path in snapshot_paths:
@@ -156,14 +164,14 @@ class AgentToolExecutor:
                             # Resolve relative paths against the current working directory
                             wd = get_working_directory(self.config)
                             abs_path = os.path.abspath(os.path.join(wd, abs_path))
-                        
+
                         resolved_abs_paths.append(abs_path)
                         if not diff_tracker.has_snapshot(abs_path, thread_id):
                             diff_tracker.capture_snapshot(abs_path, thread_id)
                             logger.info(f"[{self.name}] Captured snapshot for: {abs_path}")
                     except Exception as e:
                         logger.warning(f"[ToolExecutor] Failed to resolve path for snapshot: {path} | Error: {e}")
-                
+
                 # Store resolved paths in a local variable for post-execution diff tracking
                 self._current_resolved_paths = resolved_abs_paths
 
@@ -174,7 +182,6 @@ class AgentToolExecutor:
             config["metadata"] = {**existing_metadata, "_evoloop_tool_call_id": tool_id}
             content = await self._tool_executor.execute(tool, tool_args, config=config)  # type: ignore[arg-type]
 
-            # === HOOK: PostToolUse ===
             post_ctx = HookContext(
                 thread_id=thread_id,
                 member_id=member_id,
@@ -184,17 +191,16 @@ class AgentToolExecutor:
                 tool_result=ToolResult(output=content),
                 tool_use_id=tool_id,
                 blackboard=self.state.blackboard,
+                extra=pre_result.modified_context.extra if (pre_result and pre_result.modified_context) else pre_ctx.extra,
             )
-            # Fire-and-forget hook with error handling wrapper
-            async def _fire_hook():
-                try:
-                    await hook_system.trigger(HookEvent.POST_TOOL_USE, post_ctx)
-                except Exception as hook_err:
-                    logger.warning(f"[ToolExecutor] POST_TOOL_USE hook failed: {hook_err}")
+            try:
+                post_result = await hook_system.trigger(HookEvent.POST_TOOL_USE, post_ctx, blocking=True)
+                if post_result and post_result.modified_context and post_result.modified_context.tool_result:
+                    content = post_result.modified_context.tool_result.output
+            except Exception as hook_err:
+                logger.warning(f"[ToolExecutor] POST_TOOL_USE hook failed: {hook_err}")
 
-            asyncio.create_task(_fire_hook())
-
-            # Generate message ID for the ToolMessage ahead of time 
+            # Generate message ID for the ToolMessage ahead of time
             # so that diff tracking can correctly link to it.
             tool_message_id = gen_uuid()
 
@@ -212,6 +218,10 @@ class AgentToolExecutor:
             )
             return ToolExecutionResult(message=msg, raw_result=content)
 
+        except AgentHumanInterruptException:
+            # HITL interrupts must propagate so LangGraph pauses execution and
+            # waits for user response. Do not wrap them as error ToolMessages.
+            raise
         except Exception as e:
             content = f"Error executing {tool_name}: {e}"
 
@@ -226,6 +236,7 @@ class AgentToolExecutor:
                 error=e,
                 error_message=str(e),
                 blackboard=self.state.blackboard,
+                extra=pre_result.modified_context.extra if ('pre_result' in locals() and pre_result and pre_result.modified_context) else pre_ctx.extra,
             )
             # Fire-and-forget hook with error handling wrapper
             async def _fire_fail_hook():
@@ -253,12 +264,12 @@ class AgentToolExecutor:
         tool_call_id: str,
     ) -> None:
         """Track file diffs after tool execution."""
-        from app.core.tools.registry import get_tool_map, get_tool_affected_paths
+        from app.core.tools.registry import get_tool_map
 
         # Guard: skip if tool is not state-mutating (e.g. read-only tools)
         tool_map = get_tool_map()
         tool_obj = tool_map.get(tool_name)
-        
+
         if not tool_obj or not tool_obj.metadata.get("is_state_mutating"):
             return
 
@@ -281,7 +292,9 @@ class AgentToolExecutor:
                         if settings.EMBEDDED_MODE:
                             # In embedded mode, we don't have a background worker running.
                             # We must persist the operation immediately to ensure changeset tracking works.
-                            from app.core.engine.tasks import _persist_file_operation_task
+                            from app.core.engine.tasks import (
+                                _persist_file_operation_task,
+                            )
                             await _persist_file_operation_task(
                                 thread_id=thread_id,
                                 message_id=str(msg_id),

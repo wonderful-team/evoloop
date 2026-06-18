@@ -496,7 +496,7 @@ async def init_env():
     
     # 自动批准 HITL 请求
     try:
-        from app.domain.tools.human_input import create_request, complete_request
+        from app.core.hitl import create_request, complete_request
         from app.core.context.manager import ContextManager
         from app.core.tools.registry import get_tool_map, clear_registry_cache
         

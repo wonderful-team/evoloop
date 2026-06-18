@@ -297,7 +297,7 @@ class ProjectDiscoverySubscriber(FileSystemEventHandler):
 
     def _publish_project_created(self, path: str):
         """Publish ProjectCreatedEvent to the event bus."""
-        from app.domain.project.event.publishers import publish_project_created
+        from app.core.project.event.publishers import publish_project_created
         
         asyncio.run_coroutine_threadsafe(
             publish_project_created(path=path, repo_id=0, project_id=None, project_name=""),
@@ -306,7 +306,7 @@ class ProjectDiscoverySubscriber(FileSystemEventHandler):
 
     def _publish_project_deleted(self, path: str):
         """Publish ProjectDeletedEvent to the event bus."""
-        from app.domain.project.event.publishers import publish_project_deleted
+        from app.core.project.event.publishers import publish_project_deleted
         
         asyncio.run_coroutine_threadsafe(
             publish_project_deleted(path=path, repo_id=0, project_id=None),
@@ -315,7 +315,7 @@ class ProjectDiscoverySubscriber(FileSystemEventHandler):
 
     def _publish_project_moved(self, src_path: str, dest_path: str):
         """Publish ProjectMovedEvent to the event bus."""
-        from app.domain.project.event.publishers import publish_project_moved
+        from app.core.project.event.publishers import publish_project_moved
         
         asyncio.run_coroutine_threadsafe(
             publish_project_moved(src_path=src_path, dest_path=dest_path),

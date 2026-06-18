@@ -164,7 +164,6 @@ def _sync_page_to_db(
 
 
 @evoloop_tool(
-    is_pollable=True,
     summary_template="evoloop.tool_summary.list_wiki_pages",
 )
 async def list_wiki_pages(config: Annotated[RunnableConfig, InjectedToolArg] = None) -> str:
@@ -232,7 +231,6 @@ async def list_wiki_pages(config: Annotated[RunnableConfig, InjectedToolArg] = N
 
 
 @evoloop_tool(
-    is_pollable=True,
     summary_template="evoloop.tool_summary.read_wiki_page",
 )
 async def read_wiki_page(title: str, config: Annotated[RunnableConfig, InjectedToolArg] = None) -> str:

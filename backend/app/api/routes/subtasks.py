@@ -5,9 +5,11 @@ from fastapi import APIRouter, HTTPException
 
 from app.api.deps import CurrentUserOptional, TokenDep
 from app.api.responses import BaseAPIResponse
-from app.api.schemas.subtasks import TaskWithSubtasksCreate, TaskProgressUpdate, TaskCreateResponse, \
+from app.api.schemas.subtasks import (
+    TaskWithSubtasksCreate, TaskProgressUpdate, TaskCreateResponse,
     TaskTreeWrapperResponse, NextTaskResponse, TaskFlatResponse, TaskListItem, TaskListResponse
-from app.domain.project.subtask_service import subtask_service
+)
+from app.core.project.subtask_service import subtask_service
 from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)

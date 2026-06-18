@@ -139,6 +139,13 @@ async def persist_file_operation_task(
     # 原有的细粒度通知逻辑保留
     await _notify_file_operation(thread_id, message_id, file_path, operation)
 
+    # Notify sidebar changeset panel to refresh
+    try:
+        publisher = MessagePublisher(thread_id=thread_id)
+        await publisher.publish_custom_event("changeset.updated", {"message_id": message_id, "file_path": file_path, "operation": operation})
+    except Exception as e:
+        logger.warning(f"[Celery] Failed to publish changeset updated event: {e}")
+
 
 @shared_task(name="engine_harvest_concepts")
 async def harvest_concepts_task(concepts_data: list[dict], project_id: int):
@@ -369,6 +376,7 @@ async def reconcile_skill_macro_task(skill_id: int, thread_id: str, model: str |
     """
     Background task to reconcile a broken skill macro.
     """
+    from app.core.events.publishers import publish_skill_mutated
     from app.core.learning.skill_synthesizer import WorkflowSynthesizer
     from app.models.learning import LearnedSkill, TraceEvent
 
@@ -407,6 +415,7 @@ async def reconcile_skill_macro_task(skill_id: int, thread_id: str, model: str |
                 if repaired_skill.instructions:
                     original_skill.instructions = repaired_skill.instructions
                 logger.info(f"[Celery] ✅ Skill {skill_id} has been self-healed.")
+                await publish_skill_mutated(skill_id=skill_id, action="update")
     finally:
         ContextManager.reset(token)
 

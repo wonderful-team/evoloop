@@ -255,7 +255,7 @@ async def set_project_discovery_config(req: ProjectDiscoveryConfigRequest) -> Pr
 
     Note: 如果通过环境变量 DISABLED，此处设置将无效（环境变量优先级最高）
     """
-    from app.domain.project.discovery_manager import discovery_manager
+    from app.core.project.discovery_manager import discovery_manager
 
     # Set the configuration
     success = await discovery_manager.set_discovery_enabled(req.enabled)

@@ -92,7 +92,7 @@ class MemoryContainer:
 
     async def _init_storage(self) -> None:
         """Initialize storage backend."""
-        self._storage = MemoryStore(str(self.config.memory_root))
+        self._storage = MemoryStore(str(self.config.user_memory_root))
 
     async def _init_short_term(self) -> None:
         """Initialize short-term memory backend."""

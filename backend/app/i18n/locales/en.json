@@ -67,7 +67,8 @@
       "low": "Low",
       "medium": "Medium",
       "high": "High",
-      "critical": "Critical"
+      "critical": "Critical",
+      "label": "Risk Level: {level}"
     }
   },
   "optimizer": {
@@ -373,7 +374,11 @@
       "consequences": "**Potential Consequences**:\n{conseq}",
       "error_options": "Error: 'options' must be provided when input_type is 'choice'",
       "request_template": "\n## ⏸️ Human Input Requested\n\n**Request ID**: `{id}`\n**Type**: {type}\n**Prompt**: {prompt}{context_section}{options_section}{default_section}\n\n---\n⚠️ **Workflow paused**. Waiting for user response.\nThe frontend will display this request and collect user input.\n",
-      "approval_template": "\n## 🔐 Approval Required\n\n**Request ID**: `{id}`\n{approval_context}\n---\n⚠️ **Workflow paused**. Awaiting user approval.\nPlease respond with APPROVE or REJECT.\n"
+      "approval_template": "\n## 🔐 Approval Required\n\n**Request ID**: `{id}`\n{approval_context}\n---\n⚠️ **Workflow paused**. Awaiting user approval.\nPlease respond with APPROVE or REJECT.\n",
+      "authorization": {
+        "resource": "**Resource**: `{path}`",
+        "action": "**Action**: {action}"
+      }
     },
     "manage_todo": {
       "error_title": "Error: 'title' is required for adding a todo.",

@@ -17,6 +17,8 @@ export interface ChatConnectionCallbacks {
   onRunStart: (event: any) => void
   onRunEnd: (event: any) => void
   onSessionCompleted?: (event: any) => void
+  onPlanUpdated?: (plan: any) => void // Agent plan update
+  onChangesetUpdated?: (data: any) => void // File changeset update
   onError: (error: string) => void
   onUnauthorized?: () => void
 }
@@ -305,6 +307,24 @@ export class ChatConnection {
           "[ChatConnection] Failed to parse session_completed event",
           err,
         )
+      }
+    })
+
+    sse.addEventListener("plan", (e) => {
+      try {
+        const data = JSON.parse(e.data)
+        this.callbacks?.onPlanUpdated?.(data)
+      } catch (err) {
+        console.error("[ChatConnection] Failed to parse plan event", err)
+      }
+    })
+
+    sse.addEventListener("changeset", (e) => {
+      try {
+        const data = JSON.parse(e.data)
+        this.callbacks?.onChangesetUpdated?.(data)
+      } catch (err) {
+        console.error("[ChatConnection] Failed to parse changeset event", err)
       }
     })
 

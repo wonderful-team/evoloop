@@ -25,6 +25,7 @@ class HybridSearcher:
         query: str,
         operator: Literal["and", "or"],
         project_id: int = None,
+        project_path: str | None = None,
         limit: int = 10,
     ) -> list[dict[str, Any]]:
         # 1. Expand Query (for Vector Search mainly, but keywords also useful)
@@ -37,7 +38,7 @@ class HybridSearcher:
 
         # 2. Parallel Search (Simulated via sequential await for now)
         vector_results = await self._vector_search(
-            expanded_query, project_id, limit=limit * 2
+            expanded_query, project_id, project_path=project_path, limit=limit * 2
         )
         keyword_results = await self._keyword_search(
             query, project_id, limit=limit * 2, operator=operator
@@ -50,12 +51,21 @@ class HybridSearcher:
         return fused[:limit]
 
     async def _vector_search(
-        self, query: str, project_id: int, limit: int
+        self, query: str, project_id: int, project_path: str | None = None, limit: int = 20
     ) -> list[dict]:
+        """
+        Perform vector similarity search.
+        
+        Args:
+            query: Search query
+            project_id: Project ID for filtering
+            project_path: 项目本地路径（用于获取项目级 vector store）
+            limit: Maximum results
+        """
         if self.embedder is None:
             return []
         query_embedding = await self.embedder.embed_query(query)
-        vector_store = get_vector_store()
+        vector_store = get_vector_store(project_path=project_path)
         candidates = await asyncio.to_thread(
             vector_store.search_code,
             query_vector=query_embedding,

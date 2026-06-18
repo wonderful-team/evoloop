@@ -15,19 +15,19 @@ This module provides a hook system for capturing lifecycle events:
 
 Usage:
     from app.core.engine.hooks import hook_system, HookEvent
-    
+
     # Register a handler
     @hook_system.register(HookEvent.PRE_COMPACT)
     async def save_state_before_compact(context):
         # Save critical state
         await memory_manager.save_checkpoint(context)
-    
+
     # Register with matcher (filter by tool name)
     @hook_system.register(HookEvent.PostToolUse, matcher="^Write$|^Edit$")
     async def format_on_write(context):
         # Only triggers for Write/Edit tools
         await formatter.format(context.tool_input.path if context.tool_input else None)
-    
+
     # Trigger hooks
     await hook_system.trigger(HookEvent.PRE_COMPACT, context)
 """
@@ -89,7 +89,7 @@ HookHandler = Callable[[HookContext], HookResult | Awaitable[HookResult]]
 class HookSystem:
     """
     Central hook system for EvoLoop lifecycle events.
-    
+
     Enhanced with Claude Code features:
     - Matcher filtering (regex patterns)
     - Priority ordering
@@ -134,17 +134,17 @@ class HookSystem:
     ) -> HookHandler | Callable[[HookHandler], HookHandler]:
         """
         Register a hook handler with optional matcher pattern.
-        
+
         Can be used as decorator:
             @hook_system.register(HookEvent.PRE_COMPACT)
             async def my_handler(context):
                 ...
-        
+
         With matcher (only triggers for matching tool names):
             @hook_system.register(HookEvent.PostToolUse, matcher="^Write$|^Edit$")
             async def format_code(context):
                 ...
-        
+
         Args:
             event: The event to listen for
             handler: The handler function (if not used as decorator)
@@ -176,10 +176,10 @@ class HookSystem:
     def register_prompt(self, event: HookEvent, prompt: str) -> None:
         """
         Register a prompt to be injected at the event.
-        
+
         This is a lightweight alternative to function handlers for
         simple context injection.
-        
+
         Args:
             event: The event to attach to
             prompt: The prompt text to inject
@@ -205,14 +205,14 @@ class HookSystem:
     ) -> HookResult:
         """
         Trigger all handlers for an event.
-        
+
         Handlers with matchers are filtered based on context.tool_name.
-        
+
         Args:
             event: Event to trigger
             context: Context to pass to handlers
             blocking: Whether handlers can block execution
-        
+
         Returns:
             Combined result from all handlers
         """
@@ -317,7 +317,7 @@ class HookSystem:
     ) -> list[HookHandler]:
         """
         Get all handlers for an event.
-        
+
         Args:
             event: The event
             matcher: Optional filter by matcher pattern

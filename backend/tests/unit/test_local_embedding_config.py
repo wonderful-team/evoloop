@@ -1,10 +1,18 @@
 import os
-import pytest
-import asyncio
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from app.core.config import settings
 from app.infrastructure.embeddings.local import LocalEmbedder
+
+
+@pytest.fixture(autouse=True)
+def reset_local_embedder_cache():
+    """Each test starts with a clean process-wide model cache."""
+    LocalEmbedder._shared_model_cache.clear()
+    yield
+    LocalEmbedder._shared_model_cache.clear()
 
 
 def test_settings_hf_endpoint():
@@ -23,10 +31,14 @@ async def test_local_embedder_asyncio_to_thread():
     mock_st_instance.encode.return_value = MagicMock(tolist=lambda: [[0.1, 0.2, 0.3]])
 
     # 当调用 SentenceTransformer 时返回这个实例
-    with patch("sentence_transformers.SentenceTransformer", return_value=mock_st_instance) as mock_st_class:
+    with patch(
+        "sentence_transformers.SentenceTransformer", return_value=mock_st_instance
+    ) as mock_st_class:
         model = await embedder._get_model()
         assert model == mock_st_instance
-        mock_st_class.assert_called_once_with("mock-model", device="cpu", trust_remote_code=True)
+        mock_st_class.assert_called_once_with(
+            "mock-model", device="cpu", trust_remote_code=True, local_files_only=True
+        )
 
         # 验证 embed_query
         mock_st_instance.encode.return_value = MagicMock(tolist=lambda: [0.1, 0.2, 0.3])
@@ -34,6 +46,8 @@ async def test_local_embedder_asyncio_to_thread():
         assert query_res == [0.1, 0.2, 0.3]
 
         # 验证 embed_documents
-        mock_st_instance.encode.return_value = MagicMock(tolist=lambda: [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]])
+        mock_st_instance.encode.return_value = MagicMock(
+            tolist=lambda: [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
+        )
         docs_res = await embedder.embed_documents(["doc1", "doc2"])
         assert docs_res == [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]

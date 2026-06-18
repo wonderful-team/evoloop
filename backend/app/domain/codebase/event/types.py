@@ -16,3 +16,4 @@ class IndexingEventType(str, Enum):
     INDEXING_STARTED = "indexing.started"
     INDEXING_COMPLETED = "indexing.completed"
     INDEXING_FAILED = "indexing.failed"
+    INDEXING_STATUS_CHANGED = "indexing.status"

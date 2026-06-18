@@ -12,6 +12,9 @@ logger = logging.getLogger(__name__)
 async def reindex_all():
     logger.info("Starting Full Re-indexing of all repositories...")
     
+    from app.infrastructure.database.resource_manager import db_resource_manager
+    await db_resource_manager.initialize(create_tables=False, seed_data=False)
+
     service = IndexingService()
     
     async with session_scope() as session:

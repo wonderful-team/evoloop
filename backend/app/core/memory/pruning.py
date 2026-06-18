@@ -122,7 +122,7 @@ class MemoryPruningService:
         try:
             project_context = self.project_context
             if project_context is None:
-                from app.domain.project.service import project_context_manager
+                from app.core.project.service import project_context_manager
                 project_context = project_context_manager
 
             project_root = await project_context.get_project_structure(project_id) if project_id is not None else "No project root found"

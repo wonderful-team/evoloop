@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
 
-from app.core.tools.base import evoloop_tool
+from app.core.tools import evoloop_tool
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,6 @@ DANGEROUS_KEYWORDS = r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|GRANT|REVOKE|
 @evoloop_tool(
     summary_template="evoloop.tool_summary.sql_query",
     is_state_mutating=False,
-    is_pollable=False,
 )
 def sql_query(db_uri: str, sql: str) -> str:
     """

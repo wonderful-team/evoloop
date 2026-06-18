@@ -1,3 +1,4 @@
+import { useTheme } from "@evoloop/shared/components/theme-provider"
 import { Button } from "@evoloop/shared/components/ui/button"
 import Editor from "@monaco-editor/react"
 import { useQuery } from "@tanstack/react-query"
@@ -15,6 +16,8 @@ import { toast } from "sonner"
 import * as XLSX from "xlsx"
 import { FilesService, OpenAPI } from "@/client"
 import { MarkdownRenderer } from "@/components/Common/MarkdownRenderer"
+import { downloadFile } from "@/utils/fileLinkHandler"
+import { getRawFileUrl } from "@/utils/fileUtils"
 
 export interface FilePreviewProps {
   projectId: number
@@ -24,6 +27,7 @@ export interface FilePreviewProps {
 export function FilePreview({ projectId, file }: FilePreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
+  const { resolvedTheme } = useTheme()
 
   const getFileType = (name: string) => {
     const ext = name.split(".").pop()?.toLowerCase()
@@ -73,24 +77,32 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
     return map[ext] || ext || "text"
   }
 
+  const isAbsolutePath = (path: string) =>
+    path.startsWith("/") || path.startsWith("~") || /^[a-zA-Z]:[\\/]/.test(path)
+
   const fileType = file ? getFileType(file.name) : "text"
   const isText =
     fileType === "text" || fileType === "markdown" || fileType === "csv"
 
   const { data: fileContent, isLoading: isContentLoading } = useQuery({
     queryKey: ["fileContent", projectId, file?.path],
-    queryFn: () =>
-      FilesService.getFileContent({
+    queryFn: () => {
+      if (!file) throw new Error("No file")
+      if (isAbsolutePath(file.path)) {
+        return FilesService.readAnyFile({
+          requestBody: { path: file.path },
+        })
+      }
+      return FilesService.getFileContent({
         projectId: Number(projectId),
-        path: file!.path,
-      }),
+        path: file.path,
+      })
+    },
     enabled: !!file && projectId !== undefined && isText,
     retry: false,
   })
 
-  const rawUrl = file
-    ? `${OpenAPI.BASE}/api/v1/projects/${projectId}/files/raw?path=${encodeURIComponent(file.path)}`
-    : ""
+  const rawUrl = file ? getRawFileUrl(file.path, projectId, OpenAPI.BASE) : ""
 
   useEffect(() => {
     if (!file) return
@@ -141,7 +153,7 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
   }, [file, fileType, rawUrl, fileContent])
 
   const handleOpenInApp = async () => {
-    if (!file) return
+    if (!file || isAbsolutePath(file.path)) return
     try {
       await FilesService.openFile({
         projectId: Number(projectId),
@@ -197,19 +209,21 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
           {file.path}
         </span>
 
-        <div className="ml-2 border-l border-border pl-2 shrink-0">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={handleOpenInApp}
-            title={t("sidebar.openInSystemApp", "Open in system default app")}
-          >
-            <ExternalLink className="h-4 w-4" />
-          </Button>
-        </div>
+        {!isAbsolutePath(file.path) && (
+          <div className="ml-2 border-l border-border pl-2 shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={handleOpenInApp}
+              title={t("sidebar.openInSystemApp", "Open in system default app")}
+            >
+              <ExternalLink className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </div>
-      <div className="flex-1 overflow-auto p-0 relative bg-white/50 dark:bg-black/50">
+      <div className="flex-1 overflow-auto p-0 relative bg-background">
         {fileType === "image" ? (
           <div className="flex items-center justify-center p-4 min-h-full">
             <img
@@ -243,7 +257,7 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
           (fileContent as any)?.content?.length > 50000 ? (
             <div
               key="markdown-fallback"
-              className="p-4 bg-[#1e1e1e] text-[#d4d4d4] font-mono text-[13px] whitespace-pre min-h-full overflow-auto"
+              className="p-4 dark:bg-[#1e1e1e] dark:text-[#d4d4d4] bg-zinc-50 text-zinc-900 font-mono text-[13px] whitespace-pre min-h-full overflow-auto"
             >
               {(fileContent as any).content}
             </div>
@@ -255,27 +269,26 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
         ) : (
           <div
             key="text"
-            className="h-full overflow-hidden relative bg-[#1e1e1e]"
+            className="h-full overflow-hidden relative dark:bg-[#1e1e1e] bg-zinc-50"
           >
             {!(fileContent as any)?.content && !isContentLoading && (
               <div className="text-center text-muted-foreground mt-10">
                 {t("files.previewNotAvailable", "Preview not available")}
                 <br />
-                <a
-                  href={rawUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary hover:underline mt-2 inline-block"
+                <button
+                  type="button"
+                  onClick={() => downloadFile(file?.path || "", projectId)}
+                  className="text-primary hover:underline mt-2 inline-block cursor-pointer"
                 >
                   {t("files.downloadFile", "Download File")}
-                </a>
+                </button>
               </div>
             )}
             {(fileContent as any)?.content && (
               <Editor
                 height="100%"
                 language={file ? getLanguage(file.name) : "text"}
-                theme="vs-dark"
+                theme={resolvedTheme === "dark" ? "vs-dark" : "vs"}
                 value={(fileContent as any).content}
                 options={{
                   readOnly: true,

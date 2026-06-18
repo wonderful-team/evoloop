@@ -1,149 +1,26 @@
 """
 Human-in-the-Loop Tools for Agent collaboration with users.
 Enables the agent to pause execution, request user input, and seek approval for actions.
+
+This module is now a thin wrapper around app.core.hitl; the shared HITL primitives
+live there so they can also be used by the authorization framework.
 """
-import asyncio
 import logging
-from datetime import datetime
-from typing import Any, Literal
-from uuid import uuid4
+from typing import Literal
 
-from pydantic import BaseModel, Field
-from sqlalchemy import select, update
-
-from app.core.exceptions import AgentHumanInterruptException
+from app.core.context.manager import ContextManager
+from app.core.hitl import (
+    create_request,
+    push_hitl_notification,
+    raise_hitl_interrupt,
+)
 from app.core.monitoring.activity import activity_monitor
+from app.core.monitoring.ui_actions import HumanRequestType
 from app.core.tools import evoloop_tool
-from app.domain.tools.schemas import RequestHumanInputArgs, RequestApprovalArgs
+from app.domain.tools.schemas import RequestApprovalArgs, RequestHumanInputArgs
 from app.i18n.service import i18n
-from app.infrastructure.database.sql.database import session_scope
-from app.models.conversation import HumanRequest
 
 logger = logging.getLogger(__name__)
-
-
-# ============ Data Models ============
-
-
-class HumanInputRequest(BaseModel):
-    """Stored request for human input (Pydantic model for internal use).
-    
-    Note: Timeout mechanism is intentionally NOT implemented.
-    EvoLoop is an interactive assistant where users have full control.
-    HITL requests will remain pending until user responds or explicitly cancels.
-    """
-
-    id: str
-    thread_id: str
-    request_type: Literal["text", "choice", "confirmation", "approval", "project_switch", "file_select"]
-    prompt: str
-    options: list[str] | None = None
-    context: str | None = None
-    default_value: str | None = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    status: Literal["pending", "completed", "timeout", "cancelled"] = "pending"
-    response: Any | None = None
-
-    @classmethod
-    def from_db(cls, db_model: HumanRequest):
-        """Convert from SQLAlchemy model to Pydantic model."""
-        return cls(
-            id=db_model.id,
-            thread_id=db_model.thread_id,
-            request_type=db_model.type,  # Map type to request_type
-            prompt=db_model.description,  # Map description to prompt
-            options=db_model.options,
-            context=db_model.context,
-            default_value=db_model.default_value,
-            created_at=db_model.created_at,
-            status=db_model.status,
-            response=db_model.result,
-        )
-
-
-# ============ Input Schemas ============
-
-# ============ Core Request Management ============
-
-
-async def create_request(
-    thread_id: str,
-    request_type: str,
-    prompt: str,
-    options: list[str] | None = None,
-    context: str | None = None,
-    default_value: str | None = None,
-) -> HumanInputRequest:
-    """Create and store a human input request in the database."""
-    request_id = str(uuid4())
-    async with session_scope() as session:
-        db_request = HumanRequest(
-            id=request_id,
-            thread_id=thread_id,
-            type=request_type,
-            description=prompt,
-            options=options,
-            context=context,
-            default_value=default_value,
-            status="pending",
-        )
-        session.add(db_request)
-        # Flush to ensure it's saved but wait for commit in session_scope
-        await session.flush()
-        
-        pydantic_req = HumanInputRequest.from_db(db_request)
-        logger.info(f"Created human input request in DB: {request_id} ({request_type})")
-        return pydantic_req
-
-
-async def get_pending_request(request_id: str) -> HumanInputRequest | None:
-    """Get a pending request by ID from the database."""
-    async with session_scope() as session:
-        db_request = await session.get(HumanRequest, request_id)
-        if db_request:
-            return HumanInputRequest.from_db(db_request)
-    return None
-
-
-async def get_pending_requests_for_thread(thread_id: str) -> list[HumanInputRequest]:
-    """Get all pending requests for a specific thread from the database."""
-    async with session_scope() as session:
-        stmt = select(HumanRequest).where(
-            HumanRequest.thread_id == thread_id, 
-            HumanRequest.status == "pending"
-        ).order_by(HumanRequest.created_at.asc())
-        result = await session.execute(stmt)
-        return [HumanInputRequest.from_db(req) for req in result.scalars().all()]
-
-
-async def complete_request(request_id: str, response: Any) -> bool:
-    """Complete a pending request with user's response in the database."""
-    async with session_scope() as session:
-        stmt = (
-            update(HumanRequest)
-            .where(HumanRequest.id == request_id)
-            .values(status="completed", result=str(response))
-        )
-        result = await session.execute(stmt)
-        success = result.rowcount > 0
-        if success:
-            logger.info(f"Completed human input request {request_id} in DB with response: {response}")
-        return success
-
-
-async def cancel_request(request_id: str) -> bool:
-    """Cancel a pending request in the database."""
-    async with session_scope() as session:
-        stmt = (
-            update(HumanRequest)
-            .where(HumanRequest.id == request_id)
-            .values(status="cancelled")
-        )
-        result = await session.execute(stmt)
-        success = result.rowcount > 0
-        if success:
-            logger.info(f"Cancelled human input request {request_id} in DB")
-        return success
 
 
 # ============ Tools ============
@@ -152,7 +29,6 @@ async def cancel_request(request_id: str) -> bool:
 @evoloop_tool(
     "ask_human",
     args_schema=RequestHumanInputArgs,
-    is_pollable=True,
     is_hitl=True,
     summary_template="evoloop.tool_summary.ask_user",
     handle_tool_error=False,  # HITL must propagate interrupt exception
@@ -177,18 +53,19 @@ async def ask_human(
 
     Returns the user's response as a string.
     """
-    from app.core.context.manager import ContextManager
-    from app.core.monitoring.ui_actions import HumanRequestType
-
     try:
         ctx = ContextManager.current()
         thread_id = ctx.thread_id or "unknown"
         project_id = ctx.project_id
         command_id = ctx.command_id
+        current_tool_call_id = ctx.current_tool_call_id
+        last_ai_message_id = ctx.last_ai_message_id
     except Exception:
         thread_id = "unknown"
         project_id = None
         command_id = None
+        current_tool_call_id = None
+        last_ai_message_id = None
 
     # Map internal type to standardized HumanRequestType
     type_map = {
@@ -216,7 +93,6 @@ async def ask_human(
     )
 
     # Format response for the agent
-    # The actual waiting/response handling is done by the frontend + API layer
     context_section = ""
     if context:
         context_section = f"\n{i18n.get('domain_tools.human_input.context', context=context)}"
@@ -254,37 +130,32 @@ async def ask_human(
         },
     )
 
-    # 通过 MessageHandler 统一处理 HITL：持久化到本地 DB + 即时推送到 Gateway
-    try:
-        from app.core.engine.message import MessageHandler
-        handler = MessageHandler(
-            thread_id=thread_id,
-            project_id=project_id,
-            run_id=str(command_id) if command_id else None,
-        )
-        asyncio.create_task(handler.handle_hitl_request(
-            request_type=input_type,
-            prompt=prompt,
-            request_id=request.id,
-            options=options,
-            context=context,
-            default_value=default_value,
-            tool_call_id=ctx.current_tool_call_id,
-            tool_name="ask_human",
-            parent_id=ctx.last_ai_message_id,
-        ))
-    except Exception as e:
-        logger.warning(f"Failed to initiate HITL request via MessageHandler: {e}")
+    # Push HITL request via MessageHandler
+    await push_hitl_notification(
+        thread_id=thread_id,
+        request=request,
+        request_data={
+            "id": request.id,
+            "type": request_type,
+            "prompt": prompt,
+            "options": options,
+            "context": context,
+            "default_value": default_value,
+        },
+        project_id=project_id,
+        run_id=str(command_id) if command_id else None,
+        tool_name="ask_human",
+        tool_call_id=current_tool_call_id,
+        parent_id=last_ai_message_id,
+    )
 
     # Raise Interrupt Exception to pause execution
-    # This ensures the graph stops immediately
-    raise AgentHumanInterruptException(request.id, response_text)
+    raise_hitl_interrupt(request.id, response_text)
 
 
 @evoloop_tool(
     "ask_confirm",
     args_schema=RequestApprovalArgs,
-    is_pollable=True,
     is_hitl=True,
     summary_template="evoloop.tool_summary.ask_user",
     handle_tool_error=False,  # HITL must propagate interrupt exception
@@ -308,24 +179,26 @@ async def ask_confirm(
 
     Returns "APPROVED" or "REJECTED" based on user decision.
     """
-    from app.core.context.manager import ContextManager
-
     try:
         ctx = ContextManager.current()
         thread_id = ctx.thread_id or "unknown"
         project_id = ctx.project_id
         command_id = ctx.command_id
+        current_tool_call_id = ctx.current_tool_call_id
+        last_ai_message_id = ctx.last_ai_message_id
     except Exception:
         thread_id = "unknown"
         project_id = None
         command_id = None
+        current_tool_call_id = None
+        last_ai_message_id = None
 
     # Build approval context
     risk_emoji = {
         "low": "🟢",
         "medium": "🟡",
         "high": "🟠",
-        "critical": "🔴"
+        "critical": "🔴",
     }
 
     localized_risk = i18n.get(f"common.risk_levels.{risk_level}", default=risk_level.upper())
@@ -359,8 +232,6 @@ async def ask_confirm(
 
     logger.info(f"Approval requested for: {action_description[:50]}... (Risk: {risk_level})")
 
-    from app.core.monitoring.ui_actions import HumanRequestType
-
     # Notify Activity Monitor with Structured Data
     await activity_monitor.set_human_request(
         thread_id=thread_id,
@@ -374,67 +245,24 @@ async def ask_confirm(
         },
     )
 
-    # 通过 MessageHandler 统一处理 HITL：持久化到本地 DB + 即时推送到 Gateway
-    try:
-        from app.core.engine.message import MessageHandler
-        handler = MessageHandler(
-            thread_id=thread_id,
-            project_id=project_id,
-            run_id=str(command_id) if command_id else None,
-        )
-        asyncio.create_task(handler.handle_hitl_request(
-            request_type="approval",
-            prompt=action_description,
-            request_id=request.id,
-            options=None,
-            context=approval_context,
-            default_value="REJECTED",
-            tool_call_id=ctx.current_tool_call_id,
-            tool_name="ask_confirm",
-            parent_id=ctx.last_ai_message_id,
-        ))
-    except Exception as e:
-        logger.warning(f"Failed to initiate HITL approval via MessageHandler: {e}")
+    # Push HITL approval via MessageHandler
+    await push_hitl_notification(
+        thread_id=thread_id,
+        request=request,
+        request_data={
+            "id": request.id,
+            "type": HumanRequestType.APPROVAL,
+            "prompt": action_description,
+            "context": approval_context,
+            "default_value": "REJECTED",
+            "risk_level": risk_level,
+        },
+        project_id=project_id,
+        run_id=str(command_id) if command_id else None,
+        tool_name="ask_confirm",
+        tool_call_id=current_tool_call_id,
+        parent_id=last_ai_message_id,
+    )
 
     # Raise Interrupt Exception to pause execution
-    raise AgentHumanInterruptException(request.id, response_text)
-
-
-# ============ API Helpers ============
-
-
-async def get_all_pending_requests() -> list[dict]:
-    """Get all pending requests from database as dictionaries (for API responses)."""
-    async with session_scope() as session:
-        stmt = select(HumanRequest).where(HumanRequest.status == "pending")
-        result = await session.execute(stmt)
-        return [
-            {
-                "id": req.id,
-                "thread_id": req.thread_id,
-                "request_type": req.type,
-                "prompt": req.description,
-                "options": req.options,
-                "context": req.context,
-                "default_value": req.default_value,
-                "created_at": req.created_at.isoformat(),
-                "status": req.status,
-            }
-            for req in result.scalars().all()
-        ]
-
-
-async def cleanup_old_requests(max_age_hours: int = 24):
-    """Remove old completed/cancelled requests from database."""
-    from sqlalchemy import delete
-    from datetime import timedelta
-    cutoff = datetime.utcnow() - timedelta(hours=max_age_hours)
-    
-    async with session_scope() as session:
-        stmt = delete(HumanRequest).where(
-            HumanRequest.status.in_(["completed", "cancelled", "timeout"]),
-            HumanRequest.created_at < cutoff
-        )
-        result = await session.execute(stmt)
-        if result.rowcount > 0:
-            logger.info(f"Cleaned up {result.rowcount} old human input requests from DB")
+    raise_hitl_interrupt(request.id, response_text)

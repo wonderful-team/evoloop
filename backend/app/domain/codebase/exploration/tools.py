@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
-    is_pollable=True,
     summary_template="evoloop.tool_summary.search_code"
 )
 async def find_symbol(
@@ -78,7 +77,6 @@ async def find_symbol(
 
 
 @evoloop_tool(
-    is_pollable=True,
     summary_template="evoloop.tool_summary.search_code"
 )
 async def ask_codebase(

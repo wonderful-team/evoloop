@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
-    is_pollable=True,
     required_benefit="browser_control",
     summary_template="evoloop.tool_summary.browser_control",
     affected_path_keys=["url", "file_path"]

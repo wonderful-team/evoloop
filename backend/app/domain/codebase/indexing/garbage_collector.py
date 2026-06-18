@@ -14,11 +14,15 @@ class GraphGarbageCollector:
     3. Older than a certain threshold (to avoid deleting nodes currently being indexed).
     """
 
-    async def cleanup_ghost_nodes(self, project_id: int):
+    async def cleanup_ghost_nodes(self, project_path: str, project_id: int):
         """
         Delete orphaned nodes for a specific project.
+        
+        Args:
+            project_path: 项目本地路径（用于获取项目级 graph driver）
+            project_id: 项目 ID（用于图数据查询）
         """
-        driver = await get_graph_db()
+        driver = await get_graph_db(project_path=project_path)
 
         # Cypher Logic:
         # Find CodeEntity nodes where:

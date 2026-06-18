@@ -106,7 +106,6 @@ async def create_todo(
 
 
 @evoloop_tool(
-    is_pollable=True,
     summary_template="evoloop.tool_summary.list_todos"
 )
 async def list_todos(
@@ -233,15 +232,3 @@ async def cancel_todo(todo_id: str) -> str:
             return i18n.get("domain_tools.manage_todo.error_not_found", id=todo_id)
 
 
-# =============================================================================
-# Future Tools (can be enabled when needed)
-# =============================================================================
-
-# @evoloop_tool(is_pollable=True)
-# async def get_todo(todo_id: str) -> str:
-#     """Get details of a specific Todo."""
-#     service = TodoServiceSync()
-#     todo = service.get_by_id(todo_id)
-#     if not todo:
-#         return i18n.get("domain_tools.manage_todo.error_not_found", id=todo_id)
-#     return format_todo_summary(todo)
