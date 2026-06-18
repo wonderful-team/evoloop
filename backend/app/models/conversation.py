@@ -86,6 +86,10 @@ class Message(Base):
     # Node source tracking — identifies which graph node produced this message
     node_source: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
+    # Message source — identifies which client/entry produced this message
+    # values: "desktop", "mobile", "api"
+    source: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+
     # Cloud Sync State
     # values: 'pending', 'synced', 'failed'
     sync_status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending", index=True)
