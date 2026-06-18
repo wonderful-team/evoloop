@@ -12,7 +12,6 @@ from pydantic import (
     HttpUrl,
     PostgresDsn,
     computed_field,
-    field_validator,
     model_validator,
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -25,7 +24,7 @@ def _get_env_file_path():
     import sys
     if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
         return os.path.join(sys._MEIPASS, '.env')
-    
+
     # Resolve relative to this file to prevent CWD dependency issues
     # This file is at: backend/app/core/config.py
     # We want: backend/../.env -> .env at project root
@@ -93,7 +92,7 @@ class Settings(BaseSettings):
 
     # Embedded Mode (No external dependencies)
     EMBEDDED_MODE: bool = False  # True: Use SQLite + LanceDB + Huey, False: Use Postgres + Neo4j + Celery
-    
+
     # SaaS / Multi-tenant Mode
     MULTI_TENANT_MODE: bool = False  # True: Strict token isolation, no global session cache. False: Single-user mode (safe for global cache)
 
