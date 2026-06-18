@@ -142,6 +142,9 @@ nodes:
       - "inspect_task_health"
       - "list_scheduled_tasks"
       - "schedule_periodic_task"
+      # Vault & Credentials (Secure credential management)
+      - "list_vault_credentials"
+      - "request_secure_credential"
 
   - id: "finish"
     path: "app.core.engine.nodes.finish.FinishNode"
