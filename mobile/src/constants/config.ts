@@ -1,8 +1,8 @@
 // 应用配置
 import {
   APP_NAME,
-  EVOCLOUD_BASE_URL,
-  EVOCLOUD_BASE_WS_URL,
+  EVOCLOUD_API_URL,
+  EVOCLOUD_WS_URL,
   EVOCLOUD_UNIVERSAL_LINK_URL,
   WECHAT_APP_ID,
   WECHAT_APP_SECRET,
@@ -20,7 +20,7 @@ export const APP_CONFIG = {
 
 // API 配置
 export const API_CONFIG = {
-  baseURL: EVOCLOUD_BASE_URL || 'http://127.0.0.1',
+  baseURL: EVOCLOUD_API_URL || 'http://127.0.0.1',
   timeout: 30000,
   retries: 3,
 };
@@ -31,7 +31,7 @@ export const GATEWAY_BASE_URL = `${API_CONFIG.baseURL}/gateway`;
 // WebSocket 配置
 // NOTE: Metro cache-bust marker v2
 export const WS_CONFIG = {
-  baseURL: EVOCLOUD_BASE_WS_URL || 'ws://127.0.0.1',
+  baseURL: EVOCLOUD_WS_URL || 'ws://127.0.0.1',
   reconnectBaseInterval: 2000,   // 首次重连等待 2s
   reconnectMaxInterval: 60000,   // 最长间隔 60s
   heartbeatInterval: 30000,
@@ -40,7 +40,7 @@ export const WS_CONFIG = {
 export const WS_BASE_URL = WS_CONFIG.baseURL;
 
 // 微信 Universal Link
-export const UNIVERSAL_LINK_URL = EVOCLOUD_UNIVERSAL_LINK_URL || `${EVOCLOUD_BASE_URL}/universal-link`;
+export const UNIVERSAL_LINK_URL = EVOCLOUD_UNIVERSAL_LINK_URL || `${EVOCLOUD_API_URL}/universal-link`;
 
 // 微信配置
 export const WECHAT_CONFIG = {

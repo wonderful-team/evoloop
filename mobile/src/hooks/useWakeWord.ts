@@ -2,6 +2,7 @@
 // 提供唤醒词监听控制和设置管理
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { Platform } from 'react-native';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { WakeWordService } from '@/services/voice/WakeWordService';
 import { useAuthStore } from '@/stores/authStore';
@@ -41,6 +42,10 @@ export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn
   const wakeWord = settings.wakeWord;
 
   const startListening = useCallback(async () => {
+    if (Platform.OS === 'harmony') {
+      console.log('[useWakeWord] Wake word detection not supported on HarmonyOS, skipping.');
+      return;
+    }
     if (!enabled || !isLoggedIn) {
       return;
     }

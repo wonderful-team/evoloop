@@ -2,7 +2,6 @@
 // 管理 WakeWordDetector 的启动/停止 + AppState 变化 + Android 前台服务通知
 
 import { AppState, AppStateStatus, Platform } from 'react-native';
-import notifee, { AndroidImportance } from '@notifee/react-native';
 import i18n from '@/locales';
 import { WakeWordDetector, type WakeWordDetectorConfig } from './WakeWordDetector';
 
@@ -38,10 +37,11 @@ export class WakeWordService {
     try {
       // 创建通知渠道（Android）
       if (Platform.OS === 'android' && !this.channelCreated) {
+        const notifee = require('@notifee/react-native').default;
         await notifee.createChannel({
           id: 'wake-word',
           name: i18n.t('notifications.wakeWordTitle'),
-          importance: AndroidImportance.LOW,
+          importance: 2, // LOW
           vibration: false,
         });
         this.channelCreated = true;
@@ -147,6 +147,7 @@ export class WakeWordService {
     }
 
     try {
+      const notifee = require('@notifee/react-native').default;
       await notifee.displayNotification({
         title: i18n.t('notifications.wakeWordTitle'),
         body: i18n.t('notifications.wakeWordBody', { wakeWord: this.options.wakeWord }),
@@ -157,7 +158,7 @@ export class WakeWordService {
           pressAction: {
             id: 'default',
           },
-          importance: AndroidImportance.LOW,
+          importance: 2, // LOW
         },
       });
       console.log('[WakeWordService] Android 前台服务已启动');
@@ -175,6 +176,7 @@ export class WakeWordService {
     }
 
     try {
+      const notifee = require('@notifee/react-native').default;
       await notifee.stopForegroundService();
       console.log('[WakeWordService] Android 前台服务已停止');
     } catch (error) {

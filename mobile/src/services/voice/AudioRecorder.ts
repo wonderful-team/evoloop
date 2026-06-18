@@ -50,6 +50,13 @@ export class AudioRecorder {
         console.warn(err);
         return false;
       }
+    } else if (Platform.OS === 'harmony') {
+      const harmonyPermissions = (PERMISSIONS as any).HARMONY;
+      if (harmonyPermissions && harmonyPermissions.MICROPHONE) {
+        const res = await request(harmonyPermissions.MICROPHONE);
+        return res === RESULTS.GRANTED;
+      }
+      return false;
     } else {
       const res = await request(PERMISSIONS.IOS.MICROPHONE);
       return res === RESULTS.GRANTED;
@@ -63,6 +70,13 @@ export class AudioRecorder {
         PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
       );
       return hasPermission;
+    } else if (Platform.OS === 'harmony') {
+      const harmonyPermissions = (PERMISSIONS as any).HARMONY;
+      if (harmonyPermissions && harmonyPermissions.MICROPHONE) {
+        const res = await check(harmonyPermissions.MICROPHONE);
+        return res === RESULTS.GRANTED;
+      }
+      return false;
     } else {
       const res = await check(PERMISSIONS.IOS.MICROPHONE);
       return res === RESULTS.GRANTED;
@@ -82,6 +96,7 @@ export class AudioRecorder {
       const path = Platform.select({
         ios: 'hello.m4a',
         android: `${RNFS.CachesDirectoryPath}/hello.mp4`, // Android 建议使用 mp4 包装 aac
+        harmony: `${RNFS.CachesDirectoryPath}/hello.mp4`,
       });
 
       const audioSet = {

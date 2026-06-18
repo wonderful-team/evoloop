@@ -15,6 +15,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '@/theme';
 import { useTranslation } from 'react-i18next';
 import ImagePicker, { ImageOrVideo } from 'react-native-image-crop-picker';
+import { requestCameraPermission as reqCameraPermission, requestPhotoLibraryPermission as reqPhotoLibraryPermission } from '@/utils/permissions';
 
 export type MediaOption = 'camera' | 'video' | 'album' | 'file';
 
@@ -80,24 +81,11 @@ export function MediaPickerModal({
   const { t } = useTranslation();
 
   const requestCameraPermission = useCallback(async () => {
-    if (Platform.OS === 'android') {
-      const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
-      return granted === PermissionsAndroid.RESULTS.GRANTED;
-    }
-    return true;
+    return reqCameraPermission();
   }, []);
 
   const requestMediaLibraryPermission = useCallback(async () => {
-    if (Platform.OS === 'android') {
-      // Android 13+ 使用 READ_MEDIA_IMAGES，低版本使用 READ_EXTERNAL_STORAGE
-      const permission =
-        Platform.Version >= 33
-          ? PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
-          : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
-      const granted = await PermissionsAndroid.request(permission);
-      return granted === PermissionsAndroid.RESULTS.GRANTED;
-    }
-    return true;
+    return reqPhotoLibraryPermission();
   }, []);
 
   const isUserCancelled = (error: any): boolean => {

@@ -18,6 +18,7 @@ import ImagePicker from 'react-native-image-crop-picker';
 import { useTheme } from '@/theme';
 import { useTranslation } from 'react-i18next';
 import { uploadChatImage, UploadedFile } from '@/services/api/upload';
+import { requestCameraPermission as reqCameraPermission, requestPhotoLibraryPermission as reqPhotoLibraryPermission } from '@/utils/permissions';
 
 export { type UploadedFile } from '@/services/api/upload';
 
@@ -129,40 +130,14 @@ export function FilePicker({
     }
   }, [files, onFilesChange]);
 
-  // 请求相机权限 (Android)
+  // 请求相机权限 (Android/iOS/HarmonyOS)
   const requestCameraPermission = useCallback(async () => {
-    if (Platform.OS === 'android') {
-      const granted = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.CAMERA,
-        {
-          title: t('common.cameraPermissionTitle'),
-          message: t('common.cameraPermissionMessage'),
-          buttonNeutral: t('common.later'),
-          buttonNegative: t('common.cancel'),
-          buttonPositive: t('common.confirm'),
-        }
-      );
-      return granted === PermissionsAndroid.RESULTS.GRANTED;
-    }
-    return true;
+    return reqCameraPermission();
   }, []);
 
-  // 请求相册权限 (Android)
+  // 请求相册权限 (Android/iOS/HarmonyOS)
   const requestMediaLibraryPermission = useCallback(async () => {
-    if (Platform.OS === 'android') {
-      const granted = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
-        {
-          title: t('common.albumPermissionTitle'),
-          message: t('common.albumPermissionMessage'),
-          buttonNeutral: t('common.later'),
-          buttonNegative: t('common.cancel'),
-          buttonPositive: t('common.confirm'),
-        }
-      );
-      return granted === PermissionsAndroid.RESULTS.GRANTED;
-    }
-    return true;
+    return reqPhotoLibraryPermission();
   }, []);
 
   // 处理图片选择
