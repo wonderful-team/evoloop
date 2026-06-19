@@ -109,9 +109,8 @@ async def project_metadata_protection_gate(context: HookContext) -> HookResult:
     Protect project metadata (.evoloop directory) from agent access.
 
     Project_id -> local_path mappings and other metadata must not be altered or
-    deleted by the agent.  Project-level sensitive files (e.g. .env,
-    deploy/profiles/) are now handled by the authorization_gate hook instead of
-    being hard-blocked here.
+    deleted by the agent.  Project-level sensitive files (e.g. .env) are now
+    handled by the authorization_gate hook instead of being hard-blocked here.
     """
     tool_name = context.tool_name or ""
     tool_input = context.tool_input

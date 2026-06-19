@@ -115,22 +115,6 @@ DEFAULT_SENSITIVE_PATTERNS: list[dict] = [
     {
         "resource_type": "file",
         "action": "read",
-        "patterns": ["deploy/profiles/*"],
-        "requires_approval": True,
-        "risk_level": "medium",
-        "description": "Customer deployment profiles contain environment-specific configuration.",
-    },
-    {
-        "resource_type": "file",
-        "action": "write",
-        "patterns": ["deploy/profiles/*"],
-        "requires_approval": True,
-        "risk_level": "high",
-        "description": "Writing customer deployment profiles is sensitive.",
-    },
-    {
-        "resource_type": "file",
-        "action": "read",
         "patterns": [".aws/credentials", ".aws/config"],
         "requires_approval": True,
         "risk_level": "high",
