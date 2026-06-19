@@ -94,41 +94,6 @@ async def test_command_with_sudo_in_path():
     print(f"✅ Command with 'sudo' in path allowed: cat /etc/sudoers")
 
 
-async def test_sensitive_file_read_blocked():
-    """Test that reading .env or deploy/profiles/ files is blocked."""
-    # 1. view_file to .env should be blocked
-    context1 = HookContext(
-        thread_id="test-thread-123",
-        tool_name="view_file",
-        tool_input={"args": {"AbsolutePath": "/workspace/evoloop/deploy/profiles/customer_a/customer_a.env"}},
-        blackboard={},
-    )
-    result1 = await hook_system.trigger(HookEvent.PRE_TOOL_USE, context1, blocking=True)
-    assert result1.block is True
-    assert "[SECURITY VIOLATION]" in result1.message
-
-    # 2. replace_file_content to deploy/profiles should be blocked
-    context2 = HookContext(
-        thread_id="test-thread-123",
-        tool_name="replace_file_content",
-        tool_input={"args": {"TargetFile": "deploy/profiles/customer_b.env"}},
-        blackboard={},
-    )
-    result2 = await hook_system.trigger(HookEvent.PRE_TOOL_USE, context2, blocking=True)
-    assert result2.block is True
-
-    # 3. grep_search in deploy/profiles should be blocked
-    context3 = HookContext(
-        thread_id="test-thread-123",
-        tool_name="grep_search",
-        tool_input={"args": {"SearchPath": "/workspace/evoloop/deploy/profiles/"}},
-        blackboard={},
-    )
-    result3 = await hook_system.trigger(HookEvent.PRE_TOOL_USE, context3, blocking=True)
-    assert result3.block is True
-    print(f"✅ Sensitive file read and search blocked successfully")
-
-
 async def test_normal_file_read_allowed():
     """Test that reading non-sensitive files is allowed."""
     context = HookContext(

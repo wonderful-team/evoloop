@@ -278,17 +278,6 @@ async def run_negative_case(project_id: int = DEFAULT_PROJECT_ID, model: str = D
     logger.info(f"Mission:  {message[:200]}")
     logger.info("=" * 60)
 
-    # Prepare a customer profile that will fail validation
-    customer = "customer_negative"
-    profile_dir = os.path.join(EVOLOOP_ROOT, "deploy/profiles", customer)
-    profile_file = os.path.join(profile_dir, f"{customer}.env")
-    os.makedirs(profile_dir, exist_ok=True)
-    with open(profile_file, "w") as f:
-        f.write("# Intentionally invalid profile for negative test\n")
-        f.write("ENVIRONMENT=local\n")
-        f.write("# VITE_API_URL intentionally missing\n")
-    logger.info(f"[Test] Created invalid profile: {profile_file}")
-
     skills = await get_skills()
     devops_skill = next((s for s in skills if "devops" in s.name.lower()), None)
 
@@ -333,16 +322,6 @@ async def run_negative_case(project_id: int = DEFAULT_PROJECT_ID, model: str = D
         project_id=project_id,
         timeout=timeout,
     )
-
-    # Cleanup the invalid profile
-    try:
-        if os.path.exists(profile_file):
-            os.remove(profile_file)
-        if os.path.exists(profile_dir):
-            os.rmdir(profile_dir)
-        logger.info("[Test] Cleaned up invalid customer profile")
-    except Exception as e:
-        logger.warning(f"[Test] Failed to cleanup profile: {e}")
 
     from sqlalchemy import func, select
 

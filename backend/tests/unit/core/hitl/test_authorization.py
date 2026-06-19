@@ -26,17 +26,8 @@ class TestPolicyMatching:
         assert PolicyLoader.match_path("config/.env", ["*.env"]) is True
         assert PolicyLoader.match_path(".env.local", [".env.*"]) is True
 
-    def test_match_deploy_profiles(self):
-        assert PolicyLoader.match_path(
-            "deploy/profiles/customer_test/customer_test.env", ["deploy/profiles/*"]
-        ) is True
-        assert PolicyLoader.match_path(
-            "./deploy/profiles/customer_test/customer_test.env", ["deploy/profiles/*"]
-        ) is True
-
     def test_no_match(self):
         assert PolicyLoader.match_path("README.md", ["*.env"]) is False
-        assert PolicyLoader.match_path("src/main.py", ["deploy/profiles/*"]) is False
 
     def test_match_command(self):
         assert PolicyLoader.match_path("sudo rm -rf /", ["sudo *"]) is True

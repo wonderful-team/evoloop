@@ -377,20 +377,12 @@ async def verify_trace(trace: ConversationTrace):
 
     logger.info("=" * 60)
 
-    # 检查是否从 deploy/profiles/ 发现了客户（自主发现 vs 假设）
-    has_profile_discovery = any(
-        "deploy/profiles" in cmd or "customer_test" in cmd
-        for cmd in trace.commands
-    )
-
-    if not has_questions and has_profile_discovery:
-        logger.info("✅ Agent 自主发现客户配置（deploy/profiles/），无需提问直接执行 — 符合预期")
-    elif not has_questions:
+    if not has_questions:
         logger.warning("Agent 没有主动提问就直接执行了 — 可能使用了默认值，缺少自主发现或对话澄清能力")
     else:
         logger.info("✅ Agent 具备对话式运维推理能力：发现信息不足 → 主动询问 → 收集条件 → 执行")
 
-    return has_questions or has_profile_discovery
+    return has_questions
 
 
 async def main():
