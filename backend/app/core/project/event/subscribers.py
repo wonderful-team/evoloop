@@ -63,31 +63,25 @@ class ProjectSwitchWebSocketSubscriber:
         project_name = payload.get("project_name") or ""
         path = payload.get("path")
 
-        # 3. 路径解析/补全逻辑
+        # 3. 路径解析：严格以本地为真相源
         if project_id and (not path or not project_name):
             from app.core.project.utils import get_project_path
 
             try:
                 resolved_path = await get_project_path(project_id)
-                if resolved_path:
+                if resolved_path and os.path.isdir(resolved_path):
                     path = resolved_path
                     project_name = project_name or os.path.basename(path)
                     logger.info(f"[ProjectSwitchWS] Auto-resolved project {project_id} -> {path}")
                 else:
-                    # Fallback to cloud API only when local resolution fails
-                    from app.core.evocloud import evocloud_manager
-
-                    project = await evocloud_manager.get_project_by_id(project_id)
-                    if project:
-                        path = path or project.path
-                        project_name = project_name or project.name
-                        logger.info(f"[ProjectSwitchWS] Auto-resolved project {project_id} -> {path} (Name: {project_name}) via cloud fallback")
+                    logger.warning(
+                        f"[ProjectSwitchWS] Project {project_id} not found locally. "
+                        "Ignoring switch to avoid using a foreign/external path."
+                    )
+                    return
             except Exception as e:
                 logger.error(f"[ProjectSwitchWS] Failed to resolve project {project_id}: {e}")
-
-        if not path:
-            logger.warning(f"[ProjectSwitchWS] Project switch ignored: project_id={project_id} (payload={payload}) has no resolvable path")
-            return
+                return
 
         # Prefer authoritative local path even when payload provided a path
         if project_id:
@@ -99,6 +93,13 @@ class ProjectSwitchWebSocketSubscriber:
                     path = resolved_path
             except Exception as e:
                 logger.debug(f"[ProjectSwitchWS] Local path resolution failed, keeping event path: {e}")
+
+        if not path or not os.path.isdir(path):
+            logger.warning(
+                f"[ProjectSwitchWS] Project switch ignored: project_id={project_id} "
+                f"has no valid local path (path={path!r})"
+            )
+            return
 
         # 4. 发布领域事件
         from app.core.project.event.publishers import publish_project_switched
@@ -180,6 +181,9 @@ class ProjectDomainSubscriber:
         path = event.path
 
         if path:
+            if not os.path.isdir(path):
+                logger.warning(f"[ProjectHandlers] Project switch received but path does not exist: {path}. Ignoring.")
+                return
             logger.info(f"[ProjectHandlers] Switching project: {project_id} ({project_name}) -> {path}")
 
             thread_context_store.set_working_directory("remote-default", path)

@@ -130,6 +130,56 @@ export function deduplicateMessages(
 }
 
 /**
+ * 将后端同步的 human 消息与本地乐观更新的临时 human 消息合并，避免重复显示。
+ *
+ * 匹配规则：
+ * - role 为 human
+ * - content 完全一致（引用内容已参与 finalText 构造）
+ * - 本地消息没有 sequence_number（临时消息）
+ * - 本地消息状态为 running/sent
+ *
+ * 命中后，用后端真实消息替换本地临时消息，状态修正为 completed。
+ */
+export function mergeSyncedHumanMessages(
+  existing: ChatMessage[],
+  incoming: ChatMessage[],
+): ChatMessage[] {
+  const result = [...existing];
+  const consumedTempIndexes = new Set<number>();
+
+  for (const msg of incoming) {
+    if (msg.role !== 'human') {
+      if (!result.some((m) => m.id === msg.id)) {
+        result.push(msg);
+      }
+      continue;
+    }
+
+    const tempIndex = result.findIndex(
+      (m, idx) => {
+        const status = m.status as string | undefined;
+        return (
+          !consumedTempIndexes.has(idx) &&
+          m.role === 'human' &&
+          m.content === msg.content &&
+          (status === 'running' || status === 'sent') &&
+          !m.sequence_number
+        );
+      },
+    );
+
+    if (tempIndex >= 0) {
+      result[tempIndex] = { ...msg, status: 'completed' };
+      consumedTempIndexes.add(tempIndex);
+    } else if (!result.some((m) => m.id === msg.id)) {
+      result.push({ ...msg, status: 'completed' });
+    }
+  }
+
+  return result;
+}
+
+/**
  * 从 Agent 消息中解析 HITL 请求。
  *
  * 当前实现：HITL 信息 JSON.stringify 后放在 content 字段中（协议 v1）。

@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.constants import DEFAULT_PROJECT_ID
+from app.core.identity import identity_service
 from app.core.context import thread_context_store
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
@@ -207,6 +208,8 @@ class EngineCommandSubscriber:
             project_id = DEFAULT_PROJECT_ID
 
         # Unified dispatch preparation (DB persistence, EvoCloud sync, model fallback)
+        member_id = await identity_service.get_member_id() or 0
+
         result = await dispatch_agent_run(
             thread_id=thread_id,
             message_content=message or "",
@@ -214,6 +217,7 @@ class EngineCommandSubscriber:
             references=references,
             command_id=command.get("command_id"),
             model=None,
+            member_id=member_id,
             source="mobile",
         )
 

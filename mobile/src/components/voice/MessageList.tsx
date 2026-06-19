@@ -1,6 +1,6 @@
 // 语音对话消息列表 - 文档列表样式
 
-import React, { useRef, useEffect, useCallback, useState } from 'react';
+import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -327,6 +327,260 @@ const MessageItem = React.memo(function MessageItem({
     prev.colors === next.colors;
 });
 
+export type RenderItem =
+  | { type: 'message'; data: ChatMessage }
+  | { type: 'steps_group'; id: string; steps: ChatMessage[]; isTurnActive: boolean };
+
+function mergeAiMessages(msgs: ChatMessage[]): ChatMessage | null {
+  if (msgs.length === 0) return null;
+  const first = msgs[0];
+  const last = msgs[msgs.length - 1];
+
+  const paragraphs = msgs.map((m) => m.content?.trim()).filter(Boolean);
+
+  return {
+    ...first,
+    content: paragraphs.join('\n\n'),
+    thinking:
+      msgs
+        .map((m) => m.thinking)
+        .filter(Boolean)
+        .join('\n\n') || undefined,
+    status: msgs.some((m) => m.status === 'streaming')
+      ? 'streaming'
+      : last.status || 'completed',
+    changeset_count: msgs.reduce((sum, m) => sum + (m.changeset_count || 0), 0),
+    changeset_files: msgs.reduce(
+      (all, m) => [...all, ...(m.changeset_files || [])],
+      [] as any[],
+    ),
+    has_file_operations: msgs.some((m) => m.has_file_operations),
+    timestamp: last.timestamp || first.timestamp,
+    references: msgs.reduce(
+      (all, m) => [...all, ...(m.references || [])],
+      [] as any[],
+    ),
+  };
+}
+
+function groupMessages(messages: ChatMessage[]): RenderItem[] {
+  // Filter out system messages
+  const filtered = messages.filter(m => m.role !== 'system');
+
+  const items: {
+    type: 'message';
+    data: ChatMessage & {
+      isFirstInTurn?: boolean;
+      isLastInTurn?: boolean;
+    };
+  }[] = [];
+
+  let turnMsgs: ChatMessage[] = [];
+
+  const flushTurn = () => {
+    if (turnMsgs.length === 0) return;
+
+    let isFirstAiInTurn = true;
+    let pendingAiGroup: ChatMessage[] = [];
+
+    const flushPendingAi = (isFinalInTurn: boolean) => {
+      if (pendingAiGroup.length === 0) return;
+      const merged = mergeAiMessages(pendingAiGroup);
+      if (merged) {
+        items.push({
+          type: 'message',
+          data: {
+            ...merged,
+            isFirstInTurn: isFirstAiInTurn,
+            ...(isFinalInTurn ? { isLastInTurn: true } : {}),
+          } as any,
+        });
+        isFirstAiInTurn = false;
+      }
+      pendingAiGroup = [];
+    };
+
+    for (let j = 0; j < turnMsgs.length; j++) {
+      const m = turnMsgs[j];
+      if (m.role === 'ai') {
+        pendingAiGroup.push(m);
+        const nextM = turnMsgs[j + 1];
+        if (!nextM || nextM.role !== 'ai') {
+          const hasMoreAiAfter = turnMsgs
+            .slice(j + 1)
+            .some((msg) => msg.role === 'ai');
+          flushPendingAi(!hasMoreAiAfter);
+        }
+      } else if (m.role === 'tool') {
+        items.push({
+          type: 'message',
+          data: { ...m, isFirstInTurn: false } as any,
+        });
+      }
+    }
+    turnMsgs = [];
+  };
+
+  let isNewAiTurn = true;
+
+  for (let i = 0; i < filtered.length; i++) {
+    const msg = filtered[i];
+
+    if (msg.role === 'human') {
+      flushTurn();
+      items.push({ type: 'message', data: msg });
+      isNewAiTurn = true;
+    } else if (msg.role === 'ai' || msg.role === 'tool') {
+      if (isNewAiTurn && msg.role === 'ai') {
+        turnMsgs.push({ ...msg, isFirstInTurn: true } as any);
+        isNewAiTurn = false;
+      } else {
+        turnMsgs.push(msg);
+      }
+    }
+  }
+  flushTurn();
+
+  // Group steps
+  const groupedItems: RenderItem[] = [];
+  let currentTurnSteps: ChatMessage[] = [];
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (item.data.role === 'human') {
+      if (currentTurnSteps.length > 0) {
+        groupedItems.push({
+          type: 'steps_group',
+          id: `steps_group_before_${item.data.id}`,
+          steps: [...currentTurnSteps],
+          isTurnActive: false,
+        });
+        currentTurnSteps = [];
+      }
+      groupedItems.push(item);
+    } else if ((item.data as any).isLastInTurn) {
+      const isStreaming =
+        item.data.status === 'streaming' ||
+        item.data.status === 'running' ||
+        item.data.status === 'pending';
+
+      if (item.data.thinking) {
+        currentTurnSteps.push({
+          id: `${item.data.id}_thinking`,
+          role: 'ai',
+          content: '',
+          thinking: item.data.thinking,
+          timestamp: item.data.timestamp,
+          status: item.data.status,
+        } as any);
+      }
+
+      if (currentTurnSteps.length > 0) {
+        groupedItems.push({
+          type: 'steps_group',
+          id: `steps_group_${item.data.id}`,
+          steps: [...currentTurnSteps],
+          isTurnActive: isStreaming,
+        });
+        currentTurnSteps = [];
+      }
+
+      groupedItems.push({
+        ...item,
+        data: { ...item.data, thinking: undefined },
+      });
+    } else {
+      currentTurnSteps.push(item.data);
+    }
+  }
+
+  if (currentTurnSteps.length > 0) {
+    groupedItems.push({
+      type: 'steps_group',
+      id: `steps_group_end`,
+      steps: [...currentTurnSteps],
+      isTurnActive: false,
+    });
+  }
+
+  return groupedItems;
+}
+
+const TurnStepsGroupView = React.memo(function TurnStepsGroupView({
+  steps,
+  isTurnActive,
+  colors,
+  onRewind,
+  onRetry,
+  onQuote,
+  onForward,
+  onAddToMemory,
+  onResend,
+}: {
+  steps: ChatMessage[];
+  isTurnActive: boolean;
+  colors: any;
+  onRewind?: (id: string, hasFiles: boolean) => void;
+  onRetry?: (id: string, hasFiles: boolean) => void;
+  onQuote?: (msg: ChatMessage) => void;
+  onForward?: (msg: ChatMessage) => void;
+  onAddToMemory?: (text: string) => void;
+  onResend?: (msg: ChatMessage) => void;
+}) {
+  const [expanded, setExpanded] = useState(isTurnActive);
+  const { t } = useTranslation();
+
+  useEffect(() => {
+    if (isTurnActive) {
+      setExpanded(true);
+    }
+  }, [isTurnActive]);
+
+  return (
+    <View style={styles.stepsGroupContainer}>
+      <TouchableOpacity
+        onPress={() => setExpanded(v => !v)}
+        style={[styles.stepsHeader, { backgroundColor: colors.surfaceVariant + '40' }]}
+        activeOpacity={0.7}
+      >
+        <MaterialIcons name="layers" size={16} color={colors.primary} style={{ marginRight: 6 }} />
+        <Text style={[styles.stepsHeaderText, { color: colors.onSurfaceVariant }]}>
+          {t('chat.messageList.executionSteps', '思考与执行过程')} ({steps.length})
+        </Text>
+        {isTurnActive && (
+          <ActivityIndicator size={12} color={colors.primary} style={{ marginRight: 6 }} />
+        )}
+        <MaterialIcons
+          name={expanded ? 'expand-less' : 'expand-more'}
+          size={16}
+          color={colors.onSurfaceVariant}
+        />
+      </TouchableOpacity>
+      {expanded && (
+        <View style={[styles.stepsContentList, { borderLeftColor: colors.outline + '30' }]}>
+          {steps.map((stepMsg) => {
+            return (
+              <MessageItem
+                key={stepMsg.id}
+                message={stepMsg}
+                isUser={false}
+                colors={colors}
+                onRewind={onRewind}
+                onRetry={onRetry}
+                onQuote={onQuote}
+                onForward={onForward}
+                onAddToMemory={onAddToMemory}
+                onResend={onResend}
+                hasFileOperations={stepMsg.has_file_operations ?? false}
+              />
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+});
+
 export const MessageList = React.memo(function MessageList({
   onRewind, onRetry, onQuote, onForward, onAddToMemory, onResend, isTyping
 }: MessageListProps) {
@@ -335,23 +589,25 @@ export const MessageList = React.memo(function MessageList({
   const { t } = useTranslation();
   const flatListRef = useRef<FlatList>(null);
   const isUserAtBottomRef = useRef(true);
-  const lastMessageCountRef = useRef(messages.length);
 
-  // 自动滚动到底部：只要消息数量增加（用户发送或 AI 回复），都滚动到底部
+  // Group messages
+  const groupedMessages = useMemo(() => groupMessages(messages), [messages]);
+  const lastMessageCountRef = useRef(groupedMessages.length);
+
+  // 自动滚动到底部
   useEffect(() => {
     const prevCount = lastMessageCountRef.current;
-    const currentCount = messages.length;
+    const currentCount = groupedMessages.length;
     lastMessageCountRef.current = currentCount;
 
     if (currentCount > prevCount) {
-      // 使用 requestAnimationFrame + 短暂延迟，确保内容渲染和布局计算完成后再滚动
       requestAnimationFrame(() => {
         setTimeout(() => {
           flatListRef.current?.scrollToEnd({ animated: true });
         }, 50);
       });
     }
-  }, [messages]);
+  }, [groupedMessages]);
 
   const handleScroll = useCallback((event: any) => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
@@ -361,8 +617,10 @@ export const MessageList = React.memo(function MessageList({
     isUserAtBottomRef.current = isAtBottom;
   }, []);
 
-  const hasFileOperationsAfter = useCallback((messageIndex: number): boolean => {
-    for (let i = messageIndex + 1; i < messages.length; i++) {
+  const hasFileOperationsAfter = useCallback((messageId: string): boolean => {
+    const rawIndex = messages.findIndex(m => m.id === messageId);
+    if (rawIndex === -1) return false;
+    for (let i = rawIndex + 1; i < messages.length; i++) {
       if (messages[i].has_file_operations) {
         return true;
       }
@@ -374,20 +632,13 @@ export const MessageList = React.memo(function MessageList({
     return false;
   }, [messages]);
 
-  // 使用 useCallback 稳定 renderItem 引用，避免 FlatList 在 MessageList 重渲染时
-  // 因 renderItem 引用变化而重新渲染所有可见项
-  const renderMessage = useCallback((message: ChatMessage, index: number) => {
-    const isUser = message.role === 'human';
+  const renderMessage = useCallback((item: RenderItem) => {
+    if (item.type === 'message') {
+      const message = item.data;
+      const isUser = message.role === 'human';
+      const hasFileOps = hasFileOperationsAfter(message.id);
 
-    // 系统消息隐藏（对齐桌面端）
-    if (message.role === 'system') {
-      return null;
-    }
-
-    const hasFileOps = hasFileOperationsAfter(index);
-
-    return (
-      <View key={message.id}>
+      return (
         <MessageItem
           message={message}
           isUser={isUser}
@@ -400,11 +651,22 @@ export const MessageList = React.memo(function MessageList({
           onResend={onResend}
           hasFileOperations={hasFileOps}
         />
-        {index < messages.length - 1 && (
-          <Divider style={styles.divider} />
-        )}
-      </View>
-    );
+      );
+    } else {
+      return (
+        <TurnStepsGroupView
+          steps={item.steps}
+          isTurnActive={item.isTurnActive}
+          colors={colors}
+          onRewind={onRewind}
+          onRetry={onRetry}
+          onQuote={onQuote}
+          onForward={onForward}
+          onAddToMemory={onAddToMemory}
+          onResend={onResend}
+        />
+      );
+    }
   }, [colors, onRewind, onRetry, onQuote, onForward, onAddToMemory, onResend, hasFileOperationsAfter]);
 
   return (
@@ -413,12 +675,13 @@ export const MessageList = React.memo(function MessageList({
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
-      data={messages}
-      keyExtractor={(item) => item.id}
-      renderItem={({ item, index }) => renderMessage(item, index)}
+      data={groupedMessages}
+      keyExtractor={(item) => (item.type === 'message' ? item.data.id : item.id)}
+      renderItem={({ item }) => renderMessage(item)}
       onScroll={handleScroll}
       scrollEventThrottle={200}
       ListEmptyComponent={null}
+      ItemSeparatorComponent={() => <Divider style={styles.divider} />}
       ListFooterComponent={
         isTyping ? (
           <View style={styles.typingContainer}>
@@ -440,8 +703,6 @@ export const MessageList = React.memo(function MessageList({
     />
   );
 }, (prev, next) => {
-  // 自定义比较：只有 props 引用或 isTyping 变化时才重渲染
-  // 避免 ChatScreen 因高频状态（nlsVolume/nlsCurrentText）变化导致 MessageList 无辜重渲染
   return prev.onRewind === next.onRewind &&
     prev.onRetry === next.onRetry &&
     prev.onQuote === next.onQuote &&
@@ -560,8 +821,30 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     opacity: 0.7,
   },
-  // 文件变更徽章 (已由 ChangesetSnapshot 替代)
 
+  // Steps Group
+  stepsGroupContainer: {
+    marginVertical: 6,
+    paddingHorizontal: 12,
+  },
+  stepsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  stepsHeaderText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  stepsContentList: {
+    borderLeftWidth: 1,
+    marginLeft: 20,
+    marginTop: 4,
+    paddingLeft: 4,
+  },
 
   typingContainer: {
     paddingHorizontal: 16,

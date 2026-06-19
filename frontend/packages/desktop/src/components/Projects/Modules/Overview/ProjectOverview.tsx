@@ -306,26 +306,6 @@ export const ProjectOverview: React.FC = () => {
                 {t("projects.actions.viewTasks")}
               </Button>
             </Link>
-            <Link
-              to="/projects/$projectId/gantt"
-              params={{ projectId: projectId! }}
-              className="block"
-            >
-              <Button variant="outline" className="w-full justify-start">
-                <Activity className="mr-2 h-4 w-4" />
-                {t("projects.actions.viewGantt")}
-              </Button>
-            </Link>
-            <Link
-              to="/projects/$projectId/timesheet"
-              params={{ projectId: projectId! }}
-              className="block"
-            >
-              <Button variant="outline" className="w-full justify-start">
-                <Clock className="mr-2 h-4 w-4" />
-                {t("projects.actions.logTime")}
-              </Button>
-            </Link>
           </CardContent>
         </Card>
 

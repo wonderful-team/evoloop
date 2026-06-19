@@ -2,6 +2,7 @@ import logging
 import os
 import uuid
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -70,13 +71,23 @@ class ReferenceService:
                 if note:
                     reference_notes.append(note)
 
+                # 保留原始 source_path，target_id 保持为可直接访问的 raw URL
+                source_path = att.get("source_path") or att.get("metadata", {}).get("source_path") or att_id
+                if source_path.startswith(("http", "/api/", "file://")):
+                    target_id = source_path
+                else:
+                    target_id = f"/api/v1/files/raw?project_id={project_id}&path={source_path}"
+
                 # 为数据库持久化记录引用
                 references.append({
                     "id": str(uuid.uuid4()),
                     "type": "file",
-                    "target_id": f"/api/v1/files/raw?project_id={project_id}&path={att_id}",
+                    "target_id": target_id,
                     "target_name": att_name,
-                    "metadata": {"filename": att_name},
+                    "metadata": {
+                        "filename": att_name,
+                        "source_path": source_path,
+                    },
                 })
 
             # 3. Direct Image References
@@ -175,17 +186,8 @@ class ReferenceService:
         return None, f"Quoted Message (Fetch Failed): {name}"
 
     async def _handle_file_reference(self, file_path: str, name: str, root_path: str | None = None) -> tuple[str | None, str | None]:
-        # Resolve path
-        target_path = file_path
-        if root_path and not os.path.isabs(file_path):
-            # 如果提供了 root_path 且路径是 uploads/ 开头，说明 root_path 已经是上传目录
-            # 需要去掉 uploads/ 前缀再拼接，防止出现 uploads/uploads/ 的错误路径
-            rel_path = file_path
-            if rel_path.startswith("uploads/"):
-                rel_path = rel_path[len("uploads/"):]
-            target_path = os.path.join(root_path, rel_path.lstrip("/"))
+        target_path = self._resolve_local_path(file_path, root_path)
 
-        # Binary check
         if any(target_path.lower().endswith(ext) for ext in BINARY_EXTENSIONS):
             logger.info(f"Skipping content injection for binary file: {target_path}")
             return None, f"Referencing Binary File (Content Skipped): {name}"
@@ -199,6 +201,39 @@ class ReferenceService:
         except Exception as e:
             logger.warning(f"Failed to read quoted file {target_path}: {e}")
             return None, f"Referencing File (Read Failed): {name} (Path: {file_path})"
+
+    def _resolve_local_path(self, file_path: str, root_path: str | None) -> str:
+        # 1. API URL: /api/v1/files/raw?path=uploads/xxx → extract path param, resolve locally
+        if file_path.startswith("/api/"):
+            parsed = urlparse(file_path)
+            params = parse_qs(parsed.query)
+            inner_path = params.get("path", [None])[0]
+            if inner_path:
+                return self._resolve_upload_path(inner_path, root_path)
+            return file_path
+
+        # 2. file:// URL: strip scheme, use absolute path directly
+        if file_path.startswith("file://"):
+            return file_path[len("file://"):]
+
+        # 3. http/https URL: cannot read locally, return as-is (caller handles failure)
+        if file_path.lower().startswith(("http://", "https://")):
+            return file_path
+
+        # 4. Local path: resolve uploads/ prefix, join with root_path if provided
+        if not os.path.isabs(file_path):
+            return self._resolve_upload_path(file_path, root_path)
+
+        return file_path
+
+    @staticmethod
+    def _resolve_upload_path(path: str, root_path: str | None) -> str:
+        rel_path = path
+        if rel_path.startswith("uploads/"):
+            rel_path = rel_path[len("uploads/"):]
+        if root_path:
+            return os.path.join(root_path, rel_path.lstrip("/"))
+        return rel_path
 
 
 reference_service = ReferenceService()

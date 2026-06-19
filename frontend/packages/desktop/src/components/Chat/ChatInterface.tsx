@@ -362,11 +362,16 @@ export function ChatInterface() {
 
       const sendPromise = sendMessage(content, pickedFiles)
 
-      // 立即触发滚动到底部，不需要等待 AI 响应完成
-      // 发送消息后强制滚到底部
+      // 立即触发滚动到底部（用于已有会话场景）
       window.dispatchEvent(new CustomEvent("chat-scroll-to-bottom"))
 
       await sendPromise
+
+      // 新会话时，sendMessage 内部会调用 setThread 导致 Virtuoso 重新 mount，
+      // 此时需要再次触发滚到底部，确保新消息可见
+      if (isNewThread) {
+        window.dispatchEvent(new CustomEvent("chat-scroll-to-bottom"))
+      }
 
       // If this was a new thread (first message), refresh the conversation list
       if (isNewThread && projectId !== undefined) {

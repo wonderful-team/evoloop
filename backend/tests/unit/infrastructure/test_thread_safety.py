@@ -473,33 +473,35 @@ class TestLanceVectorStoreConcurrency:
 class TestIndexingManagerThreadSafety:
     """IndexingManager cancellation and status tracking must be thread-safe."""
 
-    def test_cancel_from_different_thread_does_not_crash(self):
-        """Cancel called from one thread while check is on another must be safe."""
+    @pytest.mark.asyncio
+    async def test_cancel_and_check_concurrent_do_not_crash(self):
+        """Cancel and check called concurrently must be safe."""
         from app.domain.codebase.indexing.manager import IndexingManager
 
         manager = IndexingManager()
-        manager._cancel_flags[1] = threading.Event()
         errors = []
 
-        def cancel_worker():
+        async def cancel_worker():
             try:
-                manager.cancel_indexing(1)
+                await manager.cancel_repo_index(1)
             except Exception as e:
                 errors.append(e)
 
-        def check_worker():
+        async def check_worker():
             try:
-                manager._check_cancelled(1)
+                await manager._check_cancelled(1)
             except Exception as e:
                 errors.append(e)
 
-        threads = [
-            threading.Thread(target=cancel_worker),
-            threading.Thread(target=check_worker),
-        ]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
+        await asyncio.gather(cancel_worker(), check_worker())
 
         assert not errors, f"Thread-safety error: {errors}"
+
+    def test_sync_cancel_dispatcher_does_not_crash_without_loop(self):
+        """The sync project-level cancel wrapper must not crash when no loop exists."""
+        from app.domain.codebase.indexing.manager import IndexingManager
+
+        manager = IndexingManager()
+        # This should not raise even without an active event loop.
+        manager.cancel_indexing(1)
+        assert manager.get_repo_status(1) == "idle"

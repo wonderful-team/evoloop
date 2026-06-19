@@ -87,6 +87,14 @@ async def test_process_references():
         assert skill_ref["target_name"] == "Skill 1"
         assert skill_ref["metadata"]["skill_id"] == "skill_1"
 
+        # Check file reference URL is not nested when target_id is already a raw URL
+        upload_url_ref = next(
+            r for r in result.references
+            if r["type"] == "file" and r["target_name"] == "test.txt"
+        )
+        assert upload_url_ref["target_id"] == "/api/v1/files/raw?project_id=1&path=test.txt"
+        assert upload_url_ref["metadata"]["source_path"] == "test.txt"
+
         print("✅ Test process_references passed successfully!")
 
     except Exception as e:
@@ -97,5 +105,63 @@ async def test_process_references():
         # Restore original document reader
         document_reader_service.read_document = original_read
 
+
+async def test_resolve_local_path():
+    service = ReferenceService()
+
+    # 1. API URL with path param → extract and resolve
+    api_url = "/api/v1/files/raw?project_id=1&path=uploads/audio.mp3"
+    result = service._resolve_local_path(api_url, "/tmp/thread_1")
+    assert result == "/tmp/thread_1/audio.mp3", f"API URL failed: {result}"
+
+    # 2. API URL without path param → return as-is
+    api_url_no_path = "/api/v1/files/download"
+    result = service._resolve_local_path(api_url_no_path, "/tmp")
+    assert result == api_url_no_path, f"API URL (no path) failed: {result}"
+
+    # 3. file:// URL → strip scheme
+    file_url = "file:///home/user/docs/report.pdf"
+    result = service._resolve_local_path(file_url, "/tmp")
+    assert result == "/home/user/docs/report.pdf", f"file:// URL failed: {result}"
+
+    # 4. http:// URL → return as-is
+    http_url = "http://example.com/file.txt"
+    result = service._resolve_local_path(http_url, "/tmp")
+    assert result == http_url, f"http URL failed: {result}"
+
+    # 5. https:// URL → return as-is
+    https_url = "https://example.com/file.txt"
+    result = service._resolve_local_path(https_url, "/tmp")
+    assert result == https_url, f"https URL failed: {result}"
+
+    # 6. Relative path with root_path → join
+    result = service._resolve_local_path("test.txt", "/tmp")
+    assert result == "/tmp/test.txt", f"Relative path failed: {result}"
+
+    # 7. Relative uploads/ path with root_path → strip prefix, then join
+    result = service._resolve_local_path("uploads/report.pdf", "/tmp/thread_1")
+    assert result == "/tmp/thread_1/report.pdf", f"uploads/ path failed: {result}"
+
+    # 8. Absolute local path → no join
+    result = service._resolve_local_path("/etc/hosts", "/tmp")
+    assert result == "/etc/hosts", f"Absolute path failed: {result}"
+
+    # 9. Relative path without root_path → return as-is
+    result = service._resolve_local_path("test.txt", None)
+    assert result == "test.txt", f"Relative without root failed: {result}"
+
+    # 10. uploads/ path without root_path → strip prefix only
+    result = service._resolve_local_path("uploads/report.pdf", None)
+    assert result == "report.pdf", f"uploads/ without root failed: {result}"
+
+    # 11. file:// with uploads/ path (should not be affected by uploads/ stripping logic)
+    file_url_uploads = "file:///uploads/report.pdf"
+    result = service._resolve_local_path(file_url_uploads, "/tmp")
+    assert result == "/uploads/report.pdf", f"file:// uploads failed: {result}"
+
+    print("✅ Test _resolve_local_path passed successfully!")
+
+
 if __name__ == "__main__":
     asyncio.run(test_process_references())
+    asyncio.run(test_resolve_local_path())

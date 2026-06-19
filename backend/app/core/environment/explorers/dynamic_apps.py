@@ -127,6 +127,7 @@ class DynamicAppTriage(BaseExplorer):
             ],
             purpose="environment_exploration",
             temperature=0,
+            max_tokens=4000,
             model_name=model_name,
         )
 

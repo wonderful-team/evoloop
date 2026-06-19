@@ -66,23 +66,12 @@ function ProfilePage() {
     if (!projectId) return
     setIsSaving(true)
     try {
-      // Manual call to the new endpoint
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL || ""}/api/v1/project-profiles/${projectId}/profile`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ content: editContent }),
-        },
-      )
-
-      if (!response.ok) throw new Error("Failed to update profile")
-
-      const data = await response.json()
+      const data = await ProjectProfilesService.updateProfile({
+        projectId: Number(projectId),
+        requestBody: { content: editContent },
+      })
       setProfile({
-        content: data.content,
+        content: data.content ?? null,
         exists: true,
       })
       setIsEditing(false)

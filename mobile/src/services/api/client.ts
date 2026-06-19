@@ -98,7 +98,7 @@ const TOKEN_EXPIRED_CODES = [-10010, -10011];
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
     // 统一返回 data 字段
-    console.log(`API Response: ${response.config.url}`, response.data);
+    console.log(`[API] Response: ${response.config.url}`);
 
     // 检查业务错误码 - Token 过期
     const data = response.data;
@@ -132,10 +132,10 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
 
-    console.error('API Error:', error.response?.status, error.response?.data);
+    console.error('[API] Error status:', error.response?.status);
 
     // 401 错误处理（清除状态并提示用户，由页面根据 isLoggedIn 状态自行更新 UI）
-    console.log('[API] Response error:', error.response?.status, error.response?.data);
+    console.log('[API] Response error status:', error.response?.status);
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
         // 等待 token 刷新
@@ -309,7 +309,7 @@ async function fetchSSE(url: string, body: any, options: SSEOptions): Promise<vo
 
     xhr.onreadystatechange = () => {
       if (xhr.readyState === 4) {
-        console.log('[fetchSSE] request completed. status:', xhr.status, 'response:', xhr.responseText);
+        console.log('[fetchSSE] request completed. status:', xhr.status);
         // 请求完成但状态码错误
         if (xhr.status < 200 || xhr.status >= 300) {
           let errMsg = `HTTP ${xhr.status}`;

@@ -280,11 +280,8 @@ async def upload_file(
             shutil.copyfileobj(file.file, buffer)
 
         # 逻辑路径依然返回 uploads/{filename}，前端不需要感知物理子目录
-        # 系统会在 resolve_path 时自动结合 thread_id 定位
         rel_path = f"uploads/{filename}"
-        url = f"/api/v1/raw?project_id={project_id}&path={rel_path}"
-        if thread_id:
-            url += f"&thread_id={thread_id}"
+        url = f"/api/v1/files/raw?project_id={project_id}&path={rel_path}"
 
         return FileUploadResponse(url=url, filename=filename, path=rel_path)
 

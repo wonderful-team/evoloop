@@ -7,7 +7,7 @@ from sqlalchemy import select
 from app.core.evocloud import evocloud_manager
 from app.core.file import is_ignored_path
 from app.core.project import cache as project_cache
-from app.core.project.utils import backfill_project_json
+from app.core.project.utils import write_project_json
 from app.domain.codebase.indexing.service import IndexingService
 from app.infrastructure.database.sql.database import session_scope
 from app.models.codebase import Repository
@@ -33,54 +33,116 @@ class ProjectSyncService:
 
     async def sync_cloud_project(self) -> None:
         """
-        Sync the current cloud project to local workspace on app start.
+        Sync the active project to local workspace on app start.
 
-        1. Query EvoCloud API for the active project
-        2. Check if the local path is ignored
-        3. Set working directory + create/get repo + start file watching
+        Local-first strategy:
+        1. Scan local WORKSPACE_ROOT for projects (via .evoloop/project.json).
+        2. If there is a persisted active project_id, prefer that.
+        3. Otherwise use the cloud's current project_id only as a hint.
+        4. If the hinted project does not exist locally, do not auto-switch;
+           log a clear message and wait for user action.
+        5. Never use the cloud's external_path directly as the local path.
         """
         try:
             from app.core.context import thread_context_store
+            from app.core.project.local_index import local_project_index
             from app.domain.codebase.indexing.manager import indexing_manager
             from app.infrastructure.config.service import SystemConfigService
 
-            # Check if WORKSPACE_ROOT is configured
             workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+            logger.info(f"[ProjectSync] sync_cloud_project started. WORKSPACE_ROOT={workspace_root}")
             if not workspace_root:
                 logger.info("[ProjectSync] WORKSPACE_ROOT not configured. Skipping cloud project sync.")
                 return
 
-            res = await evocloud_manager.api.get_current_project()
-            if not res or res.get("code") != 0:
-                logger.warning(f"[ProjectSync] Failed to fetch current project: {res.get('message') if res else 'Empty response'}")
+            # Local-first: build local index before talking to cloud
+            local_index = local_project_index.refresh(workspace_root)
+            logger.info(f"[ProjectSync] Local project index: {local_index}")
+            if not local_index:
+                logger.info("[ProjectSync] No local projects found. Skipping cloud project sync.")
                 return
 
-            project_data = res.get("data") or {}
-            cloud_path = project_data.get("external_path")
-            if not cloud_path or not os.path.exists(cloud_path):
+            # Prefer the persisted active project (user's last explicit choice)
+            active_project_id = thread_context_store.get_active_project("default")
+            selected_project_id = None
+            if active_project_id is not None and active_project_id in local_index:
+                selected_project_id = active_project_id
+                logger.info(
+                    f"[ProjectSync] Using persisted active project: project_id={selected_project_id}, "
+                    f"path={local_index[selected_project_id]}"
+                )
+
+            # Cloud hint: only advisory, never authoritative over local path
+            if selected_project_id is None:
+                res = await evocloud_manager.api.get_current_project()
+                logger.info(f"[ProjectSync] get_current_project response: {res}")
+                cloud_project_id = None
+                if res and res.get("code") == 0:
+                    project_data = res.get("data") or {}
+                    cloud_project_id = project_data.get("project_id")
+                    cloud_external_path = project_data.get("external_path")
+                    logger.info(
+                        f"[ProjectSync] Cloud current project hint: "
+                        f"project_id={cloud_project_id}, "
+                        f"external_path={cloud_external_path!r} "
+                        f"(used for reference only, not as local path)"
+                    )
+                else:
+                    logger.info(
+                        "[ProjectSync] No current project hint from cloud: "
+                        f"{res.get('message') if res else 'Empty response'}."
+                    )
+
+                if cloud_project_id is not None and cloud_project_id in local_index:
+                    selected_project_id = cloud_project_id
+                    logger.info(
+                        f"[ProjectSync] Cloud hint matched local project: "
+                        f"project_id={selected_project_id}, path={local_index[selected_project_id]}"
+                    )
+                elif cloud_project_id is not None:
+                    logger.warning(
+                        f"[ProjectSync] Cloud project_id={cloud_project_id} not found locally. "
+                        "Ignoring cloud hint to keep local path as truth source."
+                    )
+
+            if selected_project_id is None:
+                logger.info(
+                    "[ProjectSync] No active or cloud-hinted project matches local projects. "
+                    "Waiting for user to select a project."
+                )
                 return
 
-            is_ignored = await project_cache.is_path_ignored(cloud_path)
+            local_path = local_index[selected_project_id]
+            if not os.path.exists(local_path):
+                logger.warning(f"[ProjectSync] Selected local path does not exist: {local_path}")
+                return
+
+            is_ignored = await project_cache.is_path_ignored(local_path)
             if not is_ignored:
-                existing_repo = await self._indexing_service.get_repo_by_path(cloud_path)
+                existing_repo = await self._indexing_service.get_repo_by_path(local_path)
                 if existing_repo and existing_repo.sync_status == "IGNORED":
                     is_ignored = True
 
             if is_ignored:
-                logger.info(f"[ProjectSync] Skipping cloud project sync for ignored path: {cloud_path}")
+                logger.info(f"[ProjectSync] Skipping cloud project sync for ignored path: {local_path}")
                 return
 
-            logger.info(f"[ProjectSync] Synced active project from Cloud: {cloud_path}")
-            thread_context_store.set_working_directory("default", cloud_path)
+            logger.info(f"[ProjectSync] Synced active project: {local_path}")
+            thread_context_store.set_working_directory("default", local_path)
 
-            repo_name = os.path.basename(cloud_path)
-            repo = await self._indexing_service.get_or_create_repo(cloud_path, repo_name)
+            repo_name = os.path.basename(local_path)
+            repo = await self._indexing_service.get_or_create_repo(local_path, repo_name)
+            logger.info(
+                f"[ProjectSync] Local repo: repo_id={repo.id if repo else None}, "
+                f"project_id={repo.project_id if repo else None}, "
+                f"sync_status={repo.sync_status if repo else None}"
+            )
             if repo.project_id:
-                backfill_project_json(cloud_path, repo.project_id)
-            await indexing_manager.start_watching(cloud_path, repo.id)
+                write_project_json(local_path, {"project_id": repo.project_id, "repo_id": repo.id})
+            await indexing_manager.start_watching(local_path, repo.id)
 
         except Exception as e:
-            logger.warning(f"[ProjectSync] Error syncing cloud project: {e}")
+            logger.warning(f"[ProjectSync] Error syncing cloud project: {e}", exc_info=True)
 
     async def handle_project_created(self, path: str):
         """
@@ -151,8 +213,8 @@ class ProjectSyncService:
 
                     logger.info(f"[ProjectSync] Project '{repo_name}' auto-linked and SYNCED (ID: {repo.id})")
 
-                    # Persist project_id into local .evoloop/project.json
-                    backfill_project_json(abs_path, cloud_project_id)
+                    # Persist project_id and repo_id into local .evoloop/project.json
+                    write_project_json(abs_path, {"project_id": cloud_project_id, "repo_id": repo.id})
 
                     # Auto-trigger indexing (no user confirmation needed)
                     await self._trigger_auto_indexing(repo, path)
@@ -192,8 +254,13 @@ class ProjectSyncService:
 
     async def _find_matching_cloud_project(self, repo_name: str, local_path: str) -> dict | None:
         """
-        Find matching cloud project by name or path.
-        Returns cloud project dict if found, None otherwise.
+        Find matching cloud project by local path or explicit project_id hint.
+
+        We deliberately do NOT match by project name alone, because two
+        different projects can share the same basename across devices.
+        The only safe identifiers are:
+        - exact local path match (cloud external_path == local_path)
+        - an explicit project_id provided by the caller (handled separately)
         """
         try:
             cloud_projects = await evocloud_manager.scan_projects()
@@ -201,18 +268,13 @@ class ProjectSyncService:
 
             for project in cloud_projects:
                 cloud_path = project.get("path", "")
-                cloud_name = project.get("name", "")
 
-                # Match by exact path
+                # Match by exact path only
                 if cloud_path and os.path.abspath(cloud_path) == abs_local_path:
-                    logger.debug(f"[ProjectSync] Matched by path: {abs_local_path}")
+                    logger.info(f"[ProjectSync] Matched cloud project by path: {abs_local_path}")
                     return project
 
-                # Match by exact name (secondary match)
-                if cloud_name == repo_name:
-                    logger.debug(f"[ProjectSync] Matched by name: {repo_name}")
-                    return project
-
+            logger.info(f"[ProjectSync] No cloud project matched local path: {abs_local_path}")
             return None
         except Exception as e:
             logger.warning(f"[ProjectSync] Failed to scan cloud projects: {e}. Treating as new project.")
@@ -296,9 +358,9 @@ class ProjectSyncService:
             except Exception as e:
                 logger.error(f"[ProjectSync] Cloud sync failed: {e}")
 
-        # Persist project_id into local .evoloop/project.json
+        # Persist project_id and repo_id into local .evoloop/project.json
         if cloud_project_id and repo.local_path:
-            backfill_project_json(repo.local_path, cloud_project_id)
+            write_project_json(repo.local_path, {"project_id": cloud_project_id, "repo_id": repo.id})
 
         # Publish ProjectCreatedEvent to trigger indexing
         try:
