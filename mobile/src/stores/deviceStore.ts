@@ -13,6 +13,7 @@ interface DeviceState {
   setCurrentDevice: (device: Device | null) => void;
   addDevice: (device: Device) => void;
   updateDevice: (deviceKey: string, updates: Partial<Device>) => void;
+  updateDeviceStatus: (deviceKey: string, status: Device['status']) => void;
   removeDevice: (deviceKey: string) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: Error | null) => void;
@@ -38,6 +39,19 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
     set({
       devices: devices.map((d) =>
         d.deviceKey === deviceKey ? { ...d, ...updates } : d
+      ),
+    });
+  },
+
+  updateDeviceStatus: (deviceKey, status) => {
+    const { devices } = get();
+    const target = devices.find((d) => d.deviceKey === deviceKey);
+    if (!target) return;
+
+    const lastSeen = status === 'online' ? String(Date.now() / 1000) : target.lastSeen;
+    set({
+      devices: devices.map((d) =>
+        d.deviceKey === deviceKey ? { ...d, status, lastSeen } : d
       ),
     });
   },

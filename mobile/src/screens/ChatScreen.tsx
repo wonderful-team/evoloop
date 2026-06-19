@@ -97,6 +97,7 @@ export default function ChatScreen() {
   // 方法 - Zustand action 引用稳定，单独 selector
   const loadConversations = useConversationStore((state) => state.loadConversations);
   const setCurrentConversation = useConversationStore((state) => state.setCurrentConversation);
+  const clearUnread = useConversationStore((state) => state.clearUnread);
   const createConversation = useConversationStore((state) => state.createConversation);
   const addMessage = useConversationStore((state) => state.addMessage);
   const loadMessages = useConversationStore((state) => state.loadMessages);
@@ -331,7 +332,11 @@ export default function ChatScreen() {
   // 同步 currentConversationId 到 Gateway hook（避免 WebSocket 因 id 变化而重连）
   useEffect(() => {
     setCurrentConversationId(currentConversationId);
-  }, [currentConversationId, setCurrentConversationId]);
+    // 进入会话时清零该会话的未读计数
+    if (currentConversationId) {
+      clearUnread(currentConversationId);
+    }
+  }, [currentConversationId, setCurrentConversationId, clearUnread]);
 
   const clearAgentProcessing = useCallback(() => {
     setIsAgentProcessing(false);

@@ -35,9 +35,6 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         self.config = config
         self.api = api_client
 
-        # Device Identity
-        self.device_name = self.config.device_name or f"{platform.node()}"
-
         # Token change -> auto reconnect
         self.api.on_token_change(self._on_token_changed)
 
@@ -63,6 +60,17 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
     @property
     def device_key(self) -> str:
         return getattr(self, "_device_key", "") or ""
+
+    @property
+    def device_name(self) -> str:
+        """Resolve device name dynamically from runtime config store."""
+        from app.infrastructure.config.service import SystemConfigService
+        return (
+            SystemConfigService.get_value("EVOCLOUD_DEVICE_NAME")
+            or self.config.device_name
+            or platform.node()
+            or "EvoLoop-Desktop"
+        )
 
     async def ensure_device_key(self) -> str:
         """Async initialization of device_key. Must be called before using device_key in async context."""

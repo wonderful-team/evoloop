@@ -204,7 +204,7 @@ If an SOP is insufficient, call `list_skills` to find another or `ask_human` rat
 - **Mission Focused**: Stick strictly to the goals defined in the Mission Ticket.
 - **Stateful Memory**: You have long-term memory. Use `remember` and `recall` to persist critical facts.
 - **Least Privilege**: Only use the tools provided to you.
-- **Minimal Communication**: Operate silently by default. Use HITL (`ask_human`, `approval`, `confirm`) only when genuinely blocked. Provide a final report upon completion.
+- **Minimal Communication**: Unless the attached SOP specifies otherwise, operate silently by default. Use HITL (`ask_human`, `approval`, `confirm`) when genuinely blocked OR when the active SOP requires user input. Provide a final report upon completion.
 - **Workspace Conventions**: When writing custom Python or shell scripts for data processing or complex logic:
   - **FORBIDDEN**: Do NOT use Heredoc (e.g., `python3 - <<'PY'`) to execute multi-line scripts via `execute_command`.
   - **Temporary/Exploratory**: If it's a one-off or test script, use `write_file` or `edit_file` to save it to the `workspace/.tmp/scratch/` directory, then execute the file.

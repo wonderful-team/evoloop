@@ -7,6 +7,7 @@ import { GatewayMessageType, ConnectionState } from '@/services/gateway/types';
 import { AgentSyncMessage } from '@/services/gateway/agentMessage';
 import { parseHITLRequest } from '@/utils/messageAdapter';
 import { useHITLStore } from '@/stores/hitlStore';
+import { useConversationStore } from '@/stores/conversationStore';
 
 interface UseChatGatewayOptions {
   isLoggedIn: boolean;
@@ -18,6 +19,7 @@ export function useChatGateway({ isLoggedIn, syncMessages, onAgentRunCompleted }
   const [gatewayConnectionState, setGatewayConnectionState] = useState<ConnectionState>(ConnectionState.DISCONNECTED);
   const currentConversationIdRef = useRef<string | null>(null);
   const setHitlRequest = useHITLStore((state) => state.setCurrentRequest);
+  const { incrementUnread } = useConversationStore();
 
   const setCurrentConversationId = useCallback((id: string | null) => {
     currentConversationIdRef.current = id;
@@ -31,8 +33,15 @@ export function useChatGateway({ isLoggedIn, syncMessages, onAgentRunCompleted }
     const handleMessageSync = (message: { data: AgentSyncMessage }) => {
       const msg = message.data;
       const threadId = msg?.thread_id;
-      if (!threadId || threadId !== currentConversationIdRef.current) return;
       if (!msg) return;
+
+      // 只有当前会话不是打开状态时才累加未读
+      if (threadId && threadId !== currentConversationIdRef.current) {
+        incrementUnread(threadId);
+      }
+
+      // 只有当前打开的会话才同步到 UI
+      if (!threadId || threadId !== currentConversationIdRef.current) return;
 
       const hitlRequest = parseHITLRequest(msg);
       if (hitlRequest) {
@@ -44,6 +53,9 @@ export function useChatGateway({ isLoggedIn, syncMessages, onAgentRunCompleted }
 
     const handleAgentRunCompleted = (message: { thread_id: string }) => {
       const threadId = message?.thread_id;
+      if (threadId && threadId !== currentConversationIdRef.current) {
+        incrementUnread(threadId);
+      }
       if (threadId && threadId === currentConversationIdRef.current) {
         onAgentRunCompleted?.(threadId);
       }

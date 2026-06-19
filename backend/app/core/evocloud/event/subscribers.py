@@ -7,11 +7,12 @@ Event subscribers for EvoCloud lifecycle, real-time sync, and WebSocket messages
 
 import asyncio
 import logging
+import platform
 
 from app.core.config import settings
 from app.core.engine.event.schemas import WebSocketMessageReceivedEvent
 from app.core.engine.event.types import AgentEventType
-from app.core.events import SystemEventType
+from app.core.events import BaseEvent, SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.evocloud.manager import evocloud_manager
 from app.core.evocloud.schemas import QueryResponse
@@ -225,3 +226,47 @@ class InitWebSocketSubscriber:
         if link:
             link.client_id = client_id
             logger.info(f"[EvoCloud] client_id updated via event: {client_id}")
+
+
+# =============================================================================
+# Device Info Sync Handler
+# =============================================================================
+
+@event_register()
+class DeviceInfoSyncSubscriber:
+    """
+    Triggers asynchronous cloud sync when desktop device metadata changes.
+
+    Currently watches EVOCLOUD_DEVICE_NAME config changes; the same channel can
+    be extended for other regular device info fields (os_info, device_type, etc.).
+    """
+
+    @event_subscribe(SystemEventType.CONFIG_CHANGED)
+    async def on_config_changed(self, event: BaseEvent) -> None:
+        if event.data.get("key") != "EVOCLOUD_DEVICE_NAME":
+            return
+
+        new_value = event.data.get("new_value", "")
+        if not new_value:
+            return
+
+        from app.core.identity import identity_service
+
+        device_key = await identity_service.store.get_device_key()
+        if not device_key:
+            logger.debug("[EvoCloud] No device_key yet, skipping device info sync")
+            return
+
+        from app.core.evocloud.bridge.sync_tasks import sync_device_info_task
+
+        info = {
+            "device_name": new_value,
+            "device_type": "desktop",
+            "os_info": platform.platform(),
+        }
+        sync_device_info_task.delay(device_key, info)
+        logger.info(
+            f"[EvoCloud] Enqueued device info sync for device_name change: "
+            f"device_key={device_key[:20]}..."
+        )
+

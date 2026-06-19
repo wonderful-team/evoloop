@@ -96,9 +96,7 @@ class MessageHandler:
             metadata=metadata,
         )
 
-        logger.info(
-            f"[MessageHandler] AI message classified as: {category.value}, persist={persist_data.should_persist}"
-        )
+        logger.info(f"[MessageHandler] AI message classified as: {category.value}, persist={persist_data.should_persist}")
 
         # Finish 节点的审计 LLM 输出不应在消息列表中展示，也不应推送到前端
         _is_finish_message = node_source == "finish"
@@ -260,9 +258,7 @@ class MessageHandler:
                 message_id=message_id,
             )
 
-        logger.info(
-            f"[MessageHandler] Tool start tracked: {tool_name} (seq={seq}, hidden={is_hidden})"
-        )
+        logger.info(f"[MessageHandler] Tool start tracked: {tool_name} (seq={seq}, hidden={is_hidden})")
         return MessageHandlerResult(
             category=category.value,
             persisted=category.should_persist_to_db,
@@ -283,9 +279,7 @@ class MessageHandler:
         """处理工具输出消息 — 支持 UPDATE 已有 running 记录"""
         # Fetch tool metadata and input to rebuild tool_meta
         metadata_registry = get_tool_metadata(tool_name)
-        input_data = await self._repository.resolve_tool_input(
-            tool_call_id, tool_name=tool_name
-        )
+        input_data = await self._repository.resolve_tool_input(tool_call_id, tool_name=tool_name)
 
         # 从 ToolResult 中读取 result_meta（evoloop_tool 装饰器已渲染）
         result_meta = {}
@@ -323,9 +317,7 @@ class MessageHandler:
             category=category, content=content
         )
 
-        logger.info(
-            f"[MessageHandler] Tool {tool_name} output classified as: {category.value}, persist={persist_data.should_persist}"
-        )
+        logger.info(f"[MessageHandler] Tool {tool_name} output classified as: {category.value}, persist={persist_data.should_persist}")
 
         message_id = None
         seq = sequence_number or 0
@@ -506,9 +498,7 @@ class MessageHandler:
         metadata: dict | None = None,
     ) -> MessageHandlerResult:
         """处理人机交互请求（HITL）"""
-        logger.info(
-            f"[MessageHandler] Handling HITL request: {request_id} (tool={tool_name})"
-        )
+        logger.info(f"[MessageHandler] Handling HITL request: {request_id} (tool={tool_name})")
         content = json.dumps(
             {
                 "id": request_id,
@@ -580,9 +570,7 @@ class MessageHandler:
             else MessageCategory.ERROR_SYSTEM
         )
 
-        logger.warning(
-            f"[MessageHandler] Handling error: {classification.error_type} (cat={category.value})"
-        )
+        logger.warning(f"[MessageHandler] Handling error: {classification.error_type} (cat={category.value})")
 
         message_id = None
         if category == MessageCategory.ERROR_BUSINESS:

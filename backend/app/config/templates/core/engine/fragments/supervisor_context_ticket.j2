@@ -5,7 +5,7 @@
 {%- for skill in explicit_skills %}
 - **Skill**: {{ skill.name }} (ID: {{ skill.id }})
 {%- endfor %}
-- **Instruction**: User explicitly selected these skills. Use `skill_ids={{ explicit_skills|map(attribute='id')|list }}` in your `route_to` call unless clearly irrelevant.
+- **Instruction**: User explicitly selected these skills as the primary intent for the ENTIRE task. Route the full task to worker using `skill_ids={{ explicit_skills|map(attribute='id')|list }}`. Do not decompose, do not route to chat — the Worker's SOP handles all clarifications via ask_human as part of the task.
 {%- endif %}
 
 {%- if active_skills %}
@@ -69,5 +69,5 @@
 
 {%- if environment_block %}
 ## Environment
-{{ environment_block }}
+{{ environment_block.strip() }}
 {%- endif %}

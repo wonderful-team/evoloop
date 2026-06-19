@@ -13,14 +13,19 @@ class TestMessageLogicAudit(unittest.TestCase):
     """
 
     def test_attachment_extraction_formats(self):
-        """Test all 3 extraction formats: Legacy, Standard [REF], and JSON Artifacts."""
+        """Test extraction formats: Markdown links, code block artifacts, and JSON artifacts."""
         content = """
         I have created several files for you:
-        1. uploads/test.py (Legacy path)
-        2. ![System Architecture](file:///absolute/path/diagram.png) (Standard Tag)
-        3. @[skill:code_review] (Legacy Reference)
+        1. [Project Report](file:///absolute/path/report.pdf) (Markdown link)
+        2. ![System Architecture](file:///absolute/path/diagram.png) (Markdown image)
 
         And here is a chart:
+        ```mermaid
+        graph TD;
+            A[Start] --> B[End];
+        ```
+
+        And a JSON artifact:
         ```json
         {
             "type": "artifact",
@@ -29,25 +34,24 @@ class TestMessageLogicAudit(unittest.TestCase):
         }
         ```
         """
-        refs = attachment_extractor.extract_from_ai_response(content, thread_id="test-thread")
+        refs = attachment_extractor.extract_from_ai_response(content)
 
-        # Verify counts
-        # 1. uploads/test.py -> file
-        # 2. ![System Architecture](...) -> image
-        # 3. @[skill:...] -> skill
-        # 4. json artifact -> artifact
+        # Verify counts: file + image + 2 artifacts (code block + json)
         self.assertEqual(len(refs), 4)
 
         types = [r["type"] for r in refs]
         self.assertIn("file", types)
         self.assertIn("image", types)
-        self.assertIn("skill", types)
         self.assertIn("artifact", types)
 
         # Verify standard ref details
         img_ref = next(r for r in refs if r["target_name"] == "System Architecture")
         self.assertEqual(img_ref["target_name"], "System Architecture")
         self.assertEqual(img_ref["target_id"], "file:///absolute/path/diagram.png")
+
+        file_ref = next(r for r in refs if r["target_name"] == "Project Report")
+        self.assertEqual(file_ref["type"], "file")
+        self.assertEqual(file_ref["target_id"], "file:///absolute/path/report.pdf")
 
     def test_factory_orm_mapping(self):
         """Test MessageBlockFactory handles ORM objects with nested references."""

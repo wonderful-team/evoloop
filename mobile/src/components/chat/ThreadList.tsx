@@ -38,6 +38,7 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
     loadMoreConversations,
     deleteConversation,
     setCurrentConversation,
+    getUnreadCount,
   } = useConversationStore();
 
   // 加载会话列表（仅在登录时，projectId 或 deviceKey 变化时刷新）
@@ -67,6 +68,7 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
   // 渲染会话项
   const renderThreadItem = useCallback(({ item }: { item: Conversation }) => {
     const isActive = item.id === currentConversationId;
+    const unreadCount = getUnreadCount(item.id);
 
     return (
       <Swipeable
@@ -111,13 +113,21 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
             </Text>
           </View>
 
+          {unreadCount > 0 && (
+            <View style={styles.unreadBadge}>
+              <Text style={styles.unreadBadgeText}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </Text>
+            </View>
+          )}
+
           {isActive && (
             <MaterialIcons name="chevron-right" size={20} color={colors.primary} />
           )}
         </TouchableOpacity>
       </Swipeable>
     );
-  }, [currentConversationId, colors, handleSelectThread, handleDelete]);
+  }, [currentConversationId, colors, handleSelectThread, handleDelete, getUnreadCount]);
 
   // 渲染底部加载更多
   const renderFooter = () => {
@@ -241,6 +251,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     width: 80,
+  },
+  unreadBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    marginRight: 8,
+  },
+  unreadBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   footer: {
     paddingVertical: 16,

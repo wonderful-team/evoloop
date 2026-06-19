@@ -16,7 +16,8 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.evocloud.schemas import SyncConversation, SyncMessage
 from app.infrastructure.database.sql.database import get_db_session
 from app.infrastructure.queue.factory import shared_task
-from app.models import Conversation as ConversationModel, Message as MessageModel
+from app.models import Conversation as ConversationModel
+from app.models import Message as MessageModel
 
 logger = logging.getLogger(__name__)
 
@@ -280,4 +281,53 @@ async def incremental_sync_task(device_key: str, thread_ids: list[str]) -> dict:
 
     except Exception as e:
         logger.error(f"[SyncTask] Exception in incremental sync: {e}")
+        raise
+
+
+@shared_task(
+    name="evocloud.sync_device_info",
+    retries=2,
+    retry_delay=10,
+)
+async def sync_device_info_task(device_key: str, info: dict) -> dict:
+    """
+    Synchronize generic desktop device metadata to Member Center.
+
+    Args:
+        device_key: Server-issued device identifier.
+        info: Metadata fields such as device_name, device_type, os_info.
+
+    Returns:
+        API response result.
+    """
+    from app.core.evocloud import evocloud_manager
+
+    api = evocloud_manager.api
+
+    try:
+        result = await api.sync_device_info(device_key, info)
+        if result.get("code") != 0:
+            error_msg = result.get("message", "Unknown error")
+            logger.error(
+                f"[SyncTask] Device info sync failed: "
+                f"code={result.get('code')} message={error_msg}"
+            )
+            raise Exception(f"Device info sync failed: {error_msg}")
+
+        logger.info(
+            f"[SyncTask] Device info synced successfully: "
+            f"device_key={device_key[:20]}... fields={list(info.keys())}"
+        )
+        return {"code": 0, "data": info}
+
+    except Exception as e:
+        err_str = str(e).lower()
+        if any(kw in err_str for kw in ("connect", "unreachable", "timeout", "socket", "network")):
+            logger.warning(
+                f"[SyncTask] Cloud unreachable during device info sync "
+                f"(device={device_key}). Skipping noisy retry."
+            )
+            return {"code": -1, "message": "Cloud unreachable"}
+
+        logger.error(f"[SyncTask] Exception in device info sync: {type(e).__name__}: {e}")
         raise

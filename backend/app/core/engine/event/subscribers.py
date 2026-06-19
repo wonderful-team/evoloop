@@ -213,7 +213,8 @@ class EngineCommandSubscriber:
             project_id=project_id,
             references=references,
             command_id=command.get("command_id"),
-            model=None,  # Remote commands don't carry model selection; fallback to default
+            model=None,
+            source="mobile",
         )
 
         if result.status == "failed":

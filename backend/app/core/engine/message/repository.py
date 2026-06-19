@@ -49,6 +49,7 @@ class MessageRepository:
         references: list[dict] | None = None,
         message_id: str | None = None,
         node_source: str | None = None,
+        source: str | None = None,
     ) -> tuple[str | None, int]:
         """
         Persist a message to the database.
@@ -92,6 +93,7 @@ class MessageRepository:
                     tool_name=tool_name,
                     meta_data=metadata,
                     node_source=node_source,
+                    source=source,
                     parent_id=effective_parent_id,
                 )
                 session.add(log)

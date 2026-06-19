@@ -81,14 +81,12 @@ async def run_targeted_test():
             )
         },
         {
-            "name": "Resources: File, Image, Audio, Message, Skill",
+            "name": "Resources: File, Image, Audio",
             "prompt": (
-                "Please explicitly mention these resource references in your response text to trigger the extractor:\n"
-                "1. Path: uploads/sample.pdf\n"
-                "2. Path: uploads/photo.jpg\n"
-                "3. Path: uploads/voice.mp3\n"
-                "4. Message ID: @[message:00000000-0000-0000-0000-000000000000]\n"
-                "5. Skill ID: @[skill:skill_test_123]"
+                "Please explicitly mention these resource references in your response text using standard Markdown links to trigger the extractor:\n"
+                "1. File: [sample.pdf](uploads/sample.pdf)\n"
+                "2. Image: ![photo.jpg](uploads/photo.jpg)\n"
+                "3. Audio: [voice.mp3](uploads/voice.mp3)"
             )
         }
     ]
