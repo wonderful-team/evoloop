@@ -233,16 +233,19 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                 await asyncio.sleep(1)
 
     async def _heartbeat_loop(self):
-        """Send WebSocket ping messages to keep connection alive.
+        """Send WebSocket control ping frames to keep connection alive.
 
-        Replaces HTTP heartbeat with WebSocket ping/pong.
+        Gateway uses SetPongHandler/SetReadDeadline to detect dead peers;
+        only control pings reset the read deadline, so we send a control
+        ping instead of the legacy JSON text ping.
         """
         while self._running:
             if self.ws and self.is_connected():
                 try:
-                    # Send ping via WebSocket
-                    ping_msg = WebSocketPing(timestamp=int(asyncio.get_running_loop().time()))
-                    await self.ws.send(json.dumps(ping_msg.model_dump()))
+                    # 发送控制层 ping，Gateway 收到后会回复 pong 并刷新读超时
+                    await asyncio.wait_for(self.ws.ping(), timeout=10)
+                except asyncio.TimeoutError:
+                    logger.debug("[EvoCloud] WebSocket ping timed out, will reconnect")
                 except Exception as e:
                     logger.debug(f"[EvoCloud] WebSocket ping failed: {e}")
             await asyncio.sleep(30)

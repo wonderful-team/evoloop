@@ -25,11 +25,15 @@ class ChatPromptBuilder(BasePromptBuilder):
             "project_profile": project_profile
         }
 
+        from app.infrastructure.config.service import SystemConfigService
         template_vars = {
             "user_lang": self.get_user_lang(),
             "environment_block": ctx.environment_block,
             "sys_info": sys_info,
             "project_id": ctx.project_id,
+            "agent_name": SystemConfigService.get_value("AGENT_NAME", "EvoLoop"),
+            "agent_company": SystemConfigService.get_value("AGENT_COMPANY", "上海方天画戟信息技术有限公司"),
+            "agent_website": SystemConfigService.get_value("AGENT_WEBSITE", "https://evoloop.cn"),
         }
 
         return render_template("core/engine/chat.prompt.j2", **template_vars)

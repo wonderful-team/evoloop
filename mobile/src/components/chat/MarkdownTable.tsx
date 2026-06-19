@@ -25,6 +25,81 @@ interface MarkdownTableProps {
   rows: string[][];
 }
 
+// 渲染单元格内的内联 Markdown（**bold**, *italic*, `code`）
+function renderInlineContent(content: string, isHeader: boolean, colors: any) {
+  const segments: { text: string; bold?: boolean; italic?: boolean; code?: boolean }[] = [];
+  let remaining = content;
+
+  const patterns = [
+    { regex: /\*\*(.+?)\*\*/g, style: { bold: true } },
+    { regex: /\*(.+?)\*/g, style: { italic: true } },
+    { regex: /`(.+?)`/g, style: { code: true } },
+  ];
+
+  // 按顺序匹配，构建 segments 数组
+  while (remaining.length > 0) {
+    let earliestIndex = remaining.length;
+    let earliestMatch: RegExpExecArray | null = null;
+    let earliestStyle: any = null;
+
+    for (const { regex, style } of patterns) {
+      regex.lastIndex = 0;
+      const match = regex.exec(remaining);
+      if (match && match.index < earliestIndex) {
+        earliestIndex = match.index;
+        earliestMatch = match;
+        earliestStyle = style;
+      }
+    }
+
+    if (earliestMatch && earliestStyle) {
+      // 匹配前的纯文本
+      if (earliestIndex > 0) {
+        segments.push({ text: remaining.slice(0, earliestIndex) });
+      }
+      segments.push({ text: earliestMatch[1], ...earliestStyle });
+      remaining = remaining.slice(earliestIndex + earliestMatch[0].length);
+    } else {
+      // 没有更多匹配，剩余部分作为纯文本
+      segments.push({ text: remaining });
+      break;
+    }
+  }
+
+  if (segments.length === 0) return null;
+
+  return (
+    <Text
+      style={[
+        styles.cellText,
+        {
+          fontWeight: isHeader ? '700' : '400',
+          color: isHeader ? colors.primary : colors.onSurface,
+        },
+      ]}
+      numberOfLines={3}
+    >
+      {segments.map((seg, i) => (
+        <Text
+          key={i}
+          style={[
+            seg.bold && { fontWeight: '700' as const },
+            seg.italic && { fontStyle: 'italic' as const },
+            seg.code && {
+              fontFamily: 'monospace',
+              backgroundColor: colors.surfaceVariant,
+              paddingHorizontal: 3,
+              borderRadius: 2,
+            },
+          ]}
+        >
+          {seg.text}
+        </Text>
+      ))}
+    </Text>
+  );
+}
+
 export function MarkdownTable({ header, rows }: MarkdownTableProps) {
   const { colors } = useTheme();
   const { width: windowWidth } = useWindowDimensions();
@@ -42,26 +117,14 @@ export function MarkdownTable({ header, rows }: MarkdownTableProps) {
       style={[
         styles.cell,
         {
-          width: colWidth,
-
           backgroundColor: isHeader ? colors.surfaceVariant : 'transparent',
           borderRightWidth: colIndex < header.length - 1 ? 1 : 0,
           borderRightColor: colors.outline + '40',
         },
+        needsScroll ? { width: colWidth } : { flex: 1, width: 0 },
       ]}
     >
-      <Text
-        style={[
-          styles.cellText,
-          {
-            fontWeight: isHeader ? '700' : '400',
-            color: isHeader ? colors.primary : colors.onSurface,
-          },
-        ]}
-        numberOfLines={3}
-      >
-        {content}
-      </Text>
+      {renderInlineContent(content, isHeader, colors)}
     </View>
   );
 

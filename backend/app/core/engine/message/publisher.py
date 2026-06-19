@@ -109,12 +109,9 @@ class MessagePublisher:
                 logger.debug("[Publisher] WebSocket not connected, skipping mobile push")
                 return
 
-            # 跳过对人类消息的推送（Mobile 已做乐观更新）
-            if block.role == "human":
-                return
-
-            # 跳过对用户不可见的内部消息
-            if not block.is_visible:
+            # 历史原因曾跳过对人类消息的推送，现改为允许推送，便于多端同步显示。
+            # 回环防护由上层根据 device_key / client_id / source 判断，不在此处过滤。
+            if block.role == "human" and not block.is_visible:
                 return
 
             mobile_data = BlockMapper.to_mobile(block)

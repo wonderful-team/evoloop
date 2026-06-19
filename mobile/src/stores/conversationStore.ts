@@ -8,7 +8,7 @@ import { ChatMessage } from '@/types/conversation';
 import { AgentSyncMessage } from '@/services/gateway/agentMessage';
 import * as conversationApi from '@/services/api/conversations';
 import { isAuthError } from '@/utils/error';
-import { adaptAgentMessages, adaptHistoryMessage, deduplicateMessages } from '@/utils/messageAdapter';
+import { adaptAgentMessages, adaptHistoryMessage, mergeSyncedHumanMessages } from '@/utils/messageAdapter';
 
 interface ConversationState {
   // 会话列表
@@ -263,11 +263,11 @@ export const useConversationStore = create<ConversationState>()(
 
         const existingMessages = get().messages;
         const adapted = adaptAgentMessages(incomingMessages);
-        const newMessages = deduplicateMessages(existingMessages, adapted);
+        const merged = mergeSyncedHumanMessages(existingMessages, adapted);
 
-        if (newMessages.length === 0) return;
+        if (merged.length === existingMessages.length) return;
 
-        set({ messages: [...existingMessages, ...newMessages] });
+        set({ messages: merged });
       },
 
       // 更新最后一条消息

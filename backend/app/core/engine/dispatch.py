@@ -250,7 +250,7 @@ async def dispatch_agent_run(
                     message_id=msg_id,
                 )
                 publisher = MessagePublisher(thread_id=thread_id, project_id=project_id)
-                await publisher.publish(block, channels={"sse"})
+                await publisher.publish(block)
 
     # ------------------------------------------------------------------
     # 5. Build BackgroundAgentInputs
@@ -332,6 +332,6 @@ async def persist_user_message(
             )
             resolved_project_id = project_id if project_id is not None else conversation.project_id
             publisher = MessagePublisher(thread_id=thread_id, project_id=resolved_project_id)
-            await publisher.publish(block, channels={"sse"})
+            await publisher.publish(block)
 
         return msg_id

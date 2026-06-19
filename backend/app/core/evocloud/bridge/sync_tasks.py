@@ -247,7 +247,7 @@ async def incremental_sync_task(device_key: str, thread_ids: list[str]) -> dict:
                                         category=m.category or "",
                                         tool_call_id=m.tool_call_id or "",
                                         tool_name=m.tool_name or "",
-                                        meta_data=m.meta_data,
+                                        meta_data=m.meta_data if m.meta_data else None,
                                         content_type=m.content_type or "text"
                                     )
                                     formatted_msgs.append(sm.model_dump())

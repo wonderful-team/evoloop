@@ -243,6 +243,8 @@ export const MessageList = memo(function MessageList({
     isLoadingHistory,
     loadMoreHistory,
   })
+  // Flag that forces followOutput to return "auto" once, used after sending a message
+  const forceFollowRef = useRef(false)
   useEffect(() => {
     callbacksRef.current = { hasMoreHistory, isLoadingHistory, loadMoreHistory }
   })
@@ -250,22 +252,19 @@ export const MessageList = memo(function MessageList({
   // 监听用户强制滚到底部的事件 (比如发送新消息、点击重试)
   useEffect(() => {
     const handleScrollToBottom = () => {
-      // 给一点延迟，让消息渲染进 DOM 后再滚动
-      setTimeout(() => {
-        virtuosoRef.current?.scrollToIndex({
-          index: "LAST",
-          align: "end",
-          behavior: "auto",
-        })
-      }, 50)
-      // 兜底再次触发，防止流式消息刚刚建立时的尺寸突变
-      setTimeout(() => {
-        virtuosoRef.current?.scrollToIndex({
-          index: "LAST",
-          align: "end",
-          behavior: "auto",
-        })
-      }, 200)
+      // 设置强制跟随标志，使 followOutput 在下次触发时无条件返回 "auto"
+      forceFollowRef.current = true
+      // 多轮延迟滚动，覆盖 Virtuoso 刚渲染、流式消息高度突变等场景
+      const delays = [50, 200, 500, 1000]
+      for (const delay of delays) {
+        setTimeout(() => {
+          virtuosoRef.current?.scrollToIndex({
+            index: "LAST",
+            align: "end",
+            behavior: "auto",
+          })
+        }, delay)
+      }
     }
     window.addEventListener("chat-scroll-to-bottom", handleScrollToBottom)
     return () =>
@@ -293,6 +292,11 @@ export const MessageList = memo(function MessageList({
   const handleFollowOutput = useCallback(
     (isAtBottom: boolean) => {
       if (isLoadingHistory) return false
+      // 如果有强制跟随标志（用户刚发了消息），无视 isAtBottom，强制跟随并清除标志
+      if (forceFollowRef.current) {
+        forceFollowRef.current = false
+        return "auto"
+      }
       if (!isAtBottom) return false
       return "auto"
     },

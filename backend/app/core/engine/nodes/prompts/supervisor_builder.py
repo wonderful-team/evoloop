@@ -66,6 +66,9 @@ class SupervisorPromptBuilder(BasePromptBuilder):
             "project_concepts": ctx.metadata.get("project_concepts", ""),
             "is_supervisor": True,
             "has_file_operations": False,
+            "agent_name": SystemConfigService.get_value("AGENT_NAME", "EvoLoop"),
+            "agent_company": SystemConfigService.get_value("AGENT_COMPANY", "上海方天画戟信息技术有限公司"),
+            "agent_website": SystemConfigService.get_value("AGENT_WEBSITE", "https://evoloop.cn"),
         }
 
         # 4. Render Template

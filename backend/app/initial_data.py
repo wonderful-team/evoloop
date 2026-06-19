@@ -34,7 +34,18 @@ def init() -> None:
         logger.info("Seeding INTENT_MIN_CONFIDENCE...")
         SystemConfigService.set_value("INTENT_MIN_CONFIDENCE", "0.35", "Intent Classifier Threshold (0.0-1.0)")
 
-    # 4. LLM & Vision Configuration
+    # 4. Agent Identity Configuration
+    if not SystemConfigService.get_value("AGENT_NAME"):
+        logger.info("Seeding AGENT_NAME...")
+        SystemConfigService.set_value("AGENT_NAME", "EvoLoop", "Agent display name for LLM prompts")
+    if not SystemConfigService.get_value("AGENT_COMPANY"):
+        logger.info("Seeding AGENT_COMPANY...")
+        SystemConfigService.set_value("AGENT_COMPANY", "上海方天画戟信息技术有限公司", "Agent developer company name")
+    if not SystemConfigService.get_value("AGENT_WEBSITE"):
+        logger.info("Seeding AGENT_WEBSITE...")
+        SystemConfigService.set_value("AGENT_WEBSITE", "https://evoloop.cn", "Agent official website URL")
+
+    # 5. LLM & Vision Configuration
     _seed_llm_config(SystemConfigService)
 
 

@@ -390,28 +390,35 @@ export function MessageContent({ content, isUser = false }: MessageContentProps)
               }
 
 
-              // 文本部分处理：检查是否有表格
-              const tableData = parseMarkdownTable(block.content);
-              if (tableData && tableData.header.length > 0) {
-                return (
-                  <MarkdownTable
-                    key={bIndex}
-                    header={tableData.header}
-                    rows={tableData.rows}
-                  />
-                );
-              }
-
-              // 最后的兜底：Markdown 渲染
+              // 文本部分处理：解析所有内嵌的表格与文本段落，避免截断
+              const segments = extractTablesAndText(block.content);
               return (
                 <View key={bIndex}>
-                  <Markdown
-                    style={markdownStyles}
-                    rules={markdownRules}
-                  >
-                    {block.content}
-                  </Markdown>
-                  <AutoLinkPreview text={block.content} />
+                  {segments.map((seg, sIdx) => {
+                    if (seg.type === 'table') {
+                      const tableData = parseMarkdownTable(seg.content);
+                      if (tableData && tableData.header.length > 0) {
+                        return (
+                          <MarkdownTable
+                            key={sIdx}
+                            header={tableData.header}
+                            rows={tableData.rows}
+                          />
+                        );
+                      }
+                    }
+                    return (
+                      <View key={sIdx}>
+                        <Markdown
+                          style={markdownStyles}
+                          rules={markdownRules}
+                        >
+                          {seg.content}
+                        </Markdown>
+                        <AutoLinkPreview text={seg.content} />
+                      </View>
+                    );
+                  })}
                 </View>
               );
             })}
@@ -585,6 +592,58 @@ function parseMarkdownTable(text: string): { header: string[]; rows: string[][] 
   ).filter(row => row.length > 0);
 
   return { header, rows };
+}
+
+export interface ContentSegment {
+  type: 'text' | 'table';
+  content: string;
+}
+
+export function extractTablesAndText(text: string): ContentSegment[] {
+  const lines = text.split('\n');
+  const segments: ContentSegment[] = [];
+  let currentTextLines: string[] = [];
+  
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    const trimLine = line.trim();
+    
+    const isHeaderLine = trimLine.includes('|');
+    const nextLine = lines[i + 1];
+    const isDividerLine = nextLine && nextLine.trim().includes('|') && /^[|:\s-]+$/.test(nextLine.trim().replace(/[a-zA-Z0-9]/g, ''));
+    
+    if (isHeaderLine && isDividerLine) {
+      if (currentTextLines.length > 0) {
+        segments.push({ type: 'text', content: currentTextLines.join('\n') });
+        currentTextLines = [];
+      }
+      
+      const tableLines: string[] = [line, nextLine];
+      i += 2;
+      
+      while (i < lines.length) {
+        const rowLine = lines[i];
+        if (rowLine.trim().includes('|')) {
+          tableLines.push(rowLine);
+          i++;
+        } else {
+          break;
+        }
+      }
+      
+      segments.push({ type: 'table', content: tableLines.join('\n') });
+    } else {
+      currentTextLines.push(line);
+      i++;
+    }
+  }
+  
+  if (currentTextLines.length > 0) {
+    segments.push({ type: 'text', content: currentTextLines.join('\n') });
+  }
+  
+  return segments;
 }
 
 // 简化的链接预览组件

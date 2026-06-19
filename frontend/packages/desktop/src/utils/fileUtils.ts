@@ -76,5 +76,14 @@ export function resolveHrefPreview(
       isExternal: isAbsolutePath(path),
     }
   }
+
+  if (href.startsWith("uploads/")) {
+    return {
+      path: href,
+      name: linkText || getFileName(href),
+      isExternal: false,
+    }
+  }
+
   return null
 }

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -15,13 +16,20 @@ from app.api.deps import (
     verify_guest_access,
 )
 from app.api.schemas.agent import (
-    ChatRequest, WebhookRequest, ResumeRequest, CancelHITLRequest,
-    StopChatResponse, ResumeChatResponse, CancelHITLResponse, WebhookResponse
+    CancelHITLRequest,
+    CancelHITLResponse,
+    ChatRequest,
+    ResumeChatResponse,
+    ResumeRequest,
+    StopChatResponse,
+    WebhookRequest,
+    WebhookResponse,
 )
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.context import thread_context_store
 from app.core.context.manager import ContextManager, EvoContext
-from app.constants import DEFAULT_PROJECT_ID
+
 # --- Background Worker ---
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
@@ -43,6 +51,26 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+_thread_locks: dict[str, asyncio.Lock] = {}
+_thread_locks_guard = asyncio.Lock()
+
+
+async def _acquire_thread_lock(thread_id: str) -> asyncio.Lock:
+    async with _thread_locks_guard:
+        if thread_id not in _thread_locks:
+            _thread_locks[thread_id] = asyncio.Lock()
+        return _thread_locks[thread_id]
+
+
+async def _check_thread_not_running(thread_id: str) -> None:
+    """Raise 409 if the thread is currently processing a message."""
+    state = await activity_monitor.get_activity(thread_id)
+    if state and state.status == "running":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Thread {thread_id} is currently processing. Please wait for it to complete."
+        )
+
 
 # =============================================================================
 # Unified Dispatch Helpers
@@ -56,62 +84,70 @@ async def chat_endpoint(req: ChatRequest, bg_tasks: BackgroundTasks, _current_us
     if not req.thread_id:
         req.thread_id = str(uuid.uuid4())
 
-    ctx = EvoContext(
-        request_id=f"req-{req.thread_id}-{int(time.time())}",
-        thread_id=req.thread_id,
-        project_id=req.project_id,
-        command_id=req.command_id,
-        active_model=req.model,
-        token=token
-    )
-    ContextManager.set(ctx)
+    lock = await _acquire_thread_lock(req.thread_id)
+    async with lock:
+        await _check_thread_not_running(req.thread_id)
 
-    # Process skill_ids if provided
-    references = req.references or []
-    if req.skill_ids:
-        try:
-            async with session_scope() as session:
-                stmt = select(LearnedSkill).where(LearnedSkill.id.in_(req.skill_ids))
-                res = await session.execute(stmt)
-                skills = res.scalars().all()
-                for skill in skills:
-                    references.append({
-                        "id": str(skill.id),
-                        "type": "skill",
-                        "target_id": str(skill.id),
-                        "target_name": skill.name,
-                        "metadata": {
-                            "skill_id": skill.id,
-                            "skill_name": skill.name,
-                            "description": skill.description
-                        },
-                        "meta_data": {  # 保留兼容，供外部旧的解析逻辑取用
-                            "skill_id": skill.id,
-                            "skill_name": skill.name,
-                            "description": skill.description
-                        }
-                    })
-        except Exception as e:
-            logger.warning(f"Failed to fetch skills {req.skill_ids}: {e}")
+        # Mark as running immediately to prevent concurrent dispatches
+        # (bg_task hasn't started yet, so the normal start_run in run_scope won't fire in time)
+        await activity_monitor._state_service.start_run(req.thread_id, req.message or "")
 
-    logger.debug(f"[ChatEndpoint] Run initialized for thread {req.thread_id}")
+        ctx = EvoContext(
+            request_id=f"req-{req.thread_id}-{int(time.time())}",
+            thread_id=req.thread_id,
+            project_id=req.project_id,
+            command_id=req.command_id,
+            active_model=req.model,
+            token=token
+        )
+        ContextManager.set(ctx)
 
-    # Use Unified Dispatcher
-    result = await dispatch_agent_run(
-        thread_id=req.thread_id,
-        message_content=req.message,
-        project_id=req.project_id,
-        references=references,
-        command_id=req.command_id,
-        checkpoint_id=req.checkpoint_id,
-        model=req.model,
-        context=ctx,
-        member_id=_current_user.id if _current_user else 0,
-    )
-    if result.status == "failed":
-        raise HTTPException(status_code=500, detail=result.error)
+        # Process skill_ids if provided
+        references = req.references or []
+        if req.skill_ids:
+            try:
+                async with session_scope() as session:
+                    stmt = select(LearnedSkill).where(LearnedSkill.id.in_(req.skill_ids))
+                    res = await session.execute(stmt)
+                    skills = res.scalars().all()
+                    for skill in skills:
+                        references.append({
+                            "id": str(skill.id),
+                            "type": "skill",
+                            "target_id": str(skill.id),
+                            "target_name": skill.name,
+                            "metadata": {
+                                "skill_id": skill.id,
+                                "skill_name": skill.name,
+                                "description": skill.description
+                            },
+                            "meta_data": {  # 保留兼容，供外部旧的解析逻辑取用
+                                "skill_id": skill.id,
+                                "skill_name": skill.name,
+                                "description": skill.description
+                            }
+                        })
+            except Exception as e:
+                logger.warning(f"Failed to fetch skills {req.skill_ids}: {e}")
 
-    bg_tasks.add_task(run_agent_background, req.thread_id, result.inputs)
+        logger.debug(f"[ChatEndpoint] Run initialized for thread {req.thread_id}")
+
+        # Use Unified Dispatcher
+        result = await dispatch_agent_run(
+            thread_id=req.thread_id,
+            message_content=req.message,
+            project_id=req.project_id,
+            references=references,
+            command_id=req.command_id,
+            checkpoint_id=req.checkpoint_id,
+            model=req.model,
+            context=ctx,
+            member_id=_current_user.id if _current_user else 0,
+        )
+        if result.status == "failed":
+            raise HTTPException(status_code=500, detail=result.error)
+
+        bg_tasks.add_task(run_agent_background, req.thread_id, result.inputs)
     # if settings.EMBEDDED_MODE:
     #     bg_tasks.add_task(run_agent_background, req.thread_id, result.inputs)
     # else:
@@ -132,15 +168,16 @@ async def mock_chat(req: ChatRequest):
     if not req.thread_id:
         raise HTTPException(status_code=400, detail="thread_id is required")
 
-    from app.core.monitoring.activity import activity_monitor
-    from app.core.engine.message.handler import MessageHandler
-    from app.core.engine.message.factory import MessageBlockFactory
-    from app.core.engine.message.publisher import MessagePublisher
-    from app.models.schemas.events import QuotaExhaustedEvent, StatusEvent
-    from app.core.engine.message.schemas import ReferenceBlock
-    from app.core.engine.message.category import MessageCategory
     import asyncio
     import datetime
+
+    from app.core.engine.message.category import MessageCategory
+    from app.core.engine.message.factory import MessageBlockFactory
+    from app.core.engine.message.handler import MessageHandler
+    from app.core.engine.message.publisher import MessagePublisher
+    from app.core.engine.message.schemas import ReferenceBlock
+    from app.core.monitoring.activity import activity_monitor
+    from app.models.schemas.events import QuotaExhaustedEvent, StatusEvent
 
     scenario = req.scenario or "happy_path"
     now_str = datetime.datetime.utcnow().isoformat() + "Z"
@@ -668,7 +705,11 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Requ
     if not req.thread_id:
         raise HTTPException(status_code=400, detail="thread_id is required")
     from app.core.engine.rewind import RewindOrchestrator
-    from app.core.engine.rewind.exceptions import MessageNotFoundError, NoHumanMessageError, RewindError
+    from app.core.engine.rewind.exceptions import (
+        MessageNotFoundError,
+        NoHumanMessageError,
+        RewindError,
+    )
 
     # =============================================================================
     # Phase 1: Rewind (Retry-Specific)

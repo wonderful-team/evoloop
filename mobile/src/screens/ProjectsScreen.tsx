@@ -1,7 +1,7 @@
 // 项目列表页面
 
 import React, { useCallback, useState } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
+import { View, StyleSheet, FlatList, RefreshControl, Alert } from 'react-native';
 import { Text, Card, Chip, Portal, Dialog, Button } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -70,9 +70,6 @@ const ProjectsContent = () => {
   const currentDevice = useDeviceStore(state => state.currentDevice);
 
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [dialogVisible, setDialogVisible] = useState(false);
-  const [switching, setSwitching] = useState(false);
 
   // 游客模式显示登录提示
   if (!isLoggedIn) {
@@ -85,31 +82,23 @@ const ProjectsContent = () => {
     setRefreshing(false);
   }, [refresh]);
 
-  const handleProjectPress = useCallback((project: Project) => {
-    setSelectedProject(project);
-    setDialogVisible(true);
-  }, []);
-
-  const handleSwitch = useCallback(async () => {
-    if (!selectedProject) return;
-
-    setSwitching(true);
-    try {
-      if (isGlobalProject(selectedProject)) {
-        setGlobalMode(true);
-      } else if (!currentDevice) {
-        // 没有选中设备时不能切换项目
-        return;
-      } else {
-        await switchProject(selectedProject.id);
-      }
-      setDialogVisible(false);
-      // 成功切换后返回聊天页面
+  const handleProjectPress = useCallback(async (project: Project) => {
+    if (isGlobalProject(project)) {
+      setGlobalMode(true);
       router.back();
-    } finally {
-      setSwitching(false);
+    } else if (!currentDevice) {
+      // 没有选中设备时不能切换项目，弹窗提示
+      Alert.alert(t('common.tip'), t('projects.selectDeviceFirst'));
+      return;
+    } else {
+      try {
+        await switchProject(project.id);
+        router.back();
+      } catch (e) {
+        console.error('切换项目失败:', e);
+      }
     }
-  }, [selectedProject, switchProject, setGlobalMode, currentDevice]);
+  }, [switchProject, setGlobalMode, currentDevice, t]);
 
   const renderItem = useCallback(({ item }: { item: Project }) => (
     <Card
@@ -205,10 +194,7 @@ const ProjectsContent = () => {
                 styles.globalCard,
                 isGlobalMode && [styles.activeCard, { borderColor: colors.primary }],
               ]}
-              onPress={() => {
-                setSelectedProject(GLOBAL_PROJECT);
-                setDialogVisible(true);
-              }}
+              onPress={() => handleProjectPress(GLOBAL_PROJECT)}
             >
               <Card.Content>
                 <View style={styles.itemHeader}>
@@ -239,32 +225,6 @@ const ProjectsContent = () => {
           }
         />
       )}
-
-      <Portal>
-        <Dialog visible={dialogVisible} onDismiss={() => setDialogVisible(false)}>
-          <Dialog.Title>{selectedProject?.name}</Dialog.Title>
-          <Dialog.Content>
-            <Text variant="bodyMedium">
-              {selectedProject?.isGlobal
-                ? t('projects.switchToGlobalConfirm')
-                : currentDevice
-                  ? t('projects.switchToProjectConfirm', { deviceName: currentDevice.name })
-                  : t('projects.selectDeviceFirst')}
-            </Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setDialogVisible(false)}>{t('common.cancel')}</Button>
-            <Button
-              onPress={handleSwitch}
-              loading={switching}
-              disabled={switching}
-              mode="contained"
-            >
-              {t('projects.switch')}
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
 
 
     </SafeAreaView>

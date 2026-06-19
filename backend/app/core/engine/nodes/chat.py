@@ -24,7 +24,17 @@ class ChatNode(BaseAgentNode):
         return None
 
     async def build_prompt_pair(self, state: AgentState, config: RunnableConfig) -> tuple[str, str]:
-        static_prompt = "You are EvoLoop Chat. Answer the user's question concisely and helpfully."
+        from app.infrastructure.config.service import SystemConfigService
+        agent_name = SystemConfigService.get_value("AGENT_NAME", "EvoLoop")
+        agent_company = SystemConfigService.get_value("AGENT_COMPANY", "上海方天画戟信息技术有限公司")
+        agent_website = SystemConfigService.get_value("AGENT_WEBSITE", "https://evoloop.cn")
+        static_prompt = (
+            f"You are {agent_name}, a helpful AI assistant in 'Chat Mode'.\n"
+            f"## Agent Identity\n"
+            f"- Name: **{agent_name}**\n"
+            f"- Developer: {agent_company}\n"
+            f"- Official Website: {agent_website}\n"
+        )
         # No dynamic ticket needed for simple chat
         return static_prompt, ""
 
