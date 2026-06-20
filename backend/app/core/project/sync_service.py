@@ -232,6 +232,25 @@ class ProjectSyncService:
                     # Persist project_id and repo_id into local .evoloop/project.json
                     write_project_json(abs_path, {"project_id": cloud_project_id, "repo_id": repo.id})
 
+                    # Sync device source to cloud so mobile can find this project
+                    try:
+                        from app.core.identity import identity_service
+                        device_key = await identity_service.store.get_device_key()
+                        if device_key:
+                            await evocloud_manager.api.update_project(
+                                project_id=cloud_project_id,
+                                source=device_key,
+                            )
+                            logger.info(
+                                f"[ProjectSync] Updated project {cloud_project_id} "
+                                f"source to device key {device_key}"
+                            )
+                    except Exception as e:
+                        logger.warning(
+                            f"[ProjectSync] Failed to update project "
+                            f"{cloud_project_id} source: {e}"
+                        )
+
                     # Auto-trigger indexing (no user confirmation needed)
                     await self._trigger_auto_indexing(repo, path)
 

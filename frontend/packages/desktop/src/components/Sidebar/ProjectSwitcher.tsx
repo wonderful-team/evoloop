@@ -112,12 +112,10 @@ export function ProjectSwitcher({
   // Poll for status
   useProjectStatus()
 
+  // Always fetch switchable projects when dialog opens
   React.useEffect(() => {
-    if (projects.length === 0) {
-      // Fetch only switchable projects (linked + local path exists)
-      fetchProjects("switchable")
-    }
-  }, [fetchProjects, projects.length])
+    fetchProjects("switchable")
+  }, [fetchProjects])
 
   const filteredProjects = projects.filter(
     (project) =>

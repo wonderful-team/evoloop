@@ -28,4 +28,12 @@ async def get_evoloop_status() -> EvoloopStatusResponse:
 @router.get("/ai/config")
 async def get_ai_config():
     """Get global AI config (Models, Prices)"""
-    return await evocloud_manager.api.get_ai_global_config()
+    return {
+        "code": 0,
+        "data": {
+            "models": [],
+            "limits": {
+                "guest_daily_limit": 10,
+            },
+        },
+    }
