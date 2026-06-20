@@ -199,15 +199,36 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
 
         if active_token:
             request_params["token"] = active_token
+            logger.info(f"[EvoCloud] Request {method} {endpoint}: token_prefix={active_token[:8]}...")
+        else:
+            logger.info(f"[EvoCloud] Request {method} {endpoint}: no active token")
+
+        # Log request params with token masked for safety
+        log_params = {k: ("***" if k == "token" and v else v) for k, v in request_params.items()}
+        logger.info(f"[EvoCloud] Request {method} {endpoint} params: {log_params}")
 
         try:
             resp = await client.request(method, url, params=request_params, json=data, headers=req_headers)
+            raw_text = resp.text
+            logger.info(f"[EvoCloud] Response {method} {endpoint}: status={resp.status_code}, body={raw_text[:1000]!r}")
             # Handle token expiration (401 or specific error code)
             resp_json = (resp.json() if resp.status_code == 200 else None) or {}
+            logger.info(
+                f"[EvoCloud] Parsed response for {endpoint}: "
+                f"status={resp.status_code}, "
+                f"code={resp_json.get('code')}, "
+                f"message={resp_json.get('message')!r}, "
+                f"data={resp_json.get('data')!r}"
+            )
             is_token_expired = (
                 resp.status_code == 401 or
                 resp_json.get("code") in [-10009, -10010] or
                 resp_json.get("message") == "TOKEN_EXPIRE"
+            )
+            logger.info(
+                f"[EvoCloud] Token expiry check for {endpoint}: "
+                f"is_token_expired={is_token_expired}, "
+                f"retry_count={_retry_count}"
             )
             if is_token_expired and _retry_count < 1:
                 stored_token = await self.get_token()
@@ -225,6 +246,8 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
                             headers=headers,
                             _retry_count=_retry_count + 1
                         )
+                    else:
+                        logger.error(f"[EvoCloud] Token refresh failed for {endpoint}, returning original error")
 
             if resp.status_code >= 400:
                 logger.error(f"API Error {resp.status_code}: {resp.text[:500]}")
@@ -302,11 +325,12 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         token=token)
 
     async def create_project(self, name: str, description: str, path: str, token: str | None = None) -> dict:
+        device_key = await identity_service.store.get_device_key()
         payload = {
             "name": name,
             "description": description,
             "path": path,
-            "source": settings.SERVICE_NAME,
+            "source": device_key or settings.SERVICE_NAME,
         }
         return await self.request("POST", "/projectmanage/api/projectOpen/createProject", data=payload, token=token)
 
@@ -316,7 +340,9 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         description: str = None,
         name: str = None,
         path: str = None,
-    token: str | None = None) -> dict:
+        source: str = None,
+        token: str | None = None,
+    ) -> dict:
         data = {"project_id": project_id}
         if description is not None:
             data["project_desc"] = description
@@ -324,6 +350,8 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             data["name"] = name
         if path is not None:
             data["path"] = path
+        if source is not None:
+            data["source"] = source
         return await self.request("POST", "/projectmanage/api/projectOpen/updateProject", data=data, token=token)
 
     async def delete_project(self, project_id: int, token: str | None = None) -> dict:
