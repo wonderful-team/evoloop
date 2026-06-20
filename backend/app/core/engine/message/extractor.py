@@ -2,7 +2,7 @@
 AttachmentExtractor — AI 回复产出物自动提取器。
 
 职责：
-1. 扫描 AI 回复文本，检测代码块类型（echarts/mermaid/map/artifact/react）和标准 Markdown 引用（[链接](file://...) 或 uploads/）
+1. 扫描 AI 回复文本，检测代码块类型（echarts/mermaid/map/artifact/react）和标准 Markdown 链接（[链接](file://...) / uploads/...）
 2. 将检测结果结构化为 ReferenceBlock 数据，自动挂载到 AI 消息的引用列表
 3. 无副作用：仅做数据提取，不操作数据库或文件系统
 """
@@ -12,8 +12,6 @@ import logging
 import re
 import uuid
 from typing import Any
-
-from app.constants import DEFAULT_PROJECT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -31,16 +29,10 @@ ARTIFACT_CODE_BLOCK_TYPES = {
     "react": "react",
 }
 
-# 正则：匹配 uploads/ 路径（如 uploads/report.xlsx）
-_PATH_PATTERN = re.compile(r"uploads/[\w\-./]+\.\w+")
-
 # 正则：匹配代码块语言标识符（```echarts ... ```）
 _CODE_BLOCK_PATTERN = re.compile(r"```(\w+)\s*\n(.*?)```", re.DOTALL)
 
-# 正则：匹配引用标记 @[type:id]（如 @[message:uuid] 或 @[skill:skill_id]）
-_REFERENCE_PATTERN = re.compile(r"@\[(message|skill):([\w\-]+)\]")
-
-# 正则：匹配标准 Markdown 链接和图片：[text](file:///path) 或 ![text](/uploads/...)
+# 正则：匹配标准 Markdown 链接和图片：[text](file:///path) 或 ![text](uploads/...)
 _MD_LINK_PATTERN = re.compile(r"!?\[([^\]]+)\]\((file://[^\)]+|/[^\)]+|\./[^\)]+|uploads/[^\)]+)\)")
 
 # 正则：匹配 JSON 风格的 artifact 块
@@ -55,8 +47,6 @@ class AttachmentExtractor:
     def extract_from_ai_response(
         self,
         content: str,
-        thread_id: str,
-        project_id: int = DEFAULT_PROJECT_ID,
     ) -> list[dict[str, Any]]:
         """
         从 AI 回复文本中提取所有附件引用。
@@ -145,75 +135,15 @@ class AttachmentExtractor:
                 continue
             seen_targets.add(key)
 
-            final_target_id = target_id
-            if not target_id.startswith(("http", "/api/")):
-                final_target_id = f"/api/v1/projects/{project_id}/files/raw?path={clean_target_id}&thread_id={thread_id}"
-
-            references.append({
-                "id": str(uuid.uuid4()),
-                "type": ref_type,
-                "target_id": final_target_id,
-                "target_name": target_name,
-                "metadata": {
-                    "source_id": clean_target_id,
-                    "is_standard_md_link": True
-                },
-            })
-
-        # --- 4. 扫描文件路径（Legacy uploads/ 路径）---
-        for match in _PATH_PATTERN.finditer(content):
-            path = match.group(0)
-
-            # 按扩展名推断类型
-            lower_path = path.lower()
-            ext = "." + lower_path.rsplit(".", 1)[-1] if "." in lower_path else ""
-            if ext in IMAGE_EXTENSIONS:
-                ref_type = "image"
-            elif ext in AUDIO_EXTENSIONS:
-                ref_type = "audio"
-            else:
-                ref_type = "file"
-
-            # Check standardized key to avoid duplicate with [REF]
-            key = f"ref:{ref_type}:{path}"
-            if key in seen_targets:
-                continue
-            seen_targets.add(key)
-
-            filename = path.rsplit("/", 1)[-1]
-            preview_url = f"/api/v1/projects/{project_id}/files/raw?path={path}&thread_id={thread_id}"
-
-            references.append({
-                "id": str(uuid.uuid4()),
-                "type": ref_type,
-                "target_id": preview_url,
-                "target_name": filename,
-                "metadata": {
-                    "filename": filename,
-                    "source_path": path,
-                },
-            })
-
-        # --- 5. 扫描 Legacy 引用标记 @[type:id] ---
-        for match in _REFERENCE_PATTERN.finditer(content):
-            ref_type = match.group(1)
-            target_id = match.group(2)
-
-            key = f"ref:{ref_type}:{target_id}"
-            if key in seen_targets:
-                continue
-            seen_targets.add(key)
-
-            target_name = "引用消息" if ref_type == "message" else "引用技能"
-
             references.append({
                 "id": str(uuid.uuid4()),
                 "type": ref_type,
                 "target_id": target_id,
-                "target_name": f"{target_name} ({target_id[:8]})",
+                "target_name": target_name,
                 "metadata": {
-                    "source_id": target_id,
-                    "is_auto_extracted": True
+                    "source_path": clean_target_id,
+                    "is_local_file": True,
+                    "is_standard_md_link": True
                 },
             })
 

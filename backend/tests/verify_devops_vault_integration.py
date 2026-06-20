@@ -311,8 +311,10 @@ async def run_verification():
             logger.info("✅ SUCCESS: HITL resume successfully executed and agent ran to completion!")
 
     finally:
-        if db_resource_manager._initialized:
+        try:
             await db_resource_manager.shutdown()
+        except Exception as e:
+            logger.warning(f"Error during db shutdown: {e}")
         # Clean up database file
         if os.path.exists("test_devops_integration.db"):
             try:
