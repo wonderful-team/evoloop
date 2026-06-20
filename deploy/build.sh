@@ -138,6 +138,7 @@ if [ "$INTERACTIVE" = "true" ]; then
     esac
   fi
 
+  ANDROID_FORMAT="--apk"  # default for non-interactive
   NEEDS_MOBILE_PROMPT="false"
   NEEDS_ANDROID_PROMPT="false"
   for t in "${TARGETS[@]}"; do

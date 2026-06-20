@@ -105,8 +105,9 @@ else
     warn "Tauri build failed, attempting manual bundling..."
   }
 
+  APP_VERSION=$(grep ^APP_VERSION= "$PROJECT_ROOT/.env" 2>/dev/null | cut -d= -f2 || echo "0.1.0")
   APP_BUNDLE="src-tauri/target/${ARCH}/release/bundle/macos/EvoLoop.app"
-  DMG_PATH="src-tauri/target/${ARCH}/release/bundle/dmg/EvoLoop_0.1.0_x86_64.dmg"
+  DMG_PATH="src-tauri/target/${ARCH}/release/bundle/dmg/EvoLoop_${APP_VERSION}_x86_64.dmg"
 
   if [ ! -d "$APP_BUNDLE" ]; then
     if [ -d "src-tauri/target/release/EvoLoop.app" ]; then
