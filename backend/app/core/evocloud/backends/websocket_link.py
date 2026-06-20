@@ -40,6 +40,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
         # State
         self.client_id: str | None = None
+        self._handshake_completed = False
 
         # Connection
         self.ws: ClientConnection | None = None
@@ -268,11 +269,15 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
         while self._running:
             try:
+                # Ensure device key is loaded/created before each connection attempt
+                await self.ensure_device_key()
+
                 logger.info(f"[EvoCloud) Connecting WS to {self.config.ws_url}...")
 
                 async with websockets.connect(self.config.ws_url, ssl=ssl_context) as ws:
                     self.ws = ws
                     logger.info("[EvoCloud] WS Connected. Sending handshake...")
+                    self._handshake_completed = False
 
                     # New Go Gateway Handshake
                     handshake = WebSocketHandshake(payload={
@@ -297,6 +302,10 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                 raise  # Let cancellation propagate cleanly
             except Exception as e:
                 logger.warning(f"[EvoCloud] WS Connection Error: {e}")
+                if not self._handshake_completed and self.device_key:
+                    logger.warning("[EvoCloud] Connection closed before handshake completed. Cached device key might be invalid. Clearing device key to force sync...")
+                    await identity_service.store.delete_device_key()
+                    self._device_key = ""
             finally:
                 self.ws = None
 
@@ -371,6 +380,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         client_id = payload.get("client_id")
         if client_id:
             self.client_id = client_id
+        self._handshake_completed = True
         return True
 
     _LINK_LAYER_HANDLERS: dict[str, Callable[["EvoCloudWebSocketLink", dict], Awaitable[bool]]] = {
