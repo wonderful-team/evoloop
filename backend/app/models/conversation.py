@@ -90,6 +90,10 @@ class Message(Base):
     # values: "desktop", "mobile", "api"
     source: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
 
+    # Device Identification for A2A Attribution
+    executor_device_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    executor_device_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     # Cloud Sync State
     # values: 'pending', 'synced', 'failed'
     sync_status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending", index=True)
@@ -157,6 +161,11 @@ class Conversation(Base):
     # Thread Tree Relationships for A2A
     root_thread_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     parent_thread_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+
+    # Device Identification for A2A Attribution
+    caller_device_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    executor_device_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    executor_device_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     messages: Mapped[list["Message"]] = relationship(
         back_populates="conversation",

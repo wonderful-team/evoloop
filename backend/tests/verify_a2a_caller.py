@@ -121,6 +121,18 @@ async def run_verification():
         await initialize_system()
         await login()
 
+        # 启动 Device Link 以在发送 A2A 任务时携带 Caller 真实的 device_key
+        logger.info("[Caller] 正在启动 EvoCloud 链路并建立 WebSocket 连接...")
+        await evocloud_manager.start()
+        # 等待 WS 连接成功并获得 device_key
+        for _ in range(10):
+            if evocloud_manager.link and evocloud_manager.link.device_key:
+                logger.info(f"[Caller] WebSocket 已连接，获取到 device_key: {evocloud_manager.link.device_key}")
+                break
+            await asyncio.sleep(1)
+        else:
+            logger.warning("[Caller] 等待 WebSocket 连接超时，无法获取 device_key，将使用默认值")
+
         # 唤醒 Agent 环境（加载项目感知、skills 等）
         from app.core.environment import awaken
         await awaken(project_id=0)
@@ -193,6 +205,7 @@ async def run_verification():
                 )
 
     finally:
+        await evocloud_manager.stop()
         await db_resource_manager.shutdown()
         logger.info("--- [Caller] 清理完成 ---")
 

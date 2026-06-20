@@ -121,6 +121,11 @@ class MessageBlock(DynamicBaseModel):
     parent_id: str | None = None
     checkpoint_id: str | None = None
     is_complete: bool | None = None  # 显式完成状态
+
+    # === A2A 设备标识 ===
+    executor_device_key: str | None = None
+    executor_device_name: str | None = None
+
     meta_data: dict[str, Any] = Field(default_factory=dict)
 
 

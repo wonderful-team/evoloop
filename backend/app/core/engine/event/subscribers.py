@@ -423,6 +423,10 @@ class EngineCommandSubscriber:
         from app.models import Conversation
         from app.infrastructure.database.sql.database import session_scope
         from datetime import datetime, timezone
+        from app.core.config import settings
+
+        executor_device_key = evocloud_manager.link.device_key if evocloud_manager.link else "unknown-worker"
+        executor_device_name = settings.EVOCLOUD_DEVICE_NAME
 
         project_id = command.get("project_id") or DEFAULT_PROJECT_ID
         async with session_scope() as session:
@@ -434,6 +438,9 @@ class EngineCommandSubscriber:
                     title=f"A2A: {task.instruction[:30]}",
                     root_thread_id=task.root_thread_id,
                     parent_thread_id=task.parent_thread_id,
+                    caller_device_key=task.caller_device_key,
+                    executor_device_key=executor_device_key,
+                    executor_device_name=executor_device_name,
                     created_at=datetime.now(timezone.utc),
                     updated_at=datetime.now(timezone.utc),
                 )
@@ -587,6 +594,22 @@ class EngineCommandSubscriber:
         model = loaded_ctx.active_model if loaded_ctx else None
         if not model:
             model = SystemConfigService.get_value("LLM_MODEL")
+        if not model:
+            # Fallback: 从 Gateway 拉取第一个可用的平台 LLM 模型
+            # 适用于进程重启后 ContextManager 丢失、且本地 DB 未配置 LLM_MODEL 的情况
+            try:
+                from app.infrastructure.llm.platform_service import llm_platform_service
+                platform_models = await llm_platform_service.fetch_platform_models()
+                llm_models = [m for m in platform_models if m.model_type == "llm"]
+                if llm_models:
+                    model = llm_models[0].model_id
+                    logger.info(f"[A2A] Model resolved from platform: {model}")
+            except Exception as e:
+                logger.warning(f"[A2A] Failed to fetch platform models for fallback: {e}")
+
+        if not model:
+            logger.error(f"[A2A] Cannot resume Caller thread {caller_thread_id}: no model available")
+            return
 
         inputs = BackgroundAgentInputs(
             hitl_resume_response=result_content,
@@ -594,3 +617,4 @@ class EngineCommandSubscriber:
         )
         logger.info(f"[A2A] Resuming Caller Agent on thread {caller_thread_id}")
         asyncio.create_task(run_agent_background(caller_thread_id, inputs))
+

@@ -244,23 +244,7 @@ async def complete_task(
         conv = await session.get(Conversation, thread_id)
         if conv:
             parent_thread_id = conv.parent_thread_id
-
-    from app.models import Message
-    async with session_scope() as session:
-        stmt = (
-            select(Message)
-            .where(Message.thread_id == thread_id)
-            .where(Message.role == "system")
-            .order_by(Message.sequence_number.asc())
-            .limit(1)
-        )
-        res = await session.execute(stmt)
-        sys_msg = res.scalar_one_or_none()
-        if sys_msg and sys_msg.content:
-            import re
-            m = re.search(r"initiated by device key:\s*([^\s\n]+)", sys_msg.content)
-            if m:
-                caller_device_key = m.group(1)
+            caller_device_key = conv.caller_device_key
 
     if not parent_thread_id or not caller_device_key:
         return "Error: This session is not an active A2A worker task. Cannot send callback."

@@ -50,6 +50,8 @@ class MessageRepository:
         message_id: str | None = None,
         node_source: str | None = None,
         source: str | None = None,
+        executor_device_key: str | None = None,
+        executor_device_name: str | None = None,
     ) -> tuple[str | None, int]:
         """
         Persist a message to the database.
@@ -95,6 +97,8 @@ class MessageRepository:
                     node_source=node_source,
                     source=source,
                     parent_id=effective_parent_id,
+                    executor_device_key=executor_device_key,
+                    executor_device_name=executor_device_name,
                 )
                 session.add(log)
 

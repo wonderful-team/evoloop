@@ -45,7 +45,7 @@ async def list_conversations(
     """
     async with get_db_session() as session:
         # Get total count first
-        count_stmt = select(func.count(Conversation.id))
+        count_stmt = select(func.count(Conversation.id)).where(Conversation.parent_thread_id.is_(None))
         if project_id is not None:
             count_stmt = count_stmt.where(Conversation.project_id == project_id)
         if current_user is not None:
@@ -54,7 +54,7 @@ async def list_conversations(
         total_count = total_count_result.scalar() or 0
 
         # Fetch paginated results ordered by pin status and update time
-        stmt = select(Conversation).order_by(Conversation.is_pinned.desc(), Conversation.updated_at.desc())
+        stmt = select(Conversation).where(Conversation.parent_thread_id.is_(None)).order_by(Conversation.is_pinned.desc(), Conversation.updated_at.desc())
         if project_id is not None:
             stmt = stmt.where(Conversation.project_id == project_id)
         if current_user is not None:
@@ -78,6 +78,11 @@ async def list_conversations(
                 status=activity_map.get(c.id, {}).get("status", "idle"),
                 is_pinned=c.is_pinned,
                 goal=activity_map.get(c.id, {}).get("main_goal"),
+                parent_thread_id=c.parent_thread_id,
+                root_thread_id=c.root_thread_id,
+                caller_device_key=c.caller_device_key,
+                executor_device_key=c.executor_device_key,
+                executor_device_name=c.executor_device_name,
             ) for c in conversations
         ]
 

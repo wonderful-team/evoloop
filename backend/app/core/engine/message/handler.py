@@ -121,6 +121,7 @@ class MessageHandler:
 
             extracted_refs = attachment_extractor.extract_from_ai_response(content=persist_data.content)
 
+            dev_key, dev_name = self._get_device_attribution()
             msg_id, seq = await self._repository.persist(
                 role="ai",
                 content=persist_data.content,
@@ -134,6 +135,8 @@ class MessageHandler:
                 parent_id=effective_parent_id,
                 references=extracted_refs,  # 挂载提取到的引用
                 message_id=msg_id,
+                executor_device_key=dev_key,
+                executor_device_name=dev_name,
             )
 
             # 只有用户可见且不是纯内部思考的消息才推送到 Mobile
@@ -215,6 +218,7 @@ class MessageHandler:
 
         # Apply persistence policy
         if category.should_persist_to_db:
+            dev_key, dev_name = self._get_device_attribution()
             message_id, seq = await self._repository.persist(
                 role="tool",
                 content="",
@@ -233,6 +237,8 @@ class MessageHandler:
                 },
                 node_source=node_source,
                 parent_id=effective_parent_id,
+                executor_device_key=dev_key,
+                executor_device_name=dev_name,
             )
 
         # Push real-time "running" event if visible
@@ -350,6 +356,7 @@ class MessageHandler:
                     )
         elif persist_data.should_persist:
             # Fallback: INSERT new record (backward compatibility)
+            dev_key, dev_name = self._get_device_attribution()
             message_id, seq = await self._repository.persist(
                 role="tool",
                 content=persist_data.content,
@@ -361,6 +368,8 @@ class MessageHandler:
                 content_type="text",
                 metadata=metadata,
                 node_source=node_source,
+                executor_device_key=dev_key,
+                executor_device_name=dev_name,
             )
             if message_id and category.is_visible_to_user:
                 await self._dispatch_block(
@@ -520,6 +529,7 @@ class MessageHandler:
 
         effective_parent_id = parent_id or await self._repository.get_last_message_id()
 
+        dev_key, dev_name = self._get_device_attribution()
         message_id, seq = await self._repository.persist(
             role="system",
             content=content,
@@ -532,6 +542,8 @@ class MessageHandler:
             tool_name=tool_name,
             metadata=final_metadata if final_metadata else None,
             parent_id=effective_parent_id,
+            executor_device_key=dev_key,
+            executor_device_name=dev_name,
         )
         await self._dispatch_block(
             role="system",
@@ -568,12 +580,15 @@ class MessageHandler:
         message_id = None
         if category == MessageCategory.ERROR_BUSINESS:
             error_markdown = f"**{classification.title}**\n\n{classification.message}\n\n*Hint: {classification.hint}*"
+            dev_key, dev_name = self._get_device_attribution()
             message_id, _ = await self._repository.persist(
                 role="ai",
                 content=error_markdown,
                 category=category.value,
                 is_visible=True,
                 content_type="markdown",
+                executor_device_key=dev_key,
+                executor_device_name=dev_name,
             )
 
         from app.core.engine.message.mobile_notifier import MobileErrorNotifier
@@ -645,6 +660,18 @@ class MessageHandler:
     # Private helpers
     # ------------------------------------------------------------------
 
+    def _get_device_attribution(self) -> tuple[str | None, str | None]:
+        """获取当前运行环境的 A2A 设备标识"""
+        try:
+            from app.core.config import settings
+            from app.core.evocloud.manager import evocloud_manager
+            
+            dev_key = evocloud_manager.link.device_key if (evocloud_manager and evocloud_manager.link) else None
+            dev_name = settings.EVOCLOUD_DEVICE_NAME
+            return dev_key, dev_name
+        except Exception:
+            return None, None
+
     async def _dispatch_block(
         self,
         role: str,
@@ -673,6 +700,12 @@ class MessageHandler:
         if role == "tool" and channels and "sse" in channels:
             dispatch_content = ""
 
+        # Get device info for AI / Tool / System messages
+        dev_key = None
+        dev_name = None
+        if role != "human":
+            dev_key, dev_name = self._get_device_attribution()
+
         from app.core.engine.message.factory import MessageBlockFactory
 
         block = MessageBlockFactory.from_event(
@@ -691,6 +724,8 @@ class MessageHandler:
             run_id=self.run_id,
             references=references,
             message_id=message_id,
+            executor_device_key=dev_key,
+            executor_device_name=dev_name,
         )
 
         if not self._publisher:

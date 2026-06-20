@@ -54,6 +54,10 @@ class MessageBlockFactory:
         if not isinstance(meta_data, dict):
             meta_data = {}
 
+        # Extract device attribution info
+        executor_device_key = cls._get_val(msg, "executor_device_key")
+        executor_device_name = cls._get_val(msg, "executor_device_name")
+
         # 3. Handle References (if present in ORM)
         from app.core.engine.message.schemas import ReferenceBlock
         references = []
@@ -93,7 +97,9 @@ class MessageBlockFactory:
                 created_at=created_at or "",
                 status=status,
                 meta_data=meta_data,
-                thread_id=thread_id
+                thread_id=thread_id,
+                executor_device_key=executor_device_key,
+                executor_device_name=executor_device_name
             )
 
         elif role == "tool":
@@ -125,7 +131,9 @@ class MessageBlockFactory:
                 tool_meta=tool_meta,
                 references=references,
                 meta_data={**meta_data, "tool_meta": tool_meta},
-                thread_id=thread_id
+                thread_id=thread_id,
+                executor_device_key=executor_device_key,
+                executor_device_name=executor_device_name
             )
 
         else:
@@ -137,7 +145,9 @@ class MessageBlockFactory:
                 created_at=created_at or "",
                 status=status,
                 meta_data=meta_data,
-                thread_id=thread_id
+                thread_id=thread_id,
+                executor_device_key=executor_device_key,
+                executor_device_name=executor_device_name
             )
 
     @classmethod
@@ -158,6 +168,8 @@ class MessageBlockFactory:
         run_id: str | None = None,
         references: list | None = None,
         message_id: str | None = None,
+        executor_device_key: str | None = None,
+        executor_device_name: str | None = None,
     ) -> MessageBlock:
         """
         Creates a MessageBlock directly from streaming event parameters.
@@ -245,5 +257,7 @@ class MessageBlockFactory:
             tool_call_id=tool_call_id,
             input=input_args if role == "tool" else None,
             tool_meta=tool_meta if role == "tool" else None,
+            executor_device_key=executor_device_key,
+            executor_device_name=executor_device_name,
             meta_data=clean_meta,
         )

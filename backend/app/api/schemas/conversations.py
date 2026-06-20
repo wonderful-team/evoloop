@@ -55,6 +55,11 @@ class ConversationListItem(DynamicBaseModel):
     status: str = "idle"
     is_pinned: bool = False
     goal: str | None = None
+    parent_thread_id: str | None = None
+    root_thread_id: str | None = None
+    caller_device_key: str | None = None
+    executor_device_key: str | None = None
+    executor_device_name: str | None = None
 
 
 class ReferenceItemMetadata(DynamicBaseModel):

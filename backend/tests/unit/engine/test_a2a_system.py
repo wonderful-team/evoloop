@@ -190,7 +190,8 @@ async def test_complete_task_tool(mock_session):
         id=worker_thread_id,
         project_id=DEFAULT_PROJECT_ID,
         title="Worker subtask",
-        parent_thread_id=parent_thread_id
+        parent_thread_id=parent_thread_id,
+        caller_device_key="caller-key-123"
     )
     mock_session.get.return_value = mock_conv
 
@@ -418,7 +419,8 @@ async def test_complete_task_cancelled(mock_session):
         id=worker_thread_id,
         project_id=DEFAULT_PROJECT_ID,
         title="Worker subtask",
-        parent_thread_id=parent_thread_id
+        parent_thread_id=parent_thread_id,
+        caller_device_key="caller-key-123"
     )
     mock_session.get.return_value = mock_conv
 
@@ -470,4 +472,49 @@ async def test_handle_stop_command():
     with patch("app.core.monitoring.activity.activity_monitor.stop_run", mock_stop_run):
         await subscriber._handle_stop(cmd)
         mock_stop_run.assert_called_once_with(thread_id)
+
+
+@pytest.mark.asyncio
+async def test_list_conversations_filters_sub_threads(mock_session):
+    """Verify list_conversations API filters out sub-conversations (where parent_thread_id is not null)."""
+    from app.api.routes.conversations import list_conversations
+    
+    # 1. Mock Conversation database records
+    c1 = Conversation(id="conv-1", title="Root thread 1", project_id=1, parent_thread_id=None, is_pinned=False)
+    c2 = Conversation(id="conv-2", title="Root thread 2", project_id=1, parent_thread_id=None, is_pinned=False)
+    
+    # Setup mock executes
+    mock_execute_res = MagicMock()
+    mock_execute_res.scalar.return_value = 2  # Total count for root threads
+    mock_execute_res.scalars.return_value.all.return_value = [c1, c2]
+    mock_session.execute.return_value = mock_execute_res
+
+    # 2. Patch get_db_session to return our mock session
+    @asynccontextmanager
+    async def mock_get_db_session():
+        yield mock_session
+
+    with patch("app.api.routes.conversations.get_db_session", mock_get_db_session), \
+         patch("app.core.monitoring.activity.activity_monitor.get_statuses", AsyncMock(return_value={})):
+        
+        response = await list_conversations(project_id=1)
+        
+        # Verify response structure and data
+        assert response.success is True
+        assert len(response.data) == 2
+        assert response.data[0].thread_id == "conv-1"
+        assert response.data[1].thread_id == "conv-2"
+        
+        # Verify SQL queries include the parent_thread_id is None filter
+        assert mock_session.execute.call_count == 2
+        calls = mock_session.execute.call_args_list
+        
+        # First call: count total
+        count_query = str(calls[0][0][0])
+        assert "parent_thread_id IS NULL" in count_query or "parent_thread_id is null" in count_query.lower()
+        
+        # Second call: paginated fetch
+        fetch_query = str(calls[1][0][0])
+        assert "parent_thread_id IS NULL" in fetch_query or "parent_thread_id is null" in fetch_query.lower()
+
 
