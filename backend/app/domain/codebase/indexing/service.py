@@ -305,7 +305,12 @@ class IndexingService:
         items: list[tuple[PreparedFile, IndexedContent]],
         batched_embedder: BatchedEmbedder,
     ) -> None:
-        """Embed all collected texts and attach embeddings to each IndexedContent."""
+        """Embed all collected texts and attach embeddings to each IndexedContent.
+
+        The texts are processed in chunks capped by the underlying embedder's
+        batch size. This prevents a single huge ``model.encode()`` call from
+        monopolizing the CPU for minutes and keeps the worker responsive.
+        """
         if not items or not batched_embedder:
             return
 
@@ -326,13 +331,22 @@ class IndexingService:
             return
 
         logger.info(f"[_embed_all] Embedding {len(texts)} texts across {len(items)} files")
-        embeddings = await batched_embedder.embed_documents(texts)
-        if len(embeddings) != len(texts):
-            raise RuntimeError(
-                f"Expected {len(texts)} embeddings, got {len(embeddings)}"
-            )
 
-        for (item_idx, _doc_idx), embedding in zip(text_map, embeddings, strict=False):
+        # Determine a safe chunk size.  The BatchedEmbedder already caps batches,
+        # but splitting here keeps memory bounded and yields regular progress.
+        chunk_size = max(batched_embedder._max_batch_size, 1)
+        all_embeddings: list[list[float]] = []
+        for i in range(0, len(texts), chunk_size):
+            chunk = texts[i : i + chunk_size]
+            logger.info(f"[_embed_all] Embedding chunk {i // chunk_size + 1}/{(len(texts) - 1) // chunk_size + 1} ({len(chunk)} texts)")
+            chunk_embeddings = await batched_embedder.embed_documents(chunk)
+            if len(chunk_embeddings) != len(chunk):
+                raise RuntimeError(
+                    f"Expected {len(chunk)} embeddings, got {len(chunk_embeddings)}"
+                )
+            all_embeddings.extend(chunk_embeddings)
+
+        for (item_idx, _doc_idx), embedding in zip(text_map, all_embeddings, strict=False):
             items[item_idx][1].embeddings.append(embedding)
 
     async def _persist_indexed(

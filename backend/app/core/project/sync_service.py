@@ -208,7 +208,8 @@ class ProjectSyncService:
                 if cloud_project:
                     # Case 2: Cloud exists + Local exists -> Auto-link
                     raw_pid = cloud_project.get("project_id")
-                    cloud_project_id = raw_pid if raw_pid is not None else cloud_project.get("id")
+                    resolved = raw_pid if raw_pid is not None else cloud_project.get("id")
+                    cloud_project_id = int(resolved) if resolved is not None else None
                     logger.info(f"[ProjectSync] Auto-linking local project '{repo_name}' to Cloud Project ID: {cloud_project_id}")
 
                     repo = Repository(
@@ -362,7 +363,7 @@ class ProjectSyncService:
                     path=repo.local_path,
                 )
                 if res.get("code") == 0:
-                    new_pid = res["data"]["project_id"]
+                    new_pid = int(res["data"]["project_id"])
                     repo.project_id = new_pid
                     repo.sync_status = "SYNCED"
                     cloud_project_id = new_pid

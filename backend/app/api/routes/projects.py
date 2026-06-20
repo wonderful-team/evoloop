@@ -50,7 +50,8 @@ router = APIRouter(tags=["projects"])
 def _resolve_project_id(p: dict) -> int | None:
     """Safely resolve project_id from cloud project dict, treating 0 as valid."""
     raw = p.get("project_id")
-    return raw if raw is not None else p.get("id")
+    resolved = raw if raw is not None else p.get("id")
+    return int(resolved) if resolved is not None else None
 
 
 def _extract_projects(response: dict | list) -> tuple[list, dict | None]:
@@ -144,7 +145,8 @@ async def get_projects(
 
                     # Match by local project_id authority only. Never match by name,
                     # because different devices/cloud entries may share basenames.
-                    actual_path = local_index.get(project_id)
+                    entry = local_index.get(project_id)
+                    actual_path = entry.path if entry else None
                     if not actual_path:
                         # No local .evoloop/project.json with this project_id; check DB-linked repo
                         repo = repo_by_project_id.get(project_id)
