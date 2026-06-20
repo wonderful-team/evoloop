@@ -62,6 +62,21 @@ class ProjectSyncService:
                 logger.info("[ProjectSync] No local projects found. Skipping cloud project sync.")
                 return
 
+            # Sync local projects' external_source to cloud with the active device key
+            try:
+                from app.core.identity import identity_service
+                device_key = await identity_service.store.get_device_key()
+                if device_key:
+                    logger.info(f"[ProjectSync] Aligning local projects with device key: {device_key}")
+                    for pid in local_index.keys():
+                        try:
+                            await evocloud_manager.api.update_project(project_id=pid, source=device_key)
+                            logger.info(f"[ProjectSync] Aligned project {pid} source to {device_key} in cloud")
+                        except Exception as ex:
+                            logger.warning(f"[ProjectSync] Failed to update project {pid} source to {device_key}: {ex}")
+            except Exception as e:
+                logger.warning(f"[ProjectSync] Failed to run local project source alignment: {e}")
+
             # Prefer the persisted active project (user's last explicit choice)
             active_project_id = thread_context_store.get_active_project("default")
             selected_project_id = None
