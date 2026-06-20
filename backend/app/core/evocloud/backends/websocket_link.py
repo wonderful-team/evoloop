@@ -3,6 +3,7 @@ import json
 import logging
 import platform
 import ssl
+import time
 from collections import deque
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -233,11 +234,21 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                 await asyncio.sleep(1)
 
     async def _heartbeat_loop(self):
-        """Send WebSocket control ping frames to keep connection alive.
+        """Keep the connection and device heartbeat alive via two independent pings.
 
-        Gateway uses SetPongHandler/SetReadDeadline to detect dead peers;
-        only control pings reset the read deadline, so we send a control
-        ping instead of the legacy JSON text ping.
+        Two separate mechanisms are required:
+
+        1. **WebSocket control ping** (`ws.ping()`):
+           Gateway calls SetPongHandler → SetReadDeadline(+60s) on each pong.
+           Without this, the TCP connection is killed by the Gateway after 60 s
+           of silence regardless of any JSON traffic.
+
+        2. **JSON text ping** (`{"type": "ping"}`):
+           Gateway's handleMessage routes this to deviceMgr.UpdateDeviceHeartbeat(),
+           which keeps the device marked as "online" so A2A tasks are dispatched to it.
+           The control-frame ping never reaches handleMessage, so it cannot substitute.
+
+        Both must run every 30 s; removing either one breaks a different thing.
         """
         while self._running:
             if self.ws and self.is_connected():
@@ -248,6 +259,16 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     logger.debug("[EvoCloud] WebSocket ping timed out, will reconnect")
                 except Exception as e:
                     logger.debug(f"[EvoCloud] WebSocket ping failed: {e}")
+
+                try:
+                    # Also send JSON text ping to refresh deviceMgr heartbeat
+                    await self.send_message({
+                        "type": "ping",
+                        "request_id": f"ping_{int(time.time() * 1000)}",
+                        "payload": {"timestamp": int(time.time())}
+                    })
+                except Exception as e:
+                    logger.debug(f"[EvoCloud] JSON text ping failed: {e}")
             await asyncio.sleep(30)
 
     async def _ws_connect_loop(self):
@@ -275,10 +296,12 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     logger.info("[EvoCloud] WS Connected. Sending handshake...")
 
                     # New Go Gateway Handshake
+                    from app.core.config import settings
                     handshake = WebSocketHandshake(payload={
-                        "device_type": "agent",
+                        "device_type": settings.EVOCLOUD_DEVICE_TYPE,
                         "device_key": self.device_key,
                         "device_name": self.device_name,
+                        "capabilities": [c.strip() for c in settings.EVOCLOUD_DEVICE_CAPABILITIES.split(",") if c.strip()],
                         "os_info": platform.platform(),
                         "token": await self.api.get_token()
                     })

@@ -164,3 +164,37 @@ class EvoCloudProjectSummary(DynamicBaseModel):
     exists_locally: bool = False
     status_text: str = ""
     owner: str = ""
+
+
+class TaskAttachment(DynamicBaseModel):
+    """A2A 任务附带的文件中转描述"""
+    filename: str
+    download_url: str
+    file_size: int
+    md5: str
+
+
+class AgentTask(DynamicBaseModel):
+    """A2A 任务信封 - 在 RemoteCommand.payload 中传输"""
+    task_id: str
+    task_type: str = "a2a_task"
+    instruction: str
+    caller_role: str
+    global_goal: str
+    context: dict[str, Any] = {}
+    attachments: list[TaskAttachment] = []
+    caller_device_key: str
+    root_thread_id: str
+    parent_thread_id: str
+    hop_count: int = 1
+    max_hops: int = 3
+    timeout_seconds: int = 600
+
+
+class AgentTaskResult(DynamicBaseModel):
+    """A2A 任务执行完毕的回调信封"""
+    task_id: str
+    status: str  # "success" | "failed" | "cancelled" | "timeout"
+    summary: str = ""
+    error: str = ""
+    attachments: list[TaskAttachment] = []

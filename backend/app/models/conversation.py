@@ -154,6 +154,10 @@ class Conversation(Base):
     # Pin State
     is_pinned: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", index=True)
 
+    # Thread Tree Relationships for A2A
+    root_thread_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    parent_thread_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+
     messages: Mapped[list["Message"]] = relationship(
         back_populates="conversation",
         cascade="all, delete-orphan",

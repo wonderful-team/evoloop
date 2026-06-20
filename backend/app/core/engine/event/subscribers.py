@@ -8,6 +8,7 @@ and agent dispatch.
 
 import asyncio
 import logging
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -27,7 +28,11 @@ from app.models import Message
 logger = logging.getLogger(__name__)
 
 # 引擎域仅处理以下核心指令，其余指令（如 project_switch）由各自域的订阅者认领
-ENGINE_ACTIONS = {"chat", "chat_message", "stop", "retry", "rewind", "hitl_response", "hitl_cancel"}
+ENGINE_ACTIONS = {
+    "chat", "chat_message", "stop", "retry", "rewind",
+    "hitl_response", "hitl_cancel",
+    "a2a_task", "a2a_callback"
+}
 
 
 @event_register()
@@ -100,6 +105,11 @@ class EngineCommandSubscriber:
         # [Normal Chat Message Logic]
         elif action in {"chat", "chat_message"}:
             await self._handle_chat_message(command)
+        # [A2A Task & Callback Logic]
+        elif action == "a2a_task":
+            await self._handle_a2a_task(command)
+        elif action == "a2a_callback":
+            await self._handle_a2a_callback(command)
         else:
             logger.debug(f"[EngineCommand] Skipping action {action} in engine domain")
 
@@ -177,7 +187,7 @@ class EngineCommandSubscriber:
         # Support both nested 'content' (legacy/cloud) and flat 'message' (mobile/local) structures
         """Handle normal chat message from Mobile."""
         payload = command.get_payload()
-        
+
         # EPv2: 使用标准化字段
         message = payload.get("message") or payload.get("content") or ""
 
@@ -349,3 +359,238 @@ class EngineCommandSubscriber:
             return
 
         asyncio.create_task(run_agent_background(thread_id, result.inputs))
+
+    async def _handle_a2a_task(self, command: RemoteCommand) -> None:
+        payload = command.get_payload()
+        logger.info(f"[A2A] Received A2A Task: {payload}")
+
+        from app.core.evocloud.schemas import AgentTask
+        try:
+            task = AgentTask.model_validate(payload)
+        except Exception as e:
+            logger.error(f"[A2A] Invalid AgentTask payload: {payload}, error={e}")
+            return
+
+        thread_id = task.task_id
+
+        # Loop prevention check
+        if task.hop_count > task.max_hops:
+            logger.error(f"[A2A] Maximum hops exceeded: {task.hop_count} > {task.max_hops} for task {task.task_id}")
+            await self._send_a2a_error(task, "Maximum chain delegation depth exceeded")
+            return
+
+        # Download attachments
+        local_attachment_paths = []
+        if task.attachments:
+            import os
+            import httpx
+            from app.core.config import settings
+
+            download_dir = os.path.expanduser(os.path.join(settings.EVOLOOP_APP_DATA_DIR, "attachments", task.task_id))
+            os.makedirs(download_dir, exist_ok=True)
+
+            async with httpx.AsyncClient() as client:
+                for att in task.attachments:
+                    dest_path = os.path.join(download_dir, att.filename)
+                    logger.info(f"[A2A] Downloading attachment {att.filename} from {att.download_url}...")
+                    try:
+                        async with client.stream("GET", att.download_url) as response:
+                            response.raise_for_status()
+                            with open(dest_path, "wb") as f:
+                                async for chunk in response.aiter_bytes():
+                                    f.write(chunk)
+
+                        # Verify MD5
+                        import hashlib
+                        hash_md5 = hashlib.md5()
+                        with open(dest_path, "rb") as f:
+                            for chunk in iter(lambda: f.read(4096), b""):
+                                hash_md5.update(chunk)
+                        actual_md5 = hash_md5.hexdigest()
+
+                        if actual_md5 != att.md5:
+                            logger.error(f"[A2A] MD5 mismatch for {att.filename}. Expected: {att.md5}, Got: {actual_md5}")
+                            await self._send_a2a_error(task, f"Attachment MD5 mismatch for {att.filename}")
+                            return
+
+                        local_attachment_paths.append(dest_path)
+                    except Exception as ex:
+                        logger.error(f"[A2A] Failed to download/verify attachment {att.filename}: {ex}")
+                        await self._send_a2a_error(task, f"Failed to download attachment {att.filename}: {ex}")
+                        return
+
+        # Create Conversation in DB
+        from app.models import Conversation
+        from app.infrastructure.database.sql.database import session_scope
+        from datetime import datetime, timezone
+
+        project_id = command.get("project_id") or DEFAULT_PROJECT_ID
+        async with session_scope() as session:
+            conv = await session.get(Conversation, thread_id)
+            if not conv:
+                conv = Conversation(
+                    id=thread_id,
+                    project_id=project_id,
+                    title=f"A2A: {task.instruction[:30]}",
+                    root_thread_id=task.root_thread_id,
+                    parent_thread_id=task.parent_thread_id,
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),
+                )
+                session.add(conv)
+
+        # Inject System Prompt Context
+        system_content = (
+            f"[A2A System Context]\n"
+            f"You are executing a subtask initiated by device key: {task.caller_device_key}.\n"
+            f"Caller Role: {task.caller_role}\n"
+            f"Global Goal: {task.global_goal}\n"
+            f"Instruction: {task.instruction}\n"
+        )
+        if local_attachment_paths:
+            system_content += f"Attachments downloaded locally at: {', '.join(local_attachment_paths)}\n"
+
+        system_content += (
+            "\nRequirements:\n"
+            "1. You must execute this subtask in this thread.\n"
+            "2. When done, you must call the `CompleteTaskTool` tool exactly once to return success or failure.\n"
+            "Do not carry out unnecessary conversation."
+        )
+
+        from app.core.engine.message.repository import MessageRepository
+        repo = MessageRepository(thread_id, project_id=project_id)
+        await repo.persist(
+            role="system",
+            content=system_content,
+            category="internal_system",
+            is_visible=True,
+        )
+
+        # Dispatch Agent Run
+        result = await dispatch_agent_run(
+            thread_id=thread_id,
+            message_content=task.instruction,
+            project_id=project_id,
+            command_id=command.get("command_id"),
+            model=None,
+            metadata={
+                "task_type": "a2a_task",
+                "task_id": task.task_id,
+                "caller_device_key": task.caller_device_key,
+                "root_thread_id": task.root_thread_id,
+                "parent_thread_id": task.parent_thread_id,
+            }
+        )
+
+        if result.status == "failed":
+            logger.error(f"[A2A] Dispatch failed for A2A task: {result.error}")
+            await self._send_a2a_error(task, f"Agent dispatch failed: {result.error}")
+            return
+
+        asyncio.create_task(run_agent_background(thread_id, result.inputs))
+
+    async def _send_a2a_error(self, task: Any, error_msg: str) -> None:
+        from app.core.evocloud.schemas import AgentTaskResult
+        from app.core.evocloud.manager import evocloud_manager
+
+        callback_payload = AgentTaskResult(
+            task_id=task.task_id,
+            status="failed",
+            error=error_msg,
+            summary=f"Error: {error_msg}"
+        )
+
+        cmd_data = {
+            "action": "a2a_callback",
+            "payload": callback_payload.model_dump(),
+            "thread_id": task.parent_thread_id,
+        }
+
+        try:
+            await evocloud_manager.api.send_command_to_device(
+                device_key=task.caller_device_key,
+                cmd_data=cmd_data
+            )
+            logger.info(f"[A2A] Error callback sent to caller {task.caller_device_key} for task {task.task_id}")
+        except Exception as e:
+            logger.error(f"[A2A] Failed to send error callback to caller {task.caller_device_key}: {e}")
+
+    async def _handle_a2a_callback(self, command: RemoteCommand) -> None:
+        payload = command.get_payload()
+        logger.info(f"[A2A] Received A2A Callback: {payload}")
+
+        from app.core.evocloud.schemas import AgentTaskResult
+        try:
+            result = AgentTaskResult.model_validate(payload)
+        except Exception as e:
+            logger.error(f"[A2A] Invalid AgentTaskResult: {payload}, error={e}")
+            return
+
+        task_id = result.task_id
+        caller_thread_id = command.get("thread_id")
+
+        if not caller_thread_id:
+            from app.infrastructure.database.sql.database import session_scope
+            from app.models import Conversation
+            async with session_scope() as session:
+                conv = await session.get(Conversation, task_id)
+                if conv:
+                    caller_thread_id = conv.parent_thread_id
+
+        if not caller_thread_id:
+            logger.error(f"[A2A] Caller thread_id not found for task_id: {task_id}")
+            return
+
+        # Clear human request on Caller thread
+        from app.core.monitoring.activity import activity_monitor
+        await activity_monitor.clear_human_request(caller_thread_id)
+
+        # Build response payload
+        import json
+        result_content = json.dumps(result.model_dump(), ensure_ascii=False)
+
+        # Close the pending tool call message
+        tool_call_id = None
+        from app.infrastructure.database.sql.database import session_scope
+        from app.models import Message
+        async with session_scope() as session:
+            stmt = (
+                select(Message)
+                .where(Message.thread_id == caller_thread_id)
+                .where(Message.role == "ai")
+                .order_by(Message.sequence_number.desc())
+                .limit(5)
+            )
+            res = await session.execute(stmt)
+            messages = res.scalars().all()
+            for msg in messages:
+                if msg.tool_calls:
+                    for tc in msg.tool_calls:
+                        if tc.get("name") in ("SendAgentTaskTool", "send_agent_task"):
+                            tool_call_id = tc.get("id")
+                            break
+                if tool_call_id:
+                    break
+
+        if tool_call_id:
+            from app.core.hitl.orchestrator import close_hitl_interaction
+            await close_hitl_interaction(caller_thread_id, tool_call_id, "completed")
+        else:
+            logger.warning(f"[A2A] Could not find matching pending tool call for task_id {task_id}")
+
+        # Resume Caller Agent
+        from app.core.context.manager import ContextManager
+        from app.core.engine.background_agent import BackgroundAgentInputs
+        from app.infrastructure.config.service import SystemConfigService
+
+        loaded_ctx = await ContextManager.load(caller_thread_id)
+        model = loaded_ctx.active_model if loaded_ctx else None
+        if not model:
+            model = SystemConfigService.get_value("LLM_MODEL")
+
+        inputs = BackgroundAgentInputs(
+            hitl_resume_response=result_content,
+            model=model,
+        )
+        logger.info(f"[A2A] Resuming Caller Agent on thread {caller_thread_id}")
+        asyncio.create_task(run_agent_background(caller_thread_id, inputs))

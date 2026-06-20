@@ -67,6 +67,8 @@ nodes:
       - "create_plan"
       - "ask_confirm"
       - "ask_human"
+      - "list_agents"
+      - "send_agent_task"
 
   - id: "worker"
     path: "app.core.engine.nodes.worker.WorkerNode"
@@ -145,6 +147,9 @@ nodes:
       # Vault & Credentials (Secure credential management)
       - "list_vault_credentials"
       - "request_secure_credential"
+      - "list_agents"
+      - "send_agent_task"
+      - "complete_task"
 
   - id: "finish"
     path: "app.core.engine.nodes.finish.FinishNode"

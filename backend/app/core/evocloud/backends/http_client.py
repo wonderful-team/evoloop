@@ -532,6 +532,8 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
 
     async def send_command_to_device(self, device_key: str, cmd_data: dict, token: str | None = None) -> dict:
         data = {"device_key": device_key, **cmd_data}
+        if "command_type" not in data and "action" in data:
+            data["command_type"] = data["action"]
         return await self.request("POST", "/api/v1/command/execute", data=data, token=token)
 
     async def get_device_logs(self, device_key: str, limit=20, project_id=None, token: str | None = None) -> dict:
@@ -568,7 +570,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             data={
                 "fingerprint": fingerprint,
                 "device_name": name,
-                "device_type": "desktop",
+                "device_type": settings.EVOCLOUD_DEVICE_TYPE,
                 "os_info": os_info,
             },
         token=token)
@@ -843,3 +845,59 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             "/evolooplink/api/conversation/messages",
             params=params
         , token=token)
+
+    async def upload_file(self, file_path: str, token: str | None = None) -> dict:
+        """
+        上传本地文件到 EvoCloud Storage
+        """
+        import os
+        import hashlib
+        import logging
+
+        filename = os.path.basename(file_path)
+        file_size = os.path.getsize(file_path)
+
+        # Calculate MD5
+        hash_md5 = hashlib.md5()
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_md5.update(chunk)
+        md5_val = hash_md5.hexdigest()
+
+        try:
+            url = f"{self._get_base_url(is_gateway=True)}/api/v1/storage/upload"
+            headers = {}
+            active_token = token or await self.get_token()
+            if active_token:
+                headers["Authorization"] = f"Bearer {active_token}"
+
+            import httpx
+            async with httpx.AsyncClient() as client:
+                with open(file_path, "rb") as f:
+                    files = {"file": (filename, f)}
+                    response = await client.post(url, headers=headers, files=files, timeout=60.0)
+                    if response.status_code == 200:
+                        res_json = response.json()
+                        if res_json.get("code") == 0:
+                            data = res_json.get("data") or {}
+                            return {
+                                "download_url": data.get("download_url"),
+                                "md5": md5_val,
+                                "file_size": file_size,
+                                "filename": filename
+                            }
+            # Fallback for dev / mock mode
+            return {
+                "download_url": f"{self.base_url}/api/v1/files/raw?path=uploads/{filename}",
+                "md5": md5_val,
+                "file_size": file_size,
+                "filename": filename
+            }
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"[EvoCloud] Upload failed: {e}, using local fallback")
+            return {
+                "download_url": f"{self.base_url}/api/v1/files/raw?path=uploads/{filename}",
+                "md5": md5_val,
+                "file_size": file_size,
+                "filename": filename
+            }

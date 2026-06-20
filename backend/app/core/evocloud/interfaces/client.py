@@ -68,3 +68,6 @@ class EvoCloudClientProtocol(ABC):
 
     @abstractmethod
     async def bind_client_id(self, device_key, client_id, token: str | None = None): ...
+
+    @abstractmethod
+    async def upload_file(self, file_path: str, token: str | None = None) -> dict: ...

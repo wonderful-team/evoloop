@@ -330,6 +330,8 @@ class Settings(BaseSettings):
     # Client / Device Info
     EVOCLOUD_ACCESS_TOKEN: str | None = Field(None, validation_alias="EVOCLOUD_ACCESS_TOKEN")
     EVOCLOUD_DEVICE_NAME: str | None = Field(default_factory=lambda: platform.node() or "EvoLoop-Desktop", validation_alias="EVOCLOUD_DEVICE_NAME")
+    EVOCLOUD_DEVICE_TYPE: str = Field("desktop", validation_alias="EVOCLOUD_DEVICE_TYPE")
+    EVOCLOUD_DEVICE_CAPABILITIES: str = Field("code_write,code_build,local_test", validation_alias="EVOCLOUD_DEVICE_CAPABILITIES")
     EVOCLOUD_SSL_VERIFY: bool = Field(True, validation_alias="EVOCLOUD_SSL_VERIFY")
 
     # Mobile Sync
