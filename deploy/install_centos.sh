@@ -49,31 +49,19 @@ for arg in "$@"; do
   esac
 done
 
+# 从共享配置加载排除列表（独立运行时使用内联默认值）
+EXCLUDE_RSYNC=(
+  --exclude='mobile' --exclude='frontend/src-tauri'
+  --exclude='frontend/node_modules' --exclude='backend/.venv'
+  --exclude='backend/dist' --exclude='backend/build'
+  --exclude='dist' --exclude='.git' --exclude='__pycache__' --exclude='*.pyc'
+  --exclude='node_modules' --exclude='deploy/build'
+)
+SHARED_CONFIG="$(dirname "$0")/build/config.sh"
+[ -f "$SHARED_CONFIG" ] && source "$SHARED_CONFIG"
+
 if [ -n "$DEPLOY_DIR" ]; then
   echo -e "${YELLOW}→ 部署到目标目录: $DEPLOY_DIR${NC}"
-  EXCLUDE_RSYNC=(
-    --exclude='mobile'
-    --exclude='frontend/src-tauri'
-    --exclude='frontend/node_modules'
-    --exclude='backend/.venv'
-    --exclude='backend/dist'
-    --exclude='backend/build'
-    --exclude='backend/evoloop-backend.spec'
-    --exclude='backend/entry_point.py'
-    --exclude='dist'
-    --exclude='Makefile'
-    --exclude='.git'
-    --exclude='.gitignore'
-    --exclude='.pre-commit-config.yaml'
-    --exclude='deploy/build'
-    --exclude='deploy/dev.sh'
-    --exclude='deploy/check_arch.sh'
-    --exclude='deploy/update-version.sh'
-    --exclude='deploy/generate-client.sh'
-    --exclude='deploy/install_funasr.sh'
-    --exclude='frontend/playwright.config.ts'
-    --exclude='frontend/vitest.config.ts'
-  )
   mkdir -p "$DEPLOY_DIR"
   rsync -av --delete "${EXCLUDE_RSYNC[@]}" ./ "$DEPLOY_DIR/"
   cd "$DEPLOY_DIR"
@@ -314,54 +302,28 @@ echo -e "1. 纯 Docker 容器化部署 (推荐生产环境使用，隔离性好)
 echo -e "2. 宿主机原生守护进程部署 (Systemd 托管，推荐无宝塔的开发测试)"
 echo -e "3. 宝塔 Python 项目管理器部署 (推荐已有宝塔环境，纯图形化管理启停)"
 
-# 获取后端部署模式 (默认 docker)
-current_mode=$(grep "^BACKEND_DEPLOY_MODE=" "$ENV_FILE" | cut -d '=' -f 2)
-if [ "$current_mode" == "baota" ]; then
-    default_opt="3"
-elif [ "$current_mode" == "local" ]; then
-    default_opt="2"
-else
-    default_opt="1"
-fi
+BACKEND_MODE="docker"
+FRONTEND_MODE="docker"
 
-read -p "请选择后端 (API+Worker) 的运行模式 [1/2/3, 默认: $default_opt]: " backend_mode_input
-if [ -z "$backend_mode_input" ]; then
-    backend_mode_input="$default_opt"
-fi
+echo -e "\n${YELLOW}=== 后端部署架构选择 ===${NC}"
+echo -e "1. 纯 Docker 容器化部署 (推荐生产环境使用，隔离性好)"
+echo -e "2. 宿主机原生守护进程部署 (Systemd 托管，推荐无宝塔的开发测试)"
+echo -e "3. 宝塔 Python 项目管理器部署 (推荐已有宝塔环境，纯图形化管理启停)"
 
-if [ "$backend_mode_input" == "3" ]; then
-    update_env "BACKEND_DEPLOY_MODE" "baota"
-    BACKEND_MODE="baota"
-elif [ "$backend_mode_input" == "2" ]; then
-    update_env "BACKEND_DEPLOY_MODE" "local"
-    BACKEND_MODE="local"
-else
-    update_env "BACKEND_DEPLOY_MODE" "docker"
-    BACKEND_MODE="docker"
-fi
+read -p "请选择后端 (API+Worker) 的运行模式 [1/2/3, 默认: 1]: " backend_mode_input
+case "${backend_mode_input:-1}" in
+  3) BACKEND_MODE="baota" ;;
+  2) BACKEND_MODE="local" ;;
+  *) BACKEND_MODE="docker" ;;
+esac
 
 echo -e "\n${YELLOW}=== 前端部署架构选择 ===${NC}"
 echo -e "1. Docker 容器化部署 (推荐无宝塔的纯净环境，全自动打包)"
 echo -e "2. 宝塔纯静态托管部署 (推荐已有宝塔环境，跳过容器打包，前端通过 npm run build 独立上传)"
 
-current_fe_mode=$(grep "^FRONTEND_DEPLOY_MODE=" "$ENV_FILE" | cut -d '=' -f 2)
-if [ "$current_fe_mode" == "local" ]; then
-    default_fe_opt="2"
-else
-    default_fe_opt="1"
-fi
-
-read -p "请选择前端的运行模式 [1/2, 默认: $default_fe_opt]: " frontend_mode_input
-if [ -z "$frontend_mode_input" ]; then
-    frontend_mode_input="$default_fe_opt"
-fi
-
-if [ "$frontend_mode_input" == "2" ]; then
-    update_env "FRONTEND_DEPLOY_MODE" "local"
-    FRONTEND_MODE="local"
-else
-    update_env "FRONTEND_DEPLOY_MODE" "docker"
-    FRONTEND_MODE="docker"
+read -p "请选择前端的运行模式 [1/2, 默认: 1]: " frontend_mode_input
+if [ "${frontend_mode_input:-1}" = "2" ]; then
+  FRONTEND_MODE="local"
 fi
 
 # 4. 启动容器编排

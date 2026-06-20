@@ -40,49 +40,28 @@ echo "   构建时间: $BUILD_TIME"
 echo "   Git Commit: $GIT_COMMIT"
 
 # =============================================================================
-# 1. 更新 .env 文件
+# 1. 更新 .env.prod.desktop (桌面端版本信息)
 # =============================================================================
-ENV_FILE="$PROJECT_ROOT/.env"
-ENV_EXAMPLE_FILE="$PROJECT_ROOT/.env.example"
+ENV_PROD_DESKTOP="$PROJECT_ROOT/.env.prod.desktop"
 
-update_env_file() {
-    local file="$1"
-    if [ -f "$file" ]; then
-        # 更新版本号
-        if grep -q "^APP_VERSION=" "$file"; then
-            sed -i.bak "s/^APP_VERSION=.*/APP_VERSION=$NEW_VERSION/" "$file"
-        else
-            echo "APP_VERSION=$NEW_VERSION" >> "$file"
+if [ -f "$ENV_PROD_DESKTOP" ]; then
+    for key in APP_VERSION BUILD_NUMBER BUILD_TIME GIT_COMMIT; do
+        local val
+        case "$key" in
+            APP_VERSION) val="$NEW_VERSION" ;;
+            BUILD_NUMBER) val="$BUILD_NUMBER" ;;
+            BUILD_TIME) val="$BUILD_TIME" ;;
+            GIT_COMMIT) val="$GIT_COMMIT" ;;
+        esac
+        if grep -q "^$key=" "$ENV_PROD_DESKTOP"; then
+            sed -i.bak "s/^$key=.*/$key=$val/" "$ENV_PROD_DESKTOP"
         fi
-        
-        # 更新构建号
-        if grep -q "^BUILD_NUMBER=" "$file"; then
-            sed -i.bak "s/^BUILD_NUMBER=.*/BUILD_NUMBER=$BUILD_NUMBER/" "$file"
-        else
-            echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$file"
-        fi
-        
-        # 更新构建时间
-        if grep -q "^BUILD_TIME=" "$file"; then
-            sed -i.bak "s/^BUILD_TIME=.*/BUILD_TIME=$BUILD_TIME/" "$file"
-        else
-            echo "BUILD_TIME=$BUILD_TIME" >> "$file"
-        fi
-        
-        # 更新 Git Commit
-        if grep -q "^GIT_COMMIT=" "$file"; then
-            sed -i.bak "s/^GIT_COMMIT=.*/GIT_COMMIT=$GIT_COMMIT/" "$file"
-        else
-            echo "GIT_COMMIT=$GIT_COMMIT" >> "$file"
-        fi
-        
-        rm -f "$file.bak"
-        echo "✅ 已更新: $file"
-    fi
-}
-
-update_env_file "$ENV_FILE"
-update_env_file "$ENV_EXAMPLE_FILE"
+    done
+    rm -f "$ENV_PROD_DESKTOP.bak"
+    echo "✅ 已更新: $ENV_PROD_DESKTOP"
+else
+    echo "⚠️  .env.prod.desktop 不存在，跳过版本更新"
+fi
 
 # =============================================================================
 # 2. 更新 Cargo.toml (Rust 后端版本)

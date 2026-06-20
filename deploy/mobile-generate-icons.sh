@@ -3,11 +3,17 @@
 # EvoLoop 图标生成脚本 (兼容版)
 # 使用 sips 自动生成多尺寸图标
 
-MASTER_LOGO="/Users/xujin/.gemini/antigravity/brain/3ec9f6d7-6589-4d80-b364-df2025a3ac26/official_square_logo_final_1778447615853.png"
+MASTER_LOGO="${MASTER_LOGO:-}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR/../mobile"
 
-echo "🚀 开始为 EvoLoop 生成图标..."
+if [ -z "$MASTER_LOGO" ] || [ ! -f "$MASTER_LOGO" ]; then
+  echo "❌ 用法: MASTER_LOGO=/path/to/logo.png bash $0"
+  echo "   需要提供 1024x1024 PNG 源图标文件"
+  exit 1
+fi
+
+echo "🚀 开始为 EvoLoop 生成图标 (来源: $MASTER_LOGO) ..."
 
 # 1. Android 适配
 echo "🤖 处理 Android 图标..."

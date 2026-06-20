@@ -50,10 +50,12 @@ cleanup() {
 
 trap cleanup INT TERM
 
+BACKEND_PORT=20160
+
 # Check if Backend is already running
 echo -e "${YELLOW}🔍 Checking if Backend is already running...${NC}"
-if curl -s http://localhost:8000/api/v1/system/health > /dev/null 2>&1; then
-  echo -e "${GREEN}✅ Backend is already running on port 8000${NC}"
+if curl -s http://localhost:$BACKEND_PORT/api/v1/system/health > /dev/null 2>&1; then
+  echo -e "${GREEN}✅ Backend is already running on port $BACKEND_PORT${NC}"
   BACKEND_ALREADY_RUNNING=true
 else
   BACKEND_ALREADY_RUNNING=false
@@ -72,7 +74,7 @@ if [ "$BACKEND_ALREADY_RUNNING" = false ]; then
   fi
 
   # Start backend in background
-  $PYTHON -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload &
+  $PYTHON -m uvicorn app.main:app --host 127.0.0.1 --port $BACKEND_PORT --reload &
   BACKEND_PID=$!
 
   cd ..
@@ -80,7 +82,7 @@ if [ "$BACKEND_ALREADY_RUNNING" = false ]; then
   # Wait for backend to be ready
   echo -e "${YELLOW}⏳ Waiting for Backend to be ready...${NC}"
   for i in {1..30}; do
-    if curl -s http://localhost:8000/api/v1/system/health > /dev/null 2>&1; then
+    if curl -s http://localhost:$BACKEND_PORT/api/v1/system/health > /dev/null 2>&1; then
       echo -e "${GREEN}✅ Backend is ready!${NC}"
       break
     fi
@@ -94,6 +96,7 @@ fi
 
 echo ""
 echo -e "${BLUE}🖥️  Starting Tauri Frontend...${NC}"
+echo -e "${YELLOW}  API → http://localhost:$BACKEND_PORT${NC}"
 cd frontend
 npm run tauri dev
 

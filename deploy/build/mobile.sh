@@ -59,21 +59,6 @@ echo ""
 
 cd "$MOBILE_DIR"
 
-case "$ENVIRONMENT" in
-  production)
-    if [ -f ".env.production" ]; then
-      cp ".env.production" ".env"
-      info "Copied .env.production to .env"
-    fi
-    ;;
-  development)
-    if [ -f ".env.development" ]; then
-      cp ".env.development" ".env"
-      info "Copied .env.development to .env"
-    fi
-    ;;
-esac
-
 if [ "$CLEAN" = true ]; then
   step "Cleaning build artifacts"
   cd android && ./gradlew clean 2>/dev/null || true

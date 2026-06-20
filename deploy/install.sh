@@ -113,15 +113,10 @@ detect_os() {
     fi
 
     # 检测 Docker Compose
-    if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
-        MISSING_DEPS+=("docker-compose")
+    if ! docker compose version &> /dev/null; then
+        MISSING_DEPS+=("docker compose")
     else
-        if docker compose version &> /dev/null; then
-            success "Docker Compose (插件) 已安装"
-        else
-            local COMPOSE_VERSION=$(docker-compose --version | awk '{print $3}' | tr -d ',')
-            success "Docker Compose 已安装: $COMPOSE_VERSION"
-        fi
+        success "Docker Compose (插件) 已安装"
     fi
 
     # 检测 Git
@@ -287,11 +282,11 @@ start_services() {
 
     # 拉取最新镜像
     info "拉取 Docker 镜像..."
-    docker-compose pull 2>/dev/null || docker compose pull
+    docker compose pull
 
     # 启动服务
     info "启动服务..."
-    docker-compose up -d 2>/dev/null || docker compose up -d
+    docker compose up -d
 
     success "服务启动命令已执行"
 }
@@ -316,7 +311,7 @@ health_check() {
     done
 
     echo ""
-    warning "服务启动超时，请检查日志：docker-compose logs"
+    warning "服务启动超时，请检查日志：docker compose logs"
     return 1
 }
 
@@ -334,9 +329,9 @@ print_success() {
     echo "║                                                          ║"
     echo "║  常用命令：                                              ║"
     echo "║    cd $INSTALL_DIR                                       ║"
-    echo "║    docker-compose up -d      # 启动服务                  ║"
-    echo "║    docker-compose down       # 停止服务                  ║"
-    echo "║    docker-compose logs -f    # 查看日志                  ║"
+    echo "║    docker compose up -d      # 启动服务                  ║"
+    echo "║    docker compose down       # 停止服务                  ║"
+    echo "║    docker compose logs -f    # 查看日志                  ║"
     echo "║                                                          ║"
     echo "║  配置文件：                                              ║"
     echo "║    $INSTALL_DIR/.env                                    ║"

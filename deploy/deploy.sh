@@ -8,6 +8,14 @@
 
 set -e
 
+# 确保 EXCLUDE_RSYNC 有默认值（如果 config.sh 加载失败）
+EXCLUDE_RSYNC=(
+  --exclude='mobile' --exclude='frontend/src-tauri'
+  --exclude='frontend/node_modules' --exclude='backend/.venv'
+  --exclude='frontend/dist' --exclude='backend/dist' --exclude='backend/build'
+  --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' --exclude='node_modules'
+)
+
 # ============================================================
 # 默认配置
 # ============================================================
@@ -101,6 +109,8 @@ else
 fi
 SSH_TARGET="${USER}@${HOST}"
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+DEPLOY_BUILD_DIR="$PROJECT_ROOT/deploy/build"
+[ -f "$DEPLOY_BUILD_DIR/config.sh" ] && source "$DEPLOY_BUILD_DIR/config.sh"
 
 run_remote_bg() { if [ -n "$PASSWORD" ]; then sshpass -e ssh $SSH_OPTS "$SSH_TARGET" "$1"; else ssh $SSH_OPTS "$SSH_TARGET" "$1"; fi; }
 run_remote()   { if [ -n "$PASSWORD" ]; then sshpass -e ssh -t $SSH_OPTS "$SSH_TARGET" "$1"; else ssh -t $SSH_OPTS "$SSH_TARGET" "$1"; fi; }
@@ -113,24 +123,7 @@ rsync_to() {
   fi
 }
 
-# ============================================================
-# 排除列表
-# ============================================================
-EXCLUDE_RSYNC=(
-  --exclude='mobile' --exclude='frontend/src-tauri'
-  --exclude='frontend/node_modules' --exclude='backend/.venv'
-  --exclude='frontend/dist' --exclude='backend/dist' --exclude='backend/build'
-  --exclude='backend/evoloop-backend.spec' --exclude='backend/entry_point.py'
-  --exclude='dist'   --exclude='Makefile' --exclude='.git' --exclude='.gitignore'
-  --exclude='.pre-commit-config.yaml' --exclude='deploy/build'
-  --exclude='deploy/dev.sh' --exclude='deploy/check_arch.sh'
-  --exclude='deploy/update-version.sh' --exclude='deploy/generate-client.sh'
-  --exclude='deploy/install_funasr.sh'
-  --exclude='frontend/playwright.config.ts' --exclude='frontend/vitest.config.ts'
-  --exclude='.mypy_cache' --exclude='__pycache__' --exclude='.pytest_cache'
-  --exclude='.ruff_cache' --exclude='*.pyc'
-  --exclude='backend/node_modules' --exclude='node_modules'
-)
+# 排除列表 (来自 build/config.sh)
 
 # ============================================================
 # 测试连接
@@ -375,50 +368,7 @@ verify_services() {
   fi
 }
 
-# ============================================================
-# 生成 Baota Nginx 反代配置
-# ============================================================
-generate_baota_nginx_config() {
-  [ "$SYNC_ONLY" = true ] && return
-  local NGINX_CONF=$(cat <<'NGINX_EOF'
-# ==================================================
-# EvoLoop 宝塔 Nginx 反向代理配置
-# ==================================================
-# 后端:  Python FastAPI (宝塔 Python 项目)
-# 前端:  SPA 静态文件
-# ==================================================
-
-# API 反代
-# location ^~ /api/ {
-#     proxy_pass http://127.0.0.1:20160/api/;
-#     proxy_set_header Host $host;
-#     proxy_set_header X-Real-IP $remote_addr;
-#     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-#     proxy_buffering off;
-# }
-
-# WebSocket
-# location ^~ /ws/ {
-#     proxy_pass http://127.0.0.1:20160/ws/;
-#     proxy_http_version 1.1;
-#     proxy_set_header Upgrade $http_upgrade;
-#     proxy_set_header Connection "Upgrade";
-#     proxy_set_header Host $host;
-# }
-
-# SPA 前端 (已部署)
-location / {
-    root /www/wwwroot/evoloop/frontend/dist;
-    try_files $uri $uri/ /index.html;
-}
-NGINX_EOF
-)
-  info "生成宝塔 Nginx 反代配置..."
-  local TMPFILE=$(mktemp /tmp/evoloop-baota-nginx.XXXXXX)
-  echo "$NGINX_CONF" > "$TMPFILE"
-  rm -f "$TMPFILE"
-  success "Nginx 配置已生成"
-}
+# (Baota Nginx 配置见 deploy/nginx/baota-reverse-proxy.conf)
 
 # ============================================================
 # 打印摘要
@@ -464,7 +414,6 @@ main() {
   sync_files
   start_infra
   deploy_backend
-  generate_baota_nginx_config
   verify_services
   print_summary
 }

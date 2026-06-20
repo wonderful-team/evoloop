@@ -18,3 +18,7 @@ node_modules/
 /.claude/
 /.solidlsp/
 frontend/src-tauri/resources/*.app/
+/.evoloop
+/.ruff_cache
+/.pytest_cache
+/tests

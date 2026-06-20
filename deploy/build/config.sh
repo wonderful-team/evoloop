@@ -13,3 +13,38 @@ VITE_API_URL="http://127.0.0.1:${BACKEND_PORT}"
 
 # Rust 编译目标架构
 ARCH="${ARCH:-aarch64-apple-darwin}"
+
+# =============================================================================
+# Rsync 排除列表 (多脚本共享)
+# =============================================================================
+EXCLUDE_RSYNC=(
+  --exclude='mobile'
+  --exclude='frontend/src-tauri'
+  --exclude='frontend/node_modules'
+  --exclude='backend/.venv'
+  --exclude='frontend/dist'
+  --exclude='backend/dist'
+  --exclude='backend/build'
+  --exclude='backend/evoloop-backend.spec'
+  --exclude='backend/entry_point.py'
+  --exclude='dist'
+  --exclude='Makefile'
+  --exclude='.git'
+  --exclude='.gitignore'
+  --exclude='.pre-commit-config.yaml'
+  --exclude='deploy/build'
+  --exclude='deploy/dev.sh'
+  --exclude='deploy/check_arch.sh'
+  --exclude='deploy/update-version.sh'
+  --exclude='deploy/generate-client.sh'
+  --exclude='deploy/install_funasr.sh'
+  --exclude='frontend/playwright.config.ts'
+  --exclude='frontend/vitest.config.ts'
+  --exclude='.mypy_cache'
+  --exclude='__pycache__'
+  --exclude='.pytest_cache'
+  --exclude='.ruff_cache'
+  --exclude='*.pyc'
+  --exclude='backend/node_modules'
+  --exclude='node_modules'
+)
