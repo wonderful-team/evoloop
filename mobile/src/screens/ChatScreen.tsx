@@ -285,10 +285,9 @@ export default function ChatScreen() {
         isComplete: true,
       });
     } else if (result.mode !== 'direct_llm') {
-      // 链路一（转发 Desktop）：显示发送成功，等待后台轮询
-      showSnackbar(t('chat.messageSent'));
+      // 链路一（转发 Desktop）：等待后台轮询
     }
-  }, [setCurrentConversation, addMessage, showSnackbar]);
+  }, [setCurrentConversation, addMessage]);
 
   const {
     state: deviceState,

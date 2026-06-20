@@ -10,16 +10,22 @@ export class ProjectManager {
   // 获取项目列表
   static async fetchProjects(): Promise<Project[]> {
     const store = useProjectStore.getState();
+    const deviceStore = useDeviceStore.getState();
+    const currentDevice = deviceStore.currentDevice;
     store.setLoading(true);
     store.setError(null);
 
     try {
-      const projects = await projectApi.getProjects();
+      const projects = await projectApi.getProjects(currentDevice?.deviceKey);
       store.setProjects(projects || []);
       
-      // 设置当前项目（如果没有设置的话，默认进入全局模式）
+      // 设置当前项目：如果当前没有设置，或者当前设置的项目不在新获取的项目列表中，重置为全局模式
       const currentProject = store.currentProject;
-      if (!currentProject) {
+      const isProjectValid = currentProject && (
+        isGlobalProject(currentProject) ||
+        (projects || []).some(p => p.id === currentProject.id)
+      );
+      if (!isProjectValid) {
         store.setCurrentProject(GLOBAL_PROJECT);
       }
       

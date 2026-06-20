@@ -24,9 +24,12 @@ export const projectApi = {
   // 获取项目列表 (MC 存储)
   // 后端实际接口: GET /member/projectmanage/api/projectOpen/projects
   // 响应格式: { code: 0, data: { list: [...] }, message: 'success' }
-  getProjects: async (): Promise<Project[]> => {
+  getProjects: async (deviceKey?: string): Promise<Project[]> => {
     const response = await api.get<ApiResponse<{ list: any[] }>>(
-      `/member/projectmanage/api/projectOpen/projects`
+      `/member/projectmanage/api/projectOpen/projects`,
+      {
+        params: deviceKey ? { external_source: deviceKey } : {},
+      }
     );
     const list = response.data?.list || [];
     return list.map((p: any) => ({

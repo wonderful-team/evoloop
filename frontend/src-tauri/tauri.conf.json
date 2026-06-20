@@ -1,12 +1,12 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "EvoLoop",
-  "version": "0.1.0",
+  "version": "0.6.0",
   "identifier": "com.evoloop.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "pnpm run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -15,7 +15,7 @@
         "title": "EvoLoop",
         "width": 1200,
         "height": 800,
-        "url": "packages/desktop/index.html",
+        "url": "index.html",
         "maximized": true,
         "dragDropEnabled": false,
         "titleBarStyle": "Overlay",

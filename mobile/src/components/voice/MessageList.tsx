@@ -589,6 +589,7 @@ export const MessageList = React.memo(function MessageList({
   const { t } = useTranslation();
   const flatListRef = useRef<FlatList>(null);
   const isUserAtBottomRef = useRef(true);
+  const shouldScrollToBottomRef = useRef(false);
 
   // Group messages
   const groupedMessages = useMemo(() => groupMessages(messages), [messages]);
@@ -608,6 +609,41 @@ export const MessageList = React.memo(function MessageList({
       });
     }
   }, [groupedMessages]);
+
+  // 监听新增加的用户消息，触发强制滚动
+  useEffect(() => {
+    if (messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg.role === 'human') {
+        shouldScrollToBottomRef.current = true;
+        flatListRef.current?.scrollToEnd({ animated: true });
+
+        const timer = setTimeout(() => {
+          shouldScrollToBottomRef.current = false;
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [messages]);
+
+  // 当 AI 开始思考或输入时，触发强制滚动
+  useEffect(() => {
+    if (isTyping) {
+      shouldScrollToBottomRef.current = true;
+      flatListRef.current?.scrollToEnd({ animated: true });
+
+      const timer = setTimeout(() => {
+        shouldScrollToBottomRef.current = false;
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isTyping]);
+
+  const handleContentSizeChange = useCallback(() => {
+    if (shouldScrollToBottomRef.current) {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }
+  }, []);
 
   const handleScroll = useCallback((event: any) => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
@@ -679,6 +715,7 @@ export const MessageList = React.memo(function MessageList({
       keyExtractor={(item) => (item.type === 'message' ? item.data.id : item.id)}
       renderItem={({ item }) => renderMessage(item)}
       onScroll={handleScroll}
+      onContentSizeChange={handleContentSizeChange}
       scrollEventThrottle={200}
       ListEmptyComponent={null}
       ItemSeparatorComponent={() => <Divider style={styles.divider} />}

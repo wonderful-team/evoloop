@@ -3,6 +3,7 @@
 import { useEffect, useCallback } from 'react';
 import { ProjectManager } from '@/services/projects/ProjectManager';
 import { useProjectStore } from '@/stores/projectStore';
+import { useDeviceStore } from '@/stores/deviceStore';
 import { Project } from '@/types';
 
 interface UseProjectsOptions {
@@ -12,6 +13,7 @@ interface UseProjectsOptions {
 export function useProjects(options: UseProjectsOptions = {}) {
   const { autoFetch = true } = options;
   const store = useProjectStore();
+  const deviceKey = useDeviceStore((state) => state.currentDevice?.deviceKey);
   const { projects, currentProject, isGlobalMode, isLoading, error } = store;
 
   // 自动获取项目列表
@@ -19,7 +21,7 @@ export function useProjects(options: UseProjectsOptions = {}) {
     if (autoFetch) {
       ProjectManager.fetchProjects().catch(console.error);
     }
-  }, [autoFetch]);
+  }, [autoFetch, deviceKey]);
 
   // 刷新项目列表
   const refresh = useCallback(async () => {

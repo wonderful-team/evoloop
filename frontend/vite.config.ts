@@ -13,7 +13,7 @@ export default defineConfig(({ mode }) => {
   console.log("============================================")
 
   return {
-    base: `${env.VITE_API_URL}/`,
+    base: "./",
     root: path.resolve(__dirname, "packages/desktop"),
     envDir: path.resolve(__dirname, ".."),
     resolve: {

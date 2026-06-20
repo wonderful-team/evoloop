@@ -5,6 +5,8 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserInfo } from '@/types';
 import { api } from '@/services/api/client';
+import { useDeviceStore } from './deviceStore';
+import { useProjectStore } from './projectStore';
 
 // AsyncStorage 适配器 for Zustand
 const asyncStorageAdapter = {
@@ -68,6 +70,10 @@ export const useAuthStore = create<AuthState>()(
         // 清除 AsyncStorage 中的 token
         await AsyncStorage.removeItem('token');
         await AsyncStorage.removeItem('userInfo');
+        
+        // 重置设备和项目状态
+        useDeviceStore.getState().reset();
+        useProjectStore.getState().reset();
       },
       
       updateUserInfo: (partial: Partial<UserInfo>) => {
