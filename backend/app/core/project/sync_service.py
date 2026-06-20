@@ -208,7 +208,8 @@ class ProjectSyncService:
                 if cloud_project:
                     # Case 2: Cloud exists + Local exists -> Auto-link
                     raw_pid = cloud_project.get("project_id")
-                    cloud_project_id = raw_pid if raw_pid is not None else cloud_project.get("id")
+                    resolved = raw_pid if raw_pid is not None else cloud_project.get("id")
+                    cloud_project_id = int(resolved) if resolved is not None else None
                     logger.info(f"[ProjectSync] Auto-linking local project '{repo_name}' to Cloud Project ID: {cloud_project_id}")
 
                     repo = Repository(
@@ -230,6 +231,25 @@ class ProjectSyncService:
 
                     # Persist project_id and repo_id into local .evoloop/project.json
                     write_project_json(abs_path, {"project_id": cloud_project_id, "repo_id": repo.id})
+
+                    # Sync device source to cloud so mobile can find this project
+                    try:
+                        from app.core.identity import identity_service
+                        device_key = await identity_service.store.get_device_key()
+                        if device_key:
+                            await evocloud_manager.api.update_project(
+                                project_id=cloud_project_id,
+                                source=device_key,
+                            )
+                            logger.info(
+                                f"[ProjectSync] Updated project {cloud_project_id} "
+                                f"source to device key {device_key}"
+                            )
+                    except Exception as e:
+                        logger.warning(
+                            f"[ProjectSync] Failed to update project "
+                            f"{cloud_project_id} source: {e}"
+                        )
 
                     # Auto-trigger indexing (no user confirmation needed)
                     await self._trigger_auto_indexing(repo, path)
@@ -362,7 +382,7 @@ class ProjectSyncService:
                     path=repo.local_path,
                 )
                 if res.get("code") == 0:
-                    new_pid = res["data"]["project_id"]
+                    new_pid = int(res["data"]["project_id"])
                     repo.project_id = new_pid
                     repo.sync_status = "SYNCED"
                     cloud_project_id = new_pid

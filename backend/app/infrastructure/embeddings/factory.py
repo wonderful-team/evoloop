@@ -112,7 +112,7 @@ class EmbedderFactory:
                 return None
 
         # 3. DB Config Exists
-        if provider == "openai" or provider == "generic" or provider == "local":
+        if provider == "openai" or provider == "generic":
             base_url = SystemConfigService.get_value("EMBEDDING_BASE_URL")
             model = SystemConfigService.get_value("CUSTOM_EMBEDDING_MODEL") or SystemConfigService.get_value("EMBEDDING_MODEL")
             api_key = SystemConfigService.get_value("EMBEDDING_API_KEY")
@@ -125,6 +125,18 @@ class EmbedderFactory:
                 model=model,
                 dimensions=dimensions
             )
+
+        elif provider == "local":
+            try:
+                import sentence_transformers  # noqa: F401
+                logger.info("Embedding provider configured as 'local'. Using LocalEmbedder (SentenceTransformers).")
+                return LocalEmbedder()
+            except ImportError:
+                logger.warning(
+                    "Embedding provider configured as 'local' but sentence_transformers is not installed. "
+                    "Semantic search will be disabled."
+                )
+                return None
 
         elif provider == "ollama":
             base_url = SystemConfigService.get_value("EMBEDDING_BASE_URL") or "http://localhost:11434"

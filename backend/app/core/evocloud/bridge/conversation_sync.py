@@ -89,6 +89,11 @@ class ConversationSyncManager:
             logger.debug("[ConversationSync] Skip full sync: no device_key")
             return
 
+        from app.core.identity import identity_service
+        if not await identity_service.is_logged_in():
+            logger.info("[ConversationSync] Skip full sync: not logged in yet")
+            return
+
         try:
             from app.core.evocloud.bridge.sync_tasks import full_sync_task
 

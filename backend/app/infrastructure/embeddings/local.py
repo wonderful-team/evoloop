@@ -42,6 +42,12 @@ class LocalEmbedder(BaseEmbedder):
     # encode() calls in the process without blocking event loops.
     _encode_lock = threading.Lock()
 
+    # Hard cap on the number of texts passed to a single encode() call. Larger
+    # batches run faster per-text but a single huge call monopolizes the CPU for
+    # minutes and makes the whole system unresponsive. 16 is a sweet spot for
+    # the Nomic model on a typical laptop CPU.
+    _MAX_ENCODE_BATCH = 16
+
     def __init__(
         self, model_name: str = "nomic-ai/nomic-embed-text-v1.5", device: str = "cpu"
     ):
@@ -109,14 +115,15 @@ class LocalEmbedder(BaseEmbedder):
 
         # Limit PyTorch/OpenMP threads to avoid over-subscription on CPUs with
         # many cores. With the default 16 threads, a single encode() call hogs
-        # the CPU and concurrent worker threads cannot make progress. 4 threads
-        # provides nearly the same throughput while leaving room for other work.
-        os.environ.setdefault("OMP_NUM_THREADS", "4")
-        os.environ.setdefault("MKL_NUM_THREADS", "4")
+        # the CPU and concurrent worker threads cannot make progress. 2 threads
+        # keeps the model responsive while still allowing other work (UI, IDE,
+        # second Huey worker) to run.
+        os.environ.setdefault("OMP_NUM_THREADS", "2")
+        os.environ.setdefault("MKL_NUM_THREADS", "2")
 
         import torch
 
-        torch.set_num_threads(4)
+        torch.set_num_threads(2)
 
         from sentence_transformers import SentenceTransformer
 
@@ -151,9 +158,21 @@ class LocalEmbedder(BaseEmbedder):
         # the duration of the (CPU-bound) encode call. encode() is called
         # synchronously to avoid asyncio.to_thread / PyTorch thread-pool
         # deadlocks observed in Huey worker threads on macOS.
+        #
+        # We also cap the batch size and disable the progress bar: a single
+        # huge encode() call monopolizes the CPU for minutes and makes the
+        # whole machine unresponsive.
+        all_embeddings: list[list[float]] = []
         with LocalEmbedder._encode_lock:
-            embeddings = model.encode(processed_docs, convert_to_numpy=True)
-        return embeddings.tolist()
+            for i in range(0, len(processed_docs), LocalEmbedder._MAX_ENCODE_BATCH):
+                chunk = processed_docs[i : i + LocalEmbedder._MAX_ENCODE_BATCH]
+                embeddings = model.encode(
+                    chunk,
+                    convert_to_numpy=True,
+                    show_progress_bar=False,
+                )
+                all_embeddings.extend(embeddings.tolist())
+        return all_embeddings
 
     async def embed_query(self, query: str) -> list[float]:
         if not query:
@@ -168,8 +187,13 @@ class LocalEmbedder(BaseEmbedder):
         logger.debug(f"[LocalEmbedder] Embedding query: {query[:50]}...")
 
         # Serialize encode() across worker threads.
+        # Use the same small batch cap so queries do not block large batches.
         with LocalEmbedder._encode_lock:
-            embedding = model.encode(processed_query, convert_to_numpy=True)
+            embedding = model.encode(
+                processed_query,
+                convert_to_numpy=True,
+                show_progress_bar=False,
+            )
         return embedding.tolist()
 
     # LangChain-compatible aliases

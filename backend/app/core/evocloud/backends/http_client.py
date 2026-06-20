@@ -428,9 +428,6 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         p = {"project_id": project_id} if project_id is not None else {}
         return await self.request("GET", "/projectmanage/api/project/statistics", params=p, token=token)
 
-    async def get_ai_global_config(self, token: str | None = None) -> dict:
-        return await self.request("GET", "/api/AI/globalConfig", token=token)
-
     # Cancellation
     async def get_cancellation_info(self, token: str | None = None) -> EvoCloudProxyResponse:
         return EvoCloudProxyResponse.model_validate(await self.request("GET", "/membercancel/api/membercancel/info", token=token))

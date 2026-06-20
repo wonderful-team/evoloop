@@ -18,13 +18,19 @@ pub fn check_accessibility_permission() -> bool {
 #[cfg(target_os = "macos")]
 #[tauri::command]
 pub fn open_accessibility_settings() {
-    println!("Requesting accessibility permission...");
+    if cfg!(debug_assertions) {
+        println!("Requesting accessibility permission...");
+    }
     // Force prompt first
     let result = macos_accessibility_client::accessibility::application_is_trusted_with_prompt();
-    println!("Prompt result: {}", result);
+    if cfg!(debug_assertions) {
+        println!("Prompt result: {}", result);
+    }
 
     if !result {
-        println!("Permission not granted, opening system settings...");
+        if cfg!(debug_assertions) {
+            println!("Permission not granted, opening system settings...");
+        }
         let _ = std::process::Command::new("open")
             .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
             .spawn();
@@ -49,14 +55,18 @@ pub async fn check_screen_recording_permission() -> bool {
     let temp_dir = std::path::PathBuf::from(home).join(".evoloop").join("temp");
 
     if let Err(e) = fs::create_dir_all(&temp_dir) {
-        println!("[PermissionCheck] Failed to create temp dir: {}", e);
+        if cfg!(debug_assertions) {
+            println!("[PermissionCheck] Failed to create temp dir: {}", e);
+        }
     }
 
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
     let temp_file = temp_dir.join(format!("evoloop_perm_check_{}.png", now));
     let temp_file_str = temp_file.to_str().unwrap_or("/tmp/evoloop_perm_check.png");
 
-    println!("[PermissionCheck] Testing screen recording via screencapture to {}...", temp_file_str);
+    if cfg!(debug_assertions) {
+        println!("[PermissionCheck] Testing screen recording via screencapture to {}...", temp_file_str);
+    }
 
     // Try to capture a tiny 1x1 area
     let status = Command::new("/usr/sbin/screencapture")
@@ -71,17 +81,23 @@ pub async fn check_screen_recording_permission() -> bool {
             if s.success() && temp_file.exists() {
                 let metadata = std::fs::metadata(&temp_file);
                 let has_data = metadata.map(|m| m.len() > 0).unwrap_or(false);
-                println!("[PermissionCheck] screencapture success. File size > 0: {}", has_data);
+                if cfg!(debug_assertions) {
+                    println!("[PermissionCheck] screencapture success. File size > 0: {}", has_data);
+                }
                 // Clean up
                 let _ = std::fs::remove_file(&temp_file);
                 has_data
             } else {
-                println!("[PermissionCheck] screencapture failed or file not created. Status: {:?}", s);
+                if cfg!(debug_assertions) {
+                    println!("[PermissionCheck] screencapture failed or file not created. Status: {:?}", s);
+                }
                 false
             }
         }
         Err(e) => {
-            println!("[PermissionCheck] screencapture command failed to start: {}", e);
+            if cfg!(debug_assertions) {
+                println!("[PermissionCheck] screencapture command failed to start: {}", e);
+            }
             false
         }
     }
@@ -96,7 +112,9 @@ pub async fn check_screen_recording_permission() -> bool {
 #[cfg(target_os = "macos")]
 #[tauri::command]
 pub fn open_screen_recording_settings() {
-    println!("Opening screen recording privacy settings...");
+    if cfg!(debug_assertions) {
+        println!("Opening screen recording privacy settings...");
+    }
     let _ = std::process::Command::new("open")
         .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
         .spawn();

@@ -278,16 +278,8 @@ async def verify_guest_access(
 
     # Check Guest Limits via cache
     try:
-        # 1. Get Global Config
-        try:
-            # Async call to global config
-            config_res = await evocloud_manager.api.get_ai_global_config()
-            limit = 10  # Default
-            if config_res and config_res.get("code") == 0:
-                limit = int(config_res.get("data", {}).get("guest_daily_limit", 10))
-        except Exception as e:
-            logger.warning(f"Failed to fetch guest config, using default: {e}")
-            limit = 10
+        # 1. Guest daily limit (hardcoded until DB config is available)
+        limit = 10
 
         if limit <= 0:
             raise HTTPException(status_code=403, detail="Guest chat disabled")
