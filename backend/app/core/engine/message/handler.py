@@ -117,16 +117,9 @@ class MessageHandler:
 
         if persist_data.should_persist:
             # --- [Phase 2] 自动提取 AI 产出物引用 ---
-            from app.constants import DEFAULT_PROJECT_ID
             from app.core.engine.message.extractor import attachment_extractor
 
-            extracted_refs = attachment_extractor.extract_from_ai_response(
-                content=persist_data.content,
-                thread_id=self.thread_id,
-                project_id=self.project_id
-                if self.project_id is not None
-                else DEFAULT_PROJECT_ID,
-            )
+            extracted_refs = attachment_extractor.extract_from_ai_response(content=persist_data.content)
 
             msg_id, seq = await self._repository.persist(
                 role="ai",
