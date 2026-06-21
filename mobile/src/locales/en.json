@@ -1001,6 +1001,8 @@
     "rename": "Rename",
     "renameTitle": "Rename Conversation",
     "renamePlaceholder": "Enter new conversation title",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
     "pin": "Pin",
     "unpin": "Unpin"
   },

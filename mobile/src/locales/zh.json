@@ -1002,6 +1002,8 @@
     "rename": "重命名",
     "renameTitle": "会话重命名",
     "renamePlaceholder": "请输入新的会话标题",
+    "cancel": "取消",
+    "confirm": "确定",
     "pin": "置顶",
     "unpin": "取消置顶"
   },
