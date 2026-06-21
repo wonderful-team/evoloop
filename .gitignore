@@ -22,3 +22,4 @@ frontend/src-tauri/resources/*.app/
 /.ruff_cache
 /.pytest_cache
 /tests
+/.env

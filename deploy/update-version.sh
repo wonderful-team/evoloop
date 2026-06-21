@@ -46,7 +46,7 @@ ENV_PROD_DESKTOP="$PROJECT_ROOT/.env.prod.desktop"
 
 if [ -f "$ENV_PROD_DESKTOP" ]; then
     for key in APP_VERSION BUILD_NUMBER BUILD_TIME GIT_COMMIT; do
-        local val
+        val=""
         case "$key" in
             APP_VERSION) val="$NEW_VERSION" ;;
             BUILD_NUMBER) val="$BUILD_NUMBER" ;;

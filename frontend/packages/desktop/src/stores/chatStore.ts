@@ -93,13 +93,15 @@ export const useChatStore = create<ChatState>((set, get) => {
     // --- Core Actions ---
     setThread: async (threadId, projectId, skillIds) => {
       const currentThreadId = get().threadId
+      const isUpgradingNewConversation = currentThreadId === null && threadId !== null && get().messages.length > 0
+
       set({
         threadId,
         projectId,
         skillIds: skillIds || [],
         ...(currentThreadId !== threadId
           ? {
-              messages: [],
+              messages: isUpgradingNewConversation ? get().messages : [],
               hasMoreHistory: false,
               firstMessageId: null,
               totalMessageCount: null,
@@ -411,8 +413,9 @@ export const useChatStore = create<ChatState>((set, get) => {
             // New thread: sync ID and re-init state/SSE
             console.log(`[ChatStore] Syncing new threadId: ${res.thread_id}`)
             await get().setThread(res.thread_id, projectId, activeSkillIds)
-          } else if (res.message_id) {
-            // Existing thread: replace optimistic temp ID with real backend ID
+          }
+          if (res.message_id) {
+            // Existing thread or new thread: replace optimistic temp ID with real backend ID
             set((state) => ({
               messages: state.messages.map((m) =>
                 m.id === tempId ? { ...m, id: res.message_id } : m,

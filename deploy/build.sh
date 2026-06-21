@@ -206,7 +206,7 @@ detect_current_platform() {
         x86_64) echo "macos-x86_64" ;;
       esac
       ;;
-    MINGW*|MSYS*) echo "windows" ;;
+    MINGW*|MSYS*) echo "windows-x86_64" ;;
     *) err "Unknown platform: $(uname -s)"; exit 1 ;;
   esac
 }
