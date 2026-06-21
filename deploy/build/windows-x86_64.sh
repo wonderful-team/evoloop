@@ -10,6 +10,7 @@ WITH_MODELS=false
 DOWNLOAD_MODELS=false
 MODELS_LIST="paraformer-zh"
 ARCH="x86_64-pc-windows-msvc"
+ENVIRONMENT="production"
 
 # Validate: building Windows from macOS requires x86_64 for cross-compilation
 HOST_ARCH=$(uname -m)
@@ -19,7 +20,8 @@ fi
 
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --dev|-d) DEV_MODE=true; shift ;;
+    --dev|-d) DEV_MODE=true; ENVIRONMENT="development"; shift ;;
+    --env) ENVIRONMENT="$2"; shift 2 ;;
     --with-models|-m) WITH_MODELS=true; shift ;;
     --download-models)
       DOWNLOAD_MODELS=true
@@ -59,9 +61,24 @@ step "Pre-build: Checking Python environment"
 check_numpy "python3"
 
 step "Step 1: Building Backend Sidecar"
-PYTHON="python3"
+PYTHON=""
+for cmd in python3 python; do
+  if command -v "$cmd" &>/dev/null; then
+    PYTHON="$cmd"
+    break
+  fi
+done
+if [ -z "$PYTHON" ]; then
+  err "No Python interpreter found (tried: python3, python)"
+  exit 1
+fi
 if [ -d "$PROJECT_ROOT/backend/.venv" ]; then
-  PYTHON="$PROJECT_ROOT/backend/.venv/bin/python"
+  for venv_py in ".venv/bin/python" ".venv/Scripts/python.exe"; do
+    if [ -f "$PROJECT_ROOT/backend/$venv_py" ]; then
+      PYTHON="$PROJECT_ROOT/backend/$venv_py"
+      break
+    fi
+  done
 fi
 
 cd "$PROJECT_ROOT/backend"

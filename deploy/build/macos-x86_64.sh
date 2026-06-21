@@ -102,7 +102,8 @@ else
   export CXXFLAGS_x86_64_apple_darwin="-D_LIBCPP_DISABLE_AVAILABILITY"
 
   LIBRARY_PATH="$PROJECT_ROOT/frontend/src-tauri/libs:$LIBRARY_PATH" EVOLOOP_BACKEND_PORT="$BACKEND_PORT" VITE_API_URL="$VITE_API_URL" npm run tauri build -- --target "$ARCH" --bundles app || {
-    warn "Tauri build failed, attempting manual bundling..."
+    warn "Tauri build failed"
+    exit 1
   }
 
   APP_VERSION=$(grep ^APP_VERSION= "$PROJECT_ROOT/.env" 2>/dev/null | cut -d= -f2 || echo "0.1.0")
