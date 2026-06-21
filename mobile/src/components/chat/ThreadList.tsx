@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   Text,
+  Platform,
 } from 'react-native';
 import { IconButton, Divider, ActivityIndicator, Portal, Dialog, Button, TextInput } from 'react-native-paper';
 import { useTheme } from '@/theme';
@@ -18,6 +19,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Swipeable } from 'react-native-gesture-handler';
 import { formatDate } from '@/utils/format';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface ThreadListProps {
   projectId?: number;
@@ -34,6 +36,7 @@ interface ConversationSection {
 export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }: ThreadListProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const { isLoggedIn } = useAuthStore();
   const {
     conversations,
@@ -278,7 +281,16 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* 头部 */}
-      <View style={[styles.header, { borderBottomColor: colors.outline + '30' }]}>
+      <View
+        style={[
+          styles.header,
+          { borderBottomColor: colors.outline + '30' },
+          Platform.OS === 'harmony' && {
+            paddingTop: insets.top + 8,
+            paddingBottom: 12,
+          },
+        ]}
+      >
         <Text style={{ color: colors.onSurface, fontSize: 16, fontWeight: '600' }}>
           {t('threadList.title') || '对话列表'}
         </Text>

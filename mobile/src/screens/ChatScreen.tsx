@@ -59,9 +59,7 @@ export default function ChatScreen() {
   const { colors } = useTheme();
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const insets = useSafeAreaInsets();
-  console.warn('[Diagnostic] Platform.OS is:', Platform.OS);
 
-  // 从 MC 拉取项目列表（登录后才请求）
   // 从 MC 拉取项目列表（登录后才请求）
   const { currentProject, isGlobalMode, setCurrentProject, setGlobalMode } = useProjects({ autoFetch: isLoggedIn });
 
@@ -691,7 +689,7 @@ export default function ChatScreen() {
     const currentMessages = useConversationStore.getState().messages;
     const index = currentMessages.findIndex((m) => m.id === messageId);
     if (index === -1) return;
-    
+
     const msg = currentMessages[index];
     if (msg.role === 'human') {
       setPendingRewindContent(msg.content);
@@ -718,7 +716,7 @@ export default function ChatScreen() {
     const currentMessages = useConversationStore.getState().messages;
     const index = currentMessages.findIndex((m) => m.id === messageId);
     if (index === -1) return;
-    
+
     const subMessages = currentMessages.slice(index + 1);
     const hasFiles = subMessages.some((m) => m.has_file_operations);
 
@@ -783,8 +781,8 @@ export default function ChatScreen() {
           style={[
             styles.header,
             Platform.OS === 'harmony' && {
-              paddingTop: insets.top,
-              height: 56 + insets.top,
+              paddingTop: insets.top + 8,
+              paddingBottom: 12,
             },
           ]}
           collapsable={false}
@@ -1160,7 +1158,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
-    ...(isHarmony ? { height: 48 } : {}),
+    ...(isHarmony ? { paddingVertical: 6 } : {}),
   },
   projectName: {
     marginLeft: 6,

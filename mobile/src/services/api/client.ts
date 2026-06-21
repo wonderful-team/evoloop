@@ -6,7 +6,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { handleApiError, isAuthError } from '@/utils/error';
 import { checkIsBenefitError, handleBenefitError, convertToBenefitError } from '@/utils/subscriptionErrors';
 import { showGlobalToast } from '@/contexts/ToastContext';
-import { useAuthStore } from '@/stores/authStore';
 import i18n from '@/locales';
 
 // 权益错误回调（用于全局监听）
@@ -57,7 +56,7 @@ const onTokenRefreshed = (token: string) => {
 apiClient.interceptors.request.use(
   async (config) => {
     // 从 authStore 获取 token（实时状态），若未就绪则回退 AsyncStorage
-    let token = useAuthStore.getState().token;
+    let token = require('@/stores/authStore').useAuthStore.getState().token;
     if (!token) {
       token = await AsyncStorage.getItem('token');
     }
@@ -112,7 +111,7 @@ apiClient.interceptors.response.use(
         isRefreshing = true;
 
         // 清除登录状态并提示用户
-        useAuthStore.getState().logout();
+        require('@/stores/authStore').useAuthStore.getState().logout();
         isRefreshing = false;
         showGlobalToast(i18n.t('auth.errors.sessionExpired'), 'error');
 
@@ -164,12 +163,12 @@ apiClient.interceptors.response.use(
 
       try {
         // 清除登录状态并提示用户
-        useAuthStore.getState().logout();
+        require('@/stores/authStore').useAuthStore.getState().logout();
         showGlobalToast(i18n.t('auth.errors.sessionExpired'), 'error');
         const appError = handleApiError(error);
         return Promise.reject(appError);
       } catch (refreshError) {
-        useAuthStore.getState().logout();
+        require('@/stores/authStore').useAuthStore.getState().logout();
         showGlobalToast(i18n.t('auth.errors.sessionExpired'), 'error');
         return Promise.reject(handleApiError(refreshError));
       } finally {
@@ -233,7 +232,7 @@ export interface SSEOptions {
  * 解析 OpenAI 格式的 SSE data: {...} 行
  */
 async function fetchSSE(url: string, body: any, options: SSEOptions): Promise<void> {
-  const token = useAuthStore.getState().token || await AsyncStorage.getItem('token');
+  const token = require('@/stores/authStore').useAuthStore.getState().token || await AsyncStorage.getItem('token');
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
