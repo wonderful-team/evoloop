@@ -548,7 +548,12 @@ export const MessageList = memo(function MessageList({
         })
       } else {
         // 中间步骤（AI tool_call、tool_output、未标 isLastInTurn 的 AI 消息）全进 steps
-        currentTurnSteps.push(item.data)
+        const isHitlTool =
+          item.data.role === "tool" &&
+          (item.data.tool_name === "ask_human" || item.data.tool_name === "ask_confirm")
+        if (!isHitlTool) {
+          currentTurnSteps.push(item.data)
+        }
       }
     }
 

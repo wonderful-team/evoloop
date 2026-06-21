@@ -274,6 +274,63 @@ class TestEmbedderFactoryCache:
             )
             assert len(created) >= 1, "Embedder was never created"
 
+    def test_local_embedder_disabled_by_default(self):
+        """When no provider is configured and EMBEDDING_ENABLED is false, factory returns None."""
+        from app.infrastructure.embeddings.factory import EmbedderFactory
+
+        with patch.object(settings, "EMBEDDING_ENABLED", False):
+            with patch(
+                "app.infrastructure.config.service.SystemConfigService.get_value",
+                return_value=None,
+            ):
+                embedder = EmbedderFactory.get_embedder()
+                assert embedder is None, (
+                    f"Expected None when EMBEDDING_ENABLED=false, got {type(embedder).__name__}"
+                )
+
+    def test_local_embedder_enabled_when_flag_true(self):
+        """When no provider is configured but EMBEDDING_ENABLED is true, LocalEmbedder is used."""
+        from app.infrastructure.embeddings.factory import EmbedderFactory
+        from app.infrastructure.embeddings.local import LocalEmbedder
+
+        with patch.object(settings, "EMBEDDING_ENABLED", True):
+            with patch(
+                "app.infrastructure.config.service.SystemConfigService.get_value",
+                return_value=None,
+            ):
+                with patch.object(
+                    LocalEmbedder, "_get_model", return_value=MagicMock()
+                ):
+                    embedder = EmbedderFactory.get_embedder()
+                    assert isinstance(embedder, LocalEmbedder), (
+                        f"Expected LocalEmbedder when EMBEDDING_ENABLED=true, got {type(embedder).__name__}"
+                    )
+
+    def test_third_party_provider_ignores_enabled_flag(self):
+        """A configured third-party provider is always enabled regardless of the local flag."""
+        from app.infrastructure.embeddings.factory import EmbedderFactory
+        from app.infrastructure.embeddings.openai import GenericOpenAIEmbedder
+
+        with patch.object(settings, "EMBEDDING_ENABLED", False):
+            with patch(
+                "app.infrastructure.config.service.SystemConfigService.get_value"
+            ) as mock_get:
+                def side_effect(key):
+                    vals = {
+                        "EMBEDDING_PROVIDER": "openai",
+                        "EMBEDDING_MODEL": "text-embedding-3-small",
+                        "EMBEDDING_BASE_URL": "https://api.openai.com/v1",
+                        "EMBEDDING_API_KEY": "sk-test",
+                        "EMBEDDING_DIMENSIONS": "1536",
+                    }
+                    return vals.get(key)
+
+                mock_get.side_effect = side_effect
+                embedder = EmbedderFactory.get_embedder()
+                assert isinstance(embedder, GenericOpenAIEmbedder), (
+                    f"Expected GenericOpenAIEmbedder for openai provider, got {type(embedder).__name__}"
+                )
+
 
 class TestGraphManagerCache:
     """GraphManager._drivers must be safe under concurrent creation."""

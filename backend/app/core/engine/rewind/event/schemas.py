@@ -41,6 +41,7 @@ class RewindRequestedEvent(RewindEvent):
     # against each other querying the messages table.
     affected_message_ids: list[str] = Field(default_factory=list)
     affected_run_ids: list[str] = Field(default_factory=list)
+    target_sequence: int = 0
 
     @model_validator(mode="after")
     def _build_data(self):
@@ -118,6 +119,8 @@ class MessagesCleanupEvent(RewindEvent):
     event_type: str = RewindEventType.MESSAGES_CLEANUP
     message_ids: list[str] = Field(default_factory=list)
     delete_references: bool = True
+    target_sequence: int = 0
+    include_target: bool = False
 
     @model_validator(mode="after")
     def _build_data(self):
@@ -125,5 +128,8 @@ class MessagesCleanupEvent(RewindEvent):
             "thread_id": self.thread_id,
             "message_ids": self.message_ids,
             "count": len(self.message_ids),
+            "target_sequence": self.target_sequence,
+            "include_target": self.include_target,
         })
         return self
+

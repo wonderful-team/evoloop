@@ -61,12 +61,37 @@ export function useChatGateway({ isLoggedIn, syncMessages, onAgentRunCompleted }
       }
     };
 
+    const handleMessagesDeleted = (message: any) => {
+      const data = message.data;
+      if (!data) return;
+      const threadId = data.thread_id;
+      const messageIds = data.message_ids;
+      
+      if (threadId && messageIds && Array.isArray(messageIds)) {
+        useConversationStore.getState().removeMessages(messageIds);
+      }
+    };
+
+    const handleThreadRewind = (message: any) => {
+      const data = message.data;
+      if (!data) return;
+      const threadId = data.thread_id;
+      const targetSequence = data.target_sequence;
+      const includeTarget = data.include_target;
+
+      if (threadId && typeof targetSequence === 'number') {
+        useConversationStore.getState().rewindLocalMessages(targetSequence, !!includeTarget);
+      }
+    };
+
     const handleStateChange = (state: ConnectionState) => {
       setGatewayConnectionState(state);
     };
 
     client.on('stateChange', handleStateChange);
     client.on(GatewayMessageType.MESSAGE_SYNC || 'message_sync', handleMessageSync);
+    client.on(GatewayMessageType.MESSAGES_DELETED || 'messages_deleted', handleMessagesDeleted);
+    client.on(GatewayMessageType.THREAD_REWIND || 'thread_rewind', handleThreadRewind);
     client.on(GatewayMessageType.AGENT_RUN_COMPLETED, handleAgentRunCompleted);
 
     client.connect().catch(() => { });
@@ -74,6 +99,8 @@ export function useChatGateway({ isLoggedIn, syncMessages, onAgentRunCompleted }
     return () => {
       client.off('stateChange', handleStateChange);
       client.off(GatewayMessageType.MESSAGE_SYNC || 'message_sync', handleMessageSync);
+      client.off(GatewayMessageType.MESSAGES_DELETED || 'messages_deleted', handleMessagesDeleted);
+      client.off(GatewayMessageType.THREAD_REWIND || 'thread_rewind', handleThreadRewind);
       client.off(GatewayMessageType.AGENT_RUN_COMPLETED, handleAgentRunCompleted);
       client.disconnect();
     };

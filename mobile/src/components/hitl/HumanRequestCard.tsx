@@ -22,10 +22,11 @@ import { HumanRequest, RiskLevel } from '@/types/hitl';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Markdown from 'react-native-markdown-display';
 
-interface HumanRequestCardProps {
+export interface HumanRequestCardProps {
   request: HumanRequest;
   onRespond: (value: string) => void;
   onCancel?: () => void;
+  disabled?: boolean;
 }
 
 // 风险等级配置（使用翻译键）
@@ -60,6 +61,7 @@ export function HumanRequestCard({
   request,
   onRespond,
   onCancel,
+  disabled = false,
 }: HumanRequestCardProps) {
   const { t } = useTranslation();
   const { colors, isDark } = useTheme();
@@ -126,8 +128,9 @@ export function HumanRequestCard({
       placeholder={t('chat_request.placeholder')}
       placeholderTextColor={colors.onSurfaceVariant}
       multiline
-      numberOfLines={4}
+      numberOfLines={3}
       textAlignVertical="top"
+      editable={!disabled && !isSubmitting}
     />
   );
 
@@ -157,8 +160,10 @@ export function HumanRequestCard({
               labelStyle={{
                 color: value === option ? colors.primary : colors.onSurface,
                 fontWeight: value === option ? '600' : '400',
+                fontSize: 14,
               }}
               color={colors.primary}
+              disabled={disabled || isSubmitting}
             />
           </View>
         ))}
@@ -227,14 +232,11 @@ export function HumanRequestCard({
       onPress={() => handleSubmit(value)}
       style={styles.submitButton}
       buttonColor={colors.primary}
-      disabled={isSubmitting || !value.trim()}
+      disabled={isSubmitting || disabled || !value.trim()}
       loading={isSubmitting}
     >
       {t('hitl.submit')}
     </Button>
-
-
-
   );
 
   return (
@@ -354,11 +356,11 @@ export function HumanRequestCard({
 
 const styles = StyleSheet.create({
   container: {
-    marginHorizontal: 16,
-    marginVertical: 8,
-    borderRadius: 16,
+    marginHorizontal: 12,
+    marginVertical: 4,
+    borderRadius: 12,
     borderLeftWidth: 4,
-    elevation: 4,
+    elevation: 2,
   },
   highRiskContainer: {
     borderWidth: 1,
@@ -368,7 +370,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -376,19 +379,19 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
   },
   title: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
   },
   subtitle: {
-    fontSize: 11,
-    marginTop: 2,
+    fontSize: 10,
+    marginTop: 0,
   },
   riskBadge: {
     flexDirection: 'row',
@@ -403,70 +406,75 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   divider: {
-    marginHorizontal: 16,
+    marginHorizontal: 12,
   },
   actionSection: {
-    paddingTop: 12,
-    paddingBottom: 4,
+    paddingTop: 8,
+    paddingBottom: 0,
+    paddingHorizontal: 12,
   },
   actionTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
   },
   promptSection: {
-    paddingVertical: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
   },
   prompt: {
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 20,
   },
   detailsSection: {
-    paddingVertical: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
   },
   detailsContainer: {
-    padding: 12,
-    borderRadius: 10,
+    padding: 8,
+    borderRadius: 8,
   },
   consequencesSection: {
-    paddingVertical: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
   },
   consequencesContainer: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 8,
-    padding: 12,
-    borderRadius: 10,
+    gap: 6,
+    padding: 8,
+    borderRadius: 8,
   },
   consequencesText: {
     flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
   },
   inputSection: {
-    paddingVertical: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
   },
   textInput: {
     borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 15,
-    lineHeight: 22,
-    minHeight: 100,
+    borderRadius: 8,
+    padding: 8,
+    fontSize: 14,
+    lineHeight: 20,
+    minHeight: 60,
   },
   choiceContainer: {
-    gap: 8,
+    gap: 6,
   },
   choiceItem: {
-    borderRadius: 10,
-    borderWidth: 2,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   radioItem: {
-    paddingVertical: 8,
+    paddingVertical: 4,
   },
   actions: {
     justifyContent: 'flex-end',
-    padding: 16,
-    paddingTop: 8,
+    padding: 12,
+    paddingTop: 4,
   },
   buttonRow: {
     flexDirection: 'row',

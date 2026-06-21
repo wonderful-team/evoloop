@@ -270,3 +270,59 @@ class DeviceInfoSyncSubscriber:
             f"device_key={device_key[:20]}..."
         )
 
+
+# =============================================================================
+# Rewind & Sync Cleanup Handler
+# =============================================================================
+
+@event_register()
+class EvoCloudSyncCleanupSubscriber:
+    """
+    Subscribes to rewind cleanup events and triggers message deletion on cloud sync.
+    """
+
+    @event_subscribe("rewind.messages.cleanup")
+    async def on_messages_cleanup(self, event: "MessagesCleanupEvent"):
+        """
+        Listen to local database cleanup during rewind/retry, and propagate
+        these deletions to EvoCloud via HTTP API.
+        """
+        from app.core.engine.rewind.event.schemas import MessagesCleanupEvent
+        if not isinstance(event, MessagesCleanupEvent):
+            return
+
+        if not event.target_sequence and not event.message_ids:
+            return
+
+        from app.core.evocloud.manager import evocloud_manager
+        from app.core.identity import identity_service
+        
+        device_key = await identity_service.store.get_device_key()
+        if not device_key:
+            return
+            
+        try:
+            if event.target_sequence > 0:
+                result = await evocloud_manager.api.sync_rewind_messages(
+                    device_key=device_key,
+                    thread_id=str(event.thread_id),
+                    target_sequence=event.target_sequence,
+                    include_target=event.include_target
+                )
+                if result.get("code") == 0:
+                    logger.info(f"[EvoCloud] Successfully rewound cloud messages from sequence {event.target_sequence}")
+                else:
+                    logger.warning(f"[EvoCloud] Failed to rewind messages from cloud: {result.get('message')}")
+            else:
+                # Fallback to the old batch deletion API if sequence is 0
+                result = await evocloud_manager.api.sync_delete_messages(
+                    device_key=device_key,
+                    thread_id=str(event.thread_id),
+                    message_ids=event.message_ids
+                )
+                if result.get("code") == 0:
+                    logger.info(f"[EvoCloud] Successfully deleted {len(event.message_ids)} messages from cloud via fallback")
+                else:
+                    logger.warning(f"[EvoCloud] Failed to delete messages from cloud via fallback: {result.get('message')}")
+        except Exception as e:
+            logger.error(f"[EvoCloud] Exception during cloud sync messages cleanup: {e}")

@@ -75,6 +75,12 @@ def setup_logging():
     logging.getLogger("openai").setLevel(logging.WARNING)
     logging.getLogger("mcp").setLevel(logging.WARNING)
     logging.getLogger("watchfiles").setLevel(logging.WARNING)
+    logging.getLogger("aiosqlite").setLevel(logging.WARNING)
+    logging.getLogger("websockets.client").setLevel(logging.WARNING)
+    logging.getLogger("websockets.server").setLevel(logging.WARNING)
+    logging.getLogger("huey.consumer").setLevel(logging.WARNING)
+    logging.getLogger("hpack").setLevel(logging.WARNING)
+    logging.getLogger("hpack.hpack").setLevel(logging.WARNING)
 
     # Enable detailed logs for our app
     logging.getLogger("app").setLevel(logging.DEBUG)

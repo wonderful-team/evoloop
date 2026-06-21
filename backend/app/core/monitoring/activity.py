@@ -102,8 +102,7 @@ class ActivityMonitor:
 
         except AgentHumanInterruptException:
             logger.info(f"[ActivityMonitor] ⏸️ Run {run_id} interrupted for human input")
-            # status "interrupted" is handled by set_human_request usually,
-            # but we keep end_run call if appropriate
+            await self.end_run(thread_id, status="interrupted", run_id=run_id, task_type=task_type)
             raise
 
         except Exception as e:
@@ -167,8 +166,12 @@ class ActivityMonitor:
                 HumanRequestEvent(
                     thread_id=thread_id,
                     action="create",
+                    id=request_dict.get("id"),
                     prompt=request_dict.get("prompt"),
                     request_type=request_dict.get("type"),
+                    options=request_dict.get("options"),
+                    context=request_dict.get("context"),
+                    default_value=request_dict.get("default_value"),
                     allow_cancel=request_dict.get("allow_cancel", True),
                     payload=request_dict.get("payload", {})
                 )

@@ -43,6 +43,7 @@ interface ConversationState {
   loadMessages: (conversationId: string, refresh?: boolean) => Promise<void>;
   loadMoreMessages: (conversationId: string) => Promise<void>;
   addMessage: (message: ChatMessage) => void;
+  removeMessages: (messageIds: string[]) => void;
   syncMessages: (messages: AgentSyncMessage[]) => void;
   updateLastMessage: (updates: Partial<ChatMessage>) => void;
   updateMessageStatus: (messageId: string, status: ChatMessage['status']) => void;
@@ -60,6 +61,7 @@ interface ConversationState {
   // Rewind/Retry
   rewindConversation: (conversationId: string, request: { message_id: string; revert_files?: boolean }) => Promise<any>;
   retryConversation: (conversationId: string, request: { message_id: string; revert_files?: boolean }) => Promise<any>;
+  rewindLocalMessages: (targetSequence: number, includeTarget: boolean) => void;
 
   // 添加到记忆
   addToMemory: (projectId: number, request: { name: string; description: string }) => Promise<any>;
@@ -256,6 +258,25 @@ export const useConversationStore = create<ConversationState>()(
       addMessage: (message) => {
         set({ messages: [...get().messages, message] });
       },
+
+      // 删除消息
+      removeMessages: (messageIds) => {
+        if (!messageIds || messageIds.length === 0) return;
+        set({
+          messages: get().messages.filter(msg => !messageIds.includes(msg.id))
+        });
+      },
+
+      // 回滚本地消息列表
+      rewindLocalMessages: (targetSequence: number, includeTarget: boolean) => {
+        set({
+          messages: get().messages.filter(msg => {
+            if (!msg.sequenceNumber) return true; // keep messages without sequence
+            return includeTarget ? msg.sequenceNumber < targetSequence : msg.sequenceNumber <= targetSequence;
+          })
+        });
+      },
+
 
       // 从 Agent 即时推送同步单条消息到 UI（绕过 PHP API）
       syncMessages: (incomingMessages) => {

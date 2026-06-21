@@ -872,18 +872,38 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks, _current_us
     if not graph or not checkpointer:
         raise HTTPException(status_code=500, detail="Graph or Checkpointer not initialized")
 
+    active_model = req.model
+    if not active_model:
+        loaded_ctx = await ContextManager.load(req.thread_id)
+        if loaded_ctx:
+            active_model = loaded_ctx.active_model
+
     # Config for resuming from checkpoint
     config = {
         "configurable": {
             "thread_id": req.thread_id,
-            "model": req.model,
+            "model": active_model,
             "run_id": f"run-resume-{gen_uuid()[:8]}",
         }
     }
 
-    # Prepare input - if user provided input, add as message
+    # [HITL Resume Fix]: Check if we need to auto-complete a Tool Call
+    from app.core.hitl.orchestrator import HITLOrchestrator
+    pending_tool = await HITLOrchestrator.get_pending_request(graph, req.thread_id, active_model)
+
     inputs = None
-    if req.user_input:
+    if pending_tool:
+        logger.info(f"Auto-completing tool call {pending_tool['name']} on resume")
+        normalized_input = await HITLOrchestrator.handle_resume(req.thread_id, pending_tool, req.user_input)
+
+        tool_msg = ToolMessage(
+            tool_call_id=pending_tool["id"],
+            content=normalized_input,
+        )
+        inputs = {"messages": [tool_msg]}
+
+    # Prepare input - if user provided input, add as message
+    elif req.user_input:
         # Check if user_input contains temporary project context (Scheme C)
         try:
             parsed = json.loads(req.user_input)
@@ -917,10 +937,6 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks, _current_us
             member_id=_current_user.id if _current_user else 0,
         )
 
-    # [HITL Resume Fix]: Check if we need to auto-complete a Tool Call
-    from app.core.hitl.orchestrator import HITLOrchestrator
-    pending_tool = await HITLOrchestrator.get_pending_request(graph, req.thread_id, req.model)
-    
     if pending_tool:
         logger.info(f"Auto-completing tool call {pending_tool['name']} on resume")
         normalized_input = await HITLOrchestrator.handle_resume(req.thread_id, pending_tool, req.user_input)
@@ -939,6 +955,7 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks, _current_us
     config = {
         "configurable": {
             "thread_id": req.thread_id,
+            "model": active_model,
             "run_id": f"resume-{req.thread_id}-{int(time.time())}"
         },
         "metadata": {
@@ -987,7 +1004,14 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
 
     # [HITL Cancel Fix]: Send cancellation as ToolMessage instead of HumanMessage
     from app.core.hitl.orchestrator import HITLOrchestrator
-    pending_tool = await HITLOrchestrator.get_pending_request(graph, req.thread_id, req.model)
+    
+    active_model = req.model
+    if not active_model:
+        loaded_ctx = await ContextManager.load(req.thread_id)
+        if loaded_ctx:
+            active_model = loaded_ctx.active_model
+
+    pending_tool = await HITLOrchestrator.get_pending_request(graph, req.thread_id, active_model)
     
     # [HITL Closure]: Clear human request from activity monitor
     await activity_monitor.clear_human_request(req.thread_id)
@@ -1013,6 +1037,7 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
     config = {
         "configurable": {
             "thread_id": req.thread_id,
+            "model": active_model,
             "run_id": f"cancel-{req.thread_id}-{int(time.time())}"
         },
         "metadata": {

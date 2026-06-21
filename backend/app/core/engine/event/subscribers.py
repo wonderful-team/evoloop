@@ -295,6 +295,16 @@ class EngineCommandSubscriber:
 
             if not target_msg:
                 logger.error(f"[EngineCommand] No human message found for {action} thread {thread_id}")
+                # Fallback: if message is missing locally, at least attempt to delete the target message from the cloud
+                if message_id and payload.get("include_target", not should_redispatch):
+                    from app.core.engine.rewind.event.publishers import publish_messages_cleanup
+                    await publish_messages_cleanup(
+                        thread_id=thread_id,
+                        message_ids=[message_id],
+                        delete_references=False,
+                        target_sequence=0,
+                        include_target=False,
+                    )
                 return
 
             references = None
@@ -317,7 +327,7 @@ class EngineCommandSubscriber:
         rewind_result = await orchestrator.perform_rewind(
             thread_id=thread_id,
             target_message_id=str(target_msg.id),
-            include_target=False,
+            include_target=payload.get("include_target", not should_redispatch),
             revert_files=revert_files,
             reset_state=should_redispatch,
             reason=action,

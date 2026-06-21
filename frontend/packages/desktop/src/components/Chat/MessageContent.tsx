@@ -365,7 +365,11 @@ export const MessageContent = memo(
 
                         // Fenced block with no language tag
                         // react-markdown v9: inline is undefined; detect by trailing '\n'
-                        if (inline !== true && !match && rawChildren.endsWith("\n")) {
+                        if (
+                          inline !== true &&
+                          !match &&
+                          rawChildren.endsWith("\n")
+                        ) {
                           return (
                             <CodeBlock
                               language="text"
@@ -386,15 +390,15 @@ export const MessageContent = memo(
                         )
                       },
                       p: ({ children }) => (
-                        <p className="mb-2 last:mb-0">{children}</p>
+                        <p className="last:mb-0">{children}</p>
                       ),
                       ul: ({ children }) => (
-                        <ul className="list-disc pl-4 mb-2 space-y-1">
+                        <ul className="list-disc pl-6 space-y-1">
                           {children}
                         </ul>
                       ),
                       ol: ({ children }) => (
-                        <ol className="list-decimal pl-4 mb-2 space-y-1">
+                        <ol className="list-decimal pl-6 space-y-1">
                           {children}
                         </ol>
                       ),

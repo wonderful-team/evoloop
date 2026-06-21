@@ -222,10 +222,10 @@
     "rewindConfirm": {
       "rewindTitle": "Confirm Rewind",
       "retryTitle": "Confirm Retry",
-      "rewindDesc": "This will delete this message and all subsequent content. This action cannot be undone.",
-      "retryDesc": "This will delete subsequent content and retry execution.",
-      "revertFiles": "Also revert files modified by Agent",
-      "revertToPrevious": "Revert to previous state",
+      "rewindDesc": "This will delete this message and all content after it.",
+      "retryDesc": "This will delete subsequent content and try again.",
+      "revertFiles": "Also restore files modified by Agent",
+      "revertToPrevious": "(restore to pre-modification state)",
       "cancel": "Cancel",
       "confirmRewind": "Confirm Rewind",
       "confirmRetry": "Confirm Retry"

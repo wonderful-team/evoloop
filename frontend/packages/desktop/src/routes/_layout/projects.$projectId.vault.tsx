@@ -1,17 +1,50 @@
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Card, CardContent } from "@evoloop/shared/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@evoloop/shared/components/ui/dialog"
 import { Input } from "@evoloop/shared/components/ui/input"
 import { Label } from "@evoloop/shared/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@evoloop/shared/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@evoloop/shared/components/ui/table"
 import { Textarea } from "@evoloop/shared/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@evoloop/shared/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@evoloop/shared/components/ui/table"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@evoloop/shared/components/ui/dialog"
 import { createFileRoute, useParams } from "@tanstack/react-router"
-import { Key, Plus, Trash2, Eye, EyeOff, ShieldAlert, Loader2, Copy, Check, Lock, Edit2, ShieldCheck } from "lucide-react"
-import { useState, useEffect } from "react"
+import {
+  Check,
+  Copy,
+  Edit2,
+  Eye,
+  EyeOff,
+  Key,
+  Loader2,
+  Lock,
+  Plus,
+  ShieldAlert,
+  ShieldCheck,
+  Trash2,
+} from "lucide-react"
+import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { VaultService, type CredentialListItem as Credential } from "@/client"
+import { type CredentialListItem as Credential, VaultService } from "@/client"
 
 export const Route = createFileRoute("/_layout/projects/$projectId/vault")({
   component: VaultPage,
@@ -24,7 +57,9 @@ interface KeyValuePair {
 }
 
 function VaultPage() {
-  const { projectId } = useParams({ from: "/_layout/projects/$projectId/vault" })
+  const { projectId } = useParams({
+    from: "/_layout/projects/$projectId/vault",
+  })
   const { t } = useTranslation()
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [loading, setLoading] = useState(true)
@@ -34,7 +69,7 @@ function VaultPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  
+
   // Form state
   const [identifier, setIdentifier] = useState("")
   const [credType, setCredType] = useState("ssh")
@@ -114,7 +149,11 @@ function VaultPage() {
     setPayloadPairs(newPairs)
   }
 
-  const handlePairChange = (index: number, field: "key" | "value", val: string) => {
+  const handlePairChange = (
+    index: number,
+    field: "key" | "value",
+    val: string,
+  ) => {
     const newPairs = [...payloadPairs]
     newPairs[index][field] = val
     setPayloadPairs(newPairs)
@@ -128,12 +167,19 @@ function VaultPage() {
 
   const handleSave = async () => {
     if (!identifier.trim()) {
-      toast.error(t("vault.errors.identifierRequired", "Identifier is required"))
+      toast.error(
+        t("vault.errors.identifierRequired", "Identifier is required"),
+      )
       return
     }
-    const idRegex = /^[\w\-]+$/
+    const idRegex = /^[\w-]+$/
     if (!idRegex.test(identifier)) {
-      toast.error(t("vault.errors.invalidIdentifier", "Identifier must only contain letters, numbers, underscores, or hyphens"))
+      toast.error(
+        t(
+          "vault.errors.invalidIdentifier",
+          "Identifier must only contain letters, numbers, underscores, or hyphens",
+        ),
+      )
       return
     }
 
@@ -145,7 +191,12 @@ function VaultPage() {
     }
 
     if (Object.keys(payloadObj).length === 0) {
-      toast.error(t("vault.errors.payloadRequired", "At least one credential field is required"))
+      toast.error(
+        t(
+          "vault.errors.payloadRequired",
+          "At least one credential field is required",
+        ),
+      )
       return
     }
 
@@ -166,14 +217,23 @@ function VaultPage() {
       fetchCredentials()
     } catch (err: any) {
       console.error("Failed to save credential", err)
-      toast.error(err.message || t("common.saveFailed", "Failed to save credential"))
+      toast.error(
+        err.message || t("common.saveFailed", "Failed to save credential"),
+      )
     } finally {
       setIsSaving(false)
     }
   }
 
   const handleDelete = async (identifierToDelete: string) => {
-    if (!window.confirm(t("vault.confirmDelete", `Are you sure you want to delete credential '${identifierToDelete}'?`))) {
+    if (
+      !window.confirm(
+        t(
+          "vault.confirmDelete",
+          `Are you sure you want to delete credential '${identifierToDelete}'?`,
+        ),
+      )
+    ) {
       return
     }
 
@@ -182,7 +242,9 @@ function VaultPage() {
         identifier: identifierToDelete,
         projectId: Number(projectId),
       })
-      toast.success(t("common.deleteSuccess", "Credential deleted successfully"))
+      toast.success(
+        t("common.deleteSuccess", "Credential deleted successfully"),
+      )
       fetchCredentials()
     } catch (err) {
       console.error("Failed to delete credential", err)
@@ -218,11 +280,18 @@ function VaultPage() {
               {t("vault.title", "Secure Vault")}
             </h2>
             <p className="text-sm text-muted-foreground mt-0.5">
-              {t("vault.description", "Manage encrypted passwords, access tokens, and server keys for this project context.")}
+              {t(
+                "vault.description",
+                "Manage encrypted passwords, access tokens, and server keys for this project context.",
+              )}
             </p>
           </div>
         </div>
-        <Button size="sm" onClick={handleOpenAddDialog} className="shadow-md hover:shadow-lg transition-all">
+        <Button
+          size="sm"
+          onClick={handleOpenAddDialog}
+          className="shadow-md hover:shadow-lg transition-all"
+        >
           <Plus className="h-4 w-4 mr-1" />
           {t("vault.addCredential", "Add Credential")}
         </Button>
@@ -236,12 +305,15 @@ function VaultPage() {
           </div>
           <div className="space-y-2">
             <h4 className="font-semibold text-sm">
-              {t("vault.guide.title", "Zero-Trust Universal Placeholder Substitution")}
+              {t(
+                "vault.guide.title",
+                "Zero-Trust Universal Placeholder Substitution",
+              )}
             </h4>
             <p className="text-xs text-muted-foreground leading-relaxed">
               {t(
                 "vault.guide.text",
-                "Credentials added here are encrypted at the backend using AES-256 (Fernet) and never return in cleartext. You can inject these keys into agent commands or code templates securely using the universal placeholder format. When the agent triggers a command, the backend substitutes the value dynamically and automatically censors any raw output."
+                "Credentials added here are encrypted at the backend using AES-256 (Fernet) and never return in cleartext. You can inject these keys into agent commands or code templates securely using the universal placeholder format. When the agent triggers a command, the backend substitutes the value dynamically and automatically censors any raw output.",
               )}
             </p>
             <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -249,7 +321,7 @@ function VaultPage() {
                 {t("vault.guide.exampleLabel", "Usage example in tools:")}
               </span>
               <code className="text-xs font-mono bg-muted/60 px-2 py-0.5 rounded border border-border shadow-xs">
-                {"sshpass -p \"{{vault.identifier.password}}\" ssh user@host"}
+                {'sshpass -p "{{vault.identifier.password}}" ssh user@host'}
               </code>
             </div>
           </div>
@@ -263,24 +335,42 @@ function VaultPage() {
             <Table>
               <TableHeader className="bg-muted/20">
                 <TableRow>
-                  <TableHead className="w-1/4 py-3">{t("vault.fields.identifier", "Identifier")}</TableHead>
-                  <TableHead className="w-1/6 py-3">{t("vault.fields.type", "Type")}</TableHead>
-                  <TableHead className="w-1/3 py-3">{t("vault.fields.description", "Description")}</TableHead>
-                  <TableHead className="w-1/4 text-right py-3 pr-6">{t("common.actions", "Actions")}</TableHead>
+                  <TableHead className="w-1/4 py-3">
+                    {t("vault.fields.identifier", "Identifier")}
+                  </TableHead>
+                  <TableHead className="w-1/6 py-3">
+                    {t("vault.fields.type", "Type")}
+                  </TableHead>
+                  <TableHead className="w-1/3 py-3">
+                    {t("vault.fields.description", "Description")}
+                  </TableHead>
+                  <TableHead className="w-1/4 text-right py-3 pr-6">
+                    {t("common.actions", "Actions")}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {credentials.map((cred) => (
-                  <TableRow key={cred.id} className="hover:bg-muted/30 transition-colors">
+                  <TableRow
+                    key={cred.id}
+                    className="hover:bg-muted/30 transition-colors"
+                  >
                     <TableCell className="font-mono font-medium py-3.5">
                       <div className="flex items-center gap-2">
-                        <span className="bg-muted/40 px-2 py-0.5 rounded border border-border/50">{cred.identifier}</span>
+                        <span className="bg-muted/40 px-2 py-0.5 rounded border border-border/50">
+                          {cred.identifier}
+                        </span>
                         <Button
                           variant="ghost"
                           size="icon-sm"
                           className="h-6 w-6 opacity-40 hover:opacity-100 transition-opacity"
-                          onClick={() => copyToClipboard(`{{vault.${cred.identifier}.key}}`)}
-                          title={t("vault.actions.copyPlaceholder", "Copy usage placeholder")}
+                          onClick={() =>
+                            copyToClipboard(`{{vault.${cred.identifier}.key}}`)
+                          }
+                          title={t(
+                            "vault.actions.copyPlaceholder",
+                            "Copy usage placeholder",
+                          )}
                         >
                           {copiedId === `{{vault.${cred.identifier}.key}}` ? (
                             <Check className="h-3.5 w-3.5 text-green-500" />
@@ -333,9 +423,16 @@ function VaultPage() {
             {t("vault.empty.title", "No Secure Credentials")}
           </h3>
           <p className="text-sm text-muted-foreground/60 max-w-sm text-center mt-1">
-            {t("vault.empty.description", "Store SSH keys, database passwords, or environment variables to interact with private environments securely.")}
+            {t(
+              "vault.empty.description",
+              "Store SSH keys, database passwords, or environment variables to interact with private environments securely.",
+            )}
           </p>
-          <Button className="mt-4 shadow-sm" size="sm" onClick={handleOpenAddDialog}>
+          <Button
+            className="mt-4 shadow-sm"
+            size="sm"
+            onClick={handleOpenAddDialog}
+          >
             <Plus className="h-4 w-4 mr-1" />
             {t("vault.addFirstCredential", "Add Your First Credential")}
           </Button>
@@ -348,13 +445,20 @@ function VaultPage() {
           <DialogHeader>
             <DialogTitle className="text-xl flex items-center gap-2">
               <Lock className="h-5 w-5 text-primary" />
-              {isEditing ? t("vault.dialog.editTitle", "Edit Credential") : t("vault.dialog.addTitle", "Add Credential")}
+              {isEditing
+                ? t("vault.dialog.editTitle", "Edit Credential")
+                : t("vault.dialog.addTitle", "Add Credential")}
             </DialogTitle>
             <DialogDescription className="pt-1">
-              {isEditing 
-                ? t("vault.dialog.editDescription", "Edit credential metadata. Due to secure encryption policies, existing secrets cannot be retrieved; saving will overwrite them.")
-                : t("vault.dialog.addDescription", "Add a new credential. The payload keys and values will be securely encrypted.")
-              }
+              {isEditing
+                ? t(
+                    "vault.dialog.editDescription",
+                    "Edit credential metadata. Due to secure encryption policies, existing secrets cannot be retrieved; saving will overwrite them.",
+                  )
+                : t(
+                    "vault.dialog.addDescription",
+                    "Add a new credential. The payload keys and values will be securely encrypted.",
+                  )}
             </DialogDescription>
           </DialogHeader>
 
@@ -362,8 +466,13 @@ function VaultPage() {
             <div className="flex gap-3 items-start p-3 bg-amber-500/10 text-amber-600 rounded-lg border border-amber-500/20 text-xs leading-relaxed mb-2">
               <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5 text-amber-500" />
               <div>
-                <span className="font-bold">{t("vault.dialog.warningTitle", "Security Warning:")}</span>{" "}
-                {t("vault.dialog.warningText", "Editing this credential requires entering all values again. Any fields left blank or omitted will not be preserved.")}
+                <span className="font-bold">
+                  {t("vault.dialog.warningTitle", "Security Warning:")}
+                </span>{" "}
+                {t(
+                  "vault.dialog.warningText",
+                  "Editing this credential requires entering all values again. Any fields left blank or omitted will not be preserved.",
+                )}
               </div>
             </div>
           )}
@@ -371,7 +480,10 @@ function VaultPage() {
           <div className="space-y-4 py-2">
             {/* Identifier */}
             <div className="space-y-1.5">
-              <Label htmlFor="identifier" className="text-sm font-semibold flex items-center gap-1.5">
+              <Label
+                htmlFor="identifier"
+                className="text-sm font-semibold flex items-center gap-1.5"
+              >
                 {t("vault.dialog.fields.identifier", "Credential Identifier")}
                 <span className="text-destructive">*</span>
               </Label>
@@ -384,7 +496,10 @@ function VaultPage() {
                 className="font-mono"
               />
               <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
-                {t("vault.dialog.fields.identifierHelp", "Unique string used in code/templates. Letters, numbers, underscores, and hyphens only.")}
+                {t(
+                  "vault.dialog.fields.identifierHelp",
+                  "Unique string used in code/templates. Letters, numbers, underscores, and hyphens only.",
+                )}
               </p>
             </div>
 
@@ -393,16 +508,28 @@ function VaultPage() {
               <Label htmlFor="type" className="text-sm font-semibold">
                 {t("vault.dialog.fields.type", "Credential Type")}
               </Label>
-              <Select value={credType} onValueChange={handleTypeChange} disabled={isSaving}>
+              <Select
+                value={credType}
+                onValueChange={handleTypeChange}
+                disabled={isSaving}
+              >
                 <SelectTrigger id="type" className="w-full">
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ssh">SSH Server (Host, Port, User, Key/Password)</SelectItem>
+                  <SelectItem value="ssh">
+                    SSH Server (Host, Port, User, Key/Password)
+                  </SelectItem>
                   <SelectItem value="password">Username & Password</SelectItem>
-                  <SelectItem value="api_key">API Secret Key / Token</SelectItem>
-                  <SelectItem value="env">Environment Variable (.env)</SelectItem>
-                  <SelectItem value="custom">Custom Key-Value Dictionary</SelectItem>
+                  <SelectItem value="api_key">
+                    API Secret Key / Token
+                  </SelectItem>
+                  <SelectItem value="env">
+                    Environment Variable (.env)
+                  </SelectItem>
+                  <SelectItem value="custom">
+                    Custom Key-Value Dictionary
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -414,7 +541,10 @@ function VaultPage() {
               </Label>
               <Textarea
                 id="description"
-                placeholder={t("vault.dialog.fields.descriptionPlaceholder", "Explain what this credential is for...")}
+                placeholder={t(
+                  "vault.dialog.fields.descriptionPlaceholder",
+                  "Explain what this credential is for...",
+                )}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 disabled={isSaving}
@@ -429,11 +559,11 @@ function VaultPage() {
                   {t("vault.dialog.fields.payload", "Credential Fields")}
                   <span className="text-destructive">*</span>
                 </Label>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleAddPair} 
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddPair}
                   disabled={isSaving}
                   className="h-7 text-xs px-2.5"
                 >
@@ -444,19 +574,21 @@ function VaultPage() {
 
               <div className="space-y-3 max-h-[30vh] overflow-y-auto pr-1 border rounded-lg p-3 bg-muted/5">
                 {payloadPairs.map((pair, index) => {
-                  const isPassword = 
-                    pair.key.toLowerCase().includes("pass") || 
-                    pair.key.toLowerCase().includes("key") || 
-                    pair.key.toLowerCase().includes("secret") || 
+                  const isPassword =
+                    pair.key.toLowerCase().includes("pass") ||
+                    pair.key.toLowerCase().includes("key") ||
+                    pair.key.toLowerCase().includes("secret") ||
                     pair.key.toLowerCase().includes("token")
-                  
+
                   return (
                     <div key={index} className="flex gap-2 items-start group">
                       <div className="w-1/3">
                         <Input
                           placeholder="Key name"
                           value={pair.key}
-                          onChange={(e) => handlePairChange(index, "key", e.target.value)}
+                          onChange={(e) =>
+                            handlePairChange(index, "key", e.target.value)
+                          }
                           disabled={isSaving}
                           className="font-mono text-xs h-8"
                         />
@@ -464,9 +596,13 @@ function VaultPage() {
                       <div className="flex-1 relative">
                         <Input
                           type={isPassword && !pair.show ? "password" : "text"}
-                          placeholder={isPassword ? "Sensitive field value" : "Field value"}
+                          placeholder={
+                            isPassword ? "Sensitive field value" : "Field value"
+                          }
                           value={pair.value}
-                          onChange={(e) => handlePairChange(index, "value", e.target.value)}
+                          onChange={(e) =>
+                            handlePairChange(index, "value", e.target.value)
+                          }
                           disabled={isSaving}
                           className="text-xs h-8 pr-8"
                         />
@@ -511,7 +647,12 @@ function VaultPage() {
             >
               {t("common.cancel", "Cancel")}
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={isSaving} className="shadow-md hover:shadow-lg transition-all">
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="shadow-md hover:shadow-lg transition-all"
+            >
               {isSaving ? (
                 <Loader2 className="h-4 w-4 mr-1 animate-spin" />
               ) : (

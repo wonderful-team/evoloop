@@ -27,6 +27,7 @@ export enum InputMode {
 
 export interface VoiceInputHandle {
   addReference: (reference: MessageReference) => void;
+  setText: (text: string) => void;
 }
 
 interface VoiceInputProps {
@@ -178,10 +179,10 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
     if (isTextMode) {Keyboard.dismiss();}
   }, [isTextMode, onToggleMode]);
 
-  // 暴露 addReference 方法给父组件（如 ChatScreen 的长按引用）
+  // 暴露给外部调用（引用面板等）
   useImperativeHandle(ref, () => ({
     addReference: (reference: MessageReference) => {
-      // 避免重复引用
+      // 避免重复添加
       if (!references.some(r => r.id === reference.id)) {
         setReferences(prev => [...prev, reference]);
       }
@@ -189,6 +190,9 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
       const refText = `@${reference.name} `;
       setText(prev => prev + refText);
     },
+    setText: (newText: string) => {
+      setText(newText);
+    }
   }), [references]);
 
   // 添加引用（内部使用，与 useImperativeHandle 保持逻辑一致）

@@ -15,14 +15,15 @@ import { ChatMessage } from '@/types/conversation';
 import { useTheme } from '@/theme';
 import { useTranslation } from 'react-i18next';
 import { MessageContent, ChangesetSnapshot, ResourceChip, MessageReferences } from '@/components/chat';
+import { HumanRequestCard } from '@/components/hitl';
 import { useConversationStore } from '@/stores/conversationStore';
 
 import { shareChatMessage } from '@/utils/share';
 import Clipboard from '@react-native-clipboard/clipboard';
 
 interface MessageListProps {
-  onRewind?: (messageId: string, hasFileOperations: boolean) => void;
-  onRetry?: (messageId: string, hasFileOperations: boolean) => void;
+  onRewind?: (messageId: string) => void;
+  onRetry?: (messageId: string) => void;
   onQuote?: (message: ChatMessage) => void;
   onForward?: (message: ChatMessage) => void;
   onAddToMemory?: (text: string) => void;
@@ -71,17 +72,39 @@ const MessageItem = React.memo(function MessageItem({
   message: ChatMessage;
   isUser: boolean;
   colors: any;
-  onRewind?: (id: string, hasFiles: boolean) => void;
-  onRetry?: (id: string, hasFiles: boolean) => void;
+  onRewind?: (id: string) => void;
+  onRetry?: (id: string) => void;
   onQuote?: (msg: ChatMessage) => void;
   onForward?: (msg: ChatMessage) => void;
   onAddToMemory?: (text: string) => void;
   onResend?: (msg: ChatMessage) => void;
-  hasFileOperations: boolean;
 }) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
   const { t } = useTranslation();
+
+  const isHITL = message.category === 'human_request';
+  const parsedHITL = useMemo(() => {
+    if (isHITL && message.content) {
+      try {
+        const parsed = JSON.parse(message.content);
+        return {
+          id: parsed.id || message.id,
+          type: parsed.type || 'text',
+          prompt: parsed.prompt || '',
+          options: parsed.options,
+          default_value: parsed.default_value,
+          context: parsed.context,
+          risk_level: parsed.risk_level,
+          timestamp: Date.now(),
+          timeout: parsed.timeout,
+        };
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  }, [isHITL, message.content, message.id]);
 
 
   const handleCopy = useCallback(() => {
@@ -90,14 +113,14 @@ const MessageItem = React.memo(function MessageItem({
   }, [message.content]);
 
   const handleRewind = useCallback(() => {
-    onRewind?.(message.id, hasFileOperations);
+    onRewind?.(message.id);
     setMenuVisible(false);
-  }, [message.id, hasFileOperations, onRewind]);
+  }, [message.id, onRewind]);
 
   const handleRetry = useCallback(() => {
-    onRetry?.(message.id, hasFileOperations);
+    onRetry?.(message.id);
     setMenuVisible(false);
-  }, [message.id, hasFileOperations, onRetry]);
+  }, [message.id, onRetry]);
 
   const handleQuote = useCallback(() => {
     onQuote?.(message);
@@ -219,7 +242,15 @@ const MessageItem = React.memo(function MessageItem({
                 />
               )}
 
-              <MessageContent content={message.content} isUser={isUser} />
+              {isHITL && parsedHITL ? (
+                <HumanRequestCard
+                  request={parsedHITL}
+                  onRespond={() => {}}
+                  disabled={true}
+                />
+              ) : (
+                <MessageContent content={message.content} isUser={isUser} />
+              )}
 
               {/* 附件/文件 (AI 消息：保持在下方) */}
               {!isUser && message.references && message.references.some((ref: any) => ['file', 'image', 'audio'].includes(ref.type)) && (
@@ -490,16 +521,50 @@ function groupMessages(messages: ChatMessage[]): RenderItem[] {
         data: { ...item.data, thinking: undefined },
       });
     } else {
-      currentTurnSteps.push(item.data);
+      const isHitlTool =
+        item.data.category === 'human_request' ||
+        (item.data.role === 'tool' &&
+          (item.data.tool_name === 'ask_human' || item.data.tool_name === 'ask_confirm'));
+      
+      if (isHitlTool) {
+        // 如果是 HITL 卡片，先 flush 当前的 steps，然后将其作为顶层独立消息 push
+        if (currentTurnSteps.length > 0) {
+          groupedItems.push({
+            type: 'steps_group',
+            id: `steps_group_before_hitl_${item.data.id}`,
+            steps: [...currentTurnSteps],
+            isTurnActive: false,
+          });
+          currentTurnSteps = [];
+        }
+        groupedItems.push(item);
+      } else {
+        currentTurnSteps.push(item.data);
+      }
     }
   }
 
   if (currentTurnSteps.length > 0) {
+    // 检查最后一条 push 到 groupedItems 的消息是不是 human
+    const lastGrouped = groupedItems[groupedItems.length - 1];
+    const isNewTurn = lastGrouped && lastGrouped.type === 'message' && lastGrouped.data.role === 'human';
+
+    if (!isNewTurn) {
+      // 合并到上一个 steps_group 中，避免出现多个分离的 steps_group
+      for (let k = groupedItems.length - 1; k >= 0; k--) {
+        const last = groupedItems[k];
+        if (last.type === 'steps_group') {
+          last.steps.push(...currentTurnSteps);
+          return groupedItems;
+        }
+      }
+    }
+
     groupedItems.push({
       type: 'steps_group',
       id: `steps_group_end`,
       steps: [...currentTurnSteps],
-      isTurnActive: false,
+      isTurnActive: true,
     });
   }
 
@@ -520,8 +585,8 @@ const TurnStepsGroupView = React.memo(function TurnStepsGroupView({
   steps: ChatMessage[];
   isTurnActive: boolean;
   colors: any;
-  onRewind?: (id: string, hasFiles: boolean) => void;
-  onRetry?: (id: string, hasFiles: boolean) => void;
+  onRewind?: (id: string) => void;
+  onRetry?: (id: string) => void;
   onQuote?: (msg: ChatMessage) => void;
   onForward?: (msg: ChatMessage) => void;
   onAddToMemory?: (text: string) => void;
@@ -581,8 +646,20 @@ const TurnStepsGroupView = React.memo(function TurnStepsGroupView({
   );
 });
 
+export interface MessageListProps {
+  onRewind?: (id: string) => void;
+  onRetry?: (id: string) => void;
+  onQuote?: (msg: ChatMessage) => void;
+  onForward?: (msg: ChatMessage) => void;
+  onAddToMemory?: (text: string) => void;
+  onResend?: (msg: ChatMessage) => void;
+  isTyping: boolean;
+  hasMoreMessages: boolean;
+  isLoadingMessages: boolean;
+}
+
 export const MessageList = React.memo(function MessageList({
-  onRewind, onRetry, onQuote, onForward, onAddToMemory, onResend, isTyping
+  onRewind, onRetry, onQuote, onForward, onAddToMemory, onResend, isTyping, hasMoreMessages, isLoadingMessages
 }: MessageListProps) {
   const messages = useConversationStore((state) => state.messages);
   const { colors } = useTheme();
@@ -590,6 +667,9 @@ export const MessageList = React.memo(function MessageList({
   const flatListRef = useRef<FlatList>(null);
   const isUserAtBottomRef = useRef(true);
   const shouldScrollToBottomRef = useRef(false);
+  const listHeightRef = useRef<number>(0);
+  const contentHeightRef = useRef<number>(0);
+  const scrollOffsetRef = useRef<number>(0);
 
   // Group messages
   const groupedMessages = useMemo(() => groupMessages(messages), [messages]);
@@ -639,40 +719,62 @@ export const MessageList = React.memo(function MessageList({
     }
   }, [isTyping]);
 
-  const handleContentSizeChange = useCallback(() => {
+  // 自动加载探测：当停止加载且还有历史时，如果列表内容不够长（比如不足满屏）或者仍然停留在顶部 20% 范围内，则继续触发加载
+  useEffect(() => {
+    if (!isLoadingMessages && hasMoreMessages) {
+      const timer = setTimeout(() => {
+        const listH = listHeightRef.current;
+        const contentH = contentHeightRef.current;
+        const offsetY = scrollOffsetRef.current;
+        if (listH > 0 && contentH > 0) {
+          const scrollableHeight = contentH - listH;
+          // 如果无法滚动（内容太少）或者停留在顶部 20% 范围内，触发加载
+          if (scrollableHeight <= 0 || (offsetY / scrollableHeight) <= 0.2) {
+            const { currentConversationId, loadMoreMessages } = useConversationStore.getState();
+            if (currentConversationId) {
+              loadMoreMessages(currentConversationId);
+            }
+          }
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoadingMessages, hasMoreMessages]);
+
+  const handleContentSizeChange = useCallback((w: number, h: number) => {
+    contentHeightRef.current = h;
     if (shouldScrollToBottomRef.current) {
       flatListRef.current?.scrollToEnd({ animated: true });
     }
   }, []);
 
+  const handleLayout = useCallback((event: any) => {
+    listHeightRef.current = event.nativeEvent.layout.height;
+  }, []);
+
   const handleScroll = useCallback((event: any) => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    scrollOffsetRef.current = contentOffset.y;
+    
+    // 如果滚动到顶部附近（前 20%），触发加载历史
+    const scrollableHeight = contentSize.height - layoutMeasurement.height;
+    if (scrollableHeight > 0 && contentOffset.y / scrollableHeight <= 0.2) {
+      const { currentConversationId, loadMoreMessages, hasMoreMessages, isLoadingMessages } = useConversationStore.getState();
+      if (currentConversationId && hasMoreMessages && !isLoadingMessages) {
+        loadMoreMessages(currentConversationId);
+      }
+    }
+
     const paddingToBottom = 20;
     const isAtBottom = layoutMeasurement.height + contentOffset.y >=
       contentSize.height - paddingToBottom;
     isUserAtBottomRef.current = isAtBottom;
   }, []);
 
-  const hasFileOperationsAfter = useCallback((messageId: string): boolean => {
-    const rawIndex = messages.findIndex(m => m.id === messageId);
-    if (rawIndex === -1) return false;
-    for (let i = rawIndex + 1; i < messages.length; i++) {
-      if (messages[i].has_file_operations) {
-        return true;
-      }
-      const content = messages[i].content || '';
-      if (content.includes('```diff') || content.includes('文件') || content.includes('修改')) {
-        return true;
-      }
-    }
-    return false;
-  }, [messages]);
-
   const renderMessage = useCallback((item: RenderItem) => {
     if (item.type === 'message') {
       const message = item.data;
       const isUser = message.role === 'human';
-      const hasFileOps = hasFileOperationsAfter(message.id);
 
       return (
         <MessageItem
@@ -685,7 +787,6 @@ export const MessageList = React.memo(function MessageList({
           onForward={onForward}
           onAddToMemory={onAddToMemory}
           onResend={onResend}
-          hasFileOperations={hasFileOps}
         />
       );
     } else {
@@ -703,7 +804,7 @@ export const MessageList = React.memo(function MessageList({
         />
       );
     }
-  }, [colors, onRewind, onRetry, onQuote, onForward, onAddToMemory, onResend, hasFileOperationsAfter]);
+  }, [colors, onRewind, onRetry, onQuote, onForward, onAddToMemory, onResend]);
 
   return (
     <FlatList
@@ -715,10 +816,18 @@ export const MessageList = React.memo(function MessageList({
       keyExtractor={(item) => (item.type === 'message' ? item.data.id : item.id)}
       renderItem={({ item }) => renderMessage(item)}
       onScroll={handleScroll}
+      onLayout={handleLayout}
       onContentSizeChange={handleContentSizeChange}
-      scrollEventThrottle={200}
+      scrollEventThrottle={16}
       ListEmptyComponent={null}
       ItemSeparatorComponent={() => <Divider style={styles.divider} />}
+      ListHeaderComponent={
+        hasMoreMessages && isLoadingMessages ? (
+          <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color={colors.primary} />
+          </View>
+        ) : null
+      }
       ListFooterComponent={
         isTyping ? (
           <View style={styles.typingContainer}>
@@ -746,7 +855,9 @@ export const MessageList = React.memo(function MessageList({
     prev.onForward === next.onForward &&
     prev.onAddToMemory === next.onAddToMemory &&
     prev.onResend === next.onResend &&
-    prev.isTyping === next.isTyping;
+    prev.isTyping === next.isTyping &&
+    prev.hasMoreMessages === next.hasMoreMessages &&
+    prev.isLoadingMessages === next.isLoadingMessages;
 });
 
 const styles = StyleSheet.create({

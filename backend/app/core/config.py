@@ -248,6 +248,7 @@ class Settings(BaseSettings):
 
     # Embedding Configuration
     EMBEDDING_DIMENSIONS: int = 768  # Nomic / Local Default
+    EMBEDDING_ENABLED: bool = False  # Disable local embeddings by default to avoid CPU overload
     HF_ENDPOINT: str = "https://huggingface.co"
 
     # Wiki Generation

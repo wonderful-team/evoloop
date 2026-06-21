@@ -63,159 +63,164 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
 
     # 1. Lifecycle & Context Management
     task_type = inputs.metadata.get("task_type") if inputs.metadata else None
-    async with activity_monitor.run_scope(thread_id, inputs.goal, task_type=task_type, project_id=project_id) as run_id:
-        _final_status = "done"  # Track final status for command_complete signal
-        try:
-            # 2. Deserialize & Prepare
-            raw_messages = EvoMessageConverter.to_langchain(inputs.messages)
+    try:
+        async with activity_monitor.run_scope(thread_id, inputs.goal, task_type=task_type, project_id=project_id) as run_id:
+            _final_status = "done"  # Track final status for command_complete signal
+            try:
+                db_callback = None
+                # 2. Deserialize & Prepare
+                raw_messages = EvoMessageConverter.to_langchain(inputs.messages)
 
-            # Parallel context load
-            loaded_ctx = await ContextManager.load(thread_id)
+                # Parallel context load
+                loaded_ctx = await ContextManager.load(thread_id)
 
-            # Setup initial context
-            ctx = loaded_ctx
-            working_dir = inputs.working_directory
-            if not working_dir:
-                working_dir = thread_context_store.get_working_directory(thread_id)
+                # Setup initial context
+                ctx = loaded_ctx
+                working_dir = inputs.working_directory
+                if not working_dir:
+                    working_dir = thread_context_store.get_working_directory(thread_id)
 
-            if not ctx:
-                ctx = EvoContext(
+                if not ctx:
+                    ctx = EvoContext(
+                        thread_id=thread_id,
+                        project_id=project_id,
+                        working_directory=working_dir,
+                        active_model=inputs.model,
+                        command_id=inputs.command_id
+                    )
+                else:
+                    ctx.request_id = f"bg-{thread_id}-{int(time.time())}"
+                    ctx.working_directory = working_dir
+                    ctx.command_id = inputs.command_id
+                    ctx.active_model = inputs.model or ctx.active_model
+
+                # Allow tests/metadata to inject member_id for benefit-gated tools
+                if not ctx.member_id and inputs.metadata.get("member_id"):
+                    try:
+                        ctx.member_id = int(inputs.metadata["member_id"])
+                    except (ValueError, TypeError):
+                        pass
+
+                ContextManager.set(ctx)
+
+                # The hydrator might have updated the working_dir in context
+                ctx = ContextManager.current()
+                working_dir = ctx.working_directory
+
+                # 3. Config Construction
+                config: dict[str, Any] = {
+                    "configurable": {
+                        "thread_id": thread_id,
+                        "working_directory": working_dir,
+                        "run_id": run_id,
+                        "model": inputs.model,
+                    },
+                    "metadata": {
+                        "project_id": project_id,
+                        "is_retry": inputs.is_retry,
+                        **inputs.metadata
+                    }
+                }
+                if inputs.checkpoint_id:
+                    config["configurable"]["checkpoint_id"] = inputs.checkpoint_id
+
+                # Initialize Handlers
+                callback = TransparentCallbackHandler(thread_id=thread_id)
+
+                # Message management handler (handles persistence and streaming)
+                # We always initialize it to ensure UI streaming works even if DB persistence is skipped.
+                db_callback = DatabaseCallbackHandler(
                     thread_id=thread_id,
                     project_id=project_id,
-                    working_directory=working_dir,
-                    active_model=inputs.model,
-                    command_id=inputs.command_id
+                    run_id=run_id,
                 )
-            else:
-                ctx.request_id = f"bg-{thread_id}-{int(time.time())}"
-                ctx.working_directory = working_dir
-                ctx.command_id = inputs.command_id
-                ctx.active_model = inputs.model or ctx.active_model
+                config["configurable"]["message_handler"] = db_callback._handler
 
-            # Allow tests/metadata to inject member_id for benefit-gated tools
-            if not ctx.member_id and inputs.metadata.get("member_id"):
-                try:
-                    ctx.member_id = int(inputs.metadata["member_id"])
-                except (ValueError, TypeError):
-                    pass
+                # 4. Prepare Workflow Inputs
+                inputs_dict = inputs.model_dump()
 
-            ContextManager.set(ctx)
+                # Instantiate Blackboard
+                from app.core.engine.state.blackboard import BlackboardState
+                if "blackboard" not in inputs_dict:
+                    inputs_dict["blackboard"] = BlackboardState().model_dump()
 
-            # The hydrator might have updated the working_dir in context
-            ctx = ContextManager.current()
-            working_dir = ctx.working_directory
+                blackboard = BlackboardState.model_validate(inputs_dict["blackboard"])
 
-            # 3. Config Construction
-            config: dict[str, Any] = {
-                "configurable": {
-                    "thread_id": thread_id,
-                    "working_directory": working_dir,
-                    "run_id": run_id,
-                    "model": inputs.model,
-                },
-                "metadata": {
-                    "project_id": project_id,
-                    "is_retry": inputs.is_retry,
-                    **inputs.metadata
-                }
-            }
-            if inputs.checkpoint_id:
-                config["configurable"]["checkpoint_id"] = inputs.checkpoint_id
+                # Extract last human msg for predictive memory
+                from app.core.engine.message.utils import get_last_human_message
+                last_human_msg = get_last_human_message(raw_messages) or ""
 
-            # Initialize Handlers
-            callback = TransparentCallbackHandler(thread_id=thread_id)
+                # Unified Context Hydration (Runs ONCE per session)
+                from app.core.engine.context_hydrator import AgentContextHydrator
+                await AgentContextHydrator.hydrate(
+                    ctx=ctx,
+                    blackboard=blackboard,
+                    config=config,  # type: ignore[arg-type]
+                    last_human_msg=last_human_msg,
+                    is_retry=inputs.is_retry,
+                    is_subtask=False,
+                    iteration_count=inputs.iteration_count
+                )
 
-            # Message management handler (handles persistence and streaming)
-            # We always initialize it to ensure UI streaming works even if DB persistence is skipped.
-            db_callback = DatabaseCallbackHandler(
-                thread_id=thread_id,
-                project_id=project_id,
-                run_id=run_id,
-            )
-            config["configurable"]["message_handler"] = db_callback._handler
+                # Update inputs with hydrated blackboard
+                inputs_dict["blackboard"] = blackboard.model_dump()
 
-            # 4. Prepare Workflow Inputs
-            inputs_dict = inputs.model_dump()
+                # 5. Execution Setup
+                callbacks = [callback]
+                if db_callback:
+                    callbacks.append(db_callback)
+                config["callbacks"] = callbacks
 
-            # Instantiate Blackboard
-            from app.core.engine.state.blackboard import BlackboardState
-            if "blackboard" not in inputs_dict:
-                inputs_dict["blackboard"] = BlackboardState().model_dump()
+                config["recursion_limit"] = settings.RECURSION_LIMIT
 
-            blackboard = BlackboardState.model_validate(inputs_dict["blackboard"])
+                graph_instance = get_graph()
+                if not graph_instance:
+                    raise ValueError("Global Graph not initialized")
 
-            # Extract last human msg for predictive memory
-            from app.core.engine.message.utils import get_last_human_message
-            last_human_msg = get_last_human_message(raw_messages) or ""
+                input_payload = inputs_dict
 
-            # Unified Context Hydration (Runs ONCE per session)
-            from app.core.engine.context_hydrator import AgentContextHydrator
-            await AgentContextHydrator.hydrate(
-                ctx=ctx,
-                blackboard=blackboard,
-                config=config,  # type: ignore[arg-type]
-                last_human_msg=last_human_msg,
-                is_retry=inputs.is_retry,
-                is_subtask=False,
-                iteration_count=inputs.iteration_count
-            )
+                # 5.5 Authoritative session_goal distillation
+                input_payload["session_goal"] = inputs.session_goal or ""
 
-            # Update inputs with hydrated blackboard
-            inputs_dict["blackboard"] = blackboard.model_dump()
+                if inputs.hitl_resume_response is not None:
+                    input_payload = await build_resume_command(graph_instance, config, inputs.hitl_resume_response)
+                else:
+                    # If we are starting a new conversation turn, ensure the graph is not stuck in a pending node (e.g. after a crash).
+                    # This prevents the graph from silently consuming the new message and instantly finishing if it resumes FinishNode.
+                    current_state = await graph_instance.aget_state(config)
+                    if current_state.next:
+                        logger.warning(f"[Agent] Thread {thread_id} is stuck at {current_state.next}. Forcing route to supervisor to process new message.")
+                        # Provide an empty string to resume in case it was explicitly interrupted, and force route to supervisor.
+                        input_payload = Command(resume="", goto="supervisor", update=input_payload)
 
-            # 5. Execution Setup
-            callbacks = [callback]
-            if db_callback:
-                callbacks.append(db_callback)
-            config["callbacks"] = callbacks
+                # 6. Run Graph
+                async for _event in graph_instance.astream(input_payload, config=config):
+                    await activity_monitor.check_cancellation(thread_id)
 
-            config["recursion_limit"] = settings.RECURSION_LIMIT
+                # 7. Finalize Run
+                await ContextManager.save(thread_id)
 
-            graph_instance = get_graph()
-            if not graph_instance:
-                raise ValueError("Global Graph not initialized")
+            except AgentCancelledException:
+                # Expected control flow: user stopped the run.
+                # run_scope has already handled cleanup/logging.
+                _final_status = "cancelled"
+                return
+            except AgentHumanInterruptException:
+                # Expected control flow: agent is waiting for human input.
+                # Re-raise to let run_scope handle it
+                raise
+            except Exception as e:
+                # Let handle_task_exception deal with DB/UI reporting.
+                # It already persists the error, pushes to UI/Mobile, and calls
+                # activity_monitor.end_run with the appropriate status.
+                handler = db_callback._handler if db_callback else None
+                await handle_task_exception(thread_id, project_id, e, handler=handler)
 
-            input_payload = inputs_dict
-
-            # 5.5 Authoritative session_goal distillation
-            input_payload["session_goal"] = inputs.session_goal or ""
-
-            if inputs.hitl_resume_response is not None:
-                input_payload = await build_resume_command(graph_instance, config, inputs.hitl_resume_response)
-            else:
-                # If we are starting a new conversation turn, ensure the graph is not stuck in a pending node (e.g. after a crash).
-                # This prevents the graph from silently consuming the new message and instantly finishing if it resumes FinishNode.
-                current_state = await graph_instance.aget_state(config)
-                if current_state.next:
-                    logger.warning(f"[Agent] Thread {thread_id} is stuck at {current_state.next}. Forcing route to supervisor to process new message.")
-                    # Provide an empty string to resume in case it was explicitly interrupted, and force route to supervisor.
-                    input_payload = Command(resume="", goto="supervisor", update=input_payload)
-
-            # 6. Run Graph
-            async for _event in graph_instance.astream(input_payload, config=config):
-                await activity_monitor.check_cancellation(thread_id)
-
-            # 7. Finalize Run
-            await ContextManager.save(thread_id)
-
-        except AgentCancelledException:
-            # Expected control flow: user stopped the run.
-            # run_scope has already handled cleanup/logging.
-            _final_status = "cancelled"
-            return
-        except AgentHumanInterruptException:
-            # Expected control flow: agent is waiting for human input.
-            # Do NOT send command_complete — the task is paused, not finished.
-            return
-        except Exception as e:
-            # Let handle_task_exception deal with DB/UI reporting.
-            # It already persists the error, pushes to UI/Mobile, and calls
-            # activity_monitor.end_run with the appropriate status.
-            handler = db_callback._handler if db_callback else None
-            await handle_task_exception(thread_id, project_id, e, handler=handler)
-
-            # Do not re-raise. The final status (failed, quota_exhausted, etc.)
-            # is already set. Re-raising would only cause run_scope to
-            # redundantly call end_run and propagate the exception to
-            # FastAPI BackgroundTasks with no benefit.
-            return
+                # Do not re-raise. The final status (failed, quota_exhausted, etc.)
+                # is already set. Re-raising would only cause run_scope to
+                # redundantly call end_run and propagate the exception to
+                # FastAPI BackgroundTasks with no benefit.
+                return
+    except AgentHumanInterruptException:
+        # Expected control flow outside run_scope
+        return
