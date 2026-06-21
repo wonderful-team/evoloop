@@ -67,7 +67,7 @@ async def lifespan(app: FastAPI):
         logger.info("[Shutdown] APP_STOPPING event published")
     except Exception as e:
         logger.error(f"[Shutdown] Failed to publish APP_STOPPING event: {e}")
-    
+
     # 2. Cleanup Core Infrastructure (Infrastructure MUST be last)
     from app.infrastructure.llm.factory import shutdown_http_pool
     await shutdown_http_pool()

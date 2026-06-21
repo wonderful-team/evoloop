@@ -1,9 +1,8 @@
-import json
 import logging
+import time
 
 from app.core.environment.explorers.base import BaseExplorer
 from app.infrastructure.cache import cache
-from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +11,10 @@ REDIS_KEY_APP_REASONING_PREFIX = "system:app_categorization"
 
 # Track last log time to avoid repetitive "No new apps" logs
 _last_no_apps_log: dict[str, float] = {}
-_no_apps_log_interval: float = 300.0  # Only log "no new apps" every 5 minutes
+_no_apps_log_interval: float = 300.0
+
+BATCH_SIZE = 20
+_TASK_TIMEOUT = 120.0
 
 
 class DynamicAppTriage(BaseExplorer):
@@ -24,23 +26,20 @@ class DynamicAppTriage(BaseExplorer):
 
     @staticmethod
     def _get_dynamic_apps_key(platform: str) -> str:
-        """Generate platform-specific cache key for dynamic apps."""
         return f"{REDIS_KEY_DYNAMIC_APPS_PREFIX}:{platform}"
 
     @staticmethod
     def _get_reasoning_key(platform: str) -> str:
-        """Generate platform-specific cache key for app reasoning."""
         return f"{REDIS_KEY_APP_REASONING_PREFIX}:{platform}"
 
     async def scan(self, *args, **kwargs) -> list:
-        # Not used directly for scan, but part of BaseExplorer interface
         return []
 
     async def sync_dynamic_apps(
         self,
         macos_apps: list[str] = None,
         android_packages: list[str] = None,
-        device_id: str | None = None
+        device_id: str | None = None,
     ):
         """
         Sync discovery state with cache and LLM.
@@ -54,16 +53,15 @@ class DynamicAppTriage(BaseExplorer):
         if android_packages:
             platforms_to_process.append(("android", android_packages))
 
+        from app.core.environment.explorers.tasks import triage_app_batch
+
         for platform, apps in platforms_to_process:
-            # 1. Get all previously processed apps from cache for this platform
             processed_key = f"system:processed_apps:{platform}"
             processed_apps = await cache.smembers(processed_key)
 
             new_apps = [a for a in apps if a not in processed_apps]
 
             if not new_apps:
-                # Throttle "no new apps" logging to avoid spam
-                import time
                 now = time.time()
                 last_log = _last_no_apps_log.get(platform, 0)
                 if now - last_log > _no_apps_log_interval:
@@ -71,22 +69,29 @@ class DynamicAppTriage(BaseExplorer):
                     _last_no_apps_log[platform] = now
                 continue
 
-            logger.info(f"[DynamicAppTriage] Triaging {len(new_apps)} new {platform} apps via LLM...")
+            logger.info(f"[DynamicAppTriage] Triaging {len(new_apps)} new {platform} apps ({BATCH_SIZE} per batch)...")
 
-            # 2. LLM Triage
-            triage_results = await self._triage_with_llm(new_apps)
+            all_results = {}
+            for i in range(0, len(new_apps), BATCH_SIZE):
+                batch = new_apps[i : i + BATCH_SIZE]
+                try:
+                    result = await triage_app_batch.delay(batch).get(
+                        timeout=_TASK_TIMEOUT
+                    )
+                    if result:
+                        all_results.update(result)
+                except Exception as e:
+                    logger.error(f"[DynamicAppTriage] Batch task failed: {e}")
 
-            # 3. Update cache with platform-specific keys
-            if triage_results:
+            if all_results:
                 dynamic_key = self._get_dynamic_apps_key(platform)
                 reasoning_key = self._get_reasoning_key(platform)
 
                 pipe = cache.pipeline()
-                for app_id, data in triage_results.items():
+                for app_id, data in all_results.items():
                     is_dynamic = data.get("is_dynamic", False)
                     reason = data.get("reason", "Unknown")
 
-                    # Mark as processed (platform-specific)
                     pipe.sadd(processed_key, app_id)
 
                     if is_dynamic:
@@ -97,50 +102,6 @@ class DynamicAppTriage(BaseExplorer):
                         logger.debug(f"[DynamicAppTriage] Marked '{platform}:{app_id}' as STATIC")
 
                 await pipe.execute()
-
-    async def _triage_with_llm(self, app_ids: list[str]) -> dict[str, dict]:
-        """
-        Use LLM to determine if apps have dynamic UI elements (scrolling lists, info streams, etc).
-        """
-        if not app_ids:
-            return {}
-
-        # Check if user is authenticated before attempting LLM call
-        from app.core.evocloud import evocloud_manager
-        if not await evocloud_manager.get_token():
-            logger.debug("[DynamicAppTriage] Skipping LLM triage: user not authenticated")
-            return {}
-
-        prompt = render_template("domain/planning/dynamic_app_triage.prompt.j2", app_ids=app_ids)
-        role_name = render_template("domain/planning/expert_roles.prompt.j2", role="ui_dynamics").strip()
-
-        from app.core.llm import InternalLLMService
-        from app.infrastructure.config.service import SystemConfigService
-        model_name = SystemConfigService.get_value("LLM_MODEL")
-        if not model_name:
-            logger.debug("[DynamicAppTriage] Skipping LLM triage: no LLM model configured")
-            return {}
-        response = await InternalLLMService.invoke(
-            messages=[
-                {"role": "system", "content": role_name},
-                {"role": "user", "content": prompt}
-            ],
-            purpose="environment_exploration",
-            temperature=0,
-            max_tokens=4000,
-            model_name=model_name,
-        )
-
-        content = response.content.strip()
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0].strip()
-
-        try:
-            data = json.loads(content)
-            return data.get("results", {})
-        except json.JSONDecodeError as e:
-            logger.error(f"[DynamicAppTriage] Failed to parse LLM JSON output. Error: {e}. Raw content: {content}")
-            return {}
 
     @staticmethod
     async def get_dynamic_apps(platform: str = "android") -> set[str]:

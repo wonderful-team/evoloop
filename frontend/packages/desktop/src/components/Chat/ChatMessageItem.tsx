@@ -156,6 +156,11 @@ const ChatMessageItem = memo(
       return null
     }
 
+    // Hide HITL tool messages
+    if (msg.role === "tool" && (msg.tool_name === "ask_human" || msg.tool_name === "ask_confirm")) {
+      return null
+    }
+
     const isUser = msg.role === "human"
     const actionContent =
       msg.effective_content !== undefined && msg.effective_content.trim() !== ""

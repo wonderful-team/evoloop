@@ -99,10 +99,20 @@ class EmbedderFactory:
             logger.debug(f"Could not read EMBEDDING_PROVIDER from DB (tables may not exist yet): {e}")
             provider = None
 
+        # 3. If no provider configured, fall back to local embedder only when
+        # explicitly enabled. Local embeddings are CPU-heavy and can make the
+        # whole system unresponsive, so they are opt-in via EMBEDDING_ENABLED.
         if not provider:
+            if not settings.EMBEDDING_ENABLED:
+                logger.info(
+                    "Embedding provider not configured and EMBEDDING_ENABLED is false. "
+                    "Semantic search disabled; set a third-party embedding provider or "
+                    "set EMBEDDING_ENABLED=true to enable local embeddings."
+                )
+                return None
             try:
                 import sentence_transformers  # noqa: F401
-                logger.info("Embedding provider not configured. Falling back to LocalEmbedder (SentenceTransformers).")
+                logger.info("Embedding provider not configured but EMBEDDING_ENABLED is true. Falling back to LocalEmbedder (SentenceTransformers).")
                 return LocalEmbedder()
             except ImportError:
                 logger.warning(
@@ -111,7 +121,7 @@ class EmbedderFactory:
                 )
                 return None
 
-        # 3. DB Config Exists
+        # 4. DB Config Exists
         if provider == "openai" or provider == "generic":
             base_url = SystemConfigService.get_value("EMBEDDING_BASE_URL")
             model = SystemConfigService.get_value("CUSTOM_EMBEDDING_MODEL") or SystemConfigService.get_value("EMBEDDING_MODEL")
@@ -127,9 +137,15 @@ class EmbedderFactory:
             )
 
         elif provider == "local":
+            if not settings.EMBEDDING_ENABLED:
+                logger.info(
+                    "Embedding provider configured as 'local' but EMBEDDING_ENABLED is false. "
+                    "Semantic search disabled."
+                )
+                return None
             try:
                 import sentence_transformers  # noqa: F401
-                logger.info("Embedding provider configured as 'local'. Using LocalEmbedder (SentenceTransformers).")
+                logger.info("Embedding provider configured as 'local' and EMBEDDING_ENABLED is true. Using LocalEmbedder (SentenceTransformers).")
                 return LocalEmbedder()
             except ImportError:
                 logger.warning(

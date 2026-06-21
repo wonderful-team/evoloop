@@ -72,6 +72,20 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     let normalized = newStatus
     if (["done", "failed", "cancelled"].includes(newStatus)) normalized = "idle"
     else if (newStatus === "stopping") normalized = "stopped"
+    else if (["waiting_human", "human_interrupt", "interrupted"].includes(newStatus))
+      normalized = "interrupted"
+
+    let humanReq = data.human_request || null
+    if (humanReq) {
+      let reqData = humanReq.data || humanReq
+      if (reqData && reqData.type === "human_request" && reqData.request_type) {
+        reqData = {
+          ...reqData,
+          type: reqData.request_type,
+        }
+      }
+      humanReq = reqData
+    }
 
     set({
       status: normalized,
@@ -79,7 +93,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       finalOutcome: data.final_outcome || null,
       activeMemories: data.active_memories || [],
       agentState: data.agent_state || null,
+      humanRequest: humanReq,
     })
+
+    if (humanReq) {
+      useChatStore.getState()._attachHumanRequestToLastMessage(humanReq)
+    }
   },
 
   _addArtifact: (ev) => {
@@ -102,7 +121,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     let normalized = raw
     if (["done", "failed", "cancelled"].includes(raw)) normalized = "idle"
     else if (raw === "stopping") normalized = "stopped"
-    else if (raw === "waiting_human") normalized = "interrupted"
+    else if (["waiting_human", "human_interrupt", "interrupted"].includes(raw))
+      normalized = "interrupted"
 
     const state = get()
     const updates: Partial<AgentState> = {
@@ -138,7 +158,13 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       useChatStore.getState()._clearHumanRequest()
       return
     }
-    const data = req.data || req
+    let data = req.data || req
+    if (data && data.type === "human_request" && data.request_type) {
+      data = {
+        ...data,
+        type: data.request_type,
+      }
+    }
     set({ humanRequest: data, status: "interrupted" })
     useChatStore.getState()._attachHumanRequestToLastMessage(data)
   },

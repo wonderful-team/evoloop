@@ -42,6 +42,9 @@ export enum GatewayMessageType {
 
   // 消息同步（Agent → Gateway → Mobile 统一协议）
   MESSAGE_SYNC = 'message_sync',
+  MESSAGES_DELETED = 'messages_deleted',
+  THREAD_REWIND = 'thread_rewind',
+
 
   // HITL (Human-in-the-Loop)
   HUMAN_REQUEST = 'human_request',

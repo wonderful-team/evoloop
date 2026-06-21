@@ -1,4 +1,3 @@
-
 import logging
 
 from app.core.environment.explorers.base import BaseExplorer

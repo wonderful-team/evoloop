@@ -94,6 +94,8 @@ async def publish_messages_cleanup(
     thread_id: str,
     message_ids: list[str],
     delete_references: bool = True,
+    target_sequence: int = 0,
+    include_target: bool = False,
 ) -> None:
     """Publish a messages cleanup event for rewind operations."""
     from app.core.engine.rewind.event.schemas import MessagesCleanupEvent
@@ -103,5 +105,7 @@ async def publish_messages_cleanup(
             thread_id=thread_id,
             message_ids=message_ids,
             delete_references=delete_references,
+            target_sequence=target_sequence,
+            include_target=include_target,
         )
     )

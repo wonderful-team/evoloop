@@ -272,6 +272,8 @@ class MessageRewind:
                 thread_id=event.thread_id,
                 message_ids=message_ids,
                 delete_references=True,
+                target_sequence=event.target_sequence,
+                include_target=event.include_target,
             )
             logger.info(f"[MessageRewind] Deleted {count} messages and reset sequence to {max_seq + 1} for thread {event.thread_id}")
         else:
@@ -320,17 +322,17 @@ class MessageRewind:
                     if not target_msg:
                         raise MessageNotFoundError(f"Target message {target_message_id} not found", thread_id=thread_id)
 
-                    min_id_to_delete = target_msg.id
+                    min_seq_to_delete = target_msg.sequence_number
                 except (ValueError, TypeError):
                     logger.error(f"[MessageRewind] Invalid target message ID: {target_message_id}")
                     return []
             else:
                 # Find last human message
                 stmt = (
-                    select(Message.id)
+                    select(Message)
                     .where(Message.thread_id == thread_id)
                     .where(Message.role == "human")
-                    .order_by(Message.id.desc())
+                    .order_by(Message.sequence_number.desc())
                     .limit(1)
                 )
                 result = await session.execute(stmt)
@@ -338,18 +340,18 @@ class MessageRewind:
                 if not last_human:
                     raise NoHumanMessageError("No human message found to rewind to", thread_id=thread_id)
 
-                min_id_to_delete = last_human.id
+                min_seq_to_delete = last_human.sequence_number
 
             # Query all messages to delete
             if include_target:
                 stmt = select(Message.id).where(
                     Message.thread_id == thread_id,
-                    Message.id >= min_id_to_delete
+                    Message.sequence_number >= min_seq_to_delete
                 )
             else:
                 stmt = select(Message.id).where(
                     Message.thread_id == thread_id,
-                    Message.id > min_id_to_delete
+                    Message.sequence_number > min_seq_to_delete
                 )
 
             result = await session.execute(stmt)
@@ -411,6 +413,44 @@ class MessageRewind:
     def get_deleted_count(self) -> int:
         """Get the count of messages deleted in the last operation."""
         return self._deleted_count
+
+
+@event_register()
+class HitlRewind:
+    """Event-driven HITL and activity cleanup handler for rewind operations."""
+
+    @classmethod
+    def register(cls, bus: AsyncEventBus) -> "HitlRewind":
+        """Register this handler to the event bus."""
+        instance = cls()
+        register_instance_handlers(instance, bus)
+        return instance
+
+    @event_subscribe(RewindEventType.REWIND_REQUESTED)
+    async def _handle_rewind_requested(self, event: RewindRequestedEvent) -> None:
+        """
+        Handle main rewind event - clear HITL requests and activity status.
+        """
+        thread_id = event.thread_id
+
+        # 1. Clear activity_monitor status and active human request
+        try:
+            from app.core.monitoring.activity import activity_monitor
+            await activity_monitor.clear_human_request(thread_id)
+            logger.info(f"[HitlRewind] Cleared activity human request for thread {thread_id}")
+        except Exception as e:
+            logger.error(f"[HitlRewind] Failed to clear activity human request: {e}")
+
+        # 2. Cancel all pending human requests in human_requests table
+        try:
+            from app.core.hitl.core import get_pending_requests_for_thread, cancel_request
+            pending = await get_pending_requests_for_thread(thread_id)
+            if pending:
+                for req in pending:
+                    await cancel_request(req.id)
+                logger.info(f"[HitlRewind] Cancelled {len(pending)} pending human requests for thread {thread_id}")
+        except Exception as e:
+            logger.error(f"[HitlRewind] Failed to cancel pending human requests: {e}")
 
 
 @event_register()

@@ -121,10 +121,9 @@ class DebouncedIndexHandler:
             removed = self._pending_removed.pop(repo_id, set())
             moved = self._pending_moved.pop(repo_id, list())
 
-            self._processing = False
-
         file_count = len(modified) + len(removed) + len(moved)
         if file_count == 0:
+            self._processing = False
             return
 
         logger.info(
@@ -138,11 +137,14 @@ class DebouncedIndexHandler:
             move_file_task,
         )
 
-        for file_path in removed:
-            remove_file_task.delay(file_path, repo_id)
+        try:
+            for file_path in removed:
+                remove_file_task.delay(file_path, repo_id)
 
-        for src, dest in moved:
-            move_file_task.delay(src, dest, repo_id)
+            for src, dest in moved:
+                move_file_task.delay(src, dest, repo_id)
 
-        for file_path in modified:
-            index_file_task.delay(file_path, repo_id)
+            for file_path in modified:
+                index_file_task.delay(file_path, repo_id)
+        finally:
+            self._processing = False

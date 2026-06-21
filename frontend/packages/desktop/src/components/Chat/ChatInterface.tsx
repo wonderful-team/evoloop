@@ -731,18 +731,20 @@ export function ChatInterface() {
             </div>
 
             {/* Input Area */}
-            <ChatInputArea
-              ref={chatInputRef}
-              onSend={handleSendMessage}
-              onStop={stopAgent}
-              isAgentWorking={status === "running" || status === "summarizing"}
-              isSending={false}
-              isStopPending={false}
-              currentProject={currentProject}
-              activeThreadId={activeThreadId || undefined}
-              disabled={status === "interrupted"}
-              isGlobalMode={isGlobalMode}
-            />
+            {status !== "interrupted" && status !== "quota_exhausted" && (
+              <ChatInputArea
+                ref={chatInputRef}
+                onSend={handleSendMessage}
+                onStop={stopAgent}
+                isAgentWorking={status === "running" || status === "summarizing"}
+                isSending={false}
+                isStopPending={false}
+                currentProject={currentProject}
+                activeThreadId={activeThreadId || undefined}
+                disabled={status === "interrupted"}
+                isGlobalMode={isGlobalMode}
+              />
+            )}
           </div>
         </ResizablePanel>
 

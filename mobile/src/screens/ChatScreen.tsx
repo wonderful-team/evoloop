@@ -74,6 +74,7 @@ export default function ChatScreen() {
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [showRewindDialog, setShowRewindDialog] = useState(false);
   const [pendingRewindMessageId, setPendingRewindMessageId] = useState<string | null>(null);
+  const [pendingRewindContent, setPendingRewindContent] = useState<string>('');
   const [pendingRetryMessageId, setPendingRetryMessageId] = useState<string | null>(null);
   const [hasFileOperations, setHasFileOperations] = useState(false);
   const [pendingForwardContent, setPendingForwardContent] = useState<string | null>(null);
@@ -93,6 +94,8 @@ export default function ChatScreen() {
   const currentConversationId = useConversationStore((state) => state.currentConversationId);
   const activeDeviceKey = useConversationStore((state) => state.activeDeviceKey);
   const hasMessages = useConversationStore((state) => state.messages.length > 0);
+  const hasMoreMessages = useConversationStore((state) => state.hasMoreMessages);
+  const isLoadingMessages = useConversationStore((state) => state.isLoadingMessages);
 
   // 方法 - Zustand action 引用稳定，单独 selector
   const loadConversations = useConversationStore((state) => state.loadConversations);
@@ -632,32 +635,6 @@ export default function ChatScreen() {
   }, [cancelHITL]);
 
 
-  // Rewind 处理
-  const handleRewind = useCallback((messageId: string, hasFiles: boolean) => {
-    setPendingRewindMessageId(messageId);
-    setHasFileOperations(hasFiles);
-
-    if (hasFiles) {
-      setShowRewindDialog(true);
-    } else {
-      // 直接回退，不回退文件
-      executeRewind(messageId, false);
-    }
-  }, []);
-
-  // Retry 处理
-  const handleRetry = useCallback((messageId: string, hasFiles: boolean) => {
-    setPendingRetryMessageId(messageId);
-    setHasFileOperations(hasFiles);
-
-    if (hasFiles) {
-      setShowRewindDialog(true);
-    } else {
-      // 直接重试，不回退文件
-      executeRetry(messageId, false);
-    }
-  }, []);
-
   // 执行 Rewind
   const executeRewind = useCallback(async (messageId: string, revertFiles: boolean) => {
     if (!currentConversationId) {return;}
@@ -668,12 +645,18 @@ export default function ChatScreen() {
         revert_files: revertFiles,
       });
 
-      showSnackbar(t('chat.rewindSuccess') + (result.files_reverted ? ` (${t('chat.filesReverted', { count: result.files_reverted })})` : ''));
+      showSnackbar(t('chat.rewindSuccess') + (result?.files_reverted ? ` (${t('chat.filesReverted', { count: result?.files_reverted })})` : ''));
       setShowRewindDialog(false);
+
+      if (pendingRewindContent) {
+        voiceInputRef.current?.setText(pendingRewindContent);
+        setInputMode(InputMode.TEXT);
+        setPendingRewindContent('');
+      }
     } catch (error: unknown) {
       showSnackbar(t('chat.rewindFailed') + getErrorMessage(error));
     }
-  }, [currentConversationId, rewindConversation]);
+  }, [currentConversationId, rewindConversation, pendingRewindContent, t, showSnackbar]);
 
   // 执行 Retry
   const executeRetry = useCallback(async (messageId: string, revertFiles: boolean) => {
@@ -685,12 +668,59 @@ export default function ChatScreen() {
         revert_files: revertFiles,
       });
 
-      showSnackbar(t('chat.retrying') + (result.files_reverted ? ` (${t('chat.filesReverted', { count: result.files_reverted })})` : ''));
+      showSnackbar(t('chat.retrying') + (result?.files_reverted ? ` (${t('chat.filesReverted', { count: result?.files_reverted })})` : ''));
       setShowRewindDialog(false);
     } catch (error: unknown) {
       showSnackbar(t('chat.retryFailed') + getErrorMessage(error));
     }
   }, [currentConversationId, retryConversation]);
+
+  // Rewind 处理
+  const handleRewind = useCallback((messageId: string) => {
+    const currentMessages = useConversationStore.getState().messages;
+    const index = currentMessages.findIndex((m) => m.id === messageId);
+    if (index === -1) return;
+    
+    const msg = currentMessages[index];
+    if (msg.role === 'human') {
+      setPendingRewindContent(msg.content);
+    } else {
+      setPendingRewindContent('');
+    }
+
+    const subMessages = currentMessages.slice(index);
+    const hasFiles = subMessages.some((m) => m.has_file_operations);
+
+    setPendingRewindMessageId(messageId);
+    setHasFileOperations(hasFiles);
+
+    if (hasFiles) {
+      setShowRewindDialog(true);
+    } else {
+      // 直接回退，不回退文件
+      executeRewind(messageId, false);
+    }
+  }, [executeRewind]);
+
+  // Retry 处理
+  const handleRetry = useCallback((messageId: string) => {
+    const currentMessages = useConversationStore.getState().messages;
+    const index = currentMessages.findIndex((m) => m.id === messageId);
+    if (index === -1) return;
+    
+    const subMessages = currentMessages.slice(index + 1);
+    const hasFiles = subMessages.some((m) => m.has_file_operations);
+
+    setPendingRetryMessageId(messageId);
+    setHasFileOperations(hasFiles);
+
+    if (hasFiles) {
+      setShowRewindDialog(true);
+    } else {
+      // 直接重试，不回退文件
+      executeRetry(messageId, false);
+    }
+  }, [executeRetry]);
 
   // 添加到记忆
   const handleAddToMemory = useCallback(async (text: string) => {
@@ -951,6 +981,8 @@ export default function ChatScreen() {
               onAddToMemory={handleAddToMemory}
               onResend={handleResend}
               isTyping={isAgentProcessing}
+              hasMoreMessages={hasMoreMessages}
+              isLoadingMessages={isLoadingMessages}
             />
           )}
           {isQuotaExhausted && (

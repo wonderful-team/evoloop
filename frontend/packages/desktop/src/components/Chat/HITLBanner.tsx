@@ -2,7 +2,7 @@ import { cn } from "@evoloop/shared/lib/utils"
 import { AlertCircle } from "lucide-react"
 import { memo } from "react"
 import { useTranslation } from "react-i18next"
-import { useChatStore } from "@/stores/chatStore"
+import { useAgentStore } from "@/stores/agentStore"
 
 /**
  * HITLBanner - Global banner when Agent is waiting for human input
@@ -10,8 +10,8 @@ import { useChatStore } from "@/stores/chatStore"
  */
 export const HITLBanner = memo(() => {
   const { t } = useTranslation()
-  const status = useChatStore((s) => s.status)
-  const humanRequest = useChatStore((s) => s.humanRequest)
+  const status = useAgentStore((s) => s.status)
+  const humanRequest = useAgentStore((s) => s.humanRequest)
 
   // Only show when interrupted with a human request
   const isVisible = status === "interrupted" && humanRequest !== null

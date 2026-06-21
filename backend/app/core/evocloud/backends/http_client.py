@@ -756,12 +756,44 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             "thread_id": thread_id,
             "messages": messages,
         }
+        return await self.request("POST", "/evolooplink/api/sync/messages", data=data, token=token)
 
-        return await self.request(
-            "POST",
-            "/evolooplink/api/sync/messages",
-            data=data
-        , token=token)
+    async def sync_delete_messages(self, device_key: str, thread_id: str, message_ids: list[str], token: str | None = None) -> dict:
+        """
+        批量删除云端消息 (用于回撤同步)
+
+        Args:
+            device_key: 设备标识
+            thread_id: 会话ID
+            message_ids: 消息ID数组
+
+        Returns:
+            {"code": 0, "data": {"deleted_count": n}}
+        """
+        data = {
+            "device_key": device_key,
+            "thread_id": thread_id,
+            "message_ids": message_ids,
+        }
+        return await self.request("POST", "/evolooplink/api/sync/deleteMessages", data=data, token=token)
+
+    async def sync_rewind_messages(self, device_key: str, thread_id: str, target_sequence: int, include_target: bool, token: str | None = None) -> dict:
+        """
+        根据序列号逻辑回滚云端消息
+
+        Args:
+            device_key: 设备标识
+            thread_id: 会话ID
+            target_sequence: 目标序列号
+            include_target: 是否包含该序列号本身
+        """
+        data = {
+            "device_key": device_key,
+            "thread_id": thread_id,
+            "target_sequence": target_sequence,
+            "include_target": include_target,
+        }
+        return await self.request("POST", "/evolooplink/api/sync/rewindMessages", data=data, token=token)
 
     async def sync_full_conversations(self, device_key: str, data: dict, token: str | None = None) -> dict:
         """

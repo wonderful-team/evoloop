@@ -26,11 +26,12 @@ export function commitThinkingBuffer(state: any) {
  * Normalizes and prepares a raw message object for the store
  */
 export function normalizeMessage(rawMsg: any): any {
-  // Mapping roles to support flat architecture (human, ai, tool)
-  let normalizedRole: "human" | "ai" | "tool" = "ai"
+  // Mapping roles to support flat architecture (human, ai, tool, system)
+  let normalizedRole: "human" | "ai" | "tool" | "system" = "ai"
   if (rawMsg.role === "human" || rawMsg.role === "user")
     normalizedRole = "human"
   if (rawMsg.role === "tool") normalizedRole = "tool"
+  if (rawMsg.role === "system") normalizedRole = "system"
 
   // Extract changeset info from references if not explicitly provided
   let changesetCount = rawMsg.changeset_count || 0
@@ -74,7 +75,8 @@ export function normalizeMessage(rawMsg: any): any {
  * Parses a system message for HITL requests
  */
 export function tryParseHumanRequest(rawMsg: any): any | null {
-  if (rawMsg.category === "HITL_REQUEST" || rawMsg.category === "INTERRUPT") {
+  const cat = (rawMsg.category || "").toUpperCase()
+  if (cat === "HITL_REQUEST" || cat === "INTERRUPT") {
     try {
       const parsed =
         typeof rawMsg.content === "string"

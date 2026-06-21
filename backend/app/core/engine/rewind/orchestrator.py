@@ -97,7 +97,7 @@ class RewindOrchestrator:
             # Phase 0: Pre-compute affected message IDs.
             # This prevents race conditions where MessageRewind deletes rows
             # before TodoRewind/TraceRewind/FileRewind can query them.
-            affected_ids, affected_run_ids = await self._compute_affected_message_ids(
+            affected_ids, affected_run_ids, target_seq = await self._compute_affected_message_ids(
                 thread_id=thread_id,
                 target_message_id=target_message_id,
                 include_target=include_target
@@ -117,6 +117,7 @@ class RewindOrchestrator:
                 reason=reason,
                 affected_message_ids=affected_ids,
                 affected_run_ids=affected_run_ids,
+                target_sequence=target_seq,
                 sequential=True,
                 propagate_errors=True,
             )
@@ -166,9 +167,9 @@ class RewindOrchestrator:
         thread_id: str,
         target_message_id: str | None,
         include_target: bool
-    ) -> tuple[list[str], list[str]]:
+    ) -> tuple[list[str], list[str], int]:
         """
-        Pre-compute the list of message IDs and run IDs that will be affected by this rewind.
+        Pre-compute the list of message IDs, run IDs, and the target sequence number that will be affected by this rewind.
         """
         from sqlalchemy import select
         from app.infrastructure.database.sql.database import session_scope
@@ -188,7 +189,7 @@ class RewindOrchestrator:
                     
                     if target_seq is None:
                         logger.warning(f"[RewindOrchestrator] Target message {target_message_id} not found")
-                        return [], []
+                        return [], [], 0
 
                     logger.info(f"[RewindOrchestrator] Using target_sequence: {target_seq} (from {target_message_id})")
                     
@@ -198,7 +199,7 @@ class RewindOrchestrator:
                         stmt = stmt.where(Message.sequence_number > target_seq)
                 except Exception as e:
                     logger.warning(f"[RewindOrchestrator] Failed to resolve target_message_id {target_message_id}: {e}")
-                    return [], []
+                    return [], [], 0
             else:
                 # No target specified – find last human message and use it as anchor
                 sub = (
@@ -210,9 +211,12 @@ class RewindOrchestrator:
                 result = await session.execute(sub)
                 last_human_seq = result.scalar_one_or_none()
                 if last_human_seq is not None:
+                    target_seq = last_human_seq
                     stmt = stmt.where(Message.sequence_number >= last_human_seq)
+                    # For last human message, we always include it in the logical rewind
+                    include_target = True
                 else:
-                    return [], []
+                    return [], [], 0
 
             result = await session.execute(stmt)
             rows = result.all()
@@ -220,5 +224,5 @@ class RewindOrchestrator:
             message_ids = [str(row.id) for row in rows]
             run_ids = [row.run_id for row in rows if row.run_id]
             
-            # Return unique run_ids
-            return message_ids, list(set(run_ids))
+            # Return unique run_ids and target_seq
+            return message_ids, list(set(run_ids)), target_seq

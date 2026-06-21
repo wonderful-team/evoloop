@@ -16,6 +16,7 @@ export interface VoiceInputWithNLSHandle extends VoiceInputHandle {
   stopNLS: () => Promise<void>;
   /** 当前是否正在录音 */
   nlsIsRecording: boolean;
+  setText: (text: string) => void;
 }
 
 interface VoiceInputWithNLSProps {
@@ -101,6 +102,9 @@ export const VoiceInputWithNLS = forwardRef<VoiceInputWithNLSHandle, VoiceInputW
   useImperativeHandle(ref, () => ({
     addReference: (reference: MessageReference) => {
       voiceInputRef.current?.addReference(reference);
+    },
+    setText: (text: string) => {
+      voiceInputRef.current?.setText(text);
     },
     startNLS: start,
     stopNLS: stop,

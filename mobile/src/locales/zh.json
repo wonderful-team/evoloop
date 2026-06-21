@@ -246,10 +246,10 @@
     "rewindConfirm": {
       "rewindTitle": "确认撤回",
       "retryTitle": "确认重试",
-      "rewindDesc": "将删除此消息及其后的所有内容。此操作不可撤销。",
-      "retryDesc": "将删除后续内容并重新尝试执行。",
+      "rewindDesc": "将删除此消息及其后的所有内容。",
+      "retryDesc": "将删除后续内容并重新尝试。",
       "revertFiles": "同时恢复 Agent 修改过的文件内容",
-      "revertToPrevious": "恢复到修改前的状态",
+      "revertToPrevious": "（恢复到修改前的状态）",
       "cancel": "取消",
       "confirmRewind": "确认撤回",
       "confirmRetry": "确认重试"

@@ -108,8 +108,12 @@ class MessageSyncEvent(BaseStreamEvent):
 class HumanRequestEvent(BaseStreamEvent):
     type: Literal["human_request"] = "human_request"
     action: str                                      # create, clear, update
+    id: Optional[str] = None
     prompt: Optional[str] = None
     request_type: Optional[str] = None
+    options: Optional[list[str]] = None
+    context: Optional[str] = None
+    default_value: Optional[str] = None
     allow_cancel: bool = True
     payload: Dict[str, Any] = {}
 

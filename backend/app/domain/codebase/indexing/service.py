@@ -235,7 +235,7 @@ class IndexingService:
                         indexed.embeddings,
                     )
                 else:
-                    logger.warning(f"Skipping vector upsert for {prepared.rel_path}: No embeddings generated (provider might be unconfigured).")
+                    logger.debug(f"Skipping vector upsert for {prepared.rel_path}: embeddings disabled or not generated.")
 
                 # 4. Sync Graph
                 try:
@@ -496,17 +496,25 @@ class IndexingService:
 
         total_files = len(filtered_files)
 
-        # Split the pipeline into three phases so that the CPU-bound embedding
-        # step is not held inside the persistence semaphore. In embedded mode
-        # SQLite/LanceDB persistence does not scale with high fan-out, but text
-        # extraction is cheap and embedding benefits from larger batches.
+        # Use a three-phase pipeline, but embed and persist in small windows so
+        # that progress survives worker restarts/crashes. A single huge embed
+        # call can take hours on CPU; if it is interrupted before any files are
+        # persisted, the next restart has to redo everything. We therefore:
+        #   1. Extract all files cheaply in parallel.
+        #   2. Walk through the extracted files in windows of ~16 texts,
+        #      embed each window, then immediately persist those files.
         EXTRACT_CONCURRENCY = 4
         PERSIST_CONCURRENCY = 2
         extract_semaphore = asyncio.Semaphore(EXTRACT_CONCURRENCY)
         persist_semaphore = asyncio.Semaphore(PERSIST_CONCURRENCY)
 
+        # Window size matches the LocalEmbedder encode batch cap so that each
+        # window results in roughly one model.encode() call. This preserves the
+        # cross-file batching benefit while keeping persistence granular.
+        TEXTS_PER_WINDOW = 16
+
         batched_embedder = BatchedEmbedder(
-            self.embedder, max_batch_size=32, max_wait_ms=50
+            self.embedder, max_batch_size=TEXTS_PER_WINDOW, max_wait_ms=50
         )
         batched_content_indexer = ContentIndexer(self.extractor, batched_embedder)
 
@@ -535,18 +543,12 @@ class IndexingService:
             f"{extract_error_count} errors"
         )
 
-        # Phase 2: embed all collected texts in batches.
-        logger.info("Phase 2/3: embedding collected texts")
-        embed_start = asyncio.get_event_loop().time()
-        await self._embed_all(prepared_items, batched_embedder)
-        await batched_embedder.close()
-        embed_elapsed = asyncio.get_event_loop().time() - embed_start
-        logger.info(f"Phase 2 complete: embedding took {embed_elapsed:.1f}s")
-
-        # Phase 3: persist all files concurrently (bounded by SQLite/LanceDB).
-        logger.info(f"Phase 3/3: persisting {len(prepared_items)} files")
+        # Phase 2+3: embed and persist in windows.
+        logger.info("Phase 2/3: embedding and persisting in windows")
         indexed_count = 0
         persist_error_count = 0
+        window: list[tuple[PreparedFile, IndexedContent, int]] = []
+        window_texts: list[str] = []
 
         async def _persist_one(item: tuple[PreparedFile, IndexedContent]) -> bool:
             async with persist_semaphore:
@@ -555,25 +557,101 @@ class IndexingService:
                     prepared.file_path, repo_id, prepared, indexed
                 )
 
-        persist_tasks = [
-            asyncio.create_task(_persist_one(item)) for item in prepared_items
-        ]
-        persist_results = await asyncio.gather(*persist_tasks, return_exceptions=True)
+        async def _flush_window() -> None:
+            nonlocal indexed_count, persist_error_count
+            if not window:
+                return
 
-        for result in persist_results:
-            if isinstance(result, Exception):
-                persist_error_count += 1
-                logger.error(f"Persist batch failed: {result}")
-            elif result:
-                indexed_count += 1
-            else:
-                persist_error_count += 1
+            if self.embedder is None:
+                # Embeddings disabled: persist the window immediately with empty
+                # embeddings. This keeps the SQL/graph index up-to-date while
+                # avoiding the CPU-heavy local embedding step.
+                window_items: list[tuple[PreparedFile, IndexedContent]] = []
+                for prepared, indexed, _text_count in window:
+                    indexed.embeddings = []
+                    window_items.append((prepared, indexed))
+                window.clear()
+                window_texts.clear()
+
+                persist_tasks = [
+                    asyncio.create_task(_persist_one(item)) for item in window_items
+                ]
+                persist_results = await asyncio.gather(*persist_tasks, return_exceptions=True)
+                for result in persist_results:
+                    if isinstance(result, Exception):
+                        persist_error_count += 1
+                        logger.error(f"Window persist failed: {result}")
+                    elif result:
+                        indexed_count += 1
+                    else:
+                        persist_error_count += 1
+
+                logger.info(
+                    f"Progress: {indexed_count}/{len(prepared_items)} files "
+                    f"({persist_error_count} errors)"
+                )
+                return
+
+            logger.info(
+                f"[_embed_window] Embedding window of {len(window)} files, "
+                f"{len(window_texts)} texts"
+            )
+            try:
+                embeddings = await batched_embedder.embed_documents(window_texts)
+            except Exception as e:
+                logger.error(f"Window embedding failed: {e}")
+                for _, _, _ in window:
+                    persist_error_count += 1
+                window.clear()
+                window_texts.clear()
+                return
+
+            # Distribute embeddings back to each IndexedContent.
+            offset = 0
+            window_items = []
+            for prepared, indexed, text_count in window:
+                indexed.embeddings = embeddings[offset : offset + text_count]
+                offset += text_count
+                window_items.append((prepared, indexed))
+
+            window.clear()
+            window_texts.clear()
+
+            # Persist the window's files concurrently (bounded by DB).
+            persist_tasks = [
+                asyncio.create_task(_persist_one(item)) for item in window_items
+            ]
+            persist_results = await asyncio.gather(*persist_tasks, return_exceptions=True)
+
+            for result in persist_results:
+                if isinstance(result, Exception):
+                    persist_error_count += 1
+                    logger.error(f"Window persist failed: {result}")
+                elif result:
+                    indexed_count += 1
+                else:
+                    persist_error_count += 1
+
+            logger.info(
+                f"Progress: {indexed_count}/{len(prepared_items)} files "
+                f"({persist_error_count} errors)"
+            )
+
+        for prepared, indexed in prepared_items:
+            texts = []
+            for doc in indexed.documents:
+                skel = doc.metadata.get("skeleton")
+                texts.append(skel if skel else doc.content[:8000])
+
+            window.append((prepared, indexed, len(texts)))
+            window_texts.extend(texts)
+
+            if len(window_texts) >= TEXTS_PER_WINDOW:
+                await _flush_window()
+
+        # Flush any remaining files in the final window.
+        await _flush_window()
+        await batched_embedder.close()
 
         error_count = extract_error_count + persist_error_count
-
-        # Progress logging
-        for i in range(0, total_files, PERSIST_CONCURRENCY):
-            progress = min(i + PERSIST_CONCURRENCY, total_files)
-            logger.info(f"Progress: {progress}/{total_files} files ({indexed_count} success, {error_count} errors)")
-
         logger.info(f"Full indexing complete. Indexed: {indexed_count}, Errors: {error_count}")

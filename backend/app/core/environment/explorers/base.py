@@ -1,4 +1,3 @@
-
 import json
 import logging
 from abc import ABC, abstractmethod
@@ -19,7 +18,9 @@ class BaseExplorer(ABC):
         pass
 
     @classmethod
-    async def identify_high_value_apps(cls, items: list[str], platform: str) -> dict[str, dict]:
+    async def identify_high_value_apps(
+        cls, items: list[str], platform: str
+    ) -> dict[str, dict]:
         """
         Shared LLM Triage logic.
         Returns mapping of {human_name: {"identifier": "...", "reasoning": "..."}}.
@@ -32,10 +33,14 @@ class BaseExplorer(ABC):
                 "domain/planning/explorer_triage.prompt.j2",
                 system_role=f"You are an expert at identifying high-value productivity/lifestyle {platform} apps from their names.",
                 platform=platform,
-                items=items
+                items=items,
             )
 
-            role_name = render_template("domain/planning/expert_roles.prompt.j2", role="knowledge_triage", platform=platform).strip()
+            role_name = render_template(
+                "domain/planning/expert_roles.prompt.j2",
+                role="knowledge_triage",
+                platform=platform,
+            ).strip()
 
             from app.core.llm import InternalLLMService
             from app.infrastructure.config.service import SystemConfigService
@@ -43,7 +48,7 @@ class BaseExplorer(ABC):
             response = await InternalLLMService.invoke(
                 messages=[
                     {"role": "system", "content": role_name},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": prompt},
                 ],
                 purpose="environment_triage",
                 model_name=model_name,
