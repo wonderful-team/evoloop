@@ -98,13 +98,14 @@ export const useConversationStore = create<ConversationState>()(
       // 设置当前会话
       setCurrentConversation: (id, skipLoadMessages = false) => {
         const prevId = get().currentConversationId;
+        const isUpgradingNewConversation = prevId === null && id !== null && get().messages.length > 0;
 
         set({
           currentConversationId: id,
           // 真正切换会话（从 A 到 B，且 A 不为 null）时才清空消息
           // 首次设置（null -> id）保留乐观更新的用户消息
           messages: prevId !== null && prevId !== id ? [] : get().messages,
-          hasMoreMessages: true,
+          hasMoreMessages: isUpgradingNewConversation ? false : true,
           firstMessageId: null,
         });
 
@@ -247,6 +248,8 @@ export const useConversationStore = create<ConversationState>()(
           if (!isAuthError(error)) {
             console.error('加载消息失败:', error);
           }
+          // 请求失败时，停止继续自动加载，避免在界面无法占满时陷入死循环请求
+          set({ hasMoreMessages: false });
         } finally {
           set({ isLoadingMessages: false });
         }
