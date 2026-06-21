@@ -93,7 +93,7 @@ android {
             keyPassword 'android'
         }
         release {
-            storeFile file('evoloop-mobile-release.keystore')
+            storeFile file('release.keystore')
             storePassword 'evoloop666'
             keyAlias 'evoloop'
             keyPassword 'evoloop666'
