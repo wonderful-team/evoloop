@@ -11,10 +11,11 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Mapping, Type
+from collections.abc import Mapping
+from typing import Any
 
 import httpx
-from langchain_core.messages import BaseMessage, AIMessage, AIMessageChunk
+from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage
 from langchain_openai import ChatOpenAI
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ def _apply_reasoning_patch() -> None:
         # Capture original _convert_delta_to_message_chunk
         _original_delta_convert = base_module._convert_delta_to_message_chunk
 
-        def _convert_delta_with_reasoning(_dict: Mapping, default_class: Type) -> AIMessageChunk:
+        def _convert_delta_with_reasoning(_dict: Mapping, default_class: type) -> AIMessageChunk:
             # 1. Convert via original logic
             result = _original_delta_convert(_dict, default_class)
 
@@ -45,6 +46,22 @@ def _apply_reasoning_patch() -> None:
             return result
 
         base_module._convert_delta_to_message_chunk = _convert_delta_with_reasoning
+
+        # Patch 1.5: Receiving (Dict -> Message, non-streaming)
+        _original_dict_convert = base_module._convert_dict_to_message
+
+        def _convert_dict_with_reasoning(
+            _dict: Mapping[str, Any], default_class: type = AIMessage  # type: ignore[assignment]
+        ) -> BaseMessage:
+            result = _original_dict_convert(_dict, default_class)
+            if isinstance(result, AIMessage):
+                reasoning = _dict.get("reasoning_content")
+                if reasoning:
+                    result.additional_kwargs["reasoning_content"] = reasoning
+                    result.additional_kwargs["thinking"] = reasoning
+            return result
+
+        base_module._convert_dict_to_message = _convert_dict_with_reasoning
 
         # Patch 2: Sending (Message -> Dict)
         def _get_payload_with_reasoning_factory(original_func: Any):

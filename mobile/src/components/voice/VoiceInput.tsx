@@ -89,8 +89,16 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
   const { t } = useTranslation();
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const [text, setText] = useState('');
+  const [inputHeight, setInputHeight] = useState(40);
   const [internalInputMode, setInternalInputMode] = useState<InputMode>(InputMode.VOICE);
   const [pickedFiles, setPickedFiles] = useState<PickedFile[]>([]);
+
+  // 当文本清空时自动重置高度
+  useEffect(() => {
+    if (!text) {
+      setInputHeight(40);
+    }
+  }, [text]);
 
   // 草稿保存 key
   const draftKey = `chat_draft_${conversationId || 'global'}`;
@@ -306,7 +314,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
           <View style={styles.inputContainer}>
             <TextInput
               ref={inputRef}
-              style={[styles.textInput, { color: colors.onSurface }]}
+              style={[styles.textInput, { color: colors.onSurface, height: Math.min(120, Math.max(40, inputHeight)) }]}
               value={text}
               onChangeText={handleTextChange}
               placeholder={placeholder || t('voice.input.placeholder')}
@@ -314,6 +322,9 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
               multiline
               maxLength={500}
               editable={!disabled}
+              onContentSizeChange={(e) => {
+                setInputHeight(e.nativeEvent.contentSize.height);
+              }}
             />
 
             {/* @ 提示 - 暂时关闭引用功能入口 */}
@@ -543,9 +554,9 @@ const styles = StyleSheet.create({
     marginHorizontal: 2,
   },
   textInput: {
-    flex: 1,
+    width: '100%',
     fontSize: 16,
-    maxHeight: 100,
+    maxHeight: 120,
     paddingVertical: 8,
     paddingHorizontal: 12,
   },

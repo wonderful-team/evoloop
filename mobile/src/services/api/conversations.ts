@@ -287,3 +287,21 @@ export async function markAsRead(conversationId: string): Promise<void> {
     throw new Error(response.message || i18n.t('api.errors.markAsReadFailed'));
   }
 }
+
+/**
+ * 更新会话属性 (标题或置顶状态)
+ * POST /evolooplink/api/conversation/update
+ */
+export async function updateConversation(
+  conversationId: string,
+  updateData: { title?: string; is_pinned?: number }
+): Promise<void> {
+  const response = await api.post(`/member/evolooplink/api/conversation/update`, {
+    conversation_id: conversationId,
+    ...updateData,
+  });
+
+  if (response.code !== 0) {
+    throw new Error(response.message || i18n.t('toast.updateConversationFailed'));
+  }
+}

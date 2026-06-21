@@ -65,6 +65,7 @@ async def dispatch_agent_run(
     metadata: dict[str, Any] | None = None,
     member_id: int = 0,
     source: str | None = None,
+    client_message_id: str | None = None,
 ) -> DispatchResult:
     """
     Unified dispatch preparation for an Agent run.
@@ -232,6 +233,7 @@ async def dispatch_agent_run(
                 is_visible=True,
                 references=ref_context.references,
                 source=source,
+                message_id=client_message_id,
             )
             persisted_msg_id = msg_id
 

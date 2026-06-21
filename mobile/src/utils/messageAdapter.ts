@@ -155,18 +155,33 @@ export function mergeSyncedHumanMessages(
       continue;
     }
 
-    const tempIndex = result.findIndex(
+    // 1. 优先基于 ID 进行精确匹配（client_message_id 对齐）
+    let tempIndex = result.findIndex(
       (m, idx) => {
-        const status = m.status as string | undefined;
         return (
           !consumedTempIndexes.has(idx) &&
           m.role === 'human' &&
-          m.content === msg.content &&
-          (status === 'running' || status === 'sent') &&
+          m.id === msg.id &&
           !m.sequence_number
         );
       },
     );
+
+    // 2. 兜底：如果 ID 不匹配，使用基于内容的模糊规则（兼容旧版本或第三方发送场景）
+    if (tempIndex === -1) {
+      tempIndex = result.findIndex(
+        (m, idx) => {
+          const status = m.status as string | undefined;
+          return (
+            !consumedTempIndexes.has(idx) &&
+            m.role === 'human' &&
+            m.content === msg.content &&
+            (status === 'running' || status === 'sent') &&
+            !m.sequence_number
+          );
+        },
+      );
+    }
 
     if (tempIndex >= 0) {
       result[tempIndex] = { ...msg, status: 'completed' };

@@ -202,6 +202,7 @@ class ConversationSyncManager:
             title=conv.title or "新会话",
             created_at=int(conv.created_at.timestamp()) if conv.created_at else int(datetime.now().timestamp()),
             updated_at=int(conv.updated_at.timestamp()) if conv.updated_at else int(datetime.now().timestamp()),
+            is_pinned=bool(conv.is_pinned),
         )
 
     def _format_message(self, msg: MessageModel) -> SyncMessage:

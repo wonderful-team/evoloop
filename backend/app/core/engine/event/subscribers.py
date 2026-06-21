@@ -217,6 +217,8 @@ class EngineCommandSubscriber:
         else:
             project_id = DEFAULT_PROJECT_ID
 
+        client_message_id = payload.get("client_message_id")
+
         # Unified dispatch preparation (DB persistence, EvoCloud sync, model fallback)
         member_id = await identity_service.get_member_id() or 0
 
@@ -229,6 +231,7 @@ class EngineCommandSubscriber:
             model=None,
             member_id=member_id,
             source="mobile",
+            client_message_id=client_message_id,
         )
 
         if result.status == "failed":

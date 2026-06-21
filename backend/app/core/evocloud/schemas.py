@@ -33,6 +33,7 @@ class SyncConversation(DynamicBaseModel):
     title: str = "新会话"
     created_at: int
     updated_at: int
+    is_pinned: bool = False
 
 
 class SyncMessage(DynamicBaseModel):

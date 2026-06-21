@@ -334,11 +334,13 @@ export default function ChatScreen() {
   // 同步 currentConversationId 到 Gateway hook（避免 WebSocket 因 id 变化而重连）
   useEffect(() => {
     setCurrentConversationId(currentConversationId);
-    // 进入会话时清零该会话的未读计数
+    // 进入会话或切换会话时，打断之前的 TTS 音频播放并清空队列
+    stopTTS();
+    clearTTSQueue();
     if (currentConversationId) {
       clearUnread(currentConversationId);
     }
-  }, [currentConversationId, setCurrentConversationId, clearUnread]);
+  }, [currentConversationId, setCurrentConversationId, clearUnread, stopTTS, clearTTSQueue]);
 
   const clearAgentProcessing = useCallback(() => {
     setIsAgentProcessing(false);
@@ -428,6 +430,7 @@ export default function ChatScreen() {
         conversationId: conversationId || undefined,
         deviceKey: selectedDevice?.deviceKey,
         references: options?.references,
+        clientMessageId: userMessage.id,
         // 流式回调（仅链路二生效）
         onStreamStart: () => {
           const msgId = generateUUID();
@@ -639,6 +642,10 @@ export default function ChatScreen() {
   const executeRewind = useCallback(async (messageId: string, revertFiles: boolean) => {
     if (!currentConversationId) {return;}
 
+    // 立即停止当前语音播放，并清空语音队列
+    stopTTS();
+    clearTTSQueue();
+
     try {
       const result = await rewindConversation(currentConversationId, {
         message_id: messageId,
@@ -656,11 +663,15 @@ export default function ChatScreen() {
     } catch (error: unknown) {
       showSnackbar(t('chat.rewindFailed') + getErrorMessage(error));
     }
-  }, [currentConversationId, rewindConversation, pendingRewindContent, t, showSnackbar]);
+  }, [currentConversationId, rewindConversation, pendingRewindContent, stopTTS, clearTTSQueue, t, showSnackbar]);
 
   // 执行 Retry
   const executeRetry = useCallback(async (messageId: string, revertFiles: boolean) => {
     if (!currentConversationId) {return;}
+
+    // 立即停止当前语音播放，并清空语音队列
+    stopTTS();
+    clearTTSQueue();
 
     try {
       const result = await retryConversation(currentConversationId, {
@@ -673,7 +684,7 @@ export default function ChatScreen() {
     } catch (error: unknown) {
       showSnackbar(t('chat.retryFailed') + getErrorMessage(error));
     }
-  }, [currentConversationId, retryConversation]);
+  }, [currentConversationId, retryConversation, stopTTS, clearTTSQueue]);
 
   // Rewind 处理
   const handleRewind = useCallback((messageId: string) => {

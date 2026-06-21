@@ -8,6 +8,7 @@ export interface Conversation {
   created_at: string;
   updated_at: string;
   message_count?: number;
+  is_pinned?: boolean;
 }
 
 export interface ConversationListResponse {

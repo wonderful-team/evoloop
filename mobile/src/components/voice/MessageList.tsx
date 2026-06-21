@@ -719,38 +719,52 @@ export const MessageList = React.memo(function MessageList({
     }
   }, [isTyping]);
 
+  // 监听 AI 流式输出时的内容增长，若用户当前处于底部，则平滑跟随滚动
+  useEffect(() => {
+    if (isTyping && isUserAtBottomRef.current && messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg.role === 'ai') {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }
+    }
+  }, [messages, isTyping]);
+
+  const checkAndLoadMore = useCallback(() => {
+    if (isLoadingMessages || !hasMoreMessages) return;
+    const listH = listHeightRef.current;
+    const contentH = contentHeightRef.current;
+    const offsetY = scrollOffsetRef.current;
+    if (listH > 0 && contentH > 0) {
+      const scrollableHeight = contentH - listH;
+      if (scrollableHeight <= 0 || (offsetY / scrollableHeight) <= 0.2) {
+        const { currentConversationId, loadMoreMessages } = useConversationStore.getState();
+        if (currentConversationId) {
+          loadMoreMessages(currentConversationId);
+        }
+      }
+    }
+  }, [isLoadingMessages, hasMoreMessages]);
+
   // 自动加载探测：当停止加载且还有历史时，如果列表内容不够长（比如不足满屏）或者仍然停留在顶部 20% 范围内，则继续触发加载
   useEffect(() => {
     if (!isLoadingMessages && hasMoreMessages) {
-      const timer = setTimeout(() => {
-        const listH = listHeightRef.current;
-        const contentH = contentHeightRef.current;
-        const offsetY = scrollOffsetRef.current;
-        if (listH > 0 && contentH > 0) {
-          const scrollableHeight = contentH - listH;
-          // 如果无法滚动（内容太少）或者停留在顶部 20% 范围内，触发加载
-          if (scrollableHeight <= 0 || (offsetY / scrollableHeight) <= 0.2) {
-            const { currentConversationId, loadMoreMessages } = useConversationStore.getState();
-            if (currentConversationId) {
-              loadMoreMessages(currentConversationId);
-            }
-          }
-        }
-      }, 50);
+      const timer = setTimeout(checkAndLoadMore, 100);
       return () => clearTimeout(timer);
     }
-  }, [isLoadingMessages, hasMoreMessages]);
+  }, [isLoadingMessages, hasMoreMessages, checkAndLoadMore]);
 
   const handleContentSizeChange = useCallback((w: number, h: number) => {
     contentHeightRef.current = h;
     if (shouldScrollToBottomRef.current) {
       flatListRef.current?.scrollToEnd({ animated: true });
     }
-  }, []);
+    setTimeout(checkAndLoadMore, 100);
+  }, [checkAndLoadMore]);
 
   const handleLayout = useCallback((event: any) => {
     listHeightRef.current = event.nativeEvent.layout.height;
-  }, []);
+    checkAndLoadMore();
+  }, [checkAndLoadMore]);
 
   const handleScroll = useCallback((event: any) => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;

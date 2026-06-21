@@ -265,7 +265,8 @@
       "createConversationFailed": "Failed to create conversation",
       "sendMessageFailed": "Failed to send message",
       "stopSuccess": "Generation stopped",
-      "stopFailed": "Failed to stop"
+      "stopFailed": "Failed to stop",
+      "updateConversationFailed": "Failed to update conversation"
     },
     "quote": {
       "message": "Message",
@@ -991,7 +992,17 @@
     "messageCount": "{{count}} messages",
     "title": "Conversation History",
     "empty": "No conversations yet",
-    "startNew": "Start new conversation"
+    "startNew": "Start new conversation",
+    "sectionPinned": "Pinned",
+    "sectionToday": "Today",
+    "sectionYesterday": "Yesterday",
+    "sectionRecent": "Recent 7 Days",
+    "sectionEarlier": "Earlier",
+    "rename": "Rename",
+    "renameTitle": "Rename Conversation",
+    "renamePlaceholder": "Enter new conversation title",
+    "pin": "Pin",
+    "unpin": "Unpin"
   },
   "debug": {
     "nlsRealtimeTitle": "NLS Real-time Speech Recognition",
