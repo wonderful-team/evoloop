@@ -65,6 +65,10 @@ interface ConversationState {
 
   // 添加到记忆
   addToMemory: (projectId: number, request: { name: string; description: string }) => Promise<any>;
+
+  // 置顶与重命名会话
+  togglePinConversation: (id: string) => Promise<void>;
+  renameConversation: (id: string, newTitle: string) => Promise<void>;
 }
 
 export const useConversationStore = create<ConversationState>()(
@@ -271,8 +275,8 @@ export const useConversationStore = create<ConversationState>()(
       rewindLocalMessages: (targetSequence: number, includeTarget: boolean) => {
         set({
           messages: get().messages.filter(msg => {
-            if (!msg.sequenceNumber) return true; // keep messages without sequence
-            return includeTarget ? msg.sequenceNumber < targetSequence : msg.sequenceNumber <= targetSequence;
+            if (!msg.sequence_number) return true; // keep messages without sequence
+            return includeTarget ? msg.sequence_number < targetSequence : msg.sequence_number <= targetSequence;
           })
         });
       },
@@ -375,24 +379,112 @@ export const useConversationStore = create<ConversationState>()(
       // Rewind 回退
       rewindConversation: async (conversationId, request) => {
         const activeDeviceKey = get().activeDeviceKey;
-        const result = await conversationApi.rewindConversation(conversationId, request, activeDeviceKey);
-        // 刷新消息列表
-        await get().loadMessages(conversationId, true);
-        return result;
+        // 乐观直接截断本地消息列表，无需等待接口返回
+        const currentMessages = get().messages;
+        const index = currentMessages.findIndex(m => m.id === request.message_id);
+        if (index !== -1) {
+          set({ messages: currentMessages.slice(0, index) });
+        }
+        return await conversationApi.rewindConversation(conversationId, request, activeDeviceKey);
       },
 
       // Retry 重试
       retryConversation: async (conversationId, request) => {
         const activeDeviceKey = get().activeDeviceKey;
-        const result = await conversationApi.retryConversation(conversationId, request, activeDeviceKey);
-        // 刷新消息列表
-        await get().loadMessages(conversationId, true);
-        return result;
+        // 乐观直接截断本地消息列表（重试时保留当前这条人类消息本身）
+        const currentMessages = get().messages;
+        const index = currentMessages.findIndex(m => m.id === request.message_id);
+        if (index !== -1) {
+          set({ messages: currentMessages.slice(0, index + 1) });
+        }
+        return await conversationApi.retryConversation(conversationId, request, activeDeviceKey);
       },
 
       // 添加到记忆
       addToMemory: async (projectId, request) => {
         return await conversationApi.addToMemory(projectId, request);
+      },
+
+      // 置顶/取消置顶会话
+      togglePinConversation: async (id) => {
+        const conversation = get().conversations.find(c => c.id === id);
+        if (!conversation) return;
+        
+        const nextPinned = !conversation.is_pinned;
+        
+        // 乐观更新本地状态
+        const updatedConversations = get().conversations.map(c => {
+          if (c.id === id) {
+            return { ...c, is_pinned: nextPinned };
+          }
+          return c;
+        });
+        
+        // 重新排序: 置顶的在前，然后按更新时间在后
+        const sortedConversations = [...updatedConversations].sort((a, b) => {
+          const pinA = a.is_pinned ? 1 : 0;
+          const pinB = b.is_pinned ? 1 : 0;
+          if (pinA !== pinB) {
+            return pinB - pinA;
+          }
+          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+        });
+
+        set({ conversations: sortedConversations });
+
+        try {
+          await conversationApi.updateConversation(id, { is_pinned: nextPinned ? 1 : 0 });
+        } catch (error) {
+          console.error('更新置顶状态失败:', error);
+          // 失败时回滚
+          const rolledBackConversations = get().conversations.map(c => {
+            if (c.id === id) {
+              return { ...c, is_pinned: conversation.is_pinned };
+            }
+            return c;
+          }).sort((a, b) => {
+            const pinA = a.is_pinned ? 1 : 0;
+            const pinB = b.is_pinned ? 1 : 0;
+            if (pinA !== pinB) {
+              return pinB - pinA;
+            }
+            return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+          });
+          set({ conversations: rolledBackConversations });
+        }
+      },
+
+      // 重命名会话
+      renameConversation: async (id, newTitle) => {
+        const conversation = get().conversations.find(c => c.id === id);
+        if (!conversation) return;
+        
+        const oldTitle = conversation.title;
+        
+        // 乐观更新本地状态
+        set({
+          conversations: get().conversations.map(c => {
+            if (c.id === id) {
+              return { ...c, title: newTitle };
+            }
+            return c;
+          })
+        });
+
+        try {
+          await conversationApi.updateConversation(id, { title: newTitle });
+        } catch (error) {
+          console.error('重命名会话失败:', error);
+          // 失败时回滚
+          set({
+            conversations: get().conversations.map(c => {
+              if (c.id === id) {
+                return { ...c, title: oldTitle };
+              }
+              return c;
+            })
+          });
+        }
       },
     }),
     {

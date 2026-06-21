@@ -51,14 +51,13 @@ class MobileErrorNotifier:
         """从数据库获取下一个序列号（并发安全）。
 
         Uses SequenceService for atomic counter-based generation.
-        Fallback: 如果数据库不可用，使用负时间戳偏移来避免
-        与正常序列号冲突（正常序列号从 1 开始递增）。
+        Fallback: 如果数据库不可用，使用极大的正整数，以确保
+        该异常消息处于时序末尾，并在回撤（Rewind）时能被正确清理。
         """
         try:
             from app.core.engine.message.sequence import SequenceService
             return await SequenceService.next_sequence(self._handler.thread_id)
         except Exception as e:
             logger.warning(f"[MobileErrorNotifier] Failed to get sequence number, using fallback: {e}")
-            import time
-            # Negative offset from a large base to avoid collision with normal sequences
-            return -int(time.time())
+            # Large positive offset to place fallback error messages at the end of timelines
+            return 99999999

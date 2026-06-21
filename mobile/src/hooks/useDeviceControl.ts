@@ -79,6 +79,7 @@ export interface SendMessageOptions {
   conversationId?: string;
   deviceKey?: string;
   references?: any[];
+  clientMessageId?: string;
   // 流式回调（仅链路二 / 直连 LLM 生效）
   onStreamStart?: () => void;
   onStreamChunk?: (chunk: string, fullText: string) => void;
@@ -133,7 +134,7 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
    */
   const sendToDesktop = useCallback(async (
     content: MessageContent,
-    options?: { conversationId?: string; deviceKey?: string; references?: any[] }
+    options?: { conversationId?: string; deviceKey?: string; references?: any[]; clientMessageId?: string }
   ) => {
     if (!token || !options?.deviceKey) {
       throw new Error(i18n.t('deviceControl.notSelectedDevice'));
@@ -151,7 +152,6 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
         break;
       case 'image':
         messageContent.image_url = content.imageUrl;
-        messageContent.mime_type = content.mimeType;
         break;
       case 'audio':
         messageContent.audio_url = content.audioUrl;
@@ -168,6 +168,11 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
     // 如果有引用（消息引用/文件引用等），塞进 content 透传给 Agent
     if (options?.references && options.references.length > 0) {
       messageContent.references = options.references;
+    }
+
+    // 附带移动端本地乐观生成的 UUID
+    if (options?.clientMessageId) {
+      messageContent.client_message_id = options.clientMessageId;
     }
 
     const data = await api.post('/gateway/api/v1/command/send', {

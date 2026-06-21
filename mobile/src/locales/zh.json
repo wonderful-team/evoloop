@@ -241,7 +241,8 @@
       "createConversationFailed": "创建会话失败",
       "sendMessageFailed": "发送消息失败",
       "stopSuccess": "已停止生成",
-      "stopFailed": "停止失败"
+      "stopFailed": "停止失败",
+      "updateConversationFailed": "更新会话失败"
     },
     "rewindConfirm": {
       "rewindTitle": "确认撤回",
@@ -992,7 +993,17 @@
     "messageCount": "{{count}} 条消息",
     "title": "会话历史",
     "empty": "暂无会话记录",
-    "startNew": "开始新对话"
+    "startNew": "开始新对话",
+    "sectionPinned": "置顶会话",
+    "sectionToday": "今天",
+    "sectionYesterday": "昨天",
+    "sectionRecent": "最近 7 天",
+    "sectionEarlier": "更早",
+    "rename": "重命名",
+    "renameTitle": "会话重命名",
+    "renamePlaceholder": "请输入新的会话标题",
+    "pin": "置顶",
+    "unpin": "取消置顶"
   },
   "debug": {
     "nlsRealtimeTitle": "NLS 实时语音识别",

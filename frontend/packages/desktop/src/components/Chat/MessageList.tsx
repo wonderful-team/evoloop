@@ -271,7 +271,7 @@ export const MessageList = memo(function MessageList({
       window.removeEventListener("chat-scroll-to-bottom", handleScrollToBottom)
   }, [])
 
-  // 自动加载探测：当停止加载且还有历史时，如果滚动条仍在顶部 20% 范围内，则继续触发加载
+  // 自动加载探测：当停止加载且还有历史时，如果滚动条仍在顶部 20% 范围内，或者内容太少无法滚动，则继续触发加载
   useEffect(() => {
     if (!isLoadingHistory && hasMoreHistory) {
       // 给 DOM 渲染一点时间，确保 scrollTop 和 scrollHeight 已经是最新的
@@ -280,7 +280,7 @@ export const MessageList = memo(function MessageList({
         if (target) {
           const { scrollTop, scrollHeight, clientHeight } = target
           const scrollableHeight = scrollHeight - clientHeight
-          if (scrollableHeight > 0 && scrollTop / scrollableHeight <= 0.2) {
+          if (scrollableHeight <= 0 || (scrollableHeight > 0 && scrollTop / scrollableHeight <= 0.2)) {
             loadMoreHistory?.()
           }
         }

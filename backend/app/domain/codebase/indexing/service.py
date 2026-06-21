@@ -369,6 +369,8 @@ class IndexingService:
             logger.error(f"Error persisting {file_path}: {e}")
             return False
 
+    async def remove_file(self, file_path: str, repo_id: int):
+        """Remove a file from SQL and graph indexes."""
         async with self.session_factory() as session:
             try:
                 repo = await session.get(Repository, repo_id)
@@ -460,9 +462,7 @@ class IndexingService:
             )
             return
 
-        logger.info(
-            f"Starting full indexing for repo {repo_id} at {repo_path} (Force={force})"
-        )
+        logger.info(f"Starting full indexing for repo {repo_id} at {repo_path} (Force={force})")
 
         from app.constants import BLACKLIST_DIRS
         from app.core.file.service import walk_tree
