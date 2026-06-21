@@ -19,6 +19,8 @@ import pytest
 import sys
 from datetime import datetime
 from typing import Optional
+# Force in-memory database for testing
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 
 # 在所有其他导入之前 mock pgvector
 # 需要提供一个可用的 Vector 类供 SQLAlchemy 使用
@@ -62,6 +64,9 @@ if os.path.exists(env_path):
 
 async def init_env():
     """初始化测试环境"""
+    from app.infrastructure.database.resource_manager import db_resource_manager
+    await db_resource_manager.initialize(create_tables=True, seed_data=False)
+
     from app.infrastructure.database.sql.database import Base, engine
     from sqlmodel import SQLModel
     from app.core.config import settings
@@ -112,7 +117,7 @@ async def test_tool_layer():
     # Test 1: ask_human 抛出异常并创建 DB 记录
     logger.info("\n📌 Test 1: ask_human 应抛出 AgentHumanInterruptException")
     try:
-        await ask_human(prompt="请输入你的名字", input_type="text", default_value="默认名")
+        await ask_human.coroutine(prompt="请输入你的名字", input_type="text", default_value="默认名")
         results.append(("ask_human_exception", False, "没有抛出异常"))
     except AgentHumanInterruptException as e:
         logger.info(f"   ✅ 抛出异常, request_id={e.request_id}")
@@ -129,7 +134,7 @@ async def test_tool_layer():
     # Test 2: ask_confirm 创建 approval 请求
     logger.info("\n📌 Test 2: ask_confirm 应创建 approval 请求")
     try:
-        await ask_confirm(action_description="删除文件", risk_level="high")
+        await ask_confirm.coroutine(action_description="删除文件", risk_level="high")
         results.append(("ask_confirm_exception", False, "没有抛出异常"))
     except AgentHumanInterruptException as e:
         logger.info(f"   ✅ 抛出异常, request_id={e.request_id}")
@@ -227,8 +232,9 @@ async def test_engine_layer():
 
         with patch("app.core.engine.background_agent.get_graph", return_value=mock_graph), \
              patch("app.core.engine.background_agent.ContextManager") as mock_ctx, \
-             patch("app.core.engine.background_agent.get_container") as mock_get_container:
+             patch("app.core.memory.lifespan.MemoryLifespanManager.get_container") as mock_get_container:
 
+            mock_ctx.load = AsyncMock(return_value=None)
             mock_ctx.load_from_redis = AsyncMock(return_value=None)
             mock_ctx.current = MagicMock(return_value=MagicMock(
                 thread_id=thread_id, project_id=1, command_id=None, working_directory="/tmp"
@@ -238,6 +244,9 @@ async def test_engine_layer():
             mock_container = MagicMock()
             mock_container.memory_manager.preferences.get_merged_preferences = AsyncMock(return_value="")
             mock_container.memory_manager.long_term.get_project_concepts = AsyncMock(return_value="")
+            mock_container.memory_manager.get_hot_memory = AsyncMock(return_value="")
+            mock_container.memory_manager.search_concepts = AsyncMock(return_value=[])
+            mock_container.memory_manager.search_episodes = AsyncMock(return_value=[])
             mock_get_container.return_value = mock_container
 
             await run_agent_background(thread_id, {
@@ -255,7 +264,7 @@ async def test_engine_layer():
             else:
                 results.append(("resume_tool_message", False, "未捕获到 Command 输入"))
     except Exception as e:
-        logger.error(f"   ❌ 错误: {e}")
+        import traceback; traceback.print_exc(); logger.error(f"   ❌ 错误: {e}")
         results.append(("resume_tool_message", False, str(e)))
 
     # Test 6: HITL 中断后 activity 状态
@@ -272,8 +281,9 @@ async def test_engine_layer():
 
         with patch("app.core.engine.background_agent.get_graph", return_value=InterruptGraph()), \
              patch("app.core.engine.background_agent.ContextManager") as mock_ctx, \
-             patch("app.core.engine.background_agent.get_container") as mock_get_container:
+             patch("app.core.memory.lifespan.MemoryLifespanManager.get_container") as mock_get_container:
 
+            mock_ctx.load = AsyncMock(return_value=None)
             mock_ctx.load_from_redis = AsyncMock(return_value=None)
             mock_ctx.current = MagicMock(return_value=MagicMock(
                 thread_id=thread_id2, project_id=1, command_id=None, working_directory="/tmp"
@@ -283,6 +293,9 @@ async def test_engine_layer():
             mock_container = MagicMock()
             mock_container.memory_manager.preferences.get_merged_preferences = AsyncMock(return_value="")
             mock_container.memory_manager.long_term.get_project_concepts = AsyncMock(return_value="")
+            mock_container.memory_manager.get_hot_memory = AsyncMock(return_value="")
+            mock_container.memory_manager.search_concepts = AsyncMock(return_value=[])
+            mock_container.memory_manager.search_episodes = AsyncMock(return_value=[])
             mock_get_container.return_value = mock_container
 
             await run_agent_background(thread_id2, {
@@ -295,7 +308,7 @@ async def test_engine_layer():
             # 但至少验证没有崩溃
             results.append(("hitl_interrupt_handling", True, None))
     except Exception as e:
-        logger.error(f"   ❌ 错误: {e}")
+        import traceback; traceback.print_exc(); logger.error(f"   ❌ 错误: {e}")
         results.append(("hitl_interrupt_handling", False, str(e)))
 
     return results
@@ -320,13 +333,18 @@ async def _test_api_layer():
     async with session_scope() as session:
         conv = Conversation(id=thread_id, project_id=1, title="HITL Test")
         session.add(conv)
-        msg = Message(thread_id=thread_id, project_id=1, role="human", content="测试", sequence_number=1)
+        import uuid
+        msg = Message(id=str(uuid.uuid4()), thread_id=thread_id, project_id=1, role="human", content="测试", sequence_number=1)
         session.add(msg)
+
+    from app.core.engine.message.sequence import SequenceService
+    await SequenceService.set_sequence(thread_id, 2)
 
     # Test 7: resume_chat 端点
     logger.info("\n📌 Test 7: /chat/resume 端点")
     try:
         from app.api.routes.agent import ChatRequest
+        from langchain_core.messages import AIMessage
 
         mock_ai_msg = AIMessage(
             content="需要确认",
@@ -344,14 +362,14 @@ async def _test_api_layer():
                 return MockState()
 
         with patch("app.api.routes.agent.get_graph", return_value=MockGraph()), \
-             patch("app.api.routes.agent.get_checkpointer", return_value=MagicMock()), \
              patch("app.api.routes.agent.evocloud_manager") as mock_cloud:
 
             mock_cloud.upload_log = AsyncMock()
             bg_tasks = BackgroundTasks()
 
+            from app.api.schemas.agent import ResumeRequest
             result = await resume_chat(
-                ChatRequest(thread_id=thread_id, message="APPROVED"),
+                ResumeRequest(thread_id=thread_id, user_input="APPROVED"),
                 bg_tasks
             )
 
@@ -361,7 +379,7 @@ async def _test_api_layer():
             else:
                 results.append(("api_resume", False, f"返回状态错误: {result}"))
     except Exception as e:
-        logger.error(f"   ❌ 错误: {e}")
+        import traceback; traceback.print_exc(); logger.error(f"   ❌ 错误: {e}")
         results.append(("api_resume", False, str(e)))
 
     # Test 8: cancel_hitl_request 端点
@@ -377,8 +395,7 @@ async def _test_api_layer():
             async def aget_state(self, config=None):
                 return MagicMock(values={})
 
-        with patch("app.api.routes.agent.get_graph", return_value=MockGraph()), \
-             patch("app.api.routes.agent.get_checkpointer", return_value=MagicMock()):
+        with patch("app.api.routes.agent.get_graph", return_value=MockGraph()):
 
             bg_tasks = BackgroundTasks()
             result = await cancel_hitl_request(
@@ -392,8 +409,105 @@ async def _test_api_layer():
             else:
                 results.append(("api_cancel", False, f"返回状态错误: {result}"))
     except Exception as e:
-        logger.error(f"   ❌ 错误: {e}")
+        import traceback; traceback.print_exc(); logger.error(f"   ❌ 错误: {e}")
         results.append(("api_cancel", False, str(e)))
+
+    return results
+
+
+async def test_rewind_cleanup():
+    """测试 Rewind 时清除 HITL 请求和恢复 activity 状态"""
+    logger.info("\n" + "="*60)
+    logger.info("↩️  测试 Rewind 机制: 清理 HITL 和 Activity 状态")
+    logger.info("="*60)
+
+    from app.core.events.base import system_bus
+    from app.core.engine.rewind.event.schemas import RewindRequestedEvent
+    from app.core.engine.rewind.event.subscribers import HitlRewind
+    from app.core.monitoring.activity import activity_monitor
+    from app.core.hitl import create_request, get_pending_requests_for_thread
+    from app.infrastructure.database.sql.database import session_scope
+    from app.models import AgentActivity
+
+    results = []
+    thread_id = f"hitl-rewind-{datetime.now().strftime('%H%M%S')}"
+
+    # Register subscriber to system_bus
+    HitlRewind.register(system_bus)
+
+    try:
+        # 1. 模拟 interrupted 状态和 active human request
+        await activity_monitor.start_run(thread_id, "回撤测试")
+        await activity_monitor.request_human_interaction(
+            thread_id=thread_id,
+            request_type="confirm",
+            prompt="是否确认回撤测试",
+            allow_cancel=True
+        )
+
+        # 验证数据库中活动状态为 interrupted 且有 human_request
+        async with session_scope() as session:
+            activity = await session.get(AgentActivity, thread_id)
+            if activity and activity.status == "interrupted" and activity.human_request_json:
+                logger.info("   ✅ 初始状态设为 interrupted 并存有 human_request_json")
+                results.append(("rewind_init_state", True, None))
+            else:
+                results.append(("rewind_init_state", False, f"初始状态错误: activity={activity}, status={activity.status if activity else None}, json={activity.human_request_json if activity else None}"))
+
+        # 2. 模拟 pending human_requests
+        req1 = await create_request(
+            thread_id=thread_id,
+            request_type="text",
+            prompt="回撤测试请求1",
+            default_value="val1"
+        )
+        req2 = await create_request(
+            thread_id=thread_id,
+            request_type="confirmation",
+            prompt="回撤测试请求2"
+        )
+
+        # 验证 pending requests 存在
+        pending = await get_pending_requests_for_thread(thread_id)
+        if len(pending) == 2:
+            logger.info("   ✅ 创建了 2 个 pending human requests")
+            results.append(("rewind_pending_requests_created", True, None))
+        else:
+            results.append(("rewind_pending_requests_created", False, f"期望 2 个，实际有 {len(pending)} 个"))
+
+        # 3. 触发 RewindRequestedEvent
+        event = RewindRequestedEvent(
+            thread_id=thread_id,
+            target_message_id="msg_dummy",
+            include_target=False
+        )
+        await system_bus.publish(event)
+
+        # 等妥协异步处理完成
+        await asyncio.sleep(0.1)
+
+        # 4. 验证 pending requests 是否被取消/清空
+        pending_after = await get_pending_requests_for_thread(thread_id)
+        if not pending_after:
+            logger.info("   ✅ Rewind 后 pending requests 已清空 (全部被取消)")
+            results.append(("rewind_pending_requests_cleared", True, None))
+        else:
+            results.append(("rewind_pending_requests_cleared", False, f"Rewind 后仍有 {len(pending_after)} 个 pending requests"))
+
+        # 5. 验证数据库状态是否恢复为 idle，且 human_request_json 是否被清空
+        async with session_scope() as session:
+            activity_after = await session.get(AgentActivity, thread_id)
+            if activity_after and activity_after.status == "idle" and activity_after.human_request_json is None:
+                logger.info("   ✅ Rewind 后 activity 状态恢复为 idle，且清除 human_request_json")
+                results.append(("rewind_activity_reset", True, None))
+            else:
+                status_val = activity_after.status if activity_after else 'None'
+                json_val = activity_after.human_request_json if activity_after else 'None'
+                results.append(("rewind_activity_reset", False, f"状态或 JSON 未重置: status={status_val}, json={json_val}"))
+
+    except Exception as e:
+        import traceback; traceback.print_exc(); logger.error(f"   ❌ 错误: {e}")
+        results.append(("rewind_cleanup_all", False, str(e)))
 
     return results
 
@@ -425,6 +539,7 @@ async def main():
     all_results.extend(await test_tool_layer())
     all_results.extend(await test_engine_layer())
     all_results.extend(await _test_api_layer())
+    all_results.extend(await test_rewind_cleanup())
 
     success = await print_summary(all_results)
     
@@ -442,3 +557,4 @@ async def main():
 if __name__ == "__main__":
     exit_code = asyncio.run(main())
     sys.exit(exit_code)
+
