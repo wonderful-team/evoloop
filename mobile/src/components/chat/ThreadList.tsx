@@ -188,7 +188,7 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
                 color={colors.onError}
               />
               <Text style={{ color: colors.onError, fontSize: 11, marginTop: 2 }}>
-                {t('messageActions.delete') || '删除'}
+                {t('chat.messageActions.delete') || '删除'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -280,7 +280,7 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
       {/* 头部 */}
       <View style={[styles.header, { borderBottomColor: colors.outline + '30' }]}>
         <Text style={{ color: colors.onSurface, fontSize: 16, fontWeight: '600' }}>
-          {t('threadList.title')}
+          {t('threadList.title') || '对话列表'}
         </Text>
 
         <TouchableOpacity
@@ -317,13 +317,13 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
           <View style={styles.emptyContainer}>
             <MaterialIcons name="chat-bubble-outline" size={48} color={colors.onSurfaceVariant} />
             <Text style={[styles.emptyText, { color: colors.onSurfaceVariant }]}>
-              {t('threadList.empty')}
+              {t('threadList.empty') || '暂无对话'}
             </Text>
             <TouchableOpacity
               style={[styles.newThreadButton, { backgroundColor: colors.primaryContainer }]}
               onPress={onNewThread}
             >
-              <Text style={{ color: colors.primary }}>{t('threadList.startNew')}</Text>
+              <Text style={{ color: colors.primary }}>{t('threadList.startNew') || '开启新对话'}</Text>
             </TouchableOpacity>
           </View>
         }
@@ -343,8 +343,8 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
             />
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setRenameVisible(false)}>{t('rewindConfirm.cancel') || '取消'}</Button>
-            <Button onPress={handleRename}>{t('rewindConfirm.confirmRetry') || '确定'}</Button>
+            <Button onPress={() => setRenameVisible(false)}>{t('threadList.cancel') || '取消'}</Button>
+            <Button onPress={handleRename}>{t('threadList.confirm') || '确定'}</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>

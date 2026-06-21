@@ -9,6 +9,8 @@ import {
   Animated,
 } from 'react-native';
 import { ThreadList } from './ThreadList';
+import { Portal } from 'react-native-paper';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 interface HistoryDrawerProps {
   visible: boolean;
@@ -52,26 +54,30 @@ export function HistoryDrawer({
       animationType="none"
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
-        <Animated.View
-          style={[
-            styles.drawer,
-            { transform: [{ translateX: slideAnim }] },
-          ]}
-        >
-          <ThreadList
-            projectId={projectId}
-            deviceKey={deviceKey}
-            onSelectThread={onSelectThread}
-            onNewThread={onNewThread}
-          />
-        </Animated.View>
-        <TouchableOpacity
-          style={styles.overlay}
-          activeOpacity={1}
-          onPress={onClose}
-        />
-      </View>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <Portal.Host>
+          <View style={styles.container}>
+            <Animated.View
+              style={[
+                styles.drawer,
+                { transform: [{ translateX: slideAnim }] },
+              ]}
+            >
+              <ThreadList
+                projectId={projectId}
+                deviceKey={deviceKey}
+                onSelectThread={onSelectThread}
+                onNewThread={onNewThread}
+              />
+            </Animated.View>
+            <TouchableOpacity
+              style={styles.overlay}
+              activeOpacity={1}
+              onPress={onClose}
+            />
+          </View>
+        </Portal.Host>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
