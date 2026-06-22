@@ -160,6 +160,12 @@ def _ensure_scanned():
         # Scan Core Memory Tools
         REGISTRY.scan("app.core.memory.tools")
 
+        # Scan Project Tools
+        REGISTRY.scan("app.core.project.tools")
+
+        # Scan MCP Tools
+        REGISTRY.scan("app.core.mcp.tools")
+
         # Validate critical tools are present; retry if necessary
         _validate_critical_tools()
 
