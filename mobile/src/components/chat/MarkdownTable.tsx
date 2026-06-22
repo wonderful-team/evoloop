@@ -77,7 +77,6 @@ function renderInlineContent(content: string, isHeader: boolean, colors: any) {
           color: isHeader ? colors.primary : colors.onSurface,
         },
       ]}
-      numberOfLines={3}
     >
       {segments.map((seg, i) => (
         <Text

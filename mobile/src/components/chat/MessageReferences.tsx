@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, Image, TouchableOpacity, Linking, useWindowDimensions } from 'react-native';
-import { Text } from 'react-native-paper';
 import { MessageReference } from '@/types/conversation';
-import { useTheme } from '@/theme';
+import { useGlobalToast } from '@/contexts/ToastContext';
 import { BASE_URL } from '@/constants/config';
 import { ResourceChip } from './ResourceChip';
 import { ImageViewer } from './MessageContent';
@@ -13,7 +12,7 @@ interface MessageReferencesProps {
 }
 
 export function MessageReferences({ references, isUser }: MessageReferencesProps) {
-  const { colors } = useTheme();
+  const toast = useGlobalToast();
   const { width: screenWidth } = useWindowDimensions();
   const [viewerVisible, setViewerVisible] = useState(false);
   const [activeImageUrl, setActiveImageUrl] = useState('');
@@ -33,6 +32,8 @@ export function MessageReferences({ references, isUser }: MessageReferencesProps
     }
     if (finalUrl.startsWith('http://') || finalUrl.startsWith('https://')) {
       Linking.openURL(finalUrl).catch(err => console.error('Failed to open URL:', err));
+    } else if (finalUrl.startsWith('file://') || finalUrl.startsWith('/') || finalUrl.startsWith('./')) {
+      toast.warning('该文件为工作机本地工作区文件，暂不支持在移动端直接预览');
     } else {
       console.log('Ignore opening non-HTTP reference:', finalUrl);
     }
@@ -53,13 +54,13 @@ export function MessageReferences({ references, isUser }: MessageReferencesProps
       {images.length > 0 && (
         <View style={styles.imageGrid}>
           {images.map((img) => (
-            <TouchableOpacity 
-              key={img.id} 
+            <TouchableOpacity
+              key={img.id}
               onPress={() => handleOpenImage(img.target_id)}
               activeOpacity={0.9}
             >
-              <Image 
-                source={{ uri: img.target_id?.startsWith('/api/') ? `${BASE_URL}${img.target_id}` : img.target_id }} 
+              <Image
+                source={{ uri: img.target_id?.startsWith('/api/') ? `${BASE_URL}${img.target_id}` : img.target_id }}
                 style={[styles.imageThumbnail, { width: imageWidth, height: imageWidth }]}
                 resizeMode="cover"
               />
@@ -72,8 +73,8 @@ export function MessageReferences({ references, isUser }: MessageReferencesProps
       {files.length > 0 && (
         <View style={styles.chipList}>
           {files.map((file) => (
-            <TouchableOpacity 
-              key={file.id} 
+            <TouchableOpacity
+              key={file.id}
               onPress={() => handleOpenReference(file.target_id)}
             >
               <ResourceChip reference={file} compact={true} isUser={isUser} />
@@ -81,10 +82,10 @@ export function MessageReferences({ references, isUser }: MessageReferencesProps
           ))}
         </View>
       )}
-      <ImageViewer 
-        uri={activeImageUrl} 
-        visible={viewerVisible} 
-        onClose={() => setViewerVisible(false)} 
+      <ImageViewer
+        uri={activeImageUrl}
+        visible={viewerVisible}
+        onClose={() => setViewerVisible(false)}
       />
     </View>
   );
@@ -111,11 +112,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-  },
-  imageThumbnail: {
-    width: 120,
-    height: 120,
-    borderRadius: 8,
-    backgroundColor: '#eee',
   },
 });

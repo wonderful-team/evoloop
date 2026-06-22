@@ -56,7 +56,6 @@ function getRoleColor(role: string, colors: any): string {
 
 
 // 单条消息组件 - 用 React.memo 包装
-// 自定义比较：忽略 hasFileOperations 变化（它不影响渲染内容，只影响菜单行为）
 const MessageItem = React.memo(function MessageItem({
   message,
   isUser,
@@ -67,7 +66,6 @@ const MessageItem = React.memo(function MessageItem({
   onForward,
   onAddToMemory,
   onResend,
-  hasFileOperations,
 }: {
   message: ChatMessage;
   isUser: boolean;
@@ -141,7 +139,7 @@ const MessageItem = React.memo(function MessageItem({
     const sender = isUser ? t('chat.messageList.me') : 'AI';
     await shareChatMessage(message.content, sender);
     setMenuVisible(false);
-  }, [message.content, isUser]);
+  }, [message.content, isUser, t]);
 
   const roleIcon = getRoleIcon(message.role);
   const roleColor = getRoleColor(message.role, colors);
@@ -236,9 +234,9 @@ const MessageItem = React.memo(function MessageItem({
 
               {/* 附件/文件 (用户消息：挪到上方) */}
               {isUser && message.references && message.references.some((ref: any) => ['file', 'image', 'audio'].includes(ref.type)) && (
-                <MessageReferences 
-                  references={message.references.filter((ref: any) => ['file', 'image', 'audio'].includes(ref.type))} 
-                  isUser={isUser} 
+                <MessageReferences
+                  references={message.references.filter((ref: any) => ['file', 'image', 'audio'].includes(ref.type))}
+                  isUser={isUser}
                 />
               )}
 
@@ -254,9 +252,9 @@ const MessageItem = React.memo(function MessageItem({
 
               {/* 附件/文件 (AI 消息：保持在下方) */}
               {!isUser && message.references && message.references.some((ref: any) => ['file', 'image', 'audio'].includes(ref.type)) && (
-                <MessageReferences 
-                  references={message.references.filter((ref: any) => ['file', 'image', 'audio'].includes(ref.type))} 
-                  isUser={isUser} 
+                <MessageReferences
+                  references={message.references.filter((ref: any) => ['file', 'image', 'audio'].includes(ref.type))}
+                  isUser={isUser}
                 />
               )}
 
@@ -270,6 +268,15 @@ const MessageItem = React.memo(function MessageItem({
                     console.log('View changeset:', path);
                   }}
                 />
+              )}
+
+              {/* 执行用时 */}
+              {!isUser && (message as any).isLastInTurn && !!(message as any).turnDuration && (
+                <View style={styles.aiFooter}>
+                  <Text variant="labelSmall" style={[styles.aiFooterText, { color: colors.onSurfaceVariant }]}>
+                    {t('chat.messageList.duration', '执行用时')}: {(message as any).turnDuration}
+                  </Text>
+                </View>
               )}
 
             </View>
@@ -302,49 +309,49 @@ const MessageItem = React.memo(function MessageItem({
         </TouchableOpacity>
       }
     >
-      <Menu.Item 
-        onPress={handleCopy} 
-        title={t('chat.messageActions.copy')} 
-        leadingIcon={props => <MaterialIcons {...props} name="content-copy" />} 
+      <Menu.Item
+        onPress={handleCopy}
+        title={t('chat.messageActions.copy')}
+        leadingIcon={props => <MaterialIcons {...props} name="content-copy" />}
       />
       {isUser && onRewind && (
-        <Menu.Item 
-          onPress={handleRewind} 
-          title={t('chat.messageActions.rewind')} 
-          leadingIcon={props => <MaterialIcons {...props} name="undo" />} 
+        <Menu.Item
+          onPress={handleRewind}
+          title={t('chat.messageActions.rewind')}
+          leadingIcon={props => <MaterialIcons {...props} name="undo" />}
         />
       )}
       {isUser && onRetry && (
-        <Menu.Item 
-          onPress={handleRetry} 
-          title={t('chat.messageActions.retry')} 
-          leadingIcon={props => <MaterialIcons {...props} name="refresh" />} 
+        <Menu.Item
+          onPress={handleRetry}
+          title={t('chat.messageActions.retry')}
+          leadingIcon={props => <MaterialIcons {...props} name="refresh" />}
         />
       )}
       {onQuote && (
-        <Menu.Item 
-          onPress={handleQuote} 
-          title={t('chat.messageActions.quote')} 
-          leadingIcon={props => <MaterialIcons {...props} name="format-quote" />} 
+        <Menu.Item
+          onPress={handleQuote}
+          title={t('chat.messageActions.quote')}
+          leadingIcon={props => <MaterialIcons {...props} name="format-quote" />}
         />
       )}
       {onForward && (
-        <Menu.Item 
-          onPress={handleForward} 
-          title={t('chat.messageActions.forward')} 
-          leadingIcon={props => <MaterialIcons {...props} name="share" />} 
+        <Menu.Item
+          onPress={handleForward}
+          title={t('chat.messageActions.forward')}
+          leadingIcon={props => <MaterialIcons {...props} name="share" />}
         />
       )}
-      <Menu.Item 
-        onPress={handleShare} 
-        title={t('chat.messageActions.share')} 
-        leadingIcon={props => <MaterialIcons {...props} name="ios-share" />} 
+      <Menu.Item
+        onPress={handleShare}
+        title={t('chat.messageActions.share')}
+        leadingIcon={props => <MaterialIcons {...props} name="ios-share" />}
       />
       {!isUser && onAddToMemory && (
-        <Menu.Item 
-          onPress={handleAddToMemory} 
-          title={t('chat.messageActions.addToMemory')} 
-          leadingIcon={props => <MaterialIcons {...props} name="psychology" />} 
+        <Menu.Item
+          onPress={handleAddToMemory}
+          title={t('chat.messageActions.addToMemory')}
+          leadingIcon={props => <MaterialIcons {...props} name="psychology" />}
         />
       )}
     </Menu>
@@ -352,7 +359,7 @@ const MessageItem = React.memo(function MessageItem({
 
   );
 }, (prev, next) => {
-  // 只比较影响渲染的 props，忽略 hasFileOperations（它只影响菜单行为）
+  // 只比较影响渲染的 props
   return prev.message === next.message &&
     prev.isUser === next.isUser &&
     prev.colors === next.colors;
@@ -472,7 +479,72 @@ function groupMessages(messages: ChatMessage[]): RenderItem[] {
   }
   flushTurn();
 
-  // Group steps
+  // ─── 第二步：计算每个 turn 的 duration 并标记 ─────────────────────────────
+  const getItemTimestamp = (itm: any): string | undefined => {
+    if (!itm) return undefined;
+    if (itm.data?.timestamp) return itm.data.timestamp;
+    return undefined;
+  };
+
+  let turnStartIndex = 0;
+  let turnFirstAiIndex = -1;
+  let turnLastAiIndex = -1;
+  let lastAiContentInTurn = '';
+
+  const closeTurn = () => {
+    if (turnFirstAiIndex !== -1 && lastAiContentInTurn) {
+      (items[turnFirstAiIndex].data as any).effective_content =
+        lastAiContentInTurn;
+    }
+    if (turnLastAiIndex !== -1) {
+      const lastAiItem = items[turnLastAiIndex];
+      const firstItem = items[turnStartIndex];
+      const firstTs = getItemTimestamp(firstItem);
+      const lastTs = getItemTimestamp(lastAiItem);
+      if (firstTs && lastTs) {
+        const startMs = new Date(firstTs).getTime();
+        const endMs = new Date(lastTs).getTime();
+        if (
+          !Number.isNaN(startMs) &&
+          !Number.isNaN(endMs) &&
+          endMs >= startMs
+        ) {
+          const diffSec = (endMs - startMs) / 1000;
+          (lastAiItem.data as any).turnDuration =
+            diffSec >= 1
+              ? `${diffSec.toFixed(1)}s`
+              : `${Math.round(endMs - startMs)}ms`;
+        }
+      }
+    }
+  };
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (item.data.role === 'human') {
+      closeTurn();
+      turnStartIndex = i;
+      turnFirstAiIndex = -1;
+      turnLastAiIndex = -1;
+      lastAiContentInTurn = '';
+    } else if (item.data.role === 'ai') {
+      if ((item.data as any).isFirstInTurn) {
+        closeTurn();
+        turnStartIndex = i;
+        turnFirstAiIndex = i;
+        turnLastAiIndex = i;
+        lastAiContentInTurn = item.data.content || '';
+      } else if ((item.data as any).isLastInTurn) {
+        turnLastAiIndex = i;
+        if (item.data.content && item.data.content.trim() !== '') {
+          lastAiContentInTurn = item.data.content;
+        }
+      }
+    }
+  }
+  closeTurn();
+
+  // ─── 第三步：把中间步骤归入 steps_group ─────────────────────────────
   const groupedItems: RenderItem[] = [];
   let currentTurnSteps: ChatMessage[] = [];
 
@@ -521,22 +593,14 @@ function groupMessages(messages: ChatMessage[]): RenderItem[] {
         data: { ...item.data, thinking: undefined },
       });
     } else {
+      // 中间步骤（AI tool_call、tool_output、未标 isLastInTurn 的 AI 消息）全进 steps
+      // 排除 HITL 卡片（作为独立节点渲染，但不截断步骤组）
       const isHitlTool =
         item.data.category === 'human_request' ||
         (item.data.role === 'tool' &&
           (item.data.tool_name === 'ask_human' || item.data.tool_name === 'ask_confirm'));
-      
+
       if (isHitlTool) {
-        // 如果是 HITL 卡片，先 flush 当前的 steps，然后将其作为顶层独立消息 push
-        if (currentTurnSteps.length > 0) {
-          groupedItems.push({
-            type: 'steps_group',
-            id: `steps_group_before_hitl_${item.data.id}`,
-            steps: [...currentTurnSteps],
-            isTurnActive: false,
-          });
-          currentTurnSteps = [];
-        }
         groupedItems.push(item);
       } else {
         currentTurnSteps.push(item.data);
@@ -545,26 +609,15 @@ function groupMessages(messages: ChatMessage[]): RenderItem[] {
   }
 
   if (currentTurnSteps.length > 0) {
-    // 检查最后一条 push 到 groupedItems 的消息是不是 human
-    const lastGrouped = groupedItems[groupedItems.length - 1];
-    const isNewTurn = lastGrouped && lastGrouped.type === 'message' && lastGrouped.data.role === 'human';
-
-    if (!isNewTurn) {
-      // 合并到上一个 steps_group 中，避免出现多个分离的 steps_group
-      for (let k = groupedItems.length - 1; k >= 0; k--) {
-        const last = groupedItems[k];
-        if (last.type === 'steps_group') {
-          last.steps.push(...currentTurnSteps);
-          return groupedItems;
-        }
-      }
-    }
+    const isTailActive = currentTurnSteps.some(s =>
+      s.status === 'streaming' || s.status === 'running' || s.status === 'pending'
+    );
 
     groupedItems.push({
       type: 'steps_group',
-      id: `steps_group_end`,
+      id: `steps_group_tail_${currentTurnSteps[0].id}`,
       steps: [...currentTurnSteps],
-      isTurnActive: true,
+      isTurnActive: isTailActive,
     });
   }
 
@@ -592,13 +645,11 @@ const TurnStepsGroupView = React.memo(function TurnStepsGroupView({
   onAddToMemory?: (text: string) => void;
   onResend?: (msg: ChatMessage) => void;
 }) {
-  const [expanded, setExpanded] = useState(isTurnActive);
+  const [expanded, setExpanded] = useState(isTurnActive || false);
   const { t } = useTranslation();
 
   useEffect(() => {
-    if (isTurnActive) {
-      setExpanded(true);
-    }
+    setExpanded(isTurnActive || false);
   }, [isTurnActive]);
 
   return (
@@ -636,7 +687,6 @@ const TurnStepsGroupView = React.memo(function TurnStepsGroupView({
                 onForward={onForward}
                 onAddToMemory={onAddToMemory}
                 onResend={onResend}
-                hasFileOperations={stepMsg.has_file_operations ?? false}
               />
             );
           })}
@@ -673,22 +723,6 @@ export const MessageList = React.memo(function MessageList({
 
   // Group messages
   const groupedMessages = useMemo(() => groupMessages(messages), [messages]);
-  const lastMessageCountRef = useRef(groupedMessages.length);
-
-  // 自动滚动到底部
-  useEffect(() => {
-    const prevCount = lastMessageCountRef.current;
-    const currentCount = groupedMessages.length;
-    lastMessageCountRef.current = currentCount;
-
-    if (currentCount > prevCount) {
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }, 50);
-      });
-    }
-  }, [groupedMessages]);
 
   // 监听新增加的用户消息，触发强制滚动
   useEffect(() => {
@@ -719,16 +753,7 @@ export const MessageList = React.memo(function MessageList({
     }
   }, [isTyping]);
 
-  // 监听 AI 流式输出时的内容增长，若用户当前处于底部，则平滑跟随滚动
-  useEffect(() => {
-    if (isTyping && isUserAtBottomRef.current && messages.length > 0) {
-      const lastMsg = messages[messages.length - 1];
-      if (lastMsg.role === 'ai') {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }
-    }
-  }, [messages, isTyping]);
-
+  // 自动加载探测及随动滚动的辅助函数
   const checkAndLoadMore = useCallback(() => {
     if (isLoadingMessages || !hasMoreMessages) return;
     const listH = listHeightRef.current;
@@ -753,13 +778,14 @@ export const MessageList = React.memo(function MessageList({
     }
   }, [isLoadingMessages, hasMoreMessages, checkAndLoadMore]);
 
+  // 监听 AI 流式输出时的内容增长，若用户当前处于底部，则在内容大小改变时跟随滚动
   const handleContentSizeChange = useCallback((w: number, h: number) => {
     contentHeightRef.current = h;
-    if (shouldScrollToBottomRef.current) {
+    if (shouldScrollToBottomRef.current || (isTyping && isUserAtBottomRef.current)) {
       flatListRef.current?.scrollToEnd({ animated: true });
     }
     setTimeout(checkAndLoadMore, 100);
-  }, [checkAndLoadMore]);
+  }, [checkAndLoadMore, isTyping]);
 
   const handleLayout = useCallback((event: any) => {
     listHeightRef.current = event.nativeEvent.layout.height;
@@ -769,7 +795,7 @@ export const MessageList = React.memo(function MessageList({
   const handleScroll = useCallback((event: any) => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
     scrollOffsetRef.current = contentOffset.y;
-    
+
     // 如果滚动到顶部附近（前 20%），触发加载历史
     const scrollableHeight = contentSize.height - layoutMeasurement.height;
     if (scrollableHeight > 0 && contentOffset.y / scrollableHeight <= 0.2) {
@@ -779,7 +805,8 @@ export const MessageList = React.memo(function MessageList({
       }
     }
 
-    const paddingToBottom = 20;
+    // 增加 paddingToBottom 阈值至 120，提高流式输出和动画更新期间的容错，避免在 auto-scroll 期间因微小偏移误判 isUserAtBottomRef.current 为 false
+    const paddingToBottom = 120;
     const isAtBottom = layoutMeasurement.height + contentOffset.y >=
       contentSize.height - paddingToBottom;
     isUserAtBottomRef.current = isAtBottom;
@@ -896,6 +923,16 @@ const styles = StyleSheet.create({
     right: 8,
     bottom: 4,
     zIndex: 0,
+  },
+  aiFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 4,
+    paddingRight: 4,
+  },
+  aiFooterText: {
+    fontSize: 10,
+    opacity: 0.6,
   },
   messageBody: {
     zIndex: 1,

@@ -14,6 +14,7 @@ import Markdown from 'react-native-markdown-display';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { WebView } from 'react-native-webview';
 import { useTheme } from '@/theme';
+import { useGlobalToast } from '@/contexts/ToastContext';
 
 import { useTranslation } from 'react-i18next';
 import { CodeBlock } from './CodeBlock';
@@ -169,17 +170,13 @@ interface MessageContentProps {
 
 export function MessageContent({ content, isUser = false }: MessageContentProps) {
   const { colors } = useTheme();
-
-  if (typeof content !== 'string') {
-    return (
-      <Text style={{ color: colors.onSurface }}>
-        {JSON.stringify(content, null, 2)}
-      </Text>
-    );
-  }
+  const toast = useGlobalToast();
 
   // 用 useMemo 缓存内容解析结果，避免每次渲染重复计算
   const parsedContent = useMemo(() => {
+    if (typeof content !== 'string') {
+      return { displayContent: '', parts: [] };
+    }
     // 预处理：过滤内部标签
     let displayContent = content
       .replace(/<audit>[\s\S]*?(?:<\/audit>|$)/gi, '')
@@ -279,12 +276,16 @@ export function MessageContent({ content, isUser = false }: MessageContentProps)
     // 禁用默认表格规则，我们目前使用手动解析和自定义组件
     table: () => null,
 
-    // 处理标准 Markdown 链接中的 file:// 协议，仅做文本高亮显示，由底部的引用卡片负责点击打开
+    // 处理标准 Markdown 链接中的 file:// 协议，拦截本地工作区路径并提示 Toast
     link: (node: any, children: any, parent: any, styles: any) => {
       const url = node.attributes?.href || '';
       if (url.startsWith('file://') || url.startsWith('/') || url.startsWith('./')) {
         return (
-          <Text key={node.key} style={{ color: '#007acc', fontWeight: '500' }}>
+          <Text
+            key={node.key}
+            style={{ color: '#007acc', fontWeight: '500', textDecorationLine: 'underline' }}
+            onPress={() => toast.warning('该文件为工作机本地工作区文件，暂不支持在移动端直接预览')}
+          >
             {children}
           </Text>
         );
@@ -299,7 +300,15 @@ export function MessageContent({ content, isUser = false }: MessageContentProps)
         </Text>
       );
     },
-  }), []);
+  }), [toast]);
+
+  if (typeof content !== 'string') {
+    return (
+      <Text style={{ color: colors.onSurface }}>
+        {JSON.stringify(content, null, 2)}
+      </Text>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -438,7 +447,7 @@ function getMarkdownTheme(isUser: boolean, colors: any) {
     body: {
       color: textColor,
       fontSize: 16,
-      lineHeight: 24, 
+      lineHeight: 24,
     },
 
 
@@ -603,25 +612,25 @@ export function extractTablesAndText(text: string): ContentSegment[] {
   const lines = text.split('\n');
   const segments: ContentSegment[] = [];
   let currentTextLines: string[] = [];
-  
+
   let i = 0;
   while (i < lines.length) {
     const line = lines[i];
     const trimLine = line.trim();
-    
+
     const isHeaderLine = trimLine.includes('|');
     const nextLine = lines[i + 1];
     const isDividerLine = nextLine && nextLine.trim().includes('|') && /^[|:\s-]+$/.test(nextLine.trim().replace(/[a-zA-Z0-9]/g, ''));
-    
+
     if (isHeaderLine && isDividerLine) {
       if (currentTextLines.length > 0) {
         segments.push({ type: 'text', content: currentTextLines.join('\n') });
         currentTextLines = [];
       }
-      
+
       const tableLines: string[] = [line, nextLine];
       i += 2;
-      
+
       while (i < lines.length) {
         const rowLine = lines[i];
         if (rowLine.trim().includes('|')) {
@@ -631,18 +640,18 @@ export function extractTablesAndText(text: string): ContentSegment[] {
           break;
         }
       }
-      
+
       segments.push({ type: 'table', content: tableLines.join('\n') });
     } else {
       currentTextLines.push(line);
       i++;
     }
   }
-  
+
   if (currentTextLines.length > 0) {
     segments.push({ type: 'text', content: currentTextLines.join('\n') });
   }
-  
+
   return segments;
 }
 
