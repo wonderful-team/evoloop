@@ -255,3 +255,56 @@ class TestRewindExceptions:
 
         assert str(err) == "No human message"
         assert err.thread_id == "thread-123"
+
+
+class TestRewindPublishers:
+    """Test cases for Rewind event publishers."""
+
+    @pytest.mark.asyncio
+    async def test_publish_rewind_requested_parameters(self, monkeypatch):
+        """Test publish_rewind_requested signature and parameters."""
+        mock_bus = MagicMock()
+        mock_bus.publish = AsyncMock()
+        monkeypatch.setattr(
+            "app.core.engine.rewind.event.publishers.system_bus",
+            mock_bus,
+        )
+
+        from app.core.engine.rewind.event.publishers import publish_rewind_requested
+
+        event = await publish_rewind_requested(
+            thread_id="thread-123",
+            target_message_id="msg-456",
+            include_target=True,
+            revert_files=False,
+            reset_state=True,
+            reason="test_reason",
+            affected_message_ids=["msg-456"],
+            affected_run_ids=["run-789"],
+            target_sequence=42,
+            sequential=True,
+            propagate_errors=True
+        )
+
+        assert event.thread_id == "thread-123"
+        assert event.target_message_id == "msg-456"
+        assert event.include_target is True
+        assert event.revert_files is False
+        assert event.reset_state is True
+        assert event.reason == "test_reason"
+        assert event.affected_message_ids == ["msg-456"]
+        assert event.affected_run_ids == ["run-789"]
+        assert event.target_sequence == 42
+
+        # Check EventData payload construction
+        assert event.data.thread_id == "thread-123"
+        assert event.data.target_message_id == "msg-456"
+        assert event.data.include_target is True
+        assert event.data.revert_files is False
+        assert event.data.reset_state is True
+        assert event.data.reason == "test_reason"
+        assert event.data.affected_message_ids == ["msg-456"]
+        assert event.data.affected_run_ids == ["run-789"]
+        assert event.data.target_sequence == 42
+
+        mock_bus.publish.assert_called_once_with(event, sequential=True, propagate_errors=True)
