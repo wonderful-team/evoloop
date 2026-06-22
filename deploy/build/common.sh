@@ -19,7 +19,7 @@ header(){ echo -e "${BLUE}╔═════════════════
           echo -e "${BLUE}║  $1${NC}"
           echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"; }
 
-PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 load_env() {
   if [ -f "$PROJECT_ROOT/.env" ]; then
@@ -28,6 +28,21 @@ load_env() {
   APP_DATA_DIR="${EVOLOOP_APP_DATA_DIR:-$HOME/.evoloop}"
   # Expand leading ~ to $HOME
   APP_DATA_DIR="${APP_DATA_DIR/#\~/$HOME}"
+}
+
+# 从 .env 加载构建元数据，支持环境变量覆盖
+load_build_metadata() {
+  if [ -f "$PROJECT_ROOT/.env" ]; then
+    BUILD_NUMBER="${BUILD_NUMBER:-$(grep '^BUILD_NUMBER=' "$PROJECT_ROOT/.env" 2>/dev/null | cut -d= -f2)}"
+    BUILD_TIME="${BUILD_TIME:-$(grep '^BUILD_TIME=' "$PROJECT_ROOT/.env" 2>/dev/null | cut -d= -f2)}"
+    GIT_COMMIT="${GIT_COMMIT:-$(grep '^GIT_COMMIT=' "$PROJECT_ROOT/.env" 2>/dev/null | cut -d= -f2)}"
+    RELEASE_STAGE="${RELEASE_STAGE:-$(grep '^RELEASE_STAGE=' "$PROJECT_ROOT/.env" 2>/dev/null | cut -d= -f2)}"
+  fi
+
+  BUILD_NUMBER="${BUILD_NUMBER:-1}"
+  BUILD_TIME="${BUILD_TIME:-$(date +%Y%m%d%H%M%S)}"
+  GIT_COMMIT="${GIT_COMMIT:-$(git -C "$PROJECT_ROOT" rev-parse --short HEAD 2>/dev/null || echo "unknown")}"
+  RELEASE_STAGE="${RELEASE_STAGE:-production}"
 }
 
 ensure_xattr() {

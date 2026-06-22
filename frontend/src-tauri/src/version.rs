@@ -1,29 +1,45 @@
 // =============================================================================
 // EvoLoop 版本信息模块
 // =============================================================================
-// 此文件由 scripts/update-version.sh 自动生成，也可以手动修改
-// 用于统一管理应用版本信息，暴露给前端使用
-// =============================================================================
 
 use serde::Serialize;
 
-/// 应用版本号 (遵循语义化版本: https://semver.org/lang/zh-CN/)
-pub const VERSION: &str = "0.1.0";
+/// 应用版本号，从 Cargo.toml 读取
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// 应用名称，从 Cargo.toml 读取
+pub const APP_NAME: &str = env!("CARGO_PKG_NAME");
 
 /// 构建号 (每次 CI/CD 构建递增)
-pub const BUILD_NUMBER: &str = "1";
+pub const BUILD_NUMBER: &str = match option_env!("BUILD_NUMBER") {
+    Some(v) => v,
+    None => "1",
+};
 
 /// 构建时间 (格式: YYYYMMDDHHMMSS)
-pub const BUILD_TIME: &str = "";
+pub const BUILD_TIME: &str = match option_env!("BUILD_TIME") {
+    Some(v) => v,
+    None => "",
+};
 
 /// Git Commit Hash (短格式)
-pub const GIT_COMMIT: &str = "unknown";
+pub const GIT_COMMIT: &str = match option_env!("GIT_COMMIT") {
+    Some(v) => v,
+    None => "unknown",
+};
 
 /// 版本阶段: alpha|beta|rc|stable
-pub const RELEASE_STAGE: &str = "alpha";
+pub const RELEASE_STAGE: &str = match option_env!("RELEASE_STAGE") {
+    Some(v) => v,
+    None => "production",
+};
 
 /// 完整版本字符串
-pub const FULL_VERSION: &str = "0.1.0+1 (unknown)";
+pub const FULL_VERSION: &str = match option_env!("EVOLOOP_FULL_VERSION") {
+    // 默认值：无法从单一 const 拼接，这里用占位符，运行时通过 VersionInfo::full_version 获取
+    Some(v) => v,
+    None => "",
+};
 
 /// 版本信息结构体
 #[derive(Debug, Clone, Serialize)]
@@ -39,29 +55,30 @@ pub struct VersionInfo {
 impl VersionInfo {
     /// 创建版本信息实例
     pub fn new() -> Self {
-        Self {
-            version: VERSION.to_string(),
-            build_number: BUILD_NUMBER.to_string(),
-            build_time: BUILD_TIME.to_string(),
-            git_commit: GIT_COMMIT.to_string(),
-            stage: RELEASE_STAGE.to_string(),
-            full_version: FULL_VERSION.to_string(),
-        }
+        Self::from_env()
     }
 
     /// 从环境变量创建 (用于 CI/CD 环境)
     pub fn from_env() -> Self {
+        let version = std::env::var("APP_VERSION")
+            .unwrap_or_else(|_| VERSION.to_string());
+        let build_number = std::env::var("BUILD_NUMBER")
+            .unwrap_or_else(|_| BUILD_NUMBER.to_string());
+        let build_time = std::env::var("BUILD_TIME")
+            .unwrap_or_else(|_| BUILD_TIME.to_string());
+        let git_commit = std::env::var("GIT_COMMIT")
+            .unwrap_or_else(|_| GIT_COMMIT.to_string());
+        let stage = std::env::var("RELEASE_STAGE")
+            .unwrap_or_else(|_| RELEASE_STAGE.to_string());
+        let full_version = format!("{}+{} ({})", version, build_number, git_commit);
+
         Self {
-            version: std::env::var("APP_VERSION").unwrap_or_else(|_| VERSION.to_string()),
-            build_number: std::env::var("BUILD_NUMBER").unwrap_or_else(|_| BUILD_NUMBER.to_string()),
-            build_time: std::env::var("BUILD_TIME").unwrap_or_else(|_| BUILD_TIME.to_string()),
-            git_commit: std::env::var("GIT_COMMIT").unwrap_or_else(|_| GIT_COMMIT.to_string()),
-            stage: std::env::var("RELEASE_STAGE").unwrap_or_else(|_| RELEASE_STAGE.to_string()),
-            full_version: format!("{}+{} ({})", 
-                std::env::var("APP_VERSION").unwrap_or_else(|_| VERSION.to_string()),
-                std::env::var("BUILD_NUMBER").unwrap_or_else(|_| BUILD_NUMBER.to_string()),
-                std::env::var("GIT_COMMIT").unwrap_or_else(|_| GIT_COMMIT.to_string())
-            ),
+            version,
+            build_number,
+            build_time,
+            git_commit,
+            stage,
+            full_version,
         }
     }
 }
@@ -115,19 +132,19 @@ fn compare_version_strings(v1: &str, v2: &str) -> std::cmp::Ordering {
     let parts2: Vec<u32> = v2.split('.')
         .filter_map(|s| s.parse().ok())
         .collect();
-    
+
     let max_len = std::cmp::max(parts1.len(), parts2.len());
-    
+
     for i in 0..max_len {
         let p1 = parts1.get(i).copied().unwrap_or(0);
         let p2 = parts2.get(i).copied().unwrap_or(0);
-        
+
         match p1.cmp(&p2) {
             std::cmp::Ordering::Equal => continue,
             other => return other,
         }
     }
-    
+
     std::cmp::Ordering::Equal
 }
 

@@ -12,6 +12,7 @@ DOWNLOAD_MODELS=false
 MODELS_LIST="paraformer-zh"
 ARCH="x86_64-apple-darwin"
 ENVIRONMENT="production"
+ENV_FILE=""
 
 # Validate: this script requires Intel Mac (x86_64)
 HOST_ARCH=$(uname -m)
@@ -28,6 +29,8 @@ while [[ $# -gt 0 ]]; do
   case $1 in
     --dev|-d) DEV_MODE=true; ENVIRONMENT="development"; shift ;;
     --env) ENVIRONMENT="$2"; shift 2 ;;
+    --env-file) ENV_FILE="$2"; shift 2 ;;
+    --env-file=*) ENV_FILE="${1#*=}"; shift ;;
     --with-models|-m) WITH_MODELS=true; shift ;;
     --download-models)
       DOWNLOAD_MODELS=true
@@ -49,6 +52,17 @@ done
 
 load_env
 ensure_xattr
+
+# 如果指定了 --env-file，先复制到根目录 .env
+if [ -n "$ENV_FILE" ]; then
+  env_file_path="$PROJECT_ROOT/$ENV_FILE"
+  if [ ! -f "$env_file_path" ]; then
+    err "Env file not found: $env_file_path"
+    exit 1
+  fi
+  cp "$env_file_path" "$PROJECT_ROOT/.env"
+  ok "Copied env file: $ENV_FILE → .env"
+fi
 
 header "Building EvoLoop for macOS (Intel)"
 
@@ -96,17 +110,26 @@ if [ "$DEV_MODE" = true ]; then
 else
   rustup target add "$ARCH" 2>/dev/null || true
   info "Building for distribution..."
-  
+
+  load_build_metadata
+
   export CPLUS_INCLUDE_PATH="$(xcrun --show-sdk-path)/usr/include/c++/v1"
   export SOURCE_DATE_EPOCH=1
   export CXXFLAGS_x86_64_apple_darwin="-D_LIBCPP_DISABLE_AVAILABILITY"
 
-  LIBRARY_PATH="$PROJECT_ROOT/frontend/src-tauri/libs:$LIBRARY_PATH" EVOLOOP_BACKEND_PORT="$BACKEND_PORT" VITE_API_URL="$VITE_API_URL" npm run tauri build -- --target "$ARCH" --bundles app || {
+  LIBRARY_PATH="$PROJECT_ROOT/frontend/src-tauri/libs:$LIBRARY_PATH" \
+  EVOLOOP_BACKEND_PORT="$BACKEND_PORT" \
+  VITE_API_URL="$VITE_API_URL" \
+  BUILD_NUMBER="$BUILD_NUMBER" \
+  BUILD_TIME="$BUILD_TIME" \
+  GIT_COMMIT="$GIT_COMMIT" \
+  RELEASE_STAGE="$RELEASE_STAGE" \
+    npm run tauri build -- --target "$ARCH" --bundles app || {
     warn "Tauri build failed"
     exit 1
   }
 
-  APP_VERSION=$(grep ^APP_VERSION= "$PROJECT_ROOT/.env" 2>/dev/null | cut -d= -f2 || echo "0.1.0")
+  APP_VERSION=$(cat "$PROJECT_ROOT/VERSION" 2>/dev/null | tr -d '[:space:]' || grep ^APP_VERSION= "$PROJECT_ROOT/.env" 2>/dev/null | cut -d= -f2 || echo "0.1.0")
   APP_BUNDLE="src-tauri/target/${ARCH}/release/bundle/macos/EvoLoop.app"
   DMG_PATH="src-tauri/target/${ARCH}/release/bundle/dmg/EvoLoop_${APP_VERSION}_x86_64.dmg"
 

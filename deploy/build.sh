@@ -19,13 +19,15 @@ show_usage() {
   echo "  windows              Windows x86_64"
   echo "  android              React Native (Android)"
   echo "  ios                  React Native (iOS)"
-  echo "  mobile               React Native (Android & iOS)"
-  echo "  server-frontend      Static frontend for server deployment"
+  echo "  mobile               React Native (Android & iOS & HarmonyOS)"
+  echo "  harmony              HarmonyOS HAP"
+  echo "  web                  Static frontend for server deployment"
   echo "  current              Auto-detect and build for current platform"
   echo ""
   echo "Options:"
   echo "  --dev, -d                 Run in development mode"
   echo "  --env ENV                 Build environment: development|production"
+  echo "  --env-file FILE           Use specified env file (e.g. .env.prod.desktop)"
   echo "  --with-models, -m         Include pre-downloaded models in the bundle"
   echo "  --download-models [LIST]  Download models before building"
   echo "  --clean, -c               Clean build artifacts before building"
@@ -43,6 +45,7 @@ done
 INTERACTIVE="false"
 ENVIRONMENT="production"
 WITH_MODELS="false"
+ENV_FILE=""
 TARGETS=()
 BUILD_ARGS=()
 
@@ -61,6 +64,8 @@ else
       --dev|-d) ENVIRONMENT="development"; BUILD_ARGS+=("--dev"); shift ;;
       --env=*) ENVIRONMENT="${1#*=}"; BUILD_ARGS+=("--env" "$ENVIRONMENT"); shift ;;
       --env) ENVIRONMENT="$2"; BUILD_ARGS+=("--env" "$ENVIRONMENT"); shift 2 ;;
+      --env-file) ENV_FILE="$2"; BUILD_ARGS+=("--env-file" "$ENV_FILE"); shift 2 ;;
+      --env-file=*) ENV_FILE="${1#*=}"; BUILD_ARGS+=("--env-file" "$ENV_FILE"); shift ;;
       --prod|--production) ENVIRONMENT="production"; BUILD_ARGS+=("--env" "production"); shift ;;
       --with-models|-m) WITH_MODELS="true"; BUILD_ARGS+=("--with-models"); shift ;;
       --download-models)
@@ -91,28 +96,32 @@ if [ "$INTERACTIVE" = "true" ]; then
 
   echo ""
   echo "请选择构建目标（可多选，逗号分隔，如: 1,3,4）:"
-  echo "  1) 服务端前端 (server-frontend)"
+  echo "  1) 服务端前端 (web)"
   echo "  2) 桌面端 arm64 (macOS Apple Silicon)"
   echo "  3) 桌面端 x86_64 (macOS Intel)"
   echo "  4) 移动端 Android"
   echo "  5) 移动端 iOS"
-  echo "  6) 全部"
+  echo "  6) 鸿蒙 HarmonyOS"
+  echo "  7) 移动端全部 (Android + iOS + HarmonyOS)"
+  echo "  8) 全部"
   echo ""
   read -p "输入编号 [默认: 1]: " targets_input
 
   if [ -z "$targets_input" ] || [[ "$targets_input" == "1" ]]; then
-    TARGETS=("server-frontend")
+    TARGETS=("web")
   else
     IFS=',' read -ra SELECTED <<< "$targets_input"
     for s in "${SELECTED[@]}"; do
       s=$(echo "$s" | xargs)
       case "$s" in
-        6|all) TARGETS=("all"); break ;;
-        1) TARGETS+=("server-frontend") ;;
+        8|all) TARGETS=("all"); break ;;
+        1) TARGETS+=("web") ;;
         2) TARGETS+=("macos-arm64") ;;
         3) TARGETS+=("macos-x86_64") ;;
         4) TARGETS+=("android") ;;
         5) TARGETS+=("ios") ;;
+        6) TARGETS+=("harmony") ;;
+        7) TARGETS+=("mobile") ;;
       esac
     done
   fi
@@ -191,12 +200,26 @@ if [ ${#TARGETS[@]} -eq 0 ]; then
   exit 1
 fi
 
+# 如果指定了 --env-file，先复制到根目录 .env
+copy_env_file() {
+  if [ -n "$ENV_FILE" ]; then
+    local src="$PROJECT_ROOT/$ENV_FILE"
+    if [ ! -f "$src" ]; then
+      err "Env file not found: $src"
+      exit 1
+    fi
+    cp "$src" "$PROJECT_ROOT/.env"
+    ok "Copied env file: $ENV_FILE → .env"
+  fi
+}
+
 echo ""
 echo "🔴 环境: $ENVIRONMENT"
 echo "📦 目标: ${TARGETS[*]}"
 echo ""
 
 cd "$PROJECT_ROOT"
+copy_env_file
 
 detect_current_platform() {
   case "$(uname -s)" in
@@ -223,16 +246,29 @@ build_platform() {
     macos-arm64) platform_script="$SCRIPT_DIR/build/macos-arm64.sh" ;;
     macos-x86_64) platform_script="$SCRIPT_DIR/build/macos-x86_64.sh" ;;
     windows) platform_script="$SCRIPT_DIR/build/windows-x86_64.sh" ;;
-    mobile) platform_script="$SCRIPT_DIR/build/mobile.sh"; BUILD_ARGS+=("--release" "$ANDROID_FORMAT") ;;
-    android) platform_script="$SCRIPT_DIR/build/mobile.sh"; BUILD_ARGS+=("--android" "--release" "$ANDROID_FORMAT") ;;
+    mobile)
+      build_platform "android"
+      build_platform "ios"
+      build_platform "harmony"
+      return
+      ;;
+    android)
+      platform_script="$SCRIPT_DIR/build/mobile.sh"
+      BUILD_ARGS+=("--android" "--release")
+      if [ -n "$ANDROID_FORMAT" ]; then
+        BUILD_ARGS+=("$ANDROID_FORMAT")
+      fi
+      ;;
     ios) platform_script="$SCRIPT_DIR/build/mobile.sh"; BUILD_ARGS+=("--ios" "--release") ;;
-    server-frontend) platform_script="$SCRIPT_DIR/build/server-frontend.sh" ;;
+    harmony) platform_script="$SCRIPT_DIR/build/harmony.sh" ;;
+    web) platform_script="$SCRIPT_DIR/build/web.sh" ;;
     current) platform_script="$SCRIPT_DIR/build/$(detect_current_platform).sh" ;;
     all)
       build_platform "macos-arm64"
       build_platform "macos-x86_64"
       build_platform "windows"
-      build_platform "server-frontend"
+      build_platform "harmony"
+      build_platform "web"
       return
       ;;
     *)

@@ -4,6 +4,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
+APP_VERSION=$(cat "$PROJECT_ROOT/VERSION" 2>/dev/null | tr -d '[:space:]' || grep ^APP_VERSION= "$PROJECT_ROOT/.env" 2>/dev/null | cut -d= -f2 || echo "0.1.0")
+
 BUILD_ANDROID=false
 BUILD_IOS=false
 DOWNLOAD_MODELS=false
@@ -12,6 +14,7 @@ RELEASE=false
 BUILD_AAB=false
 CLEAN=false
 ENVIRONMENT="production"
+ENV_FILE=""
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -24,6 +27,8 @@ while [[ $# -gt 0 ]]; do
     --apk) RELEASE=true; BUILD_AAB=false; shift ;;
     --aab) RELEASE=true; BUILD_AAB=true; shift ;;
     --env) ENVIRONMENT="$2"; shift 2 ;;
+    --env-file) ENV_FILE="$2"; shift 2 ;;
+    --env-file=*) ENV_FILE="${1#*=}"; shift ;;
     --clean|-c) CLEAN=true; shift ;;
     --help|-h)
       echo "Usage: $0 [options]"
@@ -36,6 +41,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --apk                 Build APK (default for release)"
       echo "  --aab                 Build AAB (Google Play)"
       echo "  --env ENV             Environment: development|production"
+      echo "  --env-file FILE       Use specified env file (e.g. .env.prod.desktop)"
       echo "  --clean, -c           Clean before build"
       exit 0
       ;;
@@ -58,6 +64,17 @@ echo "  Release:    ${RELEASE}"
 echo ""
 
 cd "$MOBILE_DIR"
+
+# 如果指定了 --env-file，先复制到根目录 .env
+if [ -n "$ENV_FILE" ]; then
+  env_file_path="$PROJECT_ROOT/$ENV_FILE"
+  if [ ! -f "$env_file_path" ]; then
+    err "Env file not found: $env_file_path"
+    exit 1
+  fi
+  cp "$env_file_path" "$PROJECT_ROOT/.env"
+  ok "Copied env file: $ENV_FILE → .env"
+fi
 
 if [ "$CLEAN" = true ]; then
   step "Cleaning build artifacts"
@@ -105,8 +122,14 @@ if [ "$BUILD_ANDROID" = true ]; then
     fi
     if [ -n "$artifact_path" ]; then
       mkdir -p "$PROJECT_ROOT/deploy/dist"
-      mv "$artifact_path" "$PROJECT_ROOT/deploy/dist/"
-      ok "$artifact_type: $PROJECT_ROOT/deploy/dist/$(basename "$artifact_path")"
+      local dest_name
+      if [ "$BUILD_AAB" = true ]; then
+        dest_name="Evoloop_mobile_${APP_VERSION}.aab"
+      else
+        dest_name="Evoloop_mobile_${APP_VERSION}.apk"
+      fi
+      mv "$artifact_path" "$PROJECT_ROOT/deploy/dist/$dest_name"
+      ok "$artifact_type: $PROJECT_ROOT/deploy/dist/$dest_name"
     fi
   else
     info "Building debug APK..."
@@ -115,8 +138,9 @@ if [ "$BUILD_ANDROID" = true ]; then
     if [ -n "$apk_path" ]; then
       ok "APK: $apk_path"
       mkdir -p "$PROJECT_ROOT/deploy/dist"
-      mv "$apk_path" "$PROJECT_ROOT/deploy/dist/"
-      ok "APK moved to $PROJECT_ROOT/deploy/dist/$(basename "$apk_path")"
+      local debug_dest_name="Evoloop_mobile_${APP_VERSION}-debug.apk"
+      mv "$apk_path" "$PROJECT_ROOT/deploy/dist/$debug_dest_name"
+      ok "APK moved to $PROJECT_ROOT/deploy/dist/$debug_dest_name"
     fi
   fi
   cd "$MOBILE_DIR"
@@ -136,14 +160,14 @@ if [ "$BUILD_IOS" = true ]; then
     xcodebuild -workspace EvoLoopMobile.xcworkspace \
       -scheme EvoLoopMobile \
       -configuration Release \
-      -archivePath "$PROJECT_ROOT/deploy/dist/EvoLoopMobile.xcarchive" \
+      -archivePath "$PROJECT_ROOT/deploy/dist/EvoLoopMobile_${APP_VERSION}.xcarchive" \
       archive | xcpretty
     xcodebuild -exportArchive \
-      -archivePath "$PROJECT_ROOT/deploy/dist/EvoLoopMobile.xcarchive" \
+      -archivePath "$PROJECT_ROOT/deploy/dist/EvoLoopMobile_${APP_VERSION}.xcarchive" \
       -exportPath "$PROJECT_ROOT/deploy/dist" \
       -exportOptionsPlist "$MOBILE_DIR/ios/ExportOptions.plist" 2>/dev/null || \
     xcodebuild -exportArchive \
-      -archivePath "$PROJECT_ROOT/deploy/dist/EvoLoopMobile.xcarchive" \
+      -archivePath "$PROJECT_ROOT/deploy/dist/EvoLoopMobile_${APP_VERSION}.xcarchive" \
       -exportPath "$PROJECT_ROOT/deploy/dist" \
       -exportOptionsPlist "$MOBILE_DIR/ios/ExportOptions.plist" 2>/dev/null
   else

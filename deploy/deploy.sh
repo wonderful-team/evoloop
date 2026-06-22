@@ -82,15 +82,25 @@ for arg in "$@"; do
     --key=*) KEY="${arg#*=}" ;;
     --password=*) SSHPASS="${arg#*=}"; PASSWORD="yes" ;;
     --password) PASSWORD="yes" ;;
-    --deploy-dir=*) DEPLOY_DIR="${arg#*=}" ;;
-    --env-file=*) ENV_FILE="${arg#*=}" ;;
-    --sync-only) SYNC_ONLY=true ;;
-    --skip-build) SKIP_BUILD=true ;;
-    --skip-fe) SKIP_FE=true ;;
-    --env=*) BUILD_ENV="${arg#*=}" ;;
+  --deploy-dir=*) DEPLOY_DIR="${arg#*=}" ;;
+  --env-file=*) ENV_FILE="${arg#*=}" ;;
+  --sync-only) SYNC_ONLY=true ;;
+  --skip-build) SKIP_BUILD=true ;;
+  --skip-fe) SKIP_FE=true ;;
+  --env=*) BUILD_ENV="${arg#*=}" ;;
   esac
 done
 [ -z "$HOST" ] && { error "必须指定 --host=HOST"; exit 1; }
+
+# 如果指定了 --env-file，先复制到根目录 .env
+if [ -n "$ENV_FILE" ]; then
+  if [ ! -f "$PROJECT_ROOT/$ENV_FILE" ]; then
+    error "Env file not found: $PROJECT_ROOT/$ENV_FILE"
+    exit 1
+  fi
+  cp "$PROJECT_ROOT/$ENV_FILE" "$PROJECT_ROOT/.env"
+  info "已复制环境文件: $ENV_FILE → .env"
+fi
 
 # ============================================================
 # SSH 认证 + 快捷函数
@@ -312,7 +322,7 @@ deploy_frontend() {
   fi
 
   # 构建
-  local BUILD_CMD="$PROJECT_ROOT/deploy/build/server-frontend.sh --env $BUILD_ENV"
+  local BUILD_CMD="$PROJECT_ROOT/deploy/build/web.sh --env $BUILD_ENV"
   info "构建前端 ($BUILD_ENV)..."
   bash "$BUILD_CMD" || {
     warning "前端构建失败，跳过"; return

@@ -11,6 +11,7 @@ DOWNLOAD_MODELS=false
 MODELS_LIST="paraformer-zh"
 ARCH="x86_64-pc-windows-msvc"
 ENVIRONMENT="production"
+ENV_FILE=""
 
 # Validate: building Windows from macOS requires x86_64 for cross-compilation
 HOST_ARCH=$(uname -m)
@@ -22,6 +23,8 @@ while [[ $# -gt 0 ]]; do
   case $1 in
     --dev|-d) DEV_MODE=true; ENVIRONMENT="development"; shift ;;
     --env) ENVIRONMENT="$2"; shift 2 ;;
+    --env-file) ENV_FILE="$2"; shift 2 ;;
+    --env-file=*) ENV_FILE="${1#*=}"; shift ;;
     --with-models|-m) WITH_MODELS=true; shift ;;
     --download-models)
       DOWNLOAD_MODELS=true
@@ -41,6 +44,17 @@ while [[ $# -gt 0 ]]; do
 done
 
 load_env
+
+# 如果指定了 --env-file，先复制到根目录 .env
+if [ -n "$ENV_FILE" ]; then
+  env_file_path="$PROJECT_ROOT/$ENV_FILE"
+  if [ ! -f "$env_file_path" ]; then
+    err "Env file not found: $env_file_path"
+    exit 1
+  fi
+  cp "$env_file_path" "$PROJECT_ROOT/.env"
+  ok "Copied env file: $ENV_FILE → .env"
+fi
 
 header "Building EvoLoop for Windows"
 
@@ -132,7 +146,14 @@ if [ "$DEV_MODE" = true ]; then
 else
   rustup target add "$ARCH" 2>/dev/null || true
   info "Building for distribution..."
-  npm run tauri build -- --target "$ARCH" || {
+
+  load_build_metadata
+
+  BUILD_NUMBER="$BUILD_NUMBER" \
+  BUILD_TIME="$BUILD_TIME" \
+  GIT_COMMIT="$GIT_COMMIT" \
+  RELEASE_STAGE="$RELEASE_STAGE" \
+    npm run tauri build -- --target "$ARCH" || {
     err "Tauri build failed"
     exit 1
   }
