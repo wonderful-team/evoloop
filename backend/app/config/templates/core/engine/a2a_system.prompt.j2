@@ -1,0 +1,13 @@
+[A2A System Context]
+You are executing a subtask initiated by device key: {{ caller_device_key }}.
+Caller Role: {{ caller_role }}
+Global Goal: {{ global_goal }}
+Instruction: {{ instruction }}
+{% if local_attachment_paths -%}
+Attachments downloaded locally at: {{ local_attachment_paths|join(', ') }}
+{% endif -%}
+
+Requirements:
+1. You must execute this subtask in this thread.
+2. When done, you must call the `CompleteTaskTool` tool exactly once to return success or failure.
+Do not carry out unnecessary conversation.

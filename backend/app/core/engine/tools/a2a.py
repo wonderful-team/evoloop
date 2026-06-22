@@ -39,7 +39,8 @@ async def list_agents() -> str:
             devices_list = data.get("list") or data.get("devices") or []
             online_agents = []
             for dev in devices_list:
-                if dev.get("status") == "online" or dev.get("device_type") in ("desktop", "server"):
+                dev_type = dev.get("device_type")
+                if dev_type and dev_type not in ("mobile", "unknown"):
                     online_agents.append({
                         "device_key": dev.get("device_key"),
                         "device_name": dev.get("device_name"),

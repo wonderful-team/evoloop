@@ -64,6 +64,34 @@ async def test_list_agents_tool():
                     "device_type": "server",
                     "status": "offline",
                     "capabilities": ["deployment"]
+                },
+                {
+                    "device_key": "dev-3",
+                    "device_name": "Raspberry Pi",
+                    "device_type": "embedded",
+                    "status": "online",
+                    "capabilities": ["gpio_ops"]
+                },
+                {
+                    "device_key": "dev-4",
+                    "device_name": "Android Phone Agent",
+                    "device_type": "android",
+                    "status": "online",
+                    "capabilities": ["gui_control"]
+                },
+                {
+                    "device_key": "dev-5",
+                    "device_name": "User iPhone",
+                    "device_type": "mobile",
+                    "status": "online",
+                    "capabilities": []
+                },
+                {
+                    "device_key": "dev-6",
+                    "device_name": "Unknown Device",
+                    "device_type": "unknown",
+                    "status": "online",
+                    "capabilities": []
                 }
             ]
         }
@@ -72,10 +100,14 @@ async def test_list_agents_tool():
     with patch.object(evocloud_manager.api, "get_devices", AsyncMock(return_value=mock_devices)):
         res = await list_agents.ainvoke({})
         agents = json.loads(res)
-        assert len(agents) == 2
+        assert len(agents) == 4
         assert agents[0]["device_key"] == "dev-1"
         assert agents[0]["capabilities"] == ["code_build"]
         assert agents[1]["device_key"] == "dev-2"
+        assert agents[2]["device_key"] == "dev-3"
+        assert agents[2]["device_type"] == "embedded"
+        assert agents[3]["device_key"] == "dev-4"
+        assert agents[3]["device_type"] == "android"
 
 
 @pytest.mark.asyncio

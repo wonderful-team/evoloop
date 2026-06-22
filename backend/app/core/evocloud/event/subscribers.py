@@ -258,7 +258,6 @@ class DeviceInfoSyncSubscriber:
             return
 
         from app.core.evocloud.bridge.sync_tasks import sync_device_info_task
-
         from app.core.environment.discovery import EnvironmentProbe
 
         info = {
