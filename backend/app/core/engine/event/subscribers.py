@@ -7,15 +7,21 @@ and agent dispatch.
 """
 
 import asyncio
+import json
 import logging
+import os
+from datetime import datetime, timezone
 from typing import Any
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from sqlalchemy import delete
 
 from app.constants import DEFAULT_PROJECT_ID
+from app.core.config import settings
+from app.core.events import system_bus
 from app.core.identity import identity_service
 from app.core.context import thread_context_store
 from app.core.engine.background_agent import run_agent_background
@@ -24,7 +30,8 @@ from app.core.engine.event.schemas import ConversationDeletedEvent, WebSocketMes
 from app.core.engine.event.types import ConversationEventType
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.evocloud.manager import evocloud_manager
-from app.core.evocloud.schemas import RemoteCommand
+from app.core.evocloud.schemas import RemoteCommand, AgentTaskResult, AgentTask
+from app.infrastructure.config import SystemConfigService
 from app.infrastructure.database.resource_manager import db_resource_manager
 from app.infrastructure.database.sql.database import session_scope
 from app.models import (
@@ -35,6 +42,7 @@ from app.models import (
     Message,
     ThreadSequence,
 )
+from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -191,7 +199,6 @@ class EngineCommandSubscriber:
         # Resolve model: prefer existing session model, fallback to system default
         from app.core.context.manager import ContextManager
         from app.core.engine.background_agent import BackgroundAgentInputs
-        from app.infrastructure.config.service import SystemConfigService
 
         loaded_ctx = await ContextManager.load(thread_id)
         model = loaded_ctx.active_model if loaded_ctx else None
@@ -222,7 +229,6 @@ class EngineCommandSubscriber:
 
         # Resolve model: prefer existing session model, fallback to system default
         from app.core.context.manager import ContextManager
-        from app.infrastructure.config.service import SystemConfigService
         from app.core.engine.background_agent import BackgroundAgentInputs
 
         loaded_ctx = await ContextManager.load(thread_id)
@@ -328,7 +334,6 @@ class EngineCommandSubscriber:
         logger.info(f"[EngineCommand] Processing {action} for thread {thread_id}, target={message_id}")
 
         from app.core.engine.rewind import RewindOrchestrator
-        from app.core.events import system_bus
         from app.core.context.manager import ContextManager
 
         async with session_scope() as session:
@@ -431,7 +436,6 @@ class EngineCommandSubscriber:
         payload = command.get_payload()
         logger.info(f"[A2A] Received A2A Task: {payload}")
 
-        from app.core.evocloud.schemas import AgentTask
         try:
             task = AgentTask.model_validate(payload)
         except Exception as e:
@@ -449,10 +453,6 @@ class EngineCommandSubscriber:
         # Download attachments
         local_attachment_paths = []
         if task.attachments:
-            import os
-            import httpx
-            from app.core.config import settings
-
             download_dir = os.path.expanduser(os.path.join(settings.EVOLOOP_APP_DATA_DIR, "attachments", task.task_id))
             os.makedirs(download_dir, exist_ok=True)
 
@@ -486,16 +486,11 @@ class EngineCommandSubscriber:
                         await self._send_a2a_error(task, f"Failed to download attachment {att.filename}: {ex}")
                         return
 
-        # Create Conversation in DB
-        from app.models import Conversation
-        from app.infrastructure.database.sql.database import session_scope
-        from datetime import datetime, timezone
-        from app.core.config import settings
-
         executor_device_key = evocloud_manager.link.device_key if evocloud_manager.link else "unknown-worker"
         executor_device_name = settings.EVOCLOUD_DEVICE_NAME
 
         project_id = command.get("project_id") or DEFAULT_PROJECT_ID
+        from app.infrastructure.database.sql.database import session_scope
         async with session_scope() as session:
             conv = await session.get(Conversation, thread_id)
             if not conv:
@@ -514,21 +509,13 @@ class EngineCommandSubscriber:
                 session.add(conv)
 
         # Inject System Prompt Context
-        system_content = (
-            f"[A2A System Context]\n"
-            f"You are executing a subtask initiated by device key: {task.caller_device_key}.\n"
-            f"Caller Role: {task.caller_role}\n"
-            f"Global Goal: {task.global_goal}\n"
-            f"Instruction: {task.instruction}\n"
-        )
-        if local_attachment_paths:
-            system_content += f"Attachments downloaded locally at: {', '.join(local_attachment_paths)}\n"
-
-        system_content += (
-            "\nRequirements:\n"
-            "1. You must execute this subtask in this thread.\n"
-            "2. When done, you must call the `CompleteTaskTool` tool exactly once to return success or failure.\n"
-            "Do not carry out unnecessary conversation."
+        system_content = render_template(
+            "core/engine/a2a_system.prompt.j2",
+            caller_device_key=task.caller_device_key,
+            caller_role=task.caller_role,
+            global_goal=task.global_goal,
+            instruction=task.instruction,
+            local_attachment_paths=local_attachment_paths,
         )
 
         from app.core.engine.message.repository import MessageRepository
@@ -564,7 +551,6 @@ class EngineCommandSubscriber:
         asyncio.create_task(run_agent_background(thread_id, result.inputs))
 
     async def _send_a2a_error(self, task: Any, error_msg: str) -> None:
-        from app.core.evocloud.schemas import AgentTaskResult
         from app.core.evocloud.manager import evocloud_manager
 
         callback_payload = AgentTaskResult(
@@ -593,7 +579,6 @@ class EngineCommandSubscriber:
         payload = command.get_payload()
         logger.info(f"[A2A] Received A2A Callback: {payload}")
 
-        from app.core.evocloud.schemas import AgentTaskResult
         try:
             result = AgentTaskResult.model_validate(payload)
         except Exception as e:
@@ -620,7 +605,6 @@ class EngineCommandSubscriber:
         await activity_monitor.clear_human_request(caller_thread_id)
 
         # Build response payload
-        import json
         result_content = json.dumps(result.model_dump(), ensure_ascii=False)
 
         # Close the pending tool call message
@@ -655,7 +639,6 @@ class EngineCommandSubscriber:
         # Resume Caller Agent
         from app.core.context.manager import ContextManager
         from app.core.engine.background_agent import BackgroundAgentInputs
-        from app.infrastructure.config.service import SystemConfigService
 
         loaded_ctx = await ContextManager.load(caller_thread_id)
         model = loaded_ctx.active_model if loaded_ctx else None

@@ -3,7 +3,11 @@ Environment Discovery - Probes for collecting environment information.
 """
 import asyncio
 import logging
+import os
+import platform
 import socket
+
+import psutil
 
 from app.core.config import settings
 from app.core.environment.explorers.dynamic_apps import DynamicAppTriage
@@ -24,12 +28,57 @@ class EnvironmentProbe:
     """Collects environment information from various sources."""
 
     @staticmethod
+    def get_inferred_device_type() -> str:
+        """
+        根据唤醒状态和系统/硬件特征动态推导设备类型（限制在 20 字符以内）。
+        优先读取用户显式配置覆盖，其次根据操作系统与硬件特征动态判定。
+        """
+        # 1. 允许通过显式配置手动覆盖（支持任意自定义类型如 "embedded", "raspberry_pi"）
+        if getattr(settings, "EVOCLOUD_DEVICE_TYPE", None):
+            val = settings.EVOCLOUD_DEVICE_TYPE
+            return val[:20] if len(val) > 20 else val
+
+        # 2. 动态探测 Android 环境
+        if os.environ.get("ANDROID_ROOT") or os.path.exists("/system/bin/app_process"):
+            return "android"
+
+        # 3. 动态探测嵌入式 Linux 环境 (如树莓派/香橙派)
+        if os.path.exists("/proc/device-tree/model"):
+            try:
+                with open("/proc/device-tree/model", "r") as f:
+                    model_info = f.read().lower()
+                    if "raspberry pi" in model_info or "orange pi" in model_info or "embedded" in model_info:
+                        return "embedded"
+            except Exception:
+                pass
+        if os.path.exists("/sys/class/gpio"):
+            return "embedded"
+
+        # 4. 动态检测图形化显示服务器环境（适用于标准 Linux / Windows）
+        has_display = any(os.environ.get(var) for var in ("DISPLAY", "WAYLAND_DISPLAY", "XDG_CURRENT_DESKTOP"))
+        if has_display or settings.ENABLE_ENVIRONMENT_CONTROLS:
+            return "desktop"
+
+        # 5. 动态检测 macOS (Darwin)
+        if platform.system() == "Darwin":
+            return "desktop"
+
+        # 6. 使用 AwakenedState 进行进一步检测 (如果有)
+        from app.core.environment.state import get_awakened_state
+        state = get_awakened_state()
+        if state and state.host:
+            if state.host.os_name == "macOS":
+                return "desktop"
+
+        # 7. 保底回退为 server
+        return "server"
+
+    @staticmethod
     async def probe_host() -> HostEnvironment | None:
         """Probe host environment (macOS, Linux, Windows)."""
         if not settings.ENABLE_ENVIRONMENT_CONTROLS:
             return None
 
-        import platform
         os_name = platform.system()
 
         if os_name == "Darwin":
@@ -40,9 +89,7 @@ class EnvironmentProbe:
     @staticmethod
     async def _probe_standard_os_impl(os_name: str) -> HostEnvironment | None:
         """Standard host probe for Linux and Windows."""
-        import platform
         try:
-            import psutil
             ram_gb = int(psutil.virtual_memory().total / (1024 ** 3))
         except ImportError:
             ram_gb = 0

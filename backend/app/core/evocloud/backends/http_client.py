@@ -589,13 +589,14 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         2. Return existing device_key if found
         3. Check device limit and create new device_key if not found
         """
+        from app.core.environment.discovery import EnvironmentProbe
         return await self.request(
             "POST",
             "/evolooplink/api/device/register",
             data={
                 "fingerprint": fingerprint,
                 "device_name": name,
-                "device_type": settings.EVOCLOUD_DEVICE_TYPE,
+                "device_type": EnvironmentProbe.get_inferred_device_type(),
                 "os_info": os_info,
             },
         token=token)
@@ -922,13 +923,12 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         md5_val = hash_md5.hexdigest()
 
         try:
-            url = f"{self._get_base_url(is_gateway=True)}/api/v1/storage/upload"
+            url = f"{self._get_base_url(is_gateway=False)}/api/upload/chatfile"
             headers = {}
             active_token = token or await self.get_token()
             if active_token:
                 headers["Authorization"] = f"Bearer {active_token}"
 
-            import httpx
             async with httpx.AsyncClient() as client:
                 with open(file_path, "rb") as f:
                     files = {"file": (filename, f)}
@@ -937,8 +937,12 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
                         res_json = response.json()
                         if res_json.get("code") == 0:
                             data = res_json.get("data") or {}
+                            path = data.get("path") or ""
+                            if path.startswith("/"):
+                                path = path[1:]
+                            download_url = f"{self.root_url}/{path}" if path else None
                             return {
-                                "download_url": data.get("download_url"),
+                                "download_url": download_url,
                                 "md5": md5_val,
                                 "file_size": file_size,
                                 "filename": filename

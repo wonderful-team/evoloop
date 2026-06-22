@@ -259,9 +259,11 @@ class DeviceInfoSyncSubscriber:
 
         from app.core.evocloud.bridge.sync_tasks import sync_device_info_task
 
+        from app.core.environment.discovery import EnvironmentProbe
+
         info = {
             "device_name": new_value,
-            "device_type": settings.EVOCLOUD_DEVICE_TYPE,
+            "device_type": EnvironmentProbe.get_inferred_device_type(),
             "os_info": platform.platform(),
         }
         sync_device_info_task.delay(device_key, info)

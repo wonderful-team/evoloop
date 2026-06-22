@@ -12,6 +12,7 @@ import certifi
 import websockets
 from websockets.client import ClientConnection
 
+from app.core.config import settings
 from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
 from app.core.evocloud.interfaces.link import DeviceLinkProtocol
 from app.core.evocloud.schemas import (
@@ -301,9 +302,9 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     self._handshake_completed = False
 
                     # New Go Gateway Handshake
-                    from app.core.config import settings
+                    from app.core.environment.discovery import EnvironmentProbe
                     handshake = WebSocketHandshake(payload={
-                        "device_type": settings.EVOCLOUD_DEVICE_TYPE,
+                        "device_type": EnvironmentProbe.get_inferred_device_type(),
                         "device_key": self.device_key,
                         "device_name": self.device_name,
                         "capabilities": [c.strip() for c in settings.EVOCLOUD_DEVICE_CAPABILITIES.split(",") if c.strip()],

@@ -98,8 +98,8 @@ async def send_agent_task(
     hop_count = 1
     root_thread_id = thread_id
 
-    from app.core.config import settings
-    caller_role = settings.EVOCLOUD_DEVICE_TYPE
+    from app.core.environment.discovery import EnvironmentProbe
+    caller_role = EnvironmentProbe.get_inferred_device_type()
     global_goal = instruction
 
     from app.models import Conversation

@@ -180,7 +180,7 @@ class AgentTask(DynamicBaseModel):
     task_id: str
     task_type: str = "a2a_task"
     instruction: str
-    caller_role: str
+    caller_role: str = "unknown"
     global_goal: str
     context: dict[str, Any] = {}
     attachments: list[TaskAttachment] = []
