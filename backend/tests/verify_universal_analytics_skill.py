@@ -46,7 +46,7 @@ async def run_verification():
         thread_id = f"analytics-test-{uuid.uuid4().hex[:6]}"
         from app.core.environment import awaken
         await awaken(project_id=project_id)
-        target_file = "/Users/xujin/Projects/develop-assistant.cn/workspace/抖音本地样本数据.xlsx"
+        target_file = "/Users/huangjinhuan/Projects/develop-assistant.cn/workspace/抖音本地样本数据.xlsx"
         
         user_input = (
             f"分析文件 {target_file}，"

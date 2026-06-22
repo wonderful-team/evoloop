@@ -63,24 +63,17 @@ def test_route_worker_by_outcome():
     """route_worker_by_outcome 根据 worker_outcome 路由"""
     from app.core.engine.routers import route_worker_by_outcome
     from app.core.engine.state import AgentState
-    from app.core.engine.state.blackboard import BlackboardState
 
     # success → finish
-    blackboard = BlackboardState()
-    blackboard.worker_outcome = "success"
-    state = AgentState(messages=[], blackboard=blackboard.model_dump())
+    state = AgentState(messages=[], worker_outcome="success")
     assert route_worker_by_outcome(state) == "finish"
 
     # truncated → supervisor
-    blackboard = BlackboardState()
-    blackboard.worker_outcome = "truncated"
-    state = AgentState(messages=[], blackboard=blackboard.model_dump())
+    state = AgentState(messages=[], worker_outcome="truncated")
     assert route_worker_by_outcome(state) == "supervisor"
 
     # failed → supervisor
-    blackboard = BlackboardState()
-    blackboard.worker_outcome = "failed"
-    state = AgentState(messages=[], blackboard=blackboard.model_dump())
+    state = AgentState(messages=[], worker_outcome="failed")
     assert route_worker_by_outcome(state) == "supervisor"
 
     # no outcome → finish (safe fallback)
@@ -92,10 +85,8 @@ def test_route_finish_blocked_by_hook():
     """Finish 被 hook 阻塞时返回 Supervisor"""
     from app.core.engine.routers import route_finish
     from app.core.engine.state import AgentState
-    from app.core.engine.state.blackboard import BlackboardState
 
-    blackboard = BlackboardState(metadata={"blocked_by_hook": True})
-    state = AgentState(messages=[], blackboard=blackboard.model_dump())
+    state = AgentState(messages=[], blocked_by_hook=True)
     assert route_finish(state) == "supervisor"
 
 
@@ -144,12 +135,10 @@ async def test_route_supervisor_worker_target_with_ticket():
     """Supervisor 路由到 worker（有 ticket）"""
     from app.core.engine.routers import route_supervisor
     from app.core.engine.state import AgentState
-    from app.core.engine.state.blackboard import BlackboardState
-
     from app.core.engine.state.blackboard import ExecutionTicket
-    blackboard = BlackboardState()
-    blackboard.ticket = ExecutionTicket(topic="test", reason="test", ticket_type="task")
-    state = AgentState(messages=[], next_node="worker", blackboard=blackboard.model_dump())
+
+    ticket = ExecutionTicket(topic="test", reason="test", ticket_type="task")
+    state = AgentState(messages=[], next_node="worker", ticket=ticket)
     result = route_supervisor(state)
     assert result == "worker"
 
@@ -271,11 +260,10 @@ async def test_worker_node_fallback():
     from app.core.engine.state import AgentState
     from langchain_core.runnables import RunnableConfig
 
-    from app.core.engine.state.blackboard import ExecutionTicket, BlackboardState
+    from app.core.engine.state.blackboard import ExecutionTicket
     node = WorkerNode()
-    blackboard = BlackboardState()
-    blackboard.ticket = ExecutionTicket(topic="test", reason="test", ticket_type="task")
-    state = AgentState(messages=[], blackboard=blackboard.model_dump())
+    ticket = ExecutionTicket(topic="test", reason="test", ticket_type="task")
+    state = AgentState(messages=[], ticket=ticket)
     engine_result = EngineResult(messages=[])
 
     outcome = await node._build_fallback_outcome(state, engine_result, RunnableConfig())
@@ -486,25 +474,23 @@ async def test_supervisor_prepare_state_drains_pending_signals():
     """
     from app.core.engine.nodes.supervisor import SupervisorNode
     from app.core.engine.state import AgentState
-    from app.core.engine.state.blackboard import BlackboardState
     from app.core.engine.signals.schemas import RouteToSignal
     from langchain_core.runnables import RunnableConfig
 
     node = SupervisorNode()
-    blackboard = BlackboardState()
-    blackboard.pending_signals = [
+    pending_signals = [
         RouteToSignal(target="worker", reason="task2").model_dump(),
         RouteToSignal(target="worker", reason="task3").model_dump(),
     ]
-    state = AgentState(messages=[], blackboard=blackboard.model_dump())
+    state = AgentState(messages=[], pending_signals=pending_signals)
 
     result = await node.prepare_state(state, RunnableConfig())
 
     assert result is not None, "应立即返回 StateUpdate，不需要 LLM"
     assert result.next_node == "worker"
-    assert result.blackboard is not None
-    assert len(result.blackboard.pending_signals) == 1
-    assert result.blackboard.pending_signals[0]["reason"] == "task3"
+    assert result.pending_signals is not None
+    assert len(result.pending_signals) == 1
+    assert result.pending_signals[0]["reason"] == "task3"
 
 
 @pytest.mark.asyncio
@@ -515,14 +501,10 @@ async def test_supervisor_prepare_state_empty_queue_routes_normally():
     """
     from app.core.engine.nodes.supervisor import SupervisorNode
     from app.core.engine.state import AgentState
-    from app.core.engine.state.blackboard import BlackboardState
     from langchain_core.runnables import RunnableConfig
 
     node = SupervisorNode()
-    blackboard = BlackboardState()
-    blackboard.pending_signals = []
-    blackboard.worker_outcome = "success"
-    state = AgentState(messages=[], blackboard=blackboard.model_dump())
+    state = AgentState(messages=[], pending_signals=[], worker_outcome="success")
 
     result = await node.prepare_state(state, RunnableConfig())
 

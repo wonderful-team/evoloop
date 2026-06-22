@@ -131,7 +131,7 @@ async def main():
         
         # 2. Build a fake AgentState that simulates a bad worker outcome
         from app.core.engine.state.base import AgentState
-        from app.core.engine.state.blackboard import BlackboardState, ExecutionTicket, VerificationStatus
+        from app.core.engine.state.blackboard import ExecutionTicket, VerificationStatus
         from langchain_core.messages import HumanMessage, AIMessage
         import uuid
         
@@ -145,8 +145,7 @@ async def main():
             AIMessage(content="I have created the file as requested.", name="worker")
         ]
         
-        blackboard = BlackboardState()
-        blackboard.ticket = ExecutionTicket(
+        ticket = ExecutionTicket(
             topic="File Creation",
             ticket_type="development",
             acceptance_criteria=[
@@ -154,11 +153,12 @@ async def main():
                 "CRITICAL: You MUST use the read_file tool to verify the file contents. Do not trust the worker's message."
             ]
         )
-        blackboard.verification = VerificationStatus(status="unverified")
+        verification = VerificationStatus(status="unverified")
         
         state = AgentState(
             messages=messages,
-            blackboard=blackboard,
+            ticket=ticket,
+            verification=verification,
             thread_id=thread_id,
             session_goal=f"Create {bad_file_path} with 'CORRECT_ANSWER'"
         )

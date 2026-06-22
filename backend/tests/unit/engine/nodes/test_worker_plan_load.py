@@ -12,7 +12,6 @@ from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.nodes.worker import WorkerNode
 from app.core.engine.state import AgentState
-from app.core.engine.state.blackboard import BlackboardState
 from app.core.engine.state.config import ExecutionTicket, AgentRuntimeConfig
 
 
@@ -34,11 +33,10 @@ class TestWorkerPlanLoad:
             topic="test",
             agent_config=AgentRuntimeConfig(role_name="Worker"),
         )
-        blackboard = BlackboardState(ticket=ticket)
         state = AgentState(
             thread_id="test-thread",
             messages=[],
-            blackboard=blackboard,
+            ticket=ticket,
             current_plan=current_plan,
         )
         if structured_plan is not None:

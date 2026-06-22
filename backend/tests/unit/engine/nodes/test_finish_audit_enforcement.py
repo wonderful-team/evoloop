@@ -6,7 +6,7 @@ outcome is INCOMPLETE, preventing premature mission termination.
 """
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, AsyncMock
 
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
@@ -14,7 +14,6 @@ from langchain_core.runnables import RunnableConfig
 from app.core.engine.nodes.finish import FinishNode
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState
-from app.core.engine.state.blackboard import BlackboardState, BlackboardMetadata
 
 
 class TestFinishAuditEnforcement:
@@ -32,10 +31,8 @@ class TestFinishAuditEnforcement:
         """Helper to create a state with an audit outcome in messages."""
         content = f"Some audit text\n<evoloop_audit_outcome>{outcome_text}</evoloop_audit_outcome>\nMore text"
         msg = AIMessage(content=content)
-        blackboard = BlackboardState(metadata=BlackboardMetadata())
         return AgentState(
             messages=[msg],
-            blackboard=blackboard,
         )
 
     @pytest.mark.asyncio
@@ -53,17 +50,16 @@ class TestFinishAuditEnforcement:
             summary="Task incomplete.",
             messages=[outcome_msg],
             blackboard=None,
-            meta={"tier": "comprehensive"},
+            meta={"tier": "comprehensive", "outcome": "INCOMPLETE"},
         ))
         finish_node._audit_service = mock_service
 
         result = await finish_node(state, config)
 
         assert result.next_node == RoutingTarget.SUPERVISOR
-        # Verify the blackboard was updated
-        bb = BlackboardState.model_validate(result.blackboard)
-        assert bb.metadata.final_outcome == "INCOMPLETE"
-        assert bb.worker_outcome == "incomplete"
+        # Verify the flat state fields were updated
+        assert result.final_outcome == "INCOMPLETE"
+        assert result.worker_outcome == "incomplete"
 
     @pytest.mark.asyncio
     async def test_complete_outcome_routes_to_end(self, finish_node, config):
@@ -79,22 +75,20 @@ class TestFinishAuditEnforcement:
             summary="Task complete.",
             messages=[outcome_msg],
             blackboard=None,
-            meta={"tier": "comprehensive"},
+            meta={"tier": "comprehensive", "outcome": "COMPLETE"},
         ))
         finish_node._audit_service = mock_service
 
         result = await finish_node(state, config)
 
         assert result.next_node == RoutingTarget.END
-        bb = BlackboardState.model_validate(result.blackboard)
-        assert bb.metadata.final_outcome == "COMPLETE"
+        assert result.final_outcome == "COMPLETE"
 
     @pytest.mark.asyncio
     async def test_no_outcome_tag_routes_to_end(self, finish_node, config):
         """When no outcome tag is present, default to END."""
         msg = AIMessage(content="Just a normal finish message without any outcome tag.")
-        blackboard = BlackboardState(metadata=BlackboardMetadata())
-        state = AgentState(messages=[msg], blackboard=blackboard)
+        state = AgentState(messages=[msg])
 
         mock_service = MagicMock()
         mock_service.execute = AsyncMock(return_value=MagicMock(
@@ -115,10 +109,7 @@ class TestFinishAuditEnforcement:
         """INCOMPLETE outcome routes to SUPERVISOR even with blocked_by_hook flag set."""
         content = "<evoloop_audit_outcome>INCOMPLETE</evoloop_audit_outcome>"
         msg = AIMessage(content=content)
-        blackboard = BlackboardState(
-            metadata=BlackboardMetadata(blocked_by_hook=True)
-        )
-        state = AgentState(messages=[msg], blackboard=blackboard)
+        state = AgentState(messages=[msg], blocked_by_hook=True)
 
         outcome_msg = AIMessage(content=content)
         mock_service = MagicMock()
@@ -127,7 +118,7 @@ class TestFinishAuditEnforcement:
             summary="",
             messages=[outcome_msg],
             blackboard=None,
-            meta={"tier": "comprehensive"},
+            meta={"tier": "comprehensive", "outcome": "INCOMPLETE"},
         ))
         finish_node._audit_service = mock_service
 
@@ -151,7 +142,7 @@ class TestFinishAuditEnforcement:
                 summary="",
                 messages=[outcome_msg],
                 blackboard=None,
-                meta={"tier": "comprehensive"},
+                meta={"tier": "comprehensive", "outcome": variant},
             ))
             finish_node._audit_service = mock_service
 

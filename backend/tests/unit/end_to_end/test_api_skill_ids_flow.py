@@ -41,9 +41,13 @@ async def test_api_chat_endpoint_skill_ids_flow():
     mock_dispatch_res.inputs = {"messages": []}
 
     mock_bg_tasks = MagicMock()
+    mock_activity = MagicMock()
+    mock_activity._state_service.start_run = AsyncMock()
 
     # 4. 执行调用与断言验证
-    with patch("app.api.routes.agent.session_scope") as mock_scope:
+    with patch("app.api.routes.agent.session_scope") as mock_scope, \
+         patch("app.api.routes.agent._check_thread_not_running", AsyncMock()), \
+         patch("app.api.routes.agent.activity_monitor", mock_activity):
         mock_session = AsyncMock()
         mock_session.execute.return_value = mock_db_result
         mock_scope.return_value.__aenter__.return_value = mock_session

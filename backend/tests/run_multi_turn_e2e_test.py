@@ -31,6 +31,9 @@ TEST_TIMEOUT = 600
 logger = logging.getLogger(__name__)
 
 
+TEST_TOKEN = None
+
+
 def _pre_test_cleanup():
     try:
         os.makedirs(os.path.dirname(TEST_LOG_FILE), exist_ok=True)
@@ -65,6 +68,10 @@ async def _login_and_store_token(username: str = "preterchan", password: str = "
     token = login_res["token"]
     refresh_token = login_res.get("refresh_token", "")
     await identity_service.set_token(token, refresh_token)
+    
+    global TEST_TOKEN
+    TEST_TOKEN = token
+    
     logger.info("[Test] Login successful.")
     return token
 
@@ -117,18 +124,27 @@ async def _init_backend():
 
 
 async def _run_agent_turn(thread_id: str, message: str, turn_name: str, timeout: int) -> str:
-    from app.core.context import thread_context_store
+    from app.core.context import thread_context_store, EvoContext
     from app.core.engine.background_agent import run_agent_background
     from app.core.engine.dispatch import dispatch_agent_run
 
     thread_context_store.set_working_directory(thread_id, TEST_PROJECT_PATH)
+
+    # Use the globally cached token
+    ctx = EvoContext(
+        thread_id=thread_id,
+        project_id=TEST_PROJECT_ID,
+        token=TEST_TOKEN,
+        member_id=1,
+    )
 
     logger.info(f"[Test] Dispatching {turn_name} (thread_id={thread_id})...")
     result = await dispatch_agent_run(
         thread_id=thread_id,
         message_content=message,
         project_id=TEST_PROJECT_ID,
-        goal_prefix=f"[{turn_name}] "
+        goal_prefix=f"[{turn_name}] ",
+        context=ctx
     )
 
     if result.status == "failed":

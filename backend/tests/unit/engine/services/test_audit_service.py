@@ -12,7 +12,6 @@ class TestAuditResult:
         assert result.summary == "Task done."
         assert result.meta == {}
         assert result.messages == []
-        assert result.blackboard is None
 
     def test_audit_result_with_meta(self):
         result = AuditResult(summary="Done", meta={"duration_ms": 150, "outcome": "COMPLETED"})
