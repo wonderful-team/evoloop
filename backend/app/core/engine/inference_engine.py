@@ -312,7 +312,7 @@ class InferenceEngine:
             (tool_results, primary_signal, queued_signals)
             queued_signals: additional signals captured in the same turn that would
             previously have been silently dropped. SupervisorNode persists these to
-            blackboard.pending_signals so they can be drained serially without
+            state.pending_signals so they can be drained serially without
             re-running the Supervisor LLM.
         """
         pending_signal = None

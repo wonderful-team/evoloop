@@ -39,9 +39,9 @@ def update_blackboard(updates: dict) -> str:
 
     ctx = ContextManager.current()
     if not ctx or not ctx.metadata.blackboard:
-        return "Error: Blackboard context not available."
+        return "Error: State context not available."
 
-    blackboard = ctx.metadata.blackboard
+    state = ctx.metadata.blackboard
 
     # Coerce common string literals to proper Python types
     coerced: dict = {}
@@ -55,10 +55,11 @@ def update_blackboard(updates: dict) -> str:
                 val = int(val)
         coerced[key] = val
 
-    # Persist into shared_context (survives across turns via blackboard merge)
-    shared = dict(blackboard.shared_context or {})
+    # Persist into shared_context
+    shared = dict(getattr(state, "shared_context", None) or {})
     shared.update({k: str(v) for k, v in coerced.items()})
-    blackboard.shared_context = shared
+    state.shared_context = shared
+    ctx.metadata.shared_context = shared
 
     updated_keys = list(coerced.keys())
     for key, val in coerced.items():

@@ -115,7 +115,7 @@ class AgentToolExecutor:
                 tool_name=tool_name,
                 tool_input=ToolInput.model_validate(tool_args),
                 tool_use_id=tool_id,
-                blackboard=self.state.blackboard,
+                state=self.state,
             )
             pre_result = await hook_system.trigger(HookEvent.PRE_TOOL_USE, pre_ctx, blocking=True)
 
@@ -190,7 +190,7 @@ class AgentToolExecutor:
                 tool_input=ToolInput.model_validate(tool_args),
                 tool_result=ToolResult(output=content),
                 tool_use_id=tool_id,
-                blackboard=self.state.blackboard,
+                state=self.state,
                 extra=pre_result.modified_context.extra if (pre_result and pre_result.modified_context) else pre_ctx.extra,
             )
             try:
@@ -235,7 +235,7 @@ class AgentToolExecutor:
                 tool_use_id=tool_id,
                 error=e,
                 error_message=str(e),
-                blackboard=self.state.blackboard,
+                state=self.state,
                 extra=pre_result.modified_context.extra if ('pre_result' in locals() and pre_result and pre_result.modified_context) else pre_ctx.extra,
             )
             # Fire-and-forget hook with error handling wrapper

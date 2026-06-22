@@ -51,17 +51,9 @@ class SequentialWorkflowNode(BaseAgentNode):
 
     async def __call__(self, state: AgentState, config: RunnableConfig) -> StateUpdate:
         """Execute the next step of the sequential workflow."""
-        blackboard = state.blackboard
-        if not blackboard:
-            logger.error("[SequentialWorkflow] Missing blackboard")
-            return StateUpdate(
-                messages=[AIMessage(content="Sequential workflow failed: missing blackboard.", metadata={"is_error": True})],
-                next_node=RoutingTarget.SUPERVISOR,
-            )
-
-        plan = blackboard.workflow_plan or []
-        step_index = blackboard.workflow_step_index or 0
-        results = list(blackboard.workflow_results or [])
+        plan = state.workflow_plan or []
+        step_index = state.workflow_step_index or 0
+        results = list(state.workflow_results or [])
 
         if step_index >= len(plan):
             # All steps completed
@@ -69,7 +61,6 @@ class SequentialWorkflowNode(BaseAgentNode):
             return StateUpdate(
                 messages=[AIMessage(content=f"Completed {len(plan)} step(s).")],
                 next_node=RoutingTarget.FINISH,
-                blackboard=blackboard,
             )
 
         skill = plan[step_index]
@@ -77,7 +68,7 @@ class SequentialWorkflowNode(BaseAgentNode):
         skill_name = getattr(skill, 'name', str(skill))
         logger.info(f"[SequentialWorkflow] Step {step_index + 1}/{len(plan)}: {skill_name}")
 
-        execution_ticket = blackboard.ticket
+        execution_ticket = state.ticket
         if not execution_ticket:
             logger.error("[SequentialWorkflow] Missing execution ticket")
             return StateUpdate(
@@ -96,7 +87,7 @@ class SequentialWorkflowNode(BaseAgentNode):
         # Build prompt
         prompt_builder = WorkerPromptBuilder(
             agent_config=agent_config,
-            blackboard=blackboard,
+            blackboard=state,
             skills=[skill] if not isinstance(skill, list) else skill,
             ticket=step_ticket,
             focus_paths=[],  # focus paths passed from ticket if needed, but sequential steps usually don't use it directly
@@ -142,21 +133,20 @@ class SequentialWorkflowNode(BaseAgentNode):
             )
         except Exception as e:
             logger.error(f"[SequentialWorkflow] Step {step_index + 1} failed: {e}")
-            blackboard.workflow_results = results + [
-                WorkflowStepResult(
-                    skill_id=getattr(skill, "id", None),
-                    skill_name=skill_name,
-                    output=str(e),
-                    status="failed",
-                )
-            ]
             return StateUpdate(
                 messages=[AIMessage(
                     content=f"Workflow failed at step {step_index + 1}: {e}",
                     metadata={"is_error": True, "error_type": "workflow_step_exception"}
                 )],
                 next_node=RoutingTarget.SUPERVISOR,
-                blackboard=blackboard,
+                workflow_results=results + [
+                    WorkflowStepResult(
+                        skill_id=getattr(skill, "id", None),
+                        skill_name=skill_name,
+                        output=str(e),
+                        status="failed",
+                    )
+                ],
             )
 
         # Extract step output (defensive against empty messages)
@@ -175,14 +165,13 @@ class SequentialWorkflowNode(BaseAgentNode):
                 output=step_output,
                 status="failed",
             ))
-            blackboard.workflow_results = results
             return StateUpdate(
                 messages=[AIMessage(
                     content=f"Workflow failed at step {step_index + 1}/{len(plan)}: {skill_name}\n\n{step_output}",
                     metadata={"is_error": True, "error_type": "workflow_step_failed"}
                 )],
                 next_node=RoutingTarget.SUPERVISOR,
-                blackboard=blackboard,
+                workflow_results=results,
             )
 
         # Record success
@@ -193,22 +182,21 @@ class SequentialWorkflowNode(BaseAgentNode):
             status="success",
         ))
 
-        blackboard.workflow_results = results
-        blackboard.workflow_step_index = step_index + 1
-
         if is_last:
             logger.info("[SequentialWorkflow] Final step complete. Routing to FINISH.")
             return StateUpdate(
                 messages=[AIMessage(content=f"Completed {len(plan)} step(s).")],
                 next_node=RoutingTarget.FINISH,
-                blackboard=blackboard,
+                workflow_results=results,
+                workflow_step_index=step_index + 1,
             )
 
         # Route back to self for next step
         return StateUpdate(
             messages=[AIMessage(content=f"Step {step_index + 1} complete.")],
             next_node=RoutingTarget.SEQUENTIAL_WORKFLOW,
-            blackboard=blackboard,
+            workflow_results=results,
+            workflow_step_index=step_index + 1,
         )
 
     async def get_tools(self, state: AgentState) -> list[Any]:

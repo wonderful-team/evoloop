@@ -1,7 +1,7 @@
 import json
 import logging
+from typing import Any
 
-from app.core.engine.state.blackboard import BlackboardState, VerificationStatus
 from app.core.engine.state.config import ExecutionTicket
 from app.utils import render_template
 from .base_builder import BasePromptBuilder
@@ -17,12 +17,13 @@ class FinishPromptBuilder(BasePromptBuilder):
         self,
         current_plan: str,
         execution_ticket: ExecutionTicket | None,
-        verification_status: VerificationStatus | None,
+        verification_status: Any | None,
         action_context: str,
         iteration_count: int = 0,
         project_id: int | None = None,
         telemetry: dict | None = None,
-        blackboard: BlackboardState | None = None,
+        metadata: dict | None = None,
+        subtask_results: list | None = None,
         session_goal: str | None = None,
     ):
         self.current_plan = current_plan
@@ -32,7 +33,8 @@ class FinishPromptBuilder(BasePromptBuilder):
         self.iteration_count = iteration_count
         self.project_id = project_id
         self.telemetry = telemetry or {}
-        self.blackboard = blackboard or BlackboardState()
+        self.metadata = metadata or {}
+        self.subtask_results = subtask_results or []
         self.session_goal = session_goal
 
     def build(self) -> str:
@@ -81,12 +83,10 @@ class FinishPromptBuilder(BasePromptBuilder):
             "iteration_count": self.iteration_count,
             "plan": plan_data,
             "session_goal": self.session_goal,
-            "blackboard": {
-                "ticket": self.execution_ticket,
-                "verification": self.verification_status,
-                "metadata": self.blackboard.metadata,
-                "subtask_results": self.blackboard.subtask_results if self.blackboard else [],
-            },
+            "ticket": self.execution_ticket,
+            "verification": self.verification_status,
+            "metadata": self.metadata,
+            "subtask_results": self.subtask_results,
             "audit_context": self.action_context,
             "telemetry": self.telemetry,
         }

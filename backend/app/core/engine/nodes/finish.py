@@ -22,7 +22,6 @@ from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.blackboard import (
     AuditAnomaly,
     AuditInputData,
-    BlackboardState,
     ProgressMetrics,
 )
 from app.core.events.schemas import SessionCompletedData
@@ -49,21 +48,21 @@ class FinishNode(BaseNode):
             logger.exception(f"[Finish] Audit or finalization failed: {e}")
             return await self.handle_error(state, e, config=config)
 
-    async def _prepare_audit_input(self, state: "AgentState", blackboard: "BlackboardState") -> None:
+    async def _prepare_audit_input(self, state: "AgentState") -> None:
         # Build structured progress from memory (no DB required)
-        plan_progress = blackboard.metadata.plan_progress
+        plan_progress = state.plan_progress
         effective_completed = plan_progress.completed_steps if plan_progress else 0
         effective_total = plan_progress.total_steps if plan_progress else 0
 
         # Fallback to subtasks if no formal plan
-        subtask_results = blackboard.subtask_results
-        pending_agg = blackboard.pending_aggregation
+        subtask_results = state.subtask_results
+        pending_agg = state.pending_aggregation
         if effective_total == 0 and pending_agg and pending_agg.expected_count:
             effective_total = pending_agg.expected_count
             effective_completed = len(subtask_results)
 
         # Estimate deliverables from tool history (avoids DB hit)
-        tool_history = blackboard.metadata.tool_history or []
+        tool_history = state.tool_history or []
         created_count = sum(1 for t in tool_history if "write_" in t or "edit_" in t or "create_" in t)
 
         progress = ProgressMetrics(
@@ -93,8 +92,8 @@ class FinishNode(BaseNode):
             anomalies=anomalies,
             key_messages_digest="",
         )
-        blackboard.metadata.audit_input_data = audit_input
-        blackboard.metadata.audit_anomalies = anomalies
+        state.audit_input_data = audit_input
+        state.audit_anomalies = anomalies
 
     async def handle_error(self, state: "AgentState", error: Exception, config: "RunnableConfig" = None) -> "StateUpdate":
         """Finish-specific error handling: route to END, not SUPERVISOR."""
@@ -106,7 +105,6 @@ class FinishNode(BaseNode):
         return StateUpdate(
             messages=list(state.messages) + [error_msg],
             next_node=RoutingTarget.END,
-            blackboard=state.blackboard,
         )
 
     async def _run(self, state: "AgentState", config: "RunnableConfig") -> "StateUpdate":
@@ -119,7 +117,6 @@ class FinishNode(BaseNode):
 
         ctx = ContextManager.current()
         messages = list(state.messages)
-        blackboard = state.blackboard
 
         effective_thread_id = (
             ctx.thread_id
@@ -172,14 +169,14 @@ class FinishNode(BaseNode):
 
         iteration_count = (state.iteration_count or 0)
         max_steps = settings.SUPERVISOR_AGENT_MAX_STEPS
-        if blackboard and blackboard.metadata and blackboard.metadata.max_supervisor_steps:
-            max_steps = blackboard.metadata.max_supervisor_steps
+        if state.max_supervisor_steps:
+            max_steps = state.max_supervisor_steps
 
-        is_shadow_mode = blackboard.metadata.shadow_audit or False
-        tool_history = blackboard.metadata.tool_history
+        is_shadow_mode = state.shadow_audit or False
+        tool_history = state.tool_history or []
 
         # Sync plan progress + prepare audit input before calling AuditService
-        await self._prepare_audit_input(state, blackboard)
+        await self._prepare_audit_input(state)
 
         # --------------------------------------------------------------
         # 1. Audit
@@ -194,29 +191,24 @@ class FinishNode(BaseNode):
 
         summary = audit_result.summary
 
-        # Engine may return updated blackboard
-        if audit_result.blackboard:
-            blackboard = audit_result.blackboard
-
         final_outcome = audit_result.meta.get("outcome", "")
-        blackboard.metadata.final_outcome = final_outcome
 
         # Enforce audit verdict — INCOMPLETE routes back to Supervisor
         if final_outcome.upper() == "INCOMPLETE":
             if iteration_count < max_steps:
                 logger.warning("[Finish] 🔄 Audit verdict: INCOMPLETE. Routing back to Supervisor.")
-                blackboard.worker_outcome = "incomplete"
                 return StateUpdate(
                     messages=messages,
                     next_node=RoutingTarget.SUPERVISOR,
-                    blackboard=blackboard,
+                    worker_outcome="incomplete",
+                    final_outcome=final_outcome,
                 )
             else:
                 logger.warning(f"[Finish] ⚠️ Audit verdict: INCOMPLETE, but iteration limit ({max_steps}) reached. Forcing completion.")
 
         # Persist audit metadata
-        blackboard.metadata.audit_tier = "unified"
-        blackboard.summary = summary
+        state.audit_tier = "unified"
+        state.summary = summary
 
         total_duration = (time.time() - start_time) * 1000
 
@@ -229,7 +221,7 @@ class FinishNode(BaseNode):
                 member_id=ctx.member_id,
                 project_id=ctx.project_id,
                 messages=messages,
-                blackboard=blackboard,
+                state=state,
                 metadata=HookMetadata(
                     summary=summary,
                     audit_tier="unified",
@@ -243,12 +235,12 @@ class FinishNode(BaseNode):
                 block_msg = AIMessage(
                     content=f"\n\n[Quality Gate Blocked] {stop_result.message}\nPlease address the issues before completing."
                 )
-                blackboard.metadata.blocked_by_hook = True
-                blackboard.worker_outcome = "failed"
+                state.blocked_by_hook = True
                 return StateUpdate(
                     messages=messages + [block_msg],
                     next_node=RoutingTarget.SUPERVISOR,
-                    blackboard=blackboard,
+                    worker_outcome="failed",
+                    blocked_by_hook=True,
                 )
         except Exception as e:
             logger.exception(f"[Finish] Stop hook failed: {e}")
@@ -261,13 +253,41 @@ class FinishNode(BaseNode):
         metadata = config.get("metadata", {})
         run_id = config.get("configurable", {}).get("run_id")
 
+        # Construct legacy blackboard_dict for event publication
+        metadata_fields = {
+            "tool_history": state.tool_history,
+            "pending_approvals": [x.model_dump() if hasattr(x, "model_dump") else x for x in (state.pending_approvals or [])],
+            "audit_anomalies": [x.model_dump() if hasattr(x, "model_dump") else x for x in (state.audit_anomalies or [])],
+            "tool_memory": state.tool_memory,
+            "final_outcome": state.final_outcome,
+            "shadow_audit": state.shadow_audit,
+            "termination_outcome": state.termination_outcome,
+            "last_aggregation_result": state.last_aggregation_result,
+            "audit_tier": state.audit_tier,
+            "audit_meta": state.audit_meta.model_dump() if hasattr(state.audit_meta, "model_dump") and state.audit_meta else state.audit_meta,
+            "blocked_by_hook": state.blocked_by_hook,
+            "plan_progress": state.plan_progress.model_dump() if hasattr(state.plan_progress, "model_dump") and state.plan_progress else state.plan_progress,
+            "max_supervisor_steps": state.max_supervisor_steps,
+            "audit_input_data": state.audit_input_data.model_dump() if hasattr(state.audit_input_data, "model_dump") and state.audit_input_data else state.audit_input_data,
+            "force_comprehensive_audit": state.force_comprehensive_audit,
+        }
+        metadata_clean = {k: v for k, v in metadata_fields.items() if v is not None}
+
+        blackboard_dict = {
+            "ticket": state.ticket.model_dump() if hasattr(state.ticket, "model_dump") and state.ticket else state.ticket,
+            "subtask_results": state.subtask_results,
+            "visited_nodes": state.visited_nodes,
+            "verification": state.verification.model_dump() if hasattr(state.verification, "model_dump") and state.verification else state.verification,
+            "metadata": metadata_clean,
+        }
+
         event_data = SessionCompletedData(
             thread_id=effective_thread_id,
             run_id=run_id,
             project_id=ctx.project_id,
             member_id=ctx.member_id,
             messages=messages,
-            blackboard_dict=blackboard.model_dump(),
+            blackboard_dict=blackboard_dict,
             summary=summary,
             outcome=final_outcome,
             audit_tier="unified",
@@ -275,8 +295,8 @@ class FinishNode(BaseNode):
             turn_summary_message_id=None,
             model=ctx.active_model,
             original_skill_id=metadata.get("original_skill_id"),
-            ticket_topic=blackboard.ticket.topic if blackboard.ticket else None,
-            ticket_reason=blackboard.ticket.reason if blackboard.ticket else None,
+            ticket_topic=state.ticket.topic if state.ticket else None,
+            ticket_reason=state.ticket.reason if state.ticket else None,
         )
 
         from app.core.events.publishers import publish_session_completed
@@ -311,8 +331,8 @@ class FinishNode(BaseNode):
         # --------------------------------------------------------------
         # 5. Blackboard Pruning: Clear transient subtask data to prevent bloat
         # --------------------------------------------------------------
-        blackboard.subtask_results = []
-        blackboard.spawn_plan = None
+        state.subtask_results = []
+        state.spawn_plan = None
         logger.debug(f"[Finish] Blackboard pruned for thread {effective_thread_id}")
 
         # --------------------------------------------------------------
@@ -337,7 +357,11 @@ class FinishNode(BaseNode):
         return StateUpdate(
             messages=delta_messages,
             next_node=RoutingTarget.END,
-            blackboard=blackboard,
+            subtask_results=[],
+            spawn_plan=None,
+            final_outcome=final_outcome,
+            audit_tier="unified",
+            summary=summary,
         )
 
 

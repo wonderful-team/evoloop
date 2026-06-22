@@ -26,7 +26,7 @@ class ToolOutputMemory:
     3. Audit trail: All operations logged for debugging
     4. Recallable: Forgotten outputs can be referenced/reloaded
 
-    Storage: Serialized into blackboard.metadata["tool_memory"]
+    Storage: Serialized into state.tool_memory
     """
 
     def __init__(self):
@@ -217,7 +217,7 @@ class ToolOutputMemory:
         }
 
     def to_dict(self) -> dict:
-        """Serialize to dict for storage in blackboard."""
+        """Serialize to dict for storage in state."""
         return {
             "forgotten": {
                 k: {
@@ -283,9 +283,7 @@ def get_tool_memory_from_state(state: "AgentState") -> ToolOutputMemory:
     Returns:
         ToolOutputMemory instance
     """
-    blackboard = state.blackboard
-    metadata = dict(blackboard.metadata) if blackboard and blackboard.metadata else {}
-    tool_memory_data = metadata.get("tool_memory")
+    tool_memory_data = getattr(state, "tool_memory", None)
 
     if tool_memory_data:
         try:
@@ -300,11 +298,4 @@ def save_tool_memory_to_state(state: "AgentState", memory: ToolOutputMemory) -> 
     """
     Helper to save ToolOutputMemory back to AgentState.
     """
-    from app.core.engine.state.blackboard import BlackboardMetadata, BlackboardState
-    if not state.blackboard:
-        state.blackboard = BlackboardState()
-
-    if not state.blackboard.metadata:
-        state.blackboard.metadata = BlackboardMetadata()
-
-    state.blackboard.metadata.tool_memory = memory.to_dict()
+    state.tool_memory = memory.to_dict()

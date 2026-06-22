@@ -47,13 +47,14 @@ async def write_handover_notes(notes: str, key: str = "general") -> str:
     try:
         ctx = ContextManager.current()
         if ctx and ctx.metadata.blackboard:
-            shared = ctx.metadata.blackboard.shared_context
+            state = ctx.metadata.blackboard
+            shared = dict(getattr(state, "shared_context", None) or {})
             shared[key] = notes
-            # Trigger state persistence via blackboard mutation
-            ctx.metadata.blackboard.shared_context = shared
+            state.shared_context = shared
+            ctx.metadata.shared_context = shared
             logger.info(f"[MemoryTool] Wrote handover notes for key: {key}")
             return f"Successfully saved handover notes under key '{key}'."
-        return "Error: Blackboard context not available."
+        return "Error: State context not available."
     except Exception as e:
         logger.error(f"[MemoryTool] Failed to write handover notes: {e}")
         return f"Failed to write handover notes: {str(e)}"
@@ -349,7 +350,8 @@ async def forget_tool_outputs(
             from app.core.memory.tool_output_memory import ToolOutputMemory
             ctx = ContextManager.current()
             if ctx and ctx.metadata.blackboard:
-                existing_data = ctx.metadata.blackboard.metadata.tool_memory or {}
+                state = ctx.metadata.blackboard
+                existing_data = getattr(state, "tool_memory", None) or {}
                 memory = ToolOutputMemory.from_dict(existing_data)
                 for tc_id, record_data in forgotten_records.items():
                     try:
@@ -363,7 +365,8 @@ async def forget_tool_outputs(
                         )
                     except ValueError:
                         pass  # Already forgotten
-                ctx.metadata.blackboard.metadata.tool_memory = memory.to_dict()
+                state.tool_memory = memory.to_dict()
+                ctx.metadata.tool_memory = memory.to_dict()
         except Exception as e:
             logger.warning(f"[ContextMgmt] Failed to persist tool_memory: {e}")
 
@@ -411,10 +414,12 @@ async def recall_tool_output(
                 from app.core.memory.tool_output_memory import ToolOutputMemory
                 ctx = ContextManager.current()
                 if ctx and ctx.metadata.blackboard:
-                    existing_data = ctx.metadata.blackboard.metadata.tool_memory or {}
+                    state = ctx.metadata.blackboard
+                    existing_data = getattr(state, "tool_memory", None) or {}
                     memory = ToolOutputMemory.from_dict(existing_data)
                     memory.remove_from_forgotten(tool_call_id)
-                    ctx.metadata.blackboard.metadata.tool_memory = memory.to_dict()
+                    state.tool_memory = memory.to_dict()
+                    ctx.metadata.tool_memory = memory.to_dict()
             except Exception as e:
                 logger.warning(f"[ContextMgmt] Failed to update tool_memory on recall: {e}")
 
@@ -442,9 +447,8 @@ async def list_forgotten_outputs(
     if ctx is None:
         return "Error: No ContextManager available."
 
-    blackboard = ctx.metadata.blackboard
-    bb_metadata = blackboard.metadata.model_dump() if blackboard and blackboard.metadata else {}
-    tool_memory_data = bb_metadata.get("tool_memory")
+    state = ctx.metadata.blackboard
+    tool_memory_data = getattr(state, "tool_memory", None) if state else None
 
     if not tool_memory_data:
         return "No forgotten tool outputs in current context.", {"count": 0}

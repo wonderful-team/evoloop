@@ -3,7 +3,7 @@ Layered Context Cache - Zero-risk caching for static context data.
 
 This module implements request-level caching with strict separation:
 - STATIC layer: Project concepts, skill index, telemetry (cacheable)
-- DYNAMIC layer: Blackboard, execution state, messages (never cached)
+- DYNAMIC layer: Shared context, execution state, messages (never cached)
 
 Safety guarantees:
 - Dynamic state is always fresh
@@ -133,10 +133,11 @@ class LayeredContextCache:
                 break
 
         return DynamicContextLayer(
-            blackboard=state.blackboard,
-            execution_ticket=state.blackboard.ticket if state.blackboard else None,
+            shared_context=getattr(state, "shared_context", {}) or {},
+            tool_memory=getattr(state, "tool_memory", None),
+            execution_ticket=getattr(state, "ticket", None),
             messages=messages,
-            iteration_count=state.iteration_count or 0,
+            iteration_count=getattr(state, "iteration_count", 0) or 0,
         )
 
     @classmethod

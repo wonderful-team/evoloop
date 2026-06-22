@@ -24,9 +24,8 @@ class AggregatorNode(BaseNode):
         super().__init__(node_name="Aggregator")
 
     async def __call__(self, state: AgentState, config: RunnableConfig) -> StateUpdate:
-        blackboard = state.blackboard
-        subtask_results = blackboard.subtask_results
-        pending_agg = blackboard.pending_aggregation
+        subtask_results = state.subtask_results
+        pending_agg = state.pending_aggregation
 
         if not pending_agg:
             logger.warning("[Aggregator] No pending aggregation found")
@@ -66,11 +65,6 @@ class AggregatorNode(BaseNode):
         from app.core.engine.state.lifecycle import StateLifecycleManager
         StateLifecycleManager.clear_aggregation_state(state)
         
-        blackboard.worker_outcome = worker_outcome
-        blackboard.metadata.last_aggregation_result = result_text
-        # Reset ticket so Supervisor does not treat itself as a subtask
-        blackboard.ticket = None
-
         agg_msg = AIMessage(
             content=f"Aggregation complete. Strategy: {strategy}. Total results: {len(subtask_results)}.",
             metadata={"is_error": is_error, "error_type": "aggregation_failed"} if is_error else None,
@@ -78,7 +72,9 @@ class AggregatorNode(BaseNode):
 
         return StateUpdate(
             messages=[agg_msg],
-            blackboard=blackboard,
+            worker_outcome=worker_outcome,
+            last_aggregation_result=result_text,
+            ticket=None,
         )
 
     async def aggregate_results(

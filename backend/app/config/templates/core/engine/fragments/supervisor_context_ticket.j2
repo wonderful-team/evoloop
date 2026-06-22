@@ -23,23 +23,23 @@
 {{ session_goal }}
 {% endif %}
 
-{% if blackboard.ticket -%}
-## Active Ticket: {{ blackboard.ticket.ticket_type|upper }}
-- **Goal**: {{ blackboard.ticket.topic or 'N/A' }}
-- **Focus**: {{ blackboard.ticket.focus_paths|join(', ') if blackboard.ticket.focus_paths else 'N/A' }}
-{%- if blackboard.ticket.acceptance_criteria %}
-- **Criteria**: {{ blackboard.ticket.acceptance_criteria|join(' | ') }}
+{% if ticket -%}
+## Active Ticket: {{ ticket.ticket_type|upper }}
+- **Goal**: {{ ticket.topic or 'N/A' }}
+- **Focus**: {{ ticket.focus_paths|join(', ') if ticket.focus_paths else 'N/A' }}
+{%- if ticket.acceptance_criteria %}
+- **Criteria**: {{ ticket.acceptance_criteria|join(' | ') }}
 {%- endif %}
-{%- if blackboard.ticket.parameters %}
-{%- if blackboard.ticket.parameters.task_steps %}
-- **Steps**: {{ blackboard.ticket.parameters.task_steps|join(' → ') }}
+{%- if ticket.parameters %}
+{%- if ticket.parameters.task_steps %}
+- **Steps**: {{ ticket.parameters.task_steps|join(' → ') }}
 {%- endif %}
-{%- if blackboard.ticket.parameters.target_apps %}
-- **Target Apps**: {{ blackboard.ticket.parameters.target_apps|join(', ') }}
+{%- if ticket.parameters.target_apps %}
+- **Target Apps**: {{ ticket.parameters.target_apps|join(', ') }}
 {%- endif %}
 {%- endif %}
 {%- else %}
-## Blackboard: No active ticket
+## Active Ticket: None
 {%- endif %}
 
 {%- if plan %}
@@ -49,20 +49,20 @@
   {% endfor %}
 {%- endif %}
 
-{%- if blackboard.subtask_results %}
+{%- if subtask_results %}
 ## Subtask Results
-  {% for res in blackboard.subtask_results -%}
+  {% for res in subtask_results -%}
   - {{ res.subtask_id }}: {{ (res.result[:300] + '…') if res.result|length > 300 else res.result }}
   {% endfor %}
 {%- endif %}
 
-{%- if blackboard.verification %}
-## Verification: {{ blackboard.verification.status|upper }}
+{%- if verification %}
+## Verification: {{ verification.status|upper }}
 {%- endif %}
 
-{%- if blackboard.metadata %}
+{%- if metadata %}
 ## Dynamic Metadata
-  {% for k, v in blackboard.metadata.items() -%}
+  {% for k, v in metadata.items() -%}
   - {{ k }}: {{ v }}
   {% endfor %}
 {%- endif %}

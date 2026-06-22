@@ -17,7 +17,7 @@ from app.core.context.manager import ContextManager
 from app.core.engine.engine import get_default_engine
 from app.core.engine.message.reasoning import extract_tool_calls
 from app.core.engine.state import AgentState
-from app.core.engine.state.blackboard import BlackboardState, VerificationStatus
+from app.core.engine.state.blackboard import VerificationStatus
 from app.core.environment import get_awakened_state
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
@@ -29,7 +29,6 @@ class AuditResult(DynamicBaseModel):
     summary: str
     meta: dict = Field(default_factory=dict)
     messages: list = Field(default_factory=list)
-    blackboard: BlackboardState | None = None
 
 
 def _extract_tool_usage(messages: list) -> str:
@@ -63,25 +62,21 @@ def _extract_final_summary(messages: list) -> str:
 
 
 def _build_audit_input(state: AgentState) -> dict:
-    blackboard = state.blackboard
-    metadata = blackboard.metadata if blackboard else None
-    audit_input_data = metadata.audit_input_data if metadata else None
+    if state.audit_input_data:
+        return state.audit_input_data.model_dump()
 
-    if audit_input_data:
-        return audit_input_data.model_dump()
-
-    plan_progress = metadata.plan_progress if metadata else None
+    plan_progress = state.plan_progress
 
     # Build tool stats from tool_history
     tool_stats: dict[str, int] = {}
-    for sig in metadata.tool_history or []:
+    for sig in state.tool_history or []:
         tool_name = sig.split(":")[0] if ":" in sig else sig
         tool_stats[tool_name] = tool_stats.get(tool_name, 0) + 1
 
     progress = {
         "total_steps": plan_progress.total_steps if plan_progress else 0,
         "completed_steps": plan_progress.completed_steps if plan_progress else 0,
-        "total_deliverables": len(metadata.audit_input_data.deliverables) if metadata and metadata.audit_input_data else 0,
+        "total_deliverables": len(state.audit_input_data.deliverables) if state.audit_input_data and state.audit_input_data.deliverables else 0,
         "completed_deliverables": 0,
     }
 
@@ -95,7 +90,7 @@ def _build_audit_input(state: AgentState) -> dict:
         "progress": progress,
         "deliverables": [],
         "tool_stats": tool_stats,
-        "anomalies": [a.model_dump() for a in (metadata.audit_anomalies if metadata else [])],
+        "anomalies": [a.model_dump() for a in (state.audit_anomalies or [])],
         "key_messages_digest": "",
     }
 
@@ -124,11 +119,10 @@ class AuditService:
 
         ctx = ContextManager.current()
         messages = list(state.messages)
-        blackboard = state.blackboard
 
         current_plan = state.current_plan or ""
-        execution_ticket = blackboard.ticket
-        verification_status = blackboard.verification or VerificationStatus(status="unverified")
+        execution_ticket = state.ticket
+        verification_status = state.verification or VerificationStatus(status="unverified")
         action_context = _extract_tool_usage(messages)
         iteration_count = state.iteration_count or 0
         project_id = (
@@ -155,7 +149,8 @@ class AuditService:
             iteration_count=iteration_count,
             project_id=project_id,
             telemetry=telemetry,
-            blackboard=blackboard,
+            metadata=state.metadata,
+            subtask_results=state.subtask_results,
             session_goal=state.session_goal,
         )
         system_prompt = builder.build()
@@ -164,7 +159,7 @@ class AuditService:
         # Build structured audit input to inject into audit ticket
         audit_input = _build_audit_input(state)
         has_structured_input = bool(
-            blackboard.metadata and blackboard.metadata.audit_input_data
+            state.audit_input_data
         )
         if has_structured_input and audit_ticket:
             audit_input_json = json.dumps(audit_input, indent=2, ensure_ascii=False)
@@ -237,13 +232,12 @@ class AuditService:
             re.IGNORECASE | re.DOTALL,
         )
         final_outcome = outcome_match.group(1).strip() if outcome_match else "COMPLETED"
-        if result.blackboard:
-            result.blackboard.metadata.final_outcome = final_outcome
-            
-            # Append Finish node tool calls to global tool_history with finish: prefix
-            if result.tool_history:
-                prefixed = [f"finish:{t}" for t in result.tool_history]
-                result.blackboard.metadata.tool_history = (result.blackboard.metadata.tool_history or []) + prefixed
+        state.final_outcome = final_outcome
+        
+        # Append Finish node tool calls to global tool_history with finish: prefix
+        if result.tool_history:
+            prefixed = [f"finish:{t}" for t in result.tool_history]
+            state.tool_history = (state.tool_history or []) + prefixed
 
         duration = (time.time() - start) * 1000
 
@@ -260,7 +254,6 @@ class AuditService:
             summary=summary,
             meta={"duration_ms": duration, "outcome": final_outcome},
             messages=result.messages or [],
-            blackboard=result.blackboard,
         )
 
     async def _dispatch_extraction(

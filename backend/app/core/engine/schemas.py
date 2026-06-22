@@ -4,7 +4,6 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.core.engine.state.blackboard import BlackboardState
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
@@ -121,7 +120,6 @@ class EngineResult(DynamicBaseModel):
     """Structured result from AgentEngine.run_node() and internal execution methods."""
     messages: list[Any] = Field(default_factory=list)
     tool_history: list[str] = Field(default_factory=list)
-    blackboard: BlackboardState | None = None
     is_truncated: bool = False
     signal: Any | None = None
     outcome: NodeOutcome | None = None
@@ -264,5 +262,5 @@ class SupervisorContext(DynamicBaseModel):
     tools: list[Any]
     iteration_count: int
     last_human_msg: str | None
-    blackboard: BlackboardState
+    state: Any
     structured_plan: str | dict | None = None

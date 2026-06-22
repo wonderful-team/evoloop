@@ -1,17 +1,61 @@
 """Top-level AgentState and StateUpdate models."""
 import operator
-from typing import Annotated, Any
+from typing import Annotated, Any, Callable
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 from pydantic import Field, field_validator, model_validator
 
 from app.core.engine.state.blackboard import (
-    BlackboardState,
-    merge_blackboard,
+    SubtaskResult,
+    PendingApproval,
+    AuditAnomaly,
+    VerificationStatus,
+    SpawnPlan,
+    PendingAggregation,
+    WorkflowStepResult,
+    AuditMeta,
+    PlanProgress,
+    TaskDeliverable,
+    ProgressMetrics,
+    AuditInputData,
 )
-from app.core.engine.state.workspace import WorkspaceContext
+from app.core.engine.state.workspace import WorkspaceContext, ClipboardItem
+from app.core.engine.state.config import ExecutionTicket
 from app.infrastructure.pydantic_base import DynamicBaseModel
+
+
+# --- Native Reducer Helpers ---
+
+def merge_dicts(old: dict | None, new: dict | None) -> dict:
+    """Combines dictionaries (non-recursive flat map)."""
+    res = dict(old or {})
+    res.update(new or {})
+    return res
+
+
+def add_unique_items(old: list | None, new: list | None) -> list:
+    """Appends elements to a list, filtering out duplicates."""
+    old_list = list(old or [])
+    seen = set(old_list)
+    return old_list + [item for item in (new or []) if item not in seen]
+
+
+def add_unique_subtasks(old: list[SubtaskResult] | None, new: list[SubtaskResult] | None) -> list[SubtaskResult]:
+    """Appends subtask results, deduplicating by subtask_id."""
+    old_list = list(old or [])
+    seen_ids = {r.subtask_id for r in old_list if hasattr(r, "subtask_id")}
+    
+    delta = []
+    for r in (new or []):
+        if isinstance(r, dict):
+            r = SubtaskResult.model_validate(r)
+        
+        sid = r.subtask_id
+        if sid not in seen_ids:
+            delta.append(r)
+            seen_ids.add(sid)
+    return old_list + delta
 
 
 class AgentStateBase(DynamicBaseModel):
@@ -22,7 +66,6 @@ class AgentStateBase(DynamicBaseModel):
     structured_plan: str | None = None
     workspace_context: WorkspaceContext | None = None
     execution_artifact: str | None = None
-    blackboard: BlackboardState | None = None
     error: str | None = None
     user_preferences: Any | None = None
     situation_analysis: str | None = None
@@ -38,6 +81,67 @@ class AgentStateBase(DynamicBaseModel):
     # Session-level immutable goal (user's original request)
     session_goal: str | None = None
 
+    # --- Elevated Sequential State Fields ---
+    ticket: ExecutionTicket | None = None
+    verification: VerificationStatus | None = None
+    route_reason: str | None = None
+    working_directory: str | None = None
+    spawn_plan: SpawnPlan | None = None
+    pending_aggregation: PendingAggregation | None = None
+    plan_approved: bool | None = False
+    worker_outcome: str | None = None
+    workflow_results: list[WorkflowStepResult] | None = None
+    workflow_plan: list[Any] | None = None
+    workflow_step_index: int | None = None
+    summary: str | None = None
+    active_subagents: list[dict[str, Any]] | None = None
+    completed_subagents: list[dict[str, Any]] | None = None
+    remaining_work: str | None = None
+    current_goal: str | None = None
+    test_failures: Any | None = None
+    lint_errors: Any | None = None
+    signal_queue_total: int = 0
+    tool_memory: dict | None = None
+    final_outcome: str | None = None
+    shadow_audit: bool | None = None
+    termination_outcome: str | None = None
+    last_aggregation_result: str | None = None
+    audit_tier: str | None = None
+    audit_meta: AuditMeta | None = None
+    blocked_by_hook: bool | None = None
+    plan_progress: PlanProgress | None = None
+    max_supervisor_steps: int | None = None
+    audit_input_data: AuditInputData | None = None
+    force_comprehensive_audit: bool | None = None
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """Backward-compatibility: return a dictionary of elevated metadata fields."""
+        metadata_fields = {
+            "tool_history": self.tool_history,
+            "pending_approvals": [x.model_dump() if hasattr(x, "model_dump") else x for x in (self.pending_approvals or [])],
+            "audit_anomalies": [x.model_dump() if hasattr(x, "model_dump") else x for x in (self.audit_anomalies or [])],
+            "tool_memory": self.tool_memory,
+            "final_outcome": self.final_outcome,
+            "shadow_audit": self.shadow_audit,
+            "termination_outcome": self.termination_outcome,
+            "last_aggregation_result": self.last_aggregation_result,
+            "audit_tier": self.audit_tier,
+            "audit_meta": self.audit_meta.model_dump() if hasattr(self.audit_meta, "model_dump") and self.audit_meta else self.audit_meta,
+            "blocked_by_hook": self.blocked_by_hook,
+            "plan_progress": self.plan_progress.model_dump() if hasattr(self.plan_progress, "model_dump") and self.plan_progress else self.plan_progress,
+            "max_supervisor_steps": self.max_supervisor_steps,
+            "audit_input_data": self.audit_input_data.model_dump() if hasattr(self.audit_input_data, "model_dump") and self.audit_input_data else self.audit_input_data,
+            "force_comprehensive_audit": self.force_comprehensive_audit,
+        }
+        return {k: v for k, v in metadata_fields.items() if v is not None}
+
+    @property
+    def blackboard(self) -> Any:
+        """Backward-compatibility: allow accessing elevated fields via .blackboard."""
+        return self
+
+
 
 class AgentState(AgentStateBase):
     """Top-level Agent State for LangGraph."""
@@ -51,17 +155,15 @@ class AgentState(AgentStateBase):
     iteration_count: Annotated[int, lambda a, b: b] = 0
     next_node: Annotated[str | None, lambda a, b: b] = None
     session_goal: Annotated[str | None, lambda a, b: b if b is not None else a] = None
-    blackboard: Annotated[BlackboardState, merge_blackboard] = Field(default_factory=BlackboardState)
 
-    @field_validator("blackboard", mode="before")
-    @classmethod
-    def _ensure_blackboard(cls, v):
-        """Backward-compat: ensure we have a BlackboardState instance."""
-        if v is None:
-            return BlackboardState()
-        if isinstance(v, dict):
-            return BlackboardState.model_validate(v)
-        return v
+    # --- Elevated Parallel State Fields with Reducers ---
+    subtask_results: Annotated[list[SubtaskResult], add_unique_subtasks] = Field(default_factory=list)
+    clipboard: Annotated[list[ClipboardItem], operator.add] = Field(default_factory=list)
+    visited_nodes: Annotated[list[str], add_unique_items] = Field(default_factory=list)
+    pending_signals: Annotated[list[dict[str, Any]], operator.add] = Field(default_factory=list)
+    shared_context: Annotated[dict[str, str], merge_dicts] = Field(default_factory=dict)
+    pending_approvals: Annotated[list[PendingApproval], operator.add] = Field(default_factory=list)
+    audit_anomalies: Annotated[list[AuditAnomaly], operator.add] = Field(default_factory=list)
 
     @field_validator("error", mode="before")
     @classmethod
@@ -70,7 +172,6 @@ class AgentState(AgentStateBase):
         if isinstance(v, dict):
             import json
             try:
-                # If it's a structured error, try to extract a friendly message or type
                 if "message" in v:
                     return v["message"]
                 if "error_type" in v:
@@ -87,7 +188,14 @@ class AgentState(AgentStateBase):
             "thread_id", "project_id", "current_plan", "structured_plan",
             "execution_artifact", "error", "user_preferences", "situation_analysis",
             "action_plan", "skill_execution_attempted", "active_tool_profile",
-            "is_subtask", "session_goal",
+            "is_subtask", "session_goal", "ticket", "verification", "route_reason",
+            "working_directory", "spawn_plan", "pending_aggregation", "plan_approved",
+            "worker_outcome", "workflow_results", "workflow_plan", "workflow_step_index",
+            "summary", "active_subagents", "completed_subagents", "remaining_work",
+            "current_goal", "test_failures", "lint_errors", "signal_queue_total",
+            "tool_memory", "final_outcome", "shadow_audit", "termination_outcome",
+            "last_aggregation_result", "audit_tier", "audit_meta", "blocked_by_hook",
+            "plan_progress", "max_supervisor_steps", "audit_input_data", "force_comprehensive_audit"
         }
         missing = []
         for field_name, field_info in self.model_fields.items():
@@ -105,6 +213,7 @@ class AgentState(AgentStateBase):
 
         return self
 
+
 class StateUpdate(AgentStateBase):
     """Standardized state update returned by LangGraph nodes."""
 
@@ -112,3 +221,10 @@ class StateUpdate(AgentStateBase):
     next_node: str | None = None
     iteration_count: int | None = None
     resume_tool_call: dict[str, Any] | None = None
+    subtask_results: list[SubtaskResult] | None = None
+    clipboard: list[ClipboardItem] | None = None
+    visited_nodes: list[str] | None = None
+    pending_signals: list[dict[str, Any]] | None = None
+    shared_context: dict[str, str] | None = None
+    pending_approvals: list[PendingApproval] | None = None
+    audit_anomalies: list[AuditAnomaly] | None = None

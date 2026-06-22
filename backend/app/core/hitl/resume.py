@@ -24,7 +24,7 @@ async def build_resume_command(
     """
     Build a LangGraph Command for resuming from HITL interrupt.
 
-    For authorization-style HITL the pending approval stored in blackboard is
+    For authorization-style HITL the pending approval stored in state is
     converted into a persisted project-level grant when the user approves. The
     original blocked tool is then re-executed automatically so the user response
     does not appear as the tool result.
@@ -99,15 +99,23 @@ async def _persist_authorization_grant(graph_instance, config: dict, pending_too
                 action = auth_meta.get("action", "")
 
         if not resource_path or not action:
-            # Fallback to blackboard pending approvals if available
+            # Fallback to pending approvals in state if available
             current_state = await graph_instance.aget_state(config)
             if current_state.values:
-                blackboard = current_state.values.get("blackboard")
-                if blackboard and blackboard.metadata.pending_approvals:
-                    for item in list(blackboard.metadata.pending_approvals):
-                        if item.tool_call_id == tool_call_id:
-                            resource_path = item.resource_path
-                            action = item.action
+                pending_approvals = current_state.values.get("pending_approvals")
+                if pending_approvals:
+                    for item in list(pending_approvals):
+                        if isinstance(item, dict):
+                            tcid = item.get("tool_call_id")
+                            rpath = item.get("resource_path")
+                            act = item.get("action")
+                        else:
+                            tcid = getattr(item, "tool_call_id", None)
+                            rpath = getattr(item, "resource_path", None)
+                            act = getattr(item, "action", None)
+                        if tcid == tool_call_id:
+                            resource_path = rpath
+                            action = act
                             break
 
         if resource_path and action:

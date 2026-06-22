@@ -88,7 +88,7 @@ class SupervisorPromptBuilder(BasePromptBuilder):
         ctx = ContextManager.current()
         plugin_registry.hydrate_context(ctx)
 
-        blackboard = self.context.blackboard
+        state = self.context.state
         active_plan_data = self.context.structured_plan
         if isinstance(active_plan_data, str) and active_plan_data.strip():
             active_plan_data = json.loads(active_plan_data)
@@ -100,6 +100,26 @@ class SupervisorPromptBuilder(BasePromptBuilder):
         run_metadata = config.get("metadata", {}) if config else {}
         explicit_skills = run_metadata.get("explicit_skills")
 
+        # Collect dynamic metadata from flat state
+        metadata_fields = {
+            "tool_history": state.tool_history,
+            "pending_approvals": [x.model_dump() if hasattr(x, "model_dump") else x for x in (state.pending_approvals or [])],
+            "audit_anomalies": [x.model_dump() if hasattr(x, "model_dump") else x for x in (state.audit_anomalies or [])],
+            "tool_memory": state.tool_memory,
+            "final_outcome": state.final_outcome,
+            "shadow_audit": state.shadow_audit,
+            "termination_outcome": state.termination_outcome,
+            "last_aggregation_result": state.last_aggregation_result,
+            "audit_tier": state.audit_tier,
+            "audit_meta": state.audit_meta.model_dump() if hasattr(state.audit_meta, "model_dump") and state.audit_meta else state.audit_meta,
+            "blocked_by_hook": state.blocked_by_hook,
+            "plan_progress": state.plan_progress.model_dump() if hasattr(state.plan_progress, "model_dump") and state.plan_progress else state.plan_progress,
+            "max_supervisor_steps": state.max_supervisor_steps,
+            "audit_input_data": state.audit_input_data.model_dump() if hasattr(state.audit_input_data, "model_dump") and state.audit_input_data else state.audit_input_data,
+            "force_comprehensive_audit": state.force_comprehensive_audit,
+        }
+        metadata_clean = {k: v for k, v in metadata_fields.items() if v is not None}
+
         template_vars = {
             "iteration_count": self.iteration_count,
             "environment_block": env_block,
@@ -110,15 +130,13 @@ class SupervisorPromptBuilder(BasePromptBuilder):
                 "episodic_raw": ctx.metadata.get("episodic_memory_raw", ""),
                 "core_raw": ctx.metadata.get("core_memory_raw", ""),
             },
-            "blackboard": {
-                "ticket": blackboard.ticket,
-                "subtask_results": blackboard.subtask_results,
-                "visited_nodes": blackboard.visited_nodes,
-                "verification": blackboard.verification,
-                "metadata": blackboard.metadata.model_dump(mode='json'),
-            },
+            "ticket": state.ticket,
+            "subtask_results": state.subtask_results,
+            "visited_nodes": state.visited_nodes,
+            "verification": state.verification,
+            "metadata": metadata_clean,
             "plan": active_plan_data,
-            "plan_approved": blackboard.plan_approved,
+            "plan_approved": state.plan_approved,
         }
 
         rendered = render_template("core/engine/fragments/supervisor_context_ticket.j2", **template_vars)

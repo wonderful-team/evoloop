@@ -18,7 +18,6 @@ from app.api.deps import TokenDepOptional, TokenDep, require_benefit
 from app.api.schemas.project_profiles import DiscoverRequest, DiscoverResponse, ProfileContentResponse, UpdateProfileRequest
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
-from app.core.engine.state.blackboard import BlackboardState
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.core.project.utils import get_project_path
 from app.infrastructure.config.service import SystemConfigService
@@ -130,18 +129,16 @@ async def discover_profile(
     )
 
     # Inject the ExecutionTicket into the initial state so SkillHydrator can load the SOP.
-    blackboard = BlackboardState(
-        ticket=ExecutionTicket(
-            ticket_type="task",
-            topic="Project Discovery",
-            skill_ids=[skill.id] if skill else None,
-            agent_config=AgentRuntimeConfig(
-                role_name="Worker",
-                system_instructions=system_instructions,
-            ),
-        )
+    ticket = ExecutionTicket(
+        ticket_type="task",
+        topic="Project Discovery",
+        skill_ids=[skill.id] if skill else None,
+        agent_config=AgentRuntimeConfig(
+            role_name="Worker",
+            system_instructions=system_instructions,
+        ),
     )
-    result.inputs["blackboard"] = blackboard.model_dump(mode="json")
+    result.inputs["ticket"] = ticket.model_dump(mode="json")
 
     # Skip persisting Agent conversation transcript to DB
     if "metadata" not in result.inputs:

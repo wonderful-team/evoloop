@@ -47,7 +47,7 @@ class ToolManager:
         # 2. Handle Progressive Disclosure (Skill-Tool Handshake & Dynamic Requests)
         # Only inject external tools if explicitly requested by the state.
         if state:
-            execution_ticket = state.blackboard.ticket
+            execution_ticket = state.ticket
 
             # Agent Config for Dynamic Specialist
             agent_config = execution_ticket.agent_config if execution_ticket else None

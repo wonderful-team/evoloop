@@ -17,7 +17,6 @@ from app.domain.wiki.schemas import WikiGenerationRequest, WikiGenerationRespons
 from app.domain.wiki.service import wiki_service
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
-from app.core.engine.state.blackboard import BlackboardState
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.core.project.utils import get_project_path
 from app.i18n.service import i18n
@@ -142,22 +141,20 @@ async def generate_wiki(
     if result.status == "failed":
         raise HTTPException(500, detail=result.error)
 
-    blackboard = BlackboardState(
-        ticket=ExecutionTicket(
-            ticket_type="task",
-            topic="Wiki Generation",
-            skill_ids=[skill.id] if skill else None,
-            agent_config=AgentRuntimeConfig(
-                role_name="Worker",
-                system_instructions=system_instructions,
-                tools=[
-                    "write_wiki_page", "edit_wiki_page", "read_wiki_page", "list_wiki_pages",
-                    "create_plan", "update_step_status",
-                ] + [t for t in get_tool_bundle("core_file_tools") if t not in ("edit_file", "delete_file", "move_file", "execute_command")],
-            ),
-        )
+    ticket = ExecutionTicket(
+        ticket_type="task",
+        topic="Wiki Generation",
+        skill_ids=[skill.id] if skill else None,
+        agent_config=AgentRuntimeConfig(
+            role_name="Worker",
+            system_instructions=system_instructions,
+            tools=[
+                "write_wiki_page", "edit_wiki_page", "read_wiki_page", "list_wiki_pages",
+                "create_plan", "update_step_status",
+            ] + [t for t in get_tool_bundle("core_file_tools") if t not in ("edit_file", "delete_file", "move_file", "execute_command")],
+        ),
     )
-    result.inputs["blackboard"] = blackboard.model_dump(mode="json")
+    result.inputs["ticket"] = ticket.model_dump(mode="json")
 
     # Skip persisting Agent conversation transcript to DB for this background batch task
     if "metadata" not in result.inputs:

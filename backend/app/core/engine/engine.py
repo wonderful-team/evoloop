@@ -155,11 +155,7 @@ class AgentEngine:
                 iteration_count=state.iteration_count,
             )
 
-        # 8. Blackboard is already updated live by the update_blackboard tool
-        #    via ContextManager. We just read it back from state to build EngineResult.
-        blackboard = state.blackboard
-
-        # 9. Determine structured outcome
+        # 8. Determine structured outcome
         outcome_status = "success"
         if inference_result.get("is_truncated"):
             outcome_status = "truncated"
@@ -171,11 +167,10 @@ class AgentEngine:
 
         outcome = NodeOutcome(status=outcome_status)
 
-        # 10. Build EngineResult
+        # 9. Build EngineResult
         result = EngineResult(
             messages=inference_result.get("messages", []),
             tool_history=inference_result.get("tool_history", []),
-            blackboard=blackboard,
             is_truncated=inference_result.get("is_truncated", False),
             signal=inference_result.get("signal"),
             outcome=outcome,

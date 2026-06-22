@@ -186,11 +186,25 @@ def _safe_eval_expr(expr: str, context: dict) -> bool:
 
 def make_expression_router(conditions: list[EdgeCondition], default: str) -> Callable[[AgentState], str]:
     def expression_router(state: AgentState) -> str:
-        # Prepare evaluation context (Phase 4: Blackboard Only)
-        blackboard = state.blackboard
+        # Prepare evaluation context (synthesize mock blackboard dict for YAML compatibility)
+        mock_blackboard = {
+            "worker_outcome": state.worker_outcome,
+            "ticket": state.ticket,
+            "spawn_plan": state.spawn_plan,
+            "subtask_results": state.subtask_results,
+            "visited_nodes": state.visited_nodes,
+            "verification": state.verification,
+            "plan_approved": state.plan_approved,
+            "shared_context": state.shared_context,
+            "tool_history": state.tool_history,
+            "pending_signals": state.pending_signals,
+        }
+        if state.shared_context:
+            mock_blackboard.update(state.shared_context)
+
         eval_context = {
             "state": state,
-            "blackboard": blackboard,
+            "blackboard": mock_blackboard,
             "len": len,
             "int": int,
             "str": str,

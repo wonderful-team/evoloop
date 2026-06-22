@@ -117,13 +117,12 @@ class SupervisorNode(BaseAgentNode):
         # blackboard.pending_signals. Here we drain the queue one entry per
         # Supervisor invocation, bypassing the LLM entirely.
         # ─────────────────────────────────────────────────────────────────────
-        blackboard = state.blackboard
-        if blackboard and getattr(blackboard, "pending_signals", None):
+        if state.pending_signals:
             import app.core.engine.signals.schemas as schemas
             from app.core.engine.signals.dispatcher import SignalDispatcher
 
-            next_sig_dict = blackboard.pending_signals[0]
-            remaining = blackboard.pending_signals[1:]
+            next_sig_dict = state.pending_signals[0]
+            remaining = state.pending_signals[1:]
 
             try:
                 sig_type = next_sig_dict.pop("_type", "RouteToSignal")
@@ -132,10 +131,7 @@ class SupervisorNode(BaseAgentNode):
                 
                 dispatch_result = await SignalDispatcher.dispatch(state, signal, config)
                 if dispatch_result is not None:
-                    bb_update = dispatch_result.blackboard or blackboard
-
-                    bb_update.pending_signals = remaining
-                    dispatch_result.blackboard = bb_update
+                    dispatch_result.pending_signals = remaining
 
                     # Proactive DB Plan Step sync: advance step status on each
                     # signal consume so the DB plan stays in sync with the
@@ -150,7 +146,7 @@ class SupervisorNode(BaseAgentNode):
             except Exception as e:
                 # If the queued signal is malformed, log and clear the bad entry
                 logger.warning(f"[Supervisor] Failed to consume queued signal: {e}. Clearing entry.")
-                blackboard.pending_signals = remaining
+                return StateUpdate(pending_signals=remaining)
         # ─────────────────────────────────────────────────────────────────────
 
         # Filter messages before Supervisor reasoning — this is a "view" operation
@@ -167,9 +163,8 @@ class SupervisorNode(BaseAgentNode):
         await self._emit_status(config, i18n.get("supervisor.status_analyzing"))
 
         # 1. Aggregate Parallel Results
-        blackboard = state.blackboard
-        subtask_results = blackboard.subtask_results
-        pending_agg = blackboard.pending_aggregation
+        subtask_results = state.subtask_results
+        pending_agg = state.pending_aggregation
 
         if pending_agg and pending_agg.expected_count:
             expected = pending_agg.expected_count
@@ -183,7 +178,7 @@ class SupervisorNode(BaseAgentNode):
             # DO NOT intercept with Python logic. Clear the active ticket and 
             # let the Supervisor LLM read the context to decide the next step.
             logger.info(f"[Supervisor] ℹ️ Worker returned '{worker_outcome}'. Delegating review to Supervisor LLM.")
-            blackboard.ticket = None
+            state.ticket = None
 
             if worker_outcome in ("truncated", "failed", "error", "incomplete"):
                 from langchain_core.messages import SystemMessage
@@ -246,8 +241,6 @@ class SupervisorNode(BaseAgentNode):
             m for m in (engine_result.messages or [])
             if m.name != "context_ticket"
         ]
-        blackboard = engine_result.blackboard or original_state.blackboard
-
         # Check for infrastructure errors
         has_error_msg = any(
             msg.additional_kwargs.get("is_error") for msg in new_messages
@@ -256,7 +249,6 @@ class SupervisorNode(BaseAgentNode):
             return StateUpdate(
                 messages=new_messages,
                 next_node=RoutingTarget.FINISH,
-                blackboard=blackboard,
                 iteration_count=new_iter_count,
             )
 
@@ -272,7 +264,7 @@ class SupervisorNode(BaseAgentNode):
             # Worker truncation, route back to WORKER instead of FINISH.
             if (
                 last_msg.additional_kwargs.get("is_truncated")
-                and getattr(blackboard, "worker_outcome", None) == "truncated"
+                and original_state.worker_outcome == "truncated"
             ):
                 logger.warning(
                     "[Supervisor] LLM output truncated during truncation recovery. "
@@ -281,14 +273,12 @@ class SupervisorNode(BaseAgentNode):
                 return StateUpdate(
                     messages=new_messages,
                     next_node=RoutingTarget.WORKER,
-                    blackboard=blackboard,
                     iteration_count=new_iter_count,
                 )
             # P1 Improvement: Direct response is now allowed. Route to FINISH.
             return StateUpdate(
                 messages=new_messages,
                 next_node=RoutingTarget.FINISH,
-                blackboard=blackboard,
                 iteration_count=new_iter_count,
             )
 
@@ -304,7 +294,6 @@ class SupervisorNode(BaseAgentNode):
         return StateUpdate(
             messages=new_messages,
             next_node=RoutingTarget.FINISH,
-            blackboard=blackboard,
             iteration_count=new_iter_count
         )
 
@@ -395,13 +384,10 @@ class SupervisorNode(BaseAgentNode):
         core_tools = await self.get_tools(state)
         last_msg = get_last_human_message(messages)
 
-        # Get blackboard from state for prompt builder
-        blackboard = state.blackboard
-
         return SupervisorContext(
             tools=core_tools,
             iteration_count=(state.iteration_count or 0),
             last_human_msg=last_msg,
-            blackboard=blackboard,
+            state=state,
             structured_plan=state.structured_plan or state.current_plan,
         )

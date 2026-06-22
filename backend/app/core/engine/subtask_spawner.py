@@ -12,12 +12,11 @@ from langgraph.types import Send
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.engine.state import AgentRuntimeConfig as AgentConfig
 from app.core.engine.state import AgentState, ExecutionTicket
-from app.core.engine.state.blackboard import BlackboardState
 
 logger = logging.getLogger(__name__)
 
 
-def build_subtask_sends(state: AgentState, blackboard: BlackboardState) -> list[Send]:
+def build_subtask_sends(state: AgentState) -> list[Send]:
     """
     Build a list of Send objects for parallel subtask execution.
 
@@ -27,10 +26,10 @@ def build_subtask_sends(state: AgentState, blackboard: BlackboardState) -> list[
     state updates are merged back and execution resumes at the source node
     (Supervisor).
 
-    IMPORTANT: This function mutates ``blackboard.spawn_plan = None`` so the
+    IMPORTANT: This function mutates ``state.spawn_plan = None`` so the
     spawn is not re-triggered on the next router pass.
     """
-    spawn_plan = blackboard.spawn_plan
+    spawn_plan = state.spawn_plan
     if spawn_plan is None:
         return []
     subtasks = spawn_plan.subtasks
@@ -77,7 +76,7 @@ def build_subtask_sends(state: AgentState, blackboard: BlackboardState) -> list[
         if subtask.dependencies:
             subtask_parameters["dependencies"] = subtask.dependencies
 
-        parent_ticket = state.blackboard.ticket if state.blackboard else None
+        parent_ticket = state.ticket
 
         ticket = ExecutionTicket(
             ticket_type="subtask",
@@ -92,16 +91,14 @@ def build_subtask_sends(state: AgentState, blackboard: BlackboardState) -> list[
             macro_goal=parent_ticket.topic if parent_ticket else None,
         )
 
-        subtask_blackboard = blackboard.model_copy(deep=True)
-        subtask_blackboard.ticket = ticket
         sends.append(Send("worker", {
             "project_id": project_id,
             "thread_id": scoped_thread_id,
-            "blackboard": subtask_blackboard,
+            "ticket": ticket,
             "is_subtask": True,
             "messages": [],
         }))
 
     # Consume the spawn_plan to prevent re-triggering on next router pass
-    blackboard.spawn_plan = None
+    state.spawn_plan = None
     return sends

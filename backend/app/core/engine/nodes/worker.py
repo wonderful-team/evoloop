@@ -35,11 +35,11 @@ class WorkerNode(BaseAgentNode):
 
     async def prepare_state(self, state: AgentState, config: RunnableConfig) -> StateUpdate | None:
         """Validation, ticket checks, and plan loading."""
-        execution_ticket = state.blackboard.ticket
+        execution_ticket = state.ticket
         if not execution_ticket:
             raise ValueError(
                 "[WorkerNode] ExecutionTicket is missing. "
-                "Supervisor must set blackboard.ticket via route_to() before routing to Worker."
+                "Supervisor must set ticket via route_to() before routing to Worker."
             )
 
         if not execution_ticket.agent_config:
@@ -93,9 +93,9 @@ class WorkerNode(BaseAgentNode):
 
     async def build_prompt_pair(self, state: AgentState, config: RunnableConfig) -> tuple[str, str]:
         """Construct (Static System Prompt, Dynamic Mission Message)."""
-        execution_ticket = state.blackboard.ticket
+        execution_ticket = state.ticket
         agent_config = execution_ticket.agent_config if execution_ticket else None
-        blackboard = state.blackboard
+        blackboard = state
         ctx = ContextManager.current()
 
         # Hydrate internal context
@@ -192,7 +192,7 @@ class WorkerNode(BaseAgentNode):
         config: RunnableConfig,
     ) -> StateUpdate:
         """Worker-specific post-processing when no signal is present."""
-        execution_ticket = original_state.blackboard.ticket
+        execution_ticket = original_state.ticket
         role_name = execution_ticket.agent_config.role_name if execution_ticket and execution_ticket.agent_config else "Worker"
         result = await process_worker_result(self.node_name, original_state, engine_result, execution_ticket, role_name, config=config)
         return result
@@ -202,7 +202,7 @@ class WorkerNode(BaseAgentNode):
         from app.core.engine.state import ensure_state
         state = ensure_state(state)
 
-        execution_ticket = state.blackboard.ticket
+        execution_ticket = state.ticket
         if execution_ticket:
             logger.info(
                 f"[Worker] ExecutionTicket received | "
@@ -254,14 +254,12 @@ class WorkerNode(BaseAgentNode):
         if is_multi_skill_workflow:
             logger.info(f"[Worker] 🔄 Delegating to sequential workflow with {len(skill_ids)} skills...")
             # Initialize workflow state and route to SequentialWorkflowNode
-            blackboard = state.blackboard
-            blackboard.workflow_plan = relevant_sops
-            blackboard.workflow_step_index = 0
-            blackboard.workflow_results = []
             return StateUpdate(
                 messages=[AIMessage(content=f"Starting sequential workflow with {len(skill_ids)} skills.")],
                 next_node=RoutingTarget.SEQUENTIAL_WORKFLOW,
-                blackboard=blackboard,
+                workflow_plan=relevant_sops,
+                workflow_step_index=0,
+                workflow_results=[],
             )
 
         # Build isolated worker view: discard all historical conversation turns.

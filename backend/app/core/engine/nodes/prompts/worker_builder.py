@@ -3,7 +3,6 @@ from typing import Any
 
 from app.core.config import settings
 from app.core.context import ContextManager, plugin_registry
-from app.core.engine.state.blackboard import BlackboardState
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.utils import render_template
 
@@ -19,7 +18,7 @@ class WorkerPromptBuilder(BasePromptBuilder):
     def __init__(
         self,
         agent_config: AgentRuntimeConfig | None,
-        blackboard: BlackboardState | dict,
+        blackboard: Any,
         skills: list = None,
         ticket: ExecutionTicket | None = None,
         focus_paths: list = None,
@@ -31,7 +30,7 @@ class WorkerPromptBuilder(BasePromptBuilder):
         if isinstance(blackboard, dict):
             self.clipboard = blackboard.get("clipboard", [])
         else:
-            self.clipboard = blackboard.clipboard if blackboard else []
+            self.clipboard = getattr(blackboard, "clipboard", []) or []
         self.ticket = ticket
         self.focus_paths = focus_paths or []
         self.plan = plan
@@ -122,6 +121,16 @@ class WorkerPromptBuilder(BasePromptBuilder):
 
         topic = (self.ticket.topic if self.ticket else None) or session_goal
 
+        # Safely extract flat state properties
+        if isinstance(self.blackboard, dict):
+            shared_context = self.blackboard.get("shared_context", {})
+            subtask_results = self.blackboard.get("subtask_results", [])
+            metadata = self.blackboard.get("metadata", {})
+        else:
+            shared_context = getattr(self.blackboard, "shared_context", {}) or {}
+            subtask_results = getattr(self.blackboard, "subtask_results", []) or []
+            metadata = getattr(self.blackboard, "metadata", {}) or {}
+
         template_vars = {
             "topic": topic,
             "acceptance_criteria": self.ticket.acceptance_criteria if self.ticket else [],
@@ -137,7 +146,9 @@ class WorkerPromptBuilder(BasePromptBuilder):
                 "episodic_raw": ctx.metadata.get("episodic_memory_raw", ""),
                 "core_raw": ctx.metadata.get("core_memory_raw", ""),
             },
-            "blackboard": self.blackboard,
+            "shared_context": shared_context,
+            "subtask_results": subtask_results,
+            "metadata": metadata,
             "clipboard": self.clipboard,
             "plan": plan or self.plan,
             "macro_goal": session_goal,

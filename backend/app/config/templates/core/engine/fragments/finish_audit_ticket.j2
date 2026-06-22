@@ -8,25 +8,25 @@
 {{ session_goal }}
 {%- endif %}
 
-{%- if blackboard.ticket %}
+{%- if ticket %}
 ### Execution Ticket
-- **Topic**: {{ blackboard.ticket.topic or 'N/A' }}
-{%- if blackboard.ticket.acceptance_criteria %}
+- **Topic**: {{ ticket.topic or 'N/A' }}
+{%- if ticket.acceptance_criteria %}
 - **Acceptance Criteria**:
-  {% for c in blackboard.ticket.acceptance_criteria -%}
+  {% for c in ticket.acceptance_criteria -%}
   - {{ c }}
   {% endfor %}
 {%- endif %}
 {%- endif %}
 
-{%- if blackboard.verification %}
+{%- if verification %}
 ### Verification Status
-- **Status**: {{ blackboard.verification.status or 'unverified' }}
+- **Status**: {{ verification.status or 'unverified' }}
 {%- endif %}
 
-{%- if blackboard.subtask_results %}
+{%- if subtask_results %}
 ### Subtask Results
-{% for r in blackboard.subtask_results -%}
+{% for r in subtask_results -%}
 - **{{ r.subtask_id or 'Subtask' }}**: {{ r.result or 'No result provided' }}
 {% endfor %}
 {%- endif %}
@@ -43,17 +43,17 @@
 {%- endif %}
 {%- endif %}
 
-{%- if blackboard.metadata %}
+{%- if metadata %}
 {%- set excluded_keys = ["active_skills", "project_concepts", "cwd", "episodic_memory_raw", "core_memory_raw", "sys_info", "has_macos", "has_android"] %}
-{%- set has_visible_metadata = false %}
-{%- for k, v in blackboard.metadata.items() %}
+{%- set ns = namespace(has_visible_metadata=false) %}
+{%- for k, v in metadata.items() %}
 {%- if k not in excluded_keys %}
-{%- set has_visible_metadata = true %}
+{%- set ns.has_visible_metadata = true %}
 {%- endif %}
 {%- endfor %}
-{%- if has_visible_metadata %}
+{%- if ns.has_visible_metadata %}
 ### Session Metadata
-  {% for k, v in blackboard.metadata.items() -%}
+  {% for k, v in metadata.items() -%}
   {%- if k not in excluded_keys %}
   - {{ k }}: {{ v }}
   {%- endif %}

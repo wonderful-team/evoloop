@@ -5,7 +5,6 @@ from typing import Any
 from langchain_core.messages import BaseMessage
 from pydantic import ConfigDict, Field
 
-from app.core.engine.state.blackboard import BlackboardState
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
@@ -43,7 +42,7 @@ class HookContext(DynamicBaseModel):
     project_id: int | None = None
     member_id: int | None = None
     messages: list[BaseMessage] = Field(default_factory=list)
-    blackboard: BlackboardState | None = None
+    state: Any | None = None
     metadata: HookMetadata = Field(default_factory=HookMetadata)
     tool_name: str | None = None
     tool_input: ToolInput | None = None
@@ -56,6 +55,11 @@ class HookContext(DynamicBaseModel):
     memory_manager: Any | None = None
     memory_config: Any | None = None
     extra: dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def blackboard(self) -> Any:
+        """Backward-compatibility: allow accessing state via .blackboard."""
+        return self.state
 
 
 class HookResult(DynamicBaseModel):

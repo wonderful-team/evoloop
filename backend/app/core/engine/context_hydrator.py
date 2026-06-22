@@ -3,7 +3,7 @@ EvoContextMiddleware - Unified context hydration with Predictive Memory Loading.
 
 This module implements the context hydration strategy:
 1. Predictive Memory Loading: Semantic search results are loaded from Neo4j/Redis.
-2. Layered Caching: Static data (skills, telemetry) cached vs Dynamic data (blackboard) fresh.
+2. Layered Caching: Static data (skills, telemetry) cached vs Dynamic data fresh.
 3. Industrial Hardening: Domain expert polishing, Hot Memory, and Retry logic.
 """
 
@@ -12,14 +12,12 @@ import time
 from typing import Any
 
 import psutil
-from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context import ContextManager, EvoContext
 from app.core.context.cache import LayeredContextCache
 from app.core.engine.hooks import HookContext, HookEvent, hook_system
-from app.core.engine.state import AgentState
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +41,7 @@ class AgentContextHydrator:
     @staticmethod
     async def hydrate(
         ctx: EvoContext,
-        blackboard: Any,
+        state: Any,
         config: RunnableConfig,
         last_human_msg: str = "",
         is_retry: bool = False,
@@ -52,7 +50,7 @@ class AgentContextHydrator:
     ) -> None:
         """
         Layered context hydration with caching and predictive memory loading.
-        Mutates ctx.metadata and blackboard directly.
+        Mutates ctx.metadata and state directly.
         """
         start_time = time.time()
         
@@ -63,11 +61,17 @@ class AgentContextHydrator:
                 thread_id=ctx.thread_id,
                 project_id=ctx.project_id,
                 member_id=ctx.member_id,
-                blackboard=blackboard,
+                state=state,
             ),
         )
-        if session_start_result.modified_context:
-            blackboard.update(session_start_result.modified_context.blackboard)
+        if session_start_result.modified_context and session_start_result.modified_context.state:
+            mod_state = session_start_result.modified_context.state
+            if isinstance(mod_state, dict):
+                for k, v in mod_state.items():
+                    setattr(state, k, v)
+            elif hasattr(mod_state, "model_fields_set"):
+                for k in mod_state.model_fields_set:
+                    setattr(state, k, getattr(mod_state, k))
 
         memory_data = {}
         memory_container = await AgentContextHydrator._get_shared_memory_container()
@@ -138,24 +142,25 @@ class AgentContextHydrator:
         ctx.metadata.environment_telemetry = static_layer.environment_telemetry
 
         # Memory pipeline — forward cached memory data into context metadata
-        # These map to Jinja2 vars: memory.core_raw / memory.episodic_raw
         ctx.metadata.core_memory_raw = static_layer.hot_memory
         ctx.metadata.episodic_memory_raw = static_layer.episodes
 
         # 6. Dynamic Layer & Plugins
-        # We manually inject the dynamic values since we aren't using the full AgentState here
-        ctx.metadata.blackboard = blackboard
-        ctx.metadata.execution_ticket = blackboard.ticket if hasattr(blackboard, "ticket") else None
+        # Populate context metadata from flat state fields
+        ctx.metadata.shared_context = getattr(state, "shared_context", {})
+        ctx.metadata.tool_memory = getattr(state, "tool_memory", None)
+        ctx.metadata.execution_ticket = getattr(state, "ticket", None)
         ctx.metadata.iteration_count = iteration_count
+        
+        # Backward-compatible duck-typing wrapper for plugins or tools that read ctx.metadata.blackboard
+        ctx.metadata.blackboard = state
 
         from app.core.context.plugins import plugin_registry
         plugin_registry.hydrate_context(ctx)
 
         # 7. Domain Expert Polishing (Event-Driven)
         from app.core.events.publishers import publish_context_polishing
-        topic = ""
-        if hasattr(blackboard, "ticket") and blackboard.ticket:
-            topic = blackboard.ticket.topic
+        topic = getattr(state, "ticket", None).topic if getattr(state, "ticket", None) else ""
         await publish_context_polishing(
             thread_id=ctx.thread_id,
             project_id=ctx.project_id,
@@ -169,22 +174,24 @@ class AgentContextHydrator:
         # 8. Retry Hardening (Metadata Reset)
         is_config_retry = config.get("metadata", {}).get("is_retry", False)
         if (is_retry or is_config_retry) and iteration_count == 0 and not is_subtask:
-            logger.info("[AgentContextHydrator] 🔄 Retry detected: Performing blackboard metadata reset.")
+            logger.info("[AgentContextHydrator] 🔄 Retry detected: Performing state metadata reset.")
 
-            if hasattr(blackboard, "metadata"):
-                blackboard.metadata.final_outcome = None
-                blackboard.metadata.shadow_audit = None
-            if hasattr(blackboard, "verification"):
-                blackboard.verification = None
-            if hasattr(blackboard, "route_reason"):
-                blackboard.route_reason = None
+            if hasattr(state, "final_outcome"):
+                state.final_outcome = None
+            if hasattr(state, "shadow_audit"):
+                state.shadow_audit = None
+            if hasattr(state, "verification"):
+                state.verification = None
+            if hasattr(state, "route_reason"):
+                state.route_reason = None
             
             # Invalidate static cache for this session to ensure fresh environment scan on retry
             LayeredContextCache.invalidate_static(session_id)
         else:
-            if hasattr(blackboard, "metadata"):
-                blackboard.metadata.final_outcome = None
-                blackboard.metadata.shadow_audit = None
+            if hasattr(state, "final_outcome"):
+                state.final_outcome = None
+            if hasattr(state, "shadow_audit"):
+                state.shadow_audit = None
 
         duration_ms = (time.time() - start_time) * 1000
         if duration_ms > 100:

@@ -138,13 +138,10 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
 
                 # 4. Prepare Workflow Inputs
                 inputs_dict = inputs.model_dump()
+                inputs_dict.pop("blackboard", None)
 
-                # Instantiate Blackboard
-                from app.core.engine.state.blackboard import BlackboardState
-                if "blackboard" not in inputs_dict:
-                    inputs_dict["blackboard"] = BlackboardState().model_dump()
-
-                blackboard = BlackboardState.model_validate(inputs_dict["blackboard"])
+                from app.core.engine.state import AgentState
+                agent_state = AgentState.model_validate(inputs_dict)
 
                 # Extract last human msg for predictive memory
                 from app.core.engine.message.utils import get_last_human_message
@@ -154,7 +151,7 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                 from app.core.engine.context_hydrator import AgentContextHydrator
                 await AgentContextHydrator.hydrate(
                     ctx=ctx,
-                    blackboard=blackboard,
+                    state=agent_state,
                     config=config,  # type: ignore[arg-type]
                     last_human_msg=last_human_msg,
                     is_retry=inputs.is_retry,
@@ -162,8 +159,8 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                     iteration_count=inputs.iteration_count
                 )
 
-                # Update inputs with hydrated blackboard
-                inputs_dict["blackboard"] = blackboard.model_dump()
+                # Update inputs with hydrated state
+                inputs_dict.update(agent_state.model_dump(exclude_defaults=True))
 
                 # 5. Execution Setup
                 callbacks = [callback]

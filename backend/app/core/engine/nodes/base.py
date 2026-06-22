@@ -206,28 +206,26 @@ class BaseAgentNode(BaseNode, ABC):
             # 1. Signal dispatch path
             dispatch_result = await signal_manager.dispatch(original_state, engine_result.signal, config)
             if dispatch_result is not None:
-                # Persist any additional queued signals into blackboard.pending_signals
+                # Persist any additional queued signals into pending_signals
                 # so SupervisorNode.prepare_state() can drain them serially without re-running the LLM.
                 if engine_result.queued_signals:
-                    bb = dispatch_result.blackboard or engine_result.blackboard or original_state.blackboard
-                    if bb is not None:
-                        def _serialize_signal(s):
-                            if hasattr(s, "model_dump"):
-                                d = s.model_dump()
-                                d["_type"] = type(s).__name__
-                                return d
-                            return s
+                    def _serialize_signal(s):
+                        if hasattr(s, "model_dump"):
+                            d = s.model_dump()
+                            d["_type"] = type(s).__name__
+                            return d
+                        return s
 
-                        bb.pending_signals = [
-                            _serialize_signal(s)
-                            for s in engine_result.queued_signals
-                        ]
-                        bb.signal_queue_total = len(bb.pending_signals)
-                        dispatch_result.blackboard = bb
-                        logger.info(
-                            f"[{self.node_name}] 📥 Queued {len(engine_result.queued_signals)} signals "
-                            f"into blackboard.pending_signals"
-                        )
+                    serialized_signals = [
+                        _serialize_signal(s)
+                        for s in engine_result.queued_signals
+                    ]
+                    dispatch_result.pending_signals = serialized_signals
+                    dispatch_result.signal_queue_total = len(serialized_signals)
+                    logger.info(
+                        f"[{self.node_name}] 📥 Queued {len(engine_result.queued_signals)} signals "
+                        f"into pending_signals"
+                    )
 
                 customized = await self._customize_dispatch_result(dispatch_result, original_state, engine_result, config)
                 return customized
@@ -272,5 +270,4 @@ class BaseAgentNode(BaseNode, ABC):
         return StateUpdate(
             messages=new_messages,
             next_node=RoutingTarget.FINISH,
-            blackboard=engine_result.blackboard or original_state.blackboard,
         )

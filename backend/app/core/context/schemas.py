@@ -4,14 +4,14 @@ from typing import Any
 
 from pydantic import Field
 
-from app.core.engine.state.blackboard import BlackboardState
 from app.core.engine.state.config import ExecutionTicket
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
 class DynamicContextLayer(DynamicBaseModel):
     """Dynamic context that must always be fresh."""
-    blackboard: BlackboardState | None = None
+    shared_context: dict[str, str] = Field(default_factory=dict)
+    tool_memory: dict | None = None
     execution_ticket: ExecutionTicket | None = None
     messages: list = Field(default_factory=list)
     iteration_count: int = 0
@@ -25,11 +25,13 @@ class ContextMetadata(DynamicBaseModel):
     project_concepts: Any | None = None
     active_skills: Any | None = None
     environment_telemetry: Any | None = None
-    blackboard: Any | None = None
+    shared_context: dict[str, str] = Field(default_factory=dict)
+    tool_memory: dict | None = None
     execution_ticket: Any | None = None
     iteration_count: int | None = None
     active_plan_context: str | None = None
     prompt: str | None = None
+    blackboard: Any | None = None
 
     # Memory pipeline — populated by AgentContextHydrator
     # Corresponds to Jinja2 template vars: memory.core_raw / memory.episodic_raw

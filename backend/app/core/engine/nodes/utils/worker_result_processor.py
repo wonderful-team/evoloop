@@ -13,7 +13,6 @@ from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.message.utils import get_message_text
-from app.core.engine.routers import RoutingTarget
 from app.core.engine.schemas import EngineResult
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.blackboard import SubtaskResult, VerificationStatus
@@ -86,19 +85,16 @@ async def process_worker_result(
     else:
         worker_content = f"{role_name} completed."
 
-    # --- Structured outcome via Blackboard ---
-    blackboard = state.blackboard
     agent_config = execution_ticket.agent_config if execution_ticket else None
 
     # Subtask workers do NOT set worker_outcome directly;
     # the Aggregator determines the final outcome after merging all parallel results.
+    out_outcome = None
     if not (agent_config and agent_config.is_subtask):
-        blackboard.worker_outcome = worker_outcome
-
-    # Update tool history in metadata
-    blackboard.metadata.tool_history = (blackboard.metadata.tool_history or []) + tool_history
+        out_outcome = worker_outcome
 
     # --- Subtask Result Collection ---
+    out_subtask_results = []
     if agent_config and agent_config.is_subtask:
         subtask_id = execution_ticket.subtask_id or "unknown"
 
@@ -110,12 +106,12 @@ async def process_worker_result(
             timestamp=asyncio.get_event_loop().time(),
         )
 
-        blackboard.subtask_results.append(subtask_result)
+        out_subtask_results = [subtask_result]
 
-        pending_agg = blackboard.pending_aggregation
+        pending_agg = state.pending_aggregation
         if pending_agg:
             expected_count = pending_agg.expected_count or 0
-            current_count = len(blackboard.subtask_results)
+            current_count = len(state.subtask_results) + 1
             logger.debug(f"[Worker] 📊 Subtask completion progress: {current_count}/{expected_count}")
 
             # Emit incremental heartbeat to main thread
@@ -168,9 +164,6 @@ async def process_worker_result(
 
     verification_summary = VerificationStatus(status="unverified", signals=verification_signals)
 
-    blackboard.ticket = updated_execution_ticket
-    blackboard.verification = verification_summary
-
     # 5d. Compile Technical Execution Trace (Handoff Report)
     trace_lines = []
     if tool_history:
@@ -205,14 +198,8 @@ async def process_worker_result(
     technical_trace = "\n".join(trace_lines) if trace_lines else ""
     worker_content = worker_content + technical_trace
 
-    # Preserve ALL original messages (including ToolMessages) so that
-    # retry/resume can reconstruct the full conversation history from
-    # checkpoints.  The summarised content is injected as the *last*
-    # AIMessage so the Supervisor still sees a concise worker output.
     preserved_messages = list(engine_result.messages or [])
     if preserved_messages and isinstance(preserved_messages[-1], AIMessage):
-        # Overwrite the last AIMessage with the summarised content
-        # Preserve additional_kwargs (including reasoning_content) from the original message
         original_msg = preserved_messages[-1]
         preserved_messages[-1] = AIMessage(
             content=worker_content,
@@ -221,12 +208,15 @@ async def process_worker_result(
             tool_calls=original_msg.tool_calls,
         )
     else:
-        # Append a new summary AIMessage when there is no trailing AI msg
         preserved_messages.append(AIMessage(content=worker_content))
 
     return StateUpdate(
         messages=preserved_messages,
         next_node=None,
-        blackboard=blackboard,
         workspace_context=workspace_context,
+        worker_outcome=out_outcome,
+        subtask_results=out_subtask_results,
+        ticket=updated_execution_ticket,
+        verification=verification_summary,
+        tool_history=tool_history,
     )

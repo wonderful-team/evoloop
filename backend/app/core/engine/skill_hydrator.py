@@ -63,7 +63,7 @@ class SkillHydrator:
             return await skill_discovery.get_namespace_index(namespace_context)
 
         # Eager mode: Fetch and return full SOP instructions
-        execution_ticket = state.blackboard.ticket
+        execution_ticket = state.ticket
         # skill_ids takes priority from the ticket if present, otherwise fallback to topic
         query = (execution_ticket.skill_ids[0] if execution_ticket.skill_ids else None) if execution_ticket else None
         if not query:
@@ -83,7 +83,7 @@ class SkillHydrator:
         """
         Helper to get skills tailored for a specific node type.
         """
-        execution_ticket = state.blackboard.ticket
+        execution_ticket = state.ticket
         topic = execution_ticket.topic or "" if execution_ticket else ""
         namespace_context = execution_ticket.namespace_context if execution_ticket else None
 

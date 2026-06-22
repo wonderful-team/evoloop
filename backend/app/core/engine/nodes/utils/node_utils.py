@@ -27,8 +27,18 @@ def to_template_context(obj: Any) -> Any:
     """Recursively convert Pydantic models to JSON-safe plain Python objects for Jinja2."""
     if obj is None:
         return None
+    # Check if it is an SQLAlchemy model
+    if hasattr(obj, "__table__"):
+        try:
+            res = {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
+            return to_template_context(res)
+        except Exception:
+            return str(obj)
     if isinstance(obj, BaseModel):
-        return obj.model_dump(mode="json")
+        res = obj.model_dump()
+        if hasattr(obj, "metadata") and "metadata" not in res:
+            res["metadata"] = getattr(obj, "metadata")
+        return to_template_context(res)
     if isinstance(obj, list):
         return [to_template_context(item) for item in obj]
     if isinstance(obj, dict):

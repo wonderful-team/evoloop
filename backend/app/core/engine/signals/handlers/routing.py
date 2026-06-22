@@ -27,15 +27,11 @@ class RouteToHandler(SignalHandler[RouteToSignal]):
 
         logger.info(f"[SignalHandler] ✅ Intercepted route_to -> {target} | Reason: {reason}")
 
-        # 1. Update Blackboard
-        blackboard = state.blackboard  # Already guaranteed to be BlackboardState
-        blackboard.route_reason = reason
-
-        # 2. Construct Execution Ticket
+        # 1. Construct Execution Ticket
         inferred_namespace = routing_context.namespace_context
 
-        # Start with blackboard's preset agent_config (if any), then overlay routing_context
-        preset_config = blackboard.ticket.agent_config if blackboard.ticket and blackboard.ticket.agent_config else None
+        # Start with preset agent_config (if any), then overlay routing_context
+        preset_config = state.ticket.agent_config if state.ticket and state.ticket.agent_config else None
         agent_config = preset_config or AgentRuntimeConfig()
         
         # Overlay routing_context's agent_config fields
@@ -80,7 +76,6 @@ class RouteToHandler(SignalHandler[RouteToSignal]):
             historical_context=historical_context,
             referenced_tech=referenced_tech,
         )
-        blackboard.ticket = execution_ticket
         target_name = target.value if hasattr(target, 'value') else str(target)
         logger.info(
             f"[Routing] ExecutionTicket dispatched to {target_name} | "
@@ -90,13 +85,12 @@ class RouteToHandler(SignalHandler[RouteToSignal]):
             f"acceptance={execution_ticket.acceptance_criteria}"
         )
 
-        # 3. Handle Blackboard/Loop Detection
-        visited_nodes = list(blackboard.visited_nodes or [])
+        # 2. Handle Visited Nodes/Loop Detection
+        visited_nodes = list(state.visited_nodes or [])
         if target not in visited_nodes:
             visited_nodes = visited_nodes + [target]
-        blackboard.visited_nodes = visited_nodes
 
-        # 4. Update session goal in database and publish event if provided
+        # 3. Update session goal in database and publish event if provided
         session_goal = signal.session_goal
         if session_goal:
             from app.core.engine.message.goal_distiller import GoalDistiller
@@ -116,7 +110,9 @@ class RouteToHandler(SignalHandler[RouteToSignal]):
 
         return StateUpdate(
             next_node=target,
-            blackboard=blackboard,
+            route_reason=reason,
+            ticket=execution_ticket,
+            visited_nodes=visited_nodes,
             session_goal=session_goal if session_goal is not None else state.session_goal,
         )
 
