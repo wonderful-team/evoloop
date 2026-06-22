@@ -261,7 +261,7 @@ class DeviceInfoSyncSubscriber:
 
         info = {
             "device_name": new_value,
-            "device_type": "desktop",
+            "device_type": settings.EVOCLOUD_DEVICE_TYPE,
             "os_info": platform.platform(),
         }
         sync_device_info_task.delay(device_key, info)
