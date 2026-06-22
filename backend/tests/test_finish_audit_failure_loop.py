@@ -131,7 +131,7 @@ async def main():
         
         # 2. Build a fake AgentState that simulates a bad worker outcome
         from app.core.engine.state.base import AgentState
-        from app.core.engine.state.blackboard import ExecutionTicket, VerificationStatus
+        from app.core.engine.state.sub_schemas import ExecutionTicket, VerificationStatus
         from langchain_core.messages import HumanMessage, AIMessage
         import uuid
         

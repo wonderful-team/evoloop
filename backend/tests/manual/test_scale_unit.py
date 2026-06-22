@@ -27,7 +27,7 @@ class DynamicBaseModel: # Simple mock
     pass
 
 # We need the real Blackboard models for the test to be valid
-from app.core.engine.state.blackboard import BlackboardState, BlackboardMetadata
+from app.core.engine.state.sub_schemas import BlackboardState, BlackboardMetadata
 from app.core.engine.state import AgentState
 from app.core.engine.nodes.utils.scale_measurer import ScaleMeasurer
 
@@ -49,7 +49,7 @@ async def test_scale():
 async def test_worker_integration():
     logger.info("--- Testing WorkerNode integration (Mocked) ---")
     from app.core.engine.nodes.worker import WorkerNode
-    from app.core.engine.state.blackboard import BlackboardMetadata
+    from app.core.engine.state.sub_schemas import BlackboardMetadata
     from app.core.engine.state import AgentState
     from app.core.context import ContextManager, EvoContext
     from langchain_core.runnables import RunnableConfig
@@ -87,7 +87,7 @@ async def test_worker_integration():
 async def test_supervisor_prompt():
     logger.info("--- Testing Supervisor Prompt Rendering ---")
     from app.core.engine.nodes.supervisor import SupervisorNode
-    from app.core.engine.state.blackboard import ScaleAssessment, TaskScaleTier, ScaleMetrics
+    from app.core.engine.state.sub_schemas import ScaleAssessment, TaskScaleTier, ScaleMetrics
     from app.core.context import ContextManager, EvoContext
     from langchain_core.runnables import RunnableConfig
     

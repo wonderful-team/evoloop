@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch, AsyncMock
 from app.core.engine.nodes.supervisor import SupervisorNode, _plan_has_pending_steps
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate
-from app.core.engine.state.blackboard import PlanProgress
+from app.core.engine.state.sub_schemas import PlanProgress
 from langchain_core.runnables import RunnableConfig
 
 

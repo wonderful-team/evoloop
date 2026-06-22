@@ -376,7 +376,7 @@ async def _run_wiki_agent(project_id: int, project_path: str, skill, timeout: in
     from app.core.context import thread_context_store
     from app.core.engine.background_agent import run_agent_background
     from app.core.engine.dispatch import dispatch_agent_run
-    from app.core.engine.state.blackboard import BlackboardState
+    from app.core.engine.state.sub_schemas import BlackboardState
     from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket, TicketParameters
 
     thread_id = f"wiki-test-{project_id}-{int(time.time())}"

@@ -64,7 +64,7 @@ class TestDynamicContextLayer:
     
     def test_with_data(self):
         """Should hold dynamic data correctly."""
-        from app.core.engine.state.blackboard import BlackboardState
+        from app.core.engine.state.sub_schemas import BlackboardState
         layer = DynamicContextLayer(
             blackboard=BlackboardState(),
             iteration_count=3,
@@ -154,7 +154,7 @@ class TestLayeredContextCache:
     def test_dynamic_layer_always_fresh(self):
         """Dynamic layer should never be cached."""
         from app.core.engine.state import AgentState
-        from app.core.engine.state.blackboard import BlackboardState
+        from app.core.engine.state.sub_schemas import BlackboardState
         state = AgentState(
             blackboard=BlackboardState(),
             messages=[],
@@ -174,7 +174,7 @@ class TestLayeredContextCache:
     def test_dynamic_layer_blackboard_isolation(self):
         """Modifying returned blackboard should not affect cache."""
         from app.core.engine.state import AgentState
-        from app.core.engine.state.blackboard import BlackboardState
+        from app.core.engine.state.sub_schemas import BlackboardState
         state = AgentState(
             blackboard=BlackboardState(),
         )
@@ -291,7 +291,7 @@ class TestLayeredCacheIntegration:
     def test_concurrent_dynamic_access(self):
         """Dynamic layer should be safe for concurrent access."""
         from app.core.engine.state import AgentState
-        from app.core.engine.state.blackboard import BlackboardState
+        from app.core.engine.state.sub_schemas import BlackboardState
         state = AgentState(
             blackboard=BlackboardState(),
             messages=[],

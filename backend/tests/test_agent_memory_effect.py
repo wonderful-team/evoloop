@@ -114,7 +114,7 @@ async def run_agent_workflow(thread_id: str, user_id: str, project_id: int, goal
     from app.core.context import thread_context_store
     from app.core.engine.background_agent import run_agent_background
     from app.core.engine.dispatch import dispatch_agent_run
-    from app.core.engine.state.blackboard import BlackboardState
+    from app.core.engine.state.sub_schemas import BlackboardState
     from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket, TicketParameters
 
     # Clean workspace folder

@@ -1,6 +1,6 @@
 import pytest
 from pydantic import ValidationError
-from app.core.engine.state.blackboard import BlackboardState, SpawnPlan, SubtaskResult
+from app.core.engine.state.sub_schemas import BlackboardState, SpawnPlan, SubtaskResult
 from app.core.engine.message.schemas import MessageBlock, ToolBlock
 from app.models import ProjectResource
 

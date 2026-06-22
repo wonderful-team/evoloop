@@ -479,7 +479,7 @@ def _restore_file_state(filepath: str, content: str | None):
 async def run_scenario(scenario: str, project_id: int = DEFAULT_PROJECT_ID, **kwargs):
     from app.core.context import thread_context_store
     from app.core.engine.dispatch import dispatch_agent_run
-    from app.core.engine.state.blackboard import BlackboardState
+    from app.core.engine.state.sub_schemas import BlackboardState
     from app.core.engine.state.config import (
         AgentRuntimeConfig,
         ExecutionTicket,

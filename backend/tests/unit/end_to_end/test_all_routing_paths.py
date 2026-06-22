@@ -135,7 +135,7 @@ async def test_route_supervisor_worker_target_with_ticket():
     """Supervisor 路由到 worker（有 ticket）"""
     from app.core.engine.routers import route_supervisor
     from app.core.engine.state import AgentState
-    from app.core.engine.state.blackboard import ExecutionTicket
+    from app.core.engine.state.sub_schemas import ExecutionTicket
 
     ticket = ExecutionTicket(topic="test", reason="test", ticket_type="task")
     state = AgentState(messages=[], next_node="worker", ticket=ticket)
@@ -260,7 +260,7 @@ async def test_worker_node_fallback():
     from app.core.engine.state import AgentState
     from langchain_core.runnables import RunnableConfig
 
-    from app.core.engine.state.blackboard import ExecutionTicket
+    from app.core.engine.state.sub_schemas import ExecutionTicket
     node = WorkerNode()
     ticket = ExecutionTicket(topic="test", reason="test", ticket_type="task")
     state = AgentState(messages=[], ticket=ticket)

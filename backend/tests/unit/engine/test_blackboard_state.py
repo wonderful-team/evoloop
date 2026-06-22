@@ -1,7 +1,7 @@
 import pytest
 
 from app.core.engine.state import AgentState
-from app.core.engine.state.blackboard import PlanProgress
+from app.core.engine.state.sub_schemas import PlanProgress
 
 
 class TestPlanProgress:

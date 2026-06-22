@@ -8,7 +8,7 @@ from typing import Any
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
 from app.core.engine.nodes.utils.scale_measurer import ScaleMeasurer
-from app.core.engine.state.blackboard import BlackboardState, BlackboardMetadata
+from app.core.engine.state.sub_schemas import BlackboardState, BlackboardMetadata
 from app.core.engine.state import AgentState, ExecutionTicket
 from app.core.context import ContextManager, AgentContext
 
