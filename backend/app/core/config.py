@@ -583,8 +583,9 @@ class Settings(BaseSettings):
             self.NEO4J_USER = None
             self.NEO4J_PASSWORD = None
             self.REDIS_URL = None
-            self.MEILISEARCH_URL = None
-            self.MEILISEARCH_API_KEY = None
+            if self.SEARCH_ENGINE != "meilisearch":
+                self.MEILISEARCH_URL = None
+                self.MEILISEARCH_API_KEY = None
         return self
 
     @model_validator(mode="after")
