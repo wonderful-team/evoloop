@@ -558,29 +558,15 @@ export const MessageList = memo(function MessageList({
     }
 
     if (currentTurnSteps.length > 0) {
-      // 检查最后一项：如果最后一个是 human，说明剩余步骤属于新的一轮，
-      // 不应该合并到上一轮的分组中
-      const lastItem = groupedItems[groupedItems.length - 1]
-      const isNewTurn =
-        lastItem &&
-        lastItem.type === "message" &&
-        lastItem.data.role === "human"
-
-      if (!isNewTurn) {
-        for (let k = groupedItems.length - 1; k >= 0; k--) {
-          const last = groupedItems[k]
-          if (last.type === "turn_steps_group") {
-            last.steps.push(...currentTurnSteps)
-            return groupedItems
-          }
-        }
-      }
+      const isTailActive = currentTurnSteps.some((s: any) =>
+        s.status === "streaming" || s.status === "running" || s.status === "pending"
+      )
 
       groupedItems.push({
         type: "turn_steps_group",
         id: `steps_group_tail_${currentTurnSteps[0].id}`,
         steps: currentTurnSteps,
-        isTurnActive: true,
+        isTurnActive: isTailActive,
       })
     }
 
