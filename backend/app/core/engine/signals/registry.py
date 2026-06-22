@@ -14,7 +14,7 @@ from typing import Callable
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.signals import AgentSignal, RouteToSignal, SpawnSubtasksSignal
-from app.core.engine.state.blackboard import SpawnPlan
+from app.core.engine.state.sub_schemas import SpawnPlan
 
 logger = logging.getLogger(__name__)
 

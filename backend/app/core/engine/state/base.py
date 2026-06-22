@@ -6,7 +6,7 @@ from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 from pydantic import Field, field_validator, model_validator
 
-from app.core.engine.state.blackboard import (
+from app.core.engine.state.sub_schemas import (
     SubtaskResult,
     PendingApproval,
     AuditAnomaly,

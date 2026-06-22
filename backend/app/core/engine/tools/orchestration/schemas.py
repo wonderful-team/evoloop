@@ -2,7 +2,7 @@
 Shared Pydantic schemas for orchestration tools.
 """
 
-from app.core.engine.state.blackboard import SpawnPlan
+from app.core.engine.state.sub_schemas import SpawnPlan
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 

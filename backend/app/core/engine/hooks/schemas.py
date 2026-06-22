@@ -56,11 +56,6 @@ class HookContext(DynamicBaseModel):
     memory_config: Any | None = None
     extra: dict[str, Any] = Field(default_factory=dict)
 
-    @property
-    def blackboard(self) -> Any:
-        """Backward-compatibility: allow accessing state via .blackboard."""
-        return self.state
-
 
 class HookResult(DynamicBaseModel):
     """Result from hook handler."""

@@ -9,7 +9,7 @@ import logging
 from datetime import datetime, timezone
 
 from app.core.engine.hooks.core import HookContext, HookEvent, HookResult, hook_system
-from app.core.engine.state.blackboard import PendingApproval
+from app.core.engine.state.sub_schemas import PendingApproval
 from app.core.hitl.authorization import AuthorizationService
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ async def authorization_gate(context: HookContext) -> HookResult:
 
     if decision.requires_hitl and decision.policy is not None:
         # Record pending approval in blackboard so the resume handler can persist it
-        if context.blackboard is not None:
+        if context.state is not None:
             tool_args = {}
             if context.tool_input is not None:
                 tool_args = context.tool_input.args or {}
@@ -69,7 +69,7 @@ async def authorization_gate(context: HookContext) -> HookResult:
                     val = getattr(context.tool_input, field)
                     if val is not None:
                         tool_args[field] = val
-            context.blackboard.metadata.pending_approvals.append(
+            context.state.metadata.pending_approvals.append(
                 PendingApproval(
                     tool_name=context.tool_name or "",
                     tool_call_id=context.tool_use_id or "",

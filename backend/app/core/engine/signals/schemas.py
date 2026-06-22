@@ -2,7 +2,7 @@ from abc import ABC
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.core.engine.state.blackboard import SpawnPlan
+from app.core.engine.state.sub_schemas import SpawnPlan
 from app.core.engine.state.config import AgentRuntimeConfig
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

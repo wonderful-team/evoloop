@@ -5,7 +5,7 @@ Task planning tool — decomposes complex tasks into parallel sub-tasks.
 import json
 import logging
 
-from app.core.engine.state.blackboard import SpawnPlan
+from app.core.engine.state.sub_schemas import SpawnPlan
 from app.core.engine.tools.orchestration.schemas import DecomposeTaskResult
 from app.core.tools import evoloop_tool
 from app.utils.text import extract_json_from_markdown

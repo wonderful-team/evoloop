@@ -15,7 +15,7 @@ from langchain_core.runnables import RunnableConfig
 from app.core.engine.message.utils import get_message_text
 from app.core.engine.schemas import EngineResult
 from app.core.engine.state import AgentState, StateUpdate
-from app.core.engine.state.blackboard import SubtaskResult, VerificationStatus
+from app.core.engine.state.sub_schemas import SubtaskResult, VerificationStatus
 from app.core.engine.state.config import ExecutionTicket
 from app.core.engine.state.workspace import WorkspaceContext
 from app.core.tools.registry import get_tool_metadata

@@ -25,15 +25,15 @@ async def subagent_start_handler(context: HookContext) -> HookResult:
 
     logger.info(f"[SubagentStart] Spawned {agent_type} agent ({agent_id}) for: {parent_task[:50]}...")
 
-    # Track in blackboard
-    active_agents = list(context.blackboard.active_subagents or []) if context.blackboard else []
+    # Track in state
+    active_agents = list(context.state.active_subagents or []) if context.state else []
     active_agents.append({
         "agent_id": agent_id,
         "agent_type": agent_type,
         "started_at": datetime.utcnow().isoformat(),
     })
-    if context.blackboard:
-        context.blackboard.active_subagents = active_agents
+    if context.state:
+        context.state.active_subagents = active_agents
 
     return HookResult(
         success=True,
@@ -57,20 +57,20 @@ async def subagent_stop_handler(context: HookContext) -> HookResult:
     logger.info(f"[SubagentStop] Agent {agent_id} completed with outcome: {outcome}")
 
     # Update tracking
-    active_agents = list(context.blackboard.active_subagents or []) if context.blackboard else []
+    active_agents = list(context.state.active_subagents or []) if context.state else []
     active_agents = [a for a in active_agents if a["agent_id"] != agent_id]
-    if context.blackboard:
-        context.blackboard.active_subagents = active_agents
+    if context.state:
+        context.state.active_subagents = active_agents
 
     # Track completed
-    completed = list(context.blackboard.completed_subagents or []) if context.blackboard else []
+    completed = list(context.state.completed_subagents or []) if context.state else []
     completed.append({
         "agent_id": agent_id,
         "outcome": outcome,
         "completed_at": datetime.utcnow().isoformat(),
     })
-    if context.blackboard:
-        context.blackboard.completed_subagents = completed
+    if context.state:
+        context.state.completed_subagents = completed
 
     return HookResult(
         success=True,

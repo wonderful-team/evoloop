@@ -16,10 +16,6 @@ class VerificationStatus(DynamicBaseModel):
     signals: list[str] = Field(default_factory=list)
 
 
-# Backward-compatible alias
-BlackboardVerification = VerificationStatus
-
-
 class SpawnPlanSubtask(DynamicBaseModel):
     id: str
     intent: str

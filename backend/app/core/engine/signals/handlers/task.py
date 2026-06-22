@@ -21,7 +21,7 @@ class SpawnSubtasksHandler(SignalHandler[SpawnSubtasksSignal]):
 
         pending_aggregation = None
         if spawn_plan.requires_aggregation:
-            from app.core.engine.state.blackboard import PendingAggregation
+            from app.core.engine.state.sub_schemas import PendingAggregation
             pending_aggregation = PendingAggregation(
                 strategy=spawn_plan.aggregation_strategy or "merge",
                 expected_count=len(spawn_plan.subtasks or []),

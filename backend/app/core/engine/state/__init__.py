@@ -3,7 +3,7 @@
 from typing import Any
 
 from app.core.engine.state.base import AgentState, AgentStateBase, StateUpdate
-from app.core.engine.state.blackboard import (
+from app.core.engine.state.sub_schemas import (
     PendingAggregation,
     SpawnPlan,
     SpawnPlanSubtask,

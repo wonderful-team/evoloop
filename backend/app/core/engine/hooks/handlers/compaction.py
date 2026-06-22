@@ -91,8 +91,8 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
             "message_count": len(context.messages),
             "task_progress": task_progress,
             "key_decisions": key_decisions,
-            "remaining_work": context.blackboard.remaining_work if context.blackboard else None,
-            "current_goal": context.blackboard.current_goal if context.blackboard else None,
+            "remaining_work": context.state.remaining_work if context.state else None,
+            "current_goal": context.state.current_goal if context.state else None,
             "compact_trigger": context.compact_trigger or "auto",
         }
         logger.debug(f"[PreCompact] Checkpoint data: {len(context.messages)} messages, trigger={checkpoint['compact_trigger']}")

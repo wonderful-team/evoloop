@@ -19,7 +19,7 @@ from app.core.engine.nodes.base import BaseNode
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.services.audit_service import AuditResult, AuditService
 from app.core.engine.state import AgentState, StateUpdate
-from app.core.engine.state.blackboard import (
+from app.core.engine.state.sub_schemas import (
     AuditAnomaly,
     AuditInputData,
     ProgressMetrics,

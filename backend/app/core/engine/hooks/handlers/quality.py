@@ -18,17 +18,17 @@ async def stop_quality_gate(context: HookContext) -> HookResult:
     - Code must be formatted
     - No TODOs left in code
     """
-    blackboard = context.blackboard
+    state = context.state
 
     # Check if there were any failures in the session
-    if blackboard and blackboard.test_failures:
+    if state and state.test_failures:
         return HookResult(
             success=False,
             block=True,
             message="Tests failed. Please fix before completing.",
         )
 
-    if blackboard and blackboard.lint_errors:
+    if state and state.lint_errors:
         return HookResult(
             success=False,
             block=True,

@@ -17,7 +17,7 @@ from app.core.context.manager import ContextManager
 from app.core.engine.engine import get_default_engine
 from app.core.engine.message.reasoning import extract_tool_calls
 from app.core.engine.state import AgentState
-from app.core.engine.state.blackboard import VerificationStatus
+from app.core.engine.state.sub_schemas import VerificationStatus
 from app.core.environment import get_awakened_state
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
