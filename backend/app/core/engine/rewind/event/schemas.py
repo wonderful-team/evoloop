@@ -55,6 +55,9 @@ class RewindRequestedEvent(RewindEvent):
             "results": self.results,
             "errors": self.errors,
             "success": self.success,
+            "affected_message_ids": self.affected_message_ids,
+            "affected_run_ids": self.affected_run_ids,
+            "target_sequence": self.target_sequence,
         })
         return self
 
