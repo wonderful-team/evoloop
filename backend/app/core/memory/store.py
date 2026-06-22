@@ -615,6 +615,17 @@ class _FileEngine:
                 await session.delete(r)
             return count
 
+    async def _db_delete_by_source_thread_id(self, thread_id: str) -> int:
+        """Delete all index entries associated with a source_thread_id."""
+        async with session_scope() as session:
+            stmt = select(MemoryIndex).where(MemoryIndex.source_thread_id == thread_id)
+            res = await session.execute(stmt)
+            records = res.scalars().all()
+            count = len(records)
+            for r in records:
+                await session.delete(r)
+            return count
+
     async def _db_delete_by_source_message_id(self, msg_id: str) -> int:
         """Delete all entries associated with a source_message_id."""
         async with session_scope() as session:

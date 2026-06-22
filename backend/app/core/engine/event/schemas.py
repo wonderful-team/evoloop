@@ -111,3 +111,20 @@ class WebSocketMessageReceivedEvent(AgentEvent):
     payload: dict[str, Any] = Field(default_factory=dict)
     raw: dict[str, Any] = Field(default_factory=dict)
     source: str = "websocket"
+
+
+class ConversationDeletedEvent(AgentEvent):
+    """
+    Published when a conversation is being deleted.
+
+    Each domain module subscribes to clean up its own associated data.
+    The producer (REST API or WS handler) is responsible only for
+    deleting the Conversation row itself.
+    """
+    event_type: str = "conversation.deleted"
+    thread_id: str = ""
+
+    def model_post_init(self, __context: Any) -> None:
+        self.data = EventData.model_validate({
+            "thread_id": self.thread_id,
+        })

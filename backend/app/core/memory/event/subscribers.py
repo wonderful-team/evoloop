@@ -12,6 +12,8 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.core.config import settings
+from app.core.engine.event.schemas import ConversationDeletedEvent
+from app.core.engine.event.types import ConversationEventType
 from app.core.events.decorators import event_register, event_subscribe, register_instance_handlers
 from app.core.events.schemas.lifecycle import ExtractionRequestedEvent, ExtractionCompletedEvent, ExtractionRequest
 from app.core.engine.rewind.event import RewindEventType, RewindRequestedEvent
@@ -361,3 +363,33 @@ class MemoryRewind:
     def get_deleted_count(self) -> int:
         """Get the count of memories deleted in the last operation."""
         return self._deleted_count
+
+
+@event_register()
+class MemoryConversationCleanup:
+    """
+    Cleans up memory data when a conversation is deleted.
+    """
+
+    @event_subscribe(ConversationEventType.CONVERSATION_DELETED)
+    async def on_conversation_deleted(self, event: ConversationDeletedEvent) -> None:
+        thread_id = event.thread_id
+        logger.info(f"[MemoryCleanup] Cleaning up memory data for thread {thread_id}")
+
+        # 1. Clear in-memory caches
+        from app.core.memory import memory_tracker, predictive_cache
+        memory_tracker.clear_thread(thread_id)
+        predictive_cache.clear_thread(thread_id)
+
+        # 2. Clean up MemoryIndex DB records
+        try:
+            from app.core.memory.lifespan import MemoryLifespanManager
+            if MemoryLifespanManager.is_initialized():
+                container = MemoryLifespanManager.get_container()
+                memory_manager = container.memory_manager
+                if hasattr(memory_manager, '_engine') and memory_manager._engine:
+                    await memory_manager._engine._db_delete_by_source_thread_id(thread_id)
+        except Exception as e:
+            logger.warning(f"[MemoryCleanup] MemoryIndex cleanup warning: {e}")
+
+        logger.info(f"[MemoryCleanup] Memory cleanup done for thread {thread_id}")

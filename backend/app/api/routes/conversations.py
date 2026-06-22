@@ -1,24 +1,21 @@
 import logging
 
 from fastapi import APIRouter, HTTPException, Request
-from sqlalchemy import delete, select, func
+from sqlalchemy import select, func
 
 from app.api.deps import CurrentUserOptional
 from app.api.schemas.conversations import (
-    MessageItem,
-    ConversationSearchResult,
-    RenameRequest,
-    ConversationListItem,
-    ReferenceItem,
     ChangesetNode,
-    RewindResponse,
-    ConversationRenameResponse,
     ConversationDeleteResponse,
-    RewindRequest,
-    MessageListResponse,
+    ConversationListItem,
     ConversationListResponse,
+    ConversationSearchResult,
     ConversationUpdateRequest,
     ConversationUpdateResponse,
+    MessageItem,
+    MessageListResponse,
+    RewindRequest,
+    RewindResponse,
 )
 from app.core.engine.message.folder import MessageNormalizer
 from app.core.engine.message.repository import MessageRepository
@@ -243,7 +240,6 @@ async def delete_conversation(
     thread_id: str,
     current_user: CurrentUserOptional = None,
 ):
-    from app.infrastructure.database.resource_manager import db_resource_manager
     try:
         # Ownership check
         if current_user is not None:
@@ -252,25 +248,15 @@ async def delete_conversation(
                 if conversation and conversation.member_id != 0 and conversation.member_id != current_user.id:
                     raise HTTPException(403, "Access denied")
 
-        # 1. Delete Checkpoints via Checkpointer API (supports both Postgres and SQLite)
-        checkpointer = db_resource_manager.checkpointer
-        if checkpointer:
-            try:
-                await checkpointer.adelete_thread(thread_id)
-                logger.info(f"[DeleteConversation] Deleted checkpoints for thread {thread_id}")
-            except Exception as e:
-                # Log but don't fail if checkpoint deletion fails
-                logger.warning(f"[DeleteConversation] Failed to delete checkpoints via checkpointer: {e}")
+        # Publish event — each domain subscriber cleans up its own data
+        from app.core.engine.event.publishers import publish_conversation_deleted
+        await publish_conversation_deleted(thread_id)
 
-        # 2. Delete Thread Metadata & Logs
+        # Delete Conversation (ORM cascade covers messages, plan, references)
         async with get_db_session() as session:
-            # Delete Conversation
             conversation = await session.get(Conversation, thread_id)
             if conversation:
                 await session.delete(conversation)
-
-            # Delete Logs (Bulk delete)
-            await session.execute(delete(Message).where(Message.thread_id == thread_id))
 
         return ConversationDeleteResponse(status="deleted", thread_id=thread_id)
     except HTTPException:

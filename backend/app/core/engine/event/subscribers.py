@@ -13,17 +13,28 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from sqlalchemy import delete
+
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.identity import identity_service
 from app.core.context import thread_context_store
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
-from app.core.engine.event.schemas import WebSocketMessageReceivedEvent
+from app.core.engine.event.schemas import ConversationDeletedEvent, WebSocketMessageReceivedEvent
+from app.core.engine.event.types import ConversationEventType
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.evocloud.manager import evocloud_manager
 from app.core.evocloud.schemas import RemoteCommand
+from app.infrastructure.database.resource_manager import db_resource_manager
 from app.infrastructure.database.sql.database import session_scope
-from app.models import Message
+from app.models import (
+    AgentActivity,
+    Conversation,
+    FileOperation,
+    HumanRequest,
+    Message,
+    ThreadSequence,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,10 +64,53 @@ class EngineCommandSubscriber:
 
         raw_cmd = event.payload
         action = raw_cmd.get("action") or raw_cmd.get("type") or "chat_message"
+
+        # Conversation metadata sync (rename, pin, delete) — no engine pipeline needed
+        if action in ("conversation_update", "conversation_delete"):
+            await self._handle_conversation_action(raw_cmd)
+            return
+
         if action not in ENGINE_ACTIONS:
             return
 
         await self._execute_with_guardrails(event.payload)
+
+    async def _handle_conversation_action(self, cmd_data: dict) -> None:
+        """Handle conversation metadata sync from Mobile (rename, pin, delete)."""
+        action = cmd_data.get("action")
+        thread_id = cmd_data.get("thread_id")
+        if not thread_id:
+            logger.warning(f"[EngineCommand] {action} missing thread_id, skipping")
+            return
+
+        if action == "conversation_update":
+            title = cmd_data.get("title")
+            is_pinned = cmd_data.get("is_pinned")
+            if title is None and is_pinned is None:
+                logger.warning(f"[EngineCommand] conversation_update has no fields to update, skipping")
+                return
+            async with session_scope() as session:
+                conv = await session.get(Conversation, thread_id)
+                if not conv:
+                    logger.warning(f"[EngineCommand] conversation_update: conversation {thread_id} not found, skipping")
+                    return
+                if title is not None:
+                    conv.title = title
+                if is_pinned is not None:
+                    conv.is_pinned = bool(is_pinned)
+            logger.info(f"[EngineCommand] conversation_update applied: thread_id={thread_id}, title={title}, is_pinned={is_pinned}")
+
+        elif action == "conversation_delete":
+            # Publish event — each domain subscriber cleans up its own data
+            from app.core.engine.event.publishers import publish_conversation_deleted
+            await publish_conversation_deleted(thread_id)
+
+            # Delete the Conversation row itself (ORM cascade covers messages, plan, etc.)
+            async with session_scope() as session:
+                conv = await session.get(Conversation, thread_id)
+                if conv:
+                    await session.delete(conv)
+            logger.info(f"[EngineCommand] conversation_delete applied: thread_id={thread_id}")
 
     async def _execute_with_guardrails(self, cmd_data: dict) -> None:
         """
@@ -631,3 +685,31 @@ class EngineCommandSubscriber:
         logger.info(f"[A2A] Resuming Caller Agent on thread {caller_thread_id}")
         asyncio.create_task(run_agent_background(caller_thread_id, inputs))
 
+
+@event_register()
+class EngineConversationCleanup:
+    """
+    Cleans up engine-owned data when a conversation is deleted.
+    """
+
+    @event_subscribe(ConversationEventType.CONVERSATION_DELETED)
+    async def on_conversation_deleted(self, event: ConversationDeletedEvent) -> None:
+        thread_id = event.thread_id
+        logger.info(f"[EngineCleanup] Cleaning up engine data for thread {thread_id}")
+
+        # 1. Delete checkpoints
+        checkpointer = db_resource_manager.checkpointer
+        if checkpointer:
+            try:
+                await checkpointer.adelete_thread(thread_id)
+            except Exception as e:
+                logger.warning(f"[EngineCleanup] Checkpoint deletion failed: {e}")
+
+        # 2. Delete engine-owned DB records
+        async with session_scope() as session:
+            await session.execute(delete(AgentActivity).where(AgentActivity.thread_id == thread_id))
+            await session.execute(delete(ThreadSequence).where(ThreadSequence.thread_id == thread_id))
+            await session.execute(delete(HumanRequest).where(HumanRequest.thread_id == thread_id))
+            await session.execute(delete(FileOperation).where(FileOperation.thread_id == thread_id))
+
+        logger.info(f"[EngineCleanup] Engine cleanup done for thread {thread_id}")

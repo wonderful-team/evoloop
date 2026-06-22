@@ -7,7 +7,7 @@ Helper functions for publishing agent-related events.
 
 from app.core.events import system_bus
 
-from .schemas import AgentRunCompletedEvent, AgentSessionStartedEvent, WebSocketMessageReceivedEvent
+from .schemas import AgentRunCompletedEvent, AgentSessionStartedEvent, ConversationDeletedEvent, WebSocketMessageReceivedEvent
 from app.constants import DEFAULT_PROJECT_ID
 
 
@@ -41,6 +41,13 @@ async def publish_agent_run_completed(
             status=status,
             payload=event_payload,
         )
+    )
+
+
+async def publish_conversation_deleted(thread_id: str) -> None:
+    """Publish a conversation deletion event for domain subscribers."""
+    await system_bus.publish(
+        ConversationDeletedEvent(thread_id=thread_id)
     )
 
 

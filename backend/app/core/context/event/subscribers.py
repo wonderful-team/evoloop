@@ -5,6 +5,8 @@ Handles application-level events for the context system.
 import logging
 import os
 
+from app.core.engine.event.schemas import ConversationDeletedEvent
+from app.core.engine.event.types import ConversationEventType
 from app.core.events import SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
 
@@ -34,3 +36,11 @@ class ContextLifecycleSubscriber:
                     logger.info(f"[Context] Updated ThreadContextStore default root to: {abs_path}")
             except Exception as e:
                 logger.error(f"[Context] Failed to update ThreadContextStore on config change: {e}")
+
+    @event_subscribe(ConversationEventType.CONVERSATION_DELETED)
+    async def on_conversation_deleted(self, event: ConversationDeletedEvent) -> None:
+        thread_id = event.thread_id
+        from app.core.context import thread_context_store, tool_state_store
+        thread_context_store.clear_context(thread_id)
+        tool_state_store.clear_thread(thread_id)
+        logger.info(f"[Context] Cleared in-memory context for thread {thread_id}")

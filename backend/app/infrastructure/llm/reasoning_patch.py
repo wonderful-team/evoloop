@@ -51,9 +51,9 @@ def _apply_reasoning_patch() -> None:
         _original_dict_convert = base_module._convert_dict_to_message
 
         def _convert_dict_with_reasoning(
-            _dict: Mapping[str, Any], default_class: type = AIMessage  # type: ignore[assignment]
+            _dict: Mapping[str, Any], *args: Any, **kwargs: Any
         ) -> BaseMessage:
-            result = _original_dict_convert(_dict, default_class)
+            result = _original_dict_convert(_dict, *args, **kwargs)
             if isinstance(result, AIMessage):
                 reasoning = _dict.get("reasoning_content")
                 if reasoning:

@@ -34,3 +34,12 @@ class WebSocketEventType(str, Enum):
         with ``msg_type == "new_command"`` instead.
     """
     NEW_COMMAND = "websocket.new_command"
+
+
+class ConversationEventType(str, Enum):
+    """
+    Conversation lifecycle event types.
+
+    Each module subscribes and cleans up its own data.
+    """
+    CONVERSATION_DELETED = "conversation.deleted"

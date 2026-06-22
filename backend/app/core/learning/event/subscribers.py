@@ -9,6 +9,8 @@ import logging
 
 from sqlalchemy import delete, select
 
+from app.core.engine.event.schemas import ConversationDeletedEvent
+from app.core.engine.event.types import ConversationEventType
 from app.core.engine.rewind.event import RewindEventType, RewindRequestedEvent
 from app.core.events import SystemEventType
 from app.core.events.base import AsyncEventBus
@@ -273,3 +275,24 @@ class TraceRewind:
     def get_deleted_count(self) -> int:
         """Get the count of trace events deleted in the last operation."""
         return self._deleted_count
+
+
+@event_register()
+class LearningConversationCleanup:
+    """
+    Cleans up learning/trace data when a conversation is deleted.
+    """
+
+    @event_subscribe(ConversationEventType.CONVERSATION_DELETED)
+    async def on_conversation_deleted(self, event: ConversationDeletedEvent) -> None:
+        thread_id = event.thread_id
+        logger.info(f"[LearningCleanup] Cleaning up learning data for thread {thread_id}")
+
+        from sqlalchemy import delete
+        from app.models.learning import SynthesisJob, TraceEvent
+
+        async with session_scope() as session:
+            await session.execute(delete(TraceEvent).where(TraceEvent.thread_id == thread_id))
+            await session.execute(delete(SynthesisJob).where(SynthesisJob.thread_id == thread_id))
+
+        logger.info(f"[LearningCleanup] Learning cleanup done for thread {thread_id}")
