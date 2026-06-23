@@ -54,7 +54,6 @@ function DialogContent({
   showCloseButton?: boolean
 }) {
   const { t } = useTranslation()
-  const contentId = React.useId()
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay>

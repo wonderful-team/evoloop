@@ -377,8 +377,7 @@ async def search_files_by_name(
 
     # Use unified FileTraverser
     q_lower = q.lower()
-    results = []
-    count = 0
+    matches = []
 
     options = TraverseOptions(include_dirs=True)
     for full_path in FileTraverser.walk(root_path, options=options):
@@ -386,16 +385,21 @@ async def search_files_by_name(
         if q_lower in file_name.lower():
             rel_path = os.path.relpath(full_path, root_path)
             is_dir = os.path.isdir(full_path)
-            results.append(FileNameSearchResult(
+            depth = rel_path.count(os.sep)
+            
+            matches.append((depth, FileNameSearchResult(
                 name=file_name,
                 path=rel_path,
                 type="directory" if is_dir else "file"
-            ))
-            count += 1
-            if count >= 20:
+            )))
+            # Collect a reasonable sample size before sorting
+            if len(matches) >= 300:
                 break
 
-    return results
+    # Sort by depth (shallow to deep), then by name length
+    matches.sort(key=lambda x: (x[0], len(x[1].name)))
+
+    return [m[1] for m in matches[:20]]
 
 
 @router.post("/mkdir", response_model=FileNode)

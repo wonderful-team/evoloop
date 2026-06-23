@@ -1,8 +1,8 @@
 // 语音/文本输入组件 - 支持引用、TTS、语音打断
 
 import React, { useState, useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
-import { View, StyleSheet, TextInput, Keyboard, TouchableOpacity, ScrollView } from 'react-native';
-import { IconButton, Text, Divider } from 'react-native-paper';
+import { View, StyleSheet, TextInput, Keyboard, TouchableOpacity } from 'react-native';
+import { Text, Divider } from 'react-native-paper';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '@/theme';
 import { ImageOrVideo } from 'react-native-image-crop-picker';
@@ -64,7 +64,7 @@ interface VoiceInputProps {
 export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
   state,
   onSendText,
-  onToggleVoice,
+  onToggleVoice: _onToggleVoice,
   onInterrupt,
   onPressIn,
   onPressOut,
@@ -78,7 +78,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
   isSpeaking = false,
   projectId,
   conversationId,
-  wakeWordEnabled = false,
+  wakeWordEnabled: _wakeWordEnabled = false,
   isWakeWordListening = false,
   isWakeWordDetected = false,
   onToggleWakeWord,
@@ -89,16 +89,8 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
   const { t } = useTranslation();
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const [text, setText] = useState('');
-  const [inputHeight, setInputHeight] = useState(40);
   const [internalInputMode, setInternalInputMode] = useState<InputMode>(InputMode.VOICE);
   const [pickedFiles, setPickedFiles] = useState<PickedFile[]>([]);
-
-  // 当文本清空时自动重置高度
-  useEffect(() => {
-    if (!text) {
-      setInputHeight(40);
-    }
-  }, [text]);
 
   // 草稿保存 key
   const draftKey = `chat_draft_${conversationId || 'global'}`;
@@ -287,7 +279,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
     if (newUploadedFiles.length > 0) {
       setUploadedFiles(prev => [...prev, ...newUploadedFiles]);
     }
-  }, [pickedFiles.length]);
+  }, [pickedFiles.length, t]);
 
   const hasContent = text.trim() || uploadedFiles.length > 0 || references.length > 0;
 
@@ -314,7 +306,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
           <View style={styles.inputContainer}>
             <TextInput
               ref={inputRef}
-              style={[styles.textInput, { color: colors.onSurface, height: Math.min(120, Math.max(40, inputHeight)) }]}
+              style={[styles.textInput, { color: colors.onSurface }]}
               value={text}
               onChangeText={handleTextChange}
               placeholder={placeholder || t('voice.input.placeholder')}
@@ -322,9 +314,6 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
               multiline
               maxLength={500}
               editable={!disabled}
-              onContentSizeChange={(e) => {
-                setInputHeight(e.nativeEvent.contentSize.height);
-              }}
             />
 
             {/* @ 提示 - 暂时关闭引用功能入口 */}
@@ -556,6 +545,7 @@ const styles = StyleSheet.create({
   textInput: {
     width: '100%',
     fontSize: 16,
+    minHeight: 40,
     maxHeight: 120,
     paddingVertical: 8,
     paddingHorizontal: 12,

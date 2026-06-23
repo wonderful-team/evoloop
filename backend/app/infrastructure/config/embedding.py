@@ -100,5 +100,3 @@ class EmbeddingConfigService:
 
                 from app.core.events.publishers import publish_embedding_updated
                 await publish_embedding_updated(repo.id, current_project_id)
-
-

@@ -140,6 +140,60 @@ class TestSQLiteFTSBackendLifecycle:
         assert (await fts_backend.search("Temporary", limit=10)).total == 0
 
 
+class TestFileGraphDriverLifecycle:
+    """End-to-end validation of FileGraphDriver (embedded-mode graph)."""
+
+    @pytest.fixture
+    async def graph_driver(self, embedded_settings):
+        from app.infrastructure.database.graph.file_graph import FileGraphDriver
+
+        # FileGraphDriver.__init__ takes .parent of data_dir, so pass a subdir
+        graph_subdir = os.path.join(embedded_settings, "graph")
+        os.makedirs(graph_subdir, exist_ok=True)
+        driver = FileGraphDriver(data_dir=graph_subdir)
+        yield driver
+        await driver.close()
+
+    @pytest.mark.asyncio
+    async def test_create_node_and_relationship(self, graph_driver):
+        await graph_driver.upsert_node("Person", "id", {"name": "Alice", "id": "alice"})
+        await graph_driver.upsert_node("Person", "id", {"name": "Bob", "id": "bob"})
+        await graph_driver.link_nodes("Person", {"id": "alice"}, "Person", {"id": "bob"}, "KNOWS", {"since": 2020})
+
+        # Verify via find_nodes and graph traversal
+        alice = await graph_driver.find_nodes("Person", {"id": "alice"})
+        assert len(alice) == 1
+        assert alice[0]["name"] == "Alice"
+
+        # Verify relationship exists via successors (internal IDs are label:node_id)
+        assert "Person:bob" in list(graph_driver._graph.successors("Person:alice"))
+        edge = graph_driver._graph.get_edge_data("Person:alice", "Person:bob")
+        assert edge["type"] == "KNOWS"
+        assert edge["since"] == 2020
+
+    @pytest.mark.asyncio
+    async def test_query_with_params(self, graph_driver):
+        await graph_driver.upsert_node("Document", "id", {"title": "Doc A", "id": "doc_a"})
+        await graph_driver.upsert_node("Tag", "id", {"name": "python", "id": "tag_py"})
+        await graph_driver.link_nodes("Document", {"id": "doc_a"}, "Tag", {"id": "tag_py"}, "TAGGED")
+
+        docs = await graph_driver.find_nodes("Document", {"title": "Doc A"})
+        assert len(docs) == 1
+        assert docs[0]["id"] == "doc_a"
+
+    @pytest.mark.asyncio
+    async def test_delete_node(self, graph_driver):
+        await graph_driver.upsert_node("Item", "id", {"name": "to_delete", "id": "del_item"})
+        assert len(await graph_driver.find_nodes("Item", {"id": "del_item"})) == 1
+
+        await graph_driver.delete_nodes("Item", {"id": "del_item"})
+        assert len(await graph_driver.find_nodes("Item", {"id": "del_item"})) == 0
+
+    @pytest.mark.asyncio
+    async def test_unsupported_cypher_raises(self, graph_driver):
+        with pytest.raises(NotImplementedError):
+            await graph_driver.execute_query("CALL algo.pageRank()")
+
 
 class TestLanceVectorStoreLifecycle:
     """End-to-end validation of LanceVectorStore (embedded-mode vector storage)."""
@@ -234,3 +288,40 @@ class TestLocalEventBusLifecycle:
         assert count == 1  # LocalEventBus returns 1 even if no subscribers
 
 
+class TestEmbeddedComponentsInterop:
+    """Validate that multiple embedded backends can coexist and interoperate."""
+
+    @pytest.mark.asyncio
+    async def test_cache_search_graph_vector_together(self, embedded_settings):
+        from app.infrastructure.cache import get_cache
+        from app.infrastructure.database.graph.file_graph import FileGraphDriver
+        from app.infrastructure.search.sqlite_fts import SQLiteFTSBackend
+        from app.infrastructure.schemas import IndexDocumentRequest
+
+        # 1. Cache a configuration value
+        cache = get_cache()
+        await cache.set("project_config", json.dumps({"name": "InteropTest"}))
+
+        # 2. Index a document in FTS
+        fts = SQLiteFTSBackend(db_path=os.path.join(embedded_settings, "interop_search.db"))
+        await fts.initialize()
+        await fts.index_document(
+            IndexDocumentRequest(doc_id="p1", path="/p1", title="Interop Test", content="Testing all backends.")
+        )
+
+        # 3. Create a graph relationship
+        graph_subdir = os.path.join(embedded_settings, "graph")
+        os.makedirs(graph_subdir, exist_ok=True)
+        graph = FileGraphDriver(data_dir=graph_subdir)
+        await graph.upsert_node("Project", "id", {"name": "InteropTest", "id": "proj_1"})
+        await graph.upsert_node("Document", "id", {"title": "Interop Test", "id": "doc_1"})
+        await graph.link_nodes("Project", {"id": "proj_1"}, "Document", {"id": "doc_1"}, "CONTAINS")
+
+        # 4. Verify all backends work
+        assert json.loads(await cache.get("project_config"))["name"] == "InteropTest"
+        assert (await fts.search("Testing", limit=5)).total == 1
+        assert len(await graph.find_nodes("Project", {"name": "InteropTest"})) == 1
+        assert "Document:doc_1" in list(graph._graph.successors("Project:proj_1"))
+
+        fts.close()
+        await graph.close()

@@ -601,7 +601,7 @@ export const ChatInputArea = memo(
                   searchQuery={searchQuery}
                   onSelect={(item) => handleSelectReference(item, true)}
                   onClose={() => setShowPicker(false)}
-                  className="relative z-50"
+                  className="relative z-50 origin-bottom"
                 />
               </div>
             )}
