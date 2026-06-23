@@ -90,6 +90,33 @@ class ReferenceService:
                     },
                 })
 
+            # 2.5 Directory References
+            elif att_type in ("directory", "dir"):
+                content, note = await self._handle_directory_reference(att_id, att_name, root_path)
+                if content:
+                    quotes_data.append({"type": "Directory", "name": att_name, "content": content})
+                if note:
+                    reference_notes.append(note)
+
+                # 保留原始 source_path
+                source_path = att.get("source_path") or att.get("metadata", {}).get("source_path") or att_id
+                if source_path.startswith(("http", "/api/", "file://")):
+                    target_id = source_path
+                else:
+                    target_id = f"/api/v1/files/raw?project_id={project_id}&path={source_path}"
+
+                # 为数据库持久化记录引用
+                references.append({
+                    "id": str(uuid.uuid4()),
+                    "type": "directory",
+                    "target_id": target_id,
+                    "target_name": att_name,
+                    "metadata": {
+                        "filename": att_name,
+                        "source_path": source_path,
+                    },
+                })
+
             # 3. Direct Image References
             elif att_type == "image":
                 content_blocks.append({
@@ -202,29 +229,98 @@ class ReferenceService:
             logger.warning(f"Failed to read quoted file {target_path}: {e}")
             return None, f"Referencing File (Read Failed): {name} (Path: {file_path})"
 
+    async def _handle_directory_reference(self, dir_path: str, name: str, root_path: str | None = None) -> tuple[str | None, str | None]:
+        target_path = self._resolve_local_path(dir_path, root_path)
+
+        if not os.path.isdir(target_path):
+            logger.warning(f"Referenced directory does not exist or is not a directory: {target_path}")
+            return None, f"Referencing Directory (Not Found): {name} (Path: {dir_path})"
+
+        try:
+            from app.core.file.tree import TreeService
+            text_tree = TreeService.get_text_tree(target_path, max_depth=3, max_entries=100)
+
+            from app.core.file.traverser import FileTraverser, TraverseOptions
+            options = TraverseOptions(max_depth=2, include_dirs=False)
+            
+            snippets = []
+            file_count = 0
+            
+            for full_path in FileTraverser.walk(target_path, options=options):
+                if file_count >= 5:
+                    snippets.append("\n... (Remaining files skipped for brevity)")
+                    break
+                
+                if any(full_path.lower().endswith(ext) for ext in BINARY_EXTENSIONS):
+                    continue
+                
+                try:
+                    rel_to_dir = os.path.relpath(full_path, target_path)
+                    content = await document_reader_service.read_document(full_path)
+                    snippet = content[:800]
+                    if len(content) > 800:
+                        snippet += "\n... (File content truncated)"
+                    snippets.append(f"--- File: {rel_to_dir} ---\n{snippet}")
+                    file_count += 1
+                except Exception as e:
+                    logger.debug(f"Skipping directory-ref file read error for {full_path}: {e}")
+
+            sections = [
+                f"Directory Tree layout:\n{text_tree}",
+            ]
+            if snippets:
+                sections.append("Directory Files Content (Truncated):\n" + "\n\n".join(snippets))
+                
+            combined_content = "\n\n".join(sections)
+            return combined_content, f"Referencing Directory: {name} (Path: {dir_path})"
+
+        except Exception as e:
+            logger.error(f"Error resolving directory reference {target_path}: {e}")
+            return None, f"Referencing Directory (Read Failed): {name} (Path: {dir_path})"
+
     def _resolve_local_path(self, file_path: str, root_path: str | None) -> str:
-        # 1. API URL: /api/v1/files/raw?path=uploads/xxx → extract path param, resolve locally
+        resolved_path = None
+
+        # 1. API URL: /api/v1/files/raw?path=uploads/xxx
         if file_path.startswith("/api/"):
             parsed = urlparse(file_path)
             params = parse_qs(parsed.query)
             inner_path = params.get("path", [None])[0]
             if inner_path:
-                return self._resolve_upload_path(inner_path, root_path)
+                resolved_path = self._resolve_upload_path(inner_path, root_path)
+            else:
+                resolved_path = file_path
+
+        # 2. file:// URL: strip scheme
+        elif file_path.startswith("file://"):
+            resolved_path = file_path[len("file://"):]
+
+        # 3. http/https URL
+        elif file_path.lower().startswith(("http://", "https://")):
             return file_path
 
-        # 2. file:// URL: strip scheme, use absolute path directly
-        if file_path.startswith("file://"):
-            return file_path[len("file://"):]
+        # 4. Local relative path
+        elif not os.path.isabs(file_path):
+            resolved_path = self._resolve_upload_path(file_path, root_path)
 
-        # 3. http/https URL: cannot read locally, return as-is (caller handles failure)
-        if file_path.lower().startswith(("http://", "https://")):
-            return file_path
+        # 5. Local absolute path
+        else:
+            resolved_path = file_path
 
-        # 4. Local path: resolve uploads/ prefix, join with root_path if provided
-        if not os.path.isabs(file_path):
-            return self._resolve_upload_path(file_path, root_path)
+        # --- Security sandbox checking (Prevent path traversal) ---
+        if root_path and resolved_path:
+            abs_root = os.path.abspath(root_path)
+            abs_resolved = os.path.abspath(resolved_path)
+            try:
+                # abs_resolved must start with abs_root, check using commonpath
+                if os.path.commonpath([abs_root, abs_resolved]) != abs_root:
+                    logger.warning(f"Path traversal blocked! Root={abs_root}, Path={abs_resolved}")
+                    return "/dev/null"
+            except Exception as e:
+                logger.error(f"Error validating path isolation: {e}")
+                return "/dev/null"
 
-        return file_path
+        return resolved_path or file_path
 
     @staticmethod
     def _resolve_upload_path(path: str, root_path: str | None) -> str:
