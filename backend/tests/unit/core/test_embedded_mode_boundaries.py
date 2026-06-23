@@ -48,20 +48,6 @@ class TestModeSwitchingBoundary:
                 get_cache()
                 MockRedis.assert_called_once()
 
-    def test_graph_manager_singleton_per_event_loop(self):
-        """GraphManager 的 driver 是按 event loop 缓存的。"""
-        import asyncio
-        from app.infrastructure.database.graph.driver import GraphManager
-
-        # 清理之前测试残留的已关闭 loop 的 driver
-        GraphManager._drivers = {
-            loop: driver for loop, driver in GraphManager._drivers.items()
-            if not getattr(loop, '_closed', False)
-        }
-
-        loop = asyncio.get_event_loop()
-        assert loop in GraphManager._drivers or len(GraphManager._drivers) == 0
-
     def test_vector_store_singleton_resettable(self):
         """Vector store singleton 可以重置。"""
         from app.infrastructure.database.vector import get_vector_store

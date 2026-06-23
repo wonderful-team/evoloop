@@ -121,6 +121,7 @@ class MessageReference(Base):
     - "artifact"   : 可交互组件（echarts/mermaid/map/html）
     - "changeset"  : 代码变更集（target_id = run_id，meta_data 含 files 列表）
     - "skill"      : 技能引用（target_id = skill_id）
+    - "directory"  : 目录引用（target_id = 目录路径，meta_data 含相关目录元数据）
     """
 
     __tablename__ = "message_references"

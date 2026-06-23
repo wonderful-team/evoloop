@@ -1,125 +1,91 @@
+import json
 import logging
+import os
 
-from app.infrastructure.database.graph.driver import get_graph_db
+from sqlalchemy import select
+
+from app.infrastructure.database.sql.database import session_scope
+from app.models.codebase import CodeChunk, Repository, SourceFile
 
 logger = logging.getLogger(__name__)
 
+_SUMMARY_DIR = ".evoloop/directory_summaries"
+
 
 class DirectorySummarizer:
-    """
-    Implements Recursive Summarization for Directories.
-    Creates `Directory` nodes in Neo4j that aggregate `File` and child `Directory` summaries.
-    """
+    """Summarizes directories using SQL data and persists to JSON files."""
 
-    async def summarize_directory(self, project_path: str, project_id: int, dir_path: str, recursive: bool = True, model: str | None = None):
-        """
-        Summarize a directory.
-        1. Find all Files in this directory (direct children).
-        2. Find all Sub-directories (direct children).
-        3. If recursive, summarize sub-directories first (Bottom-up).
-        4. Aggregate summaries and generate own summary.
-        5. Store in Neo4j.
-        
-        Args:
-            project_path: 项目本地路径（用于获取项目级 graph driver）
-            project_id: 项目 ID（用于图数据查询）
-            dir_path: 目录相对路径
-            recursive: 是否递归处理子目录
-            model: 使用的 LLM 模型
-        """
-        from app.infrastructure.database.graph.driver import GraphManager
-        driver = GraphManager.get_driver(project_path=project_path)
+    @staticmethod
+    def _summary_path(project_path: str, dir_path: str) -> str:
+        safe = dir_path.strip("/").replace("/", "_") or "root"
+        return os.path.join(project_path, _SUMMARY_DIR, f"{safe}.json")
 
-        try:
-            # 1. Identify Children (Files and Subdirs)
-            all_files_query = """
-            MATCH (f:File {project_id: $pid})
-            WHERE f.path STARTS WITH $path
-            RETURN f.path as path, f.summary as summary
-            """
-            records = await driver.execute_query(
-                all_files_query,
-                pid=project_id,
-                path=dir_path if dir_path.endswith("/") else dir_path + "/",
+    async def summarize_directory(
+        self, project_path: str, project_id: int, dir_path: str,
+        recursive: bool = True, model: str | None = None,
+    ) -> str:
+        existing = await self.get_summary(project_path, dir_path)
+        if existing:
+            return existing
+
+        children = await self._load_children(project_id, dir_path)
+        if not children:
+            return "Empty Directory"
+
+        summary_text = await self.generate_summary(dir_path, children, model=model)
+
+        os.makedirs(os.path.join(project_path, _SUMMARY_DIR), exist_ok=True)
+        with open(self._summary_path(project_path, dir_path), "w") as f:
+            json.dump({"path": dir_path, "summary": summary_text}, f)
+
+        return summary_text
+
+    @staticmethod
+    async def get_summary(project_path: str, dir_path: str = "") -> str | None:
+        sp = DirectorySummarizer._summary_path(project_path, dir_path)
+        if os.path.exists(sp):
+            try:
+                with open(sp) as f:
+                    data = json.load(f)
+                    return data.get("summary")
+            except Exception:
+                pass
+        return None
+
+    async def _load_children(self, project_id: int, dir_path: str) -> list[dict]:
+        prefix = dir_path.rstrip("/") + "/" if dir_path else ""
+        async with session_scope() as session:
+            stmt = select(SourceFile.path, CodeChunk.content).join(
+                CodeChunk, CodeChunk.source_file_id == SourceFile.id, isouter=True
+            ).where(
+                SourceFile.repository_id.in_(
+                    select(Repository.id).where(Repository.project_id == project_id)
+                ),
+                SourceFile.path.startswith(prefix),
+                CodeChunk.chunk_type == "file",
             )
-
-            # Build Local Tree
-            direct_files = []
-            direct_subdirs = set()
-            base_len = len(dir_path) + (1 if not dir_path.endswith("/") else 0)
-
-            for r in records:
-                rel_path = r["path"][base_len:]
-                parts = rel_path.split("/")
-
-                if len(parts) == 1:
-                    direct_files.append(r["path"])
-                else:
-                    subdir_name = parts[0]
-                    direct_subdirs.add(
-                        dir_path + ("/" if not dir_path.endswith("/") else "") + subdir_name
-                    )
-
-            # 2. Recursive Step (Bottom-Up)
-            child_summaries = []
-            if recursive:
-                for subdir in direct_subdirs:
-                    sub_summary = await self.summarize_directory(project_path, project_id, subdir, recursive=True, model=model)
-                    child_summaries.append({"type": "directory", "name": subdir, "summary": sub_summary})
-
-            # 3. Process Files
-            if direct_files:
-                file_summaries_query = """
-                MATCH (f:File {project_id: $pid})
-                WHERE f.path IN $paths
-                OPTIONAL MATCH (f)-[:CONTAINS]->(c:CodeChunk {chunk_type: 'file'})
-                RETURN f.path as path, c.content as content
-                """
-                f_records = await driver.execute_query(file_summaries_query, pid=project_id, paths=direct_files)
-
-                for fr in f_records:
-                    content_preview = (fr["content"] or "")[:1000]
-                    if len(fr["content"] or "") > 1000:
-                        content_preview += "..."
-                    child_summaries.append({"type": "file", "name": fr["path"], "content": content_preview})
-
-            if not child_summaries:
-                return "Empty Directory"
-
-            # 4. Generate Summary
-            summary_text = await self.generate_summary(dir_path, child_summaries, model=model)
-
-            # 5. Store in Graph
-            await driver.upsert_node("Directory", "path", {
-                "path": dir_path,
-                "project_id": project_id,
-                "description": summary_text
-            })
-
-            # Also Link to Parent?
-            if "/" in dir_path.strip("/"):
-                parent_path = dir_path.rstrip("/").rsplit("/", 1)[0]
-                await driver.link_nodes(
-                    "Directory", {"path": parent_path, "project_id": project_id},
-                    "Directory", {"path": dir_path, "project_id": project_id},
-                    "CONTAINS"
-                )
-
-            logger.info(f"Summarized Directory: {dir_path}")
-            return summary_text
-        except NotImplementedError:
-            logger.debug("Directory summarization requires graph features (disabled in embedded mode).")
-            return "Graph-based summarization not available in embedded mode."
+            rows = (await session.execute(stmt)).all()
+        children = []
+        seen_dirs = set()
+        for path, content in rows:
+            rel = path[len(prefix):] if prefix else path
+            if "/" in rel:
+                subdir = rel.split("/")[0]
+                if subdir not in seen_dirs:
+                    seen_dirs.add(subdir)
+                    children.append({"type": "directory", "name": subdir})
+            else:
+                preview = (content or "")[:1000]
+                children.append({"type": "file", "name": path, "content": preview})
+        return children
 
     async def generate_summary(self, dir_path: str, child_summaries: list[dict], model: str | None = None) -> str:
         from app.utils import render_template
-        
         prompt_text = render_template(
             "domain/codebase/directory_summary.prompt.j2",
             directory_path=dir_path,
-            child_summaries=child_summaries
+            child_summaries=child_summaries,
         )
-
         from app.core.llm import InternalLLMService
         from app.infrastructure.config.service import SystemConfigService
         model_name = SystemConfigService.get_value("LLM_MODEL")
@@ -131,5 +97,4 @@ class DirectorySummarizer:
         return response.content
 
 
-# Global Instance
 directory_summarizer = DirectorySummarizer()

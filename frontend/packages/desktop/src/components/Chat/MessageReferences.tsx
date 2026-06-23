@@ -4,6 +4,7 @@ import {
   Download,
   ExternalLink,
   FileText,
+  Folder,
   Image as ImageIcon,
   MessageSquare,
   Music,
@@ -29,6 +30,7 @@ interface Reference {
     | "artifact"
     | "changeset"
     | "skill"
+    | "directory"
   target_id: string
   target_name: string
   meta_data?: any
@@ -51,7 +53,7 @@ export const MessageReferences: React.FC<MessageReferencesProps> = ({
 
   const artifacts = references.filter((r) => r.type === "artifact")
   const resources = references.filter((r) =>
-    ["file", "image", "audio", "message", "skill", "changeset"].includes(
+    ["file", "image", "audio", "message", "skill", "changeset", "directory"].includes(
       r.type,
     ),
   )
@@ -168,6 +170,8 @@ const ResourceChip = ({
     switch (reference.type) {
       case "file":
         return <FileText className="w-3.5 h-3.5" />
+      case "directory":
+        return <Folder className="w-3.5 h-3.5" />
       case "image":
         return <ImageIcon className="w-3.5 h-3.5" />
       case "audio":
@@ -194,6 +198,8 @@ const ResourceChip = ({
         return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200/50 dark:border-blue-800/50"
       case "changeset":
         return "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200/50 dark:border-purple-800/50"
+      case "directory":
+        return "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50 dark:border-amber-800/50"
       default:
         return "bg-muted/30 text-muted-foreground border-border/40 hover:bg-muted/50 hover:border-border/80"
     }

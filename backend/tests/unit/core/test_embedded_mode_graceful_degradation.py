@@ -63,42 +63,6 @@ class TestEmbedderFactoryFallback:
                         EmbedderFactory.get_embedder()
 
 
-class TestGraphServiceDegradation:
-    """Validate graph service behavior when driver lacks Cypher support."""
-
-    def test_unsupported_cypher_raises_not_implemented(self):
-        """FileGraphDriver raises NotImplementedError for unsupported Cypher."""
-        from app.infrastructure.database.graph.file_graph import FileGraphDriver
-
-        driver = FileGraphDriver.__new__(FileGraphDriver)
-        driver._graph = MagicMock()
-
-        with pytest.raises(NotImplementedError):
-            import asyncio
-
-            asyncio.run(driver.execute_query("CALL algo.pageRank()"))
-
-    def test_graph_service_catches_not_implemented(self):
-        """GraphService catches NotImplementedError from FileGraphDriver."""
-        # This validates the guard pattern introduced during the EMBEDDED_MODE refactor
-        from app.domain.codebase.retrieval.graph_service import GraphService
-
-        # GraphService.__init__ calls create_langchain_graph() which may fail
-        # in test environment; mock it
-        with patch.object(GraphService, "__init__", lambda self: None):
-            service = GraphService.__new__(GraphService)
-            service._driver = MagicMock()
-            service._driver.query = MagicMock(side_effect=NotImplementedError("Cypher not supported"))
-            service._embedded_mode = True
-
-            # The service should handle NotImplementedError gracefully
-            try:
-                import asyncio
-
-                asyncio.run(service._driver.query("MATCH (n) RETURN n"))
-            except NotImplementedError:
-                pass  # Expected
-
 
 class TestSearchBackendExplicitOverride:
     """Validate that explicit backend choice overrides auto-detection."""

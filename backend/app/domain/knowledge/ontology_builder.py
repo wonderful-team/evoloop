@@ -1,105 +1,70 @@
+import json
 import logging
+import os
 
-from app.infrastructure.database.graph.driver import get_graph_db
+from sqlalchemy import func, select, text
+
+from app.infrastructure.database.sql.database import session_scope
+from app.models.codebase import CodeEntity, CodeRelation, Repository, SourceFile
 
 logger = logging.getLogger(__name__)
 
 
 class OntologyBuilder:
     """
-    Infers High-Level Semantic Relationships (Ontology) from Low-Level Code Graph.
-    Transforms 'Call Graph' into 'Architecture Graph'.
+    Infers High-Level Semantic Relationships (Ontology) from SQL code_relation data.
+    Outputs JSON files to .evoloop/ontology/ per project.
     """
 
     async def infer_relationships(self, project_path: str, project_id: int):
-        """
-        Main entry point to infer relationships.
-        Strategies:
-        1. Dependency Inference (Directory Level)
-        2. Inheritance Inference (Concept Level)
-        
-        Args:
-            project_path: 项目本地路径（用于获取项目级 graph driver）
-            project_id: 项目 ID（用于图数据查询）
-        """
-        await self._infer_directory_dependencies(project_path, project_id)
-        # await self._infer_concept_inheritance(project_path, project_id) # V2
+        deps = await self._compute_directory_dependencies(project_id)
+        out_dir = os.path.join(project_path, ".evoloop", "ontology")
+        os.makedirs(out_dir, exist_ok=True)
+        out_path = os.path.join(out_dir, "dependencies.json")
+        with open(out_path, "w") as f:
+            json.dump(deps, f, indent=2)
+        for (src, tgt), count in deps.items():
+            logger.info(f"Architecture: {src} DEPENDS_ON {tgt} (Weight: {count})")
 
-    async def _infer_directory_dependencies(self, project_path: str, project_id: int):
-        """
-        If many files in Dir A call files in Dir B, then Dir A DEPENDS_ON Dir B.
-        """
-        driver = await get_graph_db(project_path=project_path)
+    async def _compute_directory_dependencies(self, project_id: int) -> dict[str, int]:
+        async with session_scope() as session:
+            stmt = select(
+                SourceFile.path.label("src_path"),
+            ).select_from(CodeRelation).join(
+                CodeEntity, CodeRelation.source_entity_id == CodeEntity.id,
+            ).join(
+                SourceFile, CodeEntity.source_file_id == SourceFile.id,
+            ).join(
+                Repository, SourceFile.repository_id == Repository.id,
+            ).where(Repository.project_id == project_id)
 
-        try:
-            # Cypher Logic:
-            # Match (d1:Directory)-[*]->(f1:File)-[r:RELATION]->(f2:File)<-[*]-(d2:Directory)
-            # Where r.type IN ['calls', 'imports']
-            # Count relations. If > Threshold, Create (d1)-[:DEPENDS_ON]->(d2)
+            src_paths = (await session.execute(stmt)).scalars().all()
 
-            # Note: This query is expensive (Cartesian if not careful).
-            # Optimized approach: Traverse relations first, then aggregate to dirs.
+            stmt2 = select(
+                SourceFile.path.label("tgt_path"),
+            ).select_from(CodeRelation).join(
+                CodeEntity, CodeRelation.target_entity_id == CodeEntity.id,
+            ).join(
+                SourceFile, CodeEntity.source_file_id == SourceFile.id,
+            ).join(
+                Repository, SourceFile.repository_id == Repository.id,
+            ).where(Repository.project_id == project_id)
 
-            optimized_query = """
-            MATCH (e1:CodeEntity {project_id: $pid})-[r:RELATION]->(e2:CodeEntity {project_id: $pid})
-            WHERE e1.pg_id IS NOT NULL AND e2.pg_id IS NOT NULL // Ensure they are real
+            tgt_paths = (await session.execute(stmt2)).scalars().all()
 
-            // Find parent files
-            MATCH (f1:File)-[:CONTAINS]->(e1)
-            MATCH (f2:File)-[:CONTAINS]->(e2)
-            WHERE f1 <> f2
-
-            // Aggregate by Directories (Simplistic: Top level folder)
-            // We need 'Directory' nodes to exist first (Phase 7 ensures this).
-            // Finding specific Directory node from File path requires string parsing in Cypher or Link.
-            // Assuming we populated (Dir)-[:CONTAINS]->(File) in Phase 7 via `summarize_directory`
-            // Wait, Phase 7 did (Parent)-[:CONTAINS]->(ChildDir), but didn't explicitly link Dir->File in Graph
-            // other than implicit path logic.
-            // Let's rely on string parsing for V1.
-
-            RETURN f1.path as src_path, f2.path as tgt_path
-            """
-
-            # We will do aggregation in Python to determine Directory nodes involved.
-            records = await driver.execute_query(optimized_query, pid=project_id)
-
-            # Map: (src_dir, tgt_dir) -> count
-            dependency_map = {}
-
-            for r in records:
-                src_p = r["src_path"]
-                tgt_p = r["tgt_path"]
-
-                # Simple Heuristic: First level directory is the Module.
-                src_dir = self._get_module_dir(src_p)
-                tgt_dir = self._get_module_dir(tgt_p)
-
-                if src_dir and tgt_dir and src_dir != tgt_dir:
-                    key = (src_dir, tgt_dir)
-                    dependency_map[key] = dependency_map.get(key, 0) + 1
-
-            # Write back significant dependencies
-            for (src, tgt), count in dependency_map.items():
-                if count >= 3:
-                    # Link Directory Nodes via high-level API
-                    await driver.link_nodes(
-                        "Directory", {"path": src, "project_id": project_id},
-                        "Directory", {"path": tgt, "project_id": project_id},
-                        "DEPENDS_ON",
-                        rel_props={"weight": count}
-                    )
-                    logger.info(
-                        f"Inferred Architecture: {src} DEPENDS_ON {tgt} (Weight: {count})"
-                    )
-        except NotImplementedError:
-            logger.debug("Ontology inference requires graph features (disabled in embedded mode).")
+        dep_map: dict[str, int] = {}
+        for src, tgt in zip(src_paths, tgt_paths):
+            src_dir = self._get_module_dir(src)
+            tgt_dir = self._get_module_dir(tgt)
+            if src_dir and tgt_dir and src_dir != tgt_dir:
+                key = f"{src_dir} -> {tgt_dir}"
+                dep_map[key] = dep_map.get(key, 0) + 1
+        return {k: v for k, v in dep_map.items() if v >= 3}
 
     def _get_module_dir(self, file_path: str) -> str:
-        # Returns parent dir.
         if "/" not in file_path:
             return ""
         return file_path.rsplit("/", 1)[0]
 
 
-# Global
 ontology_builder = OntologyBuilder()

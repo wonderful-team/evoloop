@@ -39,12 +39,12 @@ def extract_reasoning_from_kwargs(additional_kwargs: dict | None) -> str | None:
 
     # 1. Prefer unified "thinking" key (set by DB load or delta sync)
     thinking = additional_kwargs.get("thinking")
-    if isinstance(thinking, str) and thinking.strip():
-        return thinking.strip()
+    if isinstance(thinking, str):
+        return thinking
 
     # 2. Fallback to raw reasoning_content (legacy / streaming chunks)
     reasoning = additional_kwargs.get("reasoning_content")
-    return str(reasoning).strip() if reasoning else None
+    return str(reasoning) if reasoning else None
 
 
 def extract_tool_calls(msg: Any) -> list[dict]:

@@ -1,16 +1,20 @@
+import logging
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select, text
 
 from app.core.context.manager import ContextManager
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.models import (
+    CodeChunk,
     CodeEntity,
     CodeRelation,
     Repository,
     SourceFile,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class RetrievalService:
@@ -25,16 +29,8 @@ class RetrievalService:
         project_id: int = None,
         limit: int = 5,
     ) -> list[dict[str, Any]]:
-        """
-        Search for code chunks using Hybrid Search (Vector + Keyword) via RRF.
-        """
-        # Resolve project_id from context if not provided
-        # Note: project_id can be 0 (global mode), so check for None explicitly
         ctx_pid = ContextManager.current().project_id
-        if project_id is not None:
-            pid = project_id
-        else:
-            pid = ctx_pid
+        pid = project_id if project_id is not None else ctx_pid
 
         from app.domain.codebase.retrieval.hybrid import hybrid_searcher
 
@@ -43,79 +39,182 @@ class RetrievalService:
         )
 
     async def get_entity_relations(self, symbol_name: str, project_id: int = None) -> dict[str, Any]:
-        """
-        Get relations (inheritance, calls) for a specific symbol.
-        """
-        # Resolve project_id: explicit > context
-        # Note: project_id can be 0 (global mode), so check for None explicitly
-        ctx_pid = ContextManager.current().project_id
-        if project_id is not None:
-            pid = project_id
-        else:
-            pid = ctx_pid
-
+        pid = self._resolve_pid(project_id)
         async with self.session_factory() as session:
-            # 1. Find the entity
-            # Try exact match first, then ilike
-            stmt = select(CodeEntity).where(CodeEntity.name == symbol_name)
-
-            # Filter by project if provided (requires join)
-            if pid:
-                stmt = stmt.join(SourceFile).join(Repository).where(Repository.project_id == pid)
-
-            stmt = stmt.limit(1)
-            result = await session.execute(stmt)
-            entity = result.scalar_one_or_none()
-
-            if not entity:
-                # Try fuzzy
-                stmt = select(CodeEntity).where(CodeEntity.name.ilike(f"%{symbol_name}%"))
-                if pid:
-                    stmt = stmt.join(SourceFile).join(Repository).where(Repository.project_id == pid)
-                stmt = stmt.limit(1)
-                result = await session.execute(stmt)
-                entity = result.scalar_one_or_none()
-
+            entity = await self._find_entity(session, symbol_name, pid)
             if not entity:
                 return {"error": f"Symbol '{symbol_name}' not found."}
 
-            # 2. Find Outgoing Relations (This entity mentions others)
-            # source_entity_id == entity.id
-            # Join target entity to get names
+            outgoing, incoming = await self._load_relations(session, entity)
+            return {
+                "symbol": entity.full_name,
+                "type": entity.type,
+                "file": entity.file.path if entity.file else "unknown",
+                "relations": {"outgoing": outgoing, "incoming": incoming},
+            }
 
-            # We need explicit aliases or just load generic
-            # Relations where I am the source
-            out_stmt = (
-                select(CodeRelation, CodeEntity)
-                .outerjoin(CodeEntity, CodeRelation.target_entity_id == CodeEntity.id)
-                .where(CodeRelation.source_entity_id == entity.id)
-            )
+    async def find_symbol_definition(
+        self, symbol_name: str, project_id: int = None, project_path: str | None = None
+    ) -> list[dict[str, Any]]:
+        pid = self._resolve_pid(project_id)
+        async with self.session_factory() as session:
+            entity = await self._find_entity(session, symbol_name, pid)
+            if not entity:
+                return []
 
-            out_rows = (await session.execute(out_stmt)).all()
+            outgoing, _ = await self._load_relations(session, entity)
+            return [{
+                "full_name": entity.full_name,
+                "type": entity.type,
+                "file_path": entity.file.path if entity.file else "unknown",
+                "outgoing": [o["target"] for o in outgoing],
+            }]
 
-            outgoing = []
-            for rel, target_ent in out_rows:
-                target_name = target_ent.full_name if target_ent else rel.target_name
-                outgoing.append({"type": rel.relation_type, "target": target_name})
+    async def find_usages(self, symbol_name: str, project_id: int = None) -> list[dict[str, Any]]:
+        pid = self._resolve_pid(project_id)
+        async with self.session_factory() as session:
+            entity = await self._find_entity(session, symbol_name, pid)
+            if not entity:
+                return []
 
-            # 3. Find Incoming Relations (Others mention me)
-            # target_entity_id == entity.id
-            in_stmt = (
-                select(CodeRelation, CodeEntity)
-                .join(CodeEntity, CodeRelation.source_entity_id == CodeEntity.id)
-                .where(CodeRelation.target_entity_id == entity.id)
-            )
+            _, incoming = await self._load_relations(session, entity)
+            return [{"source": i["source"], "type": i["type"]} for i in incoming]
 
-            in_rows = (await session.execute(in_stmt)).all()
+    async def get_call_hierarchy(
+        self, symbol_name: str, project_id: int = None
+    ) -> dict[str, Any]:
+        pid = self._resolve_pid(project_id)
+        async with self.session_factory() as session:
+            entity = await self._find_entity(session, symbol_name, pid)
+            if not entity:
+                return {"error": f"Symbol '{symbol_name}' not found."}
 
-            incoming = []
-            for rel, source_ent in in_rows:
-                source_name = source_ent.full_name
-                incoming.append({"source": source_name, "type": rel.relation_type})
+            outgoing, incoming = await self._load_relations(session, entity)
+
+            async def _collect_calls(ent_id: int, direction: str, depth: int = 0) -> list[dict]:
+                if depth > 3:
+                    return []
+                results = []
+                if direction == "out":
+                    rows = (await session.execute(
+                        select(CodeRelation, CodeEntity)
+                        .outerjoin(CodeEntity, CodeRelation.target_entity_id == CodeEntity.id)
+                        .where(CodeRelation.source_entity_id == ent_id)
+                    )).all()
+                    for rel, target_ent in rows:
+                        name = target_ent.full_name if target_ent else rel.target_name
+                        entry = {"name": name, "type": rel.relation_type, "calls": []}
+                        if target_ent:
+                            entry["calls"] = await _collect_calls(target_ent.id, "out", depth + 1)
+                        results.append(entry)
+                else:
+                    rows = (await session.execute(
+                        select(CodeRelation, CodeEntity)
+                        .join(CodeEntity, CodeRelation.source_entity_id == CodeEntity.id)
+                        .where(CodeRelation.target_entity_id == ent_id)
+                    )).all()
+                    for rel, source_ent in rows:
+                        entry = {"name": source_ent.full_name, "type": rel.relation_type, "called_by": []}
+                        entry["called_by"] = await _collect_calls(source_ent.id, "in", depth + 1)
+                        results.append(entry)
+                return results
 
             return {
                 "symbol": entity.full_name,
                 "type": entity.type,
-                "file": entity.file.path if entity.file else "unknown",  # Requires eager load or lazy load session
-                "relations": {"outgoing": outgoing, "incoming": incoming},
+                "calls": outgoing,
+                "called_by": incoming,
+                "call_tree": await _collect_calls(entity.id, "out"),
             }
+
+    async def multi_entity_query(
+        self,
+        entities: list[str],
+        operator: str = "and",
+        question: str = "",
+        project_id: int = None,
+    ) -> str:
+        pid = self._resolve_pid(project_id)
+        async with self.session_factory() as session:
+            all_results = []
+            for name in entities:
+                entity = await self._find_entity(session, name, pid)
+                if not entity:
+                    all_results.append({"entity": name, "error": "not found"})
+                    continue
+                outgoing, incoming = await self._load_relations(session, entity)
+                all_results.append({
+                    "entity": entity.full_name,
+                    "type": entity.type,
+                    "file": entity.file.path if entity.file else "unknown",
+                    "outgoing": outgoing,
+                    "incoming": incoming,
+                })
+
+            if operator == "and":
+                related = set()
+                for r in all_results:
+                    for o in r.get("outgoing", []):
+                        related.add(o["target"])
+                    for i in r.get("incoming", []):
+                        related.add(i["source"])
+                lines = [f"### {r['entity']} ({r['type']})" for r in all_results]
+                lines.append(f"\n**Entities related to ALL of {entities}:** {', '.join(sorted(related)) if related else '(none)'}")
+            else:
+                lines = []
+                for r in all_results:
+                    if "error" in r:
+                        lines.append(f"- {r['entity']}: {r['error']}")
+                    else:
+                        out_str = ", ".join(o["target"] for o in r.get("outgoing", [])[:10])
+                        in_str = ", ".join(i["source"] for i in r.get("incoming", [])[:10])
+                        parts = [f"calls: [{out_str}]" if out_str else "", f"called_by: [{in_str}]" if in_str else ""]
+                        lines.append(f"- {r['entity']} ({r['type']}): {'; '.join(p for p in parts if p)}")
+
+            return "\n".join(lines)
+
+    # ---- helpers ----
+
+    def _resolve_pid(self, project_id: int | None) -> int | None:
+        ctx_pid = ContextManager.current().project_id
+        return project_id if project_id is not None else ctx_pid
+
+    async def _find_entity(self, session, name: str, pid: int | None) -> Any | None:
+        stmt = select(CodeEntity).where(
+            or_(CodeEntity.name == name, CodeEntity.full_name == name)
+        )
+        if pid:
+            stmt = stmt.join(SourceFile).join(Repository).where(Repository.project_id == pid)
+        stmt = stmt.limit(1)
+        result = await session.execute(stmt)
+        entity = result.scalar_one_or_none()
+        if not entity:
+            stmt = select(CodeEntity).where(CodeEntity.name.ilike(f"%{name}%"))
+            if pid:
+                stmt = stmt.join(SourceFile).join(Repository).where(Repository.project_id == pid)
+            stmt = stmt.limit(1)
+            result = await session.execute(stmt)
+            entity = result.scalar_one_or_none()
+        return entity
+
+    async def _load_relations(self, session, entity) -> tuple[list[dict], list[dict]]:
+        out_rows = (await session.execute(
+            select(CodeRelation, CodeEntity)
+            .outerjoin(CodeEntity, CodeRelation.target_entity_id == CodeEntity.id)
+            .where(CodeRelation.source_entity_id == entity.id)
+        )).all()
+        outgoing = []
+        for rel, target_ent in out_rows:
+            target_name = target_ent.full_name if target_ent else rel.target_name
+            outgoing.append({"type": rel.relation_type, "target": target_name})
+
+        in_rows = (await session.execute(
+            select(CodeRelation, CodeEntity)
+            .join(CodeEntity, CodeRelation.source_entity_id == CodeEntity.id)
+            .where(CodeRelation.target_entity_id == entity.id)
+        )).all()
+        incoming = []
+        for rel, source_ent in in_rows:
+            incoming.append({"source": source_ent.full_name, "type": rel.relation_type})
+
+        return outgoing, incoming

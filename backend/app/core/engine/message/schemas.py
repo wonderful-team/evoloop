@@ -30,9 +30,10 @@ class ReferenceBlock(DynamicBaseModel):
     - artifact   : 可交互组件（echarts/mermaid/map/html/react）。target_id = artifact UUID
     - changeset  : 代码变更集（文件修改列表）。target_id = run_id
     - skill      : 技能引用。target_id = skill_id
+    - directory  : 目录引用（target_id = 目录路径，meta_data 含相关目录元数据）
     """
     id: str
-    type: Literal["file", "image", "audio", "message", "artifact", "changeset", "skill"]
+    type: Literal["file", "image", "audio", "message", "artifact", "changeset", "skill", "directory"]
     target_id: str                # 资源路径、消息 ID、或唯一标识
     target_name: str              # 人类可读名称
     meta_data: dict[str, Any] = Field(default_factory=dict)  # 扩展字段（因表结构命名为 meta_data）

@@ -44,7 +44,11 @@ import { useChatStore } from "@/stores/chatStore"
 import { FilePreview, type PickedFile } from "./FilePreview"
 import { ModelSelector } from "./ModelSelector"
 import { RecordingButton } from "./RecordingButton"
-import { type ReferenceItem, ReferencePicker } from "./ReferencePicker"
+import {
+  type ReferenceItem,
+  ReferencePicker,
+  type ReferencePickerHandle,
+} from "./ReferencePicker"
 import {
   VoiceRecorderButton,
   type VoiceRecorderButtonHandle,
@@ -91,8 +95,41 @@ export const ChatInputArea = memo(
       const [isDragging, setIsDragging] = useState(false)
 
       const [showPicker, setShowPicker] = useState(false)
+      const [searchQuery, setSearchQuery] = useState("")
       const [isSkillDialogOpen, setIsSkillDialogOpen] = useState(false)
       const textareaRef = useRef<HTMLTextAreaElement>(null)
+      const pickerRef = useRef<ReferencePickerHandle>(null)
+
+      // Helper to extract @query from cursor position
+      const getSearchQueryAtCursor = (text: string, selectionStart: number) => {
+        const textBeforeCursor = text.substring(0, selectionStart)
+        const lastAtIndex = textBeforeCursor.lastIndexOf("@")
+        if (lastAtIndex === -1) return null
+
+        const queryText = textBeforeCursor.substring(lastAtIndex + 1)
+        if (/\s/.test(queryText)) return null
+
+        if (lastAtIndex > 0 && !/\s/.test(textBeforeCursor[lastAtIndex - 1])) {
+          return null
+        }
+        return queryText
+      }
+
+      const handleTextareaChange = (val: string) => {
+        setInputValue(val)
+        const textarea = textareaRef.current
+        if (textarea) {
+          setTimeout(() => {
+            const q = getSearchQueryAtCursor(val, textarea.selectionStart)
+            if (q !== null) {
+              setSearchQuery(q)
+              setShowPicker(true)
+            } else {
+              setShowPicker(false)
+            }
+          }, 0)
+        }
+      }
 
       // History state
       const [history, setHistory] = useState<string[]>([])
@@ -140,6 +177,38 @@ export const ChatInputArea = memo(
       }
 
       const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (showPicker && pickerRef.current) {
+          if (e.key === "ArrowUp" || (e.ctrlKey && e.key === "p")) {
+            e.preventDefault()
+            pickerRef.current.moveUp()
+            return
+          }
+          if (e.key === "ArrowDown" || (e.ctrlKey && e.key === "n")) {
+            e.preventDefault()
+            pickerRef.current.moveDown()
+            return
+          }
+          if (e.key === "Tab") {
+            e.preventDefault()
+            if (e.shiftKey) {
+              pickerRef.current.moveUp()
+            } else {
+              pickerRef.current.moveDown()
+            }
+            return
+          }
+          if (e.key === "Enter") {
+            e.preventDefault()
+            pickerRef.current.selectCurrent()
+            return
+          }
+          if (e.key === "Escape") {
+            e.preventDefault()
+            setShowPicker(false)
+            return
+          }
+        }
+
         if (e.key === "@") {
           setShowPicker(true)
         }
@@ -312,19 +381,15 @@ export const ChatInputArea = memo(
         item: ReferenceItem,
         _insertText = false,
       ) => {
-        // If user typed '@' to trigger the picker, strip it so it doesn't linger in text
+        // If user typed '@' to trigger the picker, strip the "@query" portion so it doesn't linger in text
         const textarea = textareaRef.current
         if (textarea) {
           const start = textarea.selectionStart
-          const end = textarea.selectionEnd
           const text = inputValue
           const lastAtIndex = text.lastIndexOf("@", start - 1)
-          if (
-            lastAtIndex !== -1 &&
-            text.substring(lastAtIndex, start).trim() === "@"
-          ) {
+          if (lastAtIndex !== -1) {
             const before = text.substring(0, lastAtIndex)
-            const after = text.substring(end)
+            const after = text.substring(start)
             setInputValue(before + after)
             setTimeout(() => {
               if (textarea) {
@@ -340,7 +405,7 @@ export const ChatInputArea = memo(
           id: Math.random().toString(36).substring(2, 15),
           url: item.id,
           name: item.name,
-          type: item.type === "file" ? "file" : "reference",
+          type: item.type === "directory" ? "directory" : (item.type === "file" ? "file" : "reference"),
         }
         if (item.type === "message") {
           newFile.type = "message"
@@ -523,16 +588,20 @@ export const ChatInputArea = memo(
           <div className="w-full px-4 relative">
             {/* Reference Picker Popover - Hidden in global mode */}
             {showPicker && currentProject && !isGlobalMode && (
-              <div className="absolute bottom-full left-0 mb-2 z-50">
+              <div className="absolute bottom-full left-0 right-0 mb-2 z-50 px-4">
+                {/* Click outside backdrop - Declared first to stay underneath */}
+                <div
+                  className="fixed inset-0 z-40 bg-transparent"
+                  onClick={() => setShowPicker(false)}
+                />
+                {/* Picker card - Declared second with z-50 to overlay on top of the backdrop */}
                 <ReferencePicker
+                  ref={pickerRef}
                   projectId={currentProject.id!}
+                  searchQuery={searchQuery}
                   onSelect={(item) => handleSelectReference(item, true)}
                   onClose={() => setShowPicker(false)}
-                />
-                {/* Click outside backdrop */}
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setShowPicker(false)}
+                  className="relative z-50"
                 />
               </div>
             )}
@@ -580,7 +649,7 @@ export const ChatInputArea = memo(
                   <textarea
                     ref={textareaRef}
                     value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
+                    onChange={(e) => handleTextareaChange(e.target.value)}
                     onKeyDown={handleKeyDown}
                     onPaste={handlePaste}
                     placeholder={

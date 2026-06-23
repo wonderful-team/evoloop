@@ -36,7 +36,6 @@ from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.wiki.service import wiki_service
 from app.infrastructure.cache import cache
 from app.infrastructure.config.service import SystemConfigService
-from app.infrastructure.database.graph.driver import GraphManager, is_graph_enabled
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.vector import get_vector_store
 from app.models import Repository
@@ -597,23 +596,6 @@ async def delete_project(project_id: int, _token: TokenDep):
                     await pipe.execute()
                 except Exception as e:
                     logger.warning(f"[ProjectsAPI] Failed to clear cache for repo {repo.id}: {e}")
-
-                if is_graph_enabled():
-                    try:
-                        driver = GraphManager.get_driver(project_path=local_project_path)
-                        await driver.execute_query(
-                            """
-                            MATCH (f:File {project_id: $pid})
-                            OPTIONAL MATCH (f)-[:CONTAINS]->(e)
-                            DETACH DELETE e
-                            DETACH DELETE f
-                            """,
-                            pid=project_id,
-                        )
-                    except NotImplementedError:
-                        logger.debug("[ProjectsAPI] Graph cleanup skipped (not supported in embedded mode)")
-                    except Exception as e:
-                        logger.warning(f"[ProjectsAPI] Failed to cleanup graph data for project {project_id}: {e}")
 
                 # Clean up vector store data (if enabled)
                 try:

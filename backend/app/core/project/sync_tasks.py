@@ -18,17 +18,17 @@ logger = logging.getLogger(__name__)
     retry_backoff_max=300,  # 5 minutes max backoff
     max_retries=5,
 )
-def sync_project_to_cloud_task(_self, repo_id: int):
+async def sync_project_to_cloud_task(_self, repo_id: int):
     """
     Background task to sync a local project to EvoCloud.
     Retries automatically on failure.
     """
     logger.info(f"[SyncTask] Starting Cloud Sync for Repo ID: {repo_id}")
 
-    # Need to run async code in sync Celery worker
-    import asyncio
+    from app.infrastructure.database.resource_manager import db_resource_manager
+    await db_resource_manager.initialize(create_tables=False, seed_data=False)
 
-    async def _sync():
+    try:
         indexing_service = IndexingService()
 
         async with indexing_service.session_factory() as session:
@@ -62,15 +62,8 @@ def sync_project_to_cloud_task(_self, repo_id: int):
             except Exception as e:
                 logger.error(f"[SyncTask] Sync Failed: {e}")
                 raise e  # Trigger Retry
-
-    async def _run_with_flush():
-        try:
-            await _sync()
-        finally:
-            await flush_loop_bound_resources()
-
-    # Run the async loop
-    asyncio.run(_run_with_flush())
+    finally:
+        await flush_loop_bound_resources()
 
 
 @shared_task(
@@ -81,17 +74,18 @@ def sync_project_to_cloud_task(_self, repo_id: int):
     retry_backoff_max=300,
     max_retries=3,
 )
-def sync_tasks_to_evocloud_task(_self, task_ids: list[str], analysis_id: str | None = None):
+async def sync_tasks_to_evocloud_task(_self, task_ids: list[str], analysis_id: str | None = None):
     """
     Background task to sync requirement tasks to EvoCloud.
     Called automatically after requirement analysis is confirmed.
     """
-    import asyncio
-
+    from app.infrastructure.database.resource_manager import db_resource_manager
     from app.models.project import ProjectTask
     from app.infrastructure.database.sql.database import session_scope
 
-    async def _sync():
+    await db_resource_manager.initialize(create_tables=False, seed_data=False)
+
+    try:
         logger.info(f"[ReqSync] Starting sync for analysis {analysis_id}, {len(task_ids)} tasks")
 
         async with session_scope() as session:
@@ -145,14 +139,8 @@ def sync_tasks_to_evocloud_task(_self, task_ids: list[str], analysis_id: str | N
                     task.sync_error = str(e)
                     failed_count += 1
                     logger.exception(f"[ReqSync] Task {task.id} exception: {e}")
-
-    async def _run_with_flush():
-        try:
-            await _sync()
-        finally:
-            await flush_loop_bound_resources()
-
-    asyncio.run(_run_with_flush())
+    finally:
+        await flush_loop_bound_resources()
 
 
 def _map_priority(priority: str) -> int:

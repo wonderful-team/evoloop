@@ -423,7 +423,7 @@ const ThinkingBlock = memo(
             className="flex-1 p-2 min-w-0 w-full overflow-y-auto"
           >
             {thinking && thinking.trim().length > 0 ? (
-              <div className="text-xs text-muted-foreground break-words leading-relaxed min-w-0 w-full overflow-hidden [word-break:break-word] whitespace-normal">
+              <div className="text-xs text-muted-foreground break-words leading-relaxed min-w-0 w-full overflow-hidden [word-break:break-word] whitespace-pre-wrap">
                 <MessageContent content={thinking} />
               </div>
             ) : (

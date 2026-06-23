@@ -444,10 +444,8 @@ function groupMessages(messages: ChatMessage[]): RenderItem[] {
         pendingAiGroup.push(m);
         const nextM = turnMsgs[j + 1];
         if (!nextM || nextM.role !== 'ai') {
-          const hasMoreAiAfter = turnMsgs
-            .slice(j + 1)
-            .some((msg) => msg.role === 'ai');
-          flushPendingAi(!hasMoreAiAfter);
+          const isFinalInTurn = j === turnMsgs.length - 1;
+          flushPendingAi(isFinalInTurn);
         }
       } else if (m.role === 'tool') {
         items.push({

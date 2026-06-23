@@ -380,10 +380,9 @@ export const MessageList = memo(function MessageList({
           // 如果下一条不是 ai（tool 或结束），先 flush
           const nextM = turnMsgs[j + 1]
           if (!nextM || nextM.role !== "ai") {
-            const hasMoreAiAfter = turnMsgs
-              .slice(j + 1)
-              .some((m) => m.role === "ai")
-            flushPendingAi(!hasMoreAiAfter)
+            // 只要当前 AI 后面还有任何消息（比如正在执行的 tool），它就不是本轮最终输出
+            const isFinalInTurn = j === turnMsgs.length - 1
+            flushPendingAi(isFinalInTurn)
           }
         } else if (m.role === "tool") {
           // tool 消息直接入 items，不打断 ai 组

@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import Any
 
-from app.core.atlas.adapters.graph_store import GraphAtlasStore
+from app.core.atlas.adapters.sql_store import SQLAtlasStore
 from app.core.atlas.models import AtlasApp, AtlasElement, AtlasState
 from app.core.atlas.ports.store import IAtlasStore
 from app.core.atlas.strategy import AppStrategy, AtlasStrategyStore, InteractionStrategy
@@ -19,16 +19,12 @@ logger = logging.getLogger(__name__)
 class AtlasEngine:
     """
     Core Cognitive Engine for Spatial Memory (App Atlas).
-    Handles data accumulation (ingestion from EventBus), graph persistence, 
+    Handles data accumulation (ingestion from EventBus), SQL persistence, 
     and retrieval for Agent Tools.
-
-    NOTE: In embedded mode, Atlas persistence is available via FileGraphDriver.
     """
 
     def __init__(self, store: IAtlasStore | None = None):
-        if settings.EMBEDDED_MODE and store is None:
-            logger.info("[AtlasEngine] Embedded mode enabled: Using FileGraph storage for Atlas.")
-        self.store: IAtlasStore = store or GraphAtlasStore()
+        self.store: IAtlasStore = store or SQLAtlasStore()
 
     async def on_ui_tree_observed(self, event: Any) -> None:
         """

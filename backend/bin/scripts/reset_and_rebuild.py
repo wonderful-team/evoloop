@@ -30,7 +30,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from sqlalchemy import select, text
 
 from app.domain.codebase.indexing.service import IndexingService
-from app.infrastructure.database.graph.driver import get_graph_db
 from app.infrastructure.database.sql.database import session_scope, get_db_session
 from app.models import Repository
 
@@ -47,42 +46,7 @@ async def clean_knowledge_base():
     logger.info("🧹 开始清除知识库...")
     logger.info("=" * 70)
 
-    # 1. Neo4j Cleanup
-    logger.info("→ 连接 Neo4j...")
-    driver = await get_graph_db()
-    async with driver.session() as session:
-        # Delete all code-related nodes
-        nodes_to_delete = [
-            "File",
-            "Directory", 
-            "CodeEntity",
-            "Concept",
-            "CodeChunk",
-            "API",
-            "DBTable"
-        ]
-        
-        for node_type in nodes_to_delete:
-            try:
-                # Use batched transactions to avoid MemoryPoolOutOfMemoryError
-                query = f"MATCH (n:{node_type}) CALL {{ WITH n DETACH DELETE n }} IN TRANSACTIONS OF 10000 ROWS"
-                await session.run(query)
-                logger.info(f"  ✓ 已删除 Neo4j 节点: {node_type}")
-            except Exception as e:
-                logger.warning(f"  ⚠ Neo4j 删除 {node_type} 失败: {e}")
-
-        # Drop vector indexes
-        indexes_to_drop = ["concept_embeddings", "code_embeddings"]
-        for idx in indexes_to_drop:
-            try:
-                await session.run(f"DROP INDEX {idx} IF EXISTS")
-                logger.info(f"  ✓ 已删除向量索引: {idx}")
-            except Exception as e:
-                logger.warning(f"  ⚠ 删除索引 {idx} 失败: {e}")
-
-    logger.info("✅ Neo4j 清理完成")
-
-    # 2. Postgres Cleanup
+    # 1. Postgres Cleanup
     logger.info("→ 连接 Postgres...")
     async with get_db_session() as session:
         tables_to_truncate = [

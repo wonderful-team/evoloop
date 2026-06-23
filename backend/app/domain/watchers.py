@@ -16,6 +16,7 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 from app.domain.codebase.filter import FileFilter
+from app.domain.codebase.ignore import GitignoreMatcher
 from app.utils.detect import is_code_file
 
 logger = logging.getLogger(__name__)
@@ -119,12 +120,16 @@ class IndexingEventSubscriber(FileSystemEventHandler):
     and performs the actual indexing operations.
     """
 
-    def __init__(self, repo_id: int, loop: asyncio.AbstractEventLoop):
+    def __init__(self, repo_id: int, loop: asyncio.AbstractEventLoop, repo_path: str | None = None):
         self.repo_id = repo_id
         self.loop = loop
+        self._repo_path = repo_path
         self._pending_tasks: dict[str, asyncio.TimerHandle] = {}
         self._debounce_delay = 2.0  # Seconds
         self.file_filter = FileFilter()
+        self._gitignore_matcher: GitignoreMatcher | None = None
+        if repo_path:
+            self._gitignore_matcher = GitignoreMatcher.from_file(repo_path, ".gitignore")
 
     def on_modified(self, event):
         if event.is_directory:
@@ -151,7 +156,11 @@ class IndexingEventSubscriber(FileSystemEventHandler):
         if not is_code_file(path):
             return False
 
-        # 2. Check global exclusion rules (node_modules, .git, large files, etc.)
+        # 2. Check .gitignore rules (if a matcher is available)
+        if self._gitignore_matcher and self._gitignore_matcher.should_ignore(path, is_dir=False):
+            return False
+
+        # 3. Check global exclusion rules (node_modules, .git, large files, etc.)
         return self.file_filter.should_include(path)
 
     def _process(self, path: str):
@@ -231,7 +240,7 @@ class RepoWatcher:
     def start(self):
         logger.info(f"Starting RepoWatcher on {self.path} (Repo ID: {self.repo_id})")
         loop = asyncio.get_running_loop()
-        event_handler = IndexingEventSubscriber(self.repo_id, loop)
+        event_handler = IndexingEventSubscriber(self.repo_id, loop, repo_path=self.path)
         observer_manager.schedule(event_handler, self.path, recursive=True)
 
     def stop(self):

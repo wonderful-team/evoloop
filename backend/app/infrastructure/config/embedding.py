@@ -4,7 +4,6 @@ from sqlmodel import Session, select
 
 from app.core.config import settings
 from app.infrastructure.config.service import SystemConfigService
-from app.infrastructure.database.graph.driver import get_graph_db
 from app.infrastructure.database.resource_manager import db_resource_manager
 from app.models import Repository
 
@@ -87,27 +86,6 @@ class EmbeddingConfigService:
         logger.warning("Truncating all vector data due to embedding model change...")
         vector_store.truncate_all()
 
-        # 4. Graph Reset & Migration
-        from app.infrastructure.database.graph.driver import GraphManager
-        driver = GraphManager.get_driver()
-        
-        # 4.1 Drop old index
-        try:
-            await driver.execute_query("DROP INDEX concept_embeddings IF EXISTS")
-            logger.info("Dropped concept_embeddings index")
-        except NotImplementedError:
-            logger.debug("Graph Drop Index skipped (not supported in embedded mode)")
-        except Exception as e:
-            logger.warning(f"Graph Drop Index warning: {e}")
-
-        # 4.2 Recreate Index via Schema Manager
-        from app.infrastructure.database.graph.schema import schema_manager
-        await schema_manager.initialize() 
-        logger.info(f"Re-initialized Graph Schema with potential new dimensions")
-
-        # 4.3 Migrate Concepts (Background-ish)
-        await EmbeddingConfigService._migrate_neo4j_concepts(provider, base_url, model, api_key)
-
         # 5. Trigger Reindexing (Lazy / Active)
         if current_project_id:
             # How to get repo id from project id?
@@ -123,45 +101,4 @@ class EmbeddingConfigService:
                 from app.core.events.publishers import publish_embedding_updated
                 await publish_embedding_updated(repo.id, current_project_id)
 
-    @staticmethod
-    async def _migrate_neo4j_concepts(provider, base_url, model, api_key):
-        """
-        Iterates all Concepts, re-calculates embedding, updates node.
-        """
-        from app.infrastructure.database.graph.driver import GraphManager
-        driver = GraphManager.get_driver()
 
-        # Create a temporary embedder instance
-        from app.infrastructure.embeddings.ollama import OllamaEmbedder
-        from app.infrastructure.embeddings.openai import GenericOpenAIEmbedder
-
-        embedder = None
-        if provider == "ollama":
-            embedder = OllamaEmbedder(base_url, model)
-        else:
-            embedder = GenericOpenAIEmbedder(
-                api_key or "dummy",
-                base_url,
-                model,
-                dimensions=settings.EMBEDDING_DIMENSIONS,
-            )
-
-        # Fetch all concepts - use portable ID retrieval
-        query = "MATCH (c:Concept) RETURN c.name as name, c.description as desc, c.id as id"
-        records = await driver.execute_query(query)
-
-        logger.info(f"Migrating {len(records)} Graph Concepts having description...")
-
-        for r in records:
-            if not r.get('desc'): continue
-            
-            text_to_embed = f"{r['name']}: {r['desc']}"
-            try:
-                vec = await embedder.embed_query(text_to_embed)
-                # Update via high-level API
-                await driver.upsert_node("Concept", "id", {
-                    "id": r["id"],
-                    "embedding": vec
-                })
-            except Exception as e:
-                logger.error(f"Failed to re-embed concept {r['name']}: {e}")

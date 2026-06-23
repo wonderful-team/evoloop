@@ -112,43 +112,6 @@ class TestMeilisearchBackend:
                     asyncio.run(_test())
 
 
-class TestNeo4jGraphDriver:
-    """Production-mode graph integration with Neo4j."""
-
-    @NEO4J_SKIP
-    def test_neo4j_create_and_query(self, production_settings):
-        from app.infrastructure.database.graph.driver import GraphManager
-        from app.infrastructure.database.graph.neo4j import Neo4jDriver
-
-        # Force Neo4j driver (class attr is set at import time based on EMBEDDED_MODE)
-        GraphManager._use_neo4j = True
-
-        async def _test():
-            driver = Neo4jDriver(
-                uri=settings.NEO4J_URI or "bolt://localhost:7687",
-                user=settings.NEO4J_USER or "neo4j",
-                password=settings.NEO4J_PASSWORD or "admin888",
-            )
-            try:
-                await driver.execute_query(
-                    "CREATE (n:TestNode {name: $name}) RETURN n",
-                    {"name": "ProductionTest"},
-                )
-                result = await driver.execute_query(
-                    "MATCH (n:TestNode {name: $name}) RETURN n.name",
-                    {"name": "ProductionTest"},
-                )
-                assert len(result) == 1
-                assert result[0]["n.name"] == "ProductionTest"
-                await driver.execute_query(
-                    "MATCH (n:TestNode {name: $name}) DELETE n",
-                    {"name": "ProductionTest"},
-                )
-            finally:
-                await driver.close()
-
-        asyncio.run(_test())
-
 
 class TestPostgresVectorStore:
     """Production-mode vector storage integration with PostgreSQL + pgvector."""

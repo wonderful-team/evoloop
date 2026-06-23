@@ -9,7 +9,6 @@ from app.core import file as file_utils
 from app.core.evocloud import evocloud_manager
 from app.core.monitoring.activity import activity_monitor
 from app.core.project.service import project_context_manager
-from app.infrastructure.database.graph.driver import get_graph_db
 from app.infrastructure.queue.factory import get_scheduler, shared_task
 from app.utils import json as json_utils
 from app.utils.async_utils import flush_loop_bound_resources
@@ -52,31 +51,14 @@ async def _summarize_project_logic(name: str, path: str):
 
     container = None
     try:
-        # 1. Fetch Deep Architectural Summary from Graph (if available)
         arch_summary = "Not available yet."
+        from app.domain.codebase.indexing.directory_summarizer import DirectorySummarizer
         try:
-            driver = await get_graph_db(project_path=path)
-            async with driver.session() as session:
-                # Check for Root Directory Node
-                # Logic: path should match exactly.
-                # Note: DirectorySummarizer logic ensures path has no trailing slash usually, or normalized.
-                # We try exact match first.
-                query = """
-                MATCH (d:Directory {path: $path, project_id: $pid})
-                RETURN d.description as summary
-                """
-                result = await session.run(query, path=path, pid=project_id)
-                record = await result.single()
-                if record and record["summary"]:
-                    arch_summary = record["summary"]
-                    logger.info(f"[ProjectSummarizer] Found existing architectural summary for {name}")
-                else:
-                    # Try fallback: maybe path needs trailing slash?
-                    pass
-        except NotImplementedError:
-            logger.debug("[ProjectSummarizer] Graph summary not available in embedded mode")
+            summary_dir = await DirectorySummarizer.get_summary(path)
+            if summary_dir:
+                arch_summary = summary_dir
         except Exception as e:
-            logger.warning(f"[ProjectSummarizer] Failed to fetch graph summary: {e}")
+            logger.debug(f"[ProjectSummarizer] Failed to fetch directory summary: {e}")
 
         # Update Status
         await activity_monitor.update_agent_state(sys_tid, "Summarizing", "Project Analysis", "Reading Files & Context...")

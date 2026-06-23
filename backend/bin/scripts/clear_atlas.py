@@ -7,7 +7,6 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.core.atlas.engine import AtlasEngine
-from app.infrastructure.database.graph.driver import Neo4jManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -17,11 +16,9 @@ async def main():
     try:
         engine = AtlasEngine()
         await engine.clear_atlas()
-        logger.info("Purge complete. Neo4j is now clean.")
+        logger.info("Purge complete. Atlas SQL data cleared.")
     except Exception as e:
         logger.error(f"Failed to clear atlas: {e}")
-    finally:
-        await Neo4jManager.close_all()
 
 if __name__ == "__main__":
     asyncio.run(main())

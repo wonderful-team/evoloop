@@ -10,11 +10,9 @@ from app.core.file import get_file_ext
 from app.core.project.utils import get_project_path
 from app.domain.codebase.indexing.components.content_indexer import ContentIndexer
 from app.domain.codebase.indexing.components.file_preparer import FilePreparer
-from app.domain.codebase.indexing.components.graph_syncer import GraphSyncer
 from app.domain.codebase.indexing.components.sql_persister import SQLPersister
 from app.domain.codebase.indexing.extractors.treesitter_extractor import TreeSitterExtractor
 from app.domain.codebase.schemas import IndexedContent, PreparedFile
-from app.infrastructure.database.graph.driver import get_graph_db
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.embeddings.base import BaseEmbedder
 from app.infrastructure.embeddings.batched import BatchedEmbedder
@@ -35,7 +33,6 @@ class IndexingService:
     - FilePreparer: File filtering, reading, validation
     - ContentIndexer: Code extraction, embedding generation
     - SQLPersister: SQL database persistence
-    - GraphSyncer: Neo4j graph synchronization
     """
 
     def __init__(self, session: AsyncSession = None):
@@ -49,7 +46,6 @@ class IndexingService:
         self.file_preparer = FilePreparer()
         self.content_indexer = ContentIndexer(self.extractor, self.embedder)
         self.sql_persister = SQLPersister()
-        self.graph_syncer = GraphSyncer()
 
     async def get_repo_by_path(self, path: str) -> Repository | None:
         """
@@ -237,20 +233,6 @@ class IndexingService:
                 else:
                     logger.debug(f"Skipping vector upsert for {prepared.rel_path}: embeddings disabled or not generated.")
 
-                # 4. Sync Graph
-                try:
-                    line_count = prepared.content.count("\n") + 1
-                    await self.graph_syncer.sync(
-                        prepared,
-                        indexed,
-                        line_count,
-                        source_file_pg_id=source_file.id,
-                        entity_pg_ids=name_to_id,
-                        repo_path=repo_path,
-                    )
-                except NotImplementedError:
-                    logger.debug("[IndexingService] Graph sync skipped (not supported in embedded mode)")
-
             except Exception as e:
                 logger.error(f"Error indexing file {file_path}: {e}")
                 await session.rollback()
@@ -370,7 +352,7 @@ class IndexingService:
             return False
 
     async def remove_file(self, file_path: str, repo_id: int):
-        """Remove a file from SQL and graph indexes."""
+        """Remove a file from SQL indexes."""
         async with self.session_factory() as session:
             try:
                 repo = await session.get(Repository, repo_id)
@@ -386,7 +368,6 @@ class IndexingService:
 
                 rel_path = os.path.relpath(file_path, repo_path)
 
-                # 1. SQL Cleanup
                 stmt = select(SourceFile).where(
                     SourceFile.repository_id == repo_id, SourceFile.path == rel_path
                 )
@@ -398,48 +379,12 @@ class IndexingService:
                     await session.delete(source_file)
                     logger.info(f"Removed {rel_path} from SQL Index")
 
-                # 2. Graph Cleanup
-                try:
-                    driver = await get_graph_db(project_path=repo_path)
-                    project_id = repo.project_id
-
-                    # 1. Delete associated Entities (CONTAINS)
-                    # Note: Our delete_nodes is simpler, it deletes nodes of a label matching filters.
-                    # To mimic the DETACH DELETE of entities contained in f, we find them or just delete by project_id/rel_path if they were tagged.
-                    # Actually, our CodeEntity nodes have full_name.
-                    # For simplicity and robustness, we can delete entities that might be orphaned.
-                    # But the current IGraphDriver.delete_nodes doesn't support complex joins.
-
-                    # Fallback: Use execute_query but route it through driver
-                    await driver.execute_query(
-                        """
-                        MATCH (f:File {path: $path, project_id: $pid})
-                        OPTIONAL MATCH (f)-[:CONTAINS]->(e)
-                        DETACH DELETE e
-                        DETACH DELETE f
-                        """,
-                        path=rel_path,
-                        pid=project_id,
-                    )
-                    logger.info(f"Removed {rel_path} from Graph Index")
-                except NotImplementedError:
-                    logger.debug(
-                        "[IndexingService] Graph cleanup skipped (not supported in embedded mode)"
-                    )
-                except Exception as e:
-                    logger.warning(
-                        f"[IndexingService] Graph cleanup failed for {rel_path}: {e}"
-                    )
-
             except Exception as e:
                 logger.error(f"Error removing file {file_path}: {e}")
                 await session.rollback()
 
     async def move_file(self, src_path: str, dest_path: str, repo_id: int):
-        """
-        Handle file move/rename.
-        Treat as Remove + Index to ensure full graph identity regeneration.
-        """
+        """Handle file move/rename via remove + re-index."""
         # 1. Remove Old
         await self.remove_file(src_path, repo_id)
 
@@ -564,7 +509,7 @@ class IndexingService:
 
             if self.embedder is None:
                 # Embeddings disabled: persist the window immediately with empty
-                # embeddings. This keeps the SQL/graph index up-to-date while
+                # embeddings. This keeps the SQL index up-to-date while
                 # avoiding the CPU-heavy local embedding step.
                 window_items: list[tuple[PreparedFile, IndexedContent]] = []
                 for prepared, indexed, _text_count in window:

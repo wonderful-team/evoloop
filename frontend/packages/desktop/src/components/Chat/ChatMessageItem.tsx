@@ -313,7 +313,7 @@ const ChatMessageItem = memo(
               </Button>
             </CollapsibleTrigger>
             {(msg.content || !isCurrentlyStreaming) && (
-              <CollapsibleContent className="mt-1 pl-3 py-1 border-l-1 border-border/60 text-[12px] text-muted-foreground/80 leading-relaxed font-mono">
+              <CollapsibleContent className="mt-1 pl-3 py-1 border-l-1 border-border/60 text-[12px] text-muted-foreground/80 leading-relaxed font-mono whitespace-pre-wrap">
                 <MessageContent
                   content={
                     typeof msg.thinking === "string"

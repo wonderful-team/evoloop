@@ -41,9 +41,15 @@ from .system import Tool as Tool
 from .todo import TodoItem as TodoItem
 from .todo import TodoPriority as TodoPriority
 from .todo import TodoStatus as TodoStatus
+from .atlas import AtlasApp as AtlasApp
+from .atlas import AtlasState as AtlasState
+from .atlas import AtlasTransition as AtlasTransition
 from .wiki import WikiPage as WikiPage
 
 __all__ = [
+    "AtlasApp",
+    "AtlasState",
+    "AtlasTransition",
     "CodeChunk",
     "CodeEntity",
     "AutonomousTask",

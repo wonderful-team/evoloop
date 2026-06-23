@@ -37,22 +37,21 @@ class CodeExplorationEngine:
         repo_path: Optional[str] = None
     ) -> Optional[dict]:
         """
-        Find symbol definition using best available backend.
+        Find symbol definition using SQL retrieval, with grep fallback.
         """
-        # Try Knowledge Graph first
+        from app.domain.codebase.retrieval.service import RetrievalService
+        retriever = RetrievalService()
         try:
-            from app.domain.codebase.retrieval.graph_service import graph_service
-            results = await graph_service.find_symbol_definition(name, project_id)
+            results = await retriever.find_symbol_definition(name, project_id)
             if results:
-                logger.info(f"[Engine] Found '{name}' in Knowledge Graph")
+                logger.info(f"[Engine] Found '{name}' via SQL retrieval")
                 return {
-                    "source": "graph",
+                    "source": "sql",
                     "results": results
                 }
         except Exception as e:
-            logger.debug(f"[Engine] Graph lookup failed: {e}")
-        
-        # Fallback to unified search (Search Center)
+            logger.debug(f"[Engine] SQL lookup failed: {e}")
+
         try:
             results = await self._grep_find_symbol(name, repo_path)
             if results:
@@ -63,7 +62,7 @@ class CodeExplorationEngine:
                 }
         except Exception as e:
             logger.debug(f"[Engine] Search center lookup failed: {e}")
-        
+
         return None
     
     async def search_code(
@@ -138,10 +137,11 @@ class CodeExplorationEngine:
             return [{"error": str(e)}]
     
     async def analyze_impact(self, symbol: str, project_id: int = DEFAULT_PROJECT_ID) -> List[Dict[str, Any]]:
-        """Analyze symbol impact using Knowledge Graph."""
+        """Analyze symbol impact using SQL retrieval."""
+        from app.domain.codebase.retrieval.service import RetrievalService
+        retriever = RetrievalService()
         try:
-            from app.domain.codebase.retrieval.graph_service import graph_service
-            usages = await graph_service.find_usages(symbol, project_id)
+            usages = await retriever.find_usages(symbol, project_id)
             return usages or []
         except Exception as e:
             logger.error(f"[Engine] Impact analysis failed: {e}")

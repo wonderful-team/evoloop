@@ -2,6 +2,7 @@ import { cn } from "@evoloop/shared/lib/utils"
 import {
   AlertCircle,
   File as FileIcon,
+  Folder,
   Loader2,
   MessageSquare,
   Music,
@@ -13,7 +14,7 @@ export interface PickedFile {
   id: string
   url: string | number // Can be string (URL) or number (skill ID)
   name: string
-  type: "image" | "file" | "reference" | "message" | "audio" | "skill"
+  type: "image" | "file" | "reference" | "message" | "audio" | "skill" | "directory"
   status?: "uploading" | "success" | "error"
   metadata?: {
     duration?: number
@@ -49,9 +50,11 @@ export function FilePreview({ pickedFiles, onRemove }: FilePreviewProps) {
                   ? "bg-purple-500/10 border-purple-500/20 text-purple-700 dark:text-purple-400"
                   : file.type === "audio"
                     ? "bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400"
-                    : file.type === "skill"
-                      ? "bg-indigo-500/10 border-indigo-500/20 text-indigo-700 dark:text-indigo-400"
-                      : "bg-blue-500/10 border-blue-500/20 text-blue-700 dark:text-blue-400",
+                    : file.type === "directory"
+                      ? "bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400"
+                      : file.type === "skill"
+                        ? "bg-indigo-500/10 border-indigo-500/20 text-indigo-700 dark:text-indigo-400"
+                        : "bg-blue-500/10 border-blue-500/20 text-blue-700 dark:text-blue-400",
             file.status === "uploading" && "opacity-70",
           )}
           title={file.name}
@@ -72,6 +75,8 @@ export function FilePreview({ pickedFiles, onRemove }: FilePreviewProps) {
             <MessageSquare className="w-3.5 h-3.5 shrink-0 opacity-70" />
           ) : file.type === "audio" ? (
             <Music className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+          ) : file.type === "directory" ? (
+            <Folder className="w-3.5 h-3.5 shrink-0 text-amber-500" />
           ) : file.type === "skill" ? (
             <span className="w-3.5 h-3.5 shrink-0 text-purple-500 font-bold text-[10px]">
               S
