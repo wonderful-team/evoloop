@@ -76,10 +76,25 @@ class EnvironmentProbe:
     @staticmethod
     async def probe_host() -> HostEnvironment | None:
         """Probe host environment (macOS, Linux, Windows)."""
-        if not settings.ENABLE_ENVIRONMENT_CONTROLS:
-            return None
-
         os_name = platform.system()
+
+        if not settings.ENABLE_ENVIRONMENT_CONTROLS:
+            # If environment controls are disabled, return a basic host profile (safe and read-only)
+            # This ensures the Agent knows the target OS even on headless servers/sandboxes.
+            try:
+                ram_gb = int(psutil.virtual_memory().total / (1024 ** 3))
+            except Exception:
+                ram_gb = 0
+
+            return HostEnvironment(
+                os_name="macOS" if os_name == "Darwin" else os_name,
+                os_version=platform.release() if os_name != "Darwin" else (platform.mac_ver()[0] or "Unknown"),
+                model="Mac" if os_name == "Darwin" else f"{os_name} Host",
+                cpu=platform.processor() or "Unknown",
+                ram_gb=ram_gb,
+                installed_apps=[],
+                app_usage_stats=[]
+            )
 
         if os_name == "Darwin":
             return await EnvironmentProbe._probe_macos_impl()
