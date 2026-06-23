@@ -35,6 +35,8 @@ from app.core.file import (
 )
 from app.core.project.utils import get_project_path
 
+from app.core.file.traverser import TraverseOptions
+
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["files"])
 
@@ -378,11 +380,17 @@ async def search_files_by_name(
     results = []
     count = 0
 
-    for full_path in FileTraverser.walk(root_path):
+    options = TraverseOptions(include_dirs=True)
+    for full_path in FileTraverser.walk(root_path, options=options):
         file_name = os.path.basename(full_path)
         if q_lower in file_name.lower():
             rel_path = os.path.relpath(full_path, root_path)
-            results.append(FileNameSearchResult(name=file_name, path=rel_path, type="file"))
+            is_dir = os.path.isdir(full_path)
+            results.append(FileNameSearchResult(
+                name=file_name,
+                path=rel_path,
+                type="directory" if is_dir else "file"
+            ))
             count += 1
             if count >= 20:
                 break
