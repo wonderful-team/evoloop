@@ -17,6 +17,7 @@ from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.embeddings.base import BaseEmbedder
 from app.infrastructure.embeddings.batched import BatchedEmbedder
 from app.infrastructure.embeddings.factory import EmbedderFactory
+from app.infrastructure.database.vector import get_vector_store
 from app.models import (
     Repository,
     SourceFile,
@@ -111,12 +112,12 @@ class IndexingService:
 
     async def _resolve_project_path(self, repo: Repository) -> str | None:
         """Resolve local project path for a repository via project_id lookup."""
+        if repo.local_path and os.path.isdir(repo.local_path):
+            return repo.local_path
         if repo.project_id is not None:
             resolved = await get_project_path(repo.project_id)
             if resolved and os.path.isdir(resolved):
                 return resolved
-        if repo.local_path and os.path.isdir(repo.local_path):
-            return repo.local_path
         return None
 
     async def index_file(
@@ -128,6 +129,8 @@ class IndexingService:
         prepared_override: PreparedFile | None = None,
         indexed_override: IndexedContent | None = None,
         content_indexer: ContentIndexer | None = None,
+        skip_vector_upsert: bool = False,
+        _vector_collector: list | None = None,
     ):
         """
         Index a single file using the component-based pipeline.
@@ -142,6 +145,10 @@ class IndexingService:
             content_indexer: Optional ContentIndexer to use for extraction and
                 embedding. When called from index_repository, a BatchedEmbedder
                 is passed here to combine texts across files.
+            skip_vector_upsert: If True, skip vector store upsert and instead
+                append vector data to _vector_collector for batch processing.
+            _vector_collector: Optional list to collect vector data for batched
+                upsert. Requires skip_vector_upsert=True.
         """
         logger.info(f"[index_file] Enter: {file_path} repo_id={repo_id}")
 
@@ -149,22 +156,6 @@ class IndexingService:
 
         prepared = prepared_override
         indexed = indexed_override
-        repo_path: str | None = None
-
-        # If we already have indexed content, we only need repo metadata for
-        # graph/vector persistence. Resolve it without starting a session here.
-        if indexed_override is not None:
-            async with self.session_factory() as session:
-                repo = await session.get(Repository, repo_id)
-                if not repo:
-                    logger.error(f"Repository {repo_id} not found")
-                    return
-                repo_path = await self._resolve_project_path(repo)
-            if repo_path is None:
-                logger.warning(
-                    f"[index_file] No resolvable project path for repo {repo_id}. Skipping {file_path}."
-                )
-                return
 
         async with self.session_factory() as session:
             try:
@@ -180,7 +171,6 @@ class IndexingService:
                     )
                     return
 
-                # 1. Prepare (skip if provided by caller)
                 if prepared is None:
                     prepared = await self.file_preparer.prepare(
                         file_path, repo, session, force=force, repo_path=repo_path
@@ -188,7 +178,6 @@ class IndexingService:
                     if not prepared:
                         return
 
-                # 2. Index Content (skip if provided by caller)
                 if indexed is None:
                     indexed = await indexer.index(
                         file_path, prepared.content, prepared.rel_path
@@ -196,7 +185,6 @@ class IndexingService:
                     if not indexed:
                         return
 
-                # 3. Persist SQL
                 source_file = await self.file_preparer.create_or_update_source_file(
                     prepared, session
                 )
@@ -205,31 +193,44 @@ class IndexingService:
                     indexed, source_file, session
                 )
 
-                # 3.5 Persist vectors to unified vector store (skip if no embeddings generated)
                 if indexed.embeddings:
-                    from app.infrastructure.database.vector import get_vector_store
-
-                    vector_store = get_vector_store(project_path=repo_path)
-                    chunks_for_vec = []
-                    for doc in indexed.documents:
-                        chunks_for_vec.append(
-                            {
-                                "content": doc.content,
-                                "file_path": prepared.rel_path,
-                                "repository_id": str(repo_id),
-                                "chunk_type": doc.metadata.get("type", "unknown"),
-                                "identifier": doc.metadata.get("name", "unknown"),
-                                "start_line": doc.metadata.get("start_line", 0),
-                                "end_line": doc.metadata.get("end_line", 0),
-                                "language": get_file_ext(prepared.file_path),
-                            }
+                    if skip_vector_upsert and _vector_collector is not None:
+                        chunks_for_vec = []
+                        for doc in indexed.documents:
+                            chunks_for_vec.append(
+                                {
+                                    "content": doc.content,
+                                    "file_path": prepared.rel_path,
+                                    "repository_id": str(repo_id),
+                                    "chunk_type": doc.metadata.get("type", "unknown"),
+                                    "identifier": doc.metadata.get("name", "unknown"),
+                                    "start_line": doc.metadata.get("start_line", 0),
+                                    "end_line": doc.metadata.get("end_line", 0),
+                                    "language": get_file_ext(prepared.file_path),
+                                }
+                            )
+                        _vector_collector.append((chunks_for_vec, indexed.embeddings))
+                    else:
+                        vector_store = get_vector_store(project_path=repo_path)
+                        chunks_for_vec = []
+                        for doc in indexed.documents:
+                            chunks_for_vec.append(
+                                {
+                                    "content": doc.content,
+                                    "file_path": prepared.rel_path,
+                                    "repository_id": str(repo_id),
+                                    "chunk_type": doc.metadata.get("type", "unknown"),
+                                    "identifier": doc.metadata.get("name", "unknown"),
+                                    "start_line": doc.metadata.get("start_line", 0),
+                                    "end_line": doc.metadata.get("end_line", 0),
+                                    "language": get_file_ext(prepared.file_path),
+                                }
+                            )
+                        await asyncio.to_thread(
+                            vector_store.upsert_code_chunks,
+                            chunks_for_vec,
+                            indexed.embeddings,
                         )
-
-                    await asyncio.to_thread(
-                        vector_store.upsert_code_chunks,
-                        chunks_for_vec,
-                        indexed.embeddings,
-                    )
                 else:
                     logger.debug(f"Skipping vector upsert for {prepared.rel_path}: embeddings disabled or not generated.")
 
@@ -331,26 +332,6 @@ class IndexingService:
         for (item_idx, _doc_idx), embedding in zip(text_map, all_embeddings, strict=False):
             items[item_idx][1].embeddings.append(embedding)
 
-    async def _persist_indexed(
-        self,
-        file_path: str,
-        repo_id: int,
-        prepared: PreparedFile,
-        indexed: IndexedContent,
-    ) -> bool:
-        """Persist a pre-prepared, pre-embedded file to SQL, vector and graph stores."""
-        try:
-            await self.index_file(
-                file_path,
-                repo_id,
-                prepared_override=prepared,
-                indexed_override=indexed,
-            )
-            return True
-        except Exception as e:
-            logger.error(f"Error persisting {file_path}: {e}")
-            return False
-
     async def remove_file(self, file_path: str, repo_id: int):
         """Remove a file from SQL indexes."""
         async with self.session_factory() as session:
@@ -446,17 +427,15 @@ class IndexingService:
         # call can take hours on CPU; if it is interrupted before any files are
         # persisted, the next restart has to redo everything. We therefore:
         #   1. Extract all files cheaply in parallel.
-        #   2. Walk through the extracted files in windows of ~16 texts,
+        #   2. Walk through the extracted files in windows of ~32 texts,
         #      embed each window, then immediately persist those files.
-        EXTRACT_CONCURRENCY = 4
-        PERSIST_CONCURRENCY = 2
+        EXTRACT_CONCURRENCY = max(4, (os.cpu_count() or 4) * 2)
         extract_semaphore = asyncio.Semaphore(EXTRACT_CONCURRENCY)
-        persist_semaphore = asyncio.Semaphore(PERSIST_CONCURRENCY)
 
-        # Window size matches the LocalEmbedder encode batch cap so that each
-        # window results in roughly one model.encode() call. This preserves the
-        # cross-file batching benefit while keeping persistence granular.
-        TEXTS_PER_WINDOW = 16
+        # Window size matches the BCE model's optimal encode batch size.
+        # Larger batches give significantly better throughput (336 vs 112 texts/s).
+        # Each window results in roughly one model.encode() call.
+        TEXTS_PER_WINDOW = 32
 
         batched_embedder = BatchedEmbedder(
             self.embedder, max_batch_size=TEXTS_PER_WINDOW, max_wait_ms=50
@@ -492,90 +471,111 @@ class IndexingService:
         logger.info("Phase 2/3: embedding and persisting in windows")
         indexed_count = 0
         persist_error_count = 0
+        all_window_vectors: list = []
+        last_repo_path: str | None = None
         window: list[tuple[PreparedFile, IndexedContent, int]] = []
         window_texts: list[str] = []
 
-        async def _persist_one(item: tuple[PreparedFile, IndexedContent]) -> bool:
-            async with persist_semaphore:
-                prepared, indexed = item
-                return await self._persist_indexed(
-                    prepared.file_path, repo_id, prepared, indexed
-                )
-
         async def _flush_window() -> None:
-            nonlocal indexed_count, persist_error_count
+            nonlocal indexed_count, persist_error_count, all_window_vectors, last_repo_path
             if not window:
                 return
 
+            window_items: list[tuple[PreparedFile, IndexedContent]] = []
+            vector_collector: list = []
+
             if self.embedder is None:
-                # Embeddings disabled: persist the window immediately with empty
-                # embeddings. This keeps the SQL index up-to-date while
-                # avoiding the CPU-heavy local embedding step.
-                window_items: list[tuple[PreparedFile, IndexedContent]] = []
-                for prepared, indexed, _text_count in window:
+                for prepared, indexed, _ in window:
                     indexed.embeddings = []
                     window_items.append((prepared, indexed))
                 window.clear()
                 window_texts.clear()
-
-                persist_tasks = [
-                    asyncio.create_task(_persist_one(item)) for item in window_items
-                ]
-                persist_results = await asyncio.gather(*persist_tasks, return_exceptions=True)
-                for result in persist_results:
-                    if isinstance(result, Exception):
-                        persist_error_count += 1
-                        logger.error(f"Window persist failed: {result}")
-                    elif result:
-                        indexed_count += 1
-                    else:
-                        persist_error_count += 1
-
+            else:
                 logger.info(
-                    f"Progress: {indexed_count}/{len(prepared_items)} files "
-                    f"({persist_error_count} errors)"
+                    f"[_embed_window] Embedding window of {len(window)} files, "
+                    f"{len(window_texts)} texts"
                 )
-                return
+                try:
+                    embeddings = await batched_embedder.embed_documents(window_texts)
+                except Exception as e:
+                    logger.error(f"Window embedding failed: {e}")
+                    persist_error_count += len(window)
+                    window.clear()
+                    window_texts.clear()
+                    return
 
-            logger.info(
-                f"[_embed_window] Embedding window of {len(window)} files, "
-                f"{len(window_texts)} texts"
-            )
-            try:
-                embeddings = await batched_embedder.embed_documents(window_texts)
-            except Exception as e:
-                logger.error(f"Window embedding failed: {e}")
-                for _, _, _ in window:
-                    persist_error_count += 1
+                offset = 0
+                for prepared, indexed, text_count in window:
+                    indexed.embeddings = embeddings[offset : offset + text_count]
+                    offset += text_count
+                    window_items.append((prepared, indexed))
                 window.clear()
                 window_texts.clear()
-                return
 
-            # Distribute embeddings back to each IndexedContent.
-            offset = 0
-            window_items = []
-            for prepared, indexed, text_count in window:
-                indexed.embeddings = embeddings[offset : offset + text_count]
-                offset += text_count
-                window_items.append((prepared, indexed))
+            # Batch-persist all files in a single DB session,
+            # then batch upsert vectors across the window.
+            window_ok = False
+            repo_path: str | None = None
+            try:
+                async with self.session_factory() as session:
+                    repo = await session.get(Repository, repo_id)
+                    if not repo:
+                        logger.error(
+                            f"Repository {repo_id} not found during window persist"
+                        )
+                        return
+                    repo_path = await self._resolve_project_path(repo)
+                    if not repo_path:
+                        logger.warning(
+                            f"No resolvable project path for repo {repo_id}. "
+                            f"Skipping {len(window_items)} files."
+                        )
+                        return
 
-            window.clear()
-            window_texts.clear()
+                    # Create/update all source files, then batch-clear + batch-persist.
+                    source_files: list[SourceFile] = []
+                    for prepared, _indexed in window_items:
+                        sf = await self.file_preparer.create_or_update_source_file(
+                            prepared, session
+                        )
+                        source_files.append(sf)
 
-            # Persist the window's files concurrently (bounded by DB).
-            persist_tasks = [
-                asyncio.create_task(_persist_one(item)) for item in window_items
-            ]
-            persist_results = await asyncio.gather(*persist_tasks, return_exceptions=True)
+                    await self.sql_persister.batch_clear(source_files, session)
+                    await self.sql_persister.batch_persist(
+                        [(indexed, sf) for (_, indexed), sf in zip(window_items, source_files)],
+                        session,
+                    )
 
-            for result in persist_results:
-                if isinstance(result, Exception):
-                    persist_error_count += 1
-                    logger.error(f"Window persist failed: {result}")
-                elif result:
-                    indexed_count += 1
-                else:
-                    persist_error_count += 1
+                    for prepared, indexed in window_items:
+                        if indexed.embeddings:
+                            chunks_for_vec = [
+                                {
+                                    "content": doc.content,
+                                    "file_path": prepared.rel_path,
+                                    "repository_id": str(repo_id),
+                                    "chunk_type": doc.metadata.get("type", "unknown"),
+                                    "identifier": doc.metadata.get("name", "unknown"),
+                                    "start_line": doc.metadata.get("start_line", 0),
+                                    "end_line": doc.metadata.get("end_line", 0),
+                                    "language": get_file_ext(prepared.file_path),
+                                }
+                                for doc in indexed.documents
+                            ]
+                            vector_collector.append((chunks_for_vec, indexed.embeddings))
+
+                    window_ok = True
+
+                if window_ok:
+                    indexed_count += len(window_items)
+                    last_repo_path = repo_path
+                    all_window_vectors.extend(vector_collector)
+
+            except Exception as e:
+                logger.error(f"Window persist failed: {e}")
+                window_ok = False
+
+            if not window_ok:
+                persist_error_count += len(window_items)
 
             logger.info(
                 f"Progress: {indexed_count}/{len(prepared_items)} files "
@@ -597,6 +597,25 @@ class IndexingService:
         # Flush any remaining files in the final window.
         await _flush_window()
         await batched_embedder.close()
+
+        # Single batch vector upsert for all files in the repository.
+        if all_window_vectors and last_repo_path:
+            try:
+                vector_store = get_vector_store(project_path=last_repo_path)
+                all_chunks: list = []
+                all_embeddings: list[list[float]] = []
+                for chunks_vec, embs in all_window_vectors:
+                    all_chunks.extend(chunks_vec)
+                    all_embeddings.extend(embs)
+                await asyncio.to_thread(
+                    vector_store.upsert_code_chunks,
+                    all_chunks, all_embeddings,
+                )
+                logger.info(
+                    f"Vector upsert complete: {len(all_chunks)} chunks"
+                )
+            except Exception as e:
+                logger.error(f"Final vector upsert failed: {e}")
 
         error_count = extract_error_count + persist_error_count
         logger.info(f"Full indexing complete. Indexed: {indexed_count}, Errors: {error_count}")

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 import tree_sitter
@@ -93,7 +94,7 @@ class TreeSitterExtractor(BaseExtractor):
 
         parser, language = parser_info
         try:
-            tree = parser.parse(bytes(content, "utf8"))
+            tree = await asyncio.to_thread(parser.parse, bytes(content, "utf8"))
         except Exception as e:
             logger.warning(f"TreeSitter binary parse failed: {e}")
             return ExtractionResult(documents=[], entities=[], relations=[])

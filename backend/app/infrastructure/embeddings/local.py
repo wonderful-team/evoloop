@@ -44,18 +44,20 @@ class LocalEmbedder(BaseEmbedder):
 
     # Hard cap on the number of texts passed to a single encode() call. Larger
     # batches run faster per-text but a single huge call monopolizes the CPU for
-    # minutes and makes the whole system unresponsive. 16 is a sweet spot for
-    # the Nomic model on a typical laptop CPU.
-    _MAX_ENCODE_BATCH = 16
+    # minutes and makes the whole machine unresponsive. 32 is a sweet spot for
+    # the BCE model on a typical laptop CPU.
+    _MAX_ENCODE_BATCH = 32
 
     def __init__(
-        self, model_name: str = "nomic-ai/nomic-embed-text-v1.5", device: str = "cpu"
+        self, model_name: str = "maidalun1020/bce-embedding-base_v1", device: str = "cpu"
     ):
         self.model_name = model_name
         self.device = device
         self._model = None
 
-        # Determine if we need Nomic-style prefixes
+        # Determine if we need asymmetric prefixes
+        # BCE uses Query:/Passage:, Nomic uses search_query:/search_document:
+        self._needs_prefix = "bce" in model_name.lower() or "nomic" in model_name.lower()
         self._is_nomic = "nomic" in model_name.lower()
 
     async def _get_model(self):
@@ -106,48 +108,71 @@ class LocalEmbedder(BaseEmbedder):
                 while not loading_event.is_set():
                     await asyncio.sleep(0.05)
 
+    _FALLBACK_MODELS = [
+        "maidalun1020/bce-embedding-base_v1",
+        "sentence-transformers/all-MiniLM-L6-v2",
+        "nomic-ai/nomic-embed-text-v1.5",
+    ]
+
     def _load_model_sync(self):
         """Construct the SentenceTransformer model synchronously."""
-        # Force offline mode to guarantee zero network requests to HuggingFace.
-        # Must be set BEFORE importing sentence_transformers/huggingface_hub
-        # so the library picks it up during module initialization.
-        os.environ["HF_HUB_OFFLINE"] = "1"
-
-        # Limit PyTorch/OpenMP threads to avoid over-subscription on CPUs with
-        # many cores. With the default 16 threads, a single encode() call hogs
-        # the CPU and concurrent worker threads cannot make progress. 2 threads
-        # keeps the model responsive while still allowing other work (UI, IDE,
-        # second Huey worker) to run.
         os.environ.setdefault("OMP_NUM_THREADS", "2")
         os.environ.setdefault("MKL_NUM_THREADS", "2")
 
         import torch
-
         torch.set_num_threads(2)
-
         from sentence_transformers import SentenceTransformer
+        import huggingface_hub.constants as _st_cache
 
-        logger.info(
-            f"[LocalEmbedder] Loading model '{self.model_name}' on {self.device}..."
+        candidates = [self.model_name]
+        if self.model_name != self._FALLBACK_MODELS[0]:
+            candidates.extend(self._FALLBACK_MODELS)
+        else:
+            candidates.extend(self._FALLBACK_MODELS[1:])
+
+        last_error = None
+        for model_name in candidates:
+            logger.info(f"[LocalEmbedder] Trying model '{model_name}' on {self.device}...")
+            try:
+                loaded = SentenceTransformer(
+                    model_name,
+                    device=self.device,
+                    trust_remote_code=True,
+                    cache_folder=_st_cache.default_cache_path,
+                    local_files_only=True,
+                )
+                if model_name != self.model_name:
+                    logger.warning(
+                        f"[LocalEmbedder] Configured model '{self.model_name}' unavailable; "
+                        f"using '{model_name}' instead."
+                    )
+                else:
+                    logger.info("[LocalEmbedder] Model loaded.")
+                return loaded
+            except Exception as e:
+                last_error = e
+                logger.warning(f"[LocalEmbedder] Failed to load '{model_name}': {e}")
+                continue
+
+        raise RuntimeError(
+            f"No embedding model could be loaded. Tried: {candidates}. "
+            f"Last error: {last_error}"
         )
-        loaded = SentenceTransformer(
-            self.model_name,
-            device=self.device,
-            trust_remote_code=True,
-            local_files_only=True,
-        )
-        logger.info("[LocalEmbedder] Model loaded from local cache.")
-        return loaded
 
     async def embed_documents(self, documents: list[str]) -> list[list[float]]:
         if not documents:
             return []
 
-        # Prepend prefix if using Nomic
+        # Prepend prefix for asymmetric models
         processed_docs = documents
         if self._is_nomic:
             processed_docs = [
                 f"search_document: {doc}" if not doc.startswith("search_") else doc
+                for doc in documents
+            ]
+        elif "bce" in self.model_name.lower():
+            processed_docs = [
+                f"Passage: {doc}" if not doc.startswith("Passage:") else doc
                 for doc in documents
             ]
 
@@ -178,10 +203,12 @@ class LocalEmbedder(BaseEmbedder):
         if not query:
             return [0.0] * 768
 
-        # Prepend prefix if using Nomic
+        # Prepend prefix for asymmetric models
         processed_query = query
         if self._is_nomic and not query.startswith("search_"):
             processed_query = f"search_query: {query}"
+        elif "bce" in self.model_name.lower() and not query.startswith("Query:"):
+            processed_query = f"Query: {query}"
 
         model = await self._get_model()
         logger.debug(f"[LocalEmbedder] Embedding query: {query[:50]}...")
