@@ -65,3 +65,48 @@ class GitignoreMatcher:
             except Exception:
                 pass
         return cls(root_path, content)
+
+
+class NestedGitignoreMatcher:
+    """
+    A gitignore matcher that supports nested .gitignore files.
+
+    Lazily loads and caches .gitignore matchers per directory,
+    then checks from the repo root down to the file's directory
+    — matching git's actual behavior.
+    """
+
+    def __init__(self, repo_path: str):
+        self.repo_path = os.path.abspath(repo_path)
+        self._matcher_cache: dict[str, GitignoreMatcher | None] = {}
+
+    def _get_matcher(self, dir_path: str) -> GitignoreMatcher | None:
+        """Lazy-load and cache the .gitignore matcher for a directory."""
+        if dir_path not in self._matcher_cache:
+            gitignore_path = os.path.join(dir_path, ".gitignore")
+            if os.path.isfile(gitignore_path):
+                self._matcher_cache[dir_path] = GitignoreMatcher.from_file(dir_path, ".gitignore")
+            else:
+                self._matcher_cache[dir_path] = None
+        return self._matcher_cache[dir_path]
+
+    def should_ignore(self, abs_path: str, is_dir: bool = False) -> bool:
+        """
+        Check if the path should be ignored by any .gitignore from root to leaf.
+        Returns True if ignored, False otherwise.
+        """
+        rel_path = os.path.relpath(abs_path, self.repo_path)
+        if rel_path == ".":
+            return False
+
+        parts = rel_path.split(os.sep)
+        # Walk from repo root down to the file's parent directory
+        # (for directories, include the directory itself)
+        max_depth = len(parts) if is_dir else len(parts) - 1
+        for i in range(max_depth + 1):
+            dir_path = os.path.join(self.repo_path, *parts[:i]) if i > 0 else self.repo_path
+            matcher = self._get_matcher(dir_path)
+            if matcher and matcher.should_ignore(abs_path, is_dir=is_dir):
+                return True
+
+        return False

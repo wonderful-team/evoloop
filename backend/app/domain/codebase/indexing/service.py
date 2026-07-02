@@ -392,9 +392,9 @@ class IndexingService:
 
         from app.constants import BLACKLIST_DIRS
         from app.core.file.service import walk_tree
-        from app.domain.codebase.ignore import GitignoreMatcher
+        from app.domain.codebase.ignore import NestedGitignoreMatcher
 
-        ignore_matcher = GitignoreMatcher.from_file(repo_path, ".gitignore")
+        ignore_matcher = NestedGitignoreMatcher(repo_path)
 
         def dir_filter(d_path: str) -> bool:
             return not ignore_matcher.should_ignore(d_path, is_dir=True)

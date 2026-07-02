@@ -15,8 +15,9 @@ from typing import Any
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
+from app.core.file.filter import is_ignored_path
 from app.domain.codebase.filter import FileFilter
-from app.domain.codebase.ignore import GitignoreMatcher
+from app.domain.codebase.ignore import NestedGitignoreMatcher
 from app.utils.detect import is_code_file
 
 logger = logging.getLogger(__name__)
@@ -127,9 +128,9 @@ class IndexingEventSubscriber(FileSystemEventHandler):
         self._pending_tasks: dict[str, asyncio.TimerHandle] = {}
         self._debounce_delay = 2.0  # Seconds
         self.file_filter = FileFilter()
-        self._gitignore_matcher: GitignoreMatcher | None = None
+        self._gitignore_matcher: NestedGitignoreMatcher | None = None
         if repo_path:
-            self._gitignore_matcher = GitignoreMatcher.from_file(repo_path, ".gitignore")
+            self._gitignore_matcher = NestedGitignoreMatcher(repo_path)
 
     def on_modified(self, event):
         if event.is_directory:
@@ -264,6 +265,8 @@ class ProjectDiscoverySubscriber(FileSystemEventHandler):
     def on_created(self, event):
         if not event.is_directory:
             return
+        if is_ignored_path(event.src_path):
+            return
         # Only handle direct children of root_path
         parent = os.path.dirname(event.src_path)
         if os.path.normpath(parent) != os.path.normpath(self.root_path):
@@ -273,6 +276,8 @@ class ProjectDiscoverySubscriber(FileSystemEventHandler):
 
     def on_moved(self, event):
         if not event.is_directory:
+            return
+        if is_ignored_path(event.src_path) and is_ignored_path(event.dest_path):
             return
         # src_path is the OLD path. If its parent was root_path, it's a rename or move-out.
         src_parent = os.path.dirname(event.src_path)
@@ -296,6 +301,8 @@ class ProjectDiscoverySubscriber(FileSystemEventHandler):
 
     def on_deleted(self, event):
         if not event.is_directory:
+            return
+        if is_ignored_path(event.src_path):
             return
         # Only handle direct children of root_path
         parent = os.path.dirname(event.src_path)
@@ -353,7 +360,7 @@ class ProjectDiscoveryWatcher:
             loop = asyncio.new_event_loop()
 
         event_handler = ProjectDiscoverySubscriber(self.root_path, loop)
-        observer_manager.schedule(event_handler, self.root_path, recursive=True)
+        observer_manager.schedule(event_handler, self.root_path, recursive=False)
 
     def stop(self):
         observer_manager.unschedule(self.root_path)

@@ -81,6 +81,7 @@ def setup_logging():
     logging.getLogger("huey.consumer").setLevel(logging.WARNING)
     logging.getLogger("hpack").setLevel(logging.WARNING)
     logging.getLogger("hpack.hpack").setLevel(logging.WARNING)
+    logging.getLogger("fsevents").setLevel(logging.WARNING)
 
     # Enable detailed logs for our app
     logging.getLogger("app").setLevel(logging.DEBUG)
