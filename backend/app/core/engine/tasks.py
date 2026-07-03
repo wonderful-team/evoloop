@@ -475,11 +475,11 @@ async def run_autonomous_task_execution(task_id: int, project_id: int | None = N
             thread_id=thread_id,
             message_content=prompt,
             project_id=project_id if project_id is not None else DEFAULT_PROJECT_ID,
-            goal_prefix="[Autonomous Task] ",
             metadata={
                 "autonomous_task_id": task_id,
                 "source_skill_id": skill_id,
-                "device_id": device_id  
+                "device_id": device_id,
+                "goal_prefix": "[Autonomous Task] ",
             }
         )
 

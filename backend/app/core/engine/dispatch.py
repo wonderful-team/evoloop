@@ -41,9 +41,9 @@ logger = logging.getLogger(__name__)
 class DispatchResult:
     """Result of the synchronous dispatch preparation phase."""
 
-    status: str                       # "queued" | "failed"
+    status: str  # "queued" | "failed"
     thread_id: str
-    message_id: str | None = None     # DB persisted message id (UUID)
+    message_id: str | None = None  # DB persisted message id (UUID)
     inputs: dict[str, Any] | None = None
     error: str | None = None
 
@@ -59,13 +59,12 @@ async def dispatch_agent_run(
     checkpoint_id: str | None = None,
     model: str | None = None,
     is_retry: bool = False,
-    goal_prefix: str = "",
     skip_message_persistence: bool = False,
     context: EvoContext | None = None,
     metadata: dict[str, Any] | None = None,
     member_id: int = 0,
     source: str | None = None,
-    client_message_id: str | None = None,
+    message_id: str | None = None,
 ) -> DispatchResult:
     """
     Unified dispatch preparation for an Agent run.
@@ -84,9 +83,12 @@ async def dispatch_agent_run(
     active_model = model
     if not active_model:
         from app.infrastructure.config.service import SystemConfigService
+
         active_model = SystemConfigService.get_value("LLM_MODEL")
         if active_model:
-            logger.info(f"[Dispatch] No model specified, using default model: {active_model}")
+            logger.info(
+                f"[Dispatch] No model specified, using default model: {active_model}"
+            )
         else:
             raise ValueError(
                 "No model specified and no LLM_MODEL configured in SystemConfigService. "
@@ -97,6 +99,7 @@ async def dispatch_agent_run(
     # 1. Prepare minimal Context (working_dir will be hydrated later via events)
     # ------------------------------------------------------------------
     from app.core.context.thread_store import thread_context_store
+
     working_directory = thread_context_store._thread_contexts.get(thread_id)
     if not working_directory and project_id:
         project_path = await get_project_path(project_id)
@@ -144,11 +147,15 @@ async def dispatch_agent_run(
                 # If final_dir already exists (multi-upload), merge contents
                 if os.path.exists(final_dir):
                     for item in os.listdir(tmp_dir):
-                        shutil.move(os.path.join(tmp_dir, item), os.path.join(final_dir, item))
+                        shutil.move(
+                            os.path.join(tmp_dir, item), os.path.join(final_dir, item)
+                        )
                     shutil.rmtree(tmp_dir)
                 else:
                     os.rename(tmp_dir, final_dir)
-                logger.info(f"[Dispatch] Upload session {upload_session_id} promoted to thread {thread_id}")
+                logger.info(
+                    f"[Dispatch] Upload session {upload_session_id} promoted to thread {thread_id}"
+                )
             except Exception as e:
                 logger.warning(f"[Dispatch] Failed to promote upload session: {e}")
 
@@ -167,8 +174,8 @@ async def dispatch_agent_run(
             message_text=message_content,
             references_input=combined_refs,
             session=session,
-            root_path=upload_root, # 使用隔离后的目录作为根
-            project_id=project_id, # 传入项目 ID 以保持 URL 一致性
+            root_path=upload_root,  # 使用隔离后的目录作为根
+            project_id=project_id,  # 传入项目 ID 以保持 URL 一致性
         )
     content_blocks = ref_context.content_blocks
 
@@ -183,25 +190,36 @@ async def dispatch_agent_run(
             sid = skill_meta.get("skill_id") or att.get("id")
             sname = skill_meta.get("skill_name") or att.get("target_name") or "Unknown"
             if sid:
-                explicit_skills.append({
-                    "id": sid,
-                    "name": sname,
-                    "description": skill_meta.get("description", "")
-                })
+                explicit_skills.append(
+                    {
+                        "id": sid,
+                        "name": sname,
+                        "description": skill_meta.get("description", ""),
+                    }
+                )
     if explicit_skills:
         metadata["explicit_skills"] = explicit_skills
-        logger.info(f"[Dispatch] Explicit skills attached: {[s['name'] for s in explicit_skills]} (IDs: {[s['id'] for s in explicit_skills]})")
+        logger.info(
+            f"[Dispatch] Explicit skills attached: {[s['name'] for s in explicit_skills]} (IDs: {[s['id'] for s in explicit_skills]})"
+        )
 
     # ------------------------------------------------------------------
     # 3. Build goal for activity monitor and session tracking
     # ------------------------------------------------------------------
-    # Authoritative session_goal is empty by default (only set when Supervisor delegates tasks)
-    session_goal = ""
-    display_goal = ""
+    from app.core.engine.message.goal_distiller import GoalDistiller
 
-    # ... (rest of the code logic remains same, but using display_goal for persistence where appropriate)
-    # Actually, the existing code used 'goal' for inputs and persistence.
-    # Let's keep the naming but use the new distiller.
+    # Authoritative session_goal (full or long-truncated)
+    session_goal = GoalDistiller.from_explicit(message_content)
+    # Display-optimized goal for activity monitor (shorter)
+    display_goal = GoalDistiller.for_display(session_goal)
+
+    has_images = references and any(ref.get("type") == "image" for ref in references)
+    if has_images:
+        display_goal = f"[Image] {display_goal}"
+
+    goal_prefix = (metadata or {}).pop("goal_prefix", "")
+    if goal_prefix:
+        display_goal = f"{goal_prefix}{display_goal}"
 
     # ------------------------------------------------------------------
     # 4. DB persistence & EvoCloud sync
@@ -212,7 +230,9 @@ async def dispatch_agent_run(
             # Upsert Conversation (only for interactive sessions that persist messages)
             conversation = await session.get(Conversation, thread_id)
             if not conversation:
-                first_line = message_content.strip().split("\n")[0] if message_content else ""
+                first_line = (
+                    message_content.strip().split("\n")[0] if message_content else ""
+                )
                 conversation = Conversation(
                     id=thread_id,
                     project_id=project_id,
@@ -225,6 +245,7 @@ async def dispatch_agent_run(
 
             # New message: persist to DB via Repository to ensure parent_id linkage
             from app.core.engine.message.repository import MessageRepository
+
             repo = MessageRepository(thread_id, project_id, member_id=member_id)
             msg_id, seq = await repo.persist(
                 role="human",
@@ -233,7 +254,7 @@ async def dispatch_agent_run(
                 is_visible=True,
                 references=ref_context.references,
                 source=source,
-                message_id=client_message_id,
+                message_id=message_id,
             )
             persisted_msg_id = msg_id
 
@@ -250,9 +271,15 @@ async def dispatch_agent_run(
                     status="completed",
                     references=ref_context.references,
                     message_id=msg_id,
+                    source=source,
                 )
                 publisher = MessagePublisher(thread_id=thread_id, project_id=project_id)
-                await publisher.publish(block)
+                # Mobile 来源的 human 消息已由 Gateway 直接同步到 MC，
+                # Desktop Agent 侧不再通过 message.sync 回写，避免重复。
+                if source == "mobile":
+                    await publisher.publish(block, channels={"sse"})
+                else:
+                    await publisher.publish(block)
 
     # ------------------------------------------------------------------
     # 5. Build BackgroundAgentInputs
@@ -283,13 +310,14 @@ async def dispatch_agent_run(
 # Shared helpers for /resume and /hitl/cancel
 # =============================================================================
 
+
 async def persist_user_message(
     thread_id: str,
     content: str,
     *,
     project_id: int | None = None,
-    command_id: int | None = None,
     member_id: int = 0,
+    message_id: str | None = None,
 ) -> str | None:
     """
     Persist a user message to DB and sync to EvoCloud.
@@ -301,12 +329,15 @@ async def persist_user_message(
     async with session_scope() as session:
         conversation = await session.get(Conversation, thread_id)
         if not conversation:
-            logger.warning(f"[Dispatch] Cannot persist message: conversation {thread_id} not found")
+            logger.warning(
+                f"[Dispatch] Cannot persist message: conversation {thread_id} not found"
+            )
             return None
 
         conversation.updated_at = datetime.now(timezone.utc)
 
         from app.core.engine.message.repository import MessageRepository
+
         repo = MessageRepository(
             thread_id,
             project_id if project_id is not None else conversation.project_id,
@@ -317,6 +348,7 @@ async def persist_user_message(
             content=content,
             category="user",
             is_visible=True,
+            message_id=message_id,
         )
 
         if msg_id:
@@ -332,8 +364,12 @@ async def persist_user_message(
                 status="completed",
                 message_id=msg_id,
             )
-            resolved_project_id = project_id if project_id is not None else conversation.project_id
-            publisher = MessagePublisher(thread_id=thread_id, project_id=resolved_project_id)
+            resolved_project_id = (
+                project_id if project_id is not None else conversation.project_id
+            )
+            publisher = MessagePublisher(
+                thread_id=thread_id, project_id=resolved_project_id
+            )
             await publisher.publish(block)
 
         return msg_id

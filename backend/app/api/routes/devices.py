@@ -3,7 +3,12 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import TokenDep, require_benefit
-from app.api.schemas.devices import BindResponse, DebugStatusResponse, BindClientRequest, SendCommandRequest
+from app.api.schemas.devices import (
+    BindClientRequest,
+    BindResponse,
+    DebugStatusResponse,
+    SendCommandRequest,
+)
 from app.core.evocloud import evocloud_manager
 
 logger = logging.getLogger(__name__)
@@ -35,7 +40,7 @@ async def get_devices(token: TokenDep):
         from app.core.environment import get_awakened_state
         state = get_awakened_state()
         local_devices = state.android_devices if state else []
-        
+
         for ld in local_devices:
             # Check if already in cloud list by serial/device_id
             exists = False
@@ -50,7 +55,7 @@ async def get_devices(token: TokenDep):
                     cd["battery_percent"] = ld.battery_percent
                     exists = True
                     break
-            
+
             if not exists:
                 devices.append({
                     "id": ld.device_id,
@@ -71,7 +76,11 @@ async def get_devices(token: TokenDep):
 @router.post("/{device_key}/command", dependencies=[Depends(require_benefit("mobile_control"))])
 async def send_command(device_key: str, req: SendCommandRequest, token: TokenDep):
     """Send remote command"""
-    res = await evocloud_manager.api.send_command_to_device(device_key, req.model_dump(), token=token)
+    cmd_data = req.model_dump()
+    # 与 Gateway 的 MobileCommandRequest 对齐：业务数据必须放在 content 字段
+    if "content" not in cmd_data:
+        cmd_data["content"] = cmd_data.pop("params", {}) or {}
+    res = await evocloud_manager.api.send_command_to_device(device_key, cmd_data, token=token)
     if res.get("code") != 0:
         raise HTTPException(500, res.get("message"))
     return res.get("data")

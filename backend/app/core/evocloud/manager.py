@@ -1,14 +1,11 @@
 import logging
 import time
-from collections.abc import Callable
-from typing import Any
 
 from app.core.config import settings
 from app.core.context import ContextManager
 from app.core.evocloud.backends.http_client import EvoCloudHTTPClient
 from app.core.evocloud.backends.websocket_link import EvoCloudWebSocketLink
-from app.core.evocloud.schemas import EvoCloudConfig
-from app.core.evocloud.schemas import EvoCloudProjectSummary
+from app.core.evocloud.schemas import EvoCloudConfig, EvoCloudProjectSummary
 from app.models.schemas.auth import LoginResult
 from app.utils.async_utils import LoopBoundResource
 
@@ -19,7 +16,7 @@ class EvoCloudManager:
     """
     Unified Facade for EvoCloud Core Module.
     Manages API Client and WebSocket Link lifecycles using Loop-Bound mechanisms.
-    
+
     Optimizations:
     - Project list caching with TTL to reduce API calls
     - Async background refresh for cache warming
@@ -46,7 +43,7 @@ class EvoCloudManager:
             return
 
         self._init_lock = True
-        
+
         try:
             if config is None:
                 from app.core.config import settings
@@ -76,10 +73,7 @@ class EvoCloudManager:
 
             # Link is now also loop-bound to prevent cross-loop contamination
             def link_factory():
-                link = EvoCloudWebSocketLink(self._config, self.api)
-                if hasattr(self, '_query_handler') and self._query_handler:
-                    link.set_query_handler(self._query_handler)
-                return link
+                return EvoCloudWebSocketLink(self._config, self.api)
 
             self._link_pool = LoopBoundResource(
                 factory=link_factory,
@@ -120,8 +114,10 @@ class EvoCloudManager:
     async def _start_conversation_sync(self):
         """Start conversation history sync to Member Center"""
         try:
-            from app.core.evocloud.bridge.conversation_sync import start_conversation_sync
-            
+            from app.core.evocloud.bridge.conversation_sync import (
+                start_conversation_sync,
+            )
+
             # Get device_key from link (it's generated in WebSocketLink)
             device_key = self.link.device_key if self.link else ""
             await start_conversation_sync(
@@ -135,19 +131,13 @@ class EvoCloudManager:
     async def _stop_conversation_sync(self):
         """Stop conversation history sync"""
         try:
-            from app.core.evocloud.bridge.conversation_sync import stop_conversation_sync
+            from app.core.evocloud.bridge.conversation_sync import (
+                stop_conversation_sync,
+            )
             await stop_conversation_sync()
             logger.info("[EvoCloud] Conversation sync stopped via bridge")
         except Exception as e:
             logger.error(f"[EvoCloud] Error stopping conversation sync: {e}")
-
-    # --- Callbacks / Bridge ---
-
-    def set_query_handler(self, handler: Callable[[str, str, dict[str, Any]], Any]):
-        """设置查询处理器: (query_type, thread_id, params) -> result"""
-        self._query_handler = handler
-        if self._initialized and hasattr(self.link, 'set_query_handler'):
-            self.link.set_query_handler(handler)
 
     # --- Cache Management ---
 
@@ -199,7 +189,7 @@ class EvoCloudManager:
         ctx_token = ContextManager.get_var("token")
         if ctx_token:
             return ctx_token
-            
+
         return await self.api.get_token() if self._api_pool else None
 
     @property
@@ -223,13 +213,15 @@ class EvoCloudManager:
     @property
     def sync_manager(self):
         """Access the global conversation sync manager."""
-        from app.core.evocloud.bridge.conversation_sync import _conversation_sync_manager
+        from app.core.evocloud.bridge.conversation_sync import (
+            _conversation_sync_manager,
+        )
         return _conversation_sync_manager
 
     async def scan_projects(self) -> list[EvoCloudProjectSummary]:
         """
         Fetch projects from EvoCloud API with caching.
-        
+
         Uses a 60-second TTL cache to avoid repeated API calls.
         Cache is invalidated when projects are modified.
         """

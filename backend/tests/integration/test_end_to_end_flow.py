@@ -10,9 +10,10 @@ Run: cd backend && python -m pytest tests/integration/test_end_to_end_flow.py -v
 
 import os
 import sys
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from contextlib import asynccontextmanager
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
@@ -53,8 +54,7 @@ async def test_http_chat_full_flow(fake_session):
     E2E: HTTP /chat endpoint → dispatch_agent_run → BackgroundAgentInputs.
     Verifies that all fields expected by run_agent_background are present.
     """
-    from app.api.routes.agent import chat_endpoint, ChatRequest
-    from app.core.engine.background_agent import BackgroundAgentInputs
+    from app.api.routes.agent import ChatRequest, chat_endpoint
 
     session, scope = fake_session
 
@@ -108,7 +108,6 @@ async def test_websocket_chat_full_flow(fake_session):
     """
     from app.core.engine.event.subscribers import EngineCommandSubscriber
     from app.core.evocloud.schemas import RemoteCommand
-    from app.core.engine.background_agent import BackgroundAgentInputs
     # Model fallback uses SystemConfigService.get_value("LLM_MODEL") in production
 
     session, scope = fake_session
@@ -132,9 +131,9 @@ async def test_websocket_chat_full_flow(fake_session):
         )
 
         command = {
-            "type": "chat_message",
+            "action": "chat",
             "thread_id": "ws-e2e",
-            "payload": {
+            "content": {
                 "message": "WS message",
             },
             "project_id": 1,
@@ -159,7 +158,7 @@ async def test_retry_flow_preserves_original_message(fake_session):
     E2E: /chat/retry should reconstruct the original message content
     and attachments after rewind, then dispatch with is_retry=True.
     """
-    from app.api.routes.agent import retry_chat, ChatRequest
+    from app.api.routes.agent import ChatRequest, retry_chat
 
     session, scope = fake_session
 
@@ -227,7 +226,7 @@ async def test_resume_flow_persists_and_resumes(fake_session):
     E2E: /chat/resume should persist user_input and schedule
     resume_graph_background with correct inputs.
     """
-    from app.api.routes.agent import resume_chat, ResumeRequest
+    from app.api.routes.agent import ResumeRequest, resume_chat
 
     with patch("app.api.routes.agent.get_graph", return_value=MagicMock()), \
          patch("app.api.routes.agent.db_resource_manager") as mock_db_res, \
@@ -267,9 +266,6 @@ async def test_unified_inputs_structure_across_all_entrypoints(fake_session):
     E2E: All three entry points (HTTP /chat, WebSocket, /retry) should
     produce BackgroundAgentInputs with the same required keys.
     """
-    from app.api.routes.agent import chat_endpoint, ChatRequest
-    from app.core.engine.event.subscribers import EngineCommandSubscriber
-    from app.core.evocloud.schemas import RemoteCommand
     from app.core.engine.dispatch import dispatch_agent_run
 
     session, scope = fake_session

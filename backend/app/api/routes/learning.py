@@ -731,8 +731,8 @@ async def execute_macro_with_fallback(
         thread_id=thread_id,
         message_content=fallback_msg,
         project_id=project_id,
-        goal_prefix="[Self-Healing] ",
         model=skill.active_model,
+        metadata={"goal_prefix": "[Self-Healing] "},
     )
 
     if result.status == "failed":
@@ -801,7 +801,7 @@ async def execute_skill(
             thread_id=body.thread_id,
             message_content=directive,
             project_id=body.project_id if body.project_id is not None else DEFAULT_PROJECT_ID,
-            goal_prefix=f"[Skill: {skill_name}] ",
+            metadata={"goal_prefix": f"[Skill: {skill_name}] "},
         )
 
         if result.status == "failed":

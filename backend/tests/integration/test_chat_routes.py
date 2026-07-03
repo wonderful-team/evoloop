@@ -209,7 +209,7 @@ async def test_retry_endpoint_calls_dispatch(mock_dispatch, mock_dispatch_result
         call_kwargs = mock_dispatch.call_args.kwargs
         assert call_kwargs["is_retry"] is True
         assert call_kwargs["skip_message_persistence"] is True
-        assert call_kwargs["goal_prefix"] == "Retry: "
+        assert call_kwargs.get("metadata", {}).get("goal_prefix") == "Retry: "
 
 
 @pytest.mark.asyncio

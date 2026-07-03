@@ -10,6 +10,8 @@ class ConceptCreate(DynamicBaseModel):
     name: str
     description: str
     related_files: list[str] | None = None
+    source_message_id: str | None = None
+    source_thread_id: str | None = None
 
 class ConceptUpdate(DynamicBaseModel):
     description: str | None = None

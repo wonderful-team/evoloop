@@ -10,24 +10,28 @@ EvoLoop 端到端链路测试脚本
 
 前置条件（请按顺序启动）：
   1. Redis: redis-server (默认 127.0.0.1:6379)
-  2. Gateway: cd member-center/gateway && ./gateway
+  2. Gateway: cd member-center/gateway && make run   (默认端口 8080)
   3. Agent:   cd evoloop/backend && python -m app.main (或你的启动方式)
   4. PHP:     cd member-center/backend && php think queue:work redis --queue gateway:mc:message_sync --sleep 3 --tries 3
   5. PHP Push: cd member-center/backend && php think queue:work redis --queue gateway:push:notify --sleep 3 --tries 3
 
 用法：
-  python3 tests/integration/e2e_link_test.py
-  python3 tests/integration/e2e_link_test.py --gateway http://127.0.0.1:9001 --redis redis://127.0.0.1:6379/0
+  python3 tests/debug/e2e_link_test.py
+  python3 tests/debug/e2e_link_test.py --gateway http://127.0.0.1:8080 --redis redis://127.0.0.1:6379/0
+  python3 tests/debug/e2e_link_test.py --mc-url http://127.0.0.1:9002 --username preterchan --password hellomylife
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
+import hashlib
+import hmac
 import json
 import sys
 import time
-import traceback
+import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -37,22 +41,33 @@ import websockets
 
 # ── 配置 ──────────────────────────────────────────────────────────────────────
 
-DEFAULT_GATEWAY_HTTP = "http://127.0.0.1:9001"
-DEFAULT_GATEWAY_WS = "ws://127.0.0.1:9001"
+DEFAULT_GATEWAY_HTTP = "http://127.0.0.1:8080"
+DEFAULT_GATEWAY_WS = "ws://127.0.0.1:8080"
+DEFAULT_MC_URL = "http://127.0.0.1:9002"
 DEFAULT_REDIS = "redis://127.0.0.1:6379/0"
 
-# 测试用的认证 token（需要替换为有效的用户 token 或游客 token）
-# Gateway 的 WebSocket 认证：token 会拼接到 URL 查询参数
-MOBILE_TOKEN = "test-mobile-token"
-AGENT_TOKEN = "test-agent-token"
+# Redis 队列 key（与 Go 侧 mcqueue/producer.go、pushnotifier/notifier.go 保持一致）
+QUEUE_MESSAGE_SYNC = "{queues:gateway:mc:message_sync}"
+QUEUE_PUSH_NOTIFY = "{queues:gateway:push:notify}"
 
-# 测试用的 member_id / device_key
-TEST_MEMBER_ID = 1
-TEST_DEVICE_KEY = "test-desktop-device-001"
+# ── 工具函数 ──────────────────────────────────────────────────────────────────
 
-# Redis 队列 key
-QUEUE_MESSAGE_SYNC = "gateway:mc:message_sync"
-QUEUE_PUSH_NOTIFY = "gateway:push:notify"
+
+def login_mc(mc_url: str, username: str, password: str) -> str:
+    """通过 PHP MC 登录接口获取 JWT token。"""
+    url = f"{mc_url.rstrip('/')}/api/login/login"
+    resp = requests.post(
+        url, json={"username": username, "password": password}, timeout=10
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    if data.get("code") not in (200, 0, "200", "0"):
+        raise RuntimeError(f"MC 登录失败: {data}")
+    token = data.get("data", {}).get("token") or data.get("token")
+    if not token:
+        raise RuntimeError(f"MC 登录响应中无 token: {data}")
+    return token
+
 
 # ── 测试结果数据结构 ───────────────────────────────────────────────────────────
 
@@ -72,10 +87,11 @@ class E2ETestRunner:
         gateway_http: str,
         gateway_ws: str,
         redis_url: str,
-        agent_token: str = AGENT_TOKEN,
-        mobile_token: str = MOBILE_TOKEN,
-        device_key: str = TEST_DEVICE_KEY,
-        member_id: int = TEST_MEMBER_ID,
+        agent_token: str,
+        mobile_token: str,
+        device_key: str,
+        member_id: int,
+        webhook_secret: str = "nBraYr//nK9e7e8BV4AHzppgds8sjOvaMKdXBs7Amgs=",
     ):
         self.gateway_http = gateway_http.rstrip("/")
         self.gateway_ws = gateway_ws.rstrip("/")
@@ -84,6 +100,7 @@ class E2ETestRunner:
         self.mobile_token = mobile_token
         self.device_key = device_key
         self.member_id = member_id
+        self.webhook_secret = webhook_secret
         self.results: list[TestResult] = []
         self._agent_ws: websockets.WebSocketClientProtocol | None = None
         self._mobile_ws: websockets.WebSocketClientProtocol | None = None
@@ -99,21 +116,54 @@ class E2ETestRunner:
 
     async def _connect_agent(self) -> websockets.WebSocketClientProtocol:
         """模拟 Agent 连接 Gateway WebSocket"""
-        url = f"{self.gateway_ws}/ws?token={self.agent_token}&type=agent&device_key={self.device_key}"
+        url = f"{self.gateway_ws}/ws?token={self.agent_token}"
         ws = await websockets.connect(url)
-        # 等待 auth 响应
+        await ws.send(
+            json.dumps(
+                {
+                    "version": "2.0",
+                    "type": "connect",
+                    "message_id": f"e2e-agent-{uuid.uuid4().hex[:8]}",
+                    "timestamp": int(time.time()),
+                    "body": {
+                        "device_type": "agent",
+                        "device_key": self.device_key,
+                        "device_name": "E2E Desktop Agent",
+                        "os_info": "e2e-test",
+                    },
+                }
+            )
+        )
+        # 消费 system.init
         resp = await asyncio.wait_for(ws.recv(), timeout=5.0)
         data = json.loads(resp)
-        self._log(f"Agent connected: {data}")
+        self._log(f"Agent system.init: {data}")
+        if data.get("type") != "system.init":
+            raise AssertionError(f"Expected system.init, got {data.get('type')}")
         return ws
 
     async def _connect_mobile(self) -> websockets.WebSocketClientProtocol:
         """模拟 Mobile 连接 Gateway WebSocket"""
-        url = f"{self.gateway_ws}/ws?token={self.mobile_token}&type=mobile"
+        url = f"{self.gateway_ws}/ws?token={self.mobile_token}"
         ws = await websockets.connect(url)
+        await ws.send(
+            json.dumps(
+                {
+                    "version": "2.0",
+                    "type": "connect",
+                    "message_id": f"e2e-mobile-{uuid.uuid4().hex[:8]}",
+                    "timestamp": int(time.time()),
+                    "body": {
+                        "device_type": "mobile",
+                    },
+                }
+            )
+        )
         resp = await asyncio.wait_for(ws.recv(), timeout=5.0)
         data = json.loads(resp)
-        self._log(f"Mobile connected: {data}")
+        self._log(f"Mobile system.init: {data}")
+        if data.get("type") != "system.init":
+            raise AssertionError(f"Expected system.init, got {data.get('type')}")
         return ws
 
     def _redis_flush_queues(self) -> None:
@@ -122,25 +172,37 @@ class E2ETestRunner:
         self._log("Redis queues flushed")
 
     def _redis_pop_message_sync(self, timeout: float = 3.0) -> dict | None:
-        """从 Redis 队列弹出一个 message_sync 消息"""
+        """从 Redis 队列弹出一个 ThinkPHP Job 包装的 message.sync 消息"""
         raw = self.redis_client.brpop(QUEUE_MESSAGE_SYNC, timeout=timeout)
         if raw:
-            return json.loads(raw[1])
+            job = json.loads(raw[1])
+            return json.loads(job.get("data", "{}"))
         return None
 
     def _redis_pop_push_notify(self, timeout: float = 3.0) -> dict | None:
-        """从 Redis 队列弹出一个 push 通知"""
+        """从 Redis 队列弹出一个 ThinkPHP Job 包装的 push 通知"""
         raw = self.redis_client.brpop(QUEUE_PUSH_NOTIFY, timeout=timeout)
         if raw:
-            return json.loads(raw[1])
+            job = json.loads(raw[1])
+            return json.loads(job.get("data", "{}"))
         return None
+
+    def _sign_webhook(self, payload: dict[str, Any]) -> tuple[str, bytes]:
+        """使用 Gateway webhook_secret 计算 HMAC-SHA256 hex 签名，返回签名与请求体。"""
+        body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode(
+            "utf-8"
+        )
+        signature = hmac.new(
+            self.webhook_secret.encode("utf-8"), body, hashlib.sha256
+        ).hexdigest()
+        return signature, body
 
     # ── 链路 1: Mobile -> Gateway -> Agent ─────────────────────────────────────
 
     async def test_link_mobile_to_agent(self) -> TestResult:
         """
         Mobile 通过 HTTP POST /api/v1/command/send 发送消息，
-        Gateway 转发给 Agent，Agent 应收到 new_command。
+        Gateway 转发给 Agent，Agent 应收到规范 command.relay Envelope。
         """
         name = "Mobile -> Gateway -> Agent"
         start = time.time()
@@ -165,40 +227,71 @@ class E2ETestRunner:
                 headers={"Authorization": f"Bearer {self.mobile_token}"},
                 timeout=10,
             )
-            self._assert(http_resp.status_code == 200, f"HTTP failed: {http_resp.status_code} {http_resp.text}")
+            self._assert(
+                http_resp.status_code == 200,
+                f"HTTP failed: {http_resp.status_code} {http_resp.text}",
+            )
             resp_body = http_resp.json()
             self._assert(resp_body.get("code") == 0, f"Gateway error: {resp_body}")
 
-            # 验证 Gateway 返回了 thread_id（如果是 Gateway 生成的）
+            # 验证 Gateway 返回了 thread_id 和 message_id
             returned_thread_id = resp_body.get("data", {}).get("thread_id", "")
+            returned_message_id = resp_body.get("data", {}).get("message_id", "")
             self._assert(returned_thread_id != "", "Gateway did not return thread_id")
+            self._assert(returned_message_id != "", "Gateway did not return message_id")
             details["returned_thread_id"] = returned_thread_id
-            self._log(f"Mobile HTTP sent, thread_id={returned_thread_id}")
+            details["returned_message_id"] = returned_message_id
+            self._log(
+                f"Mobile HTTP sent, thread_id={returned_thread_id}, message_id={returned_message_id}"
+            )
 
-            # 3. Agent WebSocket 应收到 new_command
+            # 3. Agent WebSocket 应收到 command.relay
             agent_msg_raw = await asyncio.wait_for(self._agent_ws.recv(), timeout=5.0)
             agent_msg = json.loads(agent_msg_raw)
             self._log(f"Agent received: type={agent_msg.get('type')}")
 
-            self._assert(agent_msg.get("type") == "new_command", f"Expected new_command, got {agent_msg.get('type')}")
-            cmd_data = agent_msg.get("data", {})
-            self._assert(cmd_data.get("thread_id") == returned_thread_id,
-                        f"thread_id mismatch: {cmd_data.get('thread_id')} != {returned_thread_id}")
+            self._assert(
+                agent_msg.get("type") == "command.relay",
+                f"Expected command.relay, got {agent_msg.get('type')}",
+            )
+            cmd_body = agent_msg.get("body", {})
+            self._assert(
+                cmd_body.get("thread_id") == returned_thread_id,
+                f"thread_id mismatch: {cmd_body.get('thread_id')} != {returned_thread_id}",
+            )
+            self._assert(
+                cmd_body.get("message_id") == returned_message_id,
+                f"message_id mismatch: {cmd_body.get('message_id')} != {returned_message_id}",
+            )
+            self._assert(
+                cmd_body.get("action") == "chat",
+                f"action mismatch: {cmd_body.get('action')} != chat",
+            )
 
-            details["command_id"] = cmd_data.get("command_id")
-            self._log("Agent received correct new_command ✓")
+            details["command_id"] = cmd_body.get("command_id")
+            self._log("Agent received correct command.relay ✓")
 
-            return TestResult(name=name, passed=True, duration_ms=(time.time() - start) * 1000, details=details)
+            return TestResult(
+                name=name,
+                passed=True,
+                duration_ms=(time.time() - start) * 1000,
+                details=details,
+            )
 
         except Exception as e:
-            return TestResult(name=name, passed=False, duration_ms=(time.time() - start) * 1000,
-                              error=f"{type(e).__name__}: {e}", details=details)
+            return TestResult(
+                name=name,
+                passed=False,
+                duration_ms=(time.time() - start) * 1000,
+                error=f"{type(e).__name__}: {e}",
+                details=details,
+            )
 
     # ── 链路 2: Agent -> Gateway -> Mobile ─────────────────────────────────────
 
     async def test_link_agent_to_mobile(self) -> TestResult:
         """
-        Agent 发送 message_sync 到 Gateway，
+        Agent 发送 message.sync 到 Gateway，
         Gateway 应广播给 Mobile WebSocket。
         """
         name = "Agent -> Gateway -> Mobile (WebSocket)"
@@ -220,13 +313,17 @@ class E2ETestRunner:
                 except asyncio.TimeoutError:
                     break
 
-            # 3. Agent 发送 message_sync
+            # 3. Agent 发送 message.sync
             thread_id = f"test-thread-{int(time.time())}"
+            message_id = str(uuid.uuid4())
             sync_payload = {
-                "type": "message_sync",
-                "data": {
+                "version": "2.0",
+                "type": "message.sync",
+                "message_id": message_id,
+                "timestamp": int(time.time()),
+                "body": {
                     "device_key": self.device_key,
-                    "sync_type": "incremental",
+                    "sync_mode": "incremental",
                     "thread_id": thread_id,
                     "conversation": {
                         "id": thread_id,
@@ -234,44 +331,70 @@ class E2ETestRunner:
                     },
                     "messages": [
                         {
-                            "id": "msg-1",
-                            "role": "assistant",
+                            "message_id": "msg-1",
+                            "thread_id": thread_id,
+                            "role": "ai",
                             "content": "This is a test message from Agent",
-                            "action_type": "text",
+                            "content_type": "text",
+                            "created_at": int(time.time()),
                             "sequence_number": 1,
                         }
                     ],
                 },
             }
             await self._agent_ws.send(json.dumps(sync_payload))
-            self._log(f"Agent sent message_sync, thread_id={thread_id}")
+            self._log(f"Agent sent message.sync, thread_id={thread_id}")
 
-            # 4. Mobile 应收到 message_sync
+            # 4. Mobile 应收到 message.sync
             mobile_msg_raw = await asyncio.wait_for(self._mobile_ws.recv(), timeout=5.0)
             mobile_msg = json.loads(mobile_msg_raw)
             self._log(f"Mobile received: type={mobile_msg.get('type')}")
 
-            self._assert(mobile_msg.get("type") == "message_sync", f"Expected message_sync, got {mobile_msg.get('type')}")
+            self._assert(
+                mobile_msg.get("type") == "message.sync",
+                f"Expected message.sync, got {mobile_msg.get('type')}",
+            )
+            body = mobile_msg.get("body", {})
+            self._assert(body.get("thread_id") == thread_id, "thread_id mismatch")
+            messages = body.get("messages", [])
+            self._assert(len(messages) == 1, f"Expected 1 message, got {len(messages)}")
+            self._assert(
+                messages[0].get("content") == "This is a test message from Agent",
+                "content mismatch",
+            )
             payload = mobile_msg.get("data", {})
             self._assert(payload.get("thread_id") == thread_id, "thread_id mismatch")
             messages = payload.get("messages", [])
             self._assert(len(messages) == 1, f"Expected 1 message, got {len(messages)}")
-            self._assert(messages[0].get("content") == "This is a test message from Agent", "content mismatch")
+            self._assert(
+                messages[0].get("content") == "This is a test message from Agent",
+                "content mismatch",
+            )
 
             details["mobile_received_type"] = mobile_msg.get("type")
-            self._log("Mobile received correct message_sync ✓")
+            self._log("Mobile received correct message.sync ✓")
 
-            return TestResult(name=name, passed=True, duration_ms=(time.time() - start) * 1000, details=details)
+            return TestResult(
+                name=name,
+                passed=True,
+                duration_ms=(time.time() - start) * 1000,
+                details=details,
+            )
 
         except Exception as e:
-            return TestResult(name=name, passed=False, duration_ms=(time.time() - start) * 1000,
-                              error=f"{type(e).__name__}: {e}", details=details)
+            return TestResult(
+                name=name,
+                passed=False,
+                duration_ms=(time.time() - start) * 1000,
+                error=f"{type(e).__name__}: {e}",
+                details=details,
+            )
 
     # ── 链路 3: Agent -> Gateway -> MC PHP (Redis) ─────────────────────────────
 
     async def test_link_agent_to_mc_redis(self) -> TestResult:
         """
-        Agent 发送 message_sync 到 Gateway，
+        Agent 发送 message.sync 到 Gateway，
         Gateway 应将原始 payload LPUSH 到 Redis `gateway:mc:message_sync`。
         """
         name = "Agent -> Gateway -> MC PHP (Redis queue)"
@@ -286,52 +409,80 @@ class E2ETestRunner:
             self._redis_flush_queues()
 
             thread_id = f"test-thread-{int(time.time())}"
+            message_id = str(uuid.uuid4())
             sync_payload = {
-                "type": "message_sync",
-                "data": {
+                "version": "2.0",
+                "type": "message.sync",
+                "message_id": message_id,
+                "timestamp": int(time.time()),
+                "body": {
                     "device_key": self.device_key,
-                    "sync_type": "incremental",
+                    "sync_mode": "incremental",
                     "thread_id": thread_id,
                     "conversation": {"id": thread_id, "title": "Redis Test"},
                     "messages": [
                         {
-                            "id": "msg-redis-1",
-                            "role": "user",
+                            "message_id": "msg-redis-1",
+                            "thread_id": thread_id,
+                            "role": "human",
                             "content": "Redis queue test",
-                            "action_type": "text",
+                            "content_type": "text",
+                            "created_at": int(time.time()),
                             "sequence_number": 1,
                         }
                     ],
                 },
             }
             await self._agent_ws.send(json.dumps(sync_payload))
-            self._log(f"Agent sent message_sync, thread_id={thread_id}")
+            self._log(f"Agent sent message.sync, thread_id={thread_id}")
 
-            # 从 Redis 弹出消息
-            redis_msg = self._redis_pop_message_sync(timeout=5.0)
-            self._assert(redis_msg is not None, "No message found in Redis queue")
+            # 从 Redis 弹出消息（ThinkPHP Job 包装）
+            redis_job = self._redis_pop_message_sync(timeout=5.0)
+            self._assert(redis_job is not None, "No message found in Redis queue")
 
-            # 验证结构
-            self._assert(redis_msg.get("thread_id") == thread_id, "thread_id mismatch in Redis")
-            self._assert(redis_msg.get("device_key") == TEST_DEVICE_KEY, "device_key mismatch in Redis")
-            messages = redis_msg.get("messages", [])
-            self._assert(len(messages) == 1, f"Expected 1 message in Redis, got {len(messages)}")
-            self._assert(messages[0].get("content") == "Redis queue test", "content mismatch in Redis")
+            # Gateway 入队的是规范 Envelope；取 body 验证业务字段
+            envelope_body = redis_job.get("body", redis_job)
+            self._assert(
+                envelope_body.get("thread_id") == thread_id,
+                "thread_id mismatch in Redis",
+            )
+            self._assert(
+                envelope_body.get("device_key") == self.device_key,
+                "device_key mismatch in Redis",
+            )
+            messages = envelope_body.get("messages", [])
+            self._assert(
+                len(messages) == 1, f"Expected 1 message in Redis, got {len(messages)}"
+            )
+            self._assert(
+                messages[0].get("content") == "Redis queue test",
+                "content mismatch in Redis",
+            )
 
             details["redis_message_count"] = len(messages)
-            self._log("Redis queue received correct message_sync ✓")
+            self._log("Redis queue received correct message.sync ✓")
 
-            return TestResult(name=name, passed=True, duration_ms=(time.time() - start) * 1000, details=details)
+            return TestResult(
+                name=name,
+                passed=True,
+                duration_ms=(time.time() - start) * 1000,
+                details=details,
+            )
 
         except Exception as e:
-            return TestResult(name=name, passed=False, duration_ms=(time.time() - start) * 1000,
-                              error=f"{type(e).__name__}: {e}", details=details)
+            return TestResult(
+                name=name,
+                passed=False,
+                duration_ms=(time.time() - start) * 1000,
+                error=f"{type(e).__name__}: {e}",
+                details=details,
+            )
 
     # ── 链路 4: HITL urgent 推送 ───────────────────────────────────────────────
 
     async def test_hitl_urgent_to_mobile(self) -> TestResult:
         """
-        Agent 发送 urgent message_sync（含 action_type=human_request），
+        Agent 发送 hitl.request 到 Gateway，
         Gateway 应即时广播给 Mobile。
         """
         name = "Agent -> Gateway -> Mobile (HITL urgent)"
@@ -354,55 +505,59 @@ class E2ETestRunner:
 
             thread_id = f"test-hitl-{int(time.time())}"
             hitl_payload = {
-                "type": "message_sync",
-                "data": {
-                    "device_key": self.device_key,
-                    "sync_type": "urgent",
-                    "thread_id": thread_id,
-                    "messages": [
-                        {
-                            "id": "hitl-1",
-                            "role": "system",
-                            "action_type": "human_request",
-                            "status": "waiting_human",
-                            "content": json.dumps({
-                                "id": "req-001",
-                                "type": "confirm",
-                                "prompt": "请确认是否执行此操作？",
-                            }),
-                            "sequence_number": 1,
-                        }
-                    ],
+                "version": "2.0",
+                "type": "hitl.request",
+                "message_id": str(uuid.uuid4()),
+                "timestamp": int(time.time()),
+                "body": {
+                    "request_id": "req-001",
+                    "request_type": "confirmation",
+                    "prompt": "请确认是否执行此操作？",
+                    "context": thread_id,
                 },
             }
             await self._agent_ws.send(json.dumps(hitl_payload))
-            self._log(f"Agent sent HITL urgent, thread_id={thread_id}")
+            self._log(f"Agent sent hitl.request, thread_id={thread_id}")
 
             mobile_msg_raw = await asyncio.wait_for(self._mobile_ws.recv(), timeout=5.0)
             mobile_msg = json.loads(mobile_msg_raw)
             self._log(f"Mobile received: type={mobile_msg.get('type')}")
 
-            self._assert(mobile_msg.get("type") == "message_sync", f"Expected message_sync, got {mobile_msg.get('type')}")
-            payload = mobile_msg.get("data", {})
-            self._assert(payload.get("sync_type") == "urgent", f"Expected sync_type=urgent, got {payload.get('sync_type')}")
-            messages = payload.get("messages", [])
-            self._assert(len(messages) == 1, f"Expected 1 message, got {len(messages)}")
-            self._assert(messages[0].get("action_type") == "human_request", "action_type mismatch")
+            self._assert(
+                mobile_msg.get("type") == "hitl.request",
+                f"Expected hitl.request, got {mobile_msg.get('type')}",
+            )
+            body = mobile_msg.get("body", {})
+            self._assert(
+                body.get("request_type") == "confirmation",
+                f"Expected request_type=confirmation, got {body.get('request_type')}",
+            )
+            self._assert(body.get("request_id") == "req-001", "request_id mismatch")
 
-            details["hitl_prompt"] = json.loads(messages[0].get("content", "{}")).get("prompt", "")
-            self._log("Mobile received correct HITL urgent ✓")
+            details["hitl_prompt"] = body.get("prompt", "")
+            self._log("Mobile received correct hitl.request ✓")
 
-            return TestResult(name=name, passed=True, duration_ms=(time.time() - start) * 1000, details=details)
+            return TestResult(
+                name=name,
+                passed=True,
+                duration_ms=(time.time() - start) * 1000,
+                details=details,
+            )
 
         except Exception as e:
-            return TestResult(name=name, passed=False, duration_ms=(time.time() - start) * 1000,
-                              error=f"{type(e).__name__}: {e}", details=details)
+            return TestResult(
+                name=name,
+                passed=False,
+                duration_ms=(time.time() - start) * 1000,
+                error=f"{type(e).__name__}: {e}",
+                details=details,
+            )
 
-    # ── 链路 5: command_complete + Push 通知队列 ─────────────────────────────────
+    # ── 链路 5: agent.status + Push 通知队列 ─────────────────────────────────
 
     async def test_command_complete_push_queue(self) -> TestResult:
         """
-        Agent 发送 command_complete，Mobile 不在线时 Gateway 应写入 Push 队列。
+        Agent 发送 agent.status，Mobile 不在线时 Gateway 应写入 Push 队列。
         本测试不连接 Mobile，验证 Push 队列是否有数据。
         """
         name = "Agent -> Gateway -> Push queue (Mobile offline)"
@@ -413,37 +568,65 @@ class E2ETestRunner:
             if not self._agent_ws:
                 self._agent_ws = await self._connect_agent()
 
+            # 确保 Mobile 不在线：关闭已连接的 Mobile
+            if self._mobile_ws:
+                await self._mobile_ws.close()
+                self._mobile_ws = None
+                await asyncio.sleep(0.5)
+
             # 清空 Push 队列
             self.redis_client.delete(QUEUE_PUSH_NOTIFY)
             self._log("Push queue flushed")
 
             thread_id = f"test-push-{int(time.time())}"
-            cmd_complete = {
-                "type": "command_complete",
-                "data": {
+            agent_status = {
+                "version": "2.0",
+                "type": "agent.status",
+                "message_id": str(uuid.uuid4()),
+                "timestamp": int(time.time()),
+                "body": {
                     "thread_id": thread_id,
                     "command_id": 999,
-                    "status": "done",
+                    "status": "completed",
                 },
             }
-            await self._agent_ws.send(json.dumps(cmd_complete))
-            self._log(f"Agent sent command_complete, thread_id={thread_id}")
+            await self._agent_ws.send(json.dumps(agent_status))
+            self._log(f"Agent sent agent.status, thread_id={thread_id}")
 
             # 由于没有 Mobile 连接，Gateway 应写入 Push 队列
             push_msg = self._redis_pop_push_notify(timeout=5.0)
-            self._assert(push_msg is not None, "No push event found in Redis queue (Mobile should be offline)")
+            self._assert(
+                push_msg is not None,
+                "No push event found in Redis queue (Mobile should be offline)",
+            )
 
-            self._assert(push_msg.get("event_type") == "command_complete", f"event_type mismatch: {push_msg.get('event_type')}")
-            self._assert(push_msg.get("member_id") == self.member_id, f"member_id mismatch: {push_msg.get('member_id')}")
+            self._assert(
+                push_msg.get("event_type") == "agent.status",
+                f"event_type mismatch: {push_msg.get('event_type')}",
+            )
+            self._assert(
+                push_msg.get("member_id") == self.member_id,
+                f"member_id mismatch: {push_msg.get('member_id')}",
+            )
 
             details["push_title"] = push_msg.get("title", "")
-            self._log("Push queue received correct command_complete event ✓")
+            self._log("Push queue received correct agent.status event ✓")
 
-            return TestResult(name=name, passed=True, duration_ms=(time.time() - start) * 1000, details=details)
+            return TestResult(
+                name=name,
+                passed=True,
+                duration_ms=(time.time() - start) * 1000,
+                details=details,
+            )
 
         except Exception as e:
-            return TestResult(name=name, passed=False, duration_ms=(time.time() - start) * 1000,
-                              error=f"{type(e).__name__}: {e}", details=details)
+            return TestResult(
+                name=name,
+                passed=False,
+                duration_ms=(time.time() - start) * 1000,
+                error=f"{type(e).__name__}: {e}",
+                details=details,
+            )
 
     # ── 链路 6: MC PHP -> Gateway -> Agent (Webhook) ───────────────────────────
 
@@ -461,24 +644,35 @@ class E2ETestRunner:
                 self._agent_ws = await self._connect_agent()
 
             thread_id = f"test-webhook-{int(time.time())}"
+            message_id = str(uuid.uuid4())
             webhook_payload = {
                 "member_id": self.member_id,
                 "device_key": self.device_key,
-                "payload": {
-                    "type": "new_command",
-                    "data": {
+                "envelope": {
+                    "version": "2.0",
+                    "message_id": message_id,
+                    "type": "command.relay",
+                    "source": {"kind": "mobile", "device_key": self.device_key},
+                    "target": {"kind": "agent", "device_key": self.device_key},
+                    "body": {
                         "command_id": 888,
+                        "message_id": message_id,
                         "thread_id": thread_id,
+                        "action": "chat",
                         "content": {"text": "Webhook test from MC"},
                     },
                 },
             }
 
-            # 模拟 MC PHP 调用 Gateway Webhook
-            # 注意：实际签名验证可能需要 secret，这里假设测试环境允许或已配置
+            # 模拟 MC PHP 调用 Gateway Webhook（带 HMAC 签名）
+            signature, body = self._sign_webhook(webhook_payload)
             resp = requests.post(
                 f"{self.gateway_http}/webhook/evoloop/relay",
-                json=webhook_payload,
+                data=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Webhook-Secret": signature,
+                },
                 timeout=10,
             )
             self._log(f"Webhook response: {resp.status_code} {resp.text[:200]}")
@@ -488,24 +682,46 @@ class E2ETestRunner:
             if resp.status_code == 200:
                 body = resp.json()
                 details["webhook_status"] = body.get("status")
-                self._assert(body.get("status") == "accepted", f"Webhook rejected: {body}")
+                self._assert(
+                    body.get("status") == "accepted", f"Webhook rejected: {body}"
+                )
 
-            # Agent 应收到 new_command
+            # Agent 应收到规范 command.relay Envelope
             agent_msg_raw = await asyncio.wait_for(self._agent_ws.recv(), timeout=5.0)
             agent_msg = json.loads(agent_msg_raw)
             self._log(f"Agent received: type={agent_msg.get('type')}")
 
-            self._assert(agent_msg.get("type") == "new_command", f"Expected new_command, got {agent_msg.get('type')}")
-            cmd_data = agent_msg.get("data", {})
-            self._assert(cmd_data.get("thread_id") == thread_id, "thread_id mismatch")
+            self._assert(
+                agent_msg.get("type") == "command.relay",
+                f"Expected command.relay, got {agent_msg.get('type')}",
+            )
+            cmd_body = agent_msg.get("body", {})
+            self._assert(
+                cmd_body.get("thread_id") == thread_id,
+                f"thread_id mismatch: {cmd_body.get('thread_id')} != {thread_id}",
+            )
+            self._assert(
+                cmd_body.get("message_id") == message_id,
+                f"message_id mismatch: {cmd_body.get('message_id')} != {message_id}",
+            )
 
-            self._log("Agent received correct webhook new_command ✓")
+            self._log("Agent received correct webhook command.relay ✓")
 
-            return TestResult(name=name, passed=True, duration_ms=(time.time() - start) * 1000, details=details)
+            return TestResult(
+                name=name,
+                passed=True,
+                duration_ms=(time.time() - start) * 1000,
+                details=details,
+            )
 
         except Exception as e:
-            return TestResult(name=name, passed=False, duration_ms=(time.time() - start) * 1000,
-                              error=f"{type(e).__name__}: {e}", details=details)
+            return TestResult(
+                name=name,
+                passed=False,
+                duration_ms=(time.time() - start) * 1000,
+                error=f"{type(e).__name__}: {e}",
+                details=details,
+            )
 
     # ── 执行所有测试 ────────────────────────────────────────────────────────────
 
@@ -592,25 +808,84 @@ class E2ETestRunner:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="EvoLoop 端到端链路测试")
-    parser.add_argument("--gateway", default=DEFAULT_GATEWAY_HTTP, help="Gateway HTTP 地址")
-    parser.add_argument("--gateway-ws", default=None, help="Gateway WebSocket 地址（默认从 --gateway 推导）")
+    parser.add_argument(
+        "--gateway", default=DEFAULT_GATEWAY_HTTP, help="Gateway HTTP 地址"
+    )
+    parser.add_argument(
+        "--gateway-ws",
+        default=None,
+        help="Gateway WebSocket 地址（默认从 --gateway 推导）",
+    )
     parser.add_argument("--redis", default=DEFAULT_REDIS, help="Redis 连接 URL")
-    parser.add_argument("--agent-token", default=AGENT_TOKEN, help="Agent WebSocket 认证 token")
-    parser.add_argument("--mobile-token", default=MOBILE_TOKEN, help="Mobile WebSocket 认证 token")
-    parser.add_argument("--device-key", default=TEST_DEVICE_KEY, help="测试用的 device_key")
-    parser.add_argument("--member-id", type=int, default=TEST_MEMBER_ID, help="测试用的 member_id")
+    parser.add_argument(
+        "--mc-url", default=DEFAULT_MC_URL, help="PHP MC 登录地址，用于获取真实 token"
+    )
+    parser.add_argument("--username", default="preterchan", help="MC 登录用户名")
+    parser.add_argument("--password", default="hellomylife", help="MC 登录密码")
+    parser.add_argument(
+        "--agent-token",
+        default=None,
+        help="Agent WebSocket 认证 token（默认与 Mobile 相同，从 MC 登录获取）",
+    )
+    parser.add_argument(
+        "--mobile-token",
+        default=None,
+        help="Mobile WebSocket 认证 token（默认从 MC 登录获取）",
+    )
+    parser.add_argument(
+        "--device-key", default=None, help="测试用的 device_key（默认随机生成 UUID）"
+    )
+    parser.add_argument(
+        "--member-id",
+        type=int,
+        default=None,
+        help="测试用的 member_id（默认从 token 中解析）",
+    )
+    parser.add_argument(
+        "--webhook-secret",
+        default="nBraYr//nK9e7e8BV4AHzppgds8sjOvaMKdXBs7Amgs=",
+        help="Gateway Webhook 签名密钥",
+    )
     args = parser.parse_args()
 
-    ws_url = args.gateway_ws or args.gateway.replace("http://", "ws://").replace("https://", "wss://")
+    token = args.mobile_token or login_mc(args.mc_url, args.username, args.password)
+    agent_token = args.agent_token or token
+    mobile_token = token
+
+    member_id = args.member_id
+    if member_id is None:
+        parts = token.split(".")
+        if len(parts) == 3:
+            payload = parts[1]
+            payload += "=" * (4 - len(payload) % 4)
+            try:
+                token_data = json.loads(base64.urlsafe_b64decode(payload).decode())
+                member_id = int(
+                    token_data.get("data", {}).get(
+                        "member_id", token_data.get("sub", 1)
+                    )
+                )
+            except Exception:
+                member_id = 1
+        else:
+            member_id = 1
+    device_key = args.device_key or f"e2e-desktop-{uuid.uuid4().hex[:12]}"
+
+    print(f"[E2E] 使用 member_id={member_id}, device_key={device_key}")
+
+    ws_url = args.gateway_ws or args.gateway.replace("http://", "ws://").replace(
+        "https://", "wss://"
+    )
 
     runner = E2ETestRunner(
         args.gateway,
         ws_url,
         args.redis,
-        agent_token=args.agent_token,
-        mobile_token=args.mobile_token,
-        device_key=args.device_key,
-        member_id=args.member_id,
+        agent_token=agent_token,
+        mobile_token=mobile_token,
+        device_key=device_key,
+        member_id=member_id,
+        webhook_secret=args.webhook_secret,
     )
     try:
         asyncio.run(runner.run_all())

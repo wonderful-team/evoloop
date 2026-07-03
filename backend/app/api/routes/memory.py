@@ -70,6 +70,34 @@ async def list_concepts(
         return []
 
 
+@router.get("/mobile/concepts")
+async def list_concepts_for_mobile(
+    project_id: int,
+    manager=Depends(get_memory_manager),
+    current_user: CurrentUserOptional = None,
+):
+    """
+    Mobile-format concept list: returns id/name/description/created_at
+    for Gateway proxy consumption.
+    """
+    results = await manager.list_memories(
+        type_filter=MemoryType.CONCEPT,
+        project_id=project_id,
+        limit=100,
+        member_id=current_user.id if current_user else 0,
+    )
+    return [
+        {
+            "id": m.id,
+            "name": m.title,
+            "description": m.description,
+            "related_files": [],
+            "created_at": m.created_at.isoformat() if m.created_at else "",
+        }
+        for m in results
+    ]
+
+
 @router.get("/concepts/list", response_model=list[ConceptResponse])
 async def list_concepts_with_counts(
     project_id: int | None = None,
@@ -117,8 +145,8 @@ async def get_concept(
     Get a single concept by name with its episode count.
     """
     try:
-        # Construct ID
-        memory_id = f"concept_{concept_name}"
+        # Construct ID using the same normalization as store_concept
+        memory_id = f"concept_{concept_name.lower().replace(' ', '_')}"
         entry = await manager.get_memory(memory_id)
 
         if not entry:
@@ -159,6 +187,10 @@ async def add_concept(
             project_id=project_id,
             related_files=req.related_files,
             member_id=current_user.id if current_user else 0,
+            source_message_id=req.source_message_id,
+            source_thread_id=req.source_thread_id,
+            created_by_member_id=req.created_by_member_id or (current_user.id if current_user else 0),
+            memory_kind=req.memory_kind,
         )
         return ConceptOperationResponse(status="success", name=req.name)
     except Exception as e:
@@ -415,8 +447,8 @@ async def delete_concept(
     Delete a concept/memory.
     """
     try:
-        # Construct the internal memory ID (following _LongTermAdapter convention)
-        memory_id = f"concept_{concept_name}"
+        # Construct the internal memory ID using the same normalization as store_concept
+        memory_id = f"concept_{concept_name.lower().replace(' ', '_')}"
         success = await manager.delete_memory(memory_id)
         if not success:
             raise HTTPException(status_code=404, detail="Concept not found")
@@ -440,7 +472,7 @@ async def update_concept(
     Update an existing concept's description or metadata.
     """
     try:
-        memory_id = f"concept_{concept_name}"
+        memory_id = f"concept_{concept_name.lower().replace(' ', '_')}"
         existing = await manager.get_memory(memory_id)
         if not existing:
             raise HTTPException(status_code=404, detail="Concept not found")

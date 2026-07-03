@@ -11,7 +11,7 @@ Message System Core Schema —— 全链路标准化消息结构。
 """
 
 from datetime import datetime
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -32,17 +32,30 @@ class ReferenceBlock(DynamicBaseModel):
     - skill      : 技能引用。target_id = skill_id
     - directory  : 目录引用（target_id = 目录路径，meta_data 含相关目录元数据）
     """
+
     id: str
-    type: Literal["file", "image", "audio", "message", "artifact", "changeset", "skill", "directory"]
-    target_id: str                # 资源路径、消息 ID、或唯一标识
-    target_name: str              # 人类可读名称
-    meta_data: dict[str, Any] = Field(default_factory=dict)  # 扩展字段（因表结构命名为 meta_data）
+    type: Literal[
+        "file",
+        "image",
+        "audio",
+        "message",
+        "artifact",
+        "changeset",
+        "skill",
+        "directory",
+    ]
+    target_id: str  # 资源路径、消息 ID、或唯一标识
+    target_name: str  # 人类可读名称
+    meta_data: dict[str, Any] = Field(
+        default_factory=dict
+    )  # 扩展字段（因表结构命名为 meta_data）
 
 
 class ToolCall(DynamicBaseModel):
     """
     工具调用请求 —— AI 发出的执行指令。
     """
+
     id: str
     name: str
     args: dict[str, Any] = Field(default_factory=dict)
@@ -54,11 +67,12 @@ class ToolBlock(DynamicBaseModel):
     """
     工具执行块 —— 全链路标准化。
     """
+
     id: str
     tool_call_id: str
-    tool: str                                    # 原始标识符，如 "read_file"
-    tool_name: str | None = None                 # 显示名回退（当前与 tool 相同）
-    name: str | None = None                      # 人类可读显示名（来自 tool_meta 或 i18n）
+    tool: str  # 原始标识符，如 "read_file"
+    tool_name: str | None = None  # 显示名回退（当前与 tool 相同）
+    name: str | None = None  # 人类可读显示名（来自 tool_meta 或 i18n）
     input: dict[str, Any] = Field(default_factory=dict)
     output: str = ""
     status: Literal["pending", "running", "done", "failed"] = "pending"
@@ -81,13 +95,13 @@ class MessageBlock(DynamicBaseModel):
     """
 
     # === 核心标识 ===
-    id: str                                        # DB primary key UUID
+    id: str  # DB primary key UUID
     thread_id: str
     run_id: str | None = None
 
     # === 角色与分类 ===
     role: Literal["human", "ai", "tool", "system"]
-    category: str = ""                             # MessageCategory.value
+    category: str = ""  # MessageCategory.value
 
     # === 内容 ===
     content: str = ""
@@ -110,11 +124,13 @@ class MessageBlock(DynamicBaseModel):
     has_file_operations: bool = False
     changeset_count: int = 0
     changeset_files: list[dict[str, Any]] | None = None
-    status: Literal["pending", "running", "streaming", "completed", "failed", "waiting_human"] = "completed"
+    status: Literal[
+        "pending", "running", "streaming", "completed", "failed", "waiting_human"
+    ] = "completed"
     is_visible: bool = True
 
     # === 时间戳（统一 ISO 8601，时区敏感）===
-    created_at: str = ""                           # e.g. "2024-01-15T10:30:00+08:00"
+    created_at: str = ""  # e.g. "2024-01-15T10:30:00+08:00"
     updated_at: str | None = None
 
     # === 溯源标识 ===
@@ -127,6 +143,10 @@ class MessageBlock(DynamicBaseModel):
     executor_device_key: str | None = None
     executor_device_name: str | None = None
 
+    # === 消息来源 ===
+    # values: "desktop", "mobile", "api"
+    source: str | None = None
+
     meta_data: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -134,9 +154,12 @@ class HITLBlock(DynamicBaseModel):
     """
     人机交互块 —— 取代之前三套独立结构。
     """
+
     id: str
     thread_id: str
-    request_type: Literal["text_input", "choice", "confirmation", "file_select", "approval", "project_switch"]
+    request_type: Literal[
+        "text", "choice", "confirmation", "file_select", "approval", "project_switch"
+    ]
     prompt: str
     description: str = ""
     options: list[str] | None = None
@@ -145,7 +168,7 @@ class HITLBlock(DynamicBaseModel):
     allow_cancel: bool = True
     status: Literal["pending", "completed", "cancelled", "timeout"] = "pending"
     result: dict[str, Any] | None = None
-    created_at: str = ""                           # ISO 8601
+    created_at: str = ""  # ISO 8601
     resolved_at: str | None = None
 
 
@@ -153,6 +176,7 @@ class HistoryBlock(MessageBlock):
     """
     API 历史记录响应块 —— 继承 MessageBlock，扩展展示层字段。
     """
+
     has_file_operations: bool = False
     changeset_count: int = 0
 

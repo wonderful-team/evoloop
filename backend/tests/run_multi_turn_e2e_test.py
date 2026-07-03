@@ -39,11 +39,11 @@ def _pre_test_cleanup():
         os.makedirs(os.path.dirname(TEST_LOG_FILE), exist_ok=True)
     except Exception:
         pass
-    
+
     if os.path.exists(TEST_LOG_FILE):
         os.remove(TEST_LOG_FILE)
         logger.info(f"[Test] Removed old log: {TEST_LOG_FILE}")
-        
+
     # Setup test workspace
     os.makedirs(TEST_PROJECT_PATH, exist_ok=True)
     with open(os.path.join(TEST_PROJECT_PATH, "dummy_data.txt"), "w") as f:
@@ -68,10 +68,10 @@ async def _login_and_store_token(username: str = "preterchan", password: str = "
     token = login_res["token"]
     refresh_token = login_res.get("refresh_token", "")
     await identity_service.set_token(token, refresh_token)
-    
+
     global TEST_TOKEN
     TEST_TOKEN = token
-    
+
     logger.info("[Test] Login successful.")
     return token
 
@@ -80,7 +80,7 @@ async def _init_backend():
     from app.infrastructure.database.resource_manager import db_resource_manager
     logger.info("[Test] Initializing database...")
     await db_resource_manager.initialize(create_tables=False, seed_data=False)
-    
+
     await _login_and_store_token()
 
     from app.core.environment import awaken
@@ -91,30 +91,47 @@ async def _init_backend():
     from app.core.events.discovery import auto_discover_handlers
     auto_discover_handlers()
 
-    # Query and set default platform model dynamically to avoid ValueError
-    from app.infrastructure.llm.platform_service import get_available_llm_models
+    # Configure LLM: prefer custom provider API key when available, otherwise platform
     from app.infrastructure.config.service import SystemConfigService
-    SystemConfigService.set_value("LLM_CONFIG_TYPE", "platform")
-    SystemConfigService.set_value("LLM_BASE_URL", "")
-    SystemConfigService.set_value("LLM_API_KEY", "")
-    models = await get_available_llm_models("platform")
-    logger.info(f"[Test] Available platform models: {models}")
-    if models:
-        selected_model = models[0]["id"]
-        for m in models:
-            mid = m["id"]
-            if "kimi" in mid.lower() or "gpt-4o" in mid.lower() or "deepseek" in mid.lower():
-                selected_model = mid
-                break
-        SystemConfigService.set_value("LLM_MODEL", selected_model)
-        logger.info(f"[Test] Dynamically set default LLM_MODEL to: {selected_model}")
+    from app.infrastructure.llm.platform_service import get_available_llm_models
+
+    custom_api_key = os.environ.get("EVOLOOP_TEST_LLM_API_KEY", "").strip()
+    if custom_api_key:
+        custom_provider = os.environ.get("EVOLOOP_TEST_LLM_PROVIDER", "kimi").strip() or "kimi"
+        custom_provider_type = os.environ.get("EVOLOOP_TEST_LLM_PROVIDER_TYPE", "openai").strip() or "openai"
+        custom_base_url = os.environ.get("EVOLOOP_TEST_LLM_BASE_URL", "https://api.kimi.com/coding/v1").strip() or "https://api.kimi.com/coding/v1"
+        custom_model = os.environ.get("EVOLOOP_TEST_LLM_MODEL", "kimi-k2-thinking-turbo").strip() or "kimi-k2-thinking-turbo"
+        custom_id = f"custom-{custom_provider}-{custom_model}"
+        SystemConfigService.set_value("LLM_CONFIG_TYPE", "custom")
+        SystemConfigService.set_value("LLM_PROVIDER", custom_provider)
+        SystemConfigService.set_value("LLM_PROVIDER_TYPE", custom_provider_type)
+        SystemConfigService.set_value("LLM_BASE_URL", custom_base_url)
+        SystemConfigService.set_value("LLM_API_KEY", custom_api_key)
+        SystemConfigService.set_value("LLM_MODEL", custom_id)
+        SystemConfigService.set_value("CUSTOM_LLM_MODEL", custom_model)
+        logger.info(f"[Test] Using custom LLM provider: provider={custom_provider}, model={custom_model}, base_url={custom_base_url}")
     else:
-        SystemConfigService.set_value("LLM_MODEL", "gpt-4o")
-        logger.warning("[Test] No platform models found, falling back to gpt-4o")
+        SystemConfigService.set_value("LLM_CONFIG_TYPE", "platform")
+        SystemConfigService.set_value("LLM_BASE_URL", "")
+        SystemConfigService.set_value("LLM_API_KEY", "")
+        models = await get_available_llm_models("platform")
+        logger.info(f"[Test] Available platform models: {models}")
+        if models:
+            selected_model = models[0]["id"]
+            for m in models:
+                mid = m["id"]
+                if "kimi" in mid.lower() or "gpt-4o" in mid.lower() or "deepseek" in mid.lower():
+                    selected_model = mid
+                    break
+            SystemConfigService.set_value("LLM_MODEL", selected_model)
+            logger.info(f"[Test] Dynamically set default LLM_MODEL to: {selected_model}")
+        else:
+            SystemConfigService.set_value("LLM_MODEL", "gpt-4o")
+            logger.warning("[Test] No platform models found, falling back to gpt-4o")
 
     from app.core.engine.graph_builder import GraphBuilder
     from app.core.globals import set_graph
-    
+
     # CRITICAL FIX: The checkpointer MUST be injected into builder.build to prevent amnesia
     builder = GraphBuilder()
     config_path = os.path.join(os.path.dirname(__file__), "../app/core/engine/config/agent_main.yaml")
@@ -124,7 +141,7 @@ async def _init_backend():
 
 
 async def _run_agent_turn(thread_id: str, message: str, turn_name: str, timeout: int) -> str:
-    from app.core.context import thread_context_store, EvoContext
+    from app.core.context import EvoContext, thread_context_store
     from app.core.engine.background_agent import run_agent_background
     from app.core.engine.dispatch import dispatch_agent_run
 
@@ -143,13 +160,13 @@ async def _run_agent_turn(thread_id: str, message: str, turn_name: str, timeout:
         thread_id=thread_id,
         message_content=message,
         project_id=TEST_PROJECT_ID,
-        goal_prefix=f"[{turn_name}] ",
-        context=ctx
+        context=ctx,
+        metadata={"goal_prefix": f"[{turn_name}] "},
     )
 
     if result.status == "failed":
         raise RuntimeError(f"Dispatch failed: {result.error}")
-    
+
     if "metadata" not in result.inputs:
         result.inputs["metadata"] = {}
     result.inputs["metadata"]["member_id"] = 1
@@ -187,11 +204,11 @@ async def main():
 
     try:
         await _init_backend()
-        
+
         # Ensure unique thread_id for a clean memory test
         import uuid
         thread_id = f"multi-turn-memory-test-{uuid.uuid4().hex[:6]}"
-        
+
         # ---------------------------------------------------------
         # TURN 1
         # ---------------------------------------------------------
@@ -201,11 +218,11 @@ async def main():
         )
         logger.info("\n>>> STARTING TURN 1")
         await _run_agent_turn(thread_id, turn_1_msg, "Turn-1", timeout)
-        
+
         # ---------------------------------------------------------
         # TURN 2
         # ---------------------------------------------------------
-        # In Turn 2, we specifically ask the Agent to recall information 
+        # In Turn 2, we specifically ask the Agent to recall information
         # from Turn 1 without restating what the file was.
         turn_2_msg = (
             "这是测试的第二轮。你还记得在上一轮对话中，你在 /tmp/evoloop_multi_turn_test 目录发现了什么文件吗？"
@@ -220,9 +237,10 @@ async def main():
         # TURN 2 RETRY (NEW STAGE)
         # ---------------------------------------------------------
         # 1. Get the last human message from DB (which is the Turn 2 query)
-        from app.models.conversation import Message
-        from app.infrastructure.database.sql.database import session_scope
         from sqlalchemy import select
+
+        from app.infrastructure.database.sql.database import session_scope
+        from app.models.conversation import Message
 
         logger.info("\n>>> FETCHING TURN 2 MESSAGE FOR RETRY")
         async with session_scope() as session:
@@ -296,8 +314,8 @@ async def main():
         # TRIGGER RETRY REWIND
         # ---------------------------------------------------------
         logger.info("\n>>> TRIGGERING RETRY REWIND")
-        from app.core.events import system_bus
         from app.core.engine.rewind import RewindOrchestrator
+        from app.core.events import system_bus
 
         orchestrator = RewindOrchestrator(event_bus=system_bus)
         rewind_res = await orchestrator.perform_rewind(
@@ -345,14 +363,14 @@ async def main():
             logger.warning(f"[Warning] Agent did not write the file: {result_file} (likely responded directly via plain text).")
             logger.info("✓ Verified: Conversation state was rewound and Agent completed execution.")
         else:
-            with open(result_file, "r") as f:
+            with open(result_file) as f:
                 content = f.read()
                 logger.info(f"Result file content:\n{content}")
                 if "dummy_data.txt" not in content.lower():
                     logger.warning("Agent created the file but it did not contain 'dummy_data.txt'.")
                 else:
                     logger.info("✓ Verified: Agent correctly recreated the file and recalled Turn 1 content.")
-        
+
         logger.info("✅ MULTI-TURN MEMORY TEST COMPLETED SUCCESSFULLY!")
         logger.info("The system correctly rolled back memory data and restarted the agent workflow successfully.")
 

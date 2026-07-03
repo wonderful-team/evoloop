@@ -100,14 +100,13 @@ async def test_list_agents_tool():
     with patch.object(evocloud_manager.api, "get_devices", AsyncMock(return_value=mock_devices)):
         res = await list_agents.ainvoke({})
         agents = json.loads(res)
-        assert len(agents) == 4
+        assert len(agents) == 3
         assert agents[0]["device_key"] == "dev-1"
         assert agents[0]["capabilities"] == ["code_build"]
-        assert agents[1]["device_key"] == "dev-2"
-        assert agents[2]["device_key"] == "dev-3"
-        assert agents[2]["device_type"] == "embedded"
-        assert agents[3]["device_key"] == "dev-4"
-        assert agents[3]["device_type"] == "android"
+        assert agents[1]["device_key"] == "dev-3"
+        assert agents[1]["device_type"] == "embedded"
+        assert agents[2]["device_key"] == "dev-4"
+        assert agents[2]["device_type"] == "android"
 
 
 @pytest.mark.asyncio
@@ -156,7 +155,7 @@ async def test_send_agent_task_tool(mock_session):
         
         cmd_payload = call_args["cmd_data"]
         assert cmd_payload["action"] == "a2a_task"
-        task_data = cmd_payload["payload"]
+        task_data = cmd_payload["content"]
         assert task_data["instruction"] == "Build the package"
         assert task_data["parent_thread_id"] == thread_id
         assert len(task_data["attachments"]) == 1
@@ -182,7 +181,7 @@ async def test_handle_a2a_task_subscriber(mock_session):
 
     cmd = RemoteCommand(
         action="a2a_task",
-        payload=task_envelope.model_dump(),
+        content=task_envelope.model_dump(),
         thread_id=task_id,
         project_id=DEFAULT_PROJECT_ID
     )
@@ -267,7 +266,7 @@ async def test_complete_task_tool(mock_session):
         
         cmd_payload = call_args["cmd_data"]
         assert cmd_payload["action"] == "a2a_callback"
-        callback_data = cmd_payload["payload"]
+        callback_data = cmd_payload["content"]
         assert callback_data["status"] == "success"
         assert callback_data["summary"] == "Build completed successfully"
         assert len(callback_data["attachments"]) == 1
@@ -322,7 +321,7 @@ async def test_handle_a2a_task_hop_count_limit():
 
     cmd = RemoteCommand(
         action="a2a_task",
-        payload=task_envelope.model_dump(),
+        content=task_envelope.model_dump(),
         thread_id=task_id,
         project_id=DEFAULT_PROJECT_ID
     )
@@ -367,7 +366,7 @@ async def test_handle_a2a_task_file_download_and_verify(mock_session, tmp_path):
 
     cmd = RemoteCommand(
         action="a2a_task",
-        payload=task_envelope.model_dump(),
+        content=task_envelope.model_dump(),
         thread_id=task_id,
         project_id=DEFAULT_PROJECT_ID
     )
@@ -422,7 +421,7 @@ async def test_handle_a2a_task_file_download_and_verify(mock_session, tmp_path):
     })
     cmd_bad = RemoteCommand(
         action="a2a_task",
-        payload=task_envelope_bad.model_dump(),
+        content=task_envelope_bad.model_dump(),
         thread_id=task_id,
         project_id=DEFAULT_PROJECT_ID
     )
@@ -482,7 +481,7 @@ async def test_complete_task_cancelled(mock_session):
         assert mock_send.call_count == 1
         call_args = mock_send.call_args[1]
         assert call_args["device_key"] == "caller-key-123"
-        callback_data = call_args["cmd_data"]["payload"]
+        callback_data = call_args["cmd_data"]["content"]
         assert callback_data["status"] == "cancelled"
         assert callback_data["summary"] == "Cancelled by human"
 

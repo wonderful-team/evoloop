@@ -11,11 +11,9 @@ from collections import defaultdict
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any
 
-from sqlalchemy import select, func
-from app.models.memory import MemoryIndex
-from app.infrastructure.database.sql.database import session_scope
+from sqlalchemy import func, select
 
 from app.core.config import settings
 from app.core.memory.models import (
@@ -26,6 +24,8 @@ from app.core.memory.models import (
     PrivacyLevel,
 )
 from app.core.memory.schemas import CheckpointDedupResult, StorageHealthCheck
+from app.infrastructure.database.sql.database import session_scope
+from app.models.memory import MemoryIndex
 
 logger = logging.getLogger(__name__)
 
@@ -400,7 +400,7 @@ class _FileEngine:
             sql_filters["member_id"] = member_id
 
         rows = await self._db_search(sql_filters, limit=limit or 1000)
-        
+
         results = []
         for row in rows:
             created = row["created_at"]
@@ -637,7 +637,7 @@ class _FileEngine:
                 await session.delete(r)
             return count
 
-    async def _db_get_by_id(self, memory_id: str) -> Optional[dict]:
+    async def _db_get_by_id(self, memory_id: str) -> dict | None:
         """Get an entry's metadata by ID."""
         async with session_scope() as session:
             stmt = select(MemoryIndex).where(MemoryIndex.id == memory_id)
@@ -669,7 +669,7 @@ class _FileEngine:
                 }
             return None
 
-    async def _db_search(self, filters: dict, query: str | None = None, limit: int = 100) -> List[dict]:
+    async def _db_search(self, filters: dict, query: str | None = None, limit: int = 100) -> list[dict]:
         """Search for entries matching filters and query string (SQL LIKE)."""
         async with session_scope() as session:
             stmt = select(MemoryIndex)
@@ -720,7 +720,7 @@ class _FileEngine:
                 for row in rows
             ]
 
-    async def _db_list_all(self) -> List[dict]:
+    async def _db_list_all(self) -> list[dict]:
         async with session_scope() as session:
             stmt = select(MemoryIndex)
             res = await session.execute(stmt)

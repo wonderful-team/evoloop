@@ -1,7 +1,6 @@
 from datetime import datetime
-from typing import Optional
 
-from sqlalchemy import JSON, DateTime, Integer, String, Text, Float
+from sqlalchemy import JSON, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.infrastructure.database.sql.database import Base
@@ -29,23 +28,26 @@ class MemoryIndex(Base):
     tier: Mapped[str] = mapped_column(String(50), nullable=False)
     privacy: Mapped[str] = mapped_column(String(50), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     path: Mapped[str] = mapped_column(Text, nullable=False)
-    project_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
-    member_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=0, index=True)
-    source: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    project_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    member_id: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0, index=True)
+    source: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     # Traceability 元数据追溯字段
-    source_file_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    source_thread_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
-    source_message_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
-    source_run_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
-    source_wiki_title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    source_file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_thread_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    source_message_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    source_run_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    source_wiki_title: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
-    content_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
-    confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    utility_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    version: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=1)
+    created_by_member_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    memory_kind: Mapped[str] = mapped_column(String(50), nullable=False, default="concept", server_default="concept")
+
+    content_hash: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    utility_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    version: Mapped[int | None] = mapped_column(Integer, nullable=True, default=1)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

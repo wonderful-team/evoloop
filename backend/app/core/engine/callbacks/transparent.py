@@ -57,6 +57,10 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         self.active_llm_run_id = None
         self._tool_names: dict[str, str] = {}  # run_id -> tool_name mapping for parallel tools
 
+        # Throttle cancellation checks during high-frequency streaming
+        self._cancellation_check_counter = 0
+        self._CANCELLATION_CHECK_INTERVAL = 50  # check every N tokens
+
         # Stream tracking
         self._token_filter = TokenFilter()
         self._publisher: MessagePublisher | None = None
@@ -125,7 +129,10 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if not (self.thread_id and self.monitor):
             return
 
-        await self.monitor.check_cancellation(self.thread_id)
+        # Throttle cancellation checks: do not hit the DB for every single token.
+        self._cancellation_check_counter += 1
+        if self._cancellation_check_counter % self._CANCELLATION_CHECK_INTERVAL == 0:
+            await self.monitor.check_cancellation(self.thread_id)
 
         if not (self.llm_task_id and run_id == str(self.active_llm_run_id)):
             return
@@ -146,12 +153,12 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if generation_chunk and hasattr(generation_chunk, "message"):
             msg_chunk = generation_chunk.message
             is_tool_call = bool(getattr(msg_chunk, "tool_call_chunks", None))
-            
+
             # Extract standard reasoning content
             delta_reasoning = extract_reasoning_from_kwargs(msg_chunk.additional_kwargs)
             if delta_reasoning:
                 self._thinking_buffer += delta_reasoning
-                
+
             # Extract Anthropic native thinking if present
             if isinstance(msg_chunk.content, list):
                 for block in msg_chunk.content:
@@ -261,8 +268,8 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         # 兼容 LangChain 的不同序列化结构
         tool_name = (
-            serialized.get("name") or 
-            serialized.get("kwargs", {}).get("name") or 
+            serialized.get("name") or
+            serialized.get("kwargs", {}).get("name") or
             "Unknown Tool"
         )
         self._tool_names[run_id] = tool_name

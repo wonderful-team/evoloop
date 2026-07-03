@@ -1,9 +1,7 @@
 from typing import Any
 
-from pydantic import field_validator
-
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.constants import DEFAULT_PROJECT_ID
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
 class EvoCloudConfig(DynamicBaseModel):
@@ -60,11 +58,9 @@ class SyncMessage(DynamicBaseModel):
 
 
 class RemoteCommand(DynamicBaseModel):
-    command_id: str | int | None = None
-    type: str = "chat_message"        # 旧版指令类型
-    action: str | None = None         # EPv2 指令动作 (chat/project_switch等)
-    content: dict[str, Any] | None = None # 旧版负载
-    payload: dict[str, Any] | None = None # EPv2 负载
+    command_id: int | None = None
+    action: str = "chat"
+    content: dict[str, Any] | str | None = None
     message: str | None = None
     references: list[dict[str, Any]] = []
     thread_id: str | None = None
@@ -72,27 +68,14 @@ class RemoteCommand(DynamicBaseModel):
 
     def get_action(self) -> str:
         """获取标准化的指令动作名称"""
-        return self.action or self.type or "chat_message"
+        return self.action
 
     def get_payload(self) -> dict[str, Any]:
         """获取标准化的业务数据负载"""
-        return self.payload or self.content or {}
-
-
-class QueryResponse(DynamicBaseModel):
-    type: str = "query_response"
-    request_id: str | int | None = None
-    data: dict[str, Any]
-
-
-class WebSocketHandshake(DynamicBaseModel):
-    type: str = "connect"
-    payload: dict[str, Any]
-
-
-class WebSocketPing(DynamicBaseModel):
-    type: str = "ping"
-    timestamp: int
+        raw_payload = self.content or {}
+        if isinstance(raw_payload, str):
+            return {"text": raw_payload}
+        return raw_payload
 
 
 class ToolLogState(DynamicBaseModel):
@@ -104,57 +87,6 @@ class ToolLogState(DynamicBaseModel):
 class ThoughtLogState(DynamicBaseModel):
     content: str | None = None
     timestamp: float = 0.0
-
-
-class ConversationQueryItem(DynamicBaseModel):
-    id: str
-    title: str = "新会话"
-    project_id: int | None = None
-    created_at: str | None = None
-    updated_at: str | None = None
-
-    @field_validator("title", mode="before")
-    @classmethod
-    def validate_title(cls, v):
-        if v is None:
-            return "新会话"
-        return str(v)
-
-
-class MessageQueryItem(DynamicBaseModel):
-    id: str
-    role: str
-    content: str | None = None
-    thinking: str | None = None
-    created_at: str | None = None
-
-    @field_validator("id", mode="before")
-    @classmethod
-    def validate_id(cls, v):
-        return str(v) if v is not None else ""
-
-
-class McpServerInfo(DynamicBaseModel):
-    name: str
-    type: str
-    connected: bool
-
-
-class ModelInfo(DynamicBaseModel):
-    id: str
-    name: str
-
-    @field_validator("id", "name", mode="before")
-    @classmethod
-    def validate_str_fields(cls, v):
-        return str(v) if v is not None else ""
-
-
-class SkillQueryItem(DynamicBaseModel):
-    id: int
-    name: str
-    namespace: str
-    description: str
 
 
 class EvoCloudProjectSummary(DynamicBaseModel):
@@ -169,6 +101,7 @@ class EvoCloudProjectSummary(DynamicBaseModel):
 
 class TaskAttachment(DynamicBaseModel):
     """A2A 任务附带的文件中转描述"""
+
     filename: str
     download_url: str
     file_size: int
@@ -176,7 +109,8 @@ class TaskAttachment(DynamicBaseModel):
 
 
 class AgentTask(DynamicBaseModel):
-    """A2A 任务信封 - 在 RemoteCommand.payload 中传输"""
+    """A2A 任务信封 - 在 RemoteCommand.content 中传输"""
+
     task_id: str
     task_type: str = "a2a_task"
     instruction: str
@@ -194,6 +128,7 @@ class AgentTask(DynamicBaseModel):
 
 class AgentTaskResult(DynamicBaseModel):
     """A2A 任务执行完毕的回调信封"""
+
     task_id: str
     status: str  # "success" | "failed" | "cancelled" | "timeout"
     summary: str = ""

@@ -2,7 +2,7 @@
 Integration tests for WebSocket remote command handlers.
 
 Focus: verify that EngineCommandSubscriber._handle_command correctly delegates to
- dispatch_agent_run for chat_message flows.
+ dispatch_agent_run for chat flows.
 
 Run: cd backend && python -m pytest tests/integration/test_websocket_dispatch.py -v
 """
@@ -10,7 +10,7 @@ Run: cd backend && python -m pytest tests/integration/test_websocket_dispatch.py
 import os
 import sys
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
@@ -20,11 +20,11 @@ if os.path.exists(env_path):
         for line in f:
             if line.strip() and not line.startswith("#") and "=" in line:
                 key, value = line.split("=", 1)
-                os.environ.setdefault(key.strip(), value.strip().strip('"\''))
+                os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
 
 
 # Pre-import to avoid pkgutil.resolve_name + __getattr__ issues with Pydantic v2
-import app.core.engine.event.subscribers as _ch
+import app.core.engine.event.subscribers as _ch  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -45,6 +45,7 @@ def mock_background():
 def mock_dispatch_result():
     """Return a canned DispatchResult."""
     from app.core.engine.dispatch import DispatchResult
+
     return DispatchResult(
         status="queued",
         thread_id="ws-123",
@@ -55,17 +56,19 @@ def mock_dispatch_result():
 
 
 @pytest.mark.asyncio
-async def test_handle_remote_command_chat_message(mock_dispatch, mock_dispatch_result, mock_background):
-    """chat_message should call dispatch_agent_run with parsed text."""
+async def test_handle_remote_command_chat_message(
+    mock_dispatch, mock_dispatch_result, mock_background
+):
+    """chat should call dispatch_agent_run with parsed text."""
     from app.core.engine.event.subscribers import EngineCommandSubscriber
     from app.core.evocloud.schemas import RemoteCommand
 
     mock_dispatch.return_value = mock_dispatch_result
 
     command = {
-        "type": "chat_message",
+        "action": "chat",
         "thread_id": "ws-123",
-        "payload": {
+        "content": {
             "message": "Hello from WebSocket",
         },
         "project_id": 42,
@@ -85,19 +88,21 @@ async def test_handle_remote_command_chat_message(mock_dispatch, mock_dispatch_r
 
 
 @pytest.mark.asyncio
-async def test_handle_remote_command_with_attachments(mock_dispatch, mock_dispatch_result, mock_background):
-    """chat_message with attachments should pass them to dispatch."""
+async def test_handle_remote_command_with_attachments(
+    mock_dispatch, mock_dispatch_result, mock_background
+):
+    """chat with references should pass them to dispatch."""
     from app.core.engine.event.subscribers import EngineCommandSubscriber
     from app.core.evocloud.schemas import RemoteCommand
 
     mock_dispatch.return_value = mock_dispatch_result
 
     command = {
-        "type": "chat_message",
+        "action": "chat",
         "thread_id": "ws-123",
-        "payload": {
+        "content": {
             "message": "Look at this",
-            "attachments": [{"type": "image", "url": "https://example.com/img.png"}],
+            "references": [{"type": "image", "url": "https://example.com/img.png"}],
         },
     }
 
@@ -105,24 +110,26 @@ async def test_handle_remote_command_with_attachments(mock_dispatch, mock_dispat
     await handler._handle_command(RemoteCommand.model_validate(command))
 
     call_kwargs = mock_dispatch.call_args.kwargs
-    assert len(call_kwargs["attachments"]) == 1
-    assert call_kwargs["attachments"][0]["type"] == "image"
+    assert len(call_kwargs["references"]) == 1
+    assert call_kwargs["references"][0]["type"] == "image"
 
 
 @pytest.mark.asyncio
-async def test_handle_remote_command_nested_content(mock_dispatch, mock_dispatch_result, mock_background):
-    """Legacy nested 'content' format should be parsed correctly."""
+async def test_handle_remote_command_nested_content(
+    mock_dispatch, mock_dispatch_result, mock_background
+):
+    """Nested 'content' format should be parsed correctly."""
     from app.core.engine.event.subscribers import EngineCommandSubscriber
     from app.core.evocloud.schemas import RemoteCommand
 
     mock_dispatch.return_value = mock_dispatch_result
 
     command = {
-        "type": "chat_message",
+        "action": "chat",
         "thread_id": "ws-123",
-        "payload": {
+        "content": {
             "message": "Nested message",
-            "attachments": [],
+            "references": [],
         },
     }
 
@@ -134,7 +141,9 @@ async def test_handle_remote_command_nested_content(mock_dispatch, mock_dispatch
 
 
 @pytest.mark.asyncio
-async def test_handle_remote_command_params_format(mock_dispatch, mock_dispatch_result, mock_background):
+async def test_handle_remote_command_params_format(
+    mock_dispatch, mock_dispatch_result, mock_background
+):
     """Params nested inside content should be parsed."""
     from app.core.engine.event.subscribers import EngineCommandSubscriber
     from app.core.evocloud.schemas import RemoteCommand
@@ -142,11 +151,11 @@ async def test_handle_remote_command_params_format(mock_dispatch, mock_dispatch_
     mock_dispatch.return_value = mock_dispatch_result
 
     command = {
-        "type": "chat_message",
+        "action": "chat",
         "thread_id": "ws-123",
-        "payload": {
+        "content": {
             "message": "Param message",
-            "attachments": [{"type": "file"}],
+            "references": [{"type": "file"}],
         },
     }
 
@@ -155,17 +164,17 @@ async def test_handle_remote_command_params_format(mock_dispatch, mock_dispatch_
 
     call_kwargs = mock_dispatch.call_args.kwargs
     assert call_kwargs["message_content"] == "Param message"
-    assert len(call_kwargs["attachments"]) == 1
+    assert len(call_kwargs["references"]) == 1
 
 
 @pytest.mark.asyncio
 async def test_handle_remote_command_no_message_skips(mock_dispatch, mock_background):
-    """When no message and no attachments, handler should skip silently."""
+    """When no message and no references, handler should skip silently."""
     from app.core.engine.event.subscribers import EngineCommandSubscriber
     from app.core.evocloud.schemas import RemoteCommand
 
     command = {
-        "type": "chat_message",
+        "action": "chat",
         "thread_id": "ws-123",
     }
 
@@ -177,7 +186,9 @@ async def test_handle_remote_command_no_message_skips(mock_dispatch, mock_backgr
 
 
 @pytest.mark.asyncio
-async def test_handle_remote_command_dispatches_background(mock_dispatch, mock_dispatch_result, mock_background):
+async def test_handle_remote_command_dispatches_background(
+    mock_dispatch, mock_dispatch_result, mock_background
+):
     """On success, handler should schedule run_agent_background."""
     from app.core.engine.event.subscribers import EngineCommandSubscriber
     from app.core.evocloud.schemas import RemoteCommand
@@ -185,9 +196,9 @@ async def test_handle_remote_command_dispatches_background(mock_dispatch, mock_d
     mock_dispatch.return_value = mock_dispatch_result
 
     command = {
-        "type": "chat_message",
+        "action": "chat",
         "thread_id": "ws-123",
-        "payload": {
+        "content": {
             "message": "Go",
         },
     }
@@ -214,9 +225,9 @@ async def test_handle_remote_command_dispatch_failure(mock_dispatch, mock_backgr
     )
 
     command = {
-        "type": "chat_message",
+        "action": "chat",
         "thread_id": "ws-123",
-        "payload": {
+        "content": {
             "message": "Go",
         },
     }
@@ -235,10 +246,10 @@ async def test_handle_remote_command_hitl_response(mock_background):
     from app.core.evocloud.schemas import RemoteCommand
 
     command = {
-        "type": "hitl_response",
+        "action": "hitl_response",
         "thread_id": "ws-123",
         "content": {"response": "APPROVED"},
-        "command_id": "77",
+        "command_id": 77,
     }
 
     handler = EngineCommandSubscriber()
@@ -252,7 +263,9 @@ async def test_handle_remote_command_hitl_response(mock_background):
 
 
 @pytest.mark.asyncio
-async def test_handle_remote_command_model_fallback(mock_dispatch, mock_dispatch_result, mock_background):
+async def test_handle_remote_command_model_fallback(
+    mock_dispatch, mock_dispatch_result, mock_background
+):
     """
     Regression test: WebSocket commands pass model=None.
     _handle_chat_message should delegate to dispatch_agent_run with model=None.
@@ -264,9 +277,9 @@ async def test_handle_remote_command_model_fallback(mock_dispatch, mock_dispatch
     mock_dispatch.return_value = mock_dispatch_result
 
     command = {
-        "type": "chat_message",
+        "action": "chat",
         "thread_id": "ws-123",
-        "payload": {
+        "content": {
             "message": "Hello",
         },
     }
@@ -277,3 +290,32 @@ async def test_handle_remote_command_model_fallback(mock_dispatch, mock_dispatch
     mock_dispatch.assert_awaited_once()
     call_kwargs = mock_dispatch.call_args.kwargs
     assert call_kwargs["model"] is None
+
+
+@pytest.mark.asyncio
+async def test_handle_remote_command_string_content(
+    mock_dispatch, mock_dispatch_result, mock_background
+):
+    """
+    Ensure string values for content do not trigger validation errors
+    and are gracefully wrapped in a dictionary via get_payload().
+    """
+    from app.core.engine.event.subscribers import EngineCommandSubscriber
+    from app.core.evocloud.schemas import RemoteCommand
+
+    mock_dispatch.return_value = mock_dispatch_result
+
+    command = {
+        "action": "chat",
+        "thread_id": "ws-123",
+        "content": "hello",
+    }
+    cmd = RemoteCommand.model_validate(command)
+    assert cmd.content == "hello"
+    assert cmd.get_payload() == {"message": "hello"}
+
+    # Run handler with string content to ensure no exception is raised
+    handler = EngineCommandSubscriber()
+    await handler._handle_command(cmd)
+    mock_dispatch.assert_awaited_once()
+    assert mock_dispatch.call_args.kwargs["message_content"] == "hello"

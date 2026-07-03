@@ -99,7 +99,8 @@ class MessageBlockFactory:
                 meta_data=meta_data,
                 thread_id=thread_id,
                 executor_device_key=executor_device_key,
-                executor_device_name=executor_device_name
+                executor_device_name=executor_device_name,
+                source=cls._get_val(msg, "source"),
             )
 
         elif role == "tool":
@@ -133,7 +134,8 @@ class MessageBlockFactory:
                 meta_data={**meta_data, "tool_meta": tool_meta},
                 thread_id=thread_id,
                 executor_device_key=executor_device_key,
-                executor_device_name=executor_device_name
+                executor_device_name=executor_device_name,
+                source=cls._get_val(msg, "source"),
             )
 
         else:
@@ -147,7 +149,8 @@ class MessageBlockFactory:
                 meta_data=meta_data,
                 thread_id=thread_id,
                 executor_device_key=executor_device_key,
-                executor_device_name=executor_device_name
+                executor_device_name=executor_device_name,
+                source=cls._get_val(msg, "source"),
             )
 
     @classmethod
@@ -170,6 +173,7 @@ class MessageBlockFactory:
         message_id: str | None = None,
         executor_device_key: str | None = None,
         executor_device_name: str | None = None,
+        source: str | None = None,
     ) -> MessageBlock:
         """
         Creates a MessageBlock directly from streaming event parameters.
@@ -259,5 +263,6 @@ class MessageBlockFactory:
             tool_meta=tool_meta if role == "tool" else None,
             executor_device_key=executor_device_key,
             executor_device_name=executor_device_name,
+            source=source,
             meta_data=clean_meta,
         )

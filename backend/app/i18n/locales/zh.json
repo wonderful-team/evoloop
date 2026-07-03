@@ -415,6 +415,7 @@
       "system_prompt": "你生成清晰、简洁的技术文档。"
     },
     "files": {
+      "global_mode_not_allowed": "当前处于工作空间模式，无法访问项目文件 '{path}'。请切换到具体项目后重试。",
       "resolve_error": "错误：无法解析路径：{path}",
       "security_violation": "错误：安全违规。路径 '{path}' 超出工作目录 '{root}'。请使用相对路径。",
       "read_not_found_suggest": "错误：未找到文件 '{path}'。你的意思是该目录下的这些文件之一吗？[{siblings}]",

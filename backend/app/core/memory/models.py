@@ -65,6 +65,8 @@ class MemoryEntry(DynamicBaseModel):
     source_file_path: str | None = None
     source_thread_id: str | None = None
     source_wiki_title: str | None = None
+    created_by_member_id: int | None = None
+    memory_kind: str = "concept"
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
 
     # Versioning

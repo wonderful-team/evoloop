@@ -9,14 +9,14 @@ import asyncio
 import logging
 import platform
 
+from app.core.schemas.canonical import create_envelope
+
 from app.core.config import settings
-from app.core.engine.event.schemas import WebSocketMessageReceivedEvent
 from app.core.engine.event.types import AgentEventType
+from app.core.engine.rewind.event.schemas import MessagesCleanupEvent
 from app.core.events import BaseEvent, SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.evocloud.manager import evocloud_manager
-from app.core.evocloud.schemas import QueryResponse
-from app.utils.async_utils import run_in_thread
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +46,7 @@ class EvoCloudLifecycleSubscriber:
             logger.warning(f"[EvoCloud] Cache warming failed: {e}")
 
     async def _start_services(self):
-        """Start EvoCloud services (WebSocket link + query handler + cache warming)."""
-        from app.core.evocloud.bridge.query_handler import handle_query_request
-        evocloud_manager.set_query_handler(handle_query_request)
+        """Start EvoCloud services (WebSocket link + cache warming)."""
         await evocloud_manager.start()
         asyncio.create_task(self._warm_evocloud_cache())
 
@@ -135,97 +133,25 @@ class EvoCloudSyncSubscriber:
             f"for thread {getattr(event, 'thread_id', 'unknown')}"
         )
 
-        # 2. 通过 WebSocket 实时通知 Gateway/Mobile 任务已完成
+        # 2. 通过 WebSocket 实时通知 Gateway/Mobile 任务已完成（规范 agent.status 格式）
         link = evocloud_manager.link
         if link and link.is_connected():
-            await link.send_message({
-                "type": "agent_run_completed",
-                "thread_id": getattr(event, 'thread_id', ''),
-                "status": getattr(event, 'status', 'done'),
-            })
-            logger.debug(f"[EvoCloudSync] Completion signal sent via WebSocket for thread {getattr(event, 'thread_id', '')}")
-
-
-# =============================================================================
-# WebSocket Message Handlers
-# =============================================================================
-
-@event_register()
-class QueryWebSocketSubscriber:
-    """
-    Handles ``query`` messages from Gateway.
-
-    Delegates to the query handler registered on the EvoCloudWebSocketLink.
-    """
-
-    @event_subscribe("websocket.message_received")
-    async def on_ws_message(self, event: WebSocketMessageReceivedEvent) -> None:
-        if event.msg_type != "query":
-            return
-        await self._handle_query(event.raw)
-
-    async def _handle_query(self, data: dict) -> None:
-        link = evocloud_manager.link
-        if link is None:
-            logger.warning("[EvoCloud] Query received but link not available")
-            return
-
-        request_id = data.get("request_id")
-        query_data = data.get("data", {})
-        query_type = query_data.get("query_type")
-        thread_id = query_data.get("thread_id")
-        params = query_data.get("params", {})
-
-        logger.debug(f"[EvoCloud] Query request: {query_type} (req_id={request_id})")
-
-        result = None
-        error = None
-
-        try:
-            if link._query_handler:
-                if asyncio.iscoroutinefunction(link._query_handler):
-                    result = await link._query_handler(query_type, thread_id, params)
-                else:
-                    result = await run_in_thread(link._query_handler, query_type, thread_id, params)
-            else:
-                error = "Query handler not registered"
-        except Exception as e:
-            logger.error(f"[EvoCloud] Query error: {e}")
-            error = str(e)
-
-        response = QueryResponse(
-            request_id=request_id,
-            data={
-                "code": 0 if error is None else 500,
-                "message": error or "success",
-                "request_id": request_id,
-                "data": result,
-            },
-        )
-        await link.send_message(response.model_dump())
-
-
-@event_register()
-class InitWebSocketSubscriber:
-    """
-    Handles ``init`` messages from Gateway.
-
-    Updates ``client_id`` on the EvoCloudWebSocketLink instance.
-    """
-
-    @event_subscribe("websocket.message_received")
-    async def on_ws_message(self, event: WebSocketMessageReceivedEvent) -> None:
-        if event.msg_type != "init":
-            return
-
-        client_id = event.payload.get("client_id")
-        if not client_id:
-            return
-
-        link = evocloud_manager.link
-        if link:
-            link.client_id = client_id
-            logger.info(f"[EvoCloud] client_id updated via event: {client_id}")
+            from app.core.identity import identity_service
+            device_key = await identity_service.store.get_device_key()
+            status_env = create_envelope(
+                type="agent.status",
+                body={
+                    "thread_id": getattr(event, 'thread_id', ''),
+                    "status": getattr(event, 'status', 'done'),
+                },
+                source={"kind": "agent", "device_key": device_key} if device_key else None,
+                target={"kind": "mobile"},
+            )
+            await link.send_message(status_env.model_dump())
+            logger.debug(
+                "[EvoCloudSync] canonical agent.status sent via WebSocket for thread "
+                f"{getattr(event, 'thread_id', '')}"
+            )
 
 
 # =============================================================================
@@ -257,8 +183,8 @@ class DeviceInfoSyncSubscriber:
             logger.debug("[EvoCloud] No device_key yet, skipping device info sync")
             return
 
-        from app.core.evocloud.bridge.sync_tasks import sync_device_info_task
         from app.core.environment.discovery import EnvironmentProbe
+        from app.core.evocloud.bridge.sync_tasks import sync_device_info_task
 
         info = {
             "device_name": new_value,
@@ -283,12 +209,11 @@ class EvoCloudSyncCleanupSubscriber:
     """
 
     @event_subscribe("rewind.messages.cleanup")
-    async def on_messages_cleanup(self, event: "MessagesCleanupEvent"):
+    async def on_messages_cleanup(self, event: MessagesCleanupEvent):
         """
         Listen to local database cleanup during rewind/retry, and propagate
         these deletions to EvoCloud via HTTP API.
         """
-        from app.core.engine.rewind.event.schemas import MessagesCleanupEvent
         if not isinstance(event, MessagesCleanupEvent):
             return
 
@@ -297,11 +222,11 @@ class EvoCloudSyncCleanupSubscriber:
 
         from app.core.evocloud.manager import evocloud_manager
         from app.core.identity import identity_service
-        
+
         device_key = await identity_service.store.get_device_key()
         if not device_key:
             return
-            
+
         try:
             if event.target_sequence > 0:
                 result = await evocloud_manager.api.sync_rewind_messages(

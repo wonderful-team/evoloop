@@ -28,10 +28,11 @@ MAX_GOAL_LENGTH = 500
 
 class BackgroundAgentInputs(BaseModel):
     """Structured inputs for background agent execution.
-    
+
     Uses extra='allow' so callers (e.g. API routes) can inject LangGraph state
     fields such as ``blackboard`` without modifying this schema.
     """
+
     model_config = ConfigDict(extra="allow")
 
     messages: list[dict] = Field(default_factory=list)
@@ -44,11 +45,14 @@ class BackgroundAgentInputs(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     iteration_count: int = 0
     hitl_resume_response: str | None = None
+    is_hitl_cancel: bool = False
     session_goal: str | None = None
     working_directory: str | None = None
 
 
-async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | dict[str, Any]):
+async def run_agent_background(
+    thread_id: str, inputs: BackgroundAgentInputs | dict[str, Any]
+):
     """
     Background Task Logic (FastAPI BackgroundTasks).
     Replaces Celery task. Runs in the main event loop, reusing global resources.
@@ -64,7 +68,9 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
     # 1. Lifecycle & Context Management
     task_type = inputs.metadata.get("task_type") if inputs.metadata else None
     try:
-        async with activity_monitor.run_scope(thread_id, inputs.goal, task_type=task_type, project_id=project_id) as run_id:
+        async with activity_monitor.run_scope(
+            thread_id, inputs.goal, task_type=task_type, project_id=project_id
+        ) as run_id:
             _final_status = "done"  # Track final status for command_complete signal
             try:
                 db_callback = None
@@ -86,7 +92,7 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                         project_id=project_id,
                         working_directory=working_dir,
                         active_model=inputs.model,
-                        command_id=inputs.command_id
+                        command_id=inputs.command_id,
                     )
                 else:
                     ctx.request_id = f"bg-{thread_id}-{int(time.time())}"
@@ -118,8 +124,8 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                     "metadata": {
                         "project_id": project_id,
                         "is_retry": inputs.is_retry,
-                        **inputs.metadata
-                    }
+                        **inputs.metadata,
+                    },
                 }
                 if inputs.checkpoint_id:
                     config["configurable"]["checkpoint_id"] = inputs.checkpoint_id
@@ -141,14 +147,17 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                 inputs_dict.pop("blackboard", None)
 
                 from app.core.engine.state import AgentState
+
                 agent_state = AgentState.model_validate(inputs_dict)
 
                 # Extract last human msg for predictive memory
                 from app.core.engine.message.utils import get_last_human_message
+
                 last_human_msg = get_last_human_message(raw_messages) or ""
 
                 # Unified Context Hydration (Runs ONCE per session)
                 from app.core.engine.context_hydrator import AgentContextHydrator
+
                 await AgentContextHydrator.hydrate(
                     ctx=ctx,
                     state=agent_state,
@@ -156,7 +165,7 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                     last_human_msg=last_human_msg,
                     is_retry=inputs.is_retry,
                     is_subtask=False,
-                    iteration_count=inputs.iteration_count
+                    iteration_count=inputs.iteration_count,
                 )
 
                 # Update inputs with hydrated state
@@ -180,18 +189,29 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                 input_payload["session_goal"] = inputs.session_goal or ""
 
                 if inputs.hitl_resume_response is not None:
-                    input_payload = await build_resume_command(graph_instance, config, inputs.hitl_resume_response)
+                    input_payload = await build_resume_command(
+                        graph_instance,
+                        config,
+                        inputs.hitl_resume_response,
+                        is_cancel=inputs.is_hitl_cancel,
+                    )
                 else:
                     # If we are starting a new conversation turn, ensure the graph is not stuck in a pending node (e.g. after a crash).
                     # This prevents the graph from silently consuming the new message and instantly finishing if it resumes FinishNode.
                     current_state = await graph_instance.aget_state(config)
                     if current_state.next:
-                        logger.warning(f"[Agent] Thread {thread_id} is stuck at {current_state.next}. Forcing route to supervisor to process new message.")
+                        logger.warning(
+                            f"[Agent] Thread {thread_id} is stuck at {current_state.next}. Forcing route to supervisor to process new message."
+                        )
                         # Provide an empty string to resume in case it was explicitly interrupted, and force route to supervisor.
-                        input_payload = Command(resume="", goto="supervisor", update=input_payload)
+                        input_payload = Command(
+                            resume="", goto="supervisor", update=input_payload
+                        )
 
                 # 6. Run Graph
-                async for _event in graph_instance.astream(input_payload, config=config):
+                async for _event in graph_instance.astream(
+                    input_payload, config=config
+                ):
                     await activity_monitor.check_cancellation(thread_id)
 
                 # 7. Finalize Run

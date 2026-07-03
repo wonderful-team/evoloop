@@ -20,6 +20,7 @@ async def build_resume_command(
     graph_instance,
     config: dict,
     user_response: str,
+    is_cancel: bool = False,
 ) -> Any:
     """
     Build a LangGraph Command for resuming from HITL interrupt.
@@ -37,15 +38,22 @@ async def build_resume_command(
     if pending_tool:
         logger.info(f"Background Resume: Auto-completing tool {pending_tool['name']}")
 
-        # Standardized normalization and DB state closure
-        normalized_input = await HITLOrchestrator.handle_resume(
-            thread_id=thread_id,
-            tool_call=pending_tool,
-            user_input=user_response,
-        )
+        if is_cancel:
+            # Standardized cancellation and DB state closure
+            normalized_input = await HITLOrchestrator.handle_cancel(
+                thread_id=thread_id,
+                tool_call=pending_tool,
+            )
+        else:
+            # Standardized normalization and DB state closure
+            normalized_input = await HITLOrchestrator.handle_resume(
+                thread_id=thread_id,
+                tool_call=pending_tool,
+                user_input=user_response,
+            )
 
         # Authorization: persist the grant if user approved
-        if normalized_input == "APPROVED":
+        if not is_cancel and normalized_input == "APPROVED":
             await _persist_authorization_grant(graph_instance, config, pending_tool)
             # Re-execute the original blocked tool so the LLM sees real tool output
             return await _build_authorized_retry_command(
@@ -65,11 +73,15 @@ async def build_resume_command(
     return Command(resume=user_response)
 
 
-async def _persist_authorization_grant(graph_instance, config: dict, pending_tool: dict) -> None:
+async def _persist_authorization_grant(
+    graph_instance, config: dict, pending_tool: dict
+) -> None:
     """Convert a pending authorization HITL request into a persisted project grant."""
     try:
         thread_id = config.get("configurable", {}).get("thread_id")
-        project_id = config.get("configurable", {}).get("project_id") or config.get("metadata", {}).get("project_id")
+        project_id = config.get("configurable", {}).get("project_id") or config.get(
+            "metadata", {}
+        ).get("project_id")
         tool_call_id = pending_tool.get("id")
         if not thread_id or not project_id or not tool_call_id:
             return
@@ -131,7 +143,9 @@ async def _persist_authorization_grant(graph_instance, config: dict, pending_too
         logger.warning(f"[Authorization] Failed to persist grant: {e}")
 
 
-async def _build_authorized_retry_command(graph_instance, config: dict, pending_tool: dict) -> Any:
+async def _build_authorized_retry_command(
+    graph_instance, config: dict, pending_tool: dict
+) -> Any:
     """Re-run the tool that was blocked by the authorization gate.
 
     The approval has already been persisted as a project-level grant, so the

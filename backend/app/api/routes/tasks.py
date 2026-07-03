@@ -164,8 +164,7 @@ async def execute_task(task_id: int, bg_tasks: BackgroundTasks, authorization: s
         thread_id=thread_id,
         message_content=prompt,
         project_id=task.get("project_id", DEFAULT_PROJECT_ID),
-        goal_prefix="[Task Execution] ",
-        metadata={"task_id": task_id},
+        metadata={"task_id": task_id, "goal_prefix": "[Task Execution] "},
     )
 
     if result.status == "failed":

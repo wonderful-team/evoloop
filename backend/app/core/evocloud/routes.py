@@ -32,17 +32,17 @@ GATEWAY_PREFIXES: list[str] = [
 
 def get_endpoint_route(endpoint: str) -> RouteTarget:
     """Determine routing target for an endpoint.
-    
+
     Args:
         endpoint: API endpoint path (e.g., "/api/v1/user/profile")
-        
+
     Returns:
         RouteTarget.GATEWAY or RouteTarget.MEMBER_CENTER
-        
+
     Examples:
         >>> get_endpoint_route("/api/v1/user/profile")
         RouteTarget.GATEWAY
-        
+
         >>> get_endpoint_route("/api/login/login")
         RouteTarget.MEMBER_CENTER
     """

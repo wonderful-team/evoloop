@@ -70,7 +70,7 @@ export function DebugManagerPanel({ onClose }: DebugManagerPanelProps) {
   const simulateHITL = (
     type:
       | "approval"
-      | "text_input"
+      | "text"
       | "choice"
       | "confirmation"
       | "project_switch"
@@ -83,7 +83,7 @@ export function DebugManagerPanel({ onClose }: DebugManagerPanelProps) {
       case "approval":
         prompt = "是否批准部署到生产环境？"
         break
-      case "text_input":
+      case "text":
         prompt = "请输入你的 API Key 以继续："
         break
       case "choice":
@@ -214,7 +214,7 @@ export function DebugManagerPanel({ onClose }: DebugManagerPanelProps) {
           <DebugButton
             icon={<Play className="h-3 w-3" />}
             label="输入"
-            onClick={() => simulateHITL("text_input")}
+            onClick={() => simulateHITL("text")}
           />
           <DebugButton
             icon={<Monitor className="h-3 w-3" />}

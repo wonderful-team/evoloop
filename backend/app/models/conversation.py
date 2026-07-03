@@ -1,11 +1,22 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, Boolean
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
+
 from .planning import Plan
 
 
@@ -98,6 +109,11 @@ class Message(Base):
     # values: 'pending', 'synced', 'failed'
     sync_status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending", index=True)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Remember state: extracted concept for long-term memory recall
+    is_remembered: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", index=True)
+    remembered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    memory_concept_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
 
     references: Mapped[list["MessageReference"]] = relationship(back_populates="message", cascade="all, delete-orphan")
 

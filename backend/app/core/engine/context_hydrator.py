@@ -14,8 +14,7 @@ from typing import Any
 import psutil
 from langchain_core.runnables import RunnableConfig
 
-from app.constants import DEFAULT_PROJECT_ID
-from app.core.context import ContextManager, EvoContext
+from app.core.context import EvoContext
 from app.core.context.cache import LayeredContextCache
 from app.core.engine.hooks import HookContext, HookEvent, hook_system
 
@@ -53,7 +52,7 @@ class AgentContextHydrator:
         Mutates ctx.metadata and state directly.
         """
         start_time = time.time()
-        
+
         # 1. Trigger SessionStart Hook
         session_start_result = await hook_system.trigger(
             HookEvent.SESSION_START,
@@ -76,7 +75,7 @@ class AgentContextHydrator:
         memory_data = {}
         memory_container = await AgentContextHydrator._get_shared_memory_container()
         memory_manager = memory_container.memory_manager
-        
+
         # Tier 1: Hot Memory (High Priority Instructions)
         hot_memory = await memory_manager.get_hot_memory()
         if hot_memory:
@@ -88,9 +87,14 @@ class AgentContextHydrator:
                 memory_manager.search_concepts(last_human_msg, ctx.project_id),
                 memory_manager.search_episodes(last_human_msg, ctx.project_id, limit=3)
             )
-            
+
             if concepts:
-                memory_data['project_concepts'] = "\n".join([f"- **{c.name}**: {c.description}" for c in concepts[:3]])
+                current_thread_id = ctx.thread_id
+                sorted_concepts = sorted(
+                    concepts,
+                    key=lambda c: (getattr(c, "source_thread_id", None) != current_thread_id,),
+                )
+                memory_data['project_concepts'] = "\n".join([f"- **{c.name}**: {c.description}" for c in sorted_concepts[:3]])
             if episodes:
                 current_run_id = config.get("configurable", {}).get("run_id")
                 filtered = [e for e in episodes if e.get("id") != f"ep_{current_run_id}"]
@@ -151,7 +155,7 @@ class AgentContextHydrator:
         ctx.metadata.tool_memory = getattr(state, "tool_memory", None)
         ctx.metadata.execution_ticket = getattr(state, "ticket", None)
         ctx.metadata.iteration_count = iteration_count
-        
+
         # Backward-compatible duck-typing wrapper for plugins or tools that read ctx.metadata.blackboard
         ctx.metadata.blackboard = state
 
@@ -184,7 +188,7 @@ class AgentContextHydrator:
                 state.verification = None
             if hasattr(state, "route_reason"):
                 state.route_reason = None
-            
+
             # Invalidate static cache for this session to ensure fresh environment scan on retry
             LayeredContextCache.invalidate_static(session_id)
         else:

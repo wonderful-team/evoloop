@@ -7,10 +7,11 @@ exposing the underlying cache implementation details.
 
 import json
 import logging
+import time
 from typing import Any
 
 from pydantic import Field
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 
 from app.infrastructure.cache import get_cache
 from app.infrastructure.cache.abstract import Cache
@@ -18,6 +19,11 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import AgentActivity, Message
 
 logger = logging.getLogger(__name__)
+
+# Lightweight in-process cache for cancellation checks to avoid hammering the DB
+# during high-frequency streaming (e.g. one LLM token per SELECT).
+_CANCELLATION_CACHE: dict[str, tuple[bool, float]] = {}
+_CANCELLATION_CACHE_TTL_SECONDS = 0.5
 
 
 class UserCacheService:
@@ -181,12 +187,12 @@ class ActivityStateService:
             if activity is None:
                 activity = AgentActivity(thread_id=thread_id)
                 session.add(activity)
-            
+
             # Reset status to 'running' for the new lifecycle.
-            # This ensures that a 'Stop' signal from a previous run does not 
+            # This ensures that a 'Stop' signal from a previous run does not
             # prematurely cancel the new run (e.g. during a Retry).
             activity.status = "running"
-            
+
             activity.main_goal = main_goal
             activity.artifacts_json = json.dumps([])
             activity.agent_state_json = json.dumps({})
@@ -317,15 +323,32 @@ class ActivityStateService:
             if activity is None:
                 return False
             activity.status = "stopping"
+        # Invalidate the cancellation cache immediately so the next check sees the new state.
+        _CANCELLATION_CACHE.pop(thread_id, None)
         return True
 
     async def check_cancellation(self, thread_id: str) -> bool:
-        """Check if run is marked for stopping."""
+        """Check if run is marked for stopping.
+
+        Uses a short in-process TTL cache so that high-frequency callers
+        (e.g. per-token streaming callbacks) do not flood the database.
+        """
+        now = time.time()
+        cached = _CANCELLATION_CACHE.get(thread_id)
+        if cached is not None:
+            is_cancelled, expires_at = cached
+            if now < expires_at:
+                return is_cancelled
+
         async with self._get_session_scope()() as session:
-            activity = await session.get(AgentActivity, thread_id)
-            if activity is None:
-                return False
-            return activity.status == "stopping"
+            result = await session.execute(
+                select(AgentActivity.status).where(AgentActivity.thread_id == thread_id)
+            )
+            status = result.scalar_one_or_none()
+            is_cancelled = status == "stopping"
+
+        _CANCELLATION_CACHE[thread_id] = (is_cancelled, now + _CANCELLATION_CACHE_TTL_SECONDS)
+        return is_cancelled
 
     async def set_interrupted(self, thread_id: str, reason: str = "awaiting_human_input") -> bool:
         """Mark run as interrupted."""
@@ -372,7 +395,7 @@ class ActivityStateService:
             if activity is None:
                 activity = AgentActivity(thread_id=thread_id)
                 session.add(activity)
-            
+
             # Preserve active_skills if the incoming state omits it (e.g. Supervisor status updates)
             if activity.agent_state_json:
                 try:

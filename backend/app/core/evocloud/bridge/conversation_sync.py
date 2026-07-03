@@ -112,7 +112,11 @@ class ConversationSyncManager:
 
                 # 转换数据格式
                 conv_data = [self._format_conversation(c).model_dump() for c in conversations]
-                msg_data = [self._format_message(m).model_dump() for m in messages]
+                msg_data = [
+                    sm.model_dump()
+                    for m in messages
+                    if (sm := self._format_message(m)) is not None
+                ]
 
                 # 提交到 Huey
                 result = full_sync_task.delay(self.device_key, {
@@ -205,8 +209,11 @@ class ConversationSyncManager:
             is_pinned=bool(conv.is_pinned),
         )
 
-    def _format_message(self, msg: MessageModel) -> SyncMessage:
-        """格式化消息数据"""
+    def _format_message(self, msg: MessageModel) -> SyncMessage | None:
+        """格式化会话数据。Mobile 来源的 human 消息已由 Gateway 直接同步到 MC，
+        Desktop Agent 侧不再重复同步，避免双写。"""
+        if msg.role == "human" and getattr(msg, "source", None) == "mobile":
+            return None
         return SyncMessage(
             id=msg.id,
             thread_id=msg.thread_id,

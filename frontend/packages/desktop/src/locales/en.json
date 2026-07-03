@@ -170,12 +170,12 @@
       "addMemory": {
         "desc": "Description",
         "name": "Name",
-        "success": "Memory added successfully",
-        "title": "Add Memory"
+        "success": "Remembered",
+        "title": "Remember"
       },
       "allMemoriesDesc": "All learned concepts and rules for this project.",
-      "globalDesc": "You are in cross-project conversation. Code context and file operations are not available in this mode.",
-      "globalTitle": "Global Mode",
+      "globalDesc": "You are in cross-project conversation. Code context and file operations may be limited in workspace mode.",
+      "globalTitle": "Workspace",
       "groupContext": "Context",
       "memoryTitle": "Project Memory",
       "noConcepts": "No memory concepts found.",
@@ -208,7 +208,7 @@
       "waiting": "Agent is waiting for your input..."
     },
     "interface": {
-      "addMemorySuccess": "Added to Memory",
+      "addMemorySuccess": "Remembered",
       "askGlobal": "Ask anything...",
       "askProject": "Ask {{project}}...",
       "cancel": "Cancel",
@@ -618,7 +618,7 @@
     "noPopularDocs": "No popular documents",
     "noPopularDocsHint": "Most frequently used documents will appear here after using the knowledge base.",
     "noProjectDocs": "No project documents",
-    "noProjectDocsHint": "This project has no associated documents yet. You can upload and categorize them in the global Knowledge Base.",
+    "noProjectDocsHint": "This project has no associated documents yet. You can upload and categorize them in the workspace Knowledge Base.",
     "noSearchResults": "No search results",
     "noSearchResultsHint": "Try different keywords",
     "noTags": "No tags available",
@@ -725,7 +725,7 @@
     "expertStrategicGuide": "Expert Guide (Markdown SOP)",
     "finalizingRecording": "Finalizing recording...",
     "framesAnalyzed": "Frames Analyzed",
-    "globalMode": "System Monitoring Active (Global)",
+    "globalMode": "System Monitoring Active (Workspace)",
     "history": "History",
     "import": {
       "button": "Start Import",
@@ -1056,7 +1056,7 @@
     "description": "Select a project to switch to or manage your projects.",
     "desktopSearchPlaceholder": "Search projects by name or description...",
     "disconnected": "Disconnected",
-    "global": "Global",
+    "global": "Workspace",
     "globalDesc": "Cross-project conversations and general Q&A",
     "indexFailed": "Index Failed",
     "indexPending": "Pending",
@@ -1435,7 +1435,7 @@
       "browse": "Browse",
       "browseError": "Failed to open directory selector",
       "webBrowseHint": "Directory picker is only available in the desktop app. Please type the path manually.",
-      "description": "Configure global system preferences and paths.",
+      "description": "Configure workspace system preferences and paths.",
       "deviceName": "Device Name",
       "deviceNameDesc": "This name identifies this device in the EvoLoop network.",
       "deviceNamePlaceholder": "Device Name Placeholder",

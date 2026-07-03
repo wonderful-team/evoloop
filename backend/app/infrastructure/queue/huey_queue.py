@@ -166,7 +166,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
         """
         def decorator(f: Callable) -> Callable:
             task_name = name or f"{f.__module__}.{f.__name__}"
-            
+
             # Define wrapper with correct module/name BEFORE Huey registration.
             # Huey's Registry uses func.__module__ to build the task registry key,
             # so we must set it before @self._huey.task() reads it.

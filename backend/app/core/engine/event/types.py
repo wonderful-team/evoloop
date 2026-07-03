@@ -22,20 +22,6 @@ class AgentEventType(str, Enum):
     HITL_RESPONDED = "agent.hitl_responded"
 
 
-class WebSocketEventType(str, Enum):
-    """
-    WebSocket message events from Gateway.
-
-    Published by EvoCloudWebSocketLink when it receives messages from Gateway.
-    Business modules subscribe to these instead of registering callbacks on the link.
-
-    .. deprecated::
-        ``NEW_COMMAND`` is deprecated. Use ``websocket.message_received``
-        with ``msg_type == "new_command"`` instead.
-    """
-    NEW_COMMAND = "websocket.new_command"
-
-
 class ConversationEventType(str, Enum):
     """
     Conversation lifecycle event types.

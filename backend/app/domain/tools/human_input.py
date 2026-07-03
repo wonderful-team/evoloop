@@ -69,14 +69,14 @@ async def ask_human(
 
     # Map internal type to standardized HumanRequestType
     type_map = {
-        "text": HumanRequestType.TEXT_INPUT,
+        "text": HumanRequestType.TEXT,
         "choice": HumanRequestType.CHOICE,
-        "confirmation": HumanRequestType.CONFIRM,
+        "confirmation": HumanRequestType.CONFIRMATION,
         "approval": HumanRequestType.APPROVAL,
         "project_switch": HumanRequestType.PROJECT_SWITCH,
         "file_select": HumanRequestType.FILE_SELECT,
     }
-    request_type = type_map.get(input_type, HumanRequestType.TEXT_INPUT)
+    request_type = type_map.get(input_type, HumanRequestType.TEXT)
 
     # Validate choice options
     if input_type == "choice" and not options:
@@ -204,7 +204,7 @@ async def ask_confirm(
     localized_risk = i18n.get(f"common.risk_levels.{risk_level}", default=risk_level.upper())
 
     approval_context = f"""
-{risk_emoji.get(risk_level, '⚪')} {i18n.get("domain_tools.human_input.risk_level", level=localized_risk)}
+{risk_emoji.get(risk_level, "⚪")} {i18n.get("domain_tools.human_input.risk_level", level=localized_risk)}
 
 {i18n.get("domain_tools.human_input.action", action=action_description)}
 """

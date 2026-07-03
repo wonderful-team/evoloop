@@ -1,23 +1,24 @@
 import asyncio
 import hashlib
-import httpx
 import json
 import logging
 import weakref
 from typing import Any
 
+import httpx
+
 from app.infrastructure.config import SystemConfigService
 from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
-from app.infrastructure.schemas import LLMCacheStats, LLMConfig, ThinkingConfig
 from app.infrastructure.llm.thinking_adapter import (
-    detect_model_family,
     build_anthropic_thinking_kwargs,
-    build_openai_reasoning_extra,
-    get_kimi_min_max_tokens,
-    build_zhipu_thinking_extra,
-    build_minimax_thinking_extra,
     build_gemini_thinking_extra,
+    build_minimax_thinking_extra,
+    build_openai_reasoning_extra,
+    build_zhipu_thinking_extra,
+    detect_model_family,
+    get_kimi_min_max_tokens,
 )
+from app.infrastructure.schemas import LLMCacheStats, LLMConfig, ThinkingConfig
 from app.utils.async_utils import LoopBoundResource
 
 logger = logging.getLogger(__name__)
@@ -273,7 +274,7 @@ class LLMFactory:
         else:
             base_extra = cfg.to_extra_body()
             extra_body = {**base_extra, **config.extra_body}
-            
+
             effective_max_tokens = config.max_tokens
             if family == "kimi":
                 kimi_min = get_kimi_min_max_tokens(cfg)
@@ -378,6 +379,12 @@ class LLMFactory:
         """Build the actual LLM instance based on provider_type."""
         cfg = ThinkingConfig()
         family = detect_model_family(model_name, base_url)
+
+        # Kimi coding endpoint (api.kimi.com/coding) only accepts temperature=1
+        if family == "kimi" and "api.kimi.com" in base_url.lower():
+            if temperature != 1.0:
+                logger.info(f"[LLMFactory] Kimi endpoint requires temperature=1; clamping from {temperature}")
+                temperature = 1.0
 
         if provider_type == "anthropic" or family == "anthropic":
             from app.infrastructure.llm.anthropic_adapter import CompatibleChatAnthropic
@@ -569,7 +576,7 @@ async def shutdown_http_pool():
     """
     logger.info("[LLMFactory] Shutting down HTTP client pool...")
     count = 0
-    for loop, client in list(_HTTP_CLIENT_POOL._resources.items()):
+    for _loop, client in list(_HTTP_CLIENT_POOL._resources.items()):
         try:
             await client.aclose()
             count += 1

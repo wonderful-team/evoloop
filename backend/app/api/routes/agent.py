@@ -34,7 +34,6 @@ from app.core.context.manager import ContextManager, EvoContext
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.engine.graph_runner import resume_graph_background
-from app.core.engine.tasks import run_agent_background_task
 from app.core.evocloud import evocloud_manager
 from app.core.globals import get_graph
 from app.core.monitoring.activity import activity_monitor
@@ -68,7 +67,7 @@ async def _check_thread_not_running(thread_id: str) -> None:
     if state and state.status == "running":
         raise HTTPException(
             status_code=409,
-            detail=f"Thread {thread_id} is currently processing. Please wait for it to complete."
+            detail=f"Thread {thread_id} is currently processing. Please wait for it to complete.",
         )
 
 
@@ -76,8 +75,14 @@ async def _check_thread_not_running(thread_id: str) -> None:
 # Unified Dispatch Helpers
 # =============================================================================
 
+
 @router.post("/chat", dependencies=[Depends(verify_guest_access)])
-async def chat_endpoint(req: ChatRequest, bg_tasks: BackgroundTasks, _current_user: CurrentUserOptional, token: TokenDepOptional = None):
+async def chat_endpoint(
+    req: ChatRequest,
+    bg_tasks: BackgroundTasks,
+    _current_user: CurrentUserOptional,
+    token: TokenDepOptional = None,
+):
     """
     Unified entry point for User Chat (Local Background Task).
     """
@@ -90,7 +95,9 @@ async def chat_endpoint(req: ChatRequest, bg_tasks: BackgroundTasks, _current_us
 
         # Mark as running immediately to prevent concurrent dispatches
         # (bg_task hasn't started yet, so the normal start_run in run_scope won't fire in time)
-        await activity_monitor._state_service.start_run(req.thread_id, req.message or "")
+        await activity_monitor._state_service.start_run(
+            req.thread_id, req.message or ""
+        )
 
         ctx = EvoContext(
             request_id=f"req-{req.thread_id}-{int(time.time())}",
@@ -98,7 +105,7 @@ async def chat_endpoint(req: ChatRequest, bg_tasks: BackgroundTasks, _current_us
             project_id=req.project_id,
             command_id=req.command_id,
             active_model=req.model,
-            token=token
+            token=token,
         )
         ContextManager.set(ctx)
 
@@ -107,26 +114,30 @@ async def chat_endpoint(req: ChatRequest, bg_tasks: BackgroundTasks, _current_us
         if req.skill_ids:
             try:
                 async with session_scope() as session:
-                    stmt = select(LearnedSkill).where(LearnedSkill.id.in_(req.skill_ids))
+                    stmt = select(LearnedSkill).where(
+                        LearnedSkill.id.in_(req.skill_ids)
+                    )
                     res = await session.execute(stmt)
                     skills = res.scalars().all()
                     for skill in skills:
-                        references.append({
-                            "id": str(skill.id),
-                            "type": "skill",
-                            "target_id": str(skill.id),
-                            "target_name": skill.name,
-                            "metadata": {
-                                "skill_id": skill.id,
-                                "skill_name": skill.name,
-                                "description": skill.description
-                            },
-                            "meta_data": {  # 保留兼容，供外部旧的解析逻辑取用
-                                "skill_id": skill.id,
-                                "skill_name": skill.name,
-                                "description": skill.description
+                        references.append(
+                            {
+                                "id": str(skill.id),
+                                "type": "skill",
+                                "target_id": str(skill.id),
+                                "target_name": skill.name,
+                                "metadata": {
+                                    "skill_id": skill.id,
+                                    "skill_name": skill.name,
+                                    "description": skill.description,
+                                },
+                                "meta_data": {  # 保留兼容，供外部旧的解析逻辑取用
+                                    "skill_id": skill.id,
+                                    "skill_name": skill.name,
+                                    "description": skill.description,
+                                },
                             }
-                        })
+                        )
             except Exception as e:
                 logger.warning(f"Failed to fetch skills {req.skill_ids}: {e}")
 
@@ -156,7 +167,11 @@ async def chat_endpoint(req: ChatRequest, bg_tasks: BackgroundTasks, _current_us
     #     serialized_inputs = jsonable_encoder(result.inputs.model_dump())
     #     run_agent_background_task.delay(req.thread_id, serialized_inputs)
 
-    return {"status": "queued", "thread_id": req.thread_id, "message_id": result.message_id}
+    return {
+        "status": "queued",
+        "thread_id": req.thread_id,
+        "message_id": result.message_id,
+    }
 
 
 @router.post("/chat/mock", dependencies=[Depends(verify_guest_access)])
@@ -169,22 +184,21 @@ async def mock_chat(req: ChatRequest):
         raise HTTPException(status_code=400, detail="thread_id is required")
 
     import asyncio
-    import datetime
 
     from app.core.engine.message.category import MessageCategory
     from app.core.engine.message.factory import MessageBlockFactory
     from app.core.engine.message.handler import MessageHandler
     from app.core.engine.message.publisher import MessagePublisher
-    from app.core.engine.message.schemas import ReferenceBlock
     from app.core.monitoring.activity import activity_monitor
     from app.models.schemas.events import QuotaExhaustedEvent, StatusEvent
 
     scenario = req.scenario or "happy_path"
-    now_str = datetime.datetime.utcnow().isoformat() + "Z"
 
     async def mock_publish():
         # Helper to publish an AI thinking message with tool calls (representing Supervisor's decision)
-        async def publish_ai_tool_call(seq_num: int, tool_name: str, tool_args: dict, call_id: str, run_id: str):
+        async def publish_ai_tool_call(
+            seq_num: int, tool_name: str, tool_args: dict, call_id: str, run_id: str
+        ):
             publisher = MessagePublisher(req.thread_id)
             msg_block = MessageBlockFactory.from_event(
                 thread_id=req.thread_id,
@@ -194,18 +208,22 @@ async def mock_chat(req: ChatRequest):
                 category="ai_response",
                 status="completed",
                 run_id=run_id,
-                tool_calls=[{
-                    "id": call_id,
-                    "name": tool_name,
-                    "args": tool_args,
-                    "type": "tool_call"
-                }]
+                tool_calls=[
+                    {
+                        "id": call_id,
+                        "name": tool_name,
+                        "args": tool_args,
+                        "type": "tool_call",
+                    }
+                ],
             )
             await publisher.publish(msg_block)
             await asyncio.sleep(0.4)
 
         # Helper to publish a tool starting event (status="running")
-        async def publish_tool_start(seq_num: int, tool_name: str, call_id: str, input_args: dict, run_id: str):
+        async def publish_tool_start(
+            seq_num: int, tool_name: str, call_id: str, input_args: dict, run_id: str
+        ):
             publisher = MessagePublisher(req.thread_id)
             tool_block = MessageBlockFactory.from_event(
                 thread_id=req.thread_id,
@@ -217,13 +235,20 @@ async def mock_chat(req: ChatRequest):
                 run_id=run_id,
                 tool_name=tool_name,
                 tool_call_id=call_id,
-                metadata={"input": input_args}
+                metadata={"input": input_args},
             )
             await publisher.publish(tool_block)
             await asyncio.sleep(0.4)
 
         # Helper to publish a tool output event (status="completed")
-        async def publish_tool_output(seq_num: int, tool_name: str, call_id: str, input_args: dict, output_content: str, run_id: str):
+        async def publish_tool_output(
+            seq_num: int,
+            tool_name: str,
+            call_id: str,
+            input_args: dict,
+            output_content: str,
+            run_id: str,
+        ):
             publisher = MessagePublisher(req.thread_id)
             tool_block = MessageBlockFactory.from_event(
                 thread_id=req.thread_id,
@@ -235,7 +260,7 @@ async def mock_chat(req: ChatRequest):
                 run_id=run_id,
                 tool_name=tool_name,
                 tool_call_id=call_id,
-                metadata={"input": input_args, "output": output_content}
+                metadata={"input": input_args, "output": output_content},
             )
             await publisher.publish(tool_block)
             await asyncio.sleep(0.4)
@@ -244,7 +269,9 @@ async def mock_chat(req: ChatRequest):
             if scenario == "happy_path":
                 # Initialize run
                 run_id = f"run-mock-{uuid.uuid4().hex[:8]}"
-                await activity_monitor.start_run(req.thread_id, main_goal="正常流式对话模拟", run_id=run_id)
+                await activity_monitor.start_run(
+                    req.thread_id, main_goal="正常流式对话模拟", run_id=run_id
+                )
                 await asyncio.sleep(0.5)
 
                 # Supervisor PLANNING - Turn 1
@@ -252,7 +279,7 @@ async def mock_chat(req: ChatRequest):
                     thread_id=req.thread_id,
                     mode="PLANNING",
                     task_name="Supervisor Plan",
-                    task_status="分析项目结构以确定 UI 组件位置..."
+                    task_status="分析项目结构以确定 UI 组件位置...",
                 )
                 await asyncio.sleep(0.5)
 
@@ -263,25 +290,51 @@ async def mock_chat(req: ChatRequest):
                     await asyncio.sleep(0.01)
 
                 # AI decides to call list_dir (seq=2)
-                await publish_ai_tool_call(2, "list_dir", {"DirectoryPath": "frontend/src/components"}, "call_ld1", run_id)
+                await publish_ai_tool_call(
+                    2,
+                    "list_dir",
+                    {"DirectoryPath": "frontend/src/components"},
+                    "call_ld1",
+                    run_id,
+                )
 
                 # Transition to Worker EXECUTING - Turn 1
                 await activity_monitor.update_agent_state(
                     thread_id=req.thread_id,
                     mode="EXECUTING",
                     task_name="Worker: list_dir",
-                    task_status="正在读取 frontend/src/components 目录..."
+                    task_status="正在读取 frontend/src/components 目录...",
                 )
 
                 # Emit tool start (seq=3, status="running")
-                await publish_tool_start(3, "list_dir", "call_ld1", {"DirectoryPath": "frontend/src/components"}, run_id)
-                await MessageHandler.stream_progress(req.thread_id, "正在获取目录中的文件列表...", progress=50, status="running")
+                await publish_tool_start(
+                    3,
+                    "list_dir",
+                    "call_ld1",
+                    {"DirectoryPath": "frontend/src/components"},
+                    run_id,
+                )
+                await MessageHandler.stream_progress(
+                    req.thread_id,
+                    "正在获取目录中的文件列表...",
+                    progress=50,
+                    status="running",
+                )
                 await asyncio.sleep(0.5)
 
                 # Emit tool output (seq=3, status="completed")
                 dir_output = "['Button.tsx', 'Header.tsx', 'Footer.tsx']"
-                await publish_tool_output(3, "list_dir", "call_ld1", {"DirectoryPath": "frontend/src/components"}, dir_output, run_id)
-                await MessageHandler.stream_progress(req.thread_id, "目录列表读取成功。", progress=100, status="success")
+                await publish_tool_output(
+                    3,
+                    "list_dir",
+                    "call_ld1",
+                    {"DirectoryPath": "frontend/src/components"},
+                    dir_output,
+                    run_id,
+                )
+                await MessageHandler.stream_progress(
+                    req.thread_id, "目录列表读取成功。", progress=100, status="success"
+                )
                 await asyncio.sleep(0.5)
 
                 # Supervisor PLANNING - Turn 2
@@ -289,7 +342,7 @@ async def mock_chat(req: ChatRequest):
                     thread_id=req.thread_id,
                     mode="PLANNING",
                     task_name="Supervisor Plan",
-                    task_status="找到 Button.tsx，准备读取文件内容..."
+                    task_status="找到 Button.tsx，准备读取文件内容...",
                 )
                 await asyncio.sleep(0.5)
 
@@ -300,23 +353,42 @@ async def mock_chat(req: ChatRequest):
                     await asyncio.sleep(0.01)
 
                 # AI decides to call read_file (seq=4)
-                await publish_ai_tool_call(4, "read_file", {"AbsolutePath": "frontend/src/components/Button.tsx"}, "call_rf1", run_id)
+                await publish_ai_tool_call(
+                    4,
+                    "read_file",
+                    {"AbsolutePath": "frontend/src/components/Button.tsx"},
+                    "call_rf1",
+                    run_id,
+                )
 
                 # Worker EXECUTING - Turn 2
                 await activity_monitor.update_agent_state(
                     thread_id=req.thread_id,
                     mode="EXECUTING",
                     task_name="Worker: read_file",
-                    task_status="正在读取 frontend/src/components/Button.tsx..."
+                    task_status="正在读取 frontend/src/components/Button.tsx...",
                 )
 
                 # Emit tool start (seq=5, status="running")
-                await publish_tool_start(5, "read_file", "call_rf1", {"AbsolutePath": "frontend/src/components/Button.tsx"}, run_id)
+                await publish_tool_start(
+                    5,
+                    "read_file",
+                    "call_rf1",
+                    {"AbsolutePath": "frontend/src/components/Button.tsx"},
+                    run_id,
+                )
                 await asyncio.sleep(0.5)
 
                 # Emit tool output (seq=5, status="completed")
                 file_content = "export function Button({ label }: { label: string }) {\n  return <button className='btn'>{label}</button>;\n}"
-                await publish_tool_output(5, "read_file", "call_rf1", {"AbsolutePath": "frontend/src/components/Button.tsx"}, file_content, run_id)
+                await publish_tool_output(
+                    5,
+                    "read_file",
+                    "call_rf1",
+                    {"AbsolutePath": "frontend/src/components/Button.tsx"},
+                    file_content,
+                    run_id,
+                )
                 await asyncio.sleep(0.5)
 
                 # Supervisor PLANNING - Turn 3
@@ -324,7 +396,7 @@ async def mock_chat(req: ChatRequest):
                     thread_id=req.thread_id,
                     mode="PLANNING",
                     task_name="Supervisor Plan",
-                    task_status="分析代码并执行修改..."
+                    task_status="分析代码并执行修改...",
                 )
                 await asyncio.sleep(0.5)
 
@@ -335,22 +407,41 @@ async def mock_chat(req: ChatRequest):
                     await asyncio.sleep(0.01)
 
                 # AI decides to call replace_file_content (seq=6)
-                await publish_ai_tool_call(6, "replace_file_content", {"TargetFile": "frontend/src/components/Button.tsx"}, "call_rfc1", run_id)
+                await publish_ai_tool_call(
+                    6,
+                    "replace_file_content",
+                    {"TargetFile": "frontend/src/components/Button.tsx"},
+                    "call_rfc1",
+                    run_id,
+                )
 
                 # Worker EXECUTING - Turn 3
                 await activity_monitor.update_agent_state(
                     thread_id=req.thread_id,
                     mode="EXECUTING",
                     task_name="Worker: replace_file_content",
-                    task_status="正在应用替换逻辑..."
+                    task_status="正在应用替换逻辑...",
                 )
 
                 # Emit tool start (seq=7, status="running")
-                await publish_tool_start(7, "replace_file_content", "call_rfc1", {"TargetFile": "frontend/src/components/Button.tsx"}, run_id)
+                await publish_tool_start(
+                    7,
+                    "replace_file_content",
+                    "call_rfc1",
+                    {"TargetFile": "frontend/src/components/Button.tsx"},
+                    run_id,
+                )
                 await asyncio.sleep(0.5)
 
                 # Emit tool output (seq=7, status="completed")
-                await publish_tool_output(7, "replace_file_content", "call_rfc1", {"TargetFile": "frontend/src/components/Button.tsx"}, "File contents replaced successfully.", run_id)
+                await publish_tool_output(
+                    7,
+                    "replace_file_content",
+                    "call_rfc1",
+                    {"TargetFile": "frontend/src/components/Button.tsx"},
+                    "File contents replaced successfully.",
+                    run_id,
+                )
                 await asyncio.sleep(0.5)
 
                 # Supervisor PLANNING - Turn 4
@@ -358,7 +449,7 @@ async def mock_chat(req: ChatRequest):
                     thread_id=req.thread_id,
                     mode="PLANNING",
                     task_name="Supervisor Plan",
-                    task_status="编译检查与构建校验..."
+                    task_status="编译检查与构建校验...",
                 )
                 await asyncio.sleep(0.5)
 
@@ -369,24 +460,50 @@ async def mock_chat(req: ChatRequest):
                     await asyncio.sleep(0.01)
 
                 # AI decides to call run_command (seq=8)
-                await publish_ai_tool_call(8, "run_command", {"CommandLine": "npm run build"}, "call_rc1", run_id)
+                await publish_ai_tool_call(
+                    8,
+                    "run_command",
+                    {"CommandLine": "npm run build"},
+                    "call_rc1",
+                    run_id,
+                )
 
                 # Worker EXECUTING - Turn 4
                 await activity_monitor.update_agent_state(
                     thread_id=req.thread_id,
                     mode="EXECUTING",
                     task_name="Worker: run_command",
-                    task_status="正在执行 npm run build..."
+                    task_status="正在执行 npm run build...",
                 )
 
                 # Emit tool start (seq=9, status="running")
-                await publish_tool_start(9, "run_command", "call_rc1", {"CommandLine": "npm run build"}, run_id)
-                await MessageHandler.stream_progress(req.thread_id, "Building application bundles...", progress=75, status="running")
+                await publish_tool_start(
+                    9,
+                    "run_command",
+                    "call_rc1",
+                    {"CommandLine": "npm run build"},
+                    run_id,
+                )
+                await MessageHandler.stream_progress(
+                    req.thread_id,
+                    "Building application bundles...",
+                    progress=75,
+                    status="running",
+                )
                 await asyncio.sleep(0.8)
 
                 # Emit tool output (seq=9, status="completed")
-                await publish_tool_output(9, "run_command", "call_rc1", {"CommandLine": "npm run build"}, "vite v5.0.0 building...\nbuilt in 350ms.\n✓ 15 modules transformed.", run_id)
-                await MessageHandler.stream_progress(req.thread_id, "编译构建通过。", progress=100, status="success")
+                await publish_tool_output(
+                    9,
+                    "run_command",
+                    "call_rc1",
+                    {"CommandLine": "npm run build"},
+                    "vite v5.0.0 building...\nbuilt in 350ms.\n✓ 15 modules transformed.",
+                    run_id,
+                )
+                await MessageHandler.stream_progress(
+                    req.thread_id, "编译构建通过。", progress=100, status="success"
+                )
                 await asyncio.sleep(0.5)
 
                 # Supervisor PLANNING - Final Answer
@@ -394,7 +511,7 @@ async def mock_chat(req: ChatRequest):
                     thread_id=req.thread_id,
                     mode="PLANNING",
                     task_name="Supervisor Plan",
-                    task_status="生成最终答复..."
+                    task_status="生成最终答复...",
                 )
                 await asyncio.sleep(0.5)
 
@@ -418,17 +535,24 @@ async def mock_chat(req: ChatRequest):
                     thinking=answer_thinking,
                     category="ai_response",
                     status="completed",
-                    run_id=run_id
+                    run_id=run_id,
                 )
                 await publisher.publish(msg_block)
                 await asyncio.sleep(0.5)
 
                 # End run
-                await activity_monitor.end_run(req.thread_id, status="done", final_outcome="完成代码修改与校验", run_id=run_id)
+                await activity_monitor.end_run(
+                    req.thread_id,
+                    status="done",
+                    final_outcome="完成代码修改与校验",
+                    run_id=run_id,
+                )
 
             elif scenario == "hitl":
                 run_id = f"run-mock-{uuid.uuid4().hex[:8]}"
-                await activity_monitor.start_run(req.thread_id, main_goal="安全审批拦截模拟", run_id=run_id)
+                await activity_monitor.start_run(
+                    req.thread_id, main_goal="安全审批拦截模拟", run_id=run_id
+                )
                 await asyncio.sleep(0.5)
 
                 # Supervisor PLANNING
@@ -436,7 +560,7 @@ async def mock_chat(req: ChatRequest):
                     thread_id=req.thread_id,
                     mode="PLANNING",
                     task_name="Supervisor Decision",
-                    task_status="评估生产环境上线环境..."
+                    task_status="评估生产环境上线环境...",
                 )
                 await asyncio.sleep(0.5)
 
@@ -446,19 +570,36 @@ async def mock_chat(req: ChatRequest):
                     await asyncio.sleep(0.01)
 
                 # AI decides to call run_command (seq=2)
-                await publish_ai_tool_call(2, "run_command", {"CommandLine": "npm run deploy:production"}, "call_dep1", run_id)
+                await publish_ai_tool_call(
+                    2,
+                    "run_command",
+                    {"CommandLine": "npm run deploy:production"},
+                    "call_dep1",
+                    run_id,
+                )
 
                 # Worker EXECUTING
                 await activity_monitor.update_agent_state(
                     thread_id=req.thread_id,
                     mode="EXECUTING",
                     task_name="Worker: run_command",
-                    task_status="正在执行 npm run deploy:production..."
+                    task_status="正在执行 npm run deploy:production...",
                 )
 
                 # Emit tool start (seq=3, status="running")
-                await publish_tool_start(3, "run_command", "call_dep1", {"CommandLine": "npm run deploy:production"}, run_id)
-                await MessageHandler.stream_progress(req.thread_id, "正在建立 SSH 连接并同步打包文件...", progress=40, status="running")
+                await publish_tool_start(
+                    3,
+                    "run_command",
+                    "call_dep1",
+                    {"CommandLine": "npm run deploy:production"},
+                    run_id,
+                )
+                await MessageHandler.stream_progress(
+                    req.thread_id,
+                    "正在建立 SSH 连接并同步打包文件...",
+                    progress=40,
+                    status="running",
+                )
                 await asyncio.sleep(0.8)
 
                 # Safety interruption
@@ -466,14 +607,14 @@ async def mock_chat(req: ChatRequest):
                     thread_id=req.thread_id,
                     message="[安全拦截] 检测到高危写操作指令，部署至生产环境需要获得项目管理员授权审批。",
                     progress=40,
-                    status="interrupted"
+                    status="interrupted",
                 )
                 await activity_monitor.request_human_interaction(
                     thread_id=req.thread_id,
                     request_type="approval",
                     prompt="检测到即将执行部署脚本，是否批准部署至生产环境？",
                     payload={"context": "生产服务器：aws-prod-01, 目标版本：v2.1.0"},
-                    allow_cancel=True
+                    allow_cancel=True,
                 )
 
                 # Wait 4 seconds to let the user view the approval dialog
@@ -487,18 +628,38 @@ async def mock_chat(req: ChatRequest):
                     thread_id=req.thread_id,
                     mode="EXECUTING",
                     task_name="Worker: run_command",
-                    task_status="用户已批准部署，正在恢复运行部署命令..."
+                    task_status="用户已批准部署，正在恢复运行部署命令...",
                 )
 
                 # Re-emit tool start (status="running")
-                await publish_tool_start(3, "run_command", "call_dep1", {"CommandLine": "npm run deploy:production"}, run_id)
-                await MessageHandler.stream_progress(req.thread_id, "SSH 连接已恢复，正在传输构建制品包...", progress=80, status="running")
+                await publish_tool_start(
+                    3,
+                    "run_command",
+                    "call_dep1",
+                    {"CommandLine": "npm run deploy:production"},
+                    run_id,
+                )
+                await MessageHandler.stream_progress(
+                    req.thread_id,
+                    "SSH 连接已恢复，正在传输构建制品包...",
+                    progress=80,
+                    status="running",
+                )
                 await asyncio.sleep(1.0)
 
                 # Emit tool output (status="completed")
                 deploy_output = "Assets uploaded successfully.\nRunning health checks on remote server aws-prod-01...\nHealth check: PASSED (200 OK)"
-                await publish_tool_output(3, "run_command", "call_dep1", {"CommandLine": "npm run deploy:production"}, deploy_output, run_id)
-                await MessageHandler.stream_progress(req.thread_id, "生产发布成功！", progress=100, status="success")
+                await publish_tool_output(
+                    3,
+                    "run_command",
+                    "call_dep1",
+                    {"CommandLine": "npm run deploy:production"},
+                    deploy_output,
+                    run_id,
+                )
+                await MessageHandler.stream_progress(
+                    req.thread_id, "生产发布成功！", progress=100, status="success"
+                )
                 await asyncio.sleep(0.5)
 
                 # Supervisor PLANNING
@@ -506,7 +667,7 @@ async def mock_chat(req: ChatRequest):
                     thread_id=req.thread_id,
                     mode="PLANNING",
                     task_name="Supervisor Decision",
-                    task_status="生成上线总结报告..."
+                    task_status="生成上线总结报告...",
                 )
                 await asyncio.sleep(0.5)
 
@@ -530,23 +691,30 @@ async def mock_chat(req: ChatRequest):
                     thinking=answer_thinking,
                     category="ai_response",
                     status="completed",
-                    run_id=run_id
+                    run_id=run_id,
                 )
                 await publisher.publish(msg_block)
                 await asyncio.sleep(0.5)
 
-                await activity_monitor.end_run(req.thread_id, status="done", final_outcome="完成生产环境部署", run_id=run_id)
+                await activity_monitor.end_run(
+                    req.thread_id,
+                    status="done",
+                    final_outcome="完成生产环境部署",
+                    run_id=run_id,
+                )
 
             elif scenario == "quota_exhausted":
                 run_id = f"run-mock-{uuid.uuid4().hex[:8]}"
-                await activity_monitor.start_run(req.thread_id, main_goal="配额异常检测模拟", run_id=run_id)
+                await activity_monitor.start_run(
+                    req.thread_id, main_goal="配额异常检测模拟", run_id=run_id
+                )
                 await asyncio.sleep(0.5)
 
                 await activity_monitor.update_agent_state(
                     thread_id=req.thread_id,
                     mode="PLANNING",
                     task_name="Supervisor Decision",
-                    task_status="正在调度推理模型..."
+                    task_status="正在调度推理模型...",
                 )
                 await asyncio.sleep(1.0)
 
@@ -559,12 +727,14 @@ async def mock_chat(req: ChatRequest):
                 publisher = MessagePublisher(req.thread_id)
 
                 # 1. Publish QuotaExhaustedEvent
-                await publisher.publish(QuotaExhaustedEvent(
-                    thread_id=req.thread_id,
-                    title="配额已耗尽",
-                    message="您当前的 LLM 账户使用配额已用完，无法继续处理请求。",
-                    hint="请联系系统管理员添加配额，或在系统设置中更换您的 API 密钥。"
-                ))
+                await publisher.publish(
+                    QuotaExhaustedEvent(
+                        thread_id=req.thread_id,
+                        title="配额已耗尽",
+                        message="您当前的 LLM 账户使用配额已用完，无法继续处理请求。",
+                        hint="请联系系统管理员添加配额，或在系统设置中更换您的 API 密钥。",
+                    )
+                )
                 await asyncio.sleep(0.5)
 
                 # 2. Publish a system/ai message displaying the error
@@ -576,21 +746,32 @@ async def mock_chat(req: ChatRequest):
                     content=error_content,
                     category=MessageCategory.ERROR_SYSTEM.value,
                     status="failed",
-                    run_id=run_id
+                    run_id=run_id,
                 )
                 await publisher.publish(msg_block)
                 await asyncio.sleep(0.5)
 
                 # 3. Publish StatusEvent (status="error")
-                await publisher.publish(StatusEvent(thread_id=req.thread_id, status="error"))
+                await publisher.publish(
+                    StatusEvent(thread_id=req.thread_id, status="error")
+                )
                 await asyncio.sleep(0.5)
 
                 # 4. End run with status failed
-                await activity_monitor.end_run(req.thread_id, status="failed", final_outcome="因配额耗尽中断执行", run_id=run_id)
+                await activity_monitor.end_run(
+                    req.thread_id,
+                    status="failed",
+                    final_outcome="因配额耗尽中断执行",
+                    run_id=run_id,
+                )
 
             elif scenario == "long_task":
                 run_id = f"run-mock-{uuid.uuid4().hex[:8]}"
-                await activity_monitor.start_run(req.thread_id, main_goal="长程深度代码搜索与分析任务模拟", run_id=run_id)
+                await activity_monitor.start_run(
+                    req.thread_id,
+                    main_goal="长程深度代码搜索与分析任务模拟",
+                    run_id=run_id,
+                )
                 await asyncio.sleep(0.5)
 
                 # Supervisor PLANNING
@@ -598,7 +779,7 @@ async def mock_chat(req: ChatRequest):
                     thread_id=req.thread_id,
                     mode="PLANNING",
                     task_name="Supervisor Plan",
-                    task_status="制定代码分析计划..."
+                    task_status="制定代码分析计划...",
                 )
                 await asyncio.sleep(0.8)
 
@@ -608,10 +789,14 @@ async def mock_chat(req: ChatRequest):
                     await asyncio.sleep(0.01)
 
                 # Loop to generate dozens of tool calls
-                for i in range(1, 13): # Generate 12 tool calls
+                for i in range(1, 13):  # Generate 12 tool calls
                     # AI decides to call a tool
                     tool_name = "grep_search" if i % 2 != 0 else "read_file"
-                    tool_args = {"Query": f"dependency_{i}"} if i % 2 != 0 else {"AbsolutePath": f"src/module_{i}.ts"}
+                    tool_args = (
+                        {"Query": f"dependency_{i}"}
+                        if i % 2 != 0
+                        else {"AbsolutePath": f"src/module_{i}.ts"}
+                    )
                     call_id = f"call_loop_{i}"
                     seq_base = i * 2
 
@@ -620,24 +805,39 @@ async def mock_chat(req: ChatRequest):
                         await MessageHandler.stream_thinking(req.thread_id, char)
                         await asyncio.sleep(0.01)
 
-                    await publish_ai_tool_call(seq_base, tool_name, tool_args, call_id, run_id)
+                    await publish_ai_tool_call(
+                        seq_base, tool_name, tool_args, call_id, run_id
+                    )
 
                     # Worker EXECUTING
                     await activity_monitor.update_agent_state(
                         thread_id=req.thread_id,
                         mode="EXECUTING",
                         task_name=f"Worker: Code Search {i}",
-                        task_status=f"正在执行深度检索 ({i}/12)..."
+                        task_status=f"正在执行深度检索 ({i}/12)...",
                     )
 
                     # Emit tool start
-                    await publish_tool_start(seq_base + 1, tool_name, call_id, tool_args, run_id)
-                    await MessageHandler.stream_progress(req.thread_id, f"正在搜索模块 {i}...", progress=(i*100//12), status="running")
+                    await publish_tool_start(
+                        seq_base + 1, tool_name, call_id, tool_args, run_id
+                    )
+                    await MessageHandler.stream_progress(
+                        req.thread_id,
+                        f"正在搜索模块 {i}...",
+                        progress=(i * 100 // 12),
+                        status="running",
+                    )
                     await asyncio.sleep(0.6)
 
                     # Emit tool output
-                    tool_out = f"Found matches for query in module_{i}.ts lines 10-25.\n" if i % 2 != 0 else f"export const mod_{i} = require('lib_{i}');"
-                    await publish_tool_output(seq_base + 1, tool_name, call_id, tool_args, tool_out, run_id)
+                    tool_out = (
+                        f"Found matches for query in module_{i}.ts lines 10-25.\n"
+                        if i % 2 != 0
+                        else f"export const mod_{i} = require('lib_{i}');"
+                    )
+                    await publish_tool_output(
+                        seq_base + 1, tool_name, call_id, tool_args, tool_out, run_id
+                    )
                     await asyncio.sleep(0.4)
 
                 # Supervisor PLANNING for final answer
@@ -645,11 +845,13 @@ async def mock_chat(req: ChatRequest):
                     thread_id=req.thread_id,
                     mode="PLANNING",
                     task_name="Supervisor Decision",
-                    task_status="正在汇总检索结果..."
+                    task_status="正在汇总检索结果...",
                 )
                 await asyncio.sleep(0.5)
 
-                answer_thinking = "检索结束，总计调用了数十次工具。现在我将向用户汇报汇总结果。\n"
+                answer_thinking = (
+                    "检索结束，总计调用了数十次工具。现在我将向用户汇报汇总结果。\n"
+                )
                 for char in answer_thinking:
                     await MessageHandler.stream_thinking(req.thread_id, char)
                     await asyncio.sleep(0.01)
@@ -668,12 +870,17 @@ async def mock_chat(req: ChatRequest):
                     thinking=answer_thinking,
                     category="ai_response",
                     status="completed",
-                    run_id=run_id
+                    run_id=run_id,
                 )
                 await publisher.publish(msg_block)
                 await asyncio.sleep(0.5)
 
-                await activity_monitor.end_run(req.thread_id, status="done", final_outcome="完成全库深度搜索分析", run_id=run_id)
+                await activity_monitor.end_run(
+                    req.thread_id,
+                    status="done",
+                    final_outcome="完成全库深度搜索分析",
+                    run_id=run_id,
+                )
 
         except Exception as e:
             logger.error(f"Error in mock publishing: {e}", exc_info=True)
@@ -695,7 +902,13 @@ async def stop_chat(req: ChatRequest):
 
 
 @router.post("/chat/retry", dependencies=[Depends(verify_guest_access)])
-async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Request = None, _current_user: CurrentUserOptional = None, token: TokenDepOptional = None):
+async def retry_chat(
+    req: ChatRequest,
+    bg_tasks: BackgroundTasks,
+    _request: Request = None,
+    _current_user: CurrentUserOptional = None,
+    token: TokenDepOptional = None,
+):
     """
     Retry a specific user message (Targeted Retry).
     Rolls back history (deletes messages after the target) and restarts generation.
@@ -728,14 +941,28 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Requ
             target_msg = result.scalar_one_or_none()
 
             if not target_msg:
-                logger.warning(f"[Retry] Message {req.message_id} not found in database")
-                raise HTTPException(status_code=404, detail=f"Message {req.message_id} not found")
+                logger.warning(
+                    f"[Retry] Message {req.message_id} not found in database"
+                )
+                raise HTTPException(
+                    status_code=404, detail=f"Message {req.message_id} not found"
+                )
             if target_msg.thread_id != req.thread_id:
-                logger.warning(f"[Retry] Message {req.message_id} belongs to thread {target_msg.thread_id}, not {req.thread_id}")
-                raise HTTPException(status_code=404, detail=f"Message {req.message_id} not found in thread")
+                logger.warning(
+                    f"[Retry] Message {req.message_id} belongs to thread {target_msg.thread_id}, not {req.thread_id}"
+                )
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Message {req.message_id} not found in thread",
+                )
             if target_msg.role != "human":
-                logger.warning(f"[Retry] Message {req.message_id} has role '{target_msg.role}', not 'human'")
-                raise HTTPException(status_code=404, detail=f"Message {req.message_id} is not a human message")
+                logger.warning(
+                    f"[Retry] Message {req.message_id} has role '{target_msg.role}', not 'human'"
+                )
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Message {req.message_id} is not a human message",
+                )
             last_human_msg = target_msg
         else:
             # Fallback to last human message
@@ -751,7 +978,9 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Requ
             last_human_msg = result.scalar_one_or_none()
 
         if not last_human_msg:
-            raise HTTPException(status_code=404, detail="No human message found to retry")
+            raise HTTPException(
+                status_code=404, detail="No human message found to retry"
+            )
 
         # Load references for reconstruction
         references = None
@@ -773,6 +1002,7 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Requ
     try:
         # Create orchestrator on-demand (stateless, lightweight)
         from app.core.events import system_bus
+
         orchestrator = RewindOrchestrator(event_bus=system_bus)
 
         # Perform rewind with retry-specific parameters
@@ -781,8 +1011,8 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Requ
             target_message_id=str(last_human_msg.id),
             include_target=False,  # Retry specific: Keep the human message
             revert_files=req.revert_files,
-            reset_state=True,      # Retry specific: Reset state for clean generation
-            reason="retry"
+            reset_state=True,  # Retry specific: Reset state for clean generation
+            reason="retry",
         )
 
         files_reverted = result.reverted_file_count
@@ -797,12 +1027,17 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Requ
             logger.error(f"[Retry] {error_msg}")
             # Raise RewindError which is caught below to return 500
             from app.core.engine.rewind.exceptions import RewindError
+
             raise RewindError(error_msg, thread_id=req.thread_id)
 
-        logger.info(f"[Retry] Rewind completed: {result.removed_message_count} messages removed, {result.reverted_file_count} files reverted")
+        logger.info(
+            f"[Retry] Rewind completed: {result.removed_message_count} messages removed, {result.reverted_file_count} files reverted"
+        )
 
     except MessageNotFoundError:
-        raise HTTPException(status_code=404, detail="Target message not found for retry")
+        raise HTTPException(
+            status_code=404, detail="Target message not found for retry"
+        )
     except NoHumanMessageError:
         raise HTTPException(status_code=404, detail="No human message found to retry")
     except RewindError as e:
@@ -820,7 +1055,7 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Requ
         thread_id=req.thread_id,
         project_id=req.project_id,
         active_model=req.model,
-        token=token
+        token=token,
     )
     ContextManager.set(ctx)
 
@@ -838,9 +1073,9 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Requ
         model=req.model,
         is_retry=True,
         skip_message_persistence=True,
-        goal_prefix="Retry: ",
         context=ctx,
         member_id=_current_user.id if _current_user else 0,
+        metadata={"goal_prefix": "Retry: "},
     )
     if result.status == "failed":
         raise HTTPException(status_code=500, detail=result.error)
@@ -861,7 +1096,12 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Requ
 
 
 @router.post("/chat/resume")
-async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks, _current_user: CurrentUserOptional = None, token: TokenDepOptional = None):
+async def resume_chat(
+    req: ResumeRequest,
+    bg_tasks: BackgroundTasks,
+    _current_user: CurrentUserOptional = None,
+    token: TokenDepOptional = None,
+):
     """
     Resume a paused/interrupted graph execution.
     Used after Human-in-the-Loop interrupts where user provides input.
@@ -870,7 +1110,9 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks, _current_us
     checkpointer = db_resource_manager.checkpointer
 
     if not graph or not checkpointer:
-        raise HTTPException(status_code=500, detail="Graph or Checkpointer not initialized")
+        raise HTTPException(
+            status_code=500, detail="Graph or Checkpointer not initialized"
+        )
 
     active_model = req.model
     if not active_model:
@@ -889,12 +1131,17 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks, _current_us
 
     # [HITL Resume Fix]: Check if we need to auto-complete a Tool Call
     from app.core.hitl.orchestrator import HITLOrchestrator
-    pending_tool = await HITLOrchestrator.get_pending_request(graph, req.thread_id, active_model)
+
+    pending_tool = await HITLOrchestrator.get_pending_request(
+        graph, req.thread_id, active_model
+    )
 
     inputs = None
     if pending_tool:
         logger.info(f"Auto-completing tool call {pending_tool['name']} on resume")
-        normalized_input = await HITLOrchestrator.handle_resume(req.thread_id, pending_tool, req.user_input)
+        normalized_input = await HITLOrchestrator.handle_resume(
+            req.thread_id, pending_tool, req.user_input
+        )
 
         tool_msg = ToolMessage(
             tool_call_id=pending_tool["id"],
@@ -914,7 +1161,10 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks, _current_us
                 # Use empty input for actual resume (the project is now in context)
                 # Use system_tools template for selection message
                 from app.utils import SystemToolsFormatter
-                sel_msg = SystemToolsFormatter.signals([f"Selected project: {parsed.get('project_name', temp_project_id)}"])
+
+                sel_msg = SystemToolsFormatter.signals(
+                    [f"Selected project: {parsed.get('project_name', temp_project_id)}"]
+                )
                 inputs = {"messages": [HumanMessage(content=sel_msg)]}
             else:
                 inputs = {"messages": [HumanMessage(content=req.user_input)]}
@@ -923,24 +1173,26 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks, _current_us
 
         # Context setup explicitly needed for persistence inside resume
         ctx = ContextManager.current()
-        if not getattr(ctx, 'token', None):
+        if not getattr(ctx, "token", None):
             ctx.token = token
             ContextManager.set(ctx)
 
         # Persistence (shared with /chat and /retry via dispatch layer)
         from app.core.engine.dispatch import persist_user_message
+
         await persist_user_message(
             thread_id=req.thread_id,
             content=req.user_input,
             project_id=req.project_id,
-            command_id=req.command_id,
             member_id=_current_user.id if _current_user else 0,
         )
 
     if pending_tool:
         logger.info(f"Auto-completing tool call {pending_tool['name']} on resume")
-        normalized_input = await HITLOrchestrator.handle_resume(req.thread_id, pending_tool, req.user_input)
-        
+        normalized_input = await HITLOrchestrator.handle_resume(
+            req.thread_id, pending_tool, req.user_input
+        )
+
         tool_msg = ToolMessage(
             tool_call_id=pending_tool["id"],
             content=normalized_input,
@@ -956,11 +1208,9 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks, _current_us
         "configurable": {
             "thread_id": req.thread_id,
             "model": active_model,
-            "run_id": f"resume-{req.thread_id}-{int(time.time())}"
+            "run_id": f"resume-{req.thread_id}-{int(time.time())}",
         },
-        "metadata": {
-            "project_id": req.project_id
-        }
+        "metadata": {"project_id": req.project_id},
     }
 
     # Resume in background (unified resumption loop)
@@ -975,14 +1225,18 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks, _current_us
         )
     else:
         from app.core.engine.message.converter import EvoMessageConverter
+
         serialized_inputs = inputs.copy() if inputs else {}
         if "messages" in serialized_inputs:
-            serialized_inputs["messages"] = EvoMessageConverter.from_langchain(serialized_inputs["messages"])
-            
+            serialized_inputs["messages"] = EvoMessageConverter.from_langchain(
+                serialized_inputs["messages"]
+            )
+
         from app.infrastructure.queue.factory import get_scheduler
+
         get_scheduler().send_task(
             "engine_resume_graph_background",
-            args=(req.thread_id, serialized_inputs, config, "Resuming...", True)
+            args=(req.thread_id, serialized_inputs, config, "Resuming...", True),
         )
 
     return ResumeChatResponse(status="resuming", thread_id=req.thread_id)
@@ -1004,15 +1258,17 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
 
     # [HITL Cancel Fix]: Send cancellation as ToolMessage instead of HumanMessage
     from app.core.hitl.orchestrator import HITLOrchestrator
-    
+
     active_model = req.model
     if not active_model:
         loaded_ctx = await ContextManager.load(req.thread_id)
         if loaded_ctx:
             active_model = loaded_ctx.active_model
 
-    pending_tool = await HITLOrchestrator.get_pending_request(graph, req.thread_id, active_model)
-    
+    pending_tool = await HITLOrchestrator.get_pending_request(
+        graph, req.thread_id, active_model
+    )
+
     # [HITL Closure]: Clear human request from activity monitor
     await activity_monitor.clear_human_request(req.thread_id)
 
@@ -1025,11 +1281,13 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
         )
 
     logger.info(f"Auto-cancelling tool call {pending_tool['name']} on cancel")
-    await HITLOrchestrator.handle_cancel(req.thread_id, pending_tool)
+    cancellation_result = await HITLOrchestrator.handle_cancel(
+        req.thread_id, pending_tool
+    )
 
     tool_msg = ToolMessage(
         tool_call_id=pending_tool["id"],
-        content="CANCELLED",
+        content=cancellation_result,
     )
     inputs = {"messages": [tool_msg]}
 
@@ -1038,11 +1296,9 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
         "configurable": {
             "thread_id": req.thread_id,
             "model": active_model,
-            "run_id": f"cancel-{req.thread_id}-{int(time.time())}"
+            "run_id": f"cancel-{req.thread_id}-{int(time.time())}",
         },
-        "metadata": {
-            "project_id": req.project_id
-        }
+        "metadata": {"project_id": req.project_id},
     }
 
     # Resume in background with cancellation signal (unified resumption loop)
@@ -1056,14 +1312,24 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
         )
     else:
         from app.core.engine.message.converter import EvoMessageConverter
+
         serialized_inputs = inputs.copy() if inputs else {}
         if "messages" in serialized_inputs:
-            serialized_inputs["messages"] = EvoMessageConverter.from_langchain(serialized_inputs["messages"])
-            
+            serialized_inputs["messages"] = EvoMessageConverter.from_langchain(
+                serialized_inputs["messages"]
+            )
+
         from app.infrastructure.queue.factory import get_scheduler
+
         get_scheduler().send_task(
             "engine_resume_graph_background",
-            args=(req.thread_id, serialized_inputs, config, "Resuming after cancellation...", False)
+            args=(
+                req.thread_id,
+                serialized_inputs,
+                config,
+                "Resuming after cancellation...",
+                False,
+            ),
         )
 
     return CancelHITLResponse(
@@ -1096,7 +1362,9 @@ async def webhook_endpoint(req: WebhookRequest, bg_tasks: BackgroundTasks):
             # Without invalidation, the cache may return old path and overwrite
             # the new_path we just set here, causing Agent to operate on wrong directory.
             evocloud_manager.invalidate_projects_cache()
-            logger.info("[Webhook] Project cache invalidated due to project_switched event")
+            logger.info(
+                "[Webhook] Project cache invalidated due to project_switched event"
+            )
 
             thread_context_store.set_working_directory(tid, new_path)
             # Dispatch Indexing Task directly from here if needed
@@ -1113,7 +1381,7 @@ async def webhook_endpoint(req: WebhookRequest, bg_tasks: BackgroundTasks):
         thread_id=tid,
         message_content=messages[0].content if messages else "No content",
         project_id=DEFAULT_PROJECT_ID,  # Default project (global mode)
-        goal_prefix=f"[{req.source.capitalize()} Event] ",
+        metadata={"goal_prefix": f"[{req.source.capitalize()} Event] "},
     )
 
     if result.status == "failed":

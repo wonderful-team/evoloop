@@ -11,12 +11,12 @@ identified during the deep code review of:
 Run: cd backend && python -m pytest tests/integration/test_code_review_findings.py -v
 """
 
+import asyncio
 import os
 import sys
-import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, call
-from collections import deque
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
@@ -39,8 +39,8 @@ class TestWebSocketLinkIssues:
     @pytest.fixture
     def link(self):
         """Create a minimal EvoCloudWebSocketLink instance."""
-        from app.core.evocloud.schemas import EvoCloudConfig
         from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
+        from app.core.evocloud.schemas import EvoCloudConfig
 
         config = MagicMock(spec=EvoCloudConfig)
         config.ws_url = "wss://test.example.com/ws"
@@ -57,30 +57,6 @@ class TestWebSocketLinkIssues:
         return EvoCloudWebSocketLink(config, api)
 
     @pytest.mark.asyncio
-    async def test_send_message_is_used_not_send(self, link):
-        """
-        P0: _handle_query should use send_message(), not send().
-        This was a bug where self.send() (non-existent) was called.
-        """
-        from app.core.evocloud.schemas import QueryResponse
-
-        import websockets
-        link._running = True
-        link.ws = MagicMock()
-        link.ws.state = websockets.State.OPEN
-        link.ws.send = AsyncMock()
-        link._query_handler = MagicMock(return_value={"test": "data"})
-
-        data = {
-            "type": "query",
-            "request_id": "req-1",
-            "data": {"query_type": "test", "thread_id": "t1", "params": {}},
-        }
-
-        # Should not raise AttributeError on 'send'
-        await link._handle_query(data)
-        assert link.ws.send.called, "send_message should delegate to ws.send"
-
     def test_processed_commands_fifo_eviction(self, link):
         """
         P2: _processed_commands uses deque(maxlen=500) for FIFO eviction.
@@ -181,20 +157,17 @@ class TestHandlersIssues:
         P1: EngineCommandSubscriber._handle_command uses .get() on RemoteCommand (Pydantic model).
         If model doesn't support dict-like access, this fails.
         """
-        from app.core.engine.event.subscribers import EngineCommandSubscriber
-        from app.core.evocloud.schemas import RemoteCommand
         from app.core.evocloud.schemas import RemoteCommand
 
         # RemoteCommand as Pydantic model
         cmd = RemoteCommand.model_validate({
-            "type": "chat_message",
+            "action": "chat_message",
             "thread_id": "t-1",
             "message": "Hello",
         })
 
-        # .get() should work because Pydantic v2 BaseModel supports dict-like access
-        # But this is an implicit dependency on Pydantic internals
-        assert cmd.get("type") == "chat_message"
+        # .get() should work because DynamicBaseModel provides dict-like access
+        assert cmd.get("action") == "chat_message"
         assert cmd.get("thread_id") == "t-1"
 
 
@@ -212,8 +185,9 @@ class TestAgentRoutesIssues:
         so /chat/resume preserves the user's HumanMessage instead of
         converting it to ToolMessage.
         """
-        from app.api.routes.agent import resume_chat, ResumeRequest
         from langchain_core.messages import AIMessage, HumanMessage
+
+        from app.api.routes.agent import ResumeRequest, resume_chat
 
         ai_msg = AIMessage(
             content="Need confirm",
@@ -252,9 +226,10 @@ class TestAgentRoutesIssues:
         P2: webhook_endpoint marks all non-HumanMessage as type="human".
         This loses message type information.
         """
-        from app.api.routes.agent import webhook_endpoint, WebhookRequest
-        from app.api.schemas.agent import WebhookPayload
         from langchain_core.messages import AIMessage
+
+        from app.api.routes.agent import WebhookRequest, webhook_endpoint
+        from app.api.schemas.agent import WebhookPayload
 
         mock_dispatch_result = MagicMock(
             status="queued",
@@ -419,7 +394,6 @@ class TestEndToEndDataFlowConsistency:
         run_agent_background can consume.
         """
         from app.core.engine.background_agent import BackgroundAgentInputs
-        from app.core.engine.dispatch import dispatch_agent_run
 
         # Verify the dict->BackgroundAgentInputs conversion works
         raw_inputs = {

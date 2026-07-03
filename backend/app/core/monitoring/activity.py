@@ -55,7 +55,13 @@ class ActivityMonitor:
         return cls._instance
 
     @asynccontextmanager
-    async def run_scope(self, thread_id: str, main_goal: str = "", task_type: str = None, project_id: int | None = None) -> AsyncGenerator[str, None]:
+    async def run_scope(
+        self,
+        thread_id: str,
+        main_goal: str = "",
+        task_type: str = None,
+        project_id: int | None = None,
+    ) -> AsyncGenerator[str, None]:
         """
         Unified Agent Lifecycle Context Manager.
 
@@ -79,7 +85,9 @@ class ActivityMonitor:
 
         # 1. Start Run
         await self.start_run(thread_id, main_goal, run_id=run_id, project_id=project_id)
-        logger.info(f"[ActivityMonitor] 🚀 Starting lifecycle for thread {thread_id} (Run: {run_id})")
+        logger.info(
+            f"[ActivityMonitor] 🚀 Starting lifecycle for thread {thread_id} (Run: {run_id})"
+        )
 
         # 2. Sync Metadata to Context
         ctx = ContextManager.current()
@@ -93,45 +101,77 @@ class ActivityMonitor:
             yield run_id
 
             # 4. Success End
-            await self.end_run(thread_id, status="done", run_id=run_id, task_type=task_type)
+            await self.end_run(
+                thread_id, status="done", run_id=run_id, task_type=task_type
+            )
 
         except AgentCancelledException:
             logger.info(f"[ActivityMonitor] 🛑 Run {run_id} cancelled by user")
-            await self.end_run(thread_id, status="cancelled", run_id=run_id, task_type=task_type)
+            await self.end_run(
+                thread_id, status="cancelled", run_id=run_id, task_type=task_type
+            )
             raise  # Re-raise for upper layers if needed (BackgroundAgent handles it)
 
         except AgentHumanInterruptException:
             logger.info(f"[ActivityMonitor] ⏸️ Run {run_id} interrupted for human input")
-            await self.end_run(thread_id, status="interrupted", run_id=run_id, task_type=task_type)
+            await self.end_run(
+                thread_id, status="interrupted", run_id=run_id, task_type=task_type
+            )
             raise
 
         except Exception as e:
-            logger.error(f"[ActivityMonitor] ❌ Run {run_id} failed with error: {e}", exc_info=True)
-            await self.end_run(thread_id, status="failed", run_id=run_id, task_type=task_type)
+            logger.error(
+                f"[ActivityMonitor] ❌ Run {run_id} failed with error: {e}",
+                exc_info=True,
+            )
+            await self.end_run(
+                thread_id, status="failed", run_id=run_id, task_type=task_type
+            )
             raise
 
-    async def start_run(self, thread_id: str, main_goal: str = "", run_id: str = None, project_id: int | None = None):
+    async def start_run(
+        self,
+        thread_id: str,
+        main_goal: str = "",
+        run_id: str = None,
+        project_id: int | None = None,
+    ):
         """Initialize activity state for a new run."""
         await self._state_service.start_run(thread_id, main_goal)
 
         # Publish internal AgentSessionStartedEvent (automated bridge will handle UI RunStartEvent)
         from app.core.engine.event.publishers import publish_agent_session_started
+
         await publish_agent_session_started(thread_id=thread_id, project_id=project_id)
 
-    async def end_run(self, thread_id: str, status="done", final_outcome: str = None, run_id: str = None, task_type: str = None):
+    async def end_run(
+        self,
+        thread_id: str,
+        status="done",
+        final_outcome: str = None,
+        run_id: str = None,
+        task_type: str = None,
+    ):
         """Mark run as ended and publish status change."""
         result = await self._state_service.end_run(thread_id, status, final_outcome)
 
         # 1. Publish internal AgentRunCompletedEvent (automated bridge handles UI RunEndEvent)
         from app.core.engine.event.publishers import publish_agent_run_completed
+
         await publish_agent_run_completed(
             thread_id=thread_id,
             status=result.status,
-            payload={"run_id": run_id, "outcome": final_outcome, "task_type": task_type}
+            payload={
+                "run_id": run_id,
+                "outcome": final_outcome,
+                "task_type": task_type,
+            },
         )
 
         # 2. Publish internal SystemStatusEvent (automated bridge handles UI StatusEvent)
-        await system_bus.publish(SystemStatusEvent(thread_id=thread_id, status=result.status))
+        await system_bus.publish(
+            SystemStatusEvent(thread_id=thread_id, status=result.status)
+        )
 
         return result
 
@@ -157,7 +197,11 @@ class ActivityMonitor:
         Store a structured Human Request (HITL).
         Replaces simple 'set_interrupted' for rich interactions.
         """
-        request_dict = request_data.model_dump() if isinstance(request_data, HumanRequestData) else request_data
+        request_dict = (
+            request_data.model_dump()
+            if isinstance(request_data, HumanRequestData)
+            else request_data
+        )
         success = await self._state_service.set_human_request(thread_id, request_dict)
 
         if success:
@@ -173,12 +217,14 @@ class ActivityMonitor:
                     context=request_dict.get("context"),
                     default_value=request_dict.get("default_value"),
                     allow_cancel=request_dict.get("allow_cancel", True),
-                    payload=request_dict.get("payload", {})
+                    payload=request_dict.get("payload", {}),
                 )
             )
 
             # [HITL FIX] Also publish internal SystemStatusEvent
-            await system_bus.publish(SystemStatusEvent(thread_id=thread_id, status="interrupted"))
+            await system_bus.publish(
+                SystemStatusEvent(thread_id=thread_id, status="interrupted")
+            )
 
     async def clear_human_request(self, thread_id: str):
         """Clear human request upon resumption."""
@@ -186,8 +232,12 @@ class ActivityMonitor:
 
         if success:
             # Publish internal Events
-            await system_bus.publish(HumanRequestEvent(thread_id=thread_id, action="clear"))
-            await system_bus.publish(SystemStatusEvent(thread_id=thread_id, status="idle"))
+            await system_bus.publish(
+                HumanRequestEvent(thread_id=thread_id, action="clear")
+            )
+            await system_bus.publish(
+                SystemStatusEvent(thread_id=thread_id, status="idle")
+            )
 
     async def request_human_interaction(
         self,
@@ -195,7 +245,7 @@ class ActivityMonitor:
         request_type: str,
         prompt: str,
         payload: dict[str, Any] | None = None,
-        allow_cancel: bool = True
+        allow_cancel: bool = True,
     ) -> None:
         """
         Request interaction from human user and PAUSE agent execution.
@@ -205,7 +255,7 @@ class ActivityMonitor:
 
         Args:
             thread_id: The thread ID
-            request_type: Type of interaction (e.g., "text_input", "project_switch", "confirm")
+            request_type: Type of interaction (e.g., "text", "project_switch", "confirmation")
             prompt: Message shown to user explaining what's needed
             payload: Additional data for the interaction (type-specific)
             allow_cancel: Whether user can cancel this request
@@ -225,7 +275,9 @@ class ActivityMonitor:
             payload=payload or {},
         )
 
-        success = await self._state_service.set_human_request(thread_id, request_data.model_dump())
+        success = await self._state_service.set_human_request(
+            thread_id, request_data.model_dump()
+        )
 
         if success:
             # Publish internal Events (automated bridge will handle UI)
@@ -236,14 +288,18 @@ class ActivityMonitor:
                     prompt=request_data.prompt,
                     request_type=request_data.type,
                     allow_cancel=request_data.allow_cancel,
-                    payload=request_data.payload
+                    payload=request_data.payload,
                 )
             )
 
             # [HITL FIX] Also publish internal SystemStatusEvent
-            await system_bus.publish(SystemStatusEvent(thread_id=thread_id, status="interrupted"))
+            await system_bus.publish(
+                SystemStatusEvent(thread_id=thread_id, status="interrupted")
+            )
 
-            logger.info(f"[ActivityMonitor] Requested '{request_type}' interaction for thread {thread_id}")
+            logger.info(
+                f"[ActivityMonitor] Requested '{request_type}' interaction for thread {thread_id}"
+            )
 
     async def set_active_memory(self, thread_id: str, memory_id: str, memory_name: str):
         """Track which memory is currently being accessed by the Agent."""
@@ -272,9 +328,13 @@ class ActivityMonitor:
             await cache.hset(key, "active_memories", json.dumps([]))
 
     async def update_agent_state(
-        self, thread_id: str, mode: str, task_name: str, task_status: str,
+        self,
+        thread_id: str,
+        mode: str,
+        task_name: str,
+        task_status: str,
         details: dict[str, Any] | None = None,
-        active_skills: list[dict] | None = None
+        active_skills: list[dict] | None = None,
     ):
         """Update agent state and publish event."""
         state = AgentActivityState(
@@ -282,7 +342,7 @@ class ActivityMonitor:
             task_name=task_name,
             task_status=task_status,
             details=details or {},
-            active_skills=active_skills
+            active_skills=active_skills,
         )
 
         await self._state_service.update_agent_state(thread_id, state.model_dump())
@@ -294,18 +354,16 @@ class ActivityMonitor:
                 mode=mode,
                 task_name=task_name,
                 task_status=task_status,
-                active_skills=active_skills
+                active_skills=active_skills,
             )
         )
 
-    async def log_event(self, event_type: str, data: dict[str, Any], thread_id: str = "system"):
+    async def log_event(
+        self, event_type: str, data: dict[str, Any], thread_id: str = "system"
+    ):
         """Generic event logger for system and session events."""
         timestamp = time.time()
-        payload = SystemLogPayload(
-            type=event_type,
-            data=data,
-            timestamp=timestamp
-        )
+        payload = SystemLogPayload(type=event_type, data=data, timestamp=timestamp)
 
         # Log to a system list in cache for persistence
         # Use pipeline to make lpush+ltrim atomic
@@ -317,14 +375,12 @@ class ActivityMonitor:
         # Publish to the chat stream if it's a session event
         if thread_id != "system":
             await system_bus.publish(
-                SystemLogEvent(
-                    thread_id=thread_id,
-                    log_type=event_type,
-                    log_data=data
-                )
+                SystemLogEvent(thread_id=thread_id, log_type=event_type, log_data=data)
             )
 
-        logger.info(f"[ActivityMonitor] Event logged: {event_type} (Thread: {thread_id})")
+        logger.info(
+            f"[ActivityMonitor] Event logged: {event_type} (Thread: {thread_id})"
+        )
 
     async def add_artifact(
         self,
@@ -335,7 +391,9 @@ class ActivityMonitor:
         path: str = None,
     ):
         """Add or update an artifact and publish event."""
-        await self._state_service.add_artifact(thread_id, name, artifact_type, status, path)
+        await self._state_service.add_artifact(
+            thread_id, name, artifact_type, status, path
+        )
 
         # Get the artifact we just added
         activity = await self._state_service.get_state(thread_id)
@@ -350,7 +408,7 @@ class ActivityMonitor:
                     name=target_art.get("name", ""),
                     kind=target_art.get("kind", ""),
                     status=target_art.get("status", "pending"),
-                    path=target_art.get("path")
+                    path=target_art.get("path"),
                 )
             )
 
@@ -361,25 +419,34 @@ class ActivityMonitor:
     async def update_goal(self, thread_id: str, new_goal: str):
         """Update the main goal for a thread and publish the update to the UI."""
         if not thread_id:
-            logger.warning("[ActivityMonitor] update_goal called with empty/None thread_id — skipping.")
+            logger.warning(
+                "[ActivityMonitor] update_goal called with empty/None thread_id — skipping."
+            )
             return
         # 1. Update SQLite/database state
         await self._state_service.update_field(thread_id, "main_goal", new_goal)
-        
+
         # 2. Publish to the event bus so the frontend updates in real time
         from app.core.engine.message.event_bus import get_event_bus
+
         bus = get_event_bus()
         channel = f"chat:{thread_id}:events"
-        
+
         activity = await self.get_activity(thread_id)
         if activity:
-            snapshot = activity.model_dump() if hasattr(activity, "model_dump") else activity
+            snapshot = (
+                activity.model_dump() if hasattr(activity, "model_dump") else activity
+            )
             snapshot["type"] = "activity"
             try:
                 await bus.publish(channel, json.dumps(snapshot, ensure_ascii=False))
-                logger.info(f"[ActivityMonitor] Session goal updated for thread {thread_id}: {new_goal}")
+                logger.info(
+                    f"[ActivityMonitor] Session goal updated for thread {thread_id}: {new_goal}"
+                )
             except Exception as e:
-                logger.warning(f"[ActivityMonitor] Failed to publish goal update event: {e}")
+                logger.warning(
+                    f"[ActivityMonitor] Failed to publish goal update event: {e}"
+                )
 
     async def get_statuses(self, thread_ids: list[str]) -> dict[str, dict[str, str]]:
         """Batch fetch statuses and goals for multiple threads efficiently."""
@@ -388,14 +455,12 @@ class ActivityMonitor:
 
         async with session_scope() as session:
             stmt = select(
-                AgentActivity.thread_id,
-                AgentActivity.status,
-                AgentActivity.main_goal
-            ).where(
-                AgentActivity.thread_id.in_(thread_ids)
-            )
+                AgentActivity.thread_id, AgentActivity.status, AgentActivity.main_goal
+            ).where(AgentActivity.thread_id.in_(thread_ids))
             result = await session.execute(stmt)
-            activity_map = {row[0]: {"status": row[1], "main_goal": row[2]} for row in result.all()}
+            activity_map = {
+                row[0]: {"status": row[1], "main_goal": row[2]} for row in result.all()
+            }
 
         # Default missing threads to "idle" and empty goal
         for tid in thread_ids:
@@ -413,16 +478,16 @@ class ActivityMonitor:
         """
         from app.core.tools.schemas import TaskStatus
 
-        thread_id = getattr(task, 'thread_id', '')
+        thread_id = getattr(task, "thread_id", "")
         if not thread_id:
             return
 
-        task_status = getattr(task, 'status', None)
+        task_status = getattr(task, "status", None)
         if task_status is None:
             return
 
-        title = getattr(task, 'title', 'Unknown Task')
-        elapsed = getattr(task, 'elapsed_seconds', 0)
+        title = getattr(task, "title", "Unknown Task")
+        elapsed = getattr(task, "elapsed_seconds", 0)
 
         if task_status == TaskStatus.PENDING:
             await self.update_agent_state(
@@ -451,7 +516,7 @@ class ActivityMonitor:
                 mode="Background Task",
                 task_name=title,
                 task_status=f"Failed ({elapsed}s)",
-                details={"error": getattr(task, 'error_message', '')},
+                details={"error": getattr(task, "error_message", "")},
             )
         elif task_status == TaskStatus.CANCELLED:
             await self.update_agent_state(

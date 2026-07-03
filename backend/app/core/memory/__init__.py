@@ -14,6 +14,7 @@ This module provides:
 # Configuration and Dependency Injection
 from app.core.memory.config import MemoryConfig, get_default_memory_config
 from app.core.memory.container import MemoryContainer
+
 # Maintenance
 from app.core.memory.maintenance import (
     MaintenanceScheduler,
@@ -21,8 +22,10 @@ from app.core.memory.maintenance import (
     get_maintenance_status,
     trigger_maintenance,
 )
+
 # Main facade
 from app.core.memory.manager import MemoryManager
+
 # Data models
 from app.core.memory.models import (
     MemoryEntry,
@@ -45,6 +48,7 @@ from app.core.memory.state_tracking import (
     get_surfaced_memory_ids,
     mark_memories_surfaced,
     memory_tracker,
+    predictive_cache,
 )
 from app.core.memory.two_tier import (
     MemorySection,
@@ -78,6 +82,7 @@ __all__ = [
     "CleanupRecommendation",
     "MemoryStateTracker",
     "memory_tracker",
+    "predictive_cache",
     "mark_memories_surfaced",
     "get_surfaced_memory_ids",
     "filter_unsurfaced_memories",

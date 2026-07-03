@@ -413,6 +413,7 @@
       "system_prompt": "You generate clear, concise technical documentation."
     },
     "files": {
+      "global_mode_not_allowed": "Access to project file '{path}' is not allowed in workspace mode. Please switch to a specific project and try again.",
       "resolve_error": "Error: Could not resolve path: {path}",
       "security_violation": "Error: Security Violation. Path '{path}' is outside the working directory '{root}'. Please use relative paths.",
       "read_not_found_suggest": "Error: File '{path}' not found. Did you mean one of these in the same directory? [{siblings}]",

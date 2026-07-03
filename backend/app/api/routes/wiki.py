@@ -133,9 +133,9 @@ async def generate_wiki(
         thread_id=thread_id,
         message_content=message,
         project_id=req.project_id,
-        goal_prefix="[Wiki Generation] ",
         skip_message_persistence=True,
         member_id=current_user.id if current_user else None,
+        metadata={"goal_prefix": "[Wiki Generation] "},
     )
 
     if result.status == "failed":

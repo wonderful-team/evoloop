@@ -115,7 +115,9 @@ async def get_pending_requests_for_thread(thread_id: str) -> list[HumanInputRequ
     async with session_scope() as session:
         stmt = (
             select(HumanRequest)
-            .where(HumanRequest.thread_id == thread_id, HumanRequest.status == "pending")
+            .where(
+                HumanRequest.thread_id == thread_id, HumanRequest.status == "pending"
+            )
             .order_by(HumanRequest.created_at.asc())
         )
         result = await session.execute(stmt)
@@ -127,7 +129,10 @@ async def complete_request(request_id: str, response: Any) -> bool:
     async with session_scope() as session:
         stmt = (
             update(HumanRequest)
-            .where(HumanRequest.id == request_id)
+            .where(
+                HumanRequest.id == request_id,
+                HumanRequest.status == "pending",
+            )
             .values(status="completed", result=str(response))
         )
         result = await session.execute(stmt)
@@ -142,7 +147,14 @@ async def complete_request(request_id: str, response: Any) -> bool:
 async def cancel_request(request_id: str) -> bool:
     """Cancel a pending request in the database."""
     async with session_scope() as session:
-        stmt = update(HumanRequest).where(HumanRequest.id == request_id).values(status="cancelled")
+        stmt = (
+            update(HumanRequest)
+            .where(
+                HumanRequest.id == request_id,
+                HumanRequest.status == "pending",
+            )
+            .values(status="cancelled")
+        )
         result = await session.execute(stmt)
         success = result.rowcount > 0
         if success:

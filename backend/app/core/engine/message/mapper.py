@@ -15,7 +15,7 @@ BlockMapper —— 各层 ↔ MessageBlock 的标准化转换器。
 
 import logging
 from datetime import datetime
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from app.models.schemas.events import MessageSyncEvent
@@ -45,8 +45,8 @@ class BlockMapper:
     @staticmethod
     def from_db(msg) -> MessageBlock:
         """数据库 Message ORM → MessageBlock"""
-        from app.models import Message as DBMessage
         from app.core.engine.message.schemas import ReferenceBlock
+        from app.models import Message as DBMessage
 
         if not isinstance(msg, DBMessage):
             raise TypeError(f"Expected DB Message, got {type(msg)}")
@@ -217,7 +217,9 @@ class BlockMapper:
                 "sequence_number": msg.sequence_number,
                 "content_type": msg.content_type,
                 "checkpoint_id": msg.checkpoint_id,
-                "references": [ref.model_dump() for ref in msg.references] if msg.references else None,
+                "references": [ref.model_dump() for ref in msg.references]
+                if msg.references
+                else None,
             },
         }
 
@@ -249,6 +251,7 @@ class BlockMapper:
     def to_sse(msg: MessageBlock, action: str = "create") -> "MessageSyncEvent":
         """MessageBlock → SSE 流式事件（使用统一协议）"""
         from app.models.schemas.events import MessageSyncEvent
+
         return MessageSyncEvent(
             thread_id=msg.thread_id,
             action=action,  # type: ignore[arg-type]
@@ -274,7 +277,9 @@ class BlockMapper:
                 elif isinstance(tc, dict):
                     safe_tool_calls.append(tc)
                 else:
-                    safe_tool_calls.append({"id": str(tc), "type": str(type(tc).__name__)})
+                    safe_tool_calls.append(
+                        {"id": str(tc), "type": str(type(tc).__name__)}
+                    )
             safe_msg.tool_calls = safe_tool_calls  # type: ignore[assignment]
 
         data = safe_msg.model_dump(exclude_none=True)
@@ -289,6 +294,8 @@ class BlockMapper:
 
         # Mobile 兼容：is_visible bool → int
         data["is_visible"] = 1 if msg.is_visible else 0
+
+        data["source"] = msg.source
 
         # 节省带宽：Mobile 不需要 thinking 过程和原始元数据
         data.pop("thinking", None)

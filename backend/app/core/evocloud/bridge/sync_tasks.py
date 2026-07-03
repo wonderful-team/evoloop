@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task(
-    name="evocloud.sync_full",
     retries=2,
     retry_delay=30,
 )
@@ -170,7 +169,6 @@ async def full_sync_task(device_key: str, data: dict) -> dict:
 
 
 @shared_task(
-    name="evocloud.sync_incremental",
     retries=2,
     retry_delay=10,
 )
@@ -230,27 +228,31 @@ async def incremental_sync_task(device_key: str, thread_ids: list[str]) -> dict:
                             unsynced_msgs = msg_result.scalars().all()
                             if unsynced_msgs:
                                 logger.info(f"[SyncTask] Found {len(unsynced_msgs)} unsynced messages in thread {thread_id}")
-                                formatted_msgs = []
-                                for m in unsynced_msgs:
-                                    sm = SyncMessage(
-                                        id=m.id, thread_id=m.thread_id, project_id=m.project_id if m.project_id is not None else DEFAULT_PROJECT_ID,
-                                        role=m.role, content=m.content, thinking=m.thinking,
-                                        created_at=int(m.created_at.timestamp()) if m.created_at else 0,
-                                        sequence_number=m.sequence_number or 0,
-                                        checkpoint_id=m.checkpoint_id or "",
-                                        tool_calls=m.tool_calls,
-                                        action_type=m.action_type or "text",
-                                        is_visible=1 if m.is_visible else 0,
-                                        run_id=m.run_id or "",
-                                        status=m.status or "completed",
-                                        parent_id=m.parent_id or 0,
-                                        category=m.category or "",
-                                        tool_call_id=m.tool_call_id or "",
-                                        tool_name=m.tool_name or "",
-                                        meta_data=m.meta_data if m.meta_data else None,
-                                        content_type=m.content_type or "text"
-                                    )
-                                    formatted_msgs.append(sm.model_dump())
+                            formatted_msgs = []
+                            for m in unsynced_msgs:
+                                # Skip mobile-originated human messages to avoid double-write
+                                # (Gateway already synced them to MC directly).
+                                if m.role == "human" and getattr(m, "source", None) == "mobile":
+                                    continue
+                                sm = SyncMessage(
+                                    id=m.id, thread_id=m.thread_id, project_id=m.project_id if m.project_id is not None else DEFAULT_PROJECT_ID,
+                                    role=m.role, content=m.content, thinking=m.thinking,
+                                    created_at=int(m.created_at.timestamp()) if m.created_at else 0,
+                                    sequence_number=m.sequence_number or 0,
+                                    checkpoint_id=m.checkpoint_id or "",
+                                    tool_calls=m.tool_calls,
+                                    action_type=m.action_type or "text",
+                                    is_visible=1 if m.is_visible else 0,
+                                    run_id=m.run_id or "",
+                                    status=m.status or "completed",
+                                    parent_id=m.parent_id or 0,
+                                    category=m.category or "",
+                                    tool_call_id=m.tool_call_id or "",
+                                    tool_name=m.tool_name or "",
+                                    meta_data=m.meta_data if m.meta_data else None,
+                                    content_type=m.content_type or "text"
+                                )
+                                formatted_msgs.append(sm.model_dump())
 
                                 msg_api_result = await api.sync_messages(device_key, str(thread_id), formatted_msgs)
                                 if msg_api_result.get("code") == 0:

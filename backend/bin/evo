@@ -216,6 +216,10 @@ fi
 # 确保使用新安装的 uv
 export PATH="$HOME/.local/bin:$PATH"
 
+# 计算项目根目录（schemas 模块所在位置）
+REPO_ROOT="$(cd "$PROJECT_DIR/../.." && pwd)"
+export PYTHONPATH="${REPO_ROOT}:${PYTHONPATH:-}"
+
 # 检查 uv 是否安装
 check_uv() {
     if ! command -v uv &> /dev/null; then

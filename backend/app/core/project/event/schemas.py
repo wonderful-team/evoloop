@@ -27,7 +27,7 @@ class ProjectEvent(BaseEvent):
     event_type: str = ProjectEventType.PROJECT_CREATED
     source: str = "project"
     data: dict[str, Any] = Field(default_factory=dict)
-    
+
     # Enable automatic bridging to UI
     is_public: bool = True
     broadcast_channel: str = "system"

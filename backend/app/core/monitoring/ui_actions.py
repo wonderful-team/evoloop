@@ -5,15 +5,16 @@ This module defines standardized interaction types that the backend can send
 to the frontend to request human input or actions. All interactions are
 blocking (agent paused) until user responds.
 """
+
 from app.core.monitoring.schemas import (
-    HumanRequestType,
-    TextInputRequest,
-    ProjectSwitchPayload,
-    ProjectSwitchRequest,
     ConfirmPayload,
     ConfirmRequest,
     FileSelectPayload,
     FileSelectRequest,
+    HumanRequestType,
+    ProjectSwitchPayload,
+    ProjectSwitchRequest,
+    TextInputRequest,
 )
 
 
@@ -21,11 +22,11 @@ def create_text_input_request(
     prompt: str,
     placeholder: str | None = None,
     multiline: bool = False,
-    allow_cancel: bool = True
+    allow_cancel: bool = True,
 ) -> TextInputRequest:
     """Create a human request for text input."""
     return TextInputRequest(
-        type=HumanRequestType.TEXT_INPUT,
+        type=HumanRequestType.TEXT,
         prompt=prompt,
         placeholder=placeholder or "Enter your response...",
         multiline=multiline,
@@ -39,7 +40,7 @@ def create_project_switch_request(
     suggested_project_id: int | None = None,
     show_project_list: bool = True,
     temporary: bool = True,
-    allow_cancel: bool = True
+    allow_cancel: bool = True,
 ) -> ProjectSwitchRequest:
     """Create a human request for project switch."""
     return ProjectSwitchRequest(
@@ -60,11 +61,11 @@ def create_confirm_request(
     title: str | None = None,
     confirm_text: str = "Confirm",
     cancel_text: str = "Cancel",
-    allow_cancel: bool = True
+    allow_cancel: bool = True,
 ) -> ConfirmRequest:
     """Create a human request for confirmation."""
     return ConfirmRequest(
-        type=HumanRequestType.CONFIRM,
+        type=HumanRequestType.CONFIRMATION,
         prompt=prompt,
         title=title or "Confirmation Required",
         allow_cancel=allow_cancel,
@@ -79,7 +80,7 @@ def create_file_select_request(
     prompt: str,
     multiple: bool = False,
     file_types: list[str] | None = None,
-    allow_cancel: bool = True
+    allow_cancel: bool = True,
 ) -> FileSelectRequest:
     """Create a human request for file selection."""
     return FileSelectRequest(
@@ -94,16 +95,16 @@ def create_file_select_request(
 
 
 # =============================================================================
-# Global Mode Helpers - For tools that need a project in global mode
+# Workspace Mode Helpers - For tools that need a project in workspace mode
 # =============================================================================
 
 GLOBAL_MODE_MESSAGES = {
-    "code_search": "[Global Mode]: Code search requires a project. Please provide a project_id or switch to a project.",
-    "wiki": "[Global Mode]: Wiki requires a project.",
-    "architecture": "[Global Mode]: Architecture consultation requires a project.",
-    "file_operation": "[Global Mode]: File operations require a project.",
-    "git": "[Global Mode]: Git operations require a project.",
-    "default": "[Global Mode]: This operation requires a specific project.",
+    "code_search": "[Workspace Mode]: Code search requires a project. Please provide a project_id or switch to a project.",
+    "wiki": "[Workspace Mode]: Wiki requires a project.",
+    "architecture": "[Workspace Mode]: Architecture consultation requires a project.",
+    "file_operation": "[Workspace Mode]: File operations require a project.",
+    "git": "[Workspace Mode]: Git operations require a project.",
+    "default": "[Workspace Mode]: This operation requires a specific project.",
 }
 
 
@@ -116,7 +117,7 @@ async def resolve_project_with_hitl(
     tool_name: str,
     prompt: str | None = None,
     tool_category: str = "default",
-    temporary: bool = True
+    temporary: bool = True,
 ) -> int | None:
     """
     Resolve project ID in global mode, requesting user selection if needed.
@@ -162,7 +163,7 @@ async def resolve_project_with_hitl(
             "show_project_list": True,
             "temporary": temporary,
         },
-        allow_cancel=True
+        allow_cancel=True,
     )
 
     # This line is only reached if user cancels
@@ -170,9 +171,7 @@ async def resolve_project_with_hitl(
 
 
 async def require_project_for_tool(
-    tool_name: str,
-    tool_category: str = "default",
-    prompt: str | None = None
+    tool_name: str, tool_category: str = "default", prompt: str | None = None
 ) -> int | str:
     """
     Require a project for tool execution in global mode.
@@ -193,7 +192,7 @@ async def require_project_for_tool(
         tool_name=tool_name,
         prompt=prompt,
         tool_category=tool_category,
-        temporary=True  # Always use Scheme C (temporary) for tool calls
+        temporary=True,  # Always use Scheme C (temporary) for tool calls
     )
 
     if project_id is None:
@@ -202,10 +201,7 @@ async def require_project_for_tool(
     return project_id
 
 
-async def handle_global_mode_tool(
-    tool_name: str,
-    message: str | None = None
-) -> str:
+async def handle_global_mode_tool(tool_name: str, message: str | None = None) -> str:
     """
     Handle global mode when a tool requires a specific project.
     This will PAUSE agent execution until user switches to a project or cancels.

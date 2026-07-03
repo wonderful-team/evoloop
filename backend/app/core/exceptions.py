@@ -28,10 +28,10 @@ class AgentHumanInterruptException(BaseException):
 class GlobalModeError(Exception):
     """
     Raised when a tool/operation requires a specific project but the current
-    context is in global mode (project_id=0 or None).
+    context is in workspace mode (project_id=0 or None).
     """
 
-    def __init__(self, message: str = "This operation requires a specific project and is not available in global mode"):
+    def __init__(self, message: str = "This operation requires a specific project and is not available in workspace mode"):
         super().__init__(message)
 
 

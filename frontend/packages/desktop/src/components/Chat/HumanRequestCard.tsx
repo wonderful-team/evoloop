@@ -5,14 +5,7 @@ import {
   RadioGroupItem,
 } from "@evoloop/shared/components/ui/radio-group"
 import { Textarea } from "@evoloop/shared/components/ui/textarea"
-import {
-  Ban,
-  CheckCircle2,
-  FolderGit2,
-  MessageCircleQuestion,
-  Play,
-  XCircle,
-} from "lucide-react"
+import { Ban, CheckCircle2, FolderGit2, Play, XCircle } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { ProjectSwitcher } from "@/components/Sidebar/ProjectSwitcher"
@@ -28,8 +21,6 @@ export interface HumanRequestCardProps {
       | "choice"
       | "confirmation"
       | "approval"
-      | "text_input"
-      | "confirm"
       | "project_switch"
       | "file_select"
     prompt: string
@@ -123,7 +114,7 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
           {/* Inputs based on Type */}
           <div className="mb-2">
             {/* Text Input */}
-            {(request.type === "text" || request.type === "text_input") && (
+            {request.type === "text" && (
               <Textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -264,7 +255,6 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                 <div className="flex gap-2">
                   {/* Standard Submit for Text/Choice/File */}
                   {(request.type === "text" ||
-                    request.type === "text_input" ||
                     request.type === "choice" ||
                     request.type === "file_select") && (
                     <Button
@@ -280,7 +270,6 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
 
                   {/* Confirmation Buttons */}
                   {(request.type === "confirmation" ||
-                    request.type === "confirm" ||
                     request.type === "approval") && (
                     <>
                       <Button

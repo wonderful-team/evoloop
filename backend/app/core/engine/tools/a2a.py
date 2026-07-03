@@ -40,7 +40,8 @@ async def list_agents() -> str:
             online_agents = []
             for dev in devices_list:
                 dev_type = dev.get("device_type")
-                if dev_type and dev_type not in ("mobile", "unknown"):
+                dev_status = dev.get("status")
+                if dev_type and dev_type not in ("mobile", "unknown") and dev_status == "online":
                     online_agents.append({
                         "device_key": dev.get("device_key"),
                         "device_name": dev.get("device_name"),
@@ -155,7 +156,7 @@ async def send_agent_task(
 
     cmd_data = {
         "action": "a2a_task",
-        "payload": task_envelope.model_dump(),
+        "content": task_envelope.model_dump(),
         "thread_id": task_id,
         "project_id": project_id
     }
@@ -274,7 +275,7 @@ async def complete_task(
 
     cmd_data = {
         "action": "a2a_callback",
-        "payload": callback_payload.model_dump(),
+        "content": callback_payload.model_dump(),
         "thread_id": parent_thread_id,
         "project_id": project_id
     }

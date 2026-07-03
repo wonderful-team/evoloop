@@ -16,12 +16,10 @@ from typing import Any, Optional
 
 from langchain_core.messages import BaseMessage
 
-from app.core.config import settings
 from app.constants import DEFAULT_PROJECT_ID
+from app.core.config import settings
 from app.core.memory.config import MemoryConfig
 from app.core.memory.interfaces.short_term import IShortTermMemory
-from app.core.memory.short_term import SqlShortTermMemory
-from app.core.memory.store import MemoryStore
 from app.core.memory.models import (
     MemoryEntry,
     MemorySearchResult,
@@ -30,6 +28,8 @@ from app.core.memory.models import (
 )
 from app.core.memory.retrieval import MemoryRetriever
 from app.core.memory.schemas import CheckpointDedupResult, Concept, Episode
+from app.core.memory.short_term import SqlShortTermMemory
+from app.core.memory.store import MemoryStore
 
 logger = logging.getLogger(__name__)
 
@@ -191,7 +191,11 @@ class MemoryManager:
         project_id: int | None = DEFAULT_PROJECT_ID,
         related_files: list[str] | None = None,
         member_id: int = 0,
-    ) -> None:
+        source_message_id: str | None = None,
+        source_thread_id: str | None = None,
+        created_by_member_id: int | None = None,
+        memory_kind: str = "concept",
+    ) -> MemoryEntry:
         """
         Store a domain concept.
         """
@@ -215,9 +219,14 @@ class MemoryManager:
             description=concept_obj.description[:200],
             project_id=concept_obj.project_id,
             member_id=member_id,
+            created_by_member_id=created_by_member_id or member_id,
+            memory_kind=memory_kind,
             tags=["concept"] + concept_obj.related_files,
+            source_message_id=source_message_id,
+            source_thread_id=source_thread_id,
         )
         await self.save_memory(entry)
+        return entry
 
     async def search_concepts(self, query: str, project_id: int | None = None, limit: int = 10, member_id: int = 0) -> list[Concept]:
         """
@@ -265,10 +274,10 @@ class MemoryManager:
         project_id = episode.project_id
         goal = episode.goal
         outcome = episode.result
-        
+
         entry_id = f"ep_{source_message_id or uuid.uuid4().hex[:8]}"
         goal_short = goal[:60] + "..." if len(goal) > 60 else goal
-        
+
         entry = MemoryEntry(
             id=entry_id,
             type=MemoryType.EPISODE,
@@ -306,7 +315,7 @@ class MemoryManager:
         episodes = await self.search_episodes(goal, project_id, limit=top_k, member_id=member_id)
         if not episodes:
             return ""
-        
+
         lines = ["### Past Experiences:", ""]
         for ep in episodes:
             lines.append(f"- **Goal**: {ep['goal']}")
@@ -535,7 +544,7 @@ class MemoryManager:
             )
 
     # ========================================================================
-    # Extraction Operations  
+    # Extraction Operations
     # ========================================================================
     # NOTE: Memory extraction is handled by the event bus pipeline:
     #   AuditService → EXTRACTION_REQUESTED event → subscribers.py → save_memory()
@@ -548,11 +557,11 @@ class MemoryManager:
         Decision: Only runs when memory count exceeds threshold, or if forced.
         """
         from datetime import datetime
-        
+
         # Check threshold
         memories = await self.list_memories(limit=self.MAINTENANCE_THRESHOLD + 5)
         count = len(memories)
-        
+
         if count < self.MAINTENANCE_THRESHOLD and not force:
             logger.info(f"[MemoryManager] Skipping maintenance: current count {count} < threshold {self.MAINTENANCE_THRESHOLD}")
             return {"status": "skipped", "count": count}

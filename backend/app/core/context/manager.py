@@ -116,17 +116,17 @@ class ContextManager:
         Resolve project ID from explicit parameter or current context.
 
         This method handles the logic of determining which project ID to use,
-        with proper handling of global mode (project_id=0).
+        with proper handling of workspace mode (project_id=0).
 
         Args:
             explicit_id: Explicitly provided project_id from tool arguments
-            allow_global: If False (default), raises GlobalModeError when in global mode
-                         If True, allows returning 0 for global mode operations
-            request_temp: If True and in global mode, allows returning 0 as a signal
-                         to request a temporary project from user (for this call only)
+            allow_global: If False (default), raises GlobalModeError when in workspace mode
+                         If True, allows returning 0 for workspace mode operations
+            request_temp: If True and in workspace mode, allows returning 0 as a signal
+                          to request a temporary project from user (for this call only)
 
         Returns:
-            int: The resolved project ID to use (0 means global mode or temp project needed)
+            int: The resolved project ID to use (0 means workspace mode or temp project needed)
 
         Raises:
             GlobalModeError: If the resolved project_id is 0 or None and allow_global is False
@@ -136,15 +136,15 @@ class ContextManager:
         1. explicit_id if provided and not 0
         2. context.project_id if set and not 0
         3. If allow_global=True and any above is 0, return 0
-        4. If request_temp=True and in global mode, return 0 (caller should handle temp project)
+        4. If request_temp=True and in workspace mode, return 0 (caller should handle temp project)
         5. If allow_global=False and any above is 0/None, raise GlobalModeError
         """
-        # Priority 1: Use explicit ID if provided (including 0 for global mode override)
+        # Priority 1: Use explicit ID if provided (including 0 for workspace mode override)
         if explicit_id is not None:
             if explicit_id == 0:
                 if allow_global:
                     return 0
-                raise GlobalModeError(f"Explicit project_id={DEFAULT_PROJECT_ID} (global mode) provided, but this operation requires a specific project.")
+                raise GlobalModeError(f"Explicit project_id={DEFAULT_PROJECT_ID} (workspace mode) provided, but this operation requires a specific project.")
             return explicit_id
 
         # Priority 2: Check context
@@ -156,7 +156,7 @@ class ContextManager:
                 if allow_global:
                     return 0
                 raise GlobalModeError(
-                    "Currently in global mode. Please switch to a specific project to use this feature."
+                    "Currently in workspace mode. Please switch to a specific project to use this feature."
                 )
             return ctx_pid
 

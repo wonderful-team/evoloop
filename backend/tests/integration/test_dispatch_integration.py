@@ -231,13 +231,13 @@ async def test_dispatch_context_auto_build(mock_scope, mock_ref_service):
 
 @pytest.mark.asyncio
 async def test_dispatch_goal_prefix(mock_scope, mock_ref_service):
-    """goal_prefix should be prepended to the goal string."""
+    """goal_prefix in metadata should be prepended to the goal string."""
     from app.core.engine.dispatch import dispatch_agent_run
 
     result = await dispatch_agent_run(
         thread_id="t-123",
         message_content="Retry this",
-        goal_prefix="Retry: ",
+        metadata={"goal_prefix": "Retry: "},
     )
 
     assert result.inputs["goal"].startswith("Retry: ")

@@ -65,6 +65,8 @@ export interface Message {
   }
   changeset_count?: number
   isLastInTurn?: boolean
+  is_remembered?: boolean
+  memory_concept_id?: string | null
 
   changeset_files?: Array<{
     path: string
@@ -107,7 +109,7 @@ interface ChatMessageItemProps {
   msg: Message
   isGrouped?: boolean
   showAvatar?: boolean
-  onAddToMemory?: (text: string) => void
+  onAddToMemory?: (text: string, messageId: string | number, isRemembered?: boolean) => void
   onRewind?: (msg: Message) => void
   onRetry?: (msg: Message) => void
   onQuote?: () => void
@@ -131,6 +133,8 @@ const chatMessagePropsAreEqual = (
     prevProps.msg.isLastInTurn === nextProps.msg.isLastInTurn &&
     prevProps.msg.thinking === nextProps.msg.thinking &&
     prevProps.msg.status === nextProps.msg.status &&
+    prevProps.msg.is_remembered === nextProps.msg.is_remembered &&
+    prevProps.msg.memory_concept_id === nextProps.msg.memory_concept_id &&
     prevProps.showAvatar === nextProps.showAvatar &&
     prevProps.isGrouped === nextProps.isGrouped &&
     prevProps.isActivelyStreaming === nextProps.isActivelyStreaming
@@ -239,11 +243,15 @@ const ChatMessageItem = memo(
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 rounded hover:bg-muted text-muted-foreground/80 hover:text-foreground"
-                onClick={() => onAddToMemory(actionContent)}
-                title={t("chat.interface.memorize")}
+                className={`h-6 w-6 rounded hover:bg-muted ${
+                  msg.is_remembered
+                    ? "text-primary fill-primary"
+                    : "text-muted-foreground/80 hover:text-foreground"
+                }`}
+                onClick={() => onAddToMemory(actionContent, msg.id, msg.is_remembered)}
+                title={msg.is_remembered ? t("chat.interface.forget") : t("chat.interface.memorize")}
               >
-                <Brain className="h-3 w-3" />
+                <Brain className={`h-3 w-3 ${msg.is_remembered ? "fill-current" : ""}`} />
               </Button>
             )}
             {/* Rewind */}
@@ -410,11 +418,15 @@ const ChatMessageItem = memo(
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 rounded hover:bg-muted/60 hover:text-foreground text-muted-foreground/70 transition-colors"
-                  onClick={() => onAddToMemory(actionContent)}
-                  title={t("chat.interface.memorize")}
+                  className={`h-6 w-6 rounded hover:bg-muted/60 ${
+                    msg.is_remembered
+                      ? "text-primary fill-primary"
+                      : "text-muted-foreground/70 hover:text-foreground"
+                  }`}
+                  onClick={() => onAddToMemory(actionContent, msg.id, msg.is_remembered)}
+                  title={msg.is_remembered ? t("chat.interface.forget") : t("chat.interface.memorize")}
                 >
-                  <Brain className="h-3 w-3" />
+                  <Brain className={`h-3 w-3 ${msg.is_remembered ? "fill-current" : ""}`} />
                 </Button>
               )}
             </div>

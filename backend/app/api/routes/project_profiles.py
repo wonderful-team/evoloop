@@ -111,8 +111,8 @@ async def discover_profile(
         thread_id=thread_id,
         message_content=message,
         project_id=project_id,
-        goal_prefix="[Project Discovery] ",
         skip_message_persistence=True,
+        metadata={"goal_prefix": "[Project Discovery] "},
     )
 
     if result.status == "failed":

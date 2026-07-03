@@ -5,8 +5,13 @@ Engine Event Package
 Public exports for engine-level event types, schemas, and publishers.
 """
 
-from .schemas import AgentEvent, AgentRunCompletedEvent, ConversationDeletedEvent, WebSocketCommandEvent, WebSocketMessageReceivedEvent
-from .types import AgentEventType, ConversationEventType, WebSocketEventType
+from .schemas import (
+    AgentEvent,
+    AgentRunCompletedEvent,
+    ConversationDeletedEvent,
+    WebSocketMessageReceivedEvent,
+)
+from .types import AgentEventType, ConversationEventType
 
 __all__ = [
     "AgentEvent",
@@ -14,7 +19,5 @@ __all__ = [
     "AgentRunCompletedEvent",
     "ConversationDeletedEvent",
     "ConversationEventType",
-    "WebSocketCommandEvent",
-    "WebSocketEventType",
     "WebSocketMessageReceivedEvent",
 ]

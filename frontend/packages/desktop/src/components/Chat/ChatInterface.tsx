@@ -1,14 +1,5 @@
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@evoloop/shared/components/ui/dialog"
-import { Input } from "@evoloop/shared/components/ui/input"
-import { Label } from "@evoloop/shared/components/ui/label"
-import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
@@ -78,6 +69,8 @@ export function ChatInterface() {
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(
     null,
   )
+
+  const [rememberingMessageId, setRememberingMessageId] = useState<string | number | null>(null)
 
   const chatInputRef = useRef<ChatInputAreaHandle | null>(null)
 
@@ -431,29 +424,62 @@ export function ChatInterface() {
   // --- Side Effect Mutations (Keep here or move to store if generic) ---
   // These are specific to message item actions
 
-  // Memory Dialog State
-  const [isMemoryDialogOpen, setIsMemoryDialogOpen] = useState(false)
-  const [memoryContent, setMemoryContent] = useState("")
-  const [memoryName, setMemoryName] = useState("")
-
   const addToMemoryMutation = useMutation({
-    mutationFn: async ({ text, name }: { text: string; name: string }) => {
+    mutationFn: async ({
+      text,
+      messageId,
+      isRemembered,
+    }: {
+      text: string
+      messageId: string | number
+      isRemembered?: boolean
+    }) => {
       if (projectId === undefined || projectId === null)
         throw new Error("No project")
       return MemoryService.addConcept({
         projectId,
         requestBody: {
-          name: name || t("chat.interface.learnedFromChat"),
+          name: text,
           description: text,
           related_files: [],
+          source_message_id: messageId.toString(),
+          source_thread_id: activeThreadId || undefined,
+          memory_kind: "concept",
         },
       })
+    },
+    onMutate: async ({ messageId, isRemembered }) => {
+      await queryClient.cancelQueries({ queryKey: ["messages", activeThreadId] })
+      const previousMessages = queryClient.getQueryData<any[]>([
+        "messages",
+        activeThreadId,
+      ])
+      queryClient.setQueryData<any[]>(["messages", activeThreadId], (old) => {
+        if (!old) return old
+        return old.map((m) =>
+          m.id === messageId || m.id.toString() === messageId.toString()
+            ? { ...m, is_remembered: !isRemembered }
+            : m,
+        )
+      })
+      return { previousMessages }
+    },
+    onError: (_err, { messageId, isRemembered }, context) => {
+      if (context?.previousMessages) {
+        queryClient.setQueryData(
+          ["messages", activeThreadId],
+          context.previousMessages,
+        )
+      }
+      toast.error(t("chat.interface.addMemoryError"))
     },
     onSuccess: () => {
       toast.success(t("chat.interface.addMemorySuccess"))
       queryClient.invalidateQueries({ queryKey: ["projectMemory"] })
-      setIsMemoryDialogOpen(false)
-      setMemoryName("")
+    },
+    onSettled: (_data, _err, { messageId }) => {
+      setRememberingMessageId((prev) => (prev === messageId ? null : prev))
+      queryClient.invalidateQueries({ queryKey: ["messages", activeThreadId] })
     },
   })
 
@@ -528,10 +554,14 @@ export function ChatInterface() {
     useUIStore.getState().setPreviewDiff({ path, diff })
   }, [])
 
-  const handleAddToMemory = useCallback((txt: string) => {
-    setMemoryContent(txt)
-    setIsMemoryDialogOpen(true)
-  }, [])
+  const handleAddToMemory = useCallback(
+    (txt: string, messageId: string | number, isRemembered?: boolean) => {
+      if (rememberingMessageId === messageId) return
+      setRememberingMessageId(messageId)
+      addToMemoryMutation.mutate({ text: txt, messageId, isRemembered })
+    },
+    [addToMemoryMutation, rememberingMessageId],
+  )
 
   const handleRewind = useCallback(
     (msg: any) => {
@@ -798,57 +828,7 @@ export function ChatInterface() {
         </Sheet>
       )}
 
-      {/* Memory Dialog */}
-      <Dialog open={isMemoryDialogOpen} onOpenChange={setIsMemoryDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>{t("chat.interface.memorizeConfirm")}</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
-                {t("chat.interface.conceptName")}
-              </Label>
-              <Input
-                id="name"
-                value={memoryName}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setMemoryName(e.target.value)
-                }
-                placeholder={t("chat.interface.conceptPlaceholder")}
-                className="col-span-3"
-                autoFocus
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">
-                {t("chat.interface.contentLabel")}
-              </Label>
-              <div className="col-span-3 text-xs text-muted-foreground line-clamp-3 bg-muted p-2 rounded">
-                {memoryContent}
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsMemoryDialogOpen(false)}
-            >
-              {t("chat.interface.cancel")}
-            </Button>
-            <Button
-              onClick={() =>
-                addToMemoryMutation.mutate({
-                  text: memoryContent,
-                  name: memoryName,
-                })
-              }
-            >
-              {t("chat.interface.save")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Memory Dialog removed: remember is now a one-click toggle on the message */}
       {/* Rewind Confirmation Dialog */}
       <RewindConfirmDialog
         open={isRewindDialogOpen}

@@ -170,12 +170,12 @@
       "addMemory": {
         "desc": "描述",
         "name": "名称",
-        "success": "记忆添加成功",
-        "title": "添加记忆"
+        "success": "已记住",
+        "title": "记住"
       },
       "allMemoriesDesc": "本项目所有已学习的概念和规则。",
-      "globalDesc": "您正在进行跨项目对话。代码上下文和文件操作在此模式下不可用。",
-      "globalTitle": "全局模式",
+      "globalDesc": "您正在进行跨项目对话。代码上下文和文件操作在工作空间模式下可能受限。",
+      "globalTitle": "工作空间",
       "groupContext": "上下文",
       "memoryTitle": "项目记忆",
       "noConcepts": "未找到记忆概念。",
@@ -208,7 +208,7 @@
       "waiting": "Agent 正在等待您的输入..."
     },
     "interface": {
-      "addMemorySuccess": "已添加到记忆",
+      "addMemorySuccess": "已记住",
       "askGlobal": "询问任何问题...",
       "askProject": "询问 {{project}}...",
       "cancel": "取消",
@@ -618,7 +618,7 @@
     "noPopularDocs": "暂无热门文档",
     "noPopularDocsHint": "使用知识库后，这里会显示最常用的文档",
     "noProjectDocs": "暂无项目文档",
-    "noProjectDocsHint": "此项目尚未关联任何文档。您可以在全局知识库中上传并分类。",
+    "noProjectDocsHint": "此项目尚未关联任何文档。您可以在工作空间知识库中上传并分类。",
     "noSearchResults": "无搜索结果",
     "noSearchResultsHint": "尝试不同的关键词",
     "noTags": "暂无标签",
@@ -725,7 +725,7 @@
     "expertStrategicGuide": "专家战略指南 (Markdown SOP)",
     "finalizingRecording": "正在完成录制...",
     "framesAnalyzed": "已分析帧数",
-    "globalMode": "系统监控已激活 (全局)",
+    "globalMode": "系统监控已激活 (工作空间)",
     "history": "历史记录",
     "import": {
       "button": "开始导入",
@@ -1056,7 +1056,7 @@
     "description": "选择要切换的项目或管理您的项目。",
     "desktopSearchPlaceholder": "按名称或描述搜索项目...",
     "disconnected": "已断开连接",
-    "global": "全局",
+    "global": "工作空间",
     "globalDesc": "跨项目对话和一般性问答",
     "indexFailed": "索引失败",
     "indexPending": "待索引",
@@ -1435,7 +1435,7 @@
       "browse": "浏览",
       "browseError": "打开目录选择器失败",
       "webBrowseHint": "文件夹选择器仅在桌面客户端中可用。如果在Web环境，请手动输入绝对路径。",
-      "description": "配置全局系统偏好设置和路径。",
+      "description": "配置工作空间系统偏好设置和路径。",
       "deviceName": "设备名称",
       "deviceNameDesc": "此名称用于在 EvoLoop 网络中标识此设备。",
       "deviceNamePlaceholder": "Device Name Placeholder",

@@ -64,6 +64,7 @@ async def get_pending_hitl_call(graph, config: dict) -> dict | None:
                     t_name = original.get("name") or last_hitl.tool_name
                     t_call_id = last_hitl.tool_call_id or last_hitl.id
                     t_args = original.get("args") or {}
+                    request_id = last_hitl.meta_data.get("hitl_request_id")
                     if t_name and t_call_id:
                         logger.info(
                             f"[HITL] Located pending authorization request for "
@@ -73,6 +74,7 @@ async def get_pending_hitl_call(graph, config: dict) -> dict | None:
                             "id": t_call_id,
                             "name": t_name,
                             "args": t_args,
+                            "request_id": request_id,
                         }
     except Exception as e:
         logger.warning(f"Failed message fallback for pending HITL call: {e}")
@@ -94,7 +96,7 @@ def normalize_hitl_input(_tool_name: str, user_input: str | None) -> str:
     # where the original blocked tool name is not a standard HITL tool).
     if lower_input in ("yes", "approve", "approved", "confirm", "ok", "y"):
         return "APPROVED"
-    if lower_input in ("no", "reject", "rejected", "cancel", "deny", "n"):
+    if lower_input in ("no", "reject", "rejected", "cancel", "cancelled", "deny", "n"):
         return "REJECTED"
 
     return user_input
@@ -112,7 +114,9 @@ async def close_hitl_interaction(
         if success:
             logger.debug(f"HITL interaction {tool_call_id} closed as {status}")
         else:
-            logger.warning(f"Failed to find HITL message for tool_call_id: {tool_call_id}")
+            logger.warning(
+                f"Failed to find HITL message for tool_call_id: {tool_call_id}"
+            )
     except Exception as e:
         logger.error(f"Error closing HITL interaction: {e}")
 
@@ -133,15 +137,36 @@ class HITLOrchestrator:
     async def handle_resume(
         thread_id: str, tool_call: dict, user_input: str | None
     ) -> str:
-        """Processes resume logic: normalization and DB closure."""
+        """Processes resume logic: normalization, DB closure, activity cleanup, and human_requests closure."""
+        from app.core.hitl.core import complete_request
+        from app.core.monitoring.activity import activity_monitor
+
         normalized = normalize_hitl_input(tool_call["name"], user_input)
         await close_hitl_interaction(thread_id, tool_call["id"], "completed")
+        await activity_monitor.clear_human_request(thread_id)
+        request_id = tool_call.get("request_id")
+        if request_id:
+            try:
+                await complete_request(request_id, normalized)
+            except Exception as e:
+                logger.warning(f"[HITL] complete_request failed for {request_id}: {e}")
         return normalized
 
     @staticmethod
-    async def handle_cancel(thread_id: str, tool_call: dict) -> None:
-        """Processes cancellation logic: DB closure."""
+    async def handle_cancel(thread_id: str, tool_call: dict) -> str:
+        """Processes cancellation logic: DB closure, activity cleanup, and human_requests closure."""
+        from app.core.hitl.core import cancel_request
+        from app.core.monitoring.activity import activity_monitor
+
         await close_hitl_interaction(thread_id, tool_call["id"], "cancelled")
+        await activity_monitor.clear_human_request(thread_id)
+        request_id = tool_call.get("request_id")
+        if request_id:
+            try:
+                await cancel_request(request_id)
+            except Exception as e:
+                logger.warning(f"[HITL] cancel_request failed for {request_id}: {e}")
+        return "CANCELLED"
 
     @staticmethod
     async def request_authorization(
@@ -176,7 +201,7 @@ class HITLOrchestrator:
             f"common.risk_levels.{risk_level}", default=risk_level.upper()
         )
 
-        context = f"""{risk_emoji.get(risk_level, '⚪')} {i18n.get("common.risk_levels.label", level=localized_risk)}
+        context = f"""{risk_emoji.get(risk_level, "⚪")} {i18n.get("common.risk_levels.label", level=localized_risk)}
 
 {i18n.get("domain_tools.human_input.authorization.resource", path=resource_path)}
 {i18n.get("domain_tools.human_input.authorization.action", action=action_description)}
