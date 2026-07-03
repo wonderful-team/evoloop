@@ -24,6 +24,7 @@ export function useChatDeviceSync({
   const saveDeviceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastProcessedDeviceRef = useRef<string | undefined>(undefined);
   const setCurrentConversation = useConversationStore((state) => state.setCurrentConversation);
+  const setActiveDeviceKey = useConversationStore((state) => state.setActiveDeviceKey);
 
   // 从 AsyncStorage 加载设备-对话映射
   useEffect(() => {
@@ -66,11 +67,16 @@ export function useChatDeviceSync({
     if (!isLoggedIn || !selectedDeviceKey) {
       if (!selectedDeviceKey) {
         lastProcessedDeviceRef.current = undefined;
+        // 清除统一设备来源
+        setActiveDeviceKey(undefined);
       }
       return;
     }
 
     const run = async () => {
+      // 统一设备来源：立即把当前选中设备同步为 activeDeviceKey
+      setActiveDeviceKey(selectedDeviceKey);
+
       lastProcessedDeviceRef.current = selectedDeviceKey;
       
       // 立即重置当前会话，避免加载过程中看到上一个项目/设备的消息
@@ -103,7 +109,7 @@ export function useChatDeviceSync({
 
     run();
     // 依赖项中移除 deviceConversationMap，避免保存操作触发回流；增加 projectId 确保切换项目时也同步
-  }, [isLoggedIn, selectedDeviceKey, projectId, setCurrentConversation, setGlobalMode, loadConversations]);
+  }, [isLoggedIn, selectedDeviceKey, projectId, setCurrentConversation, setGlobalMode, loadConversations, setActiveDeviceKey]);
 
   return { deviceConversationMap, saveDeviceConversation };
 }

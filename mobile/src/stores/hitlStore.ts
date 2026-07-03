@@ -155,6 +155,8 @@ export const useHITLStore = create<HITLStore>((set, get) => ({
       choice: 0,
       confirmation: 0,
       approval: 0,
+      project_switch: 0,
+      file_select: 0,
     };
     requestHistory.forEach((req) => {
       typeDistribution[req.type]++;

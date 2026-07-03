@@ -1,11 +1,18 @@
 // HITL (Human-in-the-Loop) 类型定义
 
-export type HumanRequestType = 'text' | 'choice' | 'confirmation' | 'approval';
+export type HumanRequestType =
+  | 'text'
+  | 'choice'
+  | 'confirmation'
+  | 'approval'
+  | 'project_switch'
+  | 'file_select';
 
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 
 export interface HumanRequest {
   id: string;
+  threadId: string;
   type: HumanRequestType;
   prompt: string;
   options?: string[];

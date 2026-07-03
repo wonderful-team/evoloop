@@ -51,7 +51,7 @@ export interface ChatMessage {
   has_file_operations?: boolean;
   steps?: any[];
   /** 消息状态，对齐后端原始值 */
-  status?: 'pending' | 'running' | 'streaming' | 'completed' | 'failed' | 'waiting_human';
+  status?: 'pending' | 'sending' | 'running' | 'streaming' | 'completed' | 'failed' | 'timeout' | 'awaiting_delivered' | 'waiting_human';
 
   // === 对齐 Python MessageBlock 的扩展字段 ===
   /** AI 思考过程 (extended thinking) */
@@ -117,6 +117,14 @@ export interface RetryResponse {
 // 添加到记忆请求
 export interface AddMemoryRequest {
   name: string;
+  description: string;
+  related_files?: string[];
+  source_message_id?: string;
+  source_thread_id?: string;
+}
+
+// 更新记忆请求
+export interface UpdateMemoryRequest {
   description: string;
   related_files?: string[];
 }

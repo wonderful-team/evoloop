@@ -1,167 +1,34 @@
-// Gateway WebSocket 消息类型定义
+// Gateway WebSocket 消息类型定义（协议层控制消息，与业务 Envelope 无关）
+// 业务消息统一使用规范 Envelope 格式（见 canonical.ts）
 
 export enum GatewayMessageType {
-  // 连接管理
-  AUTH = 'auth',
-  AUTH_RESULT = 'auth_result',
+  // 连接管理（WS 握手 query token 已完成认证，此处发送 connect 元数据）
+  CONNECT = 'connect',
   PING = 'ping',
-  PONG = 'pong',
 
-  // ASR 相关
+  // ASR 相关（私有协议，暂不改造）
   ASR_START = 'asr_start',
   ASR_STOP = 'asr_stop',
   ASR_CHUNK = 'asr_chunk',
-  ASR_RESULT = 'asr_result',
-  ASR_ERROR = 'asr_error',
 
-  // LLM 对话
-  CHAT_START = 'chat_start',
+  // LLM 对话（仅用于 ASR/语音会话，不经过规范 Envelope）
   CHAT_MESSAGE = 'chat_message',
-  CHAT_STREAM = 'chat_stream',
-  CHAT_DONE = 'chat_done',
   CHAT_INTERRUPT = 'chat_interrupt',
 
-  // 指令生成
-  COMMAND_BUILD = 'command_build',
-  COMMAND_READY = 'command_ready',
-  COMMAND_CONFIRM = 'command_confirm',
-  COMMAND_SEND = 'command_send',
-
-  // Desktop 指令通道
-  DEVICE_COMMAND = 'device_command',
-  DEVICE_RESPONSE = 'device_response',
-
-  // 历史留存
-  HISTORY_SYNC = 'history_sync',
-
-  // 状态广播
-  STATUS_UPDATE = 'status_update',
-
-  // 设备状态更新（Gateway → Mobile）
-  DEVICE_STATUS_UPDATE = 'device_status_update',
-
-  // 消息同步（Agent → Gateway → Mobile 统一协议）
+  // 旧协议消息（用于 event listener 兼容，参见 useChatGateway）
   MESSAGE_SYNC = 'message_sync',
   MESSAGES_DELETED = 'messages_deleted',
   THREAD_REWIND = 'thread_rewind',
-
-
-  // HITL (Human-in-the-Loop)
-  HUMAN_REQUEST = 'human_request',
-  HUMAN_RESPONSE = 'human_response',
-  HUMAN_TIMEOUT = 'human_timeout',
-  HUMAN_CANCEL = 'human_cancel',
-
-  // Agent 运行状态
   AGENT_RUN_COMPLETED = 'agent_run_completed',
+  DEVICE_STATUS_UPDATE = 'device_status_update',
 }
 
-// 基础消息接口
+// 基础消息接口（仅用于协议层：connect/ping/ASR，业务消息使用 CanonicalEnvelope）
 export interface GatewayMessage {
-  type: GatewayMessageType | string;
-  payload?: any;
+  type: string;
+  data?: any;
   timestamp?: number;
   requestId?: string;
-}
-
-// 认证消息
-export interface AuthMessage extends GatewayMessage {
-  type: GatewayMessageType.AUTH;
-  payload: {
-    token: string;
-    deviceKey?: string;
-  };
-}
-
-// 认证结果
-export interface AuthResultMessage extends GatewayMessage {
-  type: GatewayMessageType.AUTH_RESULT;
-  payload: {
-    success: boolean;
-    error?: string;
-  };
-}
-
-// ASR 开始
-export interface ASRStartMessage extends GatewayMessage {
-  type: GatewayMessageType.ASR_START;
-  payload: {
-    sessionId: string;
-    config?: {
-      sampleRate?: number;
-      language?: string;
-    };
-  };
-}
-
-// ASR 音频数据块
-export interface ASRChunkMessage extends GatewayMessage {
-  type: GatewayMessageType.ASR_CHUNK;
-  payload: {
-    sessionId: string;
-    audioData: ArrayBuffer | string; // base64
-    isFinal: boolean;
-  };
-}
-
-// ASR 结果
-export interface ASRResultMessage extends GatewayMessage {
-  type: GatewayMessageType.ASR_RESULT;
-  payload: {
-    sessionId: string;
-    text: string;
-    isFinal: boolean;
-    confidence: number;
-  };
-}
-
-// 聊天消息
-export interface ChatMessage extends GatewayMessage {
-  type: GatewayMessageType.CHAT_MESSAGE;
-  payload: {
-    sessionId: string;
-    message: string;
-    context?: any;
-  };
-}
-
-// 聊天流式响应
-export interface ChatStreamMessage extends GatewayMessage {
-  type: GatewayMessageType.CHAT_STREAM;
-  payload: {
-    sessionId: string;
-    chunk: string;
-    isDone: boolean;
-  };
-}
-
-// 指令就绪
-export interface CommandReadyMessage extends GatewayMessage {
-  type: GatewayMessageType.COMMAND_READY;
-  payload: {
-    sessionId: string;
-    command: {
-      type: string;
-      target?: string;
-      description: string;
-      parameters?: Record<string, any>;
-    };
-    preview: string;
-  };
-}
-
-// 设备指令
-export interface DeviceCommandMessage extends GatewayMessage {
-  type: GatewayMessageType.DEVICE_COMMAND;
-  payload: {
-    deviceKey: string;
-    command: {
-      type: string;
-      params: any;
-    };
-    source: 'voice_chat';
-    sessionId: string;
-  };
 }
 
 // 连接状态
@@ -173,64 +40,6 @@ export enum ConnectionState {
   ERROR = 'error',
 }
 
-// HITL 请求消息
-export interface HumanRequestMessage extends GatewayMessage {
-  type: GatewayMessageType.HUMAN_REQUEST;
-  payload: {
-    sessionId: string;
-    request: {
-      id: string;
-      type: 'text' | 'choice' | 'confirmation' | 'approval';
-      prompt: string;
-      options?: string[];
-      default_value?: string;
-      context?: any;
-      timeout?: number;
-    };
-  };
-}
-
-// HITL 响应消息
-export interface HumanResponseMessage extends GatewayMessage {
-  type: GatewayMessageType.HUMAN_RESPONSE;
-  payload: {
-    sessionId: string;
-    requestId: string;
-    value: string;
-  };
-}
-
-// HITL 超时消息
-export interface HumanTimeoutMessage extends GatewayMessage {
-  type: GatewayMessageType.HUMAN_TIMEOUT;
-  payload: {
-    sessionId: string;
-    requestId: string;
-  };
-}
-
-// HITL 取消消息
-export interface HumanCancelMessage extends GatewayMessage {
-  type: GatewayMessageType.HUMAN_CANCEL;
-  payload: {
-    sessionId: string;
-    requestId: string;
-    reason?: string;
-  };
-}
-
-// 设备状态更新消息
-export interface DeviceStatusUpdateMessage extends GatewayMessage {
-  type: GatewayMessageType.DEVICE_STATUS_UPDATE;
-  payload: {
-    device_key: string;
-    status: 'online' | 'offline' | 'busy';
-    client_id?: string;
-    device_name?: string;
-  };
-}
-
 // 事件处理器类型
 export type MessageHandler = (message: GatewayMessage) => void;
 export type ConnectionHandler = (state: ConnectionState) => void;
-export type HITLRequestHandler = (request: HumanRequestMessage['payload']['request']) => void;

@@ -5,7 +5,7 @@ import { View, StyleSheet, Animated } from 'react-native';
 
 interface WoodenRobotProps {
   primaryColor?: string;
-  mood?: 'neutral' | 'speaking';
+  mood?: 'neutral' | 'thinking' | 'speaking';
 }
 
 export function WoodenRobot({ primaryColor = '#109C8F', mood = 'neutral' }: WoodenRobotProps) {

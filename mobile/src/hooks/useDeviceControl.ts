@@ -4,7 +4,6 @@
 import { useCallback, useRef, useState } from 'react';
 import i18n from '@/locales';
 import { useAuthStore } from '@/stores/authStore';
-import { useDeviceStore } from '@/stores/deviceStore';
 import { useConversationStore } from '@/stores/conversationStore';
 
 import { api } from '@/services/api/client';
@@ -56,6 +55,7 @@ export interface QuotaExhaustedInfo {
 
 export interface PendingCommand {
   id: string;
+  threadId?: string;
   deviceKey: string;
   deviceName: string;
   action: string;
@@ -65,11 +65,10 @@ export interface PendingCommand {
 
 export interface UseDeviceControlOptions {
   onError?: (error: Error) => void;
-  onCommandReady?: (command: PendingCommand) => void;
-  onHITLRequest?: (request: HumanRequest) => void;
   onMessageSent?: (result: {
     commandId: number;
     threadId: string;
+    messageId?: string;
     aiMessage?: string;
     mode: 'desktop' | 'direct_llm';
   }) => void;
@@ -79,11 +78,15 @@ export interface SendMessageOptions {
   conversationId?: string;
   deviceKey?: string;
   references?: any[];
-  clientMessageId?: string;
+  projectId?: number;
+  messageId?: string;
+  stream?: boolean;
   // 流式回调（仅链路二 / 直连 LLM 生效）
   onStreamStart?: () => void;
   onStreamChunk?: (chunk: string, fullText: string) => void;
   onStreamDone?: (fullText: string) => void;
+  // Gateway 扩展元数据回调（链路二 SSE 末尾返回 message_id / thread_id）
+  onGatewayMetadata?: (meta: { message_id: string; thread_id: string }) => void;
 }
 
 export interface UseDeviceControlReturn {
@@ -118,7 +121,7 @@ export interface UseDeviceControlReturn {
  * - 链路二（直连 LLM）: Mobile → Gateway → LLM → MC
  */
 export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDeviceControlReturn {
-  const { onError, onCommandReady, onHITLRequest, onMessageSent } = options;
+  const { onError, onMessageSent } = options;
   const { token } = useAuthStore();
 
   const [state, setState] = useState<DeviceControlState>('idle');
@@ -130,11 +133,11 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
   const abortControllerRef = useRef<AbortController | null>(null);
 
   /**
-   * 链路一：发送消息到 Desktop（通过 Gateway 转发）
+   * 链路一：发送消息到指定设备（通过 Gateway 转发）
    */
-  const sendToDesktop = useCallback(async (
+  const sendToDevice = useCallback(async (
     content: MessageContent,
-    options?: { conversationId?: string; deviceKey?: string; references?: any[]; clientMessageId?: string }
+    options?: { conversationId?: string; deviceKey?: string; references?: any[]; projectId?: number }
   ) => {
     if (!token || !options?.deviceKey) {
       throw new Error(i18n.t('deviceControl.notSelectedDevice'));
@@ -170,15 +173,11 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
       messageContent.references = options.references;
     }
 
-    // 附带移动端本地乐观生成的 UUID
-    if (options?.clientMessageId) {
-      messageContent.client_message_id = options.clientMessageId;
-    }
-
     const data = await api.post('/gateway/api/v1/command/send', {
       device_key: options.deviceKey,
       command_type: 'chat',
       thread_id: options.conversationId,
+      project_id: options.projectId,
       content: messageContent,
     }, { signal: abortControllerRef.current?.signal });
 
@@ -208,6 +207,7 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
     onMessageSent?.({
       commandId: data.command_id || 0,
       threadId: data.data?.thread_id || options?.conversationId || '',
+      messageId: data.data?.message_id,
       mode: 'desktop',
     });
   }, [token, onMessageSent]);
@@ -244,29 +244,64 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
         break;
     }
 
-    // 构建多轮对话消息上下文（映射为标准 OpenAI/Anthropic 角色：user/assistant）
+    // 构建多轮对话消息上下文（内部角色为 human/ai；OpenAI API 需要 user/assistant）
     const contextMessages = useConversationStore.getState().messages
       .filter(m => m.role === 'human' || m.role === 'ai')
-      .map(m => ({ 
-        role: m.role === 'human' ? 'user' : 'assistant', 
-        content: m.content 
+      .map(m => ({
+        role: m.role === 'human' ? 'user' : 'assistant',
+        content: m.content
       }));
     contextMessages.push({ role: 'user', content: userContent });
+
+    // 非流式 Direct-LLM 路径：直接走 api.post 读取 metadata.message_id
+    if (!options?.stream) {
+      const threadId = options?.conversationId || generateUUID();
+      const data = await api.post('/gateway/v1/chat/completions', {
+        model: '',
+        messages: contextMessages,
+        stream: false,
+        temperature: 1,
+      }, {
+        headers: {
+          'X-Thread-ID': threadId,
+          'X-Device-Key': options?.deviceKey || '0',
+        },
+      });
+
+      const aiMessage = data?.choices?.[0]?.message?.content || '';
+      const messageId = data?.metadata?.message_id;
+      const responseThreadId = data?.metadata?.thread_id || threadId;
+
+      onMessageSent?.({
+        commandId: 0,
+        threadId: responseThreadId,
+        messageId,
+        aiMessage,
+        mode: 'direct_llm',
+      });
+      return;
+    }
 
     // SSE 流式请求
     let fullText = '';
     options?.onStreamStart?.();
 
+    // device-less 直连 LLM：本地生成 thread_id，Gateway 会原样返回
+    const threadId = options?.conversationId || generateUUID();
+
     await api.fetchSSE('/gateway/v1/chat/completions', {
       model: '',
       messages: contextMessages,
       stream: true,
-      temperature: 0.7,
+      temperature: 1,
     }, {
       onChunk: (chunk) => {
         fullText += chunk;
         console.log('[useDeviceControl] onChunk:', chunk, 'fullText length:', fullText.length);
         options?.onStreamChunk?.(chunk, fullText);
+      },
+      onMetadata: (meta) => {
+        options?.onGatewayMetadata?.(meta);
       },
       onDone: () => {
         options?.onStreamDone?.(fullText);
@@ -274,7 +309,8 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
         // 只传递 threadId（用于新会话时设置 currentConversationId）
         onMessageSent?.({
           commandId: 0,
-          threadId: options?.conversationId || '',
+          threadId: options?.conversationId || threadId,
+          messageId: options?.messageId,
           mode: 'direct_llm',
         });
       },
@@ -295,7 +331,7 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
       },
       signal: abortControllerRef.current?.signal,
       headers: {
-        'X-Thread-ID': options?.conversationId || '',
+        'X-Thread-ID': threadId,
         'X-Device-Key': options?.deviceKey || '0',
       },
     });
@@ -324,10 +360,10 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
 
     try {
       // 根据 deviceKey 选择链路
-      // - 有 deviceKey 且不为空：链路一（Desktop）
+      // - 有 deviceKey 且不为空：链路一（指定设备，Gateway 转发）
       // - 无 deviceKey 或为空：链路二（直连 LLM，支持 SSE 流式）
       if (options?.deviceKey && options.deviceKey.trim() !== '') {
-        await sendToDesktop(content, options);
+        await sendToDevice(content, options);
       } else {
         await sendDirectLLM(content, options);
       }
@@ -346,17 +382,25 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
       setState('error');
       throw error;
     }
-  }, [token, sendToDesktop, sendDirectLLM]);
+  }, [token, sendToDevice, sendDirectLLM, onError]);
 
   // 确认执行指令 - 通过 HTTP
   const confirmCommand = useCallback(async (confirmed: boolean) => {
     if (!pendingCommand || !token) return;
 
+    const activeDeviceKey = useConversationStore.getState().activeDeviceKey;
+    if (!activeDeviceKey) {
+      onError?.(new Error(i18n.t('deviceControl.notSelectedDevice')));
+      return;
+    }
+
     try {
-      await api.post('/gateway/api/v1/hitl/confirm', {
-        device_key: pendingCommand.deviceKey,
+      await api.post('/gateway/api/v1/hitl/respond', {
+        device_key: activeDeviceKey,
         request_id: pendingCommand.id,
-        response: confirmed ? 'confirm' : 'cancel',
+        thread_id: pendingCommand.threadId,
+        action: 'confirm',
+        value: confirmed ? 'APPROVED' : 'REJECTED',
       });
 
       setPendingCommand(null);
@@ -366,58 +410,51 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
   }, [pendingCommand, token, onError]);
 
   // 响应 HITL 请求 - 通过 HTTP
-  // 响应 HITL 请求 - 通过 HTTP
   const respondToHITL = useCallback(async (value: string) => {
     if (!hitlRequest || !token) return;
 
-    const deviceKey = useDeviceStore.getState().currentDevice?.deviceKey;
-    if (!deviceKey) {
+    const activeDeviceKey = useConversationStore.getState().activeDeviceKey;
+    if (!activeDeviceKey) {
       onError?.(new Error(i18n.t('deviceControl.notSelectedDevice')));
       return;
     }
 
+    const action: 'confirm' | 'choice' | 'text' =
+      hitlRequest.type === 'choice' ? 'choice'
+      : hitlRequest.type === 'approval' || hitlRequest.type === 'confirmation' ? 'confirm'
+      : 'text';
+
     try {
-      // 根据不同的请求类型调用不同的后端接口
-      if (hitlRequest.type === 'choice') {
-        await api.post('/gateway/api/v1/hitl/choice', {
-          device_key: deviceKey,
-          request_id: hitlRequest.id,
-          choice_id: value,
-        });
-      } else if (hitlRequest.type === 'approval' || hitlRequest.type === 'confirmation') {
-        await api.post('/gateway/api/v1/hitl/confirm', {
-          device_key: deviceKey,
-          request_id: hitlRequest.id,
-          response: value === 'APPROVED' || value === 'yes' ? 'confirm' : 'cancel',
-        });
-      } else {
-        // 默认为 text 类型
-        await api.post('/gateway/api/v1/hitl/text', {
-          device_key: deviceKey,
-          request_id: hitlRequest.id,
-          text: value,
-        });
-      }
+      await api.post('/gateway/api/v1/hitl/respond', {
+        device_key: activeDeviceKey,
+        request_id: hitlRequest.id,
+        thread_id: hitlRequest.threadId,
+        action,
+        value,
+      });
 
       setHitlRequest(null);
     } catch (error: any) {
       onError?.(error);
     }
-  }, [hitlRequest, token, onError]);
-
-
+  }, [hitlRequest, token, onError, setHitlRequest]);
 
   // 取消 HITL 请求 - 通过 HTTP
   const cancelHITL = useCallback(async (reason?: string) => {
     if (!hitlRequest || !token) return;
 
-    const deviceKey = useDeviceStore.getState().currentDevice?.deviceKey;
+    const activeDeviceKey = useConversationStore.getState().activeDeviceKey;
+    if (!activeDeviceKey) {
+      console.warn('[DeviceControl] cancelHITL: no active device key, skipping');
+      setHitlRequest(null);
+      return;
+    }
 
     try {
-      await api.post('/gateway/api/v1/hitl/confirm', {
-        device_key: deviceKey,
+      await api.post('/gateway/api/v1/hitl/cancel', {
+        device_key: activeDeviceKey,
         request_id: hitlRequest.id,
-        response: 'cancel',
+        thread_id: hitlRequest.threadId,
         reason: reason || i18n.t('deviceControl.hitlCancelReason'),
       });
 
@@ -425,7 +462,7 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
     } catch (error: any) {
       onError?.(error);
     }
-  }, [hitlRequest, token, onError]);
+  }, [hitlRequest, token, onError, setHitlRequest]);
 
 
   // 清除配额耗尽状态

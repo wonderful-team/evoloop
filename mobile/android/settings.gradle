@@ -1,5 +1,5 @@
 pluginManagement {
-    includeBuild("/Users/xujin/Projects/develop-assistant.cn/evoloop/mobile/node_modules/@react-native/gradle-plugin")
+    includeBuild("../node_modules/@react-native/gradle-plugin")
     repositories {
         maven { url 'http://maven.aliyun.com/repository/gradle-plugin'; allowInsecureProtocol = true }
         maven { url 'http://maven.aliyun.com/repository/public'; allowInsecureProtocol = true }
@@ -25,21 +25,21 @@ dependencyResolutionManagement {
         maven { url 'https://repo.huaweicloud.com/repository/google' }
         // Essential Local Repositories for Autolinking and prebuilt AARs
         maven {
-            url "/Users/xujin/Projects/develop-assistant.cn/evoloop/mobile/node_modules/react-native/android"
+            url "../node_modules/react-native/android"
         }
         maven {
-            url "/Users/xujin/Projects/develop-assistant.cn/evoloop/mobile/node_modules/@notifee/react-native/android/libs"
+            url "../node_modules/@notifee/react-native/android/libs"
         }
         maven {
-            url "/Users/xujin/Projects/develop-assistant.cn/evoloop/mobile/node_modules/jsc-android/dist"
+            url "../node_modules/jsc-android/dist"
         }
         maven {
-            url "/Users/xujin/Projects/develop-assistant.cn/evoloop/mobile/node_modules/@react-native-async-storage/async-storage/android/local_repo"
+            url "../node_modules/@react-native-async-storage/async-storage/android/local_repo"
         }
     }
 }
 
 include ':app'
 
-includeBuild("/Users/xujin/Projects/develop-assistant.cn/evoloop/mobile/node_modules/@react-native/gradle-plugin")
+includeBuild("../node_modules/@react-native/gradle-plugin")
 

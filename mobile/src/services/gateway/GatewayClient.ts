@@ -1,15 +1,20 @@
 // Gateway WebSocket 客户端
 
 import { EventEmitter } from 'eventemitter3';
+import { AppState } from 'react-native';
 import {WS_BASE_URL, WS_CONFIG} from '@/constants/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   GatewayMessage,
   GatewayMessageType,
   ConnectionState,
-  MessageHandler,
-  ConnectionHandler,
 } from './types';
+import {
+  isCanonicalEnvelope,
+  createEnvelope,
+  CanonicalEnvelope,
+  CanonicalMessageType,
+} from './canonical';
 
 export class GatewayClient extends EventEmitter {
   private ws: WebSocket | null = null;
@@ -26,6 +31,19 @@ export class GatewayClient extends EventEmitter {
   constructor(url: string = WS_BASE_URL || 'ws://127.0.0.1') {
     super();
     this.url = url;
+
+    // 监听 App 前后台切换以触发静默重连
+    let currentAppState = AppState.currentState;
+    AppState.addEventListener('change', (nextAppState) => {
+      if (
+        (currentAppState === 'background' || currentAppState === 'inactive') &&
+        nextAppState === 'active'
+      ) {
+        console.log('[GatewayClient] App 回到前台，触发静默重连缓冲期');
+        this.handleAppForeground();
+      }
+      currentAppState = nextAppState;
+    });
   }
 
   // 获取单例实例
@@ -65,6 +83,35 @@ export class GatewayClient extends EventEmitter {
     }
 
     return new Promise(async (resolve, reject) => {
+      let initResolved = false;
+      let initTimeout: NodeJS.Timeout | null = null;
+
+      const cleanupInit = () => {
+        if (initTimeout) {
+          clearTimeout(initTimeout);
+          initTimeout = null;
+        }
+        this.off('message', onSystemInit);
+      };
+
+      const onSystemInit = (message: GatewayMessage) => {
+        if (message.type === CanonicalMessageType.SystemInit) {
+          initResolved = true;
+          cleanupInit();
+          this.emit('connected');
+          resolve();
+        }
+      };
+
+      this.on('message', onSystemInit);
+
+      initTimeout = setTimeout(() => {
+        if (!initResolved) {
+          cleanupInit();
+          reject(new Error('Gateway system.init timeout'));
+        }
+      }, 10000);
+
       try {
         // 优先使用用户 token，否则使用游客模式
         let token = await AsyncStorage.getItem('token');
@@ -96,17 +143,11 @@ export class GatewayClient extends EventEmitter {
           this.reconnectAttempts = 0;
           this.startHeartbeat();
 
-          // 发送认证消息
+          // 发送连接识别消息（token 已在 query 中，body 仅传设备类型）
           this.send({
-            type: GatewayMessageType.AUTH,
-            payload: {
-              token,
-              device_type: 'mobile',
-            },
+            type: GatewayMessageType.CONNECT,
+            data: { device_type: 'mobile' },
           });
-
-          this.emit('connected');
-          resolve();
         };
 
         this.ws.onmessage = (event) => {
@@ -116,6 +157,7 @@ export class GatewayClient extends EventEmitter {
         this.ws.onerror = (error) => {
           this.setState(ConnectionState.ERROR);
           this.emit('error', error);
+          cleanupInit();
           reject(error);
         };
 
@@ -123,6 +165,12 @@ export class GatewayClient extends EventEmitter {
           console.log('Gateway WebSocket 已关闭:', event.code, event.reason);
           this.stopHeartbeat();
           this.emit('disconnected', event);
+          cleanupInit();
+
+          if (!initResolved) {
+            reject(new Error(`WebSocket closed before handshake: ${event.code}`));
+            return;
+          }
 
           // 正常关闭 (1000) 或 端点离开 (1001) 不重连，其余异常都自动重连
           if (event.code !== 1000 && event.code !== 1001) {
@@ -135,6 +183,7 @@ export class GatewayClient extends EventEmitter {
           }
         };
       } catch (error) {
+        cleanupInit();
         this.setState(ConnectionState.ERROR);
         reject(error);
       }
@@ -161,18 +210,14 @@ export class GatewayClient extends EventEmitter {
     return this.connect();
   }
 
-  // 发送消息
+  // 发送规范 Envelope（自动包装为规范格式）
   send(message: GatewayMessage): void {
     if (this.ws?.readyState !== WebSocket.OPEN) {
       return;
     }
 
-    const data = JSON.stringify({
-      ...message,
-      timestamp: Date.now(),
-    });
-
-    this.ws.send(data);
+    const env = createEnvelope(message.type, message.data || {});
+    this.ws.send(JSON.stringify(env));
   }
 
   // 发送 ping
@@ -184,7 +229,7 @@ export class GatewayClient extends EventEmitter {
   startASR(sessionId: string, config?: { sampleRate?: number; language?: string }): void {
     this.send({
       type: GatewayMessageType.ASR_START,
-      payload: {
+      data: {
         sessionId,
         config: {
           sampleRate: 16000,
@@ -198,14 +243,14 @@ export class GatewayClient extends EventEmitter {
   stopASR(sessionId: string): void {
     this.send({
       type: GatewayMessageType.ASR_STOP,
-      payload: { sessionId },
+      data: { sessionId },
     });
   }
 
   sendAudioChunk(sessionId: string, audioData: ArrayBuffer | string, isFinal: boolean = false): void {
     this.send({
       type: GatewayMessageType.ASR_CHUNK,
-      payload: {
+      data: {
         sessionId,
         audioData,
         isFinal,
@@ -213,11 +258,12 @@ export class GatewayClient extends EventEmitter {
     });
   }
 
-  // 聊天相关方法
+  // 聊天相关方法（仅用于 ASR/语音会话，不涉及 Desktop 命令发送）
+  // 命令发送统一走 HTTP POST /gateway/api/v1/command/send
   sendChatMessage(sessionId: string, message: string, context?: any): void {
     this.send({
       type: GatewayMessageType.CHAT_MESSAGE,
-      payload: {
+      data: {
         sessionId,
         message,
         context,
@@ -228,35 +274,48 @@ export class GatewayClient extends EventEmitter {
   interruptChat(sessionId: string): void {
     this.send({
       type: GatewayMessageType.CHAT_INTERRUPT,
-      payload: { sessionId },
-    });
-  }
-
-  // 指令确认
-  confirmCommand(sessionId: string, confirmed: boolean): void {
-    this.send({
-      type: GatewayMessageType.COMMAND_CONFIRM,
-      payload: {
-        sessionId,
-        confirmed,
-      },
+      data: { sessionId },
     });
   }
 
   // 处理收到的消息
   private handleMessage(data: string): void {
     try {
-      const message: GatewayMessage = JSON.parse(data);
-      
-      // 处理 pong
-      if (message.type === GatewayMessageType.PONG) {
+      const parsed = JSON.parse(data);
+
+      // 仅接受规范 Envelope 格式
+      if (!isCanonicalEnvelope(parsed)) {
+        console.warn('[GatewayClient] Non-canonical message dropped:', (parsed as any).type);
         return;
       }
 
-      this.emit('message', message);
-      this.emit(message.type, message);
+      const env = parsed as CanonicalEnvelope;
+
+      this.emit('canonical_message', env);
+      this.emit('message', {
+        type: env.type,
+        data: env.body,
+        timestamp: env.timestamp,
+      });
+
+      // HITL 请求特殊处理
+      if (env.type === CanonicalMessageType.HITLRequest) {
+        const body = env.body as any;
+        this.emit('hitl_request', {
+          sessionId: body.request_id,
+          request: {
+            id: body.request_id,
+            type: body.request_type,
+            prompt: body.prompt,
+            options: body.options,
+            default_value: body.default_value,
+            context: body.context,
+            timeout: undefined,
+          },
+        });
+      }
     } catch (error) {
-      // 解析错误静默处理，避免控制台刷屏
+      // 解析错误静默处理
     }
   }
 
@@ -326,6 +385,19 @@ export class GatewayClient extends EventEmitter {
   resetBackoff(): void {
     this.reconnectAttempts = 0;
     this.cancelGracePeriod();
+    this.clearReconnectTimer();
+    if (!this.isConnected() && this.state !== ConnectionState.CONNECTING) {
+      this.connect().catch(() => {
+        // 错误通过 stateChange + error 事件通知，不在控制台打印
+      });
+    }
+  }
+
+  // 当 App 从后台/锁屏回到前台时，立即重连并拉起一个静默缓冲期
+  handleAppForeground(): void {
+    this.reconnectAttempts = 0;
+    // 重新启动静默缓冲期，给重连一些缓冲时间，避免立刻在 UI 上显示“连接失败”
+    this.startGracePeriod();
     this.clearReconnectTimer();
     if (!this.isConnected() && this.state !== ConnectionState.CONNECTING) {
       this.connect().catch(() => {

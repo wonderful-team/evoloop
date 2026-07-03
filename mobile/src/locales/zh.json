@@ -95,10 +95,9 @@
     "createThreadFailed": "创建会话失败",
     "rewindFailed": "回退失败：",
     "retryFailed": "重试失败：",
-    "globalModeNoMemory": "全局模式下无法添加记忆",
     "learnFromConversation": "从对话学习",
-    "addedToMemory": "已添加到记忆",
-    "addMemoryFailed": "添加记忆失败：",
+    "addedToMemory": "已记住",
+    "addMemoryFailed": "记住失败：",
     "fallbackMessage": "消息",
     "selectDevice": "选择设备",
     "guestMode": "游客模式 - 点击登录",
@@ -150,6 +149,7 @@
       "sending": "发送中",
 
       "sendFailedRetry": "发送失败，点击重试",
+      "sendTimeoutRetry": "超时，点击重试",
       "aiThinking": "AI 思考中..."
     },
     "header": {
@@ -267,7 +267,7 @@
       "deleteConfirmDesc": "确定要删除这条消息吗？此操作无法撤销。",
       "rewind": "撤回",
       "quote": "引用",
-      "addToMemory": "添加到记忆"
+      "addToMemory": "记住"
     },
     "quote": {
       "message": "消息",
@@ -531,14 +531,14 @@
     "noProjects": "暂无项目",
     "title": "项目",
     "managementTitle": "项目管理",
-    "currentGlobalMode": "当前为全局模式",
+    "currentGlobalMode": "当前为工作空间模式",
     "currentProjectPrefix": "当前项目：",
     "pleaseSelectProject": "请选择项目",
     "current": "当前",
-    "globalMode": "全局模式",
+    "globalMode": "工作空间",
     "globalModeDesc": "跨项目对话与一般问答",
     "loadFailed": "加载失败：",
-    "switchToGlobalConfirm": "切换到全局模式？在此模式下可进行跨项目对话与一般问答。",
+    "switchToGlobalConfirm": "切换到工作空间模式？在此模式下可进行跨项目对话与一般问答。",
     "switchToProjectConfirm": "切换到此项目？该项目将在设备「{{deviceName}}」上激活。",
     "selectDeviceFirst": "请先选择设备，再切换项目。",
     "switch": "切换",
@@ -546,7 +546,7 @@
     "unnamedProject": "未命名项目",
     "fetchFailed": "获取项目列表失败",
     "notFound": "项目不存在",
-    "globalModeName": "全局模式",
+    "globalModeName": "工作空间",
     "selectProject": "选择项目"
   },
   "projectSwitcher": {
@@ -1141,7 +1141,7 @@
       "stopFailed": "停止失败",
       "rewindFailed": "回退失败",
       "retryFailed": "重试失败",
-      "addMemoryFailed": "添加记忆失败",
+      "addMemoryFailed": "记住失败",
       "getMemoryFailed": "获取记忆失败",
       "sendMessageFailed": "发送消息失败",
       "syncMessagesFailed": "同步消息失败",

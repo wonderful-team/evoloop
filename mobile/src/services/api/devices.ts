@@ -18,6 +18,7 @@ interface BackendDevice {
   status: number | string;
   client_id?: string;
   last_heartbeat?: number;
+  last_active_at?: number;
   create_time?: number;
 }
 
@@ -37,7 +38,9 @@ const mapBackendDevice = (backendDevice: BackendDevice): Device => {
     name: backendDevice.device_name || i18n.t('devices.unnamedDevice'),
     status,
     type: backendDevice.device_type || 'desktop',
-    lastSeen: backendDevice.last_heartbeat ? String(backendDevice.last_heartbeat) : undefined,
+    lastSeen: backendDevice.last_heartbeat
+      ? String(backendDevice.last_heartbeat)
+      : (backendDevice.last_active_at ? String(backendDevice.last_active_at) : undefined),
   };
 };
 
@@ -60,6 +63,13 @@ const extractDevices = (response: any): Device[] => {
   // 如果是包装对象 { code, data, message }
   if (typeof response === 'object' && 'data' in response) {
     const data = response.data;
+    // Gateway /api/v1/devices 返回 { devices: [...], total }
+    if (data && typeof data === 'object' && 'devices' in data && Array.isArray(data.devices)) {
+      console.log('[deviceApi] Response is Gateway device wrapper, mapping', data.devices.length, 'devices');
+      const mapped = (data.devices as BackendDevice[]).map(mapBackendDevice);
+      console.log('[deviceApi] First mapped device:', mapped[0]);
+      return mapped;
+    }
     if (Array.isArray(data)) {
       console.log('[deviceApi] Response is wrapper, mapping', data.length, 'devices');
       const mapped = data.map(mapBackendDevice);
@@ -73,10 +83,10 @@ const extractDevices = (response: any): Device[] => {
 };
 
 export const deviceApi = {
-  // 获取设备列表 (从 evolooplink 插件)
+  // 获取设备列表 (从 Gateway 获取当前在线设备)
   getDevices: async (): Promise<Device[]> => {
     const response = await api.get<BackendDevice[] | ApiResponse<BackendDevice[]>>(
-      `/member/evolooplink/api/device/list`
+      `/gateway/api/v1/devices`
     );
     return extractDevices(response);
   },
@@ -96,11 +106,6 @@ export const deviceApi = {
       `/member/evolooplink/api/device/detail?device_key=${deviceKey}`
     );
     return mapBackendDevice(response.data);
-  },
-
-  // 设置默认设备
-  setDefaultDevice: async (deviceKey: string): Promise<void> => {
-    await api.post(`/member/evolooplink/api/device/default?device_key=${deviceKey}`);
   },
 
   // 解绑设备

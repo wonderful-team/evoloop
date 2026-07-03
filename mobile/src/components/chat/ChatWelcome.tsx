@@ -14,12 +14,12 @@ export const ChatWelcome: React.FC = () => {
   const { colors } = useTheme();
   const { t } = useTranslation();
   
-  // 找回原版情绪循环逻辑
-  const [mood, setMood] = useState<'neutral' | 'happy' | 'thinking'>('happy');
+  // 情绪循环逻辑（仅保留支持的 neutral / thinking）
+  const [mood, setMood] = useState<'neutral' | 'thinking'>('neutral');
 
   useEffect(() => {
     const interval = setInterval(() => {
-      const moods: Array<'neutral' | 'happy' | 'thinking'> = ['neutral', 'happy', 'thinking'];
+      const moods: Array<'neutral' | 'thinking'> = ['neutral', 'thinking'];
       setMood(moods[Math.floor(Math.random() * moods.length)]);
     }, 5000);
     return () => clearInterval(interval);

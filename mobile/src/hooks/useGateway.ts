@@ -131,7 +131,7 @@ export function useVoiceSession(sessionId: string) {
     
     send({
       type: GatewayMessageType.ASR_START,
-      payload: { sessionId },
+      data: { sessionId },
     });
     setIsListening(true);
     setTranscription('');
@@ -142,7 +142,7 @@ export function useVoiceSession(sessionId: string) {
     
     send({
       type: GatewayMessageType.ASR_STOP,
-      payload: { sessionId },
+      data: { sessionId },
     });
     setIsListening(false);
   }, [send, isConnected, sessionId]);
@@ -153,7 +153,7 @@ export function useVoiceSession(sessionId: string) {
       
       send({
         type: GatewayMessageType.ASR_CHUNK,
-        payload: {
+        data: {
           sessionId,
           audioData,
           isFinal,
@@ -169,7 +169,7 @@ export function useVoiceSession(sessionId: string) {
       
       send({
         type: GatewayMessageType.CHAT_MESSAGE,
-        payload: {
+        data: {
           sessionId,
           message,
         },
@@ -183,7 +183,7 @@ export function useVoiceSession(sessionId: string) {
     
     send({
       type: GatewayMessageType.CHAT_INTERRUPT,
-      payload: { sessionId },
+      data: { sessionId },
     });
   }, [send, isConnected, sessionId]);
 

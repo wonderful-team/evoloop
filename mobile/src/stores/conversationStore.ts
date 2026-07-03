@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Conversation, ConversationHistoryResponse } from '@/types/conversation';
+import { Conversation, ConversationHistoryResponse, AddMemoryRequest, UpdateMemoryRequest } from '@/types/conversation';
 import { ChatMessage } from '@/types/conversation';
 import { AgentSyncMessage } from '@/services/gateway/agentMessage';
 import * as conversationApi from '@/services/api/conversations';
@@ -36,6 +36,7 @@ interface ConversationState {
 
   // 操作
   setCurrentConversation: (id: string | null, skipLoadMessages?: boolean) => void;
+  setActiveDeviceKey: (deviceKey: string | undefined) => void;
   loadConversations: (projectId?: number, refresh?: boolean, deviceKey?: string) => Promise<void>;
   loadMoreConversations: () => Promise<void>;
   createConversation: (projectId?: number, initialMessage?: string) => Promise<string>;
@@ -47,6 +48,7 @@ interface ConversationState {
   syncMessages: (messages: AgentSyncMessage[]) => void;
   updateLastMessage: (updates: Partial<ChatMessage>) => void;
   updateMessageStatus: (messageId: string, status: ChatMessage['status']) => void;
+  replaceMessageId: (oldId: string, newId: string) => void;
   clearMessages: () => void;
   clearConversations: () => void;
 
@@ -64,7 +66,9 @@ interface ConversationState {
   rewindLocalMessages: (targetSequence: number, includeTarget: boolean) => void;
 
   // 添加到记忆
-  addToMemory: (projectId: number, request: { name: string; description: string }) => Promise<any>;
+  addToMemory: (projectId: number, deviceKey: string, request: AddMemoryRequest, messageId?: string, conversationId?: string) => Promise<any>;
+  updateMemory: (projectId: number, deviceKey: string, name: string, request: UpdateMemoryRequest) => Promise<void>;
+  deleteMemory: (projectId: number, deviceKey: string, name: string) => Promise<void>;
 
   // 置顶与重命名会话
   togglePinConversation: (id: string) => Promise<void>;
@@ -116,6 +120,11 @@ export const useConversationStore = create<ConversationState>()(
         }
       },
 
+      // 设置当前活跃设备 key（统一设备来源）
+      setActiveDeviceKey: (deviceKey) => {
+        set({ activeDeviceKey: deviceKey });
+      },
+
       // 加载会话列表
       // - refresh=true 时：重置页码并记录新的筛选条件
       // - refresh=false 时（加载更多）：沿用已记录的 activeDeviceKey/activeProjectId
@@ -136,7 +145,7 @@ export const useConversationStore = create<ConversationState>()(
           set({
             activeDeviceKey: deviceKey,
             activeProjectId: projectId,
-            conversations: [],
+            conversations: filterChanged ? [] : get().conversations,
             conversationsPage: 1,
             hasMoreConversations: true,
           });
@@ -293,7 +302,18 @@ export const useConversationStore = create<ConversationState>()(
         const adapted = adaptAgentMessages(incomingMessages);
         const merged = mergeSyncedHumanMessages(existingMessages, adapted);
 
-        if (merged.length === existingMessages.length) return;
+        // Compare array contents to determine if any actual change occurred (not just length)
+        const isSame = merged.length === existingMessages.length && 
+          merged.every((m, i) => {
+            const em = existingMessages[i];
+            return em.id === m.id && 
+                   em.content === m.content && 
+                   em.thinking === m.thinking && 
+                   em.status === m.status &&
+                   em.sequence_number === m.sequence_number;
+          });
+
+        if (isSame) return;
 
         set({ messages: merged });
       },
@@ -317,6 +337,17 @@ export const useConversationStore = create<ConversationState>()(
 
         const updatedMessages = [...messages];
         updatedMessages[index] = { ...updatedMessages[index], status };
+        set({ messages: updatedMessages });
+      },
+
+      // 用后端返回的真实 message_id 替换本地乐观消息的临时 id
+      replaceMessageId: (oldId, newId) => {
+        const { messages } = get();
+        const index = messages.findIndex(m => m.id === oldId);
+        if (index === -1) return;
+
+        const updatedMessages = [...messages];
+        updatedMessages[index] = { ...updatedMessages[index], id: newId };
         set({ messages: updatedMessages });
       },
 
@@ -404,8 +435,14 @@ export const useConversationStore = create<ConversationState>()(
       },
 
       // 添加到记忆
-      addToMemory: async (projectId, request) => {
-        return await conversationApi.addToMemory(projectId, request);
+      addToMemory: async (projectId, deviceKey, request, messageId, conversationId) => {
+        return await conversationApi.addToMemory(projectId, deviceKey, request, messageId, conversationId);
+      },
+      updateMemory: async (projectId, deviceKey, name, request) => {
+        await conversationApi.updateMemory(projectId, deviceKey, name, request);
+      },
+      deleteMemory: async (projectId, deviceKey, name) => {
+        await conversationApi.deleteMemory(projectId, deviceKey, name);
       },
 
       // 置顶/取消置顶会话

@@ -95,10 +95,9 @@
     "createThreadFailed": "Failed to create conversation",
     "rewindFailed": "Rewind failed: ",
     "retryFailed": "Retry failed: ",
-    "globalModeNoMemory": "Cannot add memory in global mode",
-    "learnFromConversation": "Learn from conversation",
-    "addedToMemory": "Added to memory",
-    "addMemoryFailed": "Failed to add memory: ",
+    "learnFromConversation": "Remember",
+    "addedToMemory": "Remembered",
+    "addMemoryFailed": "Failed to remember: ",
     "fallbackMessage": "Message",
     "selectDevice": "Select Device",
     "guestMode": "Guest Mode - Tap to login",
@@ -138,6 +137,7 @@
       "sending": "Sending",
 
       "sendFailedRetry": "Send failed, tap to retry",
+      "sendTimeoutRetry": "Timed out, tap to retry",
       "aiThinking": "AI is thinking..."
     },
     "header": {
@@ -242,7 +242,7 @@
       "deleteConfirmDesc": "Are you sure you want to delete this message? This action cannot be undone.",
       "rewind": "Rewind",
       "quote": "Quote",
-      "addToMemory": "Add to Memory"
+      "addToMemory": "Remember"
     },
     "codeBlock": {
       "copyCode": "Copy Code",
@@ -489,14 +489,14 @@
     "noProjects": "No projects",
     "title": "Projects",
     "managementTitle": "Project Management",
-    "currentGlobalMode": "Currently in Global Mode",
+    "currentGlobalMode": "Currently in Workspace Mode",
     "currentProjectPrefix": "Current project: ",
     "pleaseSelectProject": "Please select a project",
     "current": "Current",
-    "globalMode": "Global Mode",
+    "globalMode": "Workspace",
     "globalModeDesc": "Cross-project conversations and general Q&A",
     "loadFailed": "Failed to load: ",
-    "switchToGlobalConfirm": "Switch to global mode? You can have cross-project conversations and general Q&A in this mode.",
+    "switchToGlobalConfirm": "Switch to workspace mode? You can have cross-project conversations and general Q&A in this mode.",
     "switchToProjectConfirm": "Switch to this project? It will be activated on device \"{{deviceName}}\".",
     "selectDeviceFirst": "Please select a device first before switching projects.",
     "switch": "Switch",
@@ -504,7 +504,7 @@
     "unnamedProject": "Unnamed Project",
     "fetchFailed": "Failed to get project list",
     "notFound": "Project not found",
-    "globalModeName": "Global Mode",
+    "globalModeName": "Workspace",
     "selectProject": "Select Project"
   },
   "projectSwitcher": {
@@ -1140,7 +1140,7 @@
       "stopFailed": "Failed to stop",
       "rewindFailed": "Failed to rewind",
       "retryFailed": "Failed to retry",
-      "addMemoryFailed": "Failed to add memory",
+      "addMemoryFailed": "Failed to remember",
       "getMemoryFailed": "Failed to get memory",
       "sendMessageFailed": "Failed to send message",
       "syncMessagesFailed": "Failed to sync messages",

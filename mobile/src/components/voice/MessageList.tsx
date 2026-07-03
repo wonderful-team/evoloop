@@ -26,7 +26,7 @@ interface MessageListProps {
   onRetry?: (messageId: string) => void;
   onQuote?: (message: ChatMessage) => void;
   onForward?: (message: ChatMessage) => void;
-  onAddToMemory?: (text: string) => void;
+  onAddToMemory?: (text: string, messageId?: string) => void;
   onResend?: (message: ChatMessage) => void;
   /** 是否显示 AI 思考中指示器 */
   isTyping?: boolean;
@@ -60,6 +60,7 @@ const MessageItem = React.memo(function MessageItem({
   message,
   isUser,
   colors,
+  inStepsGroup = false,
   onRewind,
   onRetry,
   onQuote,
@@ -70,16 +71,24 @@ const MessageItem = React.memo(function MessageItem({
   message: ChatMessage;
   isUser: boolean;
   colors: any;
+  inStepsGroup?: boolean;
   onRewind?: (id: string) => void;
   onRetry?: (id: string) => void;
   onQuote?: (msg: ChatMessage) => void;
   onForward?: (msg: ChatMessage) => void;
-  onAddToMemory?: (text: string) => void;
+  onAddToMemory?: (text: string, messageId?: string) => void;
   onResend?: (msg: ChatMessage) => void;
 }) {
+  const isStreaming = message.status === 'streaming' || message.status === 'running';
   const [menuVisible, setMenuVisible] = useState(false);
-  const [thinkingExpanded, setThinkingExpanded] = useState(false);
+  const [thinkingExpanded, setThinkingExpanded] = useState(isStreaming);
   const { t } = useTranslation();
+
+  useEffect(() => {
+    if (isStreaming) {
+      setThinkingExpanded(true);
+    }
+  }, [isStreaming]);
 
   const isHITL = message.category === 'human_request';
   const parsedHITL = useMemo(() => {
@@ -126,9 +135,9 @@ const MessageItem = React.memo(function MessageItem({
   }, [message, onQuote]);
 
   const handleAddToMemory = useCallback(() => {
-    onAddToMemory?.(message.content);
+    onAddToMemory?.(message.content, message.id);
     setMenuVisible(false);
-  }, [message.content, onAddToMemory]);
+  }, [message.content, message.id, onAddToMemory]);
 
   const handleForward = useCallback(() => {
     onForward?.(message);
@@ -149,22 +158,43 @@ const MessageItem = React.memo(function MessageItem({
     const toolLabel = message.tool_meta?.display_name || message.tool_name || 'TOOL';
     const isRunning = message.status === 'running';
     return (
-      <View style={styles.toolRow}>
-        <View style={[styles.toolSpine, { backgroundColor: colors.outline }]} />
-        <View style={styles.toolContent}>
-          <View style={[styles.toolDot, { backgroundColor: colors.outline }]} />
-          <Text
-            numberOfLines={1}
-            style={[styles.toolLabel, { color: colors.onSurfaceVariant }]}
-          >
-            {toolLabel}
-          </Text>
-          {isRunning && (
-            <ActivityIndicator size={10} color={colors.primary} style={{ marginLeft: 4, opacity: 0.6 }} />
-          )}
-        </View>
+      <View style={[styles.toolRow, inStepsGroup && styles.inStepsGroupToolRow]}>
+        {!inStepsGroup ? (
+          <>
+            <View style={[styles.toolSpine, { backgroundColor: colors.outline }]} />
+            <View style={styles.toolContent}>
+              <View style={[styles.toolDot, { backgroundColor: colors.outline }]} />
+              <Text
+                numberOfLines={1}
+                style={[styles.toolLabel, { color: colors.onSurfaceVariant }]}
+              >
+                {toolLabel}
+              </Text>
+              {isRunning && (
+                <ActivityIndicator size={10} color={colors.primary} style={{ marginLeft: 4, opacity: 0.6 }} />
+              )}
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={[
+              styles.inStepsGroupTimelineDot,
+              { backgroundColor: isRunning ? colors.primary : colors.onSurfaceVariant }
+            ]} />
+            <View style={styles.toolContent}>
+              <Text
+                numberOfLines={1}
+                style={[styles.toolLabel, { color: colors.onSurfaceVariant }, isRunning && { color: colors.primary, fontWeight: '500' }]}
+              >
+                {toolLabel}
+              </Text>
+              {isRunning && (
+                <ActivityIndicator size={10} color={colors.primary} style={{ marginLeft: 4, opacity: 0.8 }} />
+              )}
+            </View>
+          </>
+        )}
       </View>
-
     );
   }
 
@@ -180,6 +210,7 @@ const MessageItem = React.memo(function MessageItem({
           <View style={[
             styles.messageItem,
             isUser && { backgroundColor: colors.primaryContainer },
+            inStepsGroup && styles.inStepsGroupMessageItem,
           ]}>
             {/* 角色图标水印 - 融入背景右下角 */}
             <View style={styles.watermark}>
@@ -213,7 +244,11 @@ const MessageItem = React.memo(function MessageItem({
                 </TouchableOpacity>
               )}
               {!isUser && thinkingExpanded && !!(message as any).thinking && (
-                <View style={[styles.thinkingBody, { borderLeftColor: colors.outline }]}>
+                <View style={[
+                  styles.thinkingBody,
+                  { borderLeftColor: colors.outline },
+                  inStepsGroup && styles.inStepsGroupThinkingBody,
+                ]}>
                   <MessageContent
                     content={(message as any).thinking}
                     isUser={false}
@@ -303,6 +338,20 @@ const MessageItem = React.memo(function MessageItem({
                     </Text>
                   </TouchableOpacity>
                 )}
+                {message.status === 'timeout' && (
+                  <TouchableOpacity
+                    onPress={() => onResend?.(message)}
+                    style={styles.resendBtn}
+                  >
+                    <MaterialIcons name="timer-off" size={14} color={colors.error} />
+                    <Text variant="bodySmall" style={{ marginLeft: 4, color: colors.error }}>
+                      {t('chat.messageList.sendTimeoutRetry')}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {message.status === 'awaiting_delivered' && (
+                  <MaterialIcons name="access-time" size={12} color={colors.onSurfaceVariant} />
+                )}
               </View>
             )}
           </View>
@@ -347,11 +396,11 @@ const MessageItem = React.memo(function MessageItem({
         title={t('chat.messageActions.share')}
         leadingIcon={props => <MaterialIcons {...props} name="ios-share" />}
       />
-      {!isUser && onAddToMemory && (
+      {onAddToMemory && (
         <Menu.Item
           onPress={handleAddToMemory}
-          title={t('chat.messageActions.addToMemory')}
-          leadingIcon={props => <MaterialIcons {...props} name="psychology" />}
+          title={message.is_remembered ? t('chat.messageActions.removeFromMemory') : t('chat.messageActions.addToMemory')}
+          leadingIcon={props => <MaterialIcons {...props} name={message.is_remembered ? 'psychology' : 'psychology-alt'} />}
         />
       )}
     </Menu>
@@ -640,7 +689,7 @@ const TurnStepsGroupView = React.memo(function TurnStepsGroupView({
   onRetry?: (id: string) => void;
   onQuote?: (msg: ChatMessage) => void;
   onForward?: (msg: ChatMessage) => void;
-  onAddToMemory?: (text: string) => void;
+  onAddToMemory?: (text: string, messageId?: string) => void;
   onResend?: (msg: ChatMessage) => void;
 }) {
   const [expanded, setExpanded] = useState(isTurnActive || false);
@@ -678,6 +727,7 @@ const TurnStepsGroupView = React.memo(function TurnStepsGroupView({
                 key={stepMsg.id}
                 message={stepMsg}
                 isUser={false}
+                inStepsGroup={true}
                 colors={colors}
                 onRewind={onRewind}
                 onRetry={onRetry}
@@ -699,7 +749,7 @@ export interface MessageListProps {
   onRetry?: (id: string) => void;
   onQuote?: (msg: ChatMessage) => void;
   onForward?: (msg: ChatMessage) => void;
-  onAddToMemory?: (text: string) => void;
+  onAddToMemory?: (text: string, messageId?: string) => void;
   onResend?: (msg: ChatMessage) => void;
   isTyping: boolean;
   hasMoreMessages: boolean;
@@ -1022,13 +1072,13 @@ const styles = StyleSheet.create({
   // Steps Group
   stepsGroupContainer: {
     marginVertical: 6,
-    paddingHorizontal: 12,
+    paddingHorizontal: 4,
   },
   stepsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingHorizontal: 0,
     borderRadius: 8,
   },
   stepsHeaderText: {
@@ -1037,10 +1087,35 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   stepsContentList: {
-    borderLeftWidth: 1,
-    marginLeft: 20,
-    marginTop: 4,
-    paddingLeft: 4,
+    borderLeftWidth: 1.5,
+    marginLeft: 8,
+    marginTop: 6,
+    marginBottom: 4,
+    paddingLeft: 7,
+  },
+  inStepsGroupMessageItem: {
+    paddingHorizontal: 0,
+    paddingVertical: 4,
+  },
+  inStepsGroupThinkingBody: {
+    borderLeftWidth: 0,
+    paddingLeft: 0,
+  },
+  inStepsGroupToolRow: {
+    paddingLeft: 0,
+    paddingRight: 0,
+    paddingVertical: 4,
+    position: 'relative',
+  },
+  inStepsGroupTimelineDot: {
+    position: 'absolute',
+    left: -11, // Centers exactly on border left line (-8px paddingLeft - 3px radius)
+    top: '50%',
+    marginTop: -3,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    zIndex: 2,
   },
 
   typingContainer: {

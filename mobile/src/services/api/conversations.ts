@@ -15,6 +15,7 @@ import {
   RetryRequest,
   RetryResponse,
   AddMemoryRequest,
+  UpdateMemoryRequest,
   MemoryConcept,
 } from '@/types/conversation';
 import i18n from '@/locales';
@@ -194,37 +195,111 @@ export async function retryConversation(
 }
 
 /**
- * 添加消息到记忆 (MC 存储)
- * POST /member/api/projects/:id/memory
+ * 添加消息到记忆 -> Gateway /command/send -> Desktop Agent
+ * command_type: memory_add
  */
 export async function addToMemory(
   projectId: number,
-  request: AddMemoryRequest
+  deviceKey: string,
+  request: AddMemoryRequest,
+  messageId?: string,
+  conversationId?: string,
 ): Promise<MemoryConcept> {
-  const response = await api.post(
-    `/member/api/projects/${projectId}/memory`,
-    request
-  );
-  
-  if (response.code !== 0) {
+  const response = await api.post('/gateway/api/v1/command/send', {
+    device_key: deviceKey,
+    command_type: 'memory_add',
+    thread_id: conversationId || `memory_${Date.now()}`,
+    project_id: projectId,
+    content: {
+      name: request.name,
+      description: request.description,
+      related_files: request.related_files || [],
+      source_message_id: messageId || request.source_message_id,
+      source_thread_id: conversationId || request.source_thread_id,
+    },
+  });
+
+  if (response.code !== 0 && response.code !== 201 && response.code !== 202) {
     throw new Error(response.message || i18n.t('api.errors.addMemoryFailed'));
   }
-  
-  return response.data;
+
+  return {
+    id: `concept_${request.name}_${Date.now()}`,
+    name: request.name,
+    description: request.description,
+    related_files: request.related_files || [],
+    created_at: new Date().toISOString(),
+  };
 }
 
 /**
- * 获取项目记忆列表 (MC 存储)
- * GET /member/api/projects/:id/memory
+ * 更新记忆概念 -> Gateway /command/send -> Desktop Agent
+ * command_type: memory_update
+ */
+export async function updateMemory(
+  projectId: number,
+  deviceKey: string,
+  name: string,
+  request: UpdateMemoryRequest,
+): Promise<void> {
+  const response = await api.post('/gateway/api/v1/command/send', {
+    device_key: deviceKey,
+    command_type: 'memory_update',
+    thread_id: `memory_${Date.now()}`,
+    project_id: projectId,
+    content: {
+      name,
+      description: request.description,
+      related_files: request.related_files || [],
+    },
+  });
+
+  if (response.code !== 0 && response.code !== 202) {
+    throw new Error(response.message || i18n.t('api.errors.updateMemoryFailed'));
+  }
+}
+
+/**
+ * 删除记忆概念 -> Gateway /command/send -> Desktop Agent
+ * command_type: memory_delete
+ */
+export async function deleteMemory(
+  projectId: number,
+  deviceKey: string,
+  name: string,
+): Promise<void> {
+  const response = await api.post('/gateway/api/v1/command/send', {
+    device_key: deviceKey,
+    command_type: 'memory_delete',
+    thread_id: `memory_${Date.now()}`,
+    project_id: projectId,
+    content: { name },
+  });
+
+  if (response.code !== 0 && response.code !== 202) {
+    throw new Error(response.message || i18n.t('api.errors.deleteMemoryFailed'));
+  }
+}
+
+/**
+ * 获取项目记忆列表 -> Gateway 本地快照（Agent 通过 memory.sync 同步）
+ * GET /gateway/api/v1/memory/concepts?project_id=X
  */
 export async function getMemories(projectId: number): Promise<MemoryConcept[]> {
-  const response = await api.get(`/member/api/projects/${projectId}/memory`);
-  
-  if (response.code !== 0) {
-    throw new Error(response.message || i18n.t('api.errors.getMemoryFailed'));
+  try {
+    const response = await api.get(`/gateway/api/v1/memory/concepts`, {
+      params: { project_id: projectId },
+    });
+    return (response.data || []).map((item: any) => ({
+      id: item.id,
+      name: item.name,
+      description: item.description || '',
+      related_files: item.related_files || [],
+      created_at: item.created_at || new Date().toISOString(),
+    }));
+  } catch {
+    return [];
   }
-  
-  return response.data || [];
 }
 
 /**

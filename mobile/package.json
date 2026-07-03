@@ -15,7 +15,7 @@
     "harmony:build-release": "react-native run-harmony --build-mode Release --no-packager",
     "harmony:prod": "yarn harmony:bundle && yarn harmony:build-release",
     "lint": "eslint .",
-    "start": "react-native start",
+    "start": "react-native start --reset-cache --client-logs",
     "test": "jest"
   },
   "dependencies": {

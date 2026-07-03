@@ -11,7 +11,8 @@ import { GatewayMessageType } from '@/services/gateway/types';
 
 interface UseDevicesOptions {
   autoFetch?: boolean;
-  refetchInterval?: number; // 轮询间隔（毫秒），默认 10000
+  // 轮询间隔（毫秒），默认 0 表示禁用轮询，依赖 Gateway WebSocket 实时推送
+  refetchInterval?: number;
 }
 
 export function useDevices(options: UseDevicesOptions = {}) {
@@ -36,13 +37,10 @@ export function useDevices(options: UseDevicesOptions = {}) {
     });
   }, [safeDevices, unreadCounts, conversationDeviceMap]);
 
-  // 启动轮询
+  // 启动轮询（已禁用：设备状态通过 Gateway WebSocket 实时推送）
   const startPolling = useCallback(() => {
-    if (intervalRef.current) return;
-    intervalRef.current = setInterval(() => {
-      DeviceManager.fetchDevices().catch(console.error);
-    }, refetchInterval);
-  }, [refetchInterval]);
+    // no-op: 保留 API 兼容性，但不再使用轮询
+  }, []);
 
   // 停止轮询
   const stopPolling = useCallback(() => {
@@ -52,23 +50,17 @@ export function useDevices(options: UseDevicesOptions = {}) {
     }
   }, []);
 
-  // 自动获取 + 轮询（根据 App 前后台状态启停）
+  // 自动获取（仅在进入前台时拉取全量，后续靠 Gateway WebSocket 推送增量更新）
   useEffect(() => {
     if (!autoFetch) return;
 
     // 首次加载
     DeviceManager.fetchDevices().catch(console.error);
-    startPolling();
 
-    // 监听前后台切换
+    // 监听前后台切换：回到前台时刷新一次，进入后台不做处理
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'active') {
-        // 回到前台：立即刷新 + 启动轮询
         DeviceManager.fetchDevices().catch(console.error);
-        startPolling();
-      } else {
-        // 进入后台：停止轮询
-        stopPolling();
       }
     });
 
@@ -76,7 +68,7 @@ export function useDevices(options: UseDevicesOptions = {}) {
       subscription.remove();
       stopPolling();
     };
-  }, [autoFetch, startPolling, stopPolling]);
+  }, [autoFetch, stopPolling]);
 
   // 监听 Gateway 推送的设备状态变化
   useEffect(() => {
@@ -85,27 +77,39 @@ export function useDevices(options: UseDevicesOptions = {}) {
     const gateway = GatewayClient.getInstance();
 
     const handleDeviceStatusUpdate = (message: any) => {
-      const payload = message?.payload || message?.data;
-      if (!payload) return;
+      const data = message?.data;
+      if (!data) return;
 
-      const { device_key, status, device_name } = payload;
+      const { device_key, online } = data;
       if (!device_key) return;
 
-      if (status === 'online' || status === 'offline' || status === 'busy') {
-        store.updateDeviceStatus(device_key, status);
-      }
+      const status = online ? 'online' : 'offline';
+      store.updateDeviceStatus(device_key, status);
+    };
 
-      if (device_name) {
-        store.updateDevice(device_key, { name: device_name });
+    const handleMessage = (message: { type: string; data: any }) => {
+      if (message.type === 'device.status') {
+        handleDeviceStatusUpdate(message);
       }
     };
 
-    gateway.on(GatewayMessageType.DEVICE_STATUS_UPDATE, handleDeviceStatusUpdate);
+    gateway.on('message', handleMessage);
 
     return () => {
-      gateway.off(GatewayMessageType.DEVICE_STATUS_UPDATE, handleDeviceStatusUpdate);
+      gateway.off('message', handleMessage);
     };
   }, [autoFetch, store]);
+
+  // 监听 devices/currentDevice 变化：持久化设备若已不在列表中，自动切换到第一个在线设备
+  useEffect(() => {
+    if (currentDevice && !safeDevices.some((d) => d.deviceKey === currentDevice.deviceKey)) {
+      const fallback = safeDevices.find((d) => d.status === 'online') || safeDevices[0] || null;
+      if (fallback?.deviceKey !== currentDevice.deviceKey) {
+        console.log('[useDevices] currentDevice stale, auto-switch to:', fallback?.deviceKey);
+        store.setCurrentDevice(fallback);
+      }
+    }
+  }, [safeDevices, currentDevice, store]);
 
   // 刷新设备列表
   const refresh = useCallback(async () => {

@@ -89,6 +89,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
   const { t } = useTranslation();
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const [text, setText] = useState('');
+  const [inputHeight, setInputHeight] = useState(40);
   const [internalInputMode, setInternalInputMode] = useState<InputMode>(InputMode.VOICE);
   const [pickedFiles, setPickedFiles] = useState<PickedFile[]>([]);
 
@@ -163,6 +164,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
         references: combinedRefs.length > 0 ? combinedRefs : undefined,
       });
       setText('');
+      setInputHeight(40);
       setPickedFiles([]);
       setUploadedFiles([]);
       setReferences([]);
@@ -309,9 +311,13 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
               style={[styles.textInput, { color: colors.onSurface }]}
               value={text}
               onChangeText={handleTextChange}
+              onContentSizeChange={(e) => {
+                setInputHeight(e.nativeEvent.contentSize.height);
+              }}
               placeholder={placeholder || t('voice.input.placeholder')}
               placeholderTextColor={colors.onSurfaceVariant}
               multiline
+              scrollEnabled={inputHeight >= 120}
               maxLength={500}
               editable={!disabled}
             />
@@ -351,19 +357,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
           </TouchableOpacity> */}
 
 
-          {/* TTS 自动朗读开关 */}
-          {onToggleAutoSpeak && (
-            <TouchableOpacity
-              style={styles.iconBtn}
-              onPress={onToggleAutoSpeak}
-            >
-              <MaterialIcons
-                name={autoSpeak ? 'volume-up' : 'volume-off'}
-                size={22}
-                color={autoSpeak ? colors.primary : colors.onSurfaceVariant}
-              />
-            </TouchableOpacity>
-          )}
+          {/* TTS 自动朗读开关已去除 */}
 
           {/* 发送按钮 - 仅在有内容时显示 */}
           {hasContent && (
@@ -535,12 +529,12 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   modeSwitchBtn: {
-    padding: 8,
-    marginRight: 4,
+    padding: 4,
+    marginRight: 2,
   },
   iconBtn: {
-    padding: 6,
-    marginHorizontal: 2,
+    padding: 4,
+    marginHorizontal: 1,
   },
   textInput: {
     width: '100%',
@@ -548,7 +542,7 @@ const styles = StyleSheet.create({
     minHeight: 40,
     maxHeight: 120,
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
   },
   atHint: {
     position: 'absolute',
@@ -562,12 +556,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 4,
+    marginLeft: 2,
   },
 
   // 语音输入

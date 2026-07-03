@@ -149,13 +149,27 @@ export function mergeSyncedHumanMessages(
 
   for (const msg of incoming) {
     if (msg.role !== 'human') {
-      if (!result.some((m) => m.id === msg.id)) {
+      const idx = result.findIndex((m) => m.id === msg.id);
+      if (idx !== -1) {
+        result[idx] = {
+          ...result[idx],
+          ...msg,
+          thinking: msg.thinking !== undefined ? msg.thinking : result[idx].thinking,
+          tool_name: msg.tool_name !== undefined ? msg.tool_name : result[idx].tool_name,
+          tool_call_id: msg.tool_call_id !== undefined ? msg.tool_call_id : result[idx].tool_call_id,
+          tool_meta: msg.tool_meta !== undefined ? msg.tool_meta : result[idx].tool_meta,
+          tool_calls: msg.tool_calls !== undefined ? msg.tool_calls : result[idx].tool_calls,
+          category: msg.category !== undefined ? msg.category : result[idx].category,
+          sequence_number: msg.sequence_number !== undefined ? msg.sequence_number : result[idx].sequence_number,
+          references: msg.references !== undefined ? msg.references : result[idx].references,
+        };
+      } else {
         result.push(msg);
       }
       continue;
     }
 
-    // 1. 优先基于 ID 进行精确匹配（client_message_id 对齐）
+    // 1. 优先通过 Gateway 返回的 message_id（id）匹配
     let tempIndex = result.findIndex(
       (m, idx) => {
         return (
@@ -167,7 +181,7 @@ export function mergeSyncedHumanMessages(
       },
     );
 
-    // 2. 兜底：如果 ID 不匹配，使用基于内容的模糊规则（兼容旧版本或第三方发送场景）
+    // 3. 最终兜底：基于内容模糊匹配（兼容旧版本或第三方发送场景）
     if (tempIndex === -1) {
       tempIndex = result.findIndex(
         (m, idx) => {
@@ -176,7 +190,7 @@ export function mergeSyncedHumanMessages(
             !consumedTempIndexes.has(idx) &&
             m.role === 'human' &&
             m.content === msg.content &&
-            (status === 'running' || status === 'sent') &&
+            (status === 'running' || status === 'sent' || status === 'sending' || status === 'awaiting_delivered') &&
             !m.sequence_number
           );
         },
@@ -195,20 +209,41 @@ export function mergeSyncedHumanMessages(
 }
 
 /**
- * 从 Agent 消息中解析 HITL 请求。
+ * 从 Agent 消息或规范 hitl.request body 中解析 HITL 请求。
  *
- * 当前实现：HITL 信息 JSON.stringify 后放在 content 字段中（协议 v1）。
- * 未来协议 v2 将改为直接从 msg.hitl 字段读取。
+ * 支持两种格式：
+ * 1. 旧版：HITL 信息 JSON.stringify 后放在 AgentSyncMessage.content 中。
+ * 2. 规范：直接传入 hitl.request envelope body（含 request_id/request_type）。
  */
-export function parseHITLRequest(msg: AgentSyncMessage): HumanRequest | null {
-  if (msg.action_type !== 'human_request' && msg.status !== 'waiting_human') {
+export function parseHITLRequest(msg: AgentSyncMessage | Record<string, any>): HumanRequest | null {
+  // 规范格式（hitl.request envelope body）
+  if ('request_id' in msg && 'request_type' in msg) {
+    const body = msg as Record<string, any>;
+    return {
+      id: body.request_id || `hitl-${Date.now()}`,
+      threadId: body.thread_id || '',
+      type: body.request_type || 'text',
+      prompt: body.prompt || i18n.t('hitl.defaultPrompt'),
+      options: body.options,
+      default_value: body.default_value,
+      context: body.context,
+      risk_level: body.metadata?.risk_level,
+      timestamp: Date.now(),
+      timeout: body.metadata?.timeout,
+    };
+  }
+
+  // 旧版 AgentSyncMessage 格式
+  const legacy = msg as AgentSyncMessage;
+  if (legacy.action_type !== 'human_request' && legacy.status !== 'waiting_human') {
     return null;
   }
 
   try {
-    const content = JSON.parse(msg.content || '{}');
+    const content = JSON.parse(legacy.content || '{}');
     return {
-      id: content.id || msg.id || `hitl-${Date.now()}`,
+      id: content.id || legacy.id || `hitl-${Date.now()}`,
+      threadId: legacy.thread_id || '',
       type: content.type || 'text',
       prompt: content.prompt || i18n.t('hitl.defaultPrompt'),
       options: content.options,

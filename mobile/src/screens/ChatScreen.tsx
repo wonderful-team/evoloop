@@ -41,16 +41,18 @@ import { useTheme } from '@/theme';
 import { useAuthStore } from '@/stores/authStore';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { useProjects } from '@/hooks/useProjects';
+import { useDevices } from '@/hooks/useDevices';
 import { useChatGateway } from '@/hooks/chat/useChatGateway';
+import { api } from '@/services/api/client';
 import { useChatDeviceSync } from '@/hooks/chat/useChatDeviceSync';
 import { ChatMessage, MessageReference } from '@/types/conversation';
 import type { UploadedFile } from '@/services/api/upload';
 import Video from 'react-native-video';
-import { generateUUID } from '@/utils/uuid';
 import { ConnectionState } from '@/services/gateway/types';
 import { getErrorMessage, isQuotaError } from '@/utils/error';
 import { debugManager } from '@/utils/debugManager';
 import { requestMicrophonePermission as requestMicPermission } from '@/utils/permissions';
+import { generateUUID } from '@/utils/uuid';
 import { Menu, Divider } from 'react-native-paper';
 
 
@@ -62,6 +64,9 @@ export default function ChatScreen() {
 
   // 从 MC 拉取项目列表（登录后才请求）
   const { currentProject, isGlobalMode, setCurrentProject, setGlobalMode } = useProjects({ autoFetch: isLoggedIn });
+
+  // 保持设备列表刷新，并在持久化设备失效时自动切换到在线设备
+  useDevices({ autoFetch: isLoggedIn });
 
   // 输入模式
   const [inputMode, setInputMode] = useState<InputMode>(InputMode.VOICE);
@@ -107,6 +112,7 @@ export default function ChatScreen() {
   const rewindConversation = useConversationStore((state) => state.rewindConversation);
   const retryConversation = useConversationStore((state) => state.retryConversation);
   const addToMemory = useConversationStore((state) => state.addToMemory);
+  const replaceMessageId = useConversationStore((state) => state.replaceMessageId);
 
   // TTS
   const { speak, enqueue: enqueueTTS, clearQueue: clearTTSQueue, stop: stopTTS, isSpeaking: isTTSSpeaking, setAudioPlayer, setOnStop } = useTTS();
@@ -114,6 +120,8 @@ export default function ChatScreen() {
   // SSE 流式状态
   const streamMessageIdRef = useRef<string | null>(null);
   const ttsBufferRef = useRef('');
+  // command_id → local message id 映射（用于 command_status_update 回调）
+  const commandIdMapRef = useRef<Map<number, string>>(new Map());
 
   // 清理 markdown 标记，避免 TTS 朗读 ** * 等符号
   const cleanForTTS = useCallback((text: string): string => {
@@ -286,9 +294,40 @@ export default function ChatScreen() {
         isComplete: true,
       });
     } else if (result.mode !== 'direct_llm') {
-      // 链路一（转发 Desktop）：等待后台轮询
+      // 链路一（转发 Desktop）：记录 command_id → local message id 映射
+      if (result.mode === 'desktop' && result.commandId > 0) {
+        // 获取最后一条 human 消息的 id（状态为 running）
+        const msgs = useConversationStore.getState().messages;
+        for (let i = msgs.length - 1; i >= 0; i--) {
+          if (msgs[i].role === 'human' && msgs[i].status === 'running') {
+            commandIdMapRef.current.set(result.commandId, msgs[i].id);
+            break;
+          }
+        }
+      }
     }
-  }, [setCurrentConversation, addMessage]);
+
+    // Gateway 统一生成 message_id：用后端真实 id 替换本地乐观消息的临时 id
+    if (result.messageId) {
+      const msgs = useConversationStore.getState().messages;
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        if (msgs[i].role === 'human' && msgs[i].status === 'running') {
+          replaceMessageId(msgs[i].id, result.messageId);
+          updateMessageStatus(result.messageId, 'sent');
+          break;
+        }
+      }
+    } else {
+      // 兜底：无 message_id 时直接标记最后一条 running 的 human 消息为已送达
+      const msgs = useConversationStore.getState().messages;
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        if (msgs[i].role === 'human' && msgs[i].status === 'running') {
+          updateMessageStatus(msgs[i].id, 'sent');
+          break;
+        }
+      }
+    }
+  }, [setCurrentConversation, addMessage, replaceMessageId, updateMessageStatus]);
 
   const {
     state: deviceState,
@@ -305,10 +344,12 @@ export default function ChatScreen() {
     clearQuotaExhausted,
   } = useDeviceControl({
     onError: handleDeviceError,
-    onCommandReady: () => {},
-    onHITLRequest: () => {},
     onMessageSent: handleMessageSent,
   });
+
+  // 统一设备来源：所有需要 deviceKey 的地方统一使用 activeDeviceKey
+  // selectedDevice 仅用于 UI 展示和触发同步
+  const effectiveDeviceKey = activeDeviceKey;
 
   // 从 deviceStore 获取当前选中的设备
   const { currentDevice: selectedDevice } = useDeviceStore();
@@ -319,7 +360,45 @@ export default function ChatScreen() {
     syncMessages,
     onAgentRunCompleted: () => {
       setIsAgentProcessing(false);
-    }
+    },
+    onCommandStatusUpdate: useCallback((data) => {
+      const messageId = commandIdMapRef.current.get(data.command_id);
+      if (!messageId) return;
+
+      if (data.status === 'completed' || data.status === 'delivered') {
+        updateMessageStatus(messageId, 'sent');
+      } else if (data.status === 'failed') {
+        updateMessageStatus(messageId, 'failed');
+      } else if (data.status === 'received') {
+        updateMessageStatus(messageId, 'awaiting_delivered');
+      }
+
+      if (data.status === 'completed' || data.status === 'failed') {
+        commandIdMapRef.current.delete(data.command_id);
+      }
+    }, [updateMessageStatus]),
+    onReconnected: useCallback(async () => {
+      const pending: Array<{ commandId: number; messageId: string }> = [];
+      commandIdMapRef.current.forEach((messageId, commandId) => {
+        pending.push({ commandId, messageId });
+      });
+
+      for (const { commandId, messageId } of pending) {
+        try {
+          const res: any = await api.get(`/gateway/api/v1/commands/${commandId}`);
+          const status = res?.data?.status;
+          if (status === 'completed' || status === 'delivered') {
+            updateMessageStatus(messageId, 'sent');
+            commandIdMapRef.current.delete(commandId);
+          } else if (status === 'failed') {
+            updateMessageStatus(messageId, 'failed');
+            commandIdMapRef.current.delete(commandId);
+          }
+        } catch {
+          // 查询失败静默跳过，下次重连会重试
+        }
+      }
+    }, [updateMessageStatus]),
   });
   const { deviceConversationMap, saveDeviceConversation } = useChatDeviceSync({
     isLoggedIn,
@@ -358,6 +437,32 @@ export default function ChatScreen() {
 
   // 重发失败消息
   const handleResend = useCallback(async (message: ChatMessage) => {
+    // 超时/失败消息可能实际已成功：先查询 Gateway 命令状态，避免重复发送
+    if (message.status === 'timeout' || message.status === 'failed') {
+      let commandId: number | undefined;
+      commandIdMapRef.current.forEach((cmid, cid) => {
+        if (cmid === message.id) commandId = cid;
+      });
+      if (commandId) {
+        try {
+          const res: any = await api.get(`/gateway/api/v1/commands/${commandId}`);
+          const status = res?.data?.status;
+          if (status === 'completed' || status === 'delivered') {
+            updateMessageStatus(message.id, 'sent');
+            commandIdMapRef.current.delete(commandId);
+            return;
+          }
+          if (status === 'failed') {
+            updateMessageStatus(message.id, 'failed');
+            commandIdMapRef.current.delete(commandId);
+            return;
+          }
+        } catch {
+          // 查询失败 → 继续走重发流程
+        }
+      }
+    }
+
     updateMessageStatus(message.id, 'sending');
     try {
       await sendMessageToDevice({
@@ -365,8 +470,9 @@ export default function ChatScreen() {
         text: message.content,
       }, {
         conversationId: currentConversationId || undefined,
-        deviceKey: selectedDevice?.deviceKey,
+        deviceKey: effectiveDeviceKey,
         references: message.references,
+        projectId: currentProject?.id,
       });
       updateMessageStatus(message.id, 'sent');
     } catch (error: unknown) {
@@ -376,10 +482,15 @@ export default function ChatScreen() {
         showSnackbar(t('chat.sendFailed') + errorText);
       }
     }
-  }, [currentConversationId, sendMessageToDevice, selectedDevice, updateMessageStatus]);
+  }, [currentConversationId, sendMessageToDevice, effectiveDeviceKey, showSnackbar, t, updateMessageStatus, currentProject]);
 
   // 发送消息（HTTP 版本）
   const handleSendMessage = useCallback(async (text: string, options?: { references?: MessageReference[] }) => {
+    // 空文本拦截（上游入口已有防护，此处做兜底）
+    if (!text.trim() && !options?.references?.length) {
+      return;
+    }
+
     // 权限校验：未登录时拦截并跳转
     if (!isLoggedIn) {
       showSnackbar(t('chat.voiceLoginRequired'));
@@ -419,6 +530,11 @@ export default function ChatScreen() {
     // 清空 TTS buffer（新对话开始）
     ttsBufferRef.current = '';
 
+    // 30s 超时检测：HTTP 请求超时或command_ack 未回
+    const timeoutId = setTimeout(() => {
+      updateMessageStatus(userMessage.id, 'timeout');
+    }, 30000);
+
     // 通过 HTTP 发送消息到 Gateway
     try {
       await sendMessageToDevice({
@@ -426,9 +542,9 @@ export default function ChatScreen() {
         text: finalText,
       }, {
         conversationId: conversationId || undefined,
-        deviceKey: selectedDevice?.deviceKey,
+        deviceKey: effectiveDeviceKey,
         references: options?.references,
-        clientMessageId: userMessage.id,
+        projectId: currentProject?.id,
         // 流式回调（仅链路二生效）
         onStreamStart: () => {
           const msgId = generateUUID();
@@ -471,21 +587,31 @@ export default function ChatScreen() {
           }
           ttsBufferRef.current = '';
         },
+        onGatewayMetadata: (meta) => {
+          console.log('[ChatScreen] gateway_metadata:', meta);
+          // 链路二：Gateway 返回 human 消息的 message_id，替换本地乐观 id
+          replaceMessageId(userMessage.id, meta.message_id);
+          updateMessageStatus(meta.message_id, 'sent');
+          // 确保当前会话 id 与 Gateway 一致（新会话场景）
+          if (!currentConversationId) {
+            setCurrentConversation(meta.thread_id, true);
+          }
+        },
       });
 
-      // 发送成功：标记为已送达
-      updateMessageStatus(userMessage.id, 'sent');
+      clearTimeout(timeoutId);
 
       // 链路一（Desktop）：显示 AI 思考中指示器
-      if (selectedDevice?.deviceKey) {
+      if (effectiveDeviceKey) {
         setIsAgentProcessing(true);
       }
 
       // 发送成功：更新设备-对话映射
-      if (selectedDevice?.deviceKey && conversationId) {
-        saveDeviceConversation(selectedDevice.deviceKey, conversationId);
+      if (effectiveDeviceKey && conversationId) {
+        saveDeviceConversation(effectiveDeviceKey, conversationId);
       }
     } catch (error: unknown) {
+      clearTimeout(timeoutId);
       // 发送失败：标记为失败
       updateMessageStatus(userMessage.id, 'failed');
 
@@ -495,7 +621,7 @@ export default function ChatScreen() {
         showSnackbar(t('chat.sendFailed') + errorText);
       }
     }
-  }, [currentConversationId, sendMessageToDevice, selectedDevice, addMessage, saveDeviceConversation, updateMessageStatus, updateStreamMessage, flushTTSBuffer, enqueueTTS, cleanForTTS]);
+  }, [currentConversationId, sendMessageToDevice, effectiveDeviceKey, addMessage, saveDeviceConversation, updateMessageStatus, updateStreamMessage, flushTTSBuffer, enqueueTTS, cleanForTTS, currentProject, replaceMessageId, setCurrentConversation]);
 
   useSystemIntent(
     useCallback((text) => {
@@ -553,10 +679,10 @@ export default function ChatScreen() {
   const handleInterrupt = useCallback(() => {
     stopTTS();
     // 同时停止 Agent 生成（如果正在运行）
-    if (currentConversationId) {
-      stopAgent(currentConversationId).catch(() => {});
+    if (currentConversationId && activeDeviceKey) {
+      stopAgent(currentConversationId, activeDeviceKey).catch(() => {});
     }
-  }, [stopTTS, currentConversationId, stopAgent]);
+  }, [stopTTS, currentConversationId, activeDeviceKey, stopAgent]);
 
   const handleToggleMode = useCallback(() => {
     setInputMode(m => m === InputMode.VOICE ? InputMode.TEXT : InputMode.VOICE);
@@ -577,7 +703,7 @@ export default function ChatScreen() {
   const handleSelectThread = useCallback((threadId: string) => {
     // 转发模式：发送待转发内容到目标会话
     if (pendingForwardContent) {
-      sendMessageToDevice({ type: 'text', text: pendingForwardContent }, { conversationId: threadId, deviceKey: selectedDevice?.deviceKey })
+      sendMessageToDevice({ type: 'text', text: pendingForwardContent }, { conversationId: threadId, deviceKey: effectiveDeviceKey, projectId: currentProject?.id })
         .then(() => {
           showSnackbar(t('chat.forwardSuccess'));
           setPendingForwardContent(null);
@@ -592,10 +718,10 @@ export default function ChatScreen() {
     setCurrentConversation(threadId);
     setShowHistoryDrawer(false);
     // 更新设备-对话映射
-    if (selectedDevice?.deviceKey) {
-      saveDeviceConversation(selectedDevice.deviceKey, threadId);
+    if (effectiveDeviceKey) {
+      saveDeviceConversation(effectiveDeviceKey, threadId);
     }
-  }, [setCurrentConversation, selectedDevice, saveDeviceConversation, pendingForwardContent, sendMessageToDevice]);
+  }, [setCurrentConversation, effectiveDeviceKey, saveDeviceConversation, pendingForwardContent, sendMessageToDevice, currentProject]);
 
 
 
@@ -605,7 +731,7 @@ export default function ChatScreen() {
     if (pendingForwardContent) {
       createConversation(currentProject?.id || 0, pendingForwardContent)
         .then((newId) => {
-          sendMessageToDevice({ type: 'text', text: pendingForwardContent }, { conversationId: newId, deviceKey: selectedDevice?.deviceKey })
+            sendMessageToDevice({ type: 'text', text: pendingForwardContent }, { conversationId: newId, deviceKey: effectiveDeviceKey, projectId: currentProject?.id })
             .then(() => showSnackbar(t('chat.forwardSuccess')))
             .catch(() => showSnackbar(t('chat.forwardFailed')));
           setPendingForwardContent(null);
@@ -620,10 +746,10 @@ export default function ChatScreen() {
     setCurrentConversation(null);
     setShowHistoryDrawer(false);
     // 清除当前设备的对话映射（新对话尚未发送消息，不绑定设备）
-    if (selectedDevice?.deviceKey) {
-      saveDeviceConversation(selectedDevice.deviceKey, null);
+    if (effectiveDeviceKey) {
+      saveDeviceConversation(effectiveDeviceKey, null);
     }
-  }, [setCurrentConversation, selectedDevice, saveDeviceConversation, pendingForwardContent, sendMessageToDevice, createConversation, currentProject]);
+  }, [setCurrentConversation, effectiveDeviceKey, saveDeviceConversation, pendingForwardContent, sendMessageToDevice, createConversation, currentProject]);
 
   // HITL 响应处理
   const handleHITLRespond = useCallback((value: string) => {
@@ -732,26 +858,22 @@ export default function ChatScreen() {
   }, [executeRetry]);
 
   // 添加到记忆
-  const handleAddToMemory = useCallback(async (text: string) => {
-    if (!currentProject) {
+  const handleAddToMemory = useCallback(async (text: string, messageId?: string) => {
+    if (!currentProject || !activeDeviceKey) {
       showSnackbar(t('chat.input.noProject'));
-      return;
-    }
-    if (currentProject.isGlobal) {
-      showSnackbar(t('chat.globalModeNoMemory'));
       return;
     }
 
     try {
-      await addToMemory(currentProject.id, {
-        name: t('chat.learnFromConversation'),
+      await addToMemory(currentProject.id, activeDeviceKey, {
+        name: text,
         description: text,
-      });
+      }, messageId, currentConversationId);
       showSnackbar(t('chat.addedToMemory'));
     } catch (error: unknown) {
       showSnackbar(t('chat.addMemoryFailed') + getErrorMessage(error));
     }
-  }, [currentProject, addToMemory]);
+  }, [currentConversationId, currentProject, activeDeviceKey, addToMemory]);
 
   // 引用消息
   const voiceInputRef = useRef<VoiceInputWithNLSHandle>(null);
@@ -1117,7 +1239,7 @@ export default function ChatScreen() {
         visible={showHistoryDrawer}
         onClose={() => setShowHistoryDrawer(false)}
         projectId={currentProject?.id}
-        deviceKey={selectedDevice?.deviceKey}
+        deviceKey={activeDeviceKey}
         onSelectThread={handleSelectThread}
         onNewThread={handleNewThread}
       />

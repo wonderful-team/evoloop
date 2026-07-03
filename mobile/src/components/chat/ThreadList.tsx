@@ -41,6 +41,8 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
   const {
     conversations,
     currentConversationId,
+    activeProjectId,
+    activeDeviceKey,
     isLoadingConversations,
     hasMoreConversations,
     loadConversations,
@@ -56,14 +58,16 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
   const [renameThreadId, setRenameThreadId] = useState('');
   const [renameTitle, setRenameTitle] = useState('');
 
-  // 加载会话列表（仅在登录时，projectId 或 deviceKey 变化时刷新）
+  // 加载会话列表（仅在初次加载或 projectId/deviceKey 与缓存不匹配时请求；重复点开抽屉复用现有数据）
   useEffect(() => {
-    if (isLoggedIn) {
-      loadConversations(projectId, true, deviceKey).catch(() => {
-        // 静默处理错误，不显示代码级错误，由调用方决定是否提示用户
-      });
+    if (!isLoggedIn) return;
+    if (activeProjectId === projectId && activeDeviceKey === deviceKey && (conversations.length > 0 || !hasMoreConversations)) {
+      return;
     }
-  }, [projectId, deviceKey, isLoggedIn]);
+    loadConversations(projectId, true, deviceKey).catch(() => {
+      // 静默处理错误，不显示代码级错误，由调用方决定是否提示用户
+    });
+  }, [projectId, deviceKey, isLoggedIn, activeProjectId, activeDeviceKey, conversations.length, hasMoreConversations, loadConversations]);
 
   // 选择会话
   const handleSelectThread = useCallback((conversation: Conversation) => {
