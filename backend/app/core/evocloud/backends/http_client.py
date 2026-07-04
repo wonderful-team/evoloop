@@ -707,7 +707,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
     ) -> dict:
         data = {"device_key": device_key, **cmd_data}
         return await self.request(
-            "POST", "/api/v1/command/execute", data=data, token=token
+            "POST", "/api/v1/command/send", data=data, token=token
         )
 
     async def get_device_logs(
