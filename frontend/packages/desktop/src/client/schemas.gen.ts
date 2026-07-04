@@ -1253,6 +1253,28 @@ export const ConceptCreateSchema = {
                 }
             ],
             title: 'Related Files'
+        },
+        source_message_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Source Message Id'
+        },
+        source_thread_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Source Thread Id'
         }
     },
     additionalProperties: true,
@@ -1421,6 +1443,61 @@ export const ConversationListItemSchema = {
                 }
             ],
             title: 'Goal'
+        },
+        parent_thread_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Parent Thread Id'
+        },
+        root_thread_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Root Thread Id'
+        },
+        caller_device_key: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Caller Device Key'
+        },
+        executor_device_key: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Executor Device Key'
+        },
+        executor_device_name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Executor Device Name'
         }
     },
     additionalProperties: true,
@@ -4150,6 +4227,39 @@ export const MessageItemSchema = {
                 }
             ],
             title: 'Is Complete'
+        },
+        executor_device_key: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Executor Device Key'
+        },
+        executor_device_name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Executor Device Name'
+        },
+        source: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Source'
         },
         meta_data: {
             additionalProperties: true,
@@ -7318,6 +7428,30 @@ export const TaskWithSubtasksCreateSchema = {
     required: ['title'],
     title: 'TaskWithSubtasksCreate',
     description: 'Create parent task with subtasks.'
+} as const;
+
+export const TerminalCommandRequestSchema = {
+    properties: {
+        command: {
+            type: 'string',
+            title: 'Command'
+        }
+    },
+    type: 'object',
+    required: ['command'],
+    title: 'TerminalCommandRequest'
+} as const;
+
+export const TerminalInputRequestSchema = {
+    properties: {
+        text: {
+            type: 'string',
+            title: 'Text'
+        }
+    },
+    type: 'object',
+    required: ['text'],
+    title: 'TerminalInputRequest'
 } as const;
 
 export const TimesheetQuickAddRequestSchema = {

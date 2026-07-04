@@ -51,6 +51,7 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
     probe_host_task = EnvironmentProbe.probe_host()
     probe_android_task = EnvironmentProbe.probe_android_devices()
     probe_network_task = EnvironmentProbe.probe_network()
+    probe_docker_task = EnvironmentProbe.probe_docker_containers()
     memory_task = replay_memory(project_id)
     pref_task = prime_preferences(project_id)
 
@@ -59,12 +60,13 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
         probe_host_task,
         probe_android_task,
         probe_network_task,
+        probe_docker_task,
         memory_task,
         pref_task
     )
 
     # Assign results
-    host, android_devices, network, memory_context, pref_context = results
+    host, android_devices, network, docker_containers, memory_context, pref_context = results
 
     # 4. Compute capability boundaries
     boundaries = _compute_capability_boundaries(host, android_devices, network)
@@ -83,6 +85,7 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
         host=host,
         android_devices=android_devices,
         network=network,
+        docker_containers=docker_containers,
         recent_episodes=memory_context.episodes,
         relevant_concepts=memory_context.concepts,
         journal_highlights=memory_context.journal_highlights,
@@ -112,6 +115,7 @@ async def _refresh_state(project_id: int | None = None) -> AwakenedState:
     host = await EnvironmentProbe.probe_host()
     android_devices = await EnvironmentProbe.probe_android_devices()
     network = await EnvironmentProbe.probe_network()
+    docker_containers = await EnvironmentProbe.probe_docker_containers()
 
     # Compute boundaries
     boundaries = _compute_capability_boundaries(host, android_devices, network)
@@ -132,6 +136,7 @@ async def _refresh_state(project_id: int | None = None) -> AwakenedState:
         host=host,
         android_devices=android_devices,
         network=network,
+        docker_containers=docker_containers,
         recent_episodes=prev_state.recent_episodes if prev_state else [],
         relevant_concepts=prev_state.relevant_concepts if prev_state else [],
         journal_highlights=prev_state.journal_highlights if prev_state else "",

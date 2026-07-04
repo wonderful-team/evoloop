@@ -284,7 +284,7 @@ async def run_comprehensive_evaluation():
     # 配置 SystemConfig
     from app.infrastructure.config import SystemConfigService
     SystemConfigService.set_value("LLM_MODEL", "gemma-4-e4b")
-    SystemConfigService.set_value("LLM_BASE_URL", "http://192.168.3.14:1234/v1")
+    SystemConfigService.set_value("LLM_BASE_URL", "http://192.168.3.21:1234/v1")
     SystemConfigService.set_value("LLM_API_KEY", "lm-studio")
     SystemConfigService.set_value("LLM_PROVIDER_TYPE", "openai")
     

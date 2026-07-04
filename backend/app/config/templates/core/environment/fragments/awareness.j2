@@ -4,10 +4,23 @@
 
 {% if environment.host -%}
 - Host: {{ environment.host.model }} ({{ environment.host.cpu }}), {{ environment.host.os_name }} {{ environment.host.os_version }}
+{% if environment.host.os_name == 'Linux' -%}
+  - **Linux Distro**: {{ environment.host.distro or 'Unknown' }}
+  - **User Privileges**: {{ 'Sudo (Passwordless)' if environment.host.sudo_available else 'Standard User (No Passwordless Sudo)' }}
+  {% if environment.host.disk_space -%}
+  - **Disk Space (CWD)**: {{ environment.host.disk_space.free_gb }} GB free / {{ environment.host.disk_space.total_gb }} GB total ({{ environment.host.disk_space.percent_used }}% used)
+  {%- endif %}
+  {% if environment.host.systemd_services -%}
+  - **Active System Services**: {{ environment.host.systemd_services | join(', ') }}
+  {%- endif %}
+  {% if environment.host.gpus -%}
+  - **GPU Hardware**: {{ environment.host.gpus | join(', ') }}
+  {%- endif %}
+{%- endif %}
 {%- if not is_subtask and environment.host.top_apps %}
   Installed {{ environment.host.os_name }} Apps (Top): {{ environment.host.top_apps[:15] | join(', ') }}
 {%- endif %}
-{%- if not is_subtask %}
+{%- if not is_subtask and environment.host.os_name == 'macOS' %}
   Use `list_app_atlas()` to see apps with structural UI maps.
 {%- endif %}
 {%- endif %}
@@ -81,6 +94,30 @@
 ### Constraints
 {% for b in boundaries -%}
 - {{ b }}
+{% endfor -%}
+{%- endif %}
+
+{% if environment.running_services -%}
+
+### Active Background Services / Tasks
+{% for svc in environment.running_services -%}
+- **Task ID**: `{{ svc.task_id }}` | **Command**: `{{ svc.title }}` | **Status**: `{{ svc.status }}` | **Elapsed**: {{ svc.elapsed_seconds }}s
+{% endfor -%}
+{%- endif %}
+
+{% if environment.active_ports -%}
+
+### Active Local Services (Listening Ports)
+{% for p in environment.active_ports -%}
+- **Port {{ p.port }}**: `{{ p.process }}` (PID: {{ p.pid or 'Unknown' }})
+{% endfor -%}
+{%- endif %}
+
+{% if environment.docker_containers -%}
+
+### Active Docker Containers
+{% for c in environment.docker_containers -%}
+- **Name**: `{{ c.name }}` | **Image**: `{{ c.image }}` | **Status**: `{{ c.status }}` | **Ports**: `{{ c.ports }}`
 {% endfor -%}
 {%- endif %}
 

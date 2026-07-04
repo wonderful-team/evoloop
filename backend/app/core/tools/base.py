@@ -42,7 +42,17 @@ def get_working_directory(config: RunnableConfig | None = None) -> str:
         if wd:
             return wd
 
-    # 3. Fallback to SystemConfig WORKSPACE_ROOT
+    # 3. Check ThreadContextStore by thread_id (returns project directory if in project, or default_root if global)
+    if ctx.thread_id:
+        try:
+            from app.core.context import thread_context_store
+            managed_cwd = thread_context_store.get_working_directory(ctx.thread_id)
+            if managed_cwd:
+                return managed_cwd
+        except Exception as e:
+            logger.warning(f"Failed to fetch working directory from thread_context_store: {e}")
+
+    # 4. Fallback to SystemConfig WORKSPACE_ROOT
     try:
         from app.infrastructure.config.service import SystemConfigService
         workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
@@ -51,7 +61,7 @@ def get_working_directory(config: RunnableConfig | None = None) -> str:
     except (OSError, RuntimeError, TypeError, ValueError) as e:
         logger.warning(f"Failed to fetch WORKSPACE_ROOT for tool fallback: {e}")
 
-    # 4. Final Fallback
+    # 5. Final Fallback
     return os.getcwd()
 
 

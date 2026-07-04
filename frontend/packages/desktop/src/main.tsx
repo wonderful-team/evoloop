@@ -1,6 +1,8 @@
 import { ThemeProvider } from "@evoloop/shared/components/theme-provider"
 import { Toaster } from "@evoloop/shared/components/ui/sonner"
 import i18n from "@evoloop/shared/i18n"
+import "@xterm/xterm/css/xterm.css"
+
 import {
   MutationCache,
   QueryCache,

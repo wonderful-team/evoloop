@@ -64,6 +64,59 @@ class AppEnvironmentPrompt:
 
 # Environment Prompt Utilities - Shared logic for building environment awareness sections.
 
+def _get_active_background_tasks() -> list[dict]:
+    try:
+        from app.core.context import ContextManager
+        from app.core.tools.background import task_manager
+
+        ctx = ContextManager.current()
+        thread_id = ctx.thread_id
+        if not thread_id:
+            return []
+
+        active_tasks = task_manager.get_active_tasks(thread_id)
+        return [
+            {
+                "task_id": t.task_id,
+                "title": t.title,
+                "status": t.status.value,
+                "elapsed_seconds": t.elapsed_seconds,
+            }
+            for t in active_tasks
+        ]
+    except Exception:
+        return []
+
+
+def _get_listening_local_ports() -> list[dict]:
+    try:
+        import psutil
+        import warnings
+        ports = []
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            for p in psutil.process_iter(['pid', 'name']):
+                try:
+                    for conn in p.connections(kind='inet'):
+                        if conn.status == 'LISTEN':
+                            ports.append({
+                                "port": conn.laddr.port,
+                                "pid": p.info['pid'],
+                                "process": p.info['name'] or "Unknown"
+                            })
+                except (psutil.AccessDenied, psutil.NoSuchProcess):
+                    continue
+        # Deduplicate by port
+        seen_ports = {}
+        for p in ports:
+            port = p["port"]
+            if port not in seen_ports or (p["pid"] and not seen_ports[port]["pid"]):
+                seen_ports[port] = p
+        return sorted(list(seen_ports.values()), key=lambda x: x["port"])
+    except Exception:
+        return []
+
+
 def build_environment_summaries(relevance: str = "auto") -> dict:
     """
     Build environment awareness data from awakened state.
@@ -99,6 +152,14 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
                         host_info["top_apps"] = [s.app_name for s in state.host.app_usage_stats]
                     else:
                         host_info["top_apps"] = sorted(state.host.installed_apps)
+            # Linux specific details
+            if state.host.os_name == "Linux":
+                host_info["distro"] = getattr(state.host, "distro", "Linux")
+                host_info["sudo_available"] = getattr(state.host, "sudo_available", False)
+                host_info["disk_space"] = getattr(state.host, "disk_space", None)
+                host_info["systemd_services"] = getattr(state.host, "systemd_services", [])
+                host_info["gpus"] = getattr(state.host, "gpus", [])
+
             data["host"] = host_info
 
         # 2. Android Info
@@ -125,13 +186,15 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
                 "internet_connected": state.network.internet_connected
             }
 
+        # 4. Background Services and Listening Ports
+        data["running_services"] = _get_active_background_tasks()
+        data["active_ports"] = _get_listening_local_ports()
+        data["docker_containers"] = getattr(state, "docker_containers", [])
+
         return data
 
     except Exception:
         return {}
-
-    except Exception:
-        return ["Environment: Unable to retrieve (using default settings)"]
 
 
 def build_environment_prompt(relevance: str = "auto") -> str:

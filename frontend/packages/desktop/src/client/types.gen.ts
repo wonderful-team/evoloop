@@ -357,6 +357,8 @@ export type ConceptCreate = {
     name: string;
     description: string;
     related_files?: (Array<(string)> | null);
+    source_message_id?: (string | null);
+    source_thread_id?: (string | null);
     [key: string]: unknown | string;
 };
 
@@ -394,6 +396,11 @@ export type ConversationListItem = {
     status?: string;
     is_pinned?: boolean;
     goal?: (string | null);
+    parent_thread_id?: (string | null);
+    root_thread_id?: (string | null);
+    caller_device_key?: (string | null);
+    executor_device_key?: (string | null);
+    executor_device_name?: (string | null);
     [key: string]: unknown | string | boolean;
 };
 
@@ -1121,6 +1128,9 @@ export type MessageItem = {
     parent_id?: (string | null);
     checkpoint_id?: (string | null);
     is_complete?: (boolean | null);
+    executor_device_key?: (string | null);
+    executor_device_name?: (string | null);
+    source?: (string | null);
     meta_data?: {
         [key: string]: unknown;
     };
@@ -1958,6 +1968,14 @@ export type TaskWithSubtasksCreate = {
     [key: string]: unknown | string | number | SubtaskCreate;
 };
 
+export type TerminalCommandRequest = {
+    command: string;
+};
+
+export type TerminalInputRequest = {
+    text: string;
+};
+
 export type TimesheetQuickAddRequest = {
     project_id: number;
     thread_id?: (string | null);
@@ -2577,6 +2595,26 @@ export type ConversationsGetThreadChangesetData = {
 };
 
 export type ConversationsGetThreadChangesetResponse = (Array<ChangesetNode>);
+
+export type ConversationsRunTerminalCommandData = {
+    requestBody: TerminalCommandRequest;
+    threadId: string;
+};
+
+export type ConversationsRunTerminalCommandResponse = (unknown);
+
+export type ConversationsSendTerminalInputData = {
+    requestBody: TerminalInputRequest;
+    threadId: string;
+};
+
+export type ConversationsSendTerminalInputResponse = (unknown);
+
+export type ConversationsGetActiveThreadTasksData = {
+    threadId: string;
+};
+
+export type ConversationsGetActiveThreadTasksResponse = (unknown);
 
 export type DevicesGetDevicesResponse = (unknown);
 
@@ -3269,6 +3307,12 @@ export type MemoryAddConceptData = {
 };
 
 export type MemoryAddConceptResponse = (ConceptOperationResponse);
+
+export type MemoryListConceptsForMobileData = {
+    projectId: number;
+};
+
+export type MemoryListConceptsForMobileResponse = (unknown);
 
 export type MemoryListConceptsWithCountsData = {
     limit?: number;

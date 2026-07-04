@@ -236,6 +236,8 @@ class BackgroundTaskManager:
         Returns:
             True if state changed, False otherwise
         """
+        # Allow pending async output event publications to flush before marking completed
+        await asyncio.sleep(0.05)
         async with self._data_lock:
             task = self._tasks.get(task_id)
             if not task or task.is_completed:
@@ -263,6 +265,8 @@ class BackgroundTaskManager:
         Returns:
             True if state changed, False otherwise
         """
+        # Allow pending async output event publications to flush before marking failed
+        await asyncio.sleep(0.05)
         async with self._data_lock:
             task = self._tasks.get(task_id)
             if not task or task.is_completed:
@@ -281,6 +285,8 @@ class BackgroundTaskManager:
 
     async def timeout_task(self, task_id: str) -> bool:
         """Mark task as timed out."""
+        # Allow pending async output event publications to flush before marking timeout
+        await asyncio.sleep(0.05)
         async with self._data_lock:
             task = self._tasks.get(task_id)
             if not task or task.is_completed:
@@ -346,6 +352,19 @@ class BackgroundTaskManager:
         # Publish output event (fire and forget)
         asyncio.create_task(self._publish_output_event(task, output))
 
+        return True
+
+    async def append_output_async(self, task_id: str, output: str) -> bool:
+        """
+        Async version of append_output that awaits event publication.
+        Useful when guaranteeing output delivery before subsequent async transitions (e.g. task completion).
+        """
+        task = self._tasks.get(task_id)
+        if not task:
+            return False
+
+        task.append_output(output)
+        await self._publish_output_event(task, output)
         return True
 
     # ==================== Query Methods ====================
@@ -479,7 +498,7 @@ class BackgroundTaskManager:
                     BackgroundTaskOutputEvent(
                         thread_id=task.thread_id,
                         task_id=task.task_id,
-                        output=output[-500:]  # Last 500 chars
+                        output=output
                     )
                 )
             except (TypeError, ValueError, RuntimeError, OSError):

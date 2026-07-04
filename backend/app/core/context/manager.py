@@ -1,3 +1,4 @@
+import contextlib
 import contextvars
 import json
 import time
@@ -91,6 +92,18 @@ class ContextManager:
         Set the current context. Returns a token to reset it later.
         """
         return _context_var.set(ctx)
+
+    @staticmethod
+    @contextlib.contextmanager
+    def use(ctx: EvoContext):
+        """
+        Context manager to temporarily set the current context.
+        """
+        token = ContextManager.set(ctx)
+        try:
+            yield ctx
+        finally:
+            ContextManager.reset(token)
 
     @staticmethod
     def reset(token: contextvars.Token):

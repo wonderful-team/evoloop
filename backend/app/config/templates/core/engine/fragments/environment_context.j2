@@ -207,7 +207,9 @@ Project ID: {{ project_id }}
 {%- endif %}
 {%- if sys_info.cwd %}
 CWD: {{ sys_info.cwd }}
-**CRITICAL PATH RULE**: All tools execute relative to this CWD. Do NOT prepend the project folder name to your file paths if your CWD is already inside it (e.g., do not use `my-project/src/file` if CWD is `/path/to/my-project`; use `src/file`).
+**CRITICAL PATH RULE**: All tools and shell commands execute relative to this CWD.
+1. **Always Prefer Relative Paths**: To keep chat messages, command logs, and UI displays clean and readable without redundant long paths, you MUST prefer concise relative paths (relative to CWD) instead of full absolute paths whenever possible (e.g., use `python src/test.py` or `cd src && python test.py` instead of `python /Users/.../src/test.py`).
+2. **No Redundant Folder Prefix**: Do NOT prepend the project folder name to your file paths if your CWD is already inside it (e.g., do not use `my-project/src/file` if CWD is `/path/to/my-project`; use `src/file`).
 {%- endif %}
 {%- if sandbox_mode == 'docker' %}
 **ENVIRONMENT NOTE**: You are running inside a **Docker Sandbox**.

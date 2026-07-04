@@ -26,6 +26,7 @@ class AwakenedState(DynamicBaseModel):
     host: HostEnvironment | None = None
     android_devices: list[AndroidDevice] = []
     network: NetworkStatus = NetworkStatus()
+    docker_containers: list[dict] = []
 
     # == Memory Layer ==
     recent_episodes: list[EpisodeSummary] = []

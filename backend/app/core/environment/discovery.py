@@ -106,10 +106,10 @@ class EnvironmentProbe:
         """Standard host probe for Linux and Windows."""
         try:
             ram_gb = int(psutil.virtual_memory().total / (1024 ** 3))
-        except ImportError:
+        except Exception:
             ram_gb = 0
             
-        return HostEnvironment(
+        host_env = HostEnvironment(
             os_name=os_name,
             os_version=platform.release(),
             model=f"{os_name} Host",
@@ -118,6 +118,90 @@ class EnvironmentProbe:
             installed_apps=[],
             app_usage_stats=[]
         )
+
+        if os_name == "Linux":
+            import subprocess
+            import shutil
+
+            # 1. Distro Details
+            distro = "Linux"
+            try:
+                info = platform.freedesktop_os_release()
+                distro = f"{info.get('NAME', 'Linux')} {info.get('VERSION_ID', '')}"
+            except Exception:
+                try:
+                    if os.path.exists("/etc/os-release"):
+                        with open("/etc/os-release", "r") as f:
+                            for line in f:
+                                if line.startswith("PRETTY_NAME="):
+                                    distro = line.split("=", 1)[1].strip().strip('"')
+                                    break
+                except Exception:
+                    pass
+            host_env.distro = distro
+
+            # 2. Sudo availability (without password)
+            def _check_sudo():
+                try:
+                    res = subprocess.run(['sudo', '-n', 'true'], capture_output=True, timeout=1.0)
+                    return res.returncode == 0
+                except Exception:
+                    return False
+            host_env.sudo_available = await asyncio.to_thread(_check_sudo)
+
+            # 3. Disk Space in current directory
+            def _get_disk_space():
+                try:
+                    total, used, free = shutil.disk_usage(".")
+                    return {
+                        "total_gb": round(total / (2**30), 1),
+                        "free_gb": round(free / (2**30), 1),
+                        "percent_used": round((used / total) * 100, 1)
+                    }
+                except Exception:
+                    return None
+            host_env.disk_space = await asyncio.to_thread(_get_disk_space)
+
+            # 4. Active Systemd Services
+            def _get_systemd_services():
+                try:
+                    res = subprocess.run(
+                        ['systemctl', 'list-units', '--type=service', '--state=running', '--no-legend'],
+                        capture_output=True,
+                        text=True,
+                        timeout=1.5
+                    )
+                    if res.returncode != 0:
+                        return []
+                    services = []
+                    for line in res.stdout.strip().split('\n'):
+                        parts = line.split()
+                        if parts:
+                            name = parts[0].replace('.service', '')
+                            if any(svc in name for svc in ('nginx', 'mysql', 'postgres', 'redis', 'docker', 'apache', 'mongodb', 'memcached')):
+                                services.append(name)
+                    return services
+                except Exception:
+                    return []
+            host_env.systemd_services = await asyncio.to_thread(_get_systemd_services)
+
+            # 5. GPU Devices
+            def _get_gpus():
+                try:
+                    res = subprocess.run(
+                        ['nvidia-smi', '--query-gpu=gpu_name,memory.total', '--format=csv,noheader,nounits'],
+                        capture_output=True,
+                        text=True,
+                        timeout=1.5
+                    )
+                    if res.returncode == 0:
+                        return [line.strip() for line in res.stdout.strip().split('\n') if line.strip()]
+                except Exception:
+                    pass
+                return []
+            host_env.gpus = await asyncio.to_thread(_get_gpus)
+
+        return host_env
 
     @staticmethod
     async def _probe_macos_impl() -> HostEnvironment | None:
@@ -279,3 +363,39 @@ class EnvironmentProbe:
             internet_connected=internet_connected,
             local_ips=local_ips,
         )
+
+    @staticmethod
+    async def probe_docker_containers() -> list[dict]:
+        """Probe running Docker containers."""
+        try:
+            import subprocess
+            def _run_docker_ps():
+                try:
+                    res = subprocess.run(
+                        ['docker', 'ps', '--format', '{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'],
+                        capture_output=True,
+                        text=True,
+                        timeout=1.5
+                    )
+                    if res.returncode != 0:
+                        return []
+                    containers = []
+                    output = res.stdout.strip()
+                    if not output:
+                        return []
+                    for line in output.split('\n'):
+                        parts = line.split('\t')
+                        if len(parts) >= 5:
+                            containers.append({
+                                "id": parts[0],
+                                "name": parts[1],
+                                "image": parts[2],
+                                "status": parts[3],
+                                "ports": parts[4]
+                            })
+                    return containers
+                except Exception:
+                    return []
+            return await asyncio.to_thread(_run_docker_ps)
+        except Exception:
+            return []

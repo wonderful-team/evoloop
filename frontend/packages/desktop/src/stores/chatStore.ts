@@ -13,6 +13,39 @@ import {
   tryParseHumanRequest,
 } from "./chat/helpers"
 import type { ActivitySnapshot, ChatState } from "./chat/types"
+import { useProjectStore } from "./projectStore"
+
+// ---------------------------------------------------------------------------
+// Terminal input batching
+// Module-level state so the debounce timer survives re-renders / store updates.
+// ---------------------------------------------------------------------------
+const TERMINAL_HISTORY_BUFFER_MAX = 512 * 1024 // 512 KB in chars (≈ bytes for ASCII/UTF-8)
+const RAW_INPUT_DEBOUNCE_MS = 16              // one animation frame — imperceptible to users
+
+let _rawInputBuffer = ""           // pending characters not yet sent
+let _rawInputTimer: ReturnType<typeof setTimeout> | null = null
+let _rawInputThreadId: string | null = null  // thread the buffer belongs to
+
+/** Flush the accumulated raw-input buffer as a single POST, then clear it. */
+async function _flushRawInput() {
+  _rawInputTimer = null
+  const text = _rawInputBuffer
+  const threadId = _rawInputThreadId
+  _rawInputBuffer = ""
+  _rawInputThreadId = null
+  if (!text || !threadId) return
+  const currentProject = useProjectStore.getState().currentProject
+  const activeProjectId = currentProject?.id ?? useChatStore.getState().projectId
+  try {
+    await fetch(`/api/v1/conversations/${threadId}/terminal/input`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, project_id: activeProjectId }),
+    })
+  } catch (e) {
+    console.error("[ChatStore] sendRawTerminalInput flush error", e)
+  }
+}
 
 export const useChatStore = create<ChatState>((set, get) => {
   const createFlushTimeout = (messageId?: string) => {
@@ -90,6 +123,10 @@ export const useChatStore = create<ChatState>((set, get) => {
     _streamBuffer: "",
     _thinkingBuffer: "",
     _flushTimeout: null,
+    // --- Terminal Mode Initial State ---
+    isTerminalMode: false,
+    terminalHistoryBuffer: "",
+    activeTasks: {},
     // --- Core Actions ---
     setThread: async (threadId, projectId, skillIds) => {
       const currentThreadId = get().threadId
@@ -153,12 +190,25 @@ export const useChatStore = create<ChatState>((set, get) => {
           onUnauthorized: () => {
             useAgentStore.setState({ status: "unauthorized" })
           },
+          // Terminal / BackgroundTask SSE callbacks
+          onTaskOutput: (ev) => {
+            get().appendTerminalOutput(ev.output)
+          },
+          onTaskStatus: (ev) => {
+            const { task, action } = ev
+            if (["created", "started", "updated"].includes(action)) {
+              get().updateActiveTask(task)
+            } else if (["completed", "failed", "cancelled", "timeout"].includes(action)) {
+              get().removeActiveTask(task.task_id)
+            }
+          },
         })
 
         // Fetch history and activity first, then connect SSE
         Promise.all([
           get().fetchHistory(threadId),
           get().fetchActivity(threadId),
+          get().fetchActiveTasks(threadId),
           useChangesetStore.getState().fetchChangeset(threadId),
           useChangesetStore.getState().loadViewedChanges(threadId),
         ]).then(() => {
@@ -332,7 +382,9 @@ export const useChatStore = create<ChatState>((set, get) => {
     },
 
     sendMessage: async (content, pickedFiles, skillIds) => {
-      const { threadId, projectId, skillIds: stateSkillIds } = get()
+      const { threadId, projectId: storeProjectId, skillIds: stateSkillIds } = get()
+      const currentProject = useProjectStore.getState().currentProject
+      const projectId = currentProject?.id ?? storeProjectId
       if (projectId === null) return
 
       const pickedSkillIds = (pickedFiles || [])
@@ -433,6 +485,121 @@ export const useChatStore = create<ChatState>((set, get) => {
     },
 
     clearContent: () => set({ messages: [] }),
+
+    // --- Terminal Mode Actions ---
+
+    setTerminalMode: (enabled) => set({ isTerminalMode: enabled }),
+
+    appendTerminalOutput: (output) =>
+      set((state) => {
+        const combined = state.terminalHistoryBuffer + output
+        // Cap at TERMINAL_HISTORY_BUFFER_MAX characters to prevent unbounded growth.
+        // When over-limit, drop the oldest bytes so the most recent output is always
+        // available, and write a marker line so users know data was trimmed.
+        if (combined.length > TERMINAL_HISTORY_BUFFER_MAX) {
+          const trimmed = combined.slice(combined.length - TERMINAL_HISTORY_BUFFER_MAX)
+          // Find the first newline so we don't start mid-line
+          const firstNewline = trimmed.indexOf("\n")
+          const safe = firstNewline !== -1 ? trimmed.slice(firstNewline + 1) : trimmed
+          return { terminalHistoryBuffer: "\r\n\x1b[33m[Terminal: older output was trimmed to stay within 512 KB]\x1b[0m\r\n" + safe }
+        }
+        return { terminalHistoryBuffer: combined }
+      }),
+
+    updateActiveTask: (task) =>
+      set((state) => ({
+        activeTasks: { ...state.activeTasks, [task.task_id]: task },
+      })),
+
+    removeActiveTask: (taskId) =>
+      set((state) => {
+        const next = { ...state.activeTasks }
+        delete next[taskId]
+        return { activeTasks: next }
+      }),
+
+    fetchActiveTasks: async (threadId) => {
+      try {
+        const res = await fetch(
+          `/api/v1/conversations/${threadId}/tasks/active`,
+        )
+        if (!res.ok) return
+        const tasks: Array<{
+          task_id: string
+          task_type: string
+          title: string
+          status: string
+          created_at: string
+          output: string
+          metadata: Record<string, any>
+        }> = await res.json()
+
+        if (!tasks.length) return
+
+        // Rebuild activeTasks map and rehydrate terminalHistoryBuffer
+        const activeTasks: Record<string, any> = {}
+        let extraBuffer = ""
+        for (const t of tasks) {
+          activeTasks[t.task_id] = t
+          if (t.output) {
+            extraBuffer += t.output
+          }
+        }
+        set((state) => ({
+          activeTasks,
+          // Only prepend history if the buffer is currently empty to avoid duplicates
+          terminalHistoryBuffer:
+            state.terminalHistoryBuffer.length === 0
+              ? extraBuffer
+              : state.terminalHistoryBuffer,
+        }))
+      } catch (e) {
+        console.error("[ChatStore] fetchActiveTasks failed", e)
+      }
+    },
+
+    sendTerminalCommand: async (command) => {
+      let { threadId, projectId } = get()
+      const currentProject = useProjectStore.getState().currentProject
+      const activeProjectId = currentProject?.id ?? projectId
+      if (!threadId) {
+        if (activeProjectId === null) return
+        threadId = crypto.randomUUID()
+        await get().setThread(threadId, activeProjectId)
+      }
+      if (!command.trim()) return
+      try {
+        const res = await fetch(
+          `/api/v1/conversations/${threadId}/terminal/execute`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ command, project_id: activeProjectId }),
+          },
+        )
+        if (!res.ok) {
+          console.error("[ChatStore] sendTerminalCommand failed", await res.text())
+        }
+      } catch (e) {
+        console.error("[ChatStore] sendTerminalCommand error", e)
+      }
+    },
+
+    sendRawTerminalInput: (text) => {
+      const { threadId } = get()
+      if (!threadId) return
+      // Accumulate into the module-level buffer. If the incoming data belongs to a
+      // different thread (shouldn't happen in practice) flush the old one first.
+      if (_rawInputThreadId && _rawInputThreadId !== threadId) {
+        if (_rawInputTimer) clearTimeout(_rawInputTimer)
+        _flushRawInput()
+      }
+      _rawInputBuffer += text
+      _rawInputThreadId = threadId
+      // Reset the debounce window so rapid keystrokes are coalesced.
+      if (_rawInputTimer) clearTimeout(_rawInputTimer)
+      _rawInputTimer = setTimeout(_flushRawInput, RAW_INPUT_DEBOUNCE_MS)
+    },
 
     setSelectedModel: (model) => {
       set({ selectedModel: model })

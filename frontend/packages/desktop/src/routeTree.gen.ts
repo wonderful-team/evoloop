@@ -190,6 +190,7 @@ const LayoutLearningSkillsSkillIdEditRoute =
   } as any)
 
 export interface FileRoutesByFullPath {
+  '/': typeof LayoutIndexRoute
   '/android-marker-overlay': typeof AndroidMarkerOverlayRoute
   '/login': typeof LoginRoute
   '/marker-overlay': typeof MarkerOverlayRoute
@@ -202,9 +203,8 @@ export interface FileRoutesByFullPath {
   '/settings': typeof LayoutSettingsRoute
   '/subscription': typeof LayoutSubscriptionRouteWithChildren
   '/todos': typeof LayoutTodosRoute
-  '/': typeof LayoutIndexRoute
   '/projects/$projectId': typeof LayoutProjectsProjectIdRouteWithChildren
-  '/projects': typeof LayoutProjectsIndexRoute
+  '/projects/': typeof LayoutProjectsIndexRoute
   '/subscription/': typeof LayoutSubscriptionIndexRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
@@ -279,6 +279,7 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
+    | '/'
     | '/android-marker-overlay'
     | '/login'
     | '/marker-overlay'
@@ -291,9 +292,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/subscription'
     | '/todos'
-    | '/'
     | '/projects/$projectId'
-    | '/projects'
+    | '/projects/'
     | '/subscription/'
     | '/projects/$projectId/files'
     | '/projects/$projectId/gantt'
@@ -422,7 +422,7 @@ declare module '@tanstack/react-router' {
     '/_layout': {
       id: '/_layout'
       path: ''
-      fullPath: ''
+      fullPath: '/'
       preLoaderRoute: typeof LayoutRouteImport
       parentRoute: typeof rootRouteImport
     }
@@ -485,7 +485,7 @@ declare module '@tanstack/react-router' {
     '/_layout/projects/': {
       id: '/_layout/projects/'
       path: '/projects'
-      fullPath: '/projects'
+      fullPath: '/projects/'
       preLoaderRoute: typeof LayoutProjectsIndexRouteImport
       parentRoute: typeof LayoutRoute
     }

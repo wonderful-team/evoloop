@@ -100,8 +100,10 @@ async def dispatch_agent_run(
     # ------------------------------------------------------------------
     from app.core.context.thread_store import thread_context_store
 
+    current_active_proj = thread_context_store.get_active_project(thread_id)
     working_directory = thread_context_store._thread_contexts.get(thread_id)
-    if not working_directory and project_id:
+    if project_id and (not working_directory or current_active_proj != project_id):
+        thread_context_store.set_active_project(thread_id, project_id)
         project_path = await get_project_path(project_id)
         if project_path:
             working_directory = project_path

@@ -1,6 +1,9 @@
+import asyncio
 import logging
+import os
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Body, HTTPException, Request
+from pydantic import BaseModel
 from sqlalchemy import select, func
 
 from app.api.deps import CurrentUserOptional
@@ -396,3 +399,169 @@ async def get_thread_changeset(thread_id: str):
             node.diff = info["diff"]
 
         return root_nodes
+
+
+# ---------------------------------------------------------------------------
+# Terminal API Endpoints
+# ---------------------------------------------------------------------------
+
+class TerminalCommandRequest(BaseModel):
+    command: str
+    project_id: int | None = None
+
+
+class TerminalInputRequest(BaseModel):
+    text: str
+    project_id: int | None = None
+
+
+async def _hydrate_thread_working_directory(thread_id: str, project_id: int | None = None):
+    from app.core.context.thread_store import thread_context_store
+    from app.core.project.utils import get_project_path
+    from app.models import Conversation
+    from app.infrastructure.database.sql.database import get_db_session
+
+    if project_id is None:
+        project_id = thread_context_store.get_active_project(thread_id)
+
+    if project_id is None:
+        async with get_db_session() as db:
+            conv = await db.get(Conversation, thread_id)
+            if conv and conv.project_id is not None:
+                project_id = conv.project_id
+
+    if project_id is not None:
+        thread_context_store.set_active_project(thread_id, project_id)
+        project_path = await get_project_path(project_id)
+        if project_path:
+            thread_context_store.set_working_directory(thread_id, project_path)
+
+
+@router.post("/{thread_id}/terminal/execute")
+async def run_terminal_command(thread_id: str, req: TerminalCommandRequest):
+    """Start a Shell command in the thread's persistent PTY session.
+
+    The command runs asynchronously.  Output is streamed in real-time via
+    SSE (``task_output`` events) using the BackgroundTask infrastructure.
+    Returns the ``task_id`` so the client can correlate SSE events.
+    """
+    from app.core.execution.terminal.manager import terminal_manager
+    from app.core.tools.background import task_manager, CreateBackgroundTaskRequest, TaskType
+    from app.core.context.manager import ContextManager, EvoContext
+
+    command = req.command.strip()
+    if not command:
+        raise HTTPException(status_code=422, detail="command must not be empty")
+
+    await _hydrate_thread_working_directory(thread_id, req.project_id)
+
+    task = await task_manager.create_task(
+        CreateBackgroundTaskRequest(
+            task_type=TaskType.COMMAND,
+            title=command,
+            tool_name="user_terminal",
+            thread_id=thread_id,
+            metadata={"enable_streaming_output": True},
+        )
+    )
+
+    async def _run_async():
+        await task_manager.start_task(task.task_id)
+
+        # Echo command output prefix synchronously on the async loop before starting blocking execution
+        # to ensure fast builtins (like `pwd`) don't complete and remove the task before the echo arrives
+        await task_manager.append_output_async(task.task_id, f"\r\n$ {command}\r\n")
+
+        loop = asyncio.get_running_loop()
+
+        def _blocking_run():
+            def on_output(text: str):
+                loop.call_soon_threadsafe(
+                    task_manager.append_output, task.task_id, text
+                )
+
+            with ContextManager.use(EvoContext(thread_id=thread_id)):
+                _, _, exit_code = terminal_manager.run_command(
+                    command, on_output=on_output
+                )
+            return exit_code
+        try:
+            exit_code = await loop.run_in_executor(None, _blocking_run)
+        except Exception as exc:
+            logger.exception(f"[Terminal][{thread_id}] Command execution error")
+            await task_manager.fail_task(task.task_id, error=str(exc))
+            return
+
+        if exit_code == 0:
+            await task_manager.complete_task(task.task_id)
+        else:
+            await task_manager.fail_task(
+                task.task_id, error=f"Exited with code {exit_code}"
+            )
+
+    asyncio.create_task(_run_async())
+    return {"task_id": task.task_id}
+
+
+@router.post("/{thread_id}/terminal/input")
+async def send_terminal_input(thread_id: str, req: TerminalInputRequest):
+    """Write raw bytes to the thread's PTY master fd WITHOUT acquiring the session lock.
+
+    This is intentionally lock-free so it can be called *while* a command is
+    running (e.g. to answer an interactive prompt, send Tab for completion,
+    or send Ctrl+C '\\x03' to interrupt a running process).
+    """
+    from app.core.execution.terminal.manager import terminal_manager
+    from app.core.context.manager import ContextManager, EvoContext
+
+    await _hydrate_thread_working_directory(thread_id, req.project_id)
+
+    # Look up the existing session for this thread without modifying context
+    session = terminal_manager.get_session_for_thread(thread_id)
+    if session is None or session.pty is None:
+        # Lazily initialise by running through normal context path
+        with ContextManager.use(EvoContext(thread_id=thread_id)):
+            session = terminal_manager.get_session()
+            _ = session.get_pty(thread_id)  # ensure PTY is started
+
+    pty_inst = session.pty
+    if pty_inst is None or pty_inst._master_fd == -1:
+        raise HTTPException(
+            status_code=400,
+            detail="Terminal session not initialised for this thread",
+        )
+
+    try:
+        pty_inst.write_raw(req.text.encode("utf-8", errors="replace"))
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"PTY write failed: {exc}") from exc
+
+    return {"status": "ok"}
+
+
+@router.get("/{thread_id}/tasks/active")
+async def get_active_thread_tasks(thread_id: str):
+    """Return all non-completed BackgroundTask objects for a thread.
+
+    Includes the last 1000 lines of buffered output per task so the client
+    can restore the terminal canvas after a page refresh.
+    """
+    from app.core.tools.background import task_manager
+
+    tasks = task_manager.get_active_tasks(thread_id=thread_id)
+    return [
+        {
+            "task_id": t.task_id,
+            "task_type": t.task_type.value,
+            "title": t.title,
+            "status": t.status.value,
+            "created_at": t.created_at.isoformat(),
+            "output": t.get_recent_output(1000),
+            "metadata": (
+                t.metadata.model_dump()
+                if hasattr(t.metadata, "model_dump")
+                else dict(t.metadata)
+            ),
+        }
+        for t in tasks
+    ]

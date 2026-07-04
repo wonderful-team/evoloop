@@ -62,7 +62,7 @@ async def run_effect_test():
     # 注入测试需要的系统配置，避免大模型提取时因为没有 seed 数据而报错
     from app.infrastructure.config import SystemConfigService
     SystemConfigService.set_value("LLM_MODEL", "gemma-4-e4b")
-    SystemConfigService.set_value("LLM_BASE_URL", "http://192.168.3.14:1234/v1")
+    SystemConfigService.set_value("LLM_BASE_URL", "http://192.168.3.21:1234/v1")
     SystemConfigService.set_value("LLM_API_KEY", "lm-studio")
     SystemConfigService.set_value("LLM_PROVIDER_TYPE", "openai")
     

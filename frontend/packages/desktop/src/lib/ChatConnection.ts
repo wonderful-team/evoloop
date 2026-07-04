@@ -21,6 +21,10 @@ export interface ChatConnectionCallbacks {
   onChangesetUpdated?: (data: any) => void // File changeset update
   onError: (error: string) => void
   onUnauthorized?: () => void
+  /** Real-time PTY output chunk from a background task */
+  onTaskOutput?: (event: { task_id: string; output: string; timestamp: string }) => void
+  /** Task lifecycle state changes (created / started / completed / failed / cancelled / timeout) */
+  onTaskStatus?: (event: { task: any; action: string }) => void
 }
 
 export class ChatConnection {
@@ -370,6 +374,37 @@ export class ChatConnection {
       // Backend signals separate 'done', but we often keep connection alive for subsequent updates
       // If we wanted to close:
       // this.disconnect();
+    })
+
+    // ── Terminal / BackgroundTask events ──────────────────────────────────
+    sse.addEventListener("task_output", (e) => {
+      try {
+        const data = JSON.parse(e.data)
+        this.callbacks?.onTaskOutput?.(data)
+      } catch (err) {
+        console.error("[ChatConnection] Failed to parse task_output", err)
+      }
+    })
+
+    const TASK_ACTIONS = [
+      "created",
+      "started",
+      "updated",
+      "completed",
+      "failed",
+      "cancelled",
+      "timeout",
+    ] as const
+    TASK_ACTIONS.forEach((action) => {
+      sse.addEventListener(`task_${action}`, (e) => {
+        try {
+          const data = JSON.parse(e.data)
+          // Backend emits { type: "task_<action>", task: {...}, timestamp: "..." }
+          this.callbacks?.onTaskStatus?.({ task: data.task ?? data, action })
+        } catch (err) {
+          console.error(`[ChatConnection] Failed to parse task_${action}`, err)
+        }
+      })
     })
   }
 

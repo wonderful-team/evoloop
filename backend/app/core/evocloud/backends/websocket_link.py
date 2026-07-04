@@ -11,11 +11,6 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import certifi
 import websockets
-from app.core.schemas.canonical import (
-    MessageType,
-    create_envelope,
-    is_canonical_envelope,
-)
 from websockets.client import ClientConnection
 
 from app.core.config import settings
@@ -26,6 +21,11 @@ from app.core.evocloud.schemas import (
 )
 from app.core.fingerprint import get_hardware_fingerprint
 from app.core.identity import identity_service
+from app.core.schemas.canonical import (
+    MessageType,
+    create_envelope,
+    is_canonical_envelope,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +58,10 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         # Send queue for offline buffering
         self._send_queue: asyncio.Queue[dict | str] = asyncio.Queue(maxsize=1000)
         self._send_queue_task: asyncio.Task | None = None
+
+        # Rate-limit backoff: suppress non-critical outbound traffic after
+        # receiving user_rate_limited from the gateway.
+        self._rate_limit_backoff_until = 0.0
 
     @property
     def device_key(self) -> str:
@@ -289,12 +293,18 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     logger.debug(f"[EvoCloud] WebSocket ping failed: {e}")
 
                 try:
-                    # Also send JSON text ping to refresh deviceMgr heartbeat
-                    ping_env = create_envelope(
-                        type="ping",
-                        body={"timestamp": int(time.time())},
-                    )
-                    await self.send_message(ping_env.model_dump())
+                    # Also send JSON text ping to refresh deviceMgr heartbeat,
+                    # but avoid aggravating the gateway while rate-limited.
+                    if time.time() < self._rate_limit_backoff_until:
+                        logger.debug(
+                            "[EvoCloud] Skipping JSON text ping due to rate-limit backoff"
+                        )
+                    else:
+                        ping_env = create_envelope(
+                            type="ping",
+                            body={"timestamp": int(time.time())},
+                        )
+                        await self.send_message(ping_env.model_dump())
                 except Exception as e:
                     logger.debug(f"[EvoCloud] JSON text ping failed: {e}")
             await asyncio.sleep(30)
@@ -341,6 +351,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
                 async with websockets.connect(ws_url, ssl=ssl_context) as ws:
                     self.ws = ws
+                    self._rate_limit_backoff_until = 0.0  # reset on new connection
                     logger.info("[EvoCloud] WS Connected. Sending handshake...")
                     self._handshake_completed = False
 
@@ -448,6 +459,14 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         code = payload.get("code")
         message = payload.get("message")
         logger.warning(f"[EvoCloud] WS ERROR RECV: code={code}, message={message}")
+
+        if code == "user_rate_limited":
+            backoff = 30
+            self._rate_limit_backoff_until = time.time() + backoff
+            logger.warning(
+                f"[EvoCloud] Rate limited by server, suppressing non-critical sends for {backoff}s"
+            )
+            return False
 
         if code == "invalid_token":
             logger.info("[EvoCloud] WS received invalid_token, triggering immediate token refresh...")

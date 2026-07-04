@@ -38,6 +38,7 @@ import { MessageList } from "./MessageList"
 import { QuotaExhaustedBanner } from "./QuotaExhaustedBanner"
 import { QuotaExhaustedCard } from "./QuotaExhaustedCard"
 import { RewindConfirmDialog } from "./RewindConfirmDialog"
+import { TerminalCanvas } from "./TerminalCanvas"
 
 export function ChatInterface() {
   // --- Store State (selective subscriptions to avoid unnecessary re-renders) ---
@@ -46,6 +47,9 @@ export function ChatInterface() {
   const setThread = useChatStore((s) => s.setThread)
   const sendMessage = useChatStore((s) => s.sendMessage)
   const _truncateMessages = useChatStore((s) => s._truncateMessages)
+  const isTerminalMode = useChatStore((s) => s.isTerminalMode)
+  const setTerminalMode = useChatStore((s) => s.setTerminalMode)
+  const sendTerminalCommand = useChatStore((s) => s.sendTerminalCommand)
   const status = useAgentStore((s) => s.status)
   const humanRequest = useAgentStore((s) => s.humanRequest)
   const stopAgent = useAgentStore((s) => s.stopAgent)
@@ -351,6 +355,12 @@ export function ChatInterface() {
   // Wrapper for sendMessage to handle post-send actions
   const handleSendMessage = useCallback(
     async (content: string, pickedFiles?: any[]) => {
+      // In terminal mode, route to the PTY command executor instead of chat
+      if (isTerminalMode) {
+        await sendTerminalCommand(content)
+        return
+      }
+
       const isNewThread = useChatStore.getState().messages.length === 0
 
       const sendPromise = sendMessage(content, pickedFiles)
@@ -373,7 +383,8 @@ export function ChatInterface() {
         })
       }
     },
-    [sendMessage, projectId, queryClient],
+    [sendMessage, sendTerminalCommand, isTerminalMode, projectId, queryClient],
+
   )
 
   const handleDeleteThread = useCallback(
@@ -710,15 +721,8 @@ export function ChatInterface() {
         <ResizableHandle withHandle />
 
         {/* Center Chat Panel */}
-        <ResizablePanel
-          defaultSize={showContextPanel ? 64 : 84}
-          minSize={20}
-          className="min-w-0 overflow-hidden"
-        >
-          <div
-            className="flex flex-col h-full relative min-h-0 min-w-0 w-full overflow-hidden"
-            style={{ contain: "content" }}
-          >
+        <ResizablePanel defaultSize={showContextPanel ? 64 : 84} minSize={20} className="min-w-0 overflow-hidden">
+          <div className="flex flex-col h-full relative min-h-0 min-w-0 w-full overflow-hidden" style={{ contain: "content" }}>
             {/* Top Right Controls */}
             <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
               {/* Toggle Context Panel Button */}
@@ -739,25 +743,26 @@ export function ChatInterface() {
             <HITLBanner />
             <QuotaExhaustedBanner />
 
-            <div
-              className="flex-1 min-h-0 min-w-0 w-full"
-              data-tour="chat-messages"
-            >
-              <MessageList
-                onAddToMemory={handleAddToMemory}
-                onRewind={handleRewind}
-                onRetry={handleRetry}
-                onQuote={handleQuoteMessage}
-                onViewChangeset={handleViewChangeset}
-                footer={
-                  <>
-                    {status === "interrupted" && humanRequest && (
-                      <HumanRequestCard request={humanRequest} />
-                    )}
-                    {status === "quota_exhausted" && <QuotaExhaustedCard />}
-                  </>
-                }
-              />
+            <div className="flex-1 min-h-0 min-w-0 w-full" data-tour="chat-messages">
+              {isTerminalMode ? (
+                <TerminalCanvas />
+              ) : (
+                <MessageList
+                  onAddToMemory={handleAddToMemory}
+                  onRewind={handleRewind}
+                  onRetry={handleRetry}
+                  onQuote={handleQuoteMessage}
+                  onViewChangeset={handleViewChangeset}
+                  footer={
+                    <>
+                      {status === "interrupted" && humanRequest && (
+                        <HumanRequestCard request={humanRequest} />
+                      )}
+                      {status === "quota_exhausted" && <QuotaExhaustedCard />}
+                    </>
+                  }
+                />
+              )}
             </div>
 
             {/* Input Area */}

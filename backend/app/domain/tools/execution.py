@@ -192,6 +192,9 @@ async def execute_command(
 
     In global mode, commands are executed within WORKSPACE_ROOT for safety.
 
+    CRITICAL PATH & DISPLAY RULE:
+    To keep UI logs, chat messages, and command outputs clean and readable, you MUST prefer concise relative paths (relative to current working directory) or `cd` into the target directory first when executing scripts or running tools. DO NOT use long, redundant absolute paths (like `/Users/username/.../file.py`).
+
     Output Limit: Maximum 1000 lines of stdout/stderr per call.
     For larger outputs, redirect to file or use background mode.
 
@@ -256,6 +259,7 @@ async def _execute_in_background(
             tool_name="execute_command",
             thread_id=thread_id,
             timeout_seconds=timeout,
+            metadata={"enable_streaming_output": True},
         )
     )
 
@@ -368,158 +372,34 @@ async def _execute_smart(
     config: Optional[RunnableConfig]
 ) -> str:
     """
-    Smart execution mode:
-    1. Try to execute with initial timeout (60s)
-    2. If still running, give periodic feedback to agent
-    3. If total timeout exceeded, suggest background mode
+    Smart execution mode (UI-connected):
+    1. Creates a background task immediately so UI gets real-time SSE output.
+    2. Try to execute with initial timeout (60s).
+    3. If still running, give periodic feedback to agent and leave task active.
+    4. If total timeout exceeded, kill and suggest background mode.
     """
     thread_id = _get_thread_id(config)
-    
-    # Phase 1: Quick execution (up to 60s or specified timeout, whichever is smaller)
     quick_timeout = min(timeout, 60)
     
-    try:
-        # Try quick execution
-        stdout, stderr, returncode = await _execute_command_with_timeout(
-            command, quick_timeout, config
-        )
-        return _format_command_result(stdout, stderr, returncode, command=command)
-        
-    except asyncio.TimeoutError:
-        # Command is taking longer than quick_timeout
-        # Create a background task to continue execution
-        
-        if timeout <= quick_timeout:
-            # No more time allowed, fail
-            return (
-                f"Command execution timeout ({quick_timeout}s)\n\n"
-                f"命令: `{command}`\n\n"
-                f"建议: 此命令可能需要更长时间，请使用后台模式:\n"
-                f"`execute_command(command='{command}', background=True, timeout=300)`"
-            )
-        
-        # Continue in background-like mode but with agent feedback
-        task = await task_manager.create_task(
-            CreateBackgroundTaskRequest(
-                task_type=TaskType.COMMAND,
-                title=f"执行: {command[:60]}{'...' if len(command) > 60 else ''}",
-                description=f"命令: {command}",
-                tool_name="execute_command",
-                thread_id=thread_id,
-                timeout_seconds=timeout,
-            )
-        )
-        
-        # Start process
-        ctx = ContextManager.current()
-        working_dir = get_working_directory(config)
-        
-        if ctx.project_id == DEFAULT_PROJECT_ID or (ctx.project_id is None and working_dir == "."):
-            from app.infrastructure.config.service import SystemConfigService
-            workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
-            if workspace_root:
-                working_dir = workspace_root
-        
-        if working_dir and working_dir != ".":
-            wrapped_command = f"cd {working_dir} && {command}"
-        else:
-            wrapped_command = command
-        
-        process = await asyncio.create_subprocess_shell(
-            wrapped_command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            preexec_fn=os.setsid,
-        )
-        
-        await task_manager.start_task(task.task_id, process.pid)
-        
-        # Setup cancel callback
-        def cancel_callback():
-            try:
-                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-        
-        task.set_cancel_callback(cancel_callback)
-        
-        # Collect output for remaining time
-        remaining_time = timeout - quick_timeout
-        start_time = time.time()
-        
-        async def read_with_timeout():
-            async def read_stream(stream, is_stderr=False):
-                prefix = "[stderr] " if is_stderr else ""
-                while True:
-                    try:
-                        line = await asyncio.wait_for(stream.readline(), timeout=1.0)
-                        if not line:
-                            break
-                        output = prefix + line.decode('utf-8', errors='replace').rstrip()
-                        task_manager.append_output(task.task_id, output)
-                    except asyncio.TimeoutError:
-                        if process.returncode is not None:
-                            break
-                        continue
-            
-            await asyncio.gather(
-                read_stream(process.stdout, is_stderr=False),
-                read_stream(process.stderr, is_stderr=True),
-            )
-        
-        # Wait for completion or timeout
-        try:
-            await asyncio.wait_for(read_with_timeout(), timeout=remaining_time)
-            exit_code = await asyncio.wait_for(process.wait(), timeout=5)
-            
-            if exit_code == 0:
-                await task_manager.complete_task(task.task_id, result={"exit_code": 0})
-                output = task.get_recent_output(n=100)
-                return (
-                    f"Command execution completed (elapsed: {task.elapsed_seconds}s)\n\n"
-                    f"最后输出:\n```\n{output}\n```"
-                )
-            else:
-                await task_manager.fail_task(task.task_id, error=f"Exit code: {exit_code}")
-                output = task.get_recent_output(n=50)
-                return (
-                    f"Command execution failed (exit code: {exit_code})\n\n"
-                    f"最后输出:\n```\n{output}\n```"
-                )
-                
-        except asyncio.TimeoutError:
-            # Total timeout exceeded
-            try:
-                os.killpg(os.getpgid(process.pid), signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            await task_manager.timeout_task(task.task_id)
-            
-            output = task.get_recent_output(n=30)
-            return (
-                f"Command execution timeout (total limit: {timeout}s)\n\n"
-                f"命令仍在后台运行，但已超过最大等待时间。\n"
-                f"任务ID: `{task.task_id}`\n\n"
-                f"最近输出:\n```\n{output}\n```\n\n"
-                f"查询完整状态: `query_command_status('{task.task_id}')`"
-            )
-
-
-async def _execute_command_with_timeout(
-    command: str, 
-    timeout: int, 
-    config: Optional[RunnableConfig]
-) -> tuple[str, str, int]:
-    """
-    Execute command with specified timeout.
-    Raises asyncio.TimeoutError if timeout exceeded.
-    """
     # Security check
     is_dangerous, reason = _is_dangerous_command(command)
     if is_dangerous:
-        return "", f"Security Error: {reason}", 1
+        return f"Security Error: {reason}"
+
+    # Always create a task to ensure UI terminal gets the stream
+    task = await task_manager.create_task(
+        CreateBackgroundTaskRequest(
+            task_type=TaskType.COMMAND,
+            title=f"执行: {command[:60]}{'...' if len(command) > 60 else ''}",
+            description=f"命令: {command}",
+            tool_name="execute_command",
+            thread_id=thread_id,
+            timeout_seconds=timeout,
+            metadata={"enable_streaming_output": True},
+        )
+    )
     
-    # Determine working directory
+    # Start process
     ctx = ContextManager.current()
     working_dir = get_working_directory(config)
     
@@ -534,31 +414,110 @@ async def _execute_command_with_timeout(
     else:
         wrapped_command = command
     
-    # Run with timeout
     process = await asyncio.create_subprocess_shell(
         wrapped_command,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        preexec_fn=os.setsid,
     )
     
-    try:
-        stdout, stderr = await asyncio.wait_for(
-            process.communicate(),
-            timeout=timeout
-        )
-        return (
-            stdout.decode('utf-8', errors='replace'),
-            stderr.decode('utf-8', errors='replace'),
-            process.returncode
-        )
-    except asyncio.TimeoutError:
-        # Kill process on timeout
+    await task_manager.start_task(task.task_id, process.pid)
+    
+    def cancel_callback():
         try:
-            process.kill()
-            await process.wait()
-        except (OSError, ProcessLookupError):
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+        except ProcessLookupError:
             pass
-        raise
+    
+    task.set_cancel_callback(cancel_callback)
+    
+    # Buffers to collect output for synchronous return to Agent
+    stdout_buf = []
+    stderr_buf = []
+    
+    async def read_stream(stream, is_stderr=False):
+        prefix = "[stderr] " if is_stderr else ""
+        while True:
+            try:
+                line = await asyncio.wait_for(stream.readline(), timeout=0.5)
+                if not line:
+                    break
+                decoded_line = line.decode('utf-8', errors='replace')
+                if is_stderr:
+                    stderr_buf.append(decoded_line)
+                else:
+                    stdout_buf.append(decoded_line)
+                
+                # Stream to UI (append_output emits SSE)
+                output = prefix + decoded_line.rstrip()
+                task_manager.append_output(task.task_id, output + "\n")
+            except asyncio.TimeoutError:
+                if process.returncode is not None:
+                    break
+                continue
+
+    # Start reading concurrently
+    read_task = asyncio.create_task(asyncio.gather(
+        read_stream(process.stdout, is_stderr=False),
+        read_stream(process.stderr, is_stderr=True),
+    ))
+    
+    try:
+        # Wait up to quick_timeout
+        await asyncio.wait_for(asyncio.shield(read_task), timeout=quick_timeout)
+        exit_code = await asyncio.wait_for(process.wait(), timeout=1.0)
+        
+        if exit_code == 0:
+            await task_manager.complete_task(task.task_id, result={"exit_code": 0})
+        else:
+            await task_manager.fail_task(task.task_id, error=f"Exit code: {exit_code}")
+            
+        stdout_str = "".join(stdout_buf)
+        stderr_str = "".join(stderr_buf)
+        return _format_command_result(stdout_str, stderr_str, exit_code, command=command)
+        
+    except asyncio.TimeoutError:
+        # Process is taking longer than quick_timeout
+        if timeout <= quick_timeout:
+            # Reached max timeout
+            try:
+                os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            await task_manager.timeout_task(task.task_id)
+            return (
+                f"Command execution timeout ({quick_timeout}s)\n\n"
+                f"命令: `{command}`\n\n"
+                f"建议: 此命令可能需要更长时间，请使用后台模式:\n"
+                f"`execute_command(command='{command}', background=True, timeout=300)`"
+            )
+        
+        # It has more time budget left. Keep running in background, but return early to Agent.
+        async def wait_remaining():
+            try:
+                remaining = timeout - quick_timeout
+                await asyncio.wait_for(read_task, timeout=remaining)
+                exit_code = await asyncio.wait_for(process.wait(), timeout=5.0)
+                if exit_code == 0:
+                    await task_manager.complete_task(task.task_id, result={"exit_code": 0})
+                else:
+                    await task_manager.fail_task(task.task_id, error=f"Exit code: {exit_code}")
+            except asyncio.TimeoutError:
+                try:
+                    os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                await task_manager.timeout_task(task.task_id)
+                
+        asyncio.create_task(wait_remaining())
+        
+        output = task.get_recent_output(n=50)
+        return (
+            f"Command continues running in background (exceeded quick timeout {quick_timeout}s)\n\n"
+            f"任务ID: `{task.task_id}`\n\n"
+            f"当前输出:\n```\n{output}\n```\n\n"
+            f"查询完整状态: `query_command_status('{task.task_id}')`"
+        )
 
 
 @evoloop_tool(
