@@ -5,6 +5,12 @@
       "path": "./src/main/cpp/CMakeLists.txt",
       "arguments": "",
     },
+    "nativeLib": {
+      "debugSymbol": {
+        "strip": false,
+        "exclude": []
+      }
+    }
   },
   "targets": [
     {

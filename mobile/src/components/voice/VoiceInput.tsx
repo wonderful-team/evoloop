@@ -59,6 +59,8 @@ interface VoiceInputProps {
   onToggleWakeWord?: () => void;
   // 实时转录文字
   transcriptionText?: string;
+  // 是否按住中（新引擎）
+  isPressed?: boolean;
 }
 
 export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
@@ -84,6 +86,8 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
   onToggleWakeWord,
   // 实时转录文字
   transcriptionText = '',
+  // 是否按住中（新引擎）
+  isPressed = false,
 }, ref) => {
   const { colors } = useTheme();
   const { t } = useTranslation();

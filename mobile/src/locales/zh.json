@@ -286,7 +286,11 @@
       "apiNoAudioUrl": "API 未返回音频 URL",
       "downloadFailed": "下载音频失败: {{statusCode}}",
       "playbackError": "播放失败",
-      "error": "语音合成失败"
+      "error": "语音合成失败",
+      "muted": "已静音语音播报",
+      "unmuted": "已开启语音播报",
+      "ttsModeCloud": "语音：云端高音质",
+      "ttsModeLocal": "语音：本地离线模式"
     }
   },
   "messageContent": {
@@ -1180,5 +1184,24 @@
   },
   "format": {
     "currencyUnit": "元"
+  },
+  "voiceNLU": {
+    "actOpen": "打开|展开|显示|拉出|呼出|给我看|弄出来",
+    "actClose": "关闭|收起|隐藏|关掉|关|退出|消掉",
+    "actReset": "清空|清除|删掉|重新开始|新建",
+    "actMute": "静音|闭嘴|别说了|停止说话|关掉声音",
+    "actUnmute": "开启声音|说话|朗读|打开声音",
+    "objHistory": "历史|记录|会话列表|旧对话|侧边栏|抽屉",
+    "objAudio": "声音|语音|朗读",
+    "pronouns": "它|这个|那个|这|那",
+    "clausalConjunctions": "并且|但是|所以|然后|而且|不过|另外|此外",
+    "sentenceEndHard": "[。！？!?\\n]",
+    "sentenceEndSoft": "[，,；;：:]",
+    "emotionKeywords": {
+      "excited": "太棒了|好耶|哇|惊喜|兴奋|激动|完美|太好了|棒极了",
+      "happy": "哈哈|开心|高兴|喜欢|不错|有趣|赞|挺好",
+      "sad": "难过|悲伤|伤心|可惜|遗憾|抱歉|对不起|失望|沮丧",
+      "calm": "请放心|没关系|别担心|慢慢来|理智|客观|平静"
+    }
   }
 }

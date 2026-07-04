@@ -47,8 +47,12 @@ export function WoodenRobot({ primaryColor = '#109C8F', mood = 'neutral' }: Wood
           duration: 100,
           useNativeDriver: true,
         }),
-      ]).start(() => {
+      ]).start((result?: { finished?: boolean }) => {
         isBlinking.current = false;
+        // 鸿蒙原生驱动回调中的 result 可能为 undefined，必须做兼容防御
+        if (!result || result.finished === false) {
+          blinkAnim.setValue(1);
+        }
       });
     };
 
@@ -65,6 +69,8 @@ export function WoodenRobot({ primaryColor = '#109C8F', mood = 'neutral' }: Wood
     
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
+      blinkAnim.stopAnimation();
+      blinkAnim.setValue(1);
     };
   }, []);
 
@@ -94,38 +100,6 @@ export function WoodenRobot({ primaryColor = '#109C8F', mood = 'neutral' }: Wood
         );
     }
   };
-
-  // 带眨眼的眼睛
-  function EyeWithBlink({ blinkAnim, primaryColor }: { blinkAnim: Animated.Value, primaryColor: string }) {
-    return (
-      <Animated.View 
-        style={[
-          styles.eyeContainer,
-          { transform: [{ scaleY: blinkAnim }] }
-        ]}
-      >
-        <View style={[styles.eyeWhite, { borderColor: primaryColor }]}>
-          <View style={[styles.eyeBall, { backgroundColor: primaryColor }]}>
-            <View style={styles.eyeShineMain} />
-            <View style={styles.eyeShineSmall} />
-          </View>
-        </View>
-      </Animated.View>
-    );
-  }
-
-  function EyeOpen({ primaryColor }: { primaryColor: string }) {
-    return (
-      <View style={styles.eyeContainer}>
-        <View style={[styles.eyeWhiteLarge, { borderColor: primaryColor }]}>
-          <View style={[styles.eyeBallLarge, { backgroundColor: primaryColor }]}>
-            <View style={styles.eyeShineMainLarge} />
-            <View style={styles.eyeShineSmallLarge} />
-          </View>
-        </View>
-      </View>
-    );
-  }
 
 
 
@@ -554,3 +528,35 @@ const styles = StyleSheet.create({
     borderRadius: 1.5,
   },
 });
+
+// 带眨眼的眼睛（置于 styles 后声明，确保鸿蒙 Hermes 引擎安全访问 styles）
+function EyeWithBlink({ blinkAnim, primaryColor }: { blinkAnim: Animated.Value, primaryColor: string }) {
+  return (
+    <Animated.View 
+      style={[
+        styles.eyeContainer,
+        { transform: [{ scaleY: blinkAnim }] }
+      ]}
+    >
+      <View style={[styles.eyeWhite, { borderColor: primaryColor }]}>
+        <View style={[styles.eyeBall, { backgroundColor: primaryColor }]}>
+          <View style={styles.eyeShineMain} />
+          <View style={styles.eyeShineSmall} />
+        </View>
+      </View>
+    </Animated.View>
+  );
+}
+
+function EyeOpen({ primaryColor }: { primaryColor: string }) {
+  return (
+    <View style={styles.eyeContainer}>
+      <View style={[styles.eyeWhiteLarge, { borderColor: primaryColor }]}>
+        <View style={[styles.eyeBallLarge, { backgroundColor: primaryColor }]}>
+          <View style={styles.eyeShineMainLarge} />
+          <View style={styles.eyeShineSmallLarge} />
+        </View>
+      </View>
+    </View>
+  );
+}

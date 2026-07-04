@@ -18,6 +18,7 @@ target 'EvoLoopMobile' do
   config = use_native_modules!
 
   pod 'SherpaOnnxASR', :path => './SherpaOnnxASR'
+  pod 'RNVoiceEngine', :path => './RNVoiceEngine'
 
   use_react_native!(
     :path => config[:reactNativePath],

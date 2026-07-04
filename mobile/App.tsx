@@ -7,6 +7,64 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PaperProvider } from 'react-native-paper';
 import './src/locales'; // 初始化 i18n
 
+// 全局错误捕获，打印调用栈
+if ((global as any).ErrorUtils) {
+  const originalHandler = (global as any).ErrorUtils.getGlobalHandler();
+  (global as any).ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
+    console.error('[GLOBAL ERROR]', error?.message, error?.stack, 'isFatal:', isFatal);
+    if (originalHandler) {
+      originalHandler(error, isFatal);
+    }
+  });
+}
+
+// 捕获未处理的 Promise rejection
+if (typeof (global as any).addEventListener === 'function') {
+  (global as any).addEventListener('unhandledrejection', (event: { reason: any }) => {
+    const reason = event?.reason;
+    if (reason instanceof Error) {
+      console.error('[UNHANDLED REJECTION]', reason.message, reason.stack);
+    } else {
+      console.error('[UNHANDLED REJECTION]', reason);
+    }
+  });
+}
+
+// 追踪 Promise.catch 调用来源
+const OriginalPromise = global.Promise;
+(global as any).Promise = class TrackedPromise<T> extends OriginalPromise<T> {
+  constructor(executor: (resolve: (value: T | PromiseLike<T>) => void, reject: (reason?: any) => void) => void) {
+    super((resolve, reject) => {
+      executor(resolve, (reason) => {
+        if (reason instanceof Error && reason.message?.includes('undefined is not a function')) {
+          console.error('[TRACKED REJECT]', reason.message, reason.stack);
+        }
+        reject(reason);
+      });
+    });
+  }
+  catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): OriginalPromise<T | TResult> {
+    const wrapped = onrejected
+      ? (reason: any) => {
+          const result = onrejected(reason);
+          return result;
+        }
+      : undefined;
+    return super.catch(wrapped as any);
+  }
+};
+
+// 重写 console.error，为 TypeError 打印调用栈
+const originalConsoleError = console.error;
+console.error = function (...args: any[]) {
+  args.forEach((arg) => {
+    if (arg instanceof Error) {
+      originalConsoleError.apply(console, [`[ERROR WITH STACK] ${arg.message}`, arg.stack]);
+    }
+  });
+  originalConsoleError.apply(console, args);
+};
+
 // 注册 Notifee 前台服务（唤醒词后台监听必需，非鸿蒙平台适用）
 if (Platform.OS !== 'harmony') {
   try {
@@ -86,7 +144,7 @@ function App(): React.JSX.Element {
     return (
       <View style={{ flex: 1, backgroundColor: '#FFFFFF', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 80 }}>
         <View style={{ height: 40 }} />
-        
+
         <View style={{ alignItems: 'center' }}>
           <Image
             source={require('./src/assets/images/splash-icon.png')}

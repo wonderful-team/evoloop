@@ -285,7 +285,11 @@
       "apiNoAudioUrl": "API did not return audio URL",
       "downloadFailed": "Failed to download audio: {{statusCode}}",
       "playbackError": "Playback failed",
-      "error": "Speech synthesis failed"
+      "error": "Speech synthesis failed",
+      "muted": "Voice readout muted",
+      "unmuted": "Voice readout enabled",
+      "ttsModeCloud": "Voice: Cloud (High Quality)",
+      "ttsModeLocal": "Voice: Local (Offline)"
     }
   },
   "conversation": {
@@ -1179,5 +1183,24 @@
   },
   "format": {
     "currencyUnit": "CNY"
+  },
+  "voiceNLU": {
+    "actOpen": "open|show|expand|pull out|bring up|display",
+    "actClose": "close|hide|collapse|exit|dismiss",
+    "actReset": "clear|reset|delete|start over|new chat",
+    "actMute": "mute|stop talking|shut up|stop reading|silence",
+    "actUnmute": "unmute|start reading|turn on voice|speak",
+    "objHistory": "history|records|conversations|sidebar|drawer|chat list",
+    "objAudio": "sound|voice|audio|reading",
+    "pronouns": "it|this|that",
+    "clausalConjunctions": "and|but|so|then|because|however|although|yet|still",
+    "sentenceEndHard": "[.!?\\n]",
+    "sentenceEndSoft": "[,;:]",
+    "emotionKeywords": {
+      "excited": "amazing|awesome|fantastic|incredible|excited|wonderful|perfect",
+      "happy": "happy|great|glad|love|enjoy|fun|nice|good|haha",
+      "sad": "sorry|sad|unfortunate|regret|apologize|disappoint|worried",
+      "calm": "relax|calm|don't worry|take it easy|gently|carefully"
+    }
   }
 }

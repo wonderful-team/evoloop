@@ -8,6 +8,7 @@ import { AgentSyncMessage } from '@/services/gateway/agentMessage';
 import { parseHITLRequest } from '@/utils/messageAdapter';
 import { useHITLStore } from '@/stores/hitlStore';
 import { useConversationStore } from '@/stores/conversationStore';
+import { Conversation } from '@/types/conversation';
 
 interface UseChatGatewayOptions {
   isLoggedIn: boolean;
@@ -15,9 +16,11 @@ interface UseChatGatewayOptions {
   onAgentRunCompleted?: (threadId: string) => void;
   onCommandStatusUpdate?: (data: { command_id: number; status: string; device_key?: string; error?: string }) => void;
   onReconnected?: () => void;
+  // 当收到 message.sync 且该 thread 不在本地 conversations 列表时，触发刷新
+  onNewThreadDetected?: (threadId: string) => void;
 }
 
-export function useChatGateway({ isLoggedIn, syncMessages, onAgentRunCompleted, onCommandStatusUpdate, onReconnected }: UseChatGatewayOptions) {
+export function useChatGateway({ isLoggedIn, syncMessages, onAgentRunCompleted, onCommandStatusUpdate, onReconnected, onNewThreadDetected }: UseChatGatewayOptions) {
   const [gatewayConnectionState, setGatewayConnectionState] = useState<ConnectionState>(ConnectionState.DISCONNECTED);
   const currentConversationIdRef = useRef<string | null>(null);
   const prevConnectionStateRef = useRef<ConnectionState>(ConnectionState.DISCONNECTED);
@@ -25,6 +28,7 @@ export function useChatGateway({ isLoggedIn, syncMessages, onAgentRunCompleted, 
 
   // 使用 selector 以避免整个 store 任何更新都导致当前 hook 重新 Render 
   const incrementUnread = useConversationStore((state) => state.incrementUnread);
+  const conversations = useConversationStore((state) => state.conversations);
 
   // 使用 ref 来保存所有的回调函数与 actions。
   // 这可确保在与事件监听器交互时，无需将这些回调加入 useEffect 的依赖项，
@@ -36,6 +40,9 @@ export function useChatGateway({ isLoggedIn, syncMessages, onAgentRunCompleted, 
   const setHitlRequestRef = useRef(setHitlRequest);
   const incrementUnreadRef = useRef(incrementUnread);
 
+  const onNewThreadDetectedRef = useRef(onNewThreadDetected);
+  const conversationsRef = useRef<Conversation[]>([]);
+
   // 每次渲染时更新最新的引用
   useEffect(() => {
     syncMessagesRef.current = syncMessages;
@@ -44,11 +51,17 @@ export function useChatGateway({ isLoggedIn, syncMessages, onAgentRunCompleted, 
     onReconnectedRef.current = onReconnected;
     setHitlRequestRef.current = setHitlRequest;
     incrementUnreadRef.current = incrementUnread;
+    onNewThreadDetectedRef.current = onNewThreadDetected;
   });
 
   const setCurrentConversationId = useCallback((id: string | null) => {
     currentConversationIdRef.current = id;
   }, []);
+
+  // 将 conversations 同步到 ref，避免监听函数依赖 conversations 导致重复订阅
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
 
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -58,23 +71,34 @@ export function useChatGateway({ isLoggedIn, syncMessages, onAgentRunCompleted, 
     const handleMessageSync = (message: { data: AgentSyncMessage }) => {
       const msg = message.data;
       const threadId = msg?.thread_id;
+      const messageId = msg?.id;
+      const projectId = msg?.project_id;
       if (!msg) return;
 
       // 只有当前会话不是打开状态时才累加未读
       if (threadId && threadId !== currentConversationIdRef.current) {
-        incrementUnreadRef.current(threadId);
+        incrementUnreadRef.current(threadId, messageId, projectId);
       }
 
       // 只有当前打开的会话才同步到 UI
       if (!threadId || threadId !== currentConversationIdRef.current) return;
 
       syncMessagesRef.current([msg]);
+
+      // 如果该 thread 尚未出现在本地 conversations 列表，说明是新建会话的首次消息同步。
+      // 此时 PHP MC 大概率已消费 message_sync 队列，触发列表刷新以获取 conversation 元数据。
+      const exists = conversationsRef.current.some((c) => c.id === threadId);
+      if (!exists && onNewThreadDetectedRef.current) {
+        onNewThreadDetectedRef.current(threadId);
+      }
     };
 
     const handleAgentRunCompleted = (message: any) => {
       const threadId = message?.data?.thread_id;
+      const messageId = message?.data?.message_id;
+      const projectId = message?.data?.project_id;
       if (threadId && threadId !== currentConversationIdRef.current) {
-        incrementUnreadRef.current(threadId);
+        incrementUnreadRef.current(threadId, messageId, projectId);
       }
       if (threadId && threadId === currentConversationIdRef.current) {
         onAgentRunCompletedRef.current?.(threadId);

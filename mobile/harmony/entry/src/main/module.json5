@@ -74,6 +74,10 @@
         "name": "ohos.extension.insight_intent",
         "resource": "$profile:insight_intent"
       },
+      {
+        "name": "client_id",
+        "value": "6917608346896723622"
+      },
     ],
     "abilities": [
       {

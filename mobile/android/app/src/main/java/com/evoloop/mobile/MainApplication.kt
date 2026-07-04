@@ -11,7 +11,7 @@ import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.react.soloader.OpenSourceMergedSoMapping
 import com.facebook.soloader.SoLoader
-import com.evoloop.mobile.sherpaonnx.SherpaOnnxASRPackage
+import com.evoloop.mobile.sherpaonnx.RNVoiceEnginePackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -19,7 +19,7 @@ class MainApplication : Application(), ReactApplication {
       object : DefaultReactNativeHost(this) {
         override fun getPackages(): List<ReactPackage> =
             PackageList(this).packages.apply {
-              add(SherpaOnnxASRPackage())
+              add(RNVoiceEnginePackage())
             }
 
         override fun getJSMainModuleName(): String = "index"

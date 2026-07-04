@@ -3,3 +3,9 @@
 export { AudioRecorder, getAudioRecorder } from './AudioRecorder';
 export { WakeWordDetector } from './WakeWordDetector';
 export { WakeWordService } from './WakeWordService';
+export { voiceEngine } from './VoiceEngine';
+export { parseLocalIntent } from './localNLU';
+export type { LocalIntent, IntentAction, IntentObject } from './localNLU';
+export { extractSegments } from './streamingSegmenter';
+export { ttsRouter } from './TTSRouter';
+export type { TTSMode } from './TTSRouter';

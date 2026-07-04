@@ -157,21 +157,25 @@ export class NLSClient extends EventEmitter {
   }
 
   // 处理收到的消息
-  private handleMessage(data: string): void {
+  private handleMessage(data: any): void {
     try {
-      const result: NLSTranscriptionResult = JSON.parse(data);
+      if (!data) return;
+      const result: NLSTranscriptionResult = typeof data === 'string' ? JSON.parse(data) : data;
+      if (!result || !result.header) return;
       const { name, status } = result.header;
 
       // 检查状态码
       if (status !== 20000000) {
-        const statusText = result.header.status_text || '';
+        const statusText = String(result.header.status_text || '');
         // IDLE_TIMEOUT 是正常行为（StopTranscription 后服务端空闲断开）
         if (statusText.includes('IDLE_TIMEOUT')) {
           console.log('NLS 空闲超时断开，属于正常行为');
           return;
         }
         console.error('NLS 错误:', statusText);
-        this.callbacks.onError?.(new Error(statusText || i18n.t('nls.errors.recognitionError')));
+        if (typeof this.callbacks.onError === 'function') {
+          this.callbacks.onError(new Error(statusText || (i18n?.t ? i18n.t('nls.errors.recognitionError') : 'Recognition error')));
+        }
         return;
       }
 
@@ -179,37 +183,43 @@ export class NLSClient extends EventEmitter {
         case NLSMessageType.TRANSCRIPTION_STARTED:
           console.log('识别已开始');
           this.setState('recognizing');
-          this.callbacks.onRecognitionStarted?.();
+          if (typeof this.callbacks.onRecognitionStarted === 'function') {
+            this.callbacks.onRecognitionStarted();
+          }
           break;
 
         case NLSMessageType.TRANSCRIPTION_RESULT_CHANGED:
           // 中间结果
-          if (result.payload?.result) {
-            this.callbacks.onResultChanged?.(result.payload.result);
+          if (result.payload?.result && typeof this.callbacks.onResultChanged === 'function') {
+            this.callbacks.onResultChanged(result.payload.result);
           }
           break;
 
         case NLSMessageType.SENTENCE_END:
           // 一句话结束
-          if (result.payload?.result) {
-            this.callbacks.onSentenceEnd?.(result.payload.result);
+          if (result.payload?.result && typeof this.callbacks.onSentenceEnd === 'function') {
+            this.callbacks.onSentenceEnd(result.payload.result);
           }
           break;
 
         case NLSMessageType.TRANSCRIPTION_COMPLETED:
           console.log('识别已完成');
-          this.callbacks.onRecognitionCompleted?.();
+          if (typeof this.callbacks.onRecognitionCompleted === 'function') {
+            this.callbacks.onRecognitionCompleted();
+          }
           break;
 
         case NLSMessageType.TASK_FAILED:
-          const taskFailedText = result.header.status_text || '';
+          const taskFailedText = String(result.header.status_text || '');
           // IDLE_TIMEOUT 是正常行为，忽略
           if (taskFailedText.includes('IDLE_TIMEOUT')) {
             console.log('NLS 任务空闲超时断开');
             return;
           }
           console.error('识别任务失败:', taskFailedText);
-          this.callbacks.onError?.(new Error(taskFailedText || i18n.t('nls.errors.recognitionFailed')));
+          if (typeof this.callbacks.onError === 'function') {
+            this.callbacks.onError(new Error(taskFailedText || (i18n?.t ? i18n.t('nls.errors.recognitionFailed') : 'Recognition failed')));
+          }
           break;
       }
     } catch (error) {

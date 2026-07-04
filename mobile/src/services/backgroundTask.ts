@@ -3,16 +3,11 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import { api } from '@/services/api/client';
-
-const LAST_CHECK_TIME_KEY = '@evoloop_last_check_time';
-const CHECK_INTERVAL_NORMAL = 2 * 60 * 1000; // 2分钟
-const CHECK_INTERVAL_BACKGROUND = 5 * 60 * 1000; // 5分钟
-
 import { syncMessages } from '@/services/api/conversations';
 import i18n from '@/locales';
 import { isAuthError } from '@/utils/error';
-import { useConversationStore } from '@/stores/conversationStore';
+
+const LAST_CHECK_TIME_KEY = '@evoloop_last_check_time';
 
 // 检查新消息
 async function checkNewMessages(): Promise<boolean> {
@@ -37,20 +32,8 @@ async function checkNewMessages(): Promise<boolean> {
     const { messages, serverTime } = await syncMessages(lastTime);
 
     if (messages && messages.length > 0) {
-      // 后台收到新消息时累加未读计数
-      try {
-        const conversationStore = useConversationStore.getState();
-        messages.forEach((m: any) => {
-          if (m.thread_id) {
-            conversationStore.incrementUnread(m.thread_id);
-          }
-        });
-      } catch (e) {
-        console.error('[BackgroundTask] Failed to increment unread:', e);
-      }
-
-      // 由于后端已经过滤了 role = 'assistant' 和 last_read_time，这些都是有效的新消息
-      // 为了防骚扰，只弹最新的一条消息内容，提示有 N 条新消息
+      // 后台任务仅负责弹出本地通知，不维护未读计数。
+      // 未读计数由 WebSocket 即时推送驱动，避免轮询导致多设备/重连重复计数。
       const latestMessage = messages[0]; // 后端是按 create_time desc 返回的
       
       let title = 'EvoLoop AI';

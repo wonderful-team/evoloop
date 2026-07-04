@@ -3,12 +3,15 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Conversation, ConversationHistoryResponse, AddMemoryRequest, UpdateMemoryRequest } from '@/types/conversation';
+import { Platform } from 'react-native';
+import { Conversation, AddMemoryRequest, UpdateMemoryRequest } from '@/types/conversation';
 import { ChatMessage } from '@/types/conversation';
 import { AgentSyncMessage } from '@/services/gateway/agentMessage';
 import * as conversationApi from '@/services/api/conversations';
 import { isAuthError } from '@/utils/error';
 import { adaptAgentMessages, adaptHistoryMessage, mergeSyncedHumanMessages } from '@/utils/messageAdapter';
+
+const MAX_TRACKED_MESSAGE_IDS = 100;
 
 interface ConversationState {
   // 会话列表
@@ -34,6 +37,12 @@ interface ConversationState {
   // 会话与设备的映射关系（deviceKey -> conversationIds）
   conversationDeviceMap: Record<string, string[]>;
 
+  // 会话与项目的映射关系（conversationId -> projectId），用于聚合项目未读
+  conversationProjectMap: Record<string, number>;
+
+  // 已处理过的消息 ID（conversationId -> Set(messageId)），内存中不持久化
+  processedMessageIds: Record<string, Set<string>>;
+
   // 操作
   setCurrentConversation: (id: string | null, skipLoadMessages?: boolean) => void;
   setActiveDeviceKey: (deviceKey: string | undefined) => void;
@@ -53,12 +62,18 @@ interface ConversationState {
   clearConversations: () => void;
 
   // 未读计数操作
-  incrementUnread: (conversationId: string) => void;
+  incrementUnread: (conversationId: string, messageId?: string, projectId?: number) => void;
   clearUnread: (conversationId: string | null) => void;
   getUnreadCount: (conversationId: string) => number;
 
   // 设备维度未读计数
   getDeviceUnreadCount: (deviceKey: string) => number;
+
+  // 项目维度未读计数
+  getProjectUnreadCount: (projectId: number) => number;
+
+  // 更新应用角标
+  updateAppBadge: () => void;
 
   // Rewind/Retry
   rewindConversation: (conversationId: string, request: { message_id: string; revert_files?: boolean }) => Promise<any>;
@@ -98,6 +113,12 @@ export const useConversationStore = create<ConversationState>()(
 
   // 会话与设备的映射关系
   conversationDeviceMap: {},
+
+  // 会话与项目的映射关系
+  conversationProjectMap: {},
+
+  // 已处理消息 ID（不持久化）
+  processedMessageIds: {},
 
       // 设置当前会话
       setCurrentConversation: (id, skipLoadMessages = false) => {
@@ -153,27 +174,41 @@ export const useConversationStore = create<ConversationState>()(
 
         try {
           const response = await conversationApi.getConversations(projectId, page, 20, deviceKey);
+          const conversations = Array.isArray(response?.conversations) ? response.conversations : [];
 
           set({
             conversations: shouldRefresh
-              ? response.conversations
-              : [...get().conversations, ...response.conversations],
-            hasMoreConversations: response.conversations.length === 20,
+              ? conversations
+              : [...get().conversations, ...conversations],
+            hasMoreConversations: conversations.length === 20,
             conversationsPage: page + 1,
           });
 
-          // 记录会话与设备的映射关系
-          if (deviceKey) {
-            const conversationIds = response.conversations.map((c) => c.id);
-            set((state) => ({
-              conversationDeviceMap: {
+          // 记录会话与设备、项目的映射关系
+          const conversationIds = conversations.map((c) => c.id);
+          set((state) => {
+            const nextProjectMap = { ...state.conversationProjectMap };
+            conversations.forEach((c) => {
+              if (c.project_id !== undefined) {
+                nextProjectMap[c.id] = c.project_id;
+              }
+            });
+
+            const nextState: Partial<ConversationState> = {
+              conversationProjectMap: nextProjectMap,
+            };
+
+            if (deviceKey) {
+              nextState.conversationDeviceMap = {
                 ...state.conversationDeviceMap,
                 [deviceKey]: shouldRefresh
                   ? conversationIds
                   : [...(state.conversationDeviceMap[deviceKey] || []), ...conversationIds],
-              },
-            }));
-          }
+              };
+            }
+
+            return nextState as ConversationState;
+          });
         } catch (error) {
           // 认证错误已在 API client 中统一处理，不需要输出错误日志
           if (!isAuthError(error)) {
@@ -186,7 +221,7 @@ export const useConversationStore = create<ConversationState>()(
 
       // 加载更多会话——自动沿用 activeDeviceKey / activeProjectId，无需调用方传参
       loadMoreConversations: async () => {
-        if (!get().hasMoreConversations || get().isLoadingConversations) return;
+        if (!get().hasMoreConversations || get().isLoadingConversations) {return;}
         const { activeProjectId, activeDeviceKey } = get();
         await get().loadConversations(activeProjectId, false, activeDeviceKey);
       },
@@ -229,7 +264,7 @@ export const useConversationStore = create<ConversationState>()(
       // 加载消息
       loadMessages: async (conversationId, refresh = false) => {
         // 防止同一个会话的并发请求导致消息重复
-        if (get().isLoadingMessages && !refresh) return;
+        if (get().isLoadingMessages && !refresh) {return;}
 
         set({ isLoadingMessages: true });
 
@@ -266,7 +301,7 @@ export const useConversationStore = create<ConversationState>()(
 
       // 加载更多消息（历史消息）
       loadMoreMessages: async (conversationId) => {
-        if (!get().hasMoreMessages || get().isLoadingMessages) return;
+        if (!get().hasMoreMessages || get().isLoadingMessages) {return;}
         await get().loadMessages(conversationId);
       },
 
@@ -277,9 +312,9 @@ export const useConversationStore = create<ConversationState>()(
 
       // 删除消息
       removeMessages: (messageIds) => {
-        if (!messageIds || messageIds.length === 0) return;
+        if (!messageIds || messageIds.length === 0) {return;}
         set({
-          messages: get().messages.filter(msg => !messageIds.includes(msg.id))
+          messages: get().messages.filter(msg => !messageIds.includes(msg.id)),
         });
       },
 
@@ -287,33 +322,33 @@ export const useConversationStore = create<ConversationState>()(
       rewindLocalMessages: (targetSequence: number, includeTarget: boolean) => {
         set({
           messages: get().messages.filter(msg => {
-            if (!msg.sequence_number) return true; // keep messages without sequence
+            if (!msg.sequence_number) {return true;} // keep messages without sequence
             return includeTarget ? msg.sequence_number < targetSequence : msg.sequence_number <= targetSequence;
-          })
+          }),
         });
       },
 
 
       // 从 Agent 即时推送同步单条消息到 UI（绕过 PHP API）
       syncMessages: (incomingMessages) => {
-        if (!incomingMessages || incomingMessages.length === 0) return;
+        if (!incomingMessages || incomingMessages.length === 0) {return;}
 
         const existingMessages = get().messages;
         const adapted = adaptAgentMessages(incomingMessages);
         const merged = mergeSyncedHumanMessages(existingMessages, adapted);
 
         // Compare array contents to determine if any actual change occurred (not just length)
-        const isSame = merged.length === existingMessages.length && 
+        const isSame = merged.length === existingMessages.length &&
           merged.every((m, i) => {
             const em = existingMessages[i];
-            return em.id === m.id && 
-                   em.content === m.content && 
-                   em.thinking === m.thinking && 
+            return em.id === m.id &&
+                   em.content === m.content &&
+                   em.thinking === m.thinking &&
                    em.status === m.status &&
                    em.sequence_number === m.sequence_number;
           });
 
-        if (isSame) return;
+        if (isSame) {return;}
 
         set({ messages: merged });
       },
@@ -321,7 +356,7 @@ export const useConversationStore = create<ConversationState>()(
       // 更新最后一条消息
       updateLastMessage: (updates) => {
         const { messages } = get();
-        if (messages.length === 0) return;
+        if (messages.length === 0) {return;}
 
         const lastIndex = messages.length - 1;
         const updatedMessages = [...messages];
@@ -333,7 +368,7 @@ export const useConversationStore = create<ConversationState>()(
       updateMessageStatus: (messageId, status) => {
         const { messages } = get();
         const index = messages.findIndex(m => m.id === messageId);
-        if (index === -1) return;
+        if (index === -1) {return;}
 
         const updatedMessages = [...messages];
         updatedMessages[index] = { ...updatedMessages[index], status };
@@ -344,7 +379,7 @@ export const useConversationStore = create<ConversationState>()(
       replaceMessageId: (oldId, newId) => {
         const { messages } = get();
         const index = messages.findIndex(m => m.id === oldId);
-        if (index === -1) return;
+        if (index === -1) {return;}
 
         const updatedMessages = [...messages];
         updatedMessages[index] = { ...updatedMessages[index], id: newId };
@@ -374,26 +409,71 @@ export const useConversationStore = create<ConversationState>()(
           firstMessageId: null,
           unreadCounts: {},
           conversationDeviceMap: {},
+          conversationProjectMap: {},
+          processedMessageIds: {},
         });
       },
 
       // 未读计数操作
-      incrementUnread: (conversationId) => {
-        if (!conversationId) return;
-        set((state) => ({
-          unreadCounts: {
+      incrementUnread: (conversationId, messageId, projectId) => {
+        if (!conversationId) {return;}
+
+        // 按 messageId 去重
+        if (messageId) {
+          const processed = get().processedMessageIds[conversationId];
+          if (processed?.has(messageId)) {return;}
+        }
+
+        set((state) => {
+          const nextCounts = {
             ...state.unreadCounts,
             [conversationId]: (state.unreadCounts[conversationId] || 0) + 1,
-          },
-        }));
+          };
+
+          const nextProcessed = { ...state.processedMessageIds };
+          const nextProjectMap = { ...state.conversationProjectMap };
+
+          if (messageId) {
+            let ids = nextProcessed[conversationId];
+            if (!ids) {
+              ids = new Set();
+              nextProcessed[conversationId] = ids;
+            }
+            ids.add(messageId);
+            // 限制集合大小，避免无限增长
+            if (ids.size > MAX_TRACKED_MESSAGE_IDS) {
+              const arr = Array.from(ids);
+              nextProcessed[conversationId] = new Set(arr.slice(arr.length - MAX_TRACKED_MESSAGE_IDS));
+            }
+          }
+
+          if (projectId !== undefined) {
+            nextProjectMap[conversationId] = projectId;
+          }
+
+          return {
+            unreadCounts: nextCounts,
+            processedMessageIds: nextProcessed,
+            conversationProjectMap: nextProjectMap,
+          };
+        });
+
+        get().updateAppBadge();
       },
 
       clearUnread: (conversationId) => {
-        if (!conversationId) return;
+        if (!conversationId) {return;}
         set((state) => {
-          const { [conversationId]: _, ...rest } = state.unreadCounts;
-          return { unreadCounts: rest };
+          const rest = { ...state.unreadCounts };
+          delete rest[conversationId];
+          const nextProcessed = { ...state.processedMessageIds };
+          delete nextProcessed[conversationId];
+          return {
+            unreadCounts: rest,
+            processedMessageIds: nextProcessed,
+          };
         });
+        get().updateAppBadge();
       },
 
       getUnreadCount: (conversationId) => {
@@ -402,12 +482,41 @@ export const useConversationStore = create<ConversationState>()(
 
       // 获取设备维度的总未读数
       getDeviceUnreadCount: (deviceKey) => {
-        if (!deviceKey) return 0;
+        if (!deviceKey) {return 0;}
         const conversationIds = get().conversationDeviceMap[deviceKey] || [];
         return conversationIds.reduce(
           (sum, id) => sum + (get().unreadCounts[id] || 0),
           0
         );
+      },
+
+      // 获取项目维度的总未读数
+      getProjectUnreadCount: (projectId) => {
+        const state = get();
+        return Object.entries(state.unreadCounts).reduce((sum, [conversationId, count]) => {
+          const convProjectId = state.conversationProjectMap[conversationId];
+          // 没有 project 映射时尝试从会话列表反查
+          if (convProjectId === undefined) {
+            const conversation = state.conversations.find((c) => c.id === conversationId);
+            if (conversation?.project_id === projectId) {
+              return sum + count;
+            }
+            return sum;
+          }
+          return convProjectId === projectId ? sum + count : sum;
+        }, 0);
+      },
+
+      // 更新应用桌面角标
+      updateAppBadge: () => {
+        if (Platform.OS === 'harmony') {return;}
+        const total = Object.values(get().unreadCounts).reduce((sum, c) => sum + c, 0);
+        try {
+          const notifee = require('@notifee/react-native').default;
+          notifee.setBadgeCount(total).catch(() => {});
+        } catch {
+          // notifee 未安装或不可用时静默
+        }
       },
 
       // Rewind 回退
@@ -448,10 +557,10 @@ export const useConversationStore = create<ConversationState>()(
       // 置顶/取消置顶会话
       togglePinConversation: async (id) => {
         const conversation = get().conversations.find(c => c.id === id);
-        if (!conversation) return;
-        
+        if (!conversation) {return;}
+
         const nextPinned = !conversation.is_pinned;
-        
+
         // 乐观更新本地状态
         const updatedConversations = get().conversations.map(c => {
           if (c.id === id) {
@@ -459,7 +568,7 @@ export const useConversationStore = create<ConversationState>()(
           }
           return c;
         });
-        
+
         // 重新排序: 置顶的在前，然后按更新时间在后
         const sortedConversations = [...updatedConversations].sort((a, b) => {
           const pinA = a.is_pinned ? 1 : 0;
@@ -497,10 +606,10 @@ export const useConversationStore = create<ConversationState>()(
       // 重命名会话
       renameConversation: async (id, newTitle) => {
         const conversation = get().conversations.find(c => c.id === id);
-        if (!conversation) return;
-        
+        if (!conversation) {return;}
+
         const oldTitle = conversation.title;
-        
+
         // 乐观更新本地状态
         set({
           conversations: get().conversations.map(c => {
@@ -508,7 +617,7 @@ export const useConversationStore = create<ConversationState>()(
               return { ...c, title: newTitle };
             }
             return c;
-          })
+          }),
         });
 
         try {
@@ -522,7 +631,7 @@ export const useConversationStore = create<ConversationState>()(
                 return { ...c, title: oldTitle };
               }
               return c;
-            })
+            }),
           });
         }
       },
@@ -530,9 +639,10 @@ export const useConversationStore = create<ConversationState>()(
     {
       name: 'conversation-unread-storage',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({ 
+      partialize: (state) => ({
         unreadCounts: state.unreadCounts,
         conversationDeviceMap: state.conversationDeviceMap,
+        conversationProjectMap: state.conversationProjectMap,
       }),
     }
   )

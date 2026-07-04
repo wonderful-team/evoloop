@@ -24,6 +24,7 @@
     "@react-native-ohos/react-native-safe-area-context": "file:../node_modules/@react-native-ohos/react-native-safe-area-context/harmony/safe_area.har",
     "@react-native-ohos/react-native-video": "file:../node_modules/@react-native-ohos/react-native-video/harmony/rn_video.har",
     "@react-native-ohos/react-native-webview": "file:../node_modules/@react-native-ohos/react-native-webview/harmony/rn_webview.har",
+    "sherpa_onnx": "file:./sherpa_onnx",
     "@react-native-ohos/netinfo": "file:../node_modules/@react-native-ohos/netinfo/harmony/netinfo.har",
     "@react-native-ohos/react-native-screens": "file:../node_modules/@react-native-ohos/react-native-screens/harmony/screens.har"
   },

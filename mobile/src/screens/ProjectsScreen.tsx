@@ -2,7 +2,7 @@
 
 import React, { useCallback, useState } from 'react';
 import { View, StyleSheet, FlatList, RefreshControl, Alert } from 'react-native';
-import { Text, Card, Chip, Portal, Dialog, Button } from 'react-native-paper';
+import { Text, Card, Chip, Button } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { router } from '@/utils/navigation';
@@ -16,6 +16,7 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { Header } from '@/components/common/Header';
 import { Project, GLOBAL_PROJECT, isGlobalProject } from '@/types';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import { useConversationStore } from '@/stores/conversationStore';
 
 // 游客模式下的登录提示组件
 // 游客模式下的登录提示组件
@@ -69,12 +70,9 @@ const ProjectsContent = () => {
 
   const currentDevice = useDeviceStore(state => state.currentDevice);
 
-  const [refreshing, setRefreshing] = useState(false);
+  const getProjectUnreadCount = useConversationStore(state => state.getProjectUnreadCount);
 
-  // 游客模式显示登录提示
-  if (!isLoggedIn) {
-    return <GuestLoginPrompt />;
-  }
+  const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -100,47 +98,64 @@ const ProjectsContent = () => {
     }
   }, [switchProject, setGlobalMode, currentDevice, t]);
 
-  const renderItem = useCallback(({ item }: { item: Project }) => (
-    <Card
-      style={[
-        styles.card,
-        currentProject?.id === item.id && [styles.activeCard, { borderColor: colors.primary }],
-      ]}
-      onPress={() => handleProjectPress(item)}
-    >
-      <Card.Content>
-        <View style={styles.itemHeader}>
-          <View style={[styles.iconContainer, { backgroundColor: colors.surfaceVariant }]}>
-            <MaterialIcons name="folder" size={28} color={colors.primary} />
-          </View>
-          <View style={styles.info}>
-            <Text variant="titleMedium" style={styles.name}>
-              {item.name}
-            </Text>
-            <Text variant="bodySmall" style={styles.path}>
-              {item.rootPath}
-            </Text>
-          </View>
-          {currentProject?.id === item.id && (
-            <Chip
-              icon="check-circle"
-              compact
-              style={[styles.activeChip, { backgroundColor: colors.primaryContainer }]}
-              textStyle={{ color: colors.primary }}
-            >
-              {t('projects.current')}
-            </Chip>
-          )}
-        </View>
+  const renderItem = useCallback(({ item }: { item: Project }) => {
+    const isGlobal = isGlobalProject(item);
+    const unreadCount = getProjectUnreadCount(item.id);
 
-        {item.description && (
-          <Text variant="bodySmall" style={styles.description}>
-            {item.description}
-          </Text>
-        )}
-      </Card.Content>
-    </Card>
-  ), [currentProject, handleProjectPress, colors]);
+    return (
+      <Card
+        style={[
+          styles.card,
+          currentProject?.id === item.id && [styles.activeCard, { borderColor: colors.primary }],
+        ]}
+        onPress={() => handleProjectPress(item)}
+      >
+        <Card.Content>
+          <View style={styles.itemHeader}>
+            <View style={[styles.iconContainer, { backgroundColor: colors.surfaceVariant }]}>
+              <MaterialIcons name={isGlobal ? 'public' : 'folder'} size={28} color={isGlobal ? '#1976D2' : colors.primary} />
+            </View>
+            <View style={styles.info}>
+              <Text variant="titleMedium" style={styles.name}>
+                {item.name}
+              </Text>
+              <Text variant="bodySmall" style={styles.path}>
+                {isGlobal ? t('projects.globalModeDesc') : item.rootPath}
+              </Text>
+            </View>
+            {currentProject?.id === item.id && (
+              <Chip
+                icon="check-circle"
+                compact
+                style={[styles.activeChip, { backgroundColor: colors.primaryContainer }]}
+                textStyle={{ color: colors.primary }}
+              >
+                {t('projects.current')}
+              </Chip>
+            )}
+            {unreadCount > 0 && (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadBadgeText}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {!isGlobal && item.description && (
+            <Text variant="bodySmall" style={styles.description}>
+              {item.description}
+            </Text>
+          )}
+        </Card.Content>
+      </Card>
+    );
+  }, [currentProject, handleProjectPress, colors, getProjectUnreadCount, t]);
+
+  // 游客模式显示登录提示
+  if (!isLoggedIn) {
+    return <GuestLoginPrompt />;
+  }
 
   if (isLoading && projects.length === 0) {
     return (
@@ -180,48 +195,12 @@ const ProjectsContent = () => {
         </View>
       ) : (
         <FlatList
-          data={projects}
+          data={[GLOBAL_PROJECT, ...projects]}
           renderItem={renderItem}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.list}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          ListHeaderComponent={
-            <Card
-              style={[
-                styles.card,
-                styles.globalCard,
-                isGlobalMode && [styles.activeCard, { borderColor: colors.primary }],
-              ]}
-              onPress={() => handleProjectPress(GLOBAL_PROJECT)}
-            >
-              <Card.Content>
-                <View style={styles.itemHeader}>
-                  <View style={[styles.iconContainer, { backgroundColor: '#E3F2FD' }]}>
-                    <MaterialIcons name="public" size={28} color="#1976D2" />
-                  </View>
-                  <View style={styles.info}>
-                    <Text variant="titleMedium" style={styles.name}>
-                      {t('projects.globalMode')}
-                    </Text>
-                    <Text variant="bodySmall" style={styles.path}>
-                      {t('projects.globalModeDesc')}
-                    </Text>
-                  </View>
-                  {isGlobalMode && (
-                    <Chip
-                      icon="check-circle"
-                      compact
-                      style={[styles.activeChip, { backgroundColor: colors.primaryContainer }]}
-                      textStyle={{ color: colors.primary }}
-                    >
-                      {t('projects.current')}
-                    </Chip>
-                  )}
-                </View>
-              </Card.Content>
-            </Card>
           }
         />
       )}
@@ -229,7 +208,7 @@ const ProjectsContent = () => {
 
     </SafeAreaView>
   );
-}
+};
 
 export default function ProjectsScreen() {
   return (
@@ -290,6 +269,20 @@ const styles = StyleSheet.create({
   },
   activeChip: {
     backgroundColor: 'transparent',
+  },
+  unreadBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  unreadBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   description: {
     marginTop: 8,

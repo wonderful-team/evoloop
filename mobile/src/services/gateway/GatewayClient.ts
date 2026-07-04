@@ -14,6 +14,7 @@ import {
   createEnvelope,
   CanonicalEnvelope,
   CanonicalMessageType,
+  messageTypeRequiresAck,
 } from './canonical';
 
 export class GatewayClient extends EventEmitter {
@@ -144,10 +145,7 @@ export class GatewayClient extends EventEmitter {
           this.startHeartbeat();
 
           // 发送连接识别消息（token 已在 query 中，body 仅传设备类型）
-          this.send({
-            type: GatewayMessageType.CONNECT,
-            data: { device_type: 'mobile' },
-          });
+          this.sendEnvelope(CanonicalMessageType.Connect, { device_type: 'mobile' });
         };
 
         this.ws.onmessage = (event) => {
@@ -168,6 +166,8 @@ export class GatewayClient extends EventEmitter {
           cleanupInit();
 
           if (!initResolved) {
+            this.state = ConnectionState.DISCONNECTED;
+            this.scheduleReconnect();
             reject(new Error(`WebSocket closed before handshake: ${event.code}`));
             return;
           }
@@ -208,6 +208,15 @@ export class GatewayClient extends EventEmitter {
   async reconnect(): Promise<void> {
     this.disconnect();
     return this.connect();
+  }
+
+  // 发送规范 Envelope
+  sendEnvelope(type: CanonicalMessageType | string, body: Record<string, unknown> = {}): void {
+    if (this.ws?.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    const env = createEnvelope(type, body);
+    this.ws.send(JSON.stringify(env));
   }
 
   // 发送规范 Envelope（自动包装为规范格式）
@@ -297,6 +306,13 @@ export class GatewayClient extends EventEmitter {
         data: env.body,
         timestamp: env.timestamp,
       });
+
+      // 对需要确认的消息自动回复 message.ack
+      if (messageTypeRequiresAck(env.type)) {
+        this.sendEnvelope(CanonicalMessageType.MessageAck, {
+          ack_id: env.message_id,
+        });
+      }
 
       // HITL 请求特殊处理
       if (env.type === CanonicalMessageType.HITLRequest) {
