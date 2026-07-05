@@ -19,9 +19,10 @@ logger = logging.getLogger(__name__)
 )
 async def mobile_sync_http_task(mobile_data: dict) -> None:
     """通过 HTTP 将消息推送到 MC（Mobile 兜底通道，Worker 进程执行）。"""
-    from app.core.identity import identity_service
-    from app.core.config import settings
     import httpx
+
+    from app.core.config import settings
+    from app.core.identity import identity_service
 
     token = await identity_service.get_access_token()
     if not token:
@@ -29,7 +30,7 @@ async def mobile_sync_http_task(mobile_data: dict) -> None:
         return
 
     try:
-        url = f"{settings.MEMBER_CENTER_URL}/evolooplink/api/sync/messages"
+        url = f"{settings.EVOCLOUD_API_URL}/member/evolooplink/api/sync/messages"
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.post(
                 url,
@@ -47,6 +48,6 @@ async def mobile_sync_http_task(mobile_data: dict) -> None:
                     resp.status_code,
                     resp.text[:200],
                 )
-    except Exception as e:
+    except httpx.HTTPError as e:
         logger.warning("[MobileSyncTask] HTTP fallback error: %s", e)
         raise  # 触发 Huey 重试
