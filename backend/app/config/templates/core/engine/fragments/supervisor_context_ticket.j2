@@ -67,6 +67,15 @@
   {% endfor %}
 {%- endif %}
 
+{%- if memory and memory.core_raw %}
+## Project Memory (MEMORY.md)
+{{ memory.core_raw | truncate(8000, True, "... [MEMORY.md truncated for brevity]") }}
+{%- endif %}
+{%- if memory and memory.episodic_raw %}
+## Relevant Past Episodes
+{{ memory.episodic_raw }}
+{%- endif %}
+
 {%- if environment_block %}
 ## Environment
 {{ environment_block.strip() }}

@@ -132,6 +132,9 @@ async def dispatch_agent_run(
         if working_directory:
             context.working_directory = working_directory
 
+    if member_id:
+        context.member_id = member_id
+
     ContextManager.set(context)
     await ContextManager.save(thread_id)
 

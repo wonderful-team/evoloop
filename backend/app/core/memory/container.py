@@ -92,12 +92,22 @@ class MemoryContainer:
 
     async def _init_storage(self) -> None:
         """Initialize storage backend."""
-        self._storage = MemoryStore(str(self.config.user_memory_root))
+        self._storage = MemoryStore(
+            str(self.config.user_memory_root),
+            project_roots=self.project_roots,
+        )
 
     async def _init_short_term(self) -> None:
         """Initialize short-term memory backend."""
         self._short_term = SqlShortTermMemory()
         await self._short_term.initialize()
+
+    @property
+    def project_roots(self) -> dict[int, str]:
+        """Mutable mapping of project_id → project memory root path."""
+        if not hasattr(self, "_project_roots"):
+            self._project_roots: dict[int, str] = {}
+        return self._project_roots
 
     # ==========================================================================
     # Component Access (lazy initialization)

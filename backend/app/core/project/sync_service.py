@@ -7,7 +7,7 @@ from sqlalchemy import select
 from app.core.evocloud import evocloud_manager
 from app.core.file import is_ignored_path
 from app.core.project import cache as project_cache
-from app.core.project.utils import write_project_json
+from app.core.project.utils import read_project_json, write_project_json
 from app.domain.codebase.indexing.service import IndexingService
 from app.infrastructure.database import session_scope
 from app.models.codebase import Repository
@@ -193,6 +193,80 @@ class ProjectSyncService:
             logger.info(f"[ProjectSync] Project already exists: {path}")
             return
 
+        # Recovery: check if .evoloop/project.json exists (directory was moved while offline)
+        # project.json travels with the directory and retains the original project_id
+        project_json = read_project_json(abs_path)
+        if project_json and project_json.get("project_id") and project_json["project_id"] > 0:
+            recovered_project_id = int(project_json["project_id"])
+            logger.info(
+                f"[ProjectSync] Found .evoloop/project.json with project_id={recovered_project_id}. "
+                f"Recovering cloud link for moved directory: {path}"
+            )
+            try:
+                async with session_scope() as session:
+                    # Check if a Repository with this project_id already exists (active)
+                    from sqlalchemy import select as sa_select
+                    stmt = sa_select(Repository).where(
+                        Repository.project_id == recovered_project_id,
+                        Repository.sync_status.notin_(["IGNORED", "DISCONNECTED"]),
+                    )
+                    result = await session.execute(stmt)
+                    existing_repo = result.scalars().first()
+
+                    if existing_repo:
+                        # Update the existing repo's path to the new location
+                        existing_repo.local_path = path
+                        existing_repo.relative_path = repo_name
+                        existing_repo.sync_status = "SYNCED"
+                        await session.commit()
+                        await session.refresh(existing_repo)
+                        logger.info(
+                            f"[ProjectSync] Updated existing Repository {existing_repo.id} "
+                            f"to new path {path} (project_id={recovered_project_id})"
+                        )
+                        # Update project.json with current repo_id
+                        write_project_json(abs_path, {
+                            "project_id": recovered_project_id,
+                            "repo_id": existing_repo.id,
+                        })
+                        # Sync cloud external_path to the new location
+                        await self._update_cloud_project_path(recovered_project_id, abs_path)
+                        # Trigger re-indexing at new path
+                        await self._trigger_auto_indexing(existing_repo, path)
+                        return
+                    else:
+                        # No existing active repo for this project_id — create new one
+                        repo = Repository(
+                            name=repo_name,
+                            url="local",
+                            local_path=path,
+                            relative_path=repo_name,
+                            sync_status="SYNCED",
+                            indexing_status="pending",
+                            detected_at=utcnow(),
+                            imported_at=utcnow(),
+                            project_id=recovered_project_id,
+                        )
+                        session.add(repo)
+                        await session.commit()
+                        await session.refresh(repo)
+                        logger.info(
+                            f"[ProjectSync] Created new Repository {repo.id} recovering "
+                            f"project_id={recovered_project_id} at moved path {path}"
+                        )
+                        write_project_json(abs_path, {
+                            "project_id": recovered_project_id,
+                            "repo_id": repo.id,
+                        })
+                        await self._update_cloud_project_path(recovered_project_id, abs_path)
+                        await self._trigger_auto_indexing(repo, path)
+                        return
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.warning(
+                    f"[ProjectSync] Failed to recover project from project.json: {e}. "
+                    f"Falling through to normal detection flow."
+                )
+
         # Check if there's an ignored project with the same name (recreated project)
         # This handles the case where user deleted and recreated the project folder
         if await self._is_repo_name_ignored_in_db(repo_name):
@@ -287,6 +361,22 @@ class ProjectSyncService:
 
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[ProjectSync] Failed to create repository record: {e}")
+
+    async def _update_cloud_project_path(self, project_id: int, new_path: str) -> None:
+        """Update cloud external_path after a directory move."""
+        try:
+            from app.core.identity import identity_service
+            device_key = await identity_service.store.get_device_key()
+            if device_key:
+                await evocloud_manager.api.update_project(
+                    project_id=project_id,
+                    source=device_key,
+                )
+                logger.info(
+                    f"[ProjectSync] Updated cloud project {project_id} source after path move to {new_path}"
+                )
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.warning(f"[ProjectSync] Failed to update cloud path for project {project_id}: {e}")
 
     async def _find_matching_cloud_project(self, repo_name: str, local_path: str) -> dict | None:
         """

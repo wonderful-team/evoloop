@@ -542,7 +542,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                 raw=raw,
             )
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (json.JSONDecodeError, ConnectionError, TimeoutError, OSError) as e:
             logger.error(f"[EvoCloud] WS Handle Error: {e}")
 
     def _on_token_changed(self, token: str | None):
@@ -556,7 +556,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         try:
             asyncio.get_running_loop().create_task(self._force_reconnect())
         except RuntimeError:
-            pass
+            logger.debug("[EvoCloud] Token change reconnect skipped (no running loop)")
 
     async def _force_reconnect(self):
         """Force close current WebSocket connection to trigger reconnect.

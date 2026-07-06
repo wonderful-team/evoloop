@@ -339,6 +339,37 @@ class MemoryManager:
         """Save a memory entry."""
         await self._storage.save(entry)
 
+    async def ingest_project_profile(self, project_id: int, content: str, member_id: int = 0) -> None:
+        """
+        Ingest PROJECT.md content into the memory system as a PROJECT-type entry.
+
+        This makes the project's self-description searchable via search_memories/recall.
+        Deduplicates by content_hash; updates existing entry if content changes.
+        """
+        import hashlib
+
+        entry_id = f"project_md_{project_id}"
+        content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+        # Check if existing entry has same content (skip if unchanged)
+        existing = await self.get_memory(entry_id)
+        if existing and existing.content_hash == content_hash:
+            return
+
+        entry = MemoryEntry(
+            id=entry_id,
+            type=MemoryType.PROJECT,
+            title=f"PROJECT.md (project {project_id})",
+            content=content,
+            content_hash=content_hash,
+            project_id=project_id,
+            member_id=member_id,
+            source_file_path="PROJECT.md",
+            tags=["project_profile", "auto_ingested"],
+        )
+        await self._storage.save(entry)
+        logger.info(f"[MemoryManager] Ingested PROJECT.md for project {project_id} ({len(content)} chars)")
+
     async def delete_memory(self, entry_id: str) -> bool:
         """Permanently delete a memory entry by ID."""
         return await self._storage.delete(entry_id)
@@ -420,11 +451,14 @@ class MemoryManager:
         Returns:
             MEMORY.md content (truncated if exceeds limits)
         """
-        project_path = None
+        memory_root = None
         if project_id:
             try:
-                from app.core.project.utils import get_project_path
+                from app.core.project.utils import get_project_path, get_memory_path
                 project_path = await get_project_path(project_id)
+                if project_path:
+                    memory_root = get_memory_path(project_path)
+                    self._storage.project_roots[project_id] = str(memory_root)
             except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
 
@@ -433,7 +467,8 @@ class MemoryManager:
             storage=self._storage,
             config=self.config,
             analyzer=self.quality,
-            root_path=project_path
+            root_path=memory_root,
+            project_id=project_id,
         )
         return await two_tier.get_hot_memory()
 
@@ -470,11 +505,14 @@ class MemoryManager:
         This updates the hot memory (Tier 1) based on the current
         state of cold memory (Tier 2), applying budgets and rankings.
         """
-        project_path = None
+        memory_root = None
         if project_id:
             try:
-                from app.core.project.utils import get_project_path
+                from app.core.project.utils import get_project_path, get_memory_path
                 project_path = await get_project_path(project_id)
+                if project_path:
+                    memory_root = get_memory_path(project_path)
+                    self._storage.project_roots[project_id] = str(memory_root)
             except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
 
@@ -483,7 +521,8 @@ class MemoryManager:
             storage=self._storage,
             config=self.config,
             analyzer=self.quality,
-            root_path=project_path
+            root_path=memory_root,
+            project_id=project_id,
         )
         await two_tier.regenerate_memory_md()
 

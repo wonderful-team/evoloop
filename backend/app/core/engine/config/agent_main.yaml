@@ -39,6 +39,7 @@ tool_bundles:
     - "query_app_atlas"
     - "list_app_atlas"
     - "save_concepts"
+    - "query_concepts"
   planning_tools:
     - "create_plan"
     - "update_step_status"
@@ -57,6 +58,7 @@ nodes:
       - "list_skills"
       - "read_skill_sop"
       - "search_history"
+      - "query_concepts"
       - "search_web"
       - "read_file"
       - "list_dir"
@@ -113,6 +115,7 @@ nodes:
       - "list_app_atlas"
       - "search_native_tools"
       - "save_concepts"
+      - "query_concepts"
       - "sql_query"
       # Wiki (Project documentation authoring)
       - "write_wiki_page"

@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 
 
 class MemoryStore:
-    def __init__(self, base_dir: str | None = None):
+    def __init__(self, base_dir: str | None = None, project_roots: dict[int, str] | None = None):
         if settings.EMBEDDED_MODE:
-            self._engine = _FileEngine(base_dir=base_dir)
+            self._engine = _FileEngine(base_dir=base_dir, project_roots=project_roots)
         else:
             self._engine = _GraphEngine()
 
@@ -28,6 +28,11 @@ class MemoryStore:
 
     async def initialize(self) -> None:
         await self._engine.initialize()
+
+    @property
+    def project_roots(self) -> dict[int, str]:
+        """Mutable mapping of project_id → project memory root path."""
+        return self._engine._project_roots
 
     async def close(self) -> None:
         await self._engine.close()

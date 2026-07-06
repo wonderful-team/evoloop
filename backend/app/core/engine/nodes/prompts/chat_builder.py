@@ -27,11 +27,17 @@ class ChatPromptBuilder(BasePromptBuilder):
         }
 
         from app.infrastructure.config.service import SystemConfigService
+        from app.core.config import settings
         template_vars = {
             "user_lang": self.get_user_lang(),
             "environment_block": ctx.environment_block,
             "sys_info": sys_info,
             "project_id": ctx.project_id,
+            "project_concepts": ctx.metadata.get("project_concepts", ""),
+            "sandbox_mode": self.get_sandbox_mode(),
+            "multi_tenant_mode": settings.MULTI_TENANT_MODE,
+            "is_supervisor": False,
+            "has_file_operations": False,
             "agent_name": SystemConfigService.get_value("AGENT_NAME", "EvoLoop"),
             "agent_company": SystemConfigService.get_value("AGENT_COMPANY", "上海方天画戟信息技术有限公司"),
             "agent_website": SystemConfigService.get_value("AGENT_WEBSITE", "https://evoloop.cn"),

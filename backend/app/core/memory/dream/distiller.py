@@ -234,3 +234,92 @@ class DeepDreamDistiller:
                     logger.debug("[Dream] Hot memory regenerated")
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug("[Dream] Hot memory regeneration skipped: %s", e)
+
+    async def promote_cross_project_concepts(self) -> int:
+        """
+        Detect concepts that recur across >=2 projects and promote them to global.
+
+        For each concept title appearing in 2+ distinct projects:
+        - Create a global (project_id=0) STRATEGIC CONCEPT entry if not exists
+        - Tag original entries with 'promoted_to_global' in their tags
+
+        Returns:
+            Number of concepts promoted to global.
+        """
+        from app.core.memory.models import MemoryType
+        from app.constants import DEFAULT_PROJECT_ID
+
+        try:
+            # Load all CONCEPT entries across all projects
+            all_entries = await self.manager.search_memories(
+                query="",
+                types=[MemoryType.CONCEPT],
+                project_id=None,
+                limit=500,
+            )
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.warning("[Dream] Failed to load concepts for promotion: %s", e)
+            return 0
+
+        if not all_entries:
+            return 0
+
+        # Group by title, track distinct project_ids
+        title_to_projects: dict[str, set[int]] = {}
+        title_to_entry: dict[str, Any] = {}
+
+        for entry in all_entries:
+            pid = getattr(entry, "project_id", None)
+            if pid is None or pid == DEFAULT_PROJECT_ID:
+                continue  # Skip global entries
+            title = getattr(entry, "title", None) or ""
+            if not title:
+                continue
+            if title not in title_to_projects:
+                title_to_projects[title] = set()
+                title_to_entry[title] = entry
+            title_to_projects[title].add(pid)
+
+        promoted = 0
+        for title, projects in title_to_projects.items():
+            if len(projects) < 2:
+                continue
+
+            # This concept appears in 2+ projects — promote to global
+            source_entry = title_to_entry[title]
+            global_entry_id = f"global_concept_{hashlib.sha256(title.encode()).hexdigest()[:16]}"
+
+            existing = await self.manager.get_memory(global_entry_id)
+            if existing:
+                logger.debug("[Dream] Global concept already exists: %s", global_entry_id)
+                continue
+
+            global_entry = MemoryEntry(
+                id=global_entry_id,
+                type=MemoryType.CONCEPT,
+                privacy=PrivacyLevel.TEAM,
+                title=title,
+                content=getattr(source_entry, "content", title),
+                description=getattr(source_entry, "description", ""),
+                project_id=DEFAULT_PROJECT_ID,
+                tier=MemoryTier.STRATEGIC,
+                utility_score=getattr(source_entry, "utility_score", 0.9),
+                source="cross_project_promotion",
+                tags=["dream", "cross_project", "promoted"],
+            )
+            try:
+                await self.manager.save_memory(global_entry)
+                promoted += 1
+                logger.info(
+                    "[Dream] Promoted cross-project concept '%s' to global (found in %d projects)",
+                    title,
+                    len(projects),
+                )
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.warning("[Dream] Failed to promote concept '%s': %s", title, e)
+
+        if promoted > 0:
+            # Regenerate global MEMORY.md so promoted concepts surface
+            await self._regenerate_hot_memory(DEFAULT_PROJECT_ID)
+
+        return promoted

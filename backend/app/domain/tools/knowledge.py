@@ -18,12 +18,12 @@ logger = logging.getLogger(__name__)
 )
 async def save_concepts(
     concepts: list[ExtractedConcept],
-    config: Annotated[RunnableConfig, InjectedToolArg] = None
+    config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
-    Extracted important technical concepts, patterns, or architecture decisions 
+    Extracted important technical concepts, patterns, or architecture decisions
     from the current session and store them in the project's long-term memory.
-    
+
     Args:
         concepts: A list of objects containing 'name' and 'description'.
     """
@@ -45,7 +45,7 @@ async def save_concepts(
         # Trigger background task
         harvest_concepts_task.delay(
             concepts_data=concepts_data,
-            project_id=project_id
+            project_id=project_id,
         )
 
         names = [c.name for c in concepts]

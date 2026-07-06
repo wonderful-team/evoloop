@@ -60,16 +60,18 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     所有分类和策略决策都委托给 message 模块。
     """
 
-    def __init__(self, thread_id: str, project_id: int, run_id: str = ""):
+    def __init__(self, thread_id: str, project_id: int, run_id: str = "", member_id: int = 0):
         self.thread_id = thread_id
         self.project_id = project_id
         self.run_id = run_id
+        self.member_id = member_id
 
         # 统一消息处理器
         self._handler = MessageHandler(
             thread_id=thread_id,
             project_id=project_id,
             run_id=run_id,
+            member_id=member_id,
         )
 
         # 步骤追踪（用于与 activity_monitor 协调）

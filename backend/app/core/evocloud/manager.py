@@ -125,7 +125,7 @@ class EvoCloudManager:
                 device_key=device_key,
             )
             logger.info("[EvoCloud] Conversation sync started via bridge")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ConnectionError, TimeoutError, OSError) as e:
             logger.error(f"[EvoCloud] Failed to start conversation sync: {e}")
 
     async def _stop_conversation_sync(self):
@@ -136,7 +136,7 @@ class EvoCloudManager:
             )
             await stop_conversation_sync()
             logger.info("[EvoCloud] Conversation sync stopped via bridge")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ConnectionError, TimeoutError, OSError) as e:
             logger.error(f"[EvoCloud] Error stopping conversation sync: {e}")
 
     # --- Cache Management ---

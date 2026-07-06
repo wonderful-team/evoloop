@@ -90,7 +90,7 @@ class EvoCloudHTTPClient(
         for callback in self._token_change_callbacks:
             try:
                 callback(token)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (TypeError, ValueError) as e:
                 logger.warning(f"Token change callback error: {e}")
 
     async def get_token(self) -> str | None:
@@ -310,6 +310,6 @@ class EvoCloudHTTPClient(
                     _retry_count=_retry_count + 1,
                 )
             return {"code": -1, "message": str(e)}
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except OSError as e:
             logger.error(f"Request failed: {e}")
             return {"code": -1, "message": str(e)}

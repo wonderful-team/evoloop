@@ -83,10 +83,29 @@ class AgentContextHydrator:
 
         # Tier 2: Predictive load (Concepts & Episodes - Only for primary turns)
         if last_human_msg and not is_subtask:
-            concepts, episodes = await __import__("asyncio").gather(
-                memory_manager.search_concepts(last_human_msg, ctx.project_id),
-                memory_manager.search_episodes(last_human_msg, ctx.project_id, limit=3)
-            )
+            from app.constants import DEFAULT_PROJECT_ID
+
+            if ctx.project_id and ctx.project_id != DEFAULT_PROJECT_ID:
+                # Project mode: query project + global concepts in parallel, then merge
+                project_concepts, global_concepts, episodes = await __import__("asyncio").gather(
+                    memory_manager.search_concepts(last_human_msg, ctx.project_id, limit=3),
+                    memory_manager.search_concepts(last_human_msg, DEFAULT_PROJECT_ID, limit=2),
+                    memory_manager.search_episodes(last_human_msg, ctx.project_id, limit=3),
+                )
+                # Merge: project concepts first, then global (dedup by name)
+                seen_names: set[str] = set()
+                merged_concepts: list = []
+                for c in list(project_concepts) + list(global_concepts):
+                    if c.name not in seen_names:
+                        seen_names.add(c.name)
+                        merged_concepts.append(c)
+                concepts = merged_concepts[:5]
+            else:
+                # Global mode: query global only
+                concepts, episodes = await __import__("asyncio").gather(
+                    memory_manager.search_concepts(last_human_msg, ctx.project_id),
+                    memory_manager.search_episodes(last_human_msg, ctx.project_id, limit=3)
+                )
 
             if concepts:
                 current_thread_id = ctx.thread_id
@@ -94,7 +113,7 @@ class AgentContextHydrator:
                     concepts,
                     key=lambda c: (getattr(c, "source_thread_id", None) != current_thread_id,),
                 )
-                memory_data['project_concepts'] = "\n".join([f"- **{c.name}**: {c.description}" for c in sorted_concepts[:3]])
+                memory_data['project_concepts'] = "\n".join([f"- **{c.name}**: {c.description}" for c in sorted_concepts[:5]])
             if episodes:
                 current_run_id = config.get("configurable", {}).get("run_id")
                 filtered = [e for e in episodes if e.get("id") != f"ep_{current_run_id}"]

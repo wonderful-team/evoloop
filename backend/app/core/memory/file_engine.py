@@ -44,8 +44,13 @@ class _DBIndexProxy:
 
 
 class _FileEngine:
-    def __init__(self, base_dir: str | None = None):
+    def __init__(self, base_dir: str | None = None, project_roots: dict[int, str] | None = None):
         self.root = Path(base_dir or settings.BRAIN_MEMORY_ROOT)
+        self._project_roots: dict[int, Path] = {}
+        if project_roots:
+            self._project_roots = {
+                pid: Path(p) for pid, p in project_roots.items()
+            }
         self.journal_dir = self.root / "journal"
         self.preferences_dir = self.root / "preferences"
         self.context_dir = self.root / "context"
@@ -73,29 +78,39 @@ class _FileEngine:
             self.index_dir,
         ):
             d.mkdir(parents=True, exist_ok=True)
+        # Ensure project memory directories exist
+        for _pid, proj_root in self._project_roots.items():
+            for cat in MemoryCategory:
+                (Path(proj_root) / cat.value).mkdir(parents=True, exist_ok=True)
 
     async def _build_memory_id_index(self) -> None:
         start_time = time.time()
+
+        def _scan_dir(dir_path: Path, id_idx: dict, hash_idx: dict) -> None:
+            if not dir_path.exists():
+                return
+            for path in dir_path.glob("*.md"):
+                try:
+                    text = path.read_text(encoding="utf-8")
+                    entry = MemoryEntry.from_frontmatter(text, str(path))
+                    id_idx[entry.id] = (path, MemoryCategory(dir_path.name))
+                    if entry.content_hash:
+                        hash_idx[entry.content_hash] = entry.id
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as exc:
+                    logger.debug(
+                        f"[FileEngine] Skipping corrupted file {path.name}: {exc}"
+                    )
+                    continue
 
         def _scan():
             id_idx: dict[str, tuple[Path, MemoryCategory]] = {}
             hash_idx: dict[str, str] = {}
             for category in MemoryCategory:
-                dir_path = self.root / category.value
-                if not dir_path.exists():
-                    continue
-                for path in dir_path.glob("*.md"):
-                    try:
-                        text = path.read_text(encoding="utf-8")
-                        entry = MemoryEntry.from_frontmatter(text, str(path))
-                        id_idx[entry.id] = (path, category)
-                        if entry.content_hash:
-                            hash_idx[entry.content_hash] = entry.id
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as exc:
-                        logger.debug(
-                            f"[FileEngine] Skipping corrupted file {path.name}: {exc}"
-                        )
-                        continue
+                _scan_dir(self.root / category.value, id_idx, hash_idx)
+            # Scan project-specific memory roots
+            for proj_root in self._project_roots.values():
+                for category in MemoryCategory:
+                    _scan_dir(Path(proj_root) / category.value, id_idx, hash_idx)
             return id_idx, hash_idx
 
         loop = asyncio.get_running_loop()
@@ -141,6 +156,10 @@ class _FileEngine:
     def _get_storage_path(self, entry: MemoryEntry) -> tuple[Path, MemoryCategory]:
         category = self._determine_category(entry)
         base_dir = self.root / category.value
+
+        # Route to project-specific directory if a project root is registered
+        if entry.project_id and entry.project_id > 0 and entry.project_id in self._project_roots:
+            base_dir = self._project_roots[entry.project_id] / category.value
 
         if category == MemoryCategory.JOURNAL:
             date_str = entry.created_at.strftime("%Y-%m-%d")

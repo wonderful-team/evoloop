@@ -54,6 +54,10 @@ class SupervisorPromptBuilder(BasePromptBuilder):
         # 2. Protocol & Sys Info Prep (STATIC parts only)
         project_profile = self.read_project_profile(ctx.working_directory, "[SupervisorPrompt]")
 
+        # Read wiki index for prompt injection (project mode only)
+        from app.core.engine.nodes.utils.node_utils import read_wiki_index
+        wiki_index = await read_wiki_index(ctx.project_id)
+
         # 3. Prepare Template Variables (STATIC only — no blackboard/memory/telemetry)
         template_vars = {
             "project_id": self.project_id,
@@ -63,6 +67,7 @@ class SupervisorPromptBuilder(BasePromptBuilder):
             "sys_info": {
                 "cwd": actual_cwd,
                 "project_profile": project_profile,
+                "wiki_index": wiki_index,
             },
             "project_concepts": ctx.metadata.get("project_concepts", ""),
             "is_supervisor": True,

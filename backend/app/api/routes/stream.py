@@ -226,10 +226,7 @@ async def stream_system():
                     raw_data = message["data"]
 
                     try:
-                        event_data = json.loads(raw_data)
-                        # UniversalBridgeSubscriber wraps events with {"type": "system_event", "event": "..."}
-                        event_name = event_data.get("event", "system_event")
-                        yield f"event: {event_name}\ndata: {raw_data}\n\n"
+                        yield f"data: {raw_data}\n\n"
                     except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                         yield f"event: error\ndata: {json.dumps({'error': 'Failed to process system event', 'details': str(e)})}\n\n"
 

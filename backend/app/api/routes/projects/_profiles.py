@@ -159,6 +159,20 @@ async def get_profile(
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning("Failed to read PROJECT.md: %s", e)
 
+    # Lazy ingest: ensure PROJECT.md is in the memory system (idempotent via content_hash)
+    if project_id > 0 and content:
+        try:
+            from app.core.memory.lifespan import MemoryLifespanManager
+            if not MemoryLifespanManager.is_initialized():
+                await MemoryLifespanManager.ainitialize()
+            container = MemoryLifespanManager.get_container()
+            await container.memory_manager.ingest_project_profile(
+                project_id=project_id,
+                content=content,
+            )
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.warning("[ProjectProfiles] Failed to ingest PROJECT.md into memory: %s", e)
+
     return ProfileContentResponse(
         content=content,
         exists=content is not None,
@@ -181,6 +195,20 @@ async def update_profile(
     except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error("Failed to write PROJECT.md: %s", e)
         raise HTTPException(500, f"Failed to update profile: {e}")
+
+    # Ingest PROJECT.md into memory system so it's searchable via recall/search_memories
+    if project_id > 0 and req.content:
+        try:
+            from app.core.memory.lifespan import MemoryLifespanManager
+            if not MemoryLifespanManager.is_initialized():
+                await MemoryLifespanManager.ainitialize()
+            container = MemoryLifespanManager.get_container()
+            await container.memory_manager.ingest_project_profile(
+                project_id=project_id,
+                content=req.content,
+            )
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.warning("[ProjectProfiles] Failed to ingest PROJECT.md into memory: %s", e)
 
     return ProfileContentResponse(
         content=req.content,

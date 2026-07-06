@@ -87,3 +87,40 @@ def read_project_profile(working_directory: str | None, log_prefix: str = "") ->
 
     from app.core import file as file_utils
     return file_utils.read_file(profile_path).content or ""
+
+
+async def read_wiki_index(project_id: int | None, limit: int = 20) -> list[dict]:
+    """Read project wiki page index (title + summary) for prompt injection.
+
+    Returns a list of {"title": ..., "summary": ...} dicts, sorted by updated_at desc.
+    Returns empty list in global mode (project_id=0 or None).
+    """
+    from app.constants import DEFAULT_PROJECT_ID
+
+    if not project_id or project_id == DEFAULT_PROJECT_ID:
+        return []
+
+    try:
+        from sqlalchemy import select
+        from app.infrastructure.database import session_scope
+        from app.models.wiki import WikiPage
+
+        async with session_scope() as session:
+            stmt = (
+                select(WikiPage.id, WikiPage.title, WikiPage.content, WikiPage.updated_at)
+                .where(WikiPage.project_id == project_id)
+                .order_by(WikiPage.updated_at.desc())
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            rows = result.all()
+            return [
+                {
+                    "title": row.title,
+                    "summary": (row.content[:100] + "...") if row.content and len(row.content) > 100 else (row.content or ""),
+                }
+                for row in rows
+            ]
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        logger.warning(f"[read_wiki_index] Failed to load wiki index: {e}")
+        return []

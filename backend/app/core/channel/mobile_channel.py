@@ -54,9 +54,22 @@ class MobileChannel(Channel):
         if block.role == "human" and not block.is_visible:
             return
 
+        device_key = await self._get_device_key()
         mobile_data = BlockMapper.to_mobile(block)
-        mobile_data["device_key"] = await self._get_device_key()
-        ok = await self._send_via_http(MessageType.MESSAGE_SYNC, mobile_data)
+
+        sync_body = {
+            "device_key": device_key,
+            "thread_id": block.thread_id or "",
+            "messages": [mobile_data],
+            "conversation": {
+                "id": block.thread_id or "",
+                "title": block.thread_id or "新同步会话",
+                "project_id": ctx.project_id or 0,
+            },
+        }
+        mobile_data.pop("device_key", None)
+
+        ok = await self._send_via_http(MessageType.MESSAGE_SYNC, sync_body)
         if ok:
             logger.debug("[MobileChannel] HTTP published: seq=%s, role=%s", block.sequence_number, block.role)
         else:
@@ -69,7 +82,7 @@ class MobileChannel(Channel):
         try:
             from app.core.identity import identity_service
             return await identity_service.store.get_device_key() or ""
-        except Exception:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
             return ""
 
     async def send_envelope(

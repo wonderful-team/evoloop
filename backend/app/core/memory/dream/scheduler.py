@@ -45,6 +45,68 @@ class DreamScheduler:
         hours_since = (datetime.now() - last).total_seconds() / 3600
         return hours_since >= 24
 
+    async def should_run_cross_project(self) -> bool:
+        """Check if a cross-project dream cycle should run (weekly)."""
+        last = self._get_last_run_time(key="cross_project")
+        if last is None:
+            return True
+        hours_since = (datetime.now() - last).total_seconds() / 3600
+        return hours_since >= 168  # 7 days
+
+    async def run_cross_project(
+        self,
+        days_back: int = 14,
+        max_episodes: int = 40,
+    ) -> DreamRecord | None:
+        """
+        Execute a cross-project dream cycle.
+
+        Loads episodes from ALL projects (project_id=None), distills insights,
+        and promotes cross-project patterns to global (project_id=0) memory.
+        """
+        if not await self.should_run_cross_project():
+            logger.info("[Dream] Skip cross-project: last run too recent")
+            return None
+
+        manager = self._get_manager()
+        distiller = DeepDreamDistiller(manager)
+
+        started = datetime.now()
+        record = DreamRecord(
+            id=f"dream_cross_{started.strftime('%Y%m%d_%H%M%S')}",
+            started_at=started.isoformat(),
+        )
+
+        try:
+            result = await distiller.dream(
+                project_id=None,  # Cross-project: loads from all projects
+                days_back=days_back,
+                max_episodes=max_episodes,
+            )
+
+            # Promote cross-project recurring concepts to global
+            promoted = await distiller.promote_cross_project_concepts()
+
+            record.finished_at = datetime.now().isoformat()
+            record.episodes_count = result.episodes_replayed
+            record.insights_count = len(result.insight_ids) + promoted
+            record.insight_ids = result.insight_ids
+            if result.error:
+                record.error = result.error
+            logger.info(
+                "[Dream] Cross-project cycle: %d episodes, %d insights, %d promoted",
+                result.episodes_replayed,
+                len(result.insight_ids),
+                promoted,
+            )
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            record.finished_at = datetime.now().isoformat()
+            record.error = str(e)
+            logger.error("[Dream] Cross-project cycle failed: %s", e)
+
+        self._save_record(record, key="cross_project")
+        return record
+
     async def run(
         self,
         project_id: int | None = None,
@@ -90,10 +152,11 @@ class DreamScheduler:
         self._save_record(record)
         return record
 
-    def _get_last_run_time(self) -> datetime | None:
+    def _get_last_run_time(self, key: str = "default") -> datetime | None:
         """Read the last dream run timestamp from the dream log."""
         try:
-            log_file = _DREAM_DIR / "last_run.json"
+            filename = "last_run.json" if key == "default" else f"last_run_{key}.json"
+            log_file = _DREAM_DIR / filename
             if log_file.exists():
                 data = json.loads(log_file.read_text())
                 return datetime.fromisoformat(data["finished_at"])
@@ -101,11 +164,12 @@ class DreamScheduler:
             logger.debug("Suppressed error: %s", e, exc_info=True)
         return None
 
-    def _save_record(self, record: DreamRecord) -> None:
+    def _save_record(self, record: DreamRecord, key: str = "default") -> None:
         """Persist the dream record for audit."""
         try:
             _DREAM_DIR.mkdir(parents=True, exist_ok=True)
-            log_file = _DREAM_DIR / "last_run.json"
+            filename = "last_run.json" if key == "default" else f"last_run_{key}.json"
+            log_file = _DREAM_DIR / filename
             log_file.write_text(json.dumps({
                 "id": record.id,
                 "started_at": record.started_at,

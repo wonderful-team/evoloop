@@ -127,7 +127,7 @@ class EngineCommandSubscriber:
                     evocloud_manager.api, evocloud_manager.link.device_key
                 )
                 await manager.incremental_sync()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ConnectionError, TimeoutError, OSError) as e:
                 logger.warning(f"[EngineCommand] Failed to trigger conversation sync: {e}")
 
         if action == "conversation_update":
@@ -177,7 +177,7 @@ class EngineCommandSubscriber:
                 logger.info(
                     f"[EngineCommand] conversation_delete synced to MC: thread_id={thread_id}"
                 )
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ConnectionError, TimeoutError, OSError) as e:
                 logger.warning(
                     f"[EngineCommand] Failed to sync conversation_delete to MC: thread_id={thread_id}, error={e}"
                 )
@@ -403,10 +403,10 @@ class EngineCommandSubscriber:
         else:
             project_id = DEFAULT_PROJECT_ID
 
-        message_id = payload.get("message_id")
-
         # Unified dispatch preparation (DB persistence, EvoCloud sync, model fallback)
         member_id = await identity_service.get_member_id() or 0
+
+        message_id = command.get("message_id")
 
         result = await dispatch_agent_run(
             thread_id=thread_id,
@@ -460,7 +460,7 @@ class EngineCommandSubscriber:
             return
 
         payload = command.get_payload()
-        message_id = payload.get("message_id")
+        message_id = command.get("message_id")
         revert_files = payload.get("revert_files", True)
         action = "retry" if should_redispatch else "rewind"
 

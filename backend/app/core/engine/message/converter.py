@@ -66,20 +66,29 @@ class EvoMessageConverter:
         """
         Normalize a list of messages to standard dicts.
         """
+        _TYPE_TO_ROLE = {
+            "human": "user",
+            "ai": "assistant",
+            "system": "system",
+            "tool": "tool",
+        }
+
         deserialized = []
         for m in messages:
             if isinstance(m, dict):
+                if "role" not in m and "type" in m:
+                    m = {**m, "role": _TYPE_TO_ROLE.get(m["type"], "user")}
                 deserialized.append(m)
                 continue
             try:
-                role = getattr(m, "role", "user")
-                content = getattr(m, "content", "")
-                additional_kwargs = getattr(m, "additional_kwargs", {}) or {}
-                msg_dict = {"role": role, "content": content, "additional_kwargs": additional_kwargs}
-                if hasattr(m, "tool_call_id"):
-                    msg_dict["tool_call_id"] = getattr(m, "tool_call_id")
+                raw = m.model_dump() if hasattr(m, "model_dump") else {}
+                role = raw.get("role") or _TYPE_TO_ROLE.get(raw.get("type"), "user")
+                msg_dict = {"role": role, "content": raw.get("content", "")}
+                for key in ("tool_calls", "tool_call_id", "name", "additional_kwargs", "id", "metadata"):
+                    if key in raw:
+                        msg_dict[key] = raw[key]
                 deserialized.append(msg_dict)
-            except AttributeError:
+            except (AttributeError, ValueError, TypeError):
                 continue
         return deserialized
 
@@ -89,10 +98,13 @@ class EvoMessageConverter:
         return list(messages)
 
     @staticmethod
-    def repair(messages: list[dict]) -> list[dict]:
+    def repair(messages: list[Any]) -> list[dict]:
         """
         Ensure the message history is structurally valid for strict LLM APIs.
         """
+        # Normalize mixed dict/model to dicts
+        messages = EvoMessageConverter.to_message_dicts(messages)
+
         from app.i18n.service import i18n
 
         _DEFAULTS = {

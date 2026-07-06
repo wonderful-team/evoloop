@@ -174,7 +174,7 @@ async def authorization_gate(context: HookContext) -> HookResult:
                     val = getattr(context.tool_input, field)
                     if val is not None:
                         tool_args[field] = val
-            context.state.metadata.pending_approvals.append(
+            context.state.pending_approvals.append(
                 PendingApproval(
                     tool_name=context.tool_name or "",
                     tool_call_id=context.tool_use_id or "",

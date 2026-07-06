@@ -131,6 +131,7 @@ class TwoTierMemoryManager:
         config=None,
         root_path: Path | None = None,
         analyzer=None,
+        project_id: int | None = None,
     ):
         """
         Initialize two-tier memory manager.
@@ -140,16 +141,19 @@ class TwoTierMemoryManager:
             config: Memory configuration. Uses defaults if None.
             root_path: Root path for memory files (legacy, prefer config).
             analyzer: Quality analyzer for scoring.
+            project_id: Project scope for filtering memories. None = all projects (global).
         """
         self._storage = storage
         self._config = config
         self._analyzer = analyzer
         self._retriever: Any = None
+        self._project_id = project_id
 
-        if config is not None:
-            self.root = config.user_memory_root
-        elif root_path is not None:
+        if root_path is not None:
+            # Explicit root path takes priority (used by project-mode memory)
             self.root = Path(root_path)
+        elif config is not None:
+            self.root = config.user_memory_root
         else:
             self.root = Path(settings.BRAIN_MEMORY_ROOT)
 
@@ -306,9 +310,8 @@ class TwoTierMemoryManager:
         return stats
 
     async def _collect_all_memories(self) -> list[MemorySearchResult]:
-        """Collect all memories from cold storage."""
-        # Use storage directly
-        entries = await self._storage.list_all(limit=1000)
+        """Collect all memories from cold storage, filtered by project_id if set."""
+        entries = await self._storage.list_all(limit=1000, project_id=self._project_id)
 
         return entries
 

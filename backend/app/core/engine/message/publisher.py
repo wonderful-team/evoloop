@@ -64,7 +64,7 @@ class MessagePublisher:
         for ch in selected:
             try:
                 await ch.send(payload, ctx)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ConnectionError, TimeoutError, OSError) as e:
                 logger.warning("[Publisher] Channel '%s' send failed: %s", ch.name, e)
 
     async def publish_custom_event(self, event_type: str, data: dict[str, Any]) -> None:
@@ -73,7 +73,7 @@ class MessagePublisher:
         for ch in channel_registry:
             try:
                 await ch.send_custom_event(event_type, data, ctx)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ConnectionError, TimeoutError, OSError) as e:
                 logger.warning("[Publisher] Channel '%s' custom event failed: %s", ch.name, e)
 
     async def publish_error(
@@ -128,5 +128,5 @@ class MessagePublisher:
                     tool_name=tool_name,
                     metadata=metadata,
                 )
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ConnectionError, TimeoutError, OSError) as e:
                 logger.warning("[Publisher] Channel '%s' HITL send failed: %s", ch.name, e)

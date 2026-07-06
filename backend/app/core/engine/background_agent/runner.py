@@ -88,6 +88,7 @@ async def run_agent_background(
                     thread_id=thread_id,
                     project_id=project_id,
                     run_id=run_id,
+                    member_id=ctx.member_id or 0,
                 )
                 config["configurable"]["message_handler"] = db_callback._handler
 
