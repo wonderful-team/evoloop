@@ -1,10 +1,8 @@
 # ============================================================
 # EvoLoop 本地开发环境
 # =========================== 注意事项 =========================
-# 有状态中间件 (Postgres/Redis/Neo4j/Meilisearch) 已在
-# 项目根目录 ../docker-compose.yml 中统一管理。
-# 本地开发时先启动共享中间件:
-#   docker compose -f ../docker-compose.yml up -d
+# 有状态中间件 (Postgres/Redis/Neo4j/Meilisearch) 请通过
+# deploy/docker-compose.middleware.yml 或手动启动。
 # ============================================================
 services:
   backend:
