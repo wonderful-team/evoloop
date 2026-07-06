@@ -397,7 +397,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     )
             except asyncio.CancelledError:
                 raise  # Let cancellation propagate cleanly
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError, websockets.WebSocketException) as e:
                 logger.warning(f"[EvoCloud] WS Connection Error: {e}")
                 if not self._handshake_completed and self.device_key:
                     logger.warning(
