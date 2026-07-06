@@ -15,7 +15,7 @@ const fetchStatus = async (projectId: number) => {
 }
 
 export function useProjectStatus() {
-  const { currentProject, updateProjectStatus } = useProjectStore()
+  const { currentProject, updateProjectStatus, getProject, setProject, fetchProjects } = useProjectStore()
 
   useEffect(() => {
     if (!isLoggedIn()) return
@@ -41,6 +41,24 @@ export function useProjectStatus() {
       }
     })
   }, [currentProject?.id, updateProjectStatus])
+
+  useSystemEvent("project.switched", async (event) => {
+    const projectId = event.data?.project_id
+    if (!projectId) return
+    if (currentProject?.id === projectId) return
+
+    let target = getProject(projectId)
+    if (target) {
+      setProject(target)
+      return
+    }
+
+    await fetchProjects()
+    target = getProject(projectId)
+    if (target) {
+      setProject(target)
+    }
+  })
 
   useSystemEvent("indexing.status", (event) => {
     if (!currentProject) return
