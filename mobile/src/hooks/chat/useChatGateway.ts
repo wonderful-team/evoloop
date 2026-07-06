@@ -68,12 +68,33 @@ export function useChatGateway({ isLoggedIn, syncMessages, onAgentRunCompleted, 
 
     const client = getGatewayClient();
 
-    const handleMessageSync = (message: { data: AgentSyncMessage }) => {
-      const msg = message.data;
-      const threadId = msg?.thread_id;
-      const messageId = msg?.id;
-      const projectId = msg?.project_id;
-      if (!msg) return;
+    const handleMessageSync = (message: { data: any }) => {
+      const body = message.data;
+      if (!body || !body.thread_id) return;
+
+      const threadId = body.thread_id;
+
+      // 后端 canonical message.sync 信封 body 是 MessageSyncBody，
+      // 消息列表在 body.messages；兼容旧版单条消息格式。
+      const rawMessages = Array.isArray(body.messages) ? body.messages : [body];
+      if (rawMessages.length === 0) return;
+
+      // 规范化后端 SyncMessage 字段 → AgentSyncMessage
+      const agentMessages: AgentSyncMessage[] = rawMessages
+        .map((m: any): AgentSyncMessage => ({
+          ...m,
+          id: String(m.message_id || m.id || `msg-${m.sequence_number || Date.now()}`),
+          meta_data: m.metadata || m.meta_data || undefined,
+          created_at: m.created_at,
+          is_visible: typeof m.is_visible === 'boolean' ? (m.is_visible ? 1 : 0) : m.is_visible,
+        }))
+        .filter((m: AgentSyncMessage) => m.is_visible !== 0);
+
+      if (agentMessages.length === 0) return;
+
+      const firstMsg = agentMessages[0];
+      const messageId = firstMsg?.id;
+      const projectId = firstMsg?.project_id;
 
       // 只有当前会话不是打开状态时才累加未读
       if (threadId && threadId !== currentConversationIdRef.current) {
@@ -81,9 +102,9 @@ export function useChatGateway({ isLoggedIn, syncMessages, onAgentRunCompleted, 
       }
 
       // 只有当前打开的会话才同步到 UI
-      if (!threadId || threadId !== currentConversationIdRef.current) return;
+      if (threadId !== currentConversationIdRef.current) return;
 
-      syncMessagesRef.current([msg]);
+      syncMessagesRef.current(agentMessages);
 
       // 如果该 thread 尚未出现在本地 conversations 列表，说明是新建会话的首次消息同步。
       // 此时 PHP MC 大概率已消费 message_sync 队列，触发列表刷新以获取 conversation 元数据。

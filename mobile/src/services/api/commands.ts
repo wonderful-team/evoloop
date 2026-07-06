@@ -14,13 +14,26 @@ export interface ExecuteCommandResponse {
 
 /**
  * 停止 Agent 执行
+ * 统一走 /gateway/api/v1/message/send，信封类型 command.stop
  */
 export async function stopExecution(
   threadId: string,
   deviceKey?: string
 ): Promise<ExecuteCommandResponse> {
-  return api.post(`/gateway/api/v1/conversations/${threadId}/stop`, {}, {
-    params: { device_key: deviceKey }
+  const envelope = {
+    version: '2.0' as const,
+    type: 'command.stop' as const,
+    timestamp: Math.floor(Date.now() / 1000),
+    source: { kind: 'mobile' as const },
+    target: { kind: 'agent' as const, device_key: deviceKey },
+    body: {
+      thread_id: threadId,
+    },
+  };
+
+  return api.post('/gateway/api/v1/message/send', {
+    target_device_key: deviceKey,
+    envelope,
   });
 }
 

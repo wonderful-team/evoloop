@@ -36,7 +36,7 @@ export default function VoiceSettingsScreen() {
 
   const LANGUAGE_OPTIONS = [
     { value: 'zh-CN', label: t('settings.voice.langZhCN') },
-    { value: 'en-US', label: 'English (US)' },
+    { value: 'en-US', label: t('settings.voice.langEnUS') },
     { value: 'zh-HK', label: t('settings.voice.langZhHK') },
     { value: 'ja-JP', label: t('settings.voice.langJaJP') },
   ];
@@ -211,7 +211,7 @@ export default function VoiceSettingsScreen() {
               {t('settings.voice.vadThreshold')}
             </Text>
             <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
-              {Math.round(settings.vadThreshold * 100)}%
+              {Math.round(settings.vadThreshold * 100)}{t('common.units.percent')}
             </Text>
           </View>
           <View style={styles.stepperRow}>

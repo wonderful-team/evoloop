@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { View, StyleSheet, Animated } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/theme';
 
 interface VolumeIndicatorProps {
@@ -10,6 +11,7 @@ interface VolumeIndicatorProps {
 }
 
 export function VolumeIndicator({ volume, bars = 20 }: VolumeIndicatorProps) {
+  const { t } = useTranslation();
   const { colors } = useTheme();
 
   // 生成条形图
@@ -52,7 +54,7 @@ export function VolumeIndicator({ volume, bars = 20 }: VolumeIndicatorProps) {
       <View style={styles.barsContainer}>{renderBars()}</View>
       {/* 音量百分比 */}
       <Animated.Text style={[styles.volumeText, { color: colors.text.secondary }]}>
-        {Math.round(volume * 100)}%
+        {Math.round(volume * 100)}{t('common.units.percent')}
       </Animated.Text>
     </View>
   );

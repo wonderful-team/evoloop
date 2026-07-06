@@ -32,7 +32,7 @@ export interface CreateConversationResponse {
 // 消息引用类型 (对齐后端 ReferenceBlock)
 export interface MessageReference {
   id: string;
-  type: 'file' | 'image' | 'audio' | 'message' | 'artifact' | 'changeset' | 'skill';
+  type: 'file' | 'image' | 'audio' | 'video' | 'message' | 'artifact' | 'changeset' | 'skill' | 'directory';
   target_id: string;
   target_name: string;
   meta_data?: Record<string, any>;
@@ -68,6 +68,8 @@ export interface ChatMessage {
   category?: string;
   /** 全局序列号，用于去重和排序 */
   sequence_number?: number;
+  /** 是否可见 (1=可见, 0=隐藏) */
+  is_visible?: number;
   /** 文件变更数量 */
   changeset_count?: number;
   /** 文件变更详情 */

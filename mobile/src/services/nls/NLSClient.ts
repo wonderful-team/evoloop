@@ -174,7 +174,7 @@ export class NLSClient extends EventEmitter {
         }
         console.error('NLS 错误:', statusText);
         if (typeof this.callbacks.onError === 'function') {
-          this.callbacks.onError(new Error(statusText || (i18n?.t ? i18n.t('nls.errors.recognitionError') : 'Recognition error')));
+          this.callbacks.onError(new Error(statusText || i18n.t('nls.errors.recognitionError')));
         }
         return;
       }
@@ -218,7 +218,7 @@ export class NLSClient extends EventEmitter {
           }
           console.error('识别任务失败:', taskFailedText);
           if (typeof this.callbacks.onError === 'function') {
-            this.callbacks.onError(new Error(taskFailedText || (i18n?.t ? i18n.t('nls.errors.recognitionFailed') : 'Recognition failed')));
+            this.callbacks.onError(new Error(taskFailedText || i18n.t('nls.errors.recognitionFailed')));
           }
           break;
       }

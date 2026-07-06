@@ -20,7 +20,6 @@ export function getBenefitNames(): Record<string, string> {
     mobile_control: i18n.t('subscription.benefits.mobileControl'),
     skill_learning: i18n.t('subscription.benefits.skillLearning'),
     wiki_generation: i18n.t('subscription.benefits.wikiGeneration'),
-    knowledge_base: i18n.t('subscription.benefits.knowledgeBase'),
   };
 }
 
@@ -48,11 +47,9 @@ export interface BenefitErrorInfo {
 // 权益错误类
 export class BenefitRequiredError extends AppError {
   public info: BenefitErrorInfo;
-  
+
   constructor(info: BenefitErrorInfo) {
-    const planNames = getPlanNames();
     const benefitNames = getBenefitNames();
-    const planName = info.requiredPlan ? (planNames[info.requiredPlan] || info.requiredPlan) : i18n.t('subscription.errors.subscribe');
     const featureName = info.featureName || benefitNames[info.feature || ''] || info.feature || i18n.t('subscription.errors.thisFeature');
     super(
       info.message || i18n.t('subscription.errors.upgradeMessage', { benefitName: featureName }),
@@ -68,24 +65,26 @@ export class BenefitRequiredError extends AppError {
  * 检查是否为权益错误
  */
 export function isBenefitError(data: any): boolean {
-  if (!data) return false;
-  
+  if (!data) {
+    return false;
+  }
+
   // PHP 后端返回格式
   if (data.code === 'BENEFIT_REQUIRED' || data.code === 'SUBSCRIPTION_REQUIRED') {
     return true;
   }
-  
+
   // detail 格式
   if (data.detail?.code === 'BENEFIT_REQUIRED' || data.detail?.code === 'SUBSCRIPTION_REQUIRED') {
     return true;
   }
-  
+
   // message 包含关键词
   if (typeof data.message === 'string') {
     const msg = data.message.toLowerCase();
     return msg.includes('benefit') || msg.includes('subscription') || msg.includes('权益') || msg.includes('订阅');
   }
-  
+
   return false;
 }
 
@@ -94,7 +93,7 @@ export function isBenefitError(data: any): boolean {
  */
 export function extractBenefitInfo(data: any): BenefitErrorInfo {
   const benefitNames = getBenefitNames();
-  
+
   // PHP 后端格式
   if (data?.code === 'BENEFIT_REQUIRED') {
     return {
@@ -105,7 +104,7 @@ export function extractBenefitInfo(data: any): BenefitErrorInfo {
       message: data.message,
     };
   }
-  
+
   // detail 格式
   if (data?.detail?.code === 'BENEFIT_REQUIRED') {
     return {
@@ -116,7 +115,7 @@ export function extractBenefitInfo(data: any): BenefitErrorInfo {
       message: data.detail.message,
     };
   }
-  
+
   // SUBSCRIPTION_REQUIRED 格式
   if (data?.code === 'SUBSCRIPTION_REQUIRED' || data?.detail?.code === 'SUBSCRIPTION_REQUIRED') {
     const source = data.code === 'SUBSCRIPTION_REQUIRED' ? data : data.detail;
@@ -128,7 +127,7 @@ export function extractBenefitInfo(data: any): BenefitErrorInfo {
       message: source.message,
     };
   }
-  
+
   // 降级购买错误
   if (data?.message?.includes('降级') || data?.message?.includes('到期')) {
     return {
@@ -136,7 +135,7 @@ export function extractBenefitInfo(data: any): BenefitErrorInfo {
       message: data.message,
     };
   }
-  
+
   return { code: 'UNKNOWN' };
 }
 
@@ -160,9 +159,9 @@ export function handleBenefitError(data: any): {
       message: data?.message || i18n.t('subscription.errors.genericMessage'),
     };
   }
-  
+
   const info = extractBenefitInfo(data);
-  
+
   // 降级购买错误特殊处理
   if (info.code === 'DOWNGRADE_NOT_ALLOWED') {
     return {
@@ -171,12 +170,12 @@ export function handleBenefitError(data: any): {
       message: info.message || i18n.t('subscription.errors.downgradeMessage'),
     };
   }
-  
+
   const benefitNames = getBenefitNames();
   const planNames = getPlanNames();
   const benefitName = info.featureName || benefitNames[info.feature || ''] || info.feature || i18n.t('subscription.errors.thisFeature');
   const planName = planNames[info.requiredPlan || ''] || info.requiredPlan || i18n.t('subscription.errors.higherLevel');
-  
+
   return {
     isBenefitError: true,
     title: i18n.t('subscription.errors.upgradeRequired', { planName }),
@@ -198,18 +197,18 @@ export function checkIsBenefitError(error: unknown): boolean {
   if (error instanceof BenefitRequiredError) {
     return true;
   }
-  
+
   if (error instanceof AxiosError && error.response?.status === 403) {
     return isBenefitError(error.response.data);
   }
-  
+
   if (typeof error === 'object' && error !== null) {
     const err = error as any;
     if (err.statusCode === 403 || err.status === 403) {
       return isBenefitError(err.data) || isBenefitError(err);
     }
   }
-  
+
   return false;
 }
 
@@ -220,14 +219,14 @@ export function convertToBenefitError(error: unknown): BenefitRequiredError | nu
   if (error instanceof BenefitRequiredError) {
     return error;
   }
-  
+
   if (error instanceof AxiosError && error.response?.status === 403) {
     const info = extractBenefitInfo(error.response.data);
     if (info.code !== 'UNKNOWN') {
       return new BenefitRequiredError(info);
     }
   }
-  
+
   return null;
 }
 

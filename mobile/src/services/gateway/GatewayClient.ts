@@ -268,7 +268,7 @@ export class GatewayClient extends EventEmitter {
   }
 
   // 聊天相关方法（仅用于 ASR/语音会话，不涉及 Desktop 命令发送）
-  // 命令发送统一走 HTTP POST /gateway/api/v1/command/send
+  // 命令发送统一走 HTTP POST /gateway/api/v1/message/send
   sendChatMessage(sessionId: string, message: string, context?: any): void {
     this.send({
       type: GatewayMessageType.CHAT_MESSAGE,

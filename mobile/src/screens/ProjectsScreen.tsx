@@ -136,7 +136,7 @@ const ProjectsContent = () => {
             {unreadCount > 0 && (
               <View style={styles.unreadBadge}>
                 <Text style={styles.unreadBadgeText}>
-                  {unreadCount > 99 ? '99+' : unreadCount}
+                  {unreadCount > 99 ? t('common.overflowCount') : unreadCount}
                 </Text>
               </View>
             )}

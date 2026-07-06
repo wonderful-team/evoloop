@@ -28,7 +28,6 @@ export const BENEFIT_CODES = {
   // 学习相关
   SKILL_LEARNING: 'skill_learning',
   WIKI_GENERATION: 'wiki_generation',
-  KNOWLEDGE_BASE: 'knowledge_base',
 } as const;
 
 /**
@@ -101,7 +100,6 @@ export function useFeatureAccess() {
       [BENEFIT_CODES.MOBILE_CONTROL]: t('subscription.benefits.mobileControl'),
       [BENEFIT_CODES.SKILL_LEARNING]: t('subscription.benefits.skillLearning'),
       [BENEFIT_CODES.WIKI_GENERATION]: t('subscription.benefits.wikiGeneration'),
-      [BENEFIT_CODES.KNOWLEDGE_BASE]: t('subscription.benefits.knowledgeBase'),
     };
     return map[code] || code;
   }, [t]);
@@ -120,7 +118,6 @@ export function useFeatureAccess() {
       [BENEFIT_CODES.MOBILE_CONTROL]: t('subscription.plans.geek'),
       [BENEFIT_CODES.SKILL_LEARNING]: t('subscription.plans.geek'),
       [BENEFIT_CODES.WIKI_GENERATION]: t('subscription.plans.expert'),
-      [BENEFIT_CODES.KNOWLEDGE_BASE]: t('subscription.plans.expert'),
     };
     return map[code] || t('subscription.errors.higherLevel');
   }, [t]);

@@ -83,7 +83,7 @@ function ImageMessage({ url }: { url: string }) {
 function FileMessage({ url }: { url: string }) {
   const { t } = useTranslation();
   const { colors } = useTheme();
-  const filename = decodeURIComponent(url.split('/').pop() || 'File');
+  const filename = decodeURIComponent(url.split('/').pop() || t('messageContent.fileFallback'));
 
   const ext = filename.split('.').pop()?.toLowerCase() || '';
 
@@ -171,6 +171,7 @@ interface MessageContentProps {
 export function MessageContent({ content, isUser = false }: MessageContentProps) {
   const { colors } = useTheme();
   const toast = useGlobalToast();
+  const { t } = useTranslation();
 
   // 用 useMemo 缓存内容解析结果，避免每次渲染重复计算
   const parsedContent = useMemo(() => {
@@ -238,7 +239,7 @@ export function MessageContent({ content, isUser = false }: MessageContentProps)
       }
 
       if (language === 'artifact' || language === 'html' || language === 'react') {
-        const titleLabel = language === 'html' ? 'HTML Preview' : language === 'react' ? 'React Component Preview' : 'Artifact Preview';
+        const titleLabel = language === 'html' ? t('messageContent.htmlPreview') : language === 'react' ? t('messageContent.reactComponentPreview') : t('messageContent.artifactPreview');
         return (
           <View key={node.key} style={styles.artifactContainer}>
             <View style={styles.artifactTitleContainer}>
@@ -284,7 +285,7 @@ export function MessageContent({ content, isUser = false }: MessageContentProps)
           <Text
             key={node.key}
             style={{ color: '#007acc', fontWeight: '500', textDecorationLine: 'underline' }}
-            onPress={() => toast.warning('该文件为工作机本地工作区文件，暂不支持在移动端直接预览')}
+            onPress={() => toast.warning(t('messageContent.localFilePreviewNotSupported'))}
           >
             {children}
           </Text>
@@ -300,7 +301,7 @@ export function MessageContent({ content, isUser = false }: MessageContentProps)
         </Text>
       );
     },
-  }), [toast]);
+  }), [toast, t]);
 
   if (typeof content !== 'string') {
     return (
@@ -362,7 +363,7 @@ export function MessageContent({ content, isUser = false }: MessageContentProps)
               }
 
               if (block.type === 'artifact' || block.type === 'html' || block.type === 'react') {
-                const titleLabel = block.type === 'html' ? 'HTML Preview' : block.type === 'react' ? 'React Component Preview' : 'Artifact Preview';
+                const titleLabel = block.type === 'html' ? t('messageContent.htmlPreview') : block.type === 'react' ? t('messageContent.reactComponentPreview') : t('messageContent.artifactPreview');
                 const artifactHtml = `
                   <!DOCTYPE html>
                   <html>

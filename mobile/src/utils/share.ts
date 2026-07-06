@@ -39,7 +39,7 @@ export async function shareText(options: ShareOptions): Promise<void> {
  */
 export async function shareChatMessage(content: string, sender?: string): Promise<void> {
   const message = sender
-    ? `${sender}:\n${content}`
+    ? i18n.t('share.messageFormat', { sender, content })
     : content;
   await shareText({ title: i18n.t('share.messageTitle'), message });
 }

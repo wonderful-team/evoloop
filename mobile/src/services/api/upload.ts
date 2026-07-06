@@ -86,7 +86,7 @@ export async function uploadChatFile(uri: string, name: string): Promise<Uploade
   const supportedTypes = ['txt', 'xlsx', 'xls', 'csv', 'pem', 'doc', 'docx', 'pdf', 'md', 'json'];
   
   if (!supportedTypes.includes(ext)) {
-    throw new Error(i18n.t('api.errors.unsupportedFileType', { ext, supportedTypes: supportedTypes.join(', ') }));
+    throw new Error(i18n.t('api.errors.unsupportedFileType', { ext, supportedTypes: supportedTypes.join(i18n.t('common.listSeparator')) }));
   }
 
   formData.append('file', {

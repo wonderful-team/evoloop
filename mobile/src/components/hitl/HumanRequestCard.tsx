@@ -216,9 +216,9 @@ export function HumanRequestCard({
         style={styles.button}
         buttonColor={isHighRisk ? colors.error : colors.primary}
         disabled={isSubmitting}
-      >
-        {isHighRisk ? `${t('hitl.approve')} (${t('hitl.riskHigh')})` : t('hitl.approve')}
-      </Button>
+        >
+          {isHighRisk ? t('hitl.approveWithRisk', { action: t('hitl.approve'), risk: t('hitl.riskHigh') }) : t('hitl.approve')}
+        </Button>
 
 
 

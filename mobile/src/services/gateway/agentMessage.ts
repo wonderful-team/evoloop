@@ -40,11 +40,12 @@ export interface AgentToolMeta {
 
 /**
  * Agent 通过 message_sync 推送给 Mobile 的单条消息
- * 字段与 Python MessageBlock 严格对齐。
+ * 字段与 Python MessageBlock / canonical SyncMessage 对齐。
  */
 export interface AgentSyncMessage {
   // === 核心标识 ===
-  id: string;                      // "msg-{thread_id}-{sequence_number}"
+  id?: string;                     // "msg-{thread_id}-{sequence_number}"
+  message_id?: string;             // canonical SyncMessage 使用 message_id
   thread_id: string;
   run_id?: string | null;
 
@@ -68,17 +69,18 @@ export interface AgentSyncMessage {
 
   // === 状态与可见性 ===
   status?: AgentMessageStatus;
-  is_visible?: number;             // 1=可见, 0=隐藏 (对齐 Python bool→int)
+  is_visible?: number | boolean;   // 1/true=可见, 0/false=隐藏
   action_type?: string;
 
-  // === 时间戳 (ISO 8601 字符串, 对齐 Python MessageBlock.created_at) ===
-  created_at: string;              // e.g. "2024-01-15T10:30:00+08:00"
+  // === 时间戳 (ISO 8601 字符串或 Unix 秒级, 对齐 Python) ===
+  created_at: string | number;
   updated_at?: string | null;
 
   // === 关联与元数据 ===
-  sequence_number: number;
+  sequence_number?: number;
   parent_id?: string | null;
-  meta_data?: Record<string, any>; // 扩展元数据 (含 tool_meta, input, output 等)
+  meta_data?: Record<string, any>; // 扩展元数据
+  metadata?: Record<string, any>;  // canonical SyncMessage 使用 metadata
 
   // === 引用 (知识/记忆/文件) ===
   references?: Array<Record<string, any>> | null;

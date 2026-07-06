@@ -14,6 +14,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { ChatMessage } from '@/types/conversation';
 import { useTheme } from '@/theme';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { MessageContent, ChangesetSnapshot, ResourceChip, MessageReferences } from '@/components/chat';
 import { HumanRequestCard } from '@/components/hitl';
 import { useConversationStore } from '@/stores/conversationStore';
@@ -145,7 +146,7 @@ const MessageItem = React.memo(function MessageItem({
   }, [message, onForward]);
 
   const handleShare = useCallback(async () => {
-    const sender = isUser ? t('chat.messageList.me') : 'AI';
+    const sender = isUser ? t('chat.messageList.me') : t('chat.messageList.ai');
     await shareChatMessage(message.content, sender);
     setMenuVisible(false);
   }, [message.content, isUser, t]);
@@ -309,7 +310,7 @@ const MessageItem = React.memo(function MessageItem({
               {!isUser && (message as any).isLastInTurn && !!(message as any).turnDuration && (
                 <View style={styles.aiFooter}>
                   <Text variant="labelSmall" style={[styles.aiFooterText, { color: colors.onSurfaceVariant }]}>
-                    {t('chat.messageList.duration', '执行用时')}: {(message as any).turnDuration}
+                    {t('chat.messageList.duration')}: {(message as any).turnDuration}
                   </Text>
                 </View>
               )}
@@ -450,7 +451,7 @@ function mergeAiMessages(msgs: ChatMessage[]): ChatMessage | null {
   };
 }
 
-function groupMessages(messages: ChatMessage[]): RenderItem[] {
+function groupMessages(messages: ChatMessage[], t: TFunction): RenderItem[] {
   // Filter out system messages
   const filtered = messages.filter(m => m.role !== 'system');
 
@@ -559,8 +560,8 @@ function groupMessages(messages: ChatMessage[]): RenderItem[] {
           const diffSec = (endMs - startMs) / 1000;
           (lastAiItem.data as any).turnDuration =
             diffSec >= 1
-              ? `${diffSec.toFixed(1)}s`
-              : `${Math.round(endMs - startMs)}ms`;
+              ? t('common.durationSeconds', { value: diffSec.toFixed(1) })
+              : t('common.durationMilliseconds', { value: Math.round(endMs - startMs) });
         }
       }
     }
@@ -708,7 +709,7 @@ const TurnStepsGroupView = React.memo(function TurnStepsGroupView({
       >
         <MaterialIcons name="layers" size={16} color={colors.primary} style={{ marginRight: 6 }} />
         <Text style={[styles.stepsHeaderText, { color: colors.onSurfaceVariant }]}>
-          {t('chat.messageList.executionSteps', '思考与执行过程')} ({steps.length})
+          {t('chat.messageList.executionSteps')} ({steps.length})
         </Text>
         {isTurnActive && (
           <ActivityIndicator size={12} color={colors.primary} style={{ marginRight: 6 }} />
@@ -770,7 +771,7 @@ export const MessageList = React.memo(function MessageList({
   const scrollOffsetRef = useRef<number>(0);
 
   // Group messages
-  const groupedMessages = useMemo(() => groupMessages(messages), [messages]);
+  const groupedMessages = useMemo(() => groupMessages(messages, t), [messages, t]);
 
   // 监听新增加的用户消息，触发强制滚动
   useEffect(() => {

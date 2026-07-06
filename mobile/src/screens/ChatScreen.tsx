@@ -47,7 +47,6 @@ import { useDeviceStore } from '@/stores/deviceStore';
 import { useProjects } from '@/hooks/useProjects';
 import { useDevices } from '@/hooks/useDevices';
 import { useChatGateway } from '@/hooks/chat/useChatGateway';
-import { api } from '@/services/api/client';
 import * as conversationApi from '@/services/api/conversations';
 import { useChatDeviceSync } from '@/hooks/chat/useChatDeviceSync';
 import { ChatMessage, MessageReference } from '@/types/conversation';
@@ -404,27 +403,10 @@ export default function ChatScreen() {
       }
       loadConversations(0, true);
 
-      const pending: Array<{ commandId: number; messageId: string }> = [];
-      commandIdMapRef.current.forEach((messageId, commandId) => {
-        pending.push({ commandId, messageId });
-      });
-
-      for (const { commandId, messageId } of pending) {
-        try {
-          const res: any = await api.get(`/gateway/api/v1/commands/${commandId}`);
-          const status = res?.data?.status;
-          if (status === 'completed' || status === 'delivered') {
-            updateMessageStatus(messageId, 'sent');
-            commandIdMapRef.current.delete(commandId);
-          } else if (status === 'failed') {
-            updateMessageStatus(messageId, 'failed');
-            commandIdMapRef.current.delete(commandId);
-          }
-        } catch {
-          // 查询失败静默跳过，下次重连会重试
-        }
-      }
-    }, [updateMessageStatus, currentConversationId, loadMessages, loadConversations]),
+      // 命令最终状态由 WebSocket command.ack / agent.status 驱动，
+      // 不再轮询已删除的 /gateway/api/v1/commands/:id 接口。
+      // 重连后 Desktop Agent 会主动推送未完成命令的状态更新。
+    }, [currentConversationId, loadMessages, loadConversations]),
     onNewThreadDetected: useCallback((_threadId) => {
       // 新会话的首次 message.sync 到达时，PHP MC 已消费队列的概率很高，刷新列表以获取 conversation 元数据
       loadConversations(0, true);
@@ -469,32 +451,7 @@ export default function ChatScreen() {
 
   // 重发失败消息
   const handleResend = useCallback(async (message: ChatMessage) => {
-    // 超时/失败消息可能实际已成功：先查询 Gateway 命令状态，避免重复发送
-    if (message.status === 'timeout' || message.status === 'failed') {
-      let commandId: number | undefined;
-      commandIdMapRef.current.forEach((cmid, cid) => {
-        if (cmid === message.id) commandId = cid;
-      });
-      if (commandId) {
-        try {
-          const res: any = await api.get(`/gateway/api/v1/commands/${commandId}`);
-          const status = res?.data?.status;
-          if (status === 'completed' || status === 'delivered') {
-            updateMessageStatus(message.id, 'sent');
-            commandIdMapRef.current.delete(commandId);
-            return;
-          }
-          if (status === 'failed') {
-            updateMessageStatus(message.id, 'failed');
-            commandIdMapRef.current.delete(commandId);
-            return;
-          }
-        } catch {
-          // 查询失败 → 继续走重发流程
-        }
-      }
-    }
-
+    // 状态更新由 WebSocket 驱动；重发前不再查询已删除的 /gateway/api/v1/commands/:id
     updateMessageStatus(message.id, 'sending');
     try {
       await sendMessageToDevice({
@@ -819,7 +776,7 @@ export default function ChatScreen() {
         revert_files: revertFiles,
       });
 
-      showSnackbar(t('chat.rewindSuccess') + (result?.files_reverted ? ` (${t('chat.filesReverted', { count: result?.files_reverted })})` : ''));
+      showSnackbar(t('chat.rewindSuccess') + (result?.files_reverted ? ` ${t('chat.filesRevertedSuffix', { count: result?.files_reverted })}` : ''));
       setShowRewindDialog(false);
 
       if (pendingRewindContent) {
@@ -846,7 +803,7 @@ export default function ChatScreen() {
         revert_files: revertFiles,
       });
 
-      showSnackbar(t('chat.retrying') + (result?.files_reverted ? ` (${t('chat.filesReverted', { count: result?.files_reverted })})` : ''));
+      showSnackbar(t('chat.retrying') + (result?.files_reverted ? ` ${t('chat.filesRevertedSuffix', { count: result?.files_reverted })}` : ''));
       setShowRewindDialog(false);
     } catch (error: unknown) {
       showSnackbar(t('chat.retryFailed') + getErrorMessage(error));
@@ -1030,34 +987,34 @@ export default function ChatScreen() {
             >
               <Menu.Item
                 onPress={() => { debugManager?.injectInitialData(); setDebugMenuVisible(false); }}
-                title="注入模拟数据"
+                title={t('chat.debug.injectMockData')}
                 leadingIcon="database-plus"
               />
               <Menu.Item
                 onPress={() => { debugManager?.simulateAIStreaming(); setDebugMenuVisible(false); }}
-                title="模拟流式输出"
+                title={t('chat.debug.simulateStreaming')}
                 leadingIcon="waves"
               />
               <Menu.Item
                 onPress={() => { debugManager?.simulateHITLRequest('approval'); setDebugMenuVisible(false); }}
-                title="模拟 HITL (授权)"
+                title={t('chat.debug.simulateHitlApproval')}
                 leadingIcon="shield-check"
               />
               <Menu.Item
                 onPress={() => { debugManager?.simulateHITLRequest('choice'); setDebugMenuVisible(false); }}
-                title="模拟 HITL (选择)"
+                title={t('chat.debug.simulateHitlChoice')}
                 leadingIcon="format-list-bulleted"
               />
               <Menu.Item
                 onPress={() => { debugManager?.simulateHITLRequest('text'); setDebugMenuVisible(false); }}
-                title="模拟 HITL (文本)"
+                title={t('chat.debug.simulateHitlText')}
                 leadingIcon="text-short"
               />
 
               <Divider />
               <Menu.Item
                 onPress={() => { debugManager?.clearAll(); setDebugMenuVisible(false); }}
-                title="清空所有数据"
+                title={t('chat.debug.clearAllData')}
                 leadingIcon="delete-sweep"
                 titleStyle={{ color: colors.error }}
               />

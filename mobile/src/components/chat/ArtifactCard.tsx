@@ -90,7 +90,7 @@ export function ArtifactCard({ artifact, onView, onDownload }: ArtifactCardProps
               ]} 
             />
           </View>
-          <Text style={styles.passRateText}>{passRate}% {t('artifactCard.passRate')}</Text>
+          <Text style={styles.passRateText}>{passRate}{t('common.units.percent')} {t('artifactCard.passRate')}</Text>
         </View>
 
         {data.summary && (

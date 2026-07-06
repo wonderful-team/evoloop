@@ -23,12 +23,12 @@ export function CommandConfirmCard({
 
   // 获取动作显示文本
   const getActionText = (action: string) => {
-    return t(`voice.command.actionMap.${action}`, { defaultValue: action });
+    return t(`voice.command.actionMap.${action}`) || action;
   };
 
   // 翻译参数名
   const translateParameterKey = (key: string): string => {
-    return t(`voice.command.paramMap.${key}`, { defaultValue: key });
+    return t(`voice.command.paramMap.${key}`) || key;
   };
 
   // 获取参数显示文本

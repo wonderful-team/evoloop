@@ -71,7 +71,7 @@ export default function AboutScreen() {
           onPress={openWebsite}
         />
         <List.Item
-          title="GitHub"
+          title={t('settings.about.github')}
           description={t('settings.about.viewSource')}
           left={(props) => <List.Icon {...props} icon="github" />}
           right={(props) => <List.Icon {...props} icon="open-in-new" />}
@@ -92,7 +92,7 @@ export default function AboutScreen() {
       <List.Section>
         <List.Subheader>{t('settings.about.techInfo')}</List.Subheader>
         <List.Item
-          title="React Native"
+          title={t('settings.about.reactNative')}
           description="0.76.9"
           left={(props) => <List.Icon {...props} icon="react" />}
         />
@@ -108,10 +108,10 @@ export default function AboutScreen() {
       {/* 版权信息 */}
       <View style={styles.footer}>
         <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
-          © 2024 EvoLoop. All rights reserved.
+          {t('settings.about.copyright')}
         </Text>
         <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
-          Made with ❤️ by Develop Assistant Team
+          {t('settings.about.madeWithLove')}
         </Text>
       </View>
 

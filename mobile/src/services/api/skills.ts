@@ -35,20 +35,28 @@ export async function getSkill(skillId: string): Promise<Skill> {
 }
 
 /**
- * 执行技能 (指令类 → Gateway → Desktop)
- * POST /gateway/api/v1/command/send (command_type: 'skill')
+ * 执行技能
  */
 export async function executeSkill(
   request: SkillExecutionRequest
 ): Promise<SkillExecutionResponse> {
-  // 通过 Gateway 执行
-  const response = await api.post(`/gateway/api/v1/command/send`, {
-    device_key: request.deviceKey,
-    command_type: 'skill',
-    content: {
-      skill_id: request.skillId,
-      params: request.params,
+  const envelope = {
+    version: '2.0',
+    type: 'command.relay',
+    timestamp: Math.floor(Date.now() / 1000),
+    source: { kind: 'mobile' },
+    target: { kind: 'agent', device_key: request.deviceKey },
+    body: {
+      action: 'skill',
+      content: {
+        skill_id: request.skillId,
+        params: request.params,
+      },
     },
+  };
+  const response = await api.post(`/gateway/api/v1/message/send`, {
+    target_device_key: request.deviceKey,
+    envelope,
   });
   return response.data;
 }
@@ -114,17 +122,30 @@ export async function deleteMcpServer(serverId: string): Promise<void> {
 }
 
 /**
- * 测试 MCP 连接 (指令类 → Gateway → Desktop)
- * POST /gateway/api/v1/command/send (command_type: 'mcp_test')
+ * 测试 MCP 连接（需提供 deviceKey，否则返回 400）
  */
-export async function testMcpConnection(serverId: string): Promise<{
+export async function testMcpConnection(
+  serverId: string,
+  deviceKey?: string,
+): Promise<{
   success: boolean;
   message: string;
   tools_count?: number;
 }> {
-  const response = await api.post(`/gateway/api/v1/command/send`, {
-    command_type: 'mcp_test',
-    content: { server_id: serverId },
+  const envelope = {
+    version: '2.0',
+    type: 'command.relay',
+    timestamp: Math.floor(Date.now() / 1000),
+    source: { kind: 'mobile' },
+    target: { kind: 'agent', device_key: deviceKey },
+    body: {
+      action: 'mcp_test',
+      content: { server_id: serverId },
+    },
+  };
+  const response = await api.post(`/gateway/api/v1/message/send`, {
+    target_device_key: deviceKey || '',
+    envelope,
   });
   return response.data;
 }

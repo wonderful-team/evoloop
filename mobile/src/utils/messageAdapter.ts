@@ -55,15 +55,18 @@ export function normalizeTimestamp(value: string | number | null | undefined): n
 
 /**
  * 将 Agent 推送的单条消息转换为 Mobile ChatMessage
- * 对齐 Python MessageBlock 的完整字段。
+ * 对齐 Python MessageBlock / canonical SyncMessage 的完整字段。
  */
 export function adaptAgentMessage(raw: AgentSyncMessage): ChatMessage {
+  const messageId = String(raw.id || (raw as any).message_id || raw.sequence_number || Date.now());
+  const isVisible = typeof raw.is_visible === 'boolean' ? raw.is_visible : raw.is_visible !== 0;
+
   return {
-    id: String(raw.id || raw.sequence_number || Date.now()),
+    id: messageId,
     role: raw.role === 'human' || raw.role === 'ai' || raw.role === 'tool' || raw.role === 'system' ? raw.role : 'system',
     content: raw.content || '',
     thinking: raw.thinking ?? undefined,
-    timestamp: normalizeTimestamp(raw.created_at),  // ISO 8601 → ms
+    timestamp: normalizeTimestamp(raw.created_at),
     isComplete:
       raw.status === 'completed' ||
       raw.status === 'failed' ||
@@ -72,12 +75,13 @@ export function adaptAgentMessage(raw: AgentSyncMessage): ChatMessage {
     // 工具消息专属字段
     tool_name: raw.tool_name ?? undefined,
     tool_call_id: raw.tool_call_id ?? undefined,
-    tool_meta: raw.tool_meta ?? raw.meta_data?.tool_meta ?? undefined,
+    tool_meta: raw.tool_meta ?? raw.meta_data?.tool_meta ?? (raw as any).metadata?.tool_meta ?? undefined,
     tool_calls: raw.tool_calls ?? undefined,
     // 元数据透传
     category: raw.category ?? undefined,
     sequence_number: raw.sequence_number,
     references: adaptReferences(raw.references),
+    is_visible: isVisible ? 1 : 0,
   };
 }
 

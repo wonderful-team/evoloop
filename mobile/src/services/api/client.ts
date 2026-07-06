@@ -82,6 +82,14 @@ apiClient.interceptors.request.use(
     }
 
     console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    if (config.data) {
+      try {
+        const dataStr = typeof config.data === 'string' ? config.data : JSON.stringify(config.data);
+        console.log('[API] Request body:', dataStr.substring(0, 2000));
+      } catch {
+        console.log('[API] Request body: (not serializable)');
+      }
+    }
 
     return config;
   },
@@ -98,6 +106,14 @@ apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
     // 统一返回 data 字段
     console.log(`[API] Response: ${response.config.url}`);
+    if (response.data) {
+      try {
+        const dataStr = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+        console.log('[API] Response body:', dataStr.substring(0, 1000));
+      } catch {
+        console.log('[API] Response body: (not serializable)');
+      }
+    }
 
     // 检查业务错误码 - Token 过期
     const data = response.data;
@@ -132,6 +148,16 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
 
     console.error('[API] Error status:', error.response?.status);
+    if (error.response?.data) {
+      try {
+        const dataStr = typeof error.response.data === 'string'
+          ? error.response.data
+          : JSON.stringify(error.response.data);
+        console.error('[API] Response error body:', dataStr.substring(0, 1000));
+      } catch {
+        console.error('[API] Response error body: (not serializable)');
+      }
+    }
 
     // 401 错误处理（清除状态并提示用户，由页面根据 isLoggedIn 状态自行更新 UI）
     console.log('[API] Response error status:', error.response?.status);

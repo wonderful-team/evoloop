@@ -3,6 +3,7 @@ import { View, StyleSheet, Image, TouchableOpacity, Linking, useWindowDimensions
 import { MessageReference } from '@/types/conversation';
 import { useGlobalToast } from '@/contexts/ToastContext';
 import { BASE_URL } from '@/constants/config';
+import { useTranslation } from 'react-i18next';
 import { ResourceChip } from './ResourceChip';
 import { ImageViewer } from './MessageContent';
 
@@ -13,6 +14,7 @@ interface MessageReferencesProps {
 
 export function MessageReferences({ references, isUser }: MessageReferencesProps) {
   const toast = useGlobalToast();
+  const { t } = useTranslation();
   const { width: screenWidth } = useWindowDimensions();
   const [viewerVisible, setViewerVisible] = useState(false);
   const [activeImageUrl, setActiveImageUrl] = useState('');
@@ -33,7 +35,7 @@ export function MessageReferences({ references, isUser }: MessageReferencesProps
     if (finalUrl.startsWith('http://') || finalUrl.startsWith('https://')) {
       Linking.openURL(finalUrl).catch(err => console.error('Failed to open URL:', err));
     } else if (finalUrl.startsWith('file://') || finalUrl.startsWith('/') || finalUrl.startsWith('./')) {
-      toast.warning('该文件为工作机本地工作区文件，暂不支持在移动端直接预览');
+      toast.warning(t('messageContent.localFilePreviewNotSupported'));
     } else {
       console.log('Ignore opening non-HTTP reference:', finalUrl);
     }

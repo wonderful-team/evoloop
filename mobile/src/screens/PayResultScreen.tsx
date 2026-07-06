@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from '@/utils/navigation';
 import { useTranslation } from 'react-i18next';
 import { useRoute } from '@react-navigation/native';
+import { formatMoney } from '@/utils/format';
 
 export default function PayResultScreen() {
   const { t } = useTranslation();
@@ -33,7 +34,7 @@ export default function PayResultScreen() {
           <>
             {amount && (
               <Text variant="displaySmall" style={[styles.amount, { color: colors.primary }]}>
-                ¥{amount}
+                {formatMoney.cny(amount)}
               </Text>
             )}
             <Text variant="bodyMedium" style={styles.message}>

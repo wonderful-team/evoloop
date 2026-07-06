@@ -86,6 +86,7 @@
     "interrupted": "已打断，请说话",
     "wakeWordDetected": "已唤醒: 「{{word}}」，请说话",
     "filesReverted": "{{count}} 个文件已恢复",
+    "filesRevertedSuffix": "（{{count}} 个文件已恢复）",
     "rewindSuccess": "已回退到指定位置",
     "retrying": "正在重试",
     "sendFailed": "发送失败：",
@@ -141,12 +142,14 @@
       "clickToOpen": "点击打开",
       "copy": "复制",
       "me": "我",
+      "ai": "AI",
       "thinkingProcess": "思考过程",
       "fileChanges": "{{count}} 个文件变更",
       "agentChanges": "文件变更",
       "more": "更多",
-
       "sending": "发送中",
+      "duration": "执行用时",
+      "executionSteps": "思考与执行过程",
 
       "sendFailedRetry": "发送失败，点击重试",
       "sendTimeoutRetry": "超时，点击重试",
@@ -228,6 +231,9 @@
       "maxLimit": "最多只能添加 5 个文件"
     },
     "fileLabel": "文件: {{name}}",
+    "imageAnalyzePrompt": "请分析这张图片",
+    "voiceMessagePlaceholder": "[语音消息]",
+    "fileMessagePlaceholder": "[文件]",
     "threadList": {
       "newConversation": "新对话"
     },
@@ -267,7 +273,8 @@
       "deleteConfirmDesc": "确定要删除这条消息吗？此操作无法撤销。",
       "rewind": "撤回",
       "quote": "引用",
-      "addToMemory": "记住"
+      "addToMemory": "记住",
+      "removeFromMemory": "从记忆中移除"
     },
     "quote": {
       "message": "消息",
@@ -291,15 +298,29 @@
       "unmuted": "已开启语音播报",
       "ttsModeCloud": "语音：云端高音质",
       "ttsModeLocal": "语音：本地离线模式"
+    },
+    "debug": {
+      "injectMockData": "注入模拟数据",
+      "simulateStreaming": "模拟流式输出",
+      "simulateHitlApproval": "模拟 HITL (授权)",
+      "simulateHitlChoice": "模拟 HITL (选择)",
+      "simulateHitlText": "模拟 HITL (文本)",
+      "clearAllData": "清空所有数据"
     }
   },
   "messageContent": {
-    "clickToOpen": "点击打开"
+    "clickToOpen": "点击打开",
+    "localFilePreviewNotSupported": "该文件为工作机本地工作区文件，暂不支持在移动端直接预览",
+    "htmlPreview": "HTML 预览",
+    "reactComponentPreview": "React 组件预览",
+    "artifactPreview": "Artifact 预览",
+    "fileFallback": "文件"
   },
   "echartsChart": {
     "renderFailed": "图表渲染失败",
     "rendering": "正在渲染图表...",
-    "clickToEnlarge": "点击查看大图"
+    "clickToEnlarge": "点击查看大图",
+    "errorFallback": "图表错误"
   },
   "mermaidChart": {
     "renderFailed": "图表渲染失败",
@@ -312,6 +333,10 @@
     "clickForDetails": "点击查看详情",
     "view": "查看",
     "download": "下载"
+  },
+  "home": {
+    "welcome": "欢迎来到 EvoLoop Native",
+    "subtitle": "基础外壳已就绪"
   },
   "chatWelcome": {
     "title": "你好！我是你的木头机器人助手",
@@ -332,7 +357,8 @@
   },
   "codeBlock": {
     "lines": "行",
-    "copied": "已复制"
+    "copied": "已复制",
+    "text": "文本"
   },
   "conversation": {
     "new": "新建",
@@ -347,6 +373,7 @@
     "agree": "我已阅读并同意",
     "errors": {
       "loadConfigFailed": "加载配置失败",
+      "notLoggedIn": "未登录",
       "captchaRequired": "请输入图形验证码",
       "passwordTooShort": "密码长度不足",
       "invalidMobile": "请输入有效的手机号",
@@ -457,6 +484,7 @@
     "bindMobile": {
       "title": "绑定手机号",
       "greetingFallback": "欢迎",
+      "greeting": "欢迎，{{nickname}}",
       "hint": "绑定手机号后可以使用更多功能",
       "dynaCodeLabel": "短信验证码",
       "save": "保存",
@@ -525,7 +553,8 @@
     "avatarUpdated": "头像已更新",
     "avatarUpdateFailed": "头像更新失败，请重试",
     "avatarImageError": "无法获取图片数据",
-    "confirm": "确认"
+    "confirm": "确认",
+    "proBadge": "PRO"
   },
   "projects": {
     "guestTitle": "登录查看项目",
@@ -620,6 +649,7 @@
     "riskMedium": "中风险",
     "riskHigh": "高风险",
     "riskCritical": "严重",
+    "approveWithRisk": "{{action}}（{{risk}}）",
     "submit": "提交",
     "approve": "批准",
     "reject": "拒绝",
@@ -755,6 +785,7 @@
       "errorPrefix": "错误:",
       "startFailedPrefix": "启动失败:",
       "langZhCN": "中文（普通话）",
+      "langEnUS": "English (US)",
       "langZhHK": "中文（粤语）",
       "langJaJP": "日本語",
       "modelConfigTitle": "模型文件配置",
@@ -831,7 +862,11 @@
       "feedback": "反馈建议",
       "techInfo": "技术信息",
       "architecture": "架构",
-      "bareWorkflow": "Bare Workflow (Native)"
+      "bareWorkflow": "Bare Workflow (Native)",
+      "github": "GitHub",
+      "reactNative": "React Native",
+      "copyright": "© 2024 EvoLoop。保留所有权利。",
+      "madeWithLove": "由 Develop Assistant Team 用心打造 ❤️"
     }
   },
   "plans": {
@@ -904,9 +939,28 @@
     "videoPermissionRequired": "需要相机权限才能录制视频",
     "videoError": "录制视频失败，请重试",
     "endReached": "已经到底了",
+    "secondsShort": "{{count}}秒",
+    "durationSeconds": "{{value}}秒",
+    "durationMilliseconds": "{{value}}毫秒",
+    "overflowCount": "99+",
     "gotIt": "知道了",
+    "units": {
+      "percent": "%"
+    },
+    "ellipsis": "…",
+    "diff": {
+      "added": "+",
+      "deleted": "-"
+    },
     "reload": "重新加载",
-    "tip": "提示"
+    "listSeparator": "、",
+    "fileSize": {
+      "units": ["B", "KB", "MB", "GB"]
+    },
+    "tip": "提示",
+    "unknown": "未知",
+    "ios": "iOS",
+    "android": "Android"
   },
   "payConfirm": {
     "payAmount": "支付金额",
@@ -949,7 +1003,11 @@
     "loadFailed": "地图加载失败",
     "defaultTitle": "地图",
     "loading": "正在加载地图...",
-    "clickToEnlarge": "点击查看大图"
+    "clickToEnlarge": "点击查看大图",
+    "errorPrefix": "错误：",
+    "amapKeyTip": "请确认 .env 中配置了有效的 AMAP_KEY 和安全密钥",
+    "webViewLoadError": "WebView 加载失败",
+    "routeSearchFailed": "路线搜索失败"
   },
   "emptyState": {
     "errorTitle": "出错了",
@@ -1062,6 +1120,7 @@
   },
   "share": {
     "defaultTitle": "分享",
+    "messageFormat": "{{sender}}：\n{{content}}",
     "messageTitle": "分享消息",
     "codeTitle": "分享代码",
     "codeTitleWithLang": "分享 {{language}} 代码"
@@ -1078,8 +1137,7 @@
       "browserControl": "浏览器控制",
       "mobileControl": "手机控制",
       "skillLearning": "技能学习",
-      "wikiGeneration": "项目百科生成",
-      "knowledgeBase": "知识库"
+      "wikiGeneration": "项目百科生成"
     },
     "plans": {
       "creator": "创作者版",
@@ -1146,6 +1204,8 @@
       "rewindFailed": "回退失败",
       "retryFailed": "重试失败",
       "addMemoryFailed": "记住失败",
+      "updateMemoryFailed": "更新记忆失败",
+      "deleteMemoryFailed": "删除记忆失败",
       "getMemoryFailed": "获取记忆失败",
       "sendMessageFailed": "发送消息失败",
       "syncMessagesFailed": "同步消息失败",
@@ -1153,7 +1213,22 @@
       "uploadFailed": "上传失败",
       "uploadFileFailed": "上传文件失败",
       "unsupportedFileType": "不支持的文件类型: {{ext}}。支持: {{supportedTypes}}",
-      "sseTimeout": "SSE 请求超时"
+      "sseTimeout": "SSE 请求超时",
+      "networkError": "网络错误，请检查网络连接",
+      "timeout": "请求超时，请检查网络"
+    },
+    "httpErrors": {
+      "400": "请求参数错误，请检查后重试",
+      "401": "登录已过期，请重新登录",
+      "403": "没有权限执行此操作",
+      "404": "请求的资源不存在",
+      "408": "请求超时，请检查网络后重试",
+      "429": "请求过于频繁，请稍后再试",
+      "500": "服务器内部错误，请稍后再试",
+      "502": "网关错误，请稍后再试",
+      "503": "服务暂时不可用，请稍后再试",
+      "504": "网关超时，请稍后再试",
+      "default": "请求失败 ({{status}})"
     }
   },
   "payment": {
@@ -1183,7 +1258,14 @@
     }
   },
   "format": {
-    "currencyUnit": "元"
+    "currencyUnit": "元",
+    "currencySymbol": "¥",
+    "dateTime": {
+      "full": "yyyy-MM-dd HH:mm:ss",
+      "date": "yyyy-MM-dd",
+      "time": "HH:mm",
+      "empty": "--"
+    }
   },
   "voiceNLU": {
     "actOpen": "打开|展开|显示|拉出|呼出|给我看|弄出来",

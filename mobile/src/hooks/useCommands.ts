@@ -2,6 +2,7 @@
 // 提供简洁的指令调用方式和状态管理
 
 import { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { commandApi } from '@/services/api';
 import type {
   ExecuteCommandResponse,
@@ -18,6 +19,7 @@ interface UseCommandsReturn {
  * 指令下达 Hook
  */
 export function useCommands(): UseCommandsReturn {
+  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,13 +42,13 @@ export function useCommands(): UseCommandsReturn {
       
       return response;
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      const errorMessage = err instanceof Error ? err.message : t('common.error.unknown');
       setError(errorMessage);
       throw err;
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   return {
     isLoading,

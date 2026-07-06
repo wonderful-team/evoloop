@@ -7,8 +7,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PaperProvider } from 'react-native-paper';
 import './src/locales'; // 初始化 i18n
 
-// 全局错误捕获，打印调用栈
-if ((global as any).ErrorUtils) {
+// Debug-only error capture (gated by __DEV__)
+if (__DEV__ && (global as any).ErrorUtils) {
   const originalHandler = (global as any).ErrorUtils.getGlobalHandler();
   (global as any).ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
     console.error('[GLOBAL ERROR]', error?.message, error?.stack, 'isFatal:', isFatal);
@@ -18,8 +18,8 @@ if ((global as any).ErrorUtils) {
   });
 }
 
-// 捕获未处理的 Promise rejection
-if (typeof (global as any).addEventListener === 'function') {
+// Debug-only unhandled rejection capture
+if (__DEV__ && typeof (global as any).addEventListener === 'function') {
   (global as any).addEventListener('unhandledrejection', (event: { reason: any }) => {
     const reason = event?.reason;
     if (reason instanceof Error) {
@@ -29,30 +29,8 @@ if (typeof (global as any).addEventListener === 'function') {
     }
   });
 }
-
-// 追踪 Promise.catch 调用来源
-const OriginalPromise = global.Promise;
-(global as any).Promise = class TrackedPromise<T> extends OriginalPromise<T> {
-  constructor(executor: (resolve: (value: T | PromiseLike<T>) => void, reject: (reason?: any) => void) => void) {
-    super((resolve, reject) => {
-      executor(resolve, (reason) => {
-        if (reason instanceof Error && reason.message?.includes('undefined is not a function')) {
-          console.error('[TRACKED REJECT]', reason.message, reason.stack);
-        }
-        reject(reason);
-      });
-    });
-  }
-  catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): OriginalPromise<T | TResult> {
-    const wrapped = onrejected
-      ? (reason: any) => {
-          const result = onrejected(reason);
-          return result;
-        }
-      : undefined;
-    return super.catch(wrapped as any);
-  }
-};
+// NOTE: Removed the TrackedPromise global override that monkeypatched
+// global.Promise in production. Use Sentry for production error reporting.
 
 // 重写 console.error，为 TypeError 打印调用栈
 const originalConsoleError = console.error;

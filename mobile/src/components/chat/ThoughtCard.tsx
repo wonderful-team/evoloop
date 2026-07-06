@@ -3,6 +3,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Card, Text } from 'react-native-paper';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/theme';
 import { AgentThought, ThoughtType } from '@/types/agent';
 import { SkillMatchThought } from '@/types/skill';
@@ -13,6 +14,7 @@ interface ThoughtCardProps {
 }
 
 export function ThoughtCard({ thought }: ThoughtCardProps) {
+  const { t } = useTranslation();
   const { colors } = useTheme();
 
   // 获取图标
@@ -86,7 +88,7 @@ export function ThoughtCard({ thought }: ThoughtCardProps) {
                         : '#dc2626',
                   }}
                 >
-                  {Math.round(skill.confidence * 100)}%
+                  {Math.round(skill.confidence * 100)}{t('common.units.percent')}
                 </Text>
               </View>
             </View>
@@ -156,7 +158,7 @@ export function ThoughtCard({ thought }: ThoughtCardProps) {
 
           {thought.confidence !== undefined && (
             <Text style={[styles.confidence, { color: color.main }]}>
-              {Math.round(thought.confidence * 100)}%
+              {Math.round(thought.confidence * 100)}{t('common.units.percent')}
             </Text>
           )}
         </View>

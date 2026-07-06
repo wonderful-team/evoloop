@@ -39,7 +39,7 @@ function validatePasswordComplexity(password: string, complexity: string, t: any
   }
 
   if (errors.length > 0) {
-    return `${t('settings.account.passwordComplexityPrefix')}${errors.join('、')}`;
+    return `${t('settings.account.passwordComplexityPrefix')}${errors.join(t('common.listSeparator'))}`;
   }
   return null;
 }
@@ -385,7 +385,7 @@ export default function AccountSettingsScreen() {
                 disabled={countdown > 0 || isLoading || !captchaCode}
                 style={styles.sendCodeButton}
               >
-                {countdown > 0 ? `${countdown}s` : t('settings.account.getCode')}
+                {countdown > 0 ? t('common.secondsShort', { count: countdown }) : t('settings.account.getCode')}
               </Button>
             </View>
           </Dialog.Content>

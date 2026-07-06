@@ -7,6 +7,7 @@ import { voiceEngine, type VoiceEngineEventCallbacks } from '@/services/voice/Vo
 import { useVoiceSessionStore } from '@/stores/voiceSessionStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useSettingsStore } from '@/stores/settingsStore';
+import i18n from '@/locales';
 import { parseLocalIntent, type LocalIntent } from '@/services/voice/localNLU';
 
 export interface UseVoiceInputOptions {
@@ -163,7 +164,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
   const start = useCallback(async (mode: 'wake' | 'asr' = 'asr') => {
     console.log(`[useVoiceInput] start called, mode=${mode}, isRunning=${isRunningRef.current}`);
     if (!isLoggedIn) {
-      onError?.(new Error('未登录'));
+      onError?.(new Error(i18n.t('auth.errors.notLoggedIn')));
       return;
     }
 

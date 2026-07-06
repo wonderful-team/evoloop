@@ -18,7 +18,6 @@ export function FullScreenLoader({
   transparent = true,
 }: FullScreenLoaderProps) {
   const { colors } = useTheme();
-  const { t } = useTranslation();
 
   return (
     <Modal
@@ -97,6 +96,7 @@ export function LoadMoreFooter({
   hasMore: boolean;
 }) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   if (!isLoading && !hasMore) {
     return (
@@ -123,7 +123,7 @@ export function LoadMoreFooter({
 export function RefreshIndicator({ refreshing }: { refreshing: boolean }) {
   const { colors } = useTheme();
 
-  if (!refreshing) return null;
+  if (!refreshing) {return null;}
 
   return (
     <View style={styles.refreshIndicator}>

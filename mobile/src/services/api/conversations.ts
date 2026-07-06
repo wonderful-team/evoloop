@@ -138,13 +138,25 @@ export async function getConversationHistory(
 
 /**
  * 停止 Agent (指令类 → Gateway → Desktop)
- * POST /gateway/api/v1/conversations/:id/stop
+ * 统一走 /gateway/api/v1/message/send，信封类型 command.stop
  */
 export async function stopAgent(conversationId: string, deviceKey?: string): Promise<void> {
-  const response = await api.post(`/gateway/api/v1/conversations/${conversationId}/stop`, {}, {
-    params: { device_key: deviceKey }
+  const envelope = {
+    version: '2.0' as const,
+    type: 'command.stop' as const,
+    timestamp: Math.floor(Date.now() / 1000),
+    source: { kind: 'mobile' as const },
+    target: { kind: 'agent' as const, device_key: deviceKey },
+    body: {
+      thread_id: conversationId,
+    },
+  };
+
+  const response = await api.post('/gateway/api/v1/message/send', {
+    target_device_key: deviceKey,
+    envelope,
   });
-  
+
   if (response.code !== 0) {
     throw new Error(response.message || i18n.t('api.errors.stopFailed'));
   }
@@ -152,51 +164,87 @@ export async function stopAgent(conversationId: string, deviceKey?: string): Pro
 
 /**
  * Rewind - 回退到指定消息 (指令类 → Gateway → Desktop)
- * POST /gateway/api/v1/conversations/:id/rewind
+ * 统一走 /gateway/api/v1/message/send，信封类型 command.rewind
  */
 export async function rewindConversation(
   conversationId: string,
   request: RewindRequest,
   deviceKey?: string
 ): Promise<RewindResponse> {
-  const response = await api.post(
-    `/gateway/api/v1/conversations/${conversationId}/rewind`,
-    request,
-    { params: { device_key: deviceKey } }
-  );
-  
+  const envelope = {
+    version: '2.0' as const,
+    type: 'command.rewind' as const,
+    timestamp: Math.floor(Date.now() / 1000),
+    source: { kind: 'mobile' as const },
+    target: { kind: 'agent' as const, device_key: deviceKey },
+    body: {
+      thread_id: conversationId,
+      message_id: request.message_id,
+      revert_files: request.revert_files,
+    },
+  };
+
+  const response = await api.post('/gateway/api/v1/message/send', {
+    target_device_key: deviceKey,
+    envelope,
+  });
+
   if (response.code !== 0) {
     throw new Error(response.message || i18n.t('api.errors.rewindFailed'));
   }
-  
-  return response.data;
+
+  return {
+    success: true,
+    message: 'rewinded',
+    conversation_id: conversationId,
+  };
 }
 
 /**
  * Retry - 从指定消息重试 (指令类 → Gateway → Desktop)
- * POST /gateway/api/v1/conversations/:id/retry
+ * 统一走 /gateway/api/v1/message/send，信封类型 command.retry
  */
 export async function retryConversation(
   conversationId: string,
   request: RetryRequest,
   deviceKey?: string
 ): Promise<RetryResponse> {
-  const response = await api.post(
-    `/gateway/api/v1/conversations/${conversationId}/retry`,
-    request,
-    { params: { device_key: deviceKey } }
-  );
-  
+  const body: Record<string, any> = {
+    thread_id: conversationId,
+    message_id: request.message_id,
+    revert_files: request.revert_files,
+  };
+  if (request.project_id !== undefined) {
+    body.project_id = request.project_id;
+  }
+
+  const envelope = {
+    version: '2.0' as const,
+    type: 'command.retry' as const,
+    timestamp: Math.floor(Date.now() / 1000),
+    source: { kind: 'mobile' as const },
+    target: { kind: 'agent' as const, device_key: deviceKey },
+    body,
+  };
+
+  const response = await api.post('/gateway/api/v1/message/send', {
+    target_device_key: deviceKey,
+    envelope,
+  });
+
   if (response.code !== 0) {
     throw new Error(response.message || i18n.t('api.errors.retryFailed'));
   }
-  
-  return response.data;
+
+  return {
+    success: true,
+    message: 'retried',
+    conversation_id: conversationId,
+  };
 }
 
 /**
- * 添加消息到记忆 -> Gateway /command/send -> Desktop Agent
- * command_type: memory_add
+ * 添加消息到记忆 -> Gateway /api/v1/message/send -> Desktop Agent
  */
 export async function addToMemory(
   projectId: number,
@@ -205,18 +253,27 @@ export async function addToMemory(
   messageId?: string,
   conversationId?: string,
 ): Promise<MemoryConcept> {
-  const response = await api.post('/gateway/api/v1/command/send', {
-    device_key: deviceKey,
-    command_type: 'memory_add',
-    thread_id: conversationId || `memory_${Date.now()}`,
-    project_id: projectId,
-    content: {
-      name: request.name,
-      description: request.description,
-      related_files: request.related_files || [],
-      source_message_id: messageId || request.source_message_id,
-      source_thread_id: conversationId || request.source_thread_id,
+  const envelope = {
+    version: '2.0',
+    type: 'command.relay',
+    timestamp: Math.floor(Date.now() / 1000),
+    source: { kind: 'mobile' },
+    target: { kind: 'agent', device_key: deviceKey },
+    body: {
+      action: 'memory_add',
+      project_id: projectId,
+      content: {
+        name: request.name,
+        description: request.description,
+        related_files: request.related_files || [],
+        source_message_id: messageId || request.source_message_id,
+        source_thread_id: conversationId || request.source_thread_id,
+      },
     },
+  };
+  const response = await api.post('/gateway/api/v1/message/send', {
+    target_device_key: deviceKey,
+    envelope,
   });
 
   if (response.code !== 0 && response.code !== 201 && response.code !== 202) {
@@ -233,8 +290,7 @@ export async function addToMemory(
 }
 
 /**
- * 更新记忆概念 -> Gateway /command/send -> Desktop Agent
- * command_type: memory_update
+ * 更新记忆概念 -> Gateway /api/v1/message/send -> Desktop Agent
  */
 export async function updateMemory(
   projectId: number,
@@ -242,16 +298,25 @@ export async function updateMemory(
   name: string,
   request: UpdateMemoryRequest,
 ): Promise<void> {
-  const response = await api.post('/gateway/api/v1/command/send', {
-    device_key: deviceKey,
-    command_type: 'memory_update',
-    thread_id: `memory_${Date.now()}`,
-    project_id: projectId,
-    content: {
-      name,
-      description: request.description,
-      related_files: request.related_files || [],
+  const envelope = {
+    version: '2.0',
+    type: 'command.relay',
+    timestamp: Math.floor(Date.now() / 1000),
+    source: { kind: 'mobile' },
+    target: { kind: 'agent', device_key: deviceKey },
+    body: {
+      action: 'memory_update',
+      project_id: projectId,
+      content: {
+        name,
+        description: request.description,
+        related_files: request.related_files || [],
+      },
     },
+  };
+  const response = await api.post('/gateway/api/v1/message/send', {
+    target_device_key: deviceKey,
+    envelope,
   });
 
   if (response.code !== 0 && response.code !== 202) {
@@ -260,20 +325,28 @@ export async function updateMemory(
 }
 
 /**
- * 删除记忆概念 -> Gateway /command/send -> Desktop Agent
- * command_type: memory_delete
+ * 删除记忆概念 -> Gateway /api/v1/message/send -> Desktop Agent
  */
 export async function deleteMemory(
   projectId: number,
   deviceKey: string,
   name: string,
 ): Promise<void> {
-  const response = await api.post('/gateway/api/v1/command/send', {
-    device_key: deviceKey,
-    command_type: 'memory_delete',
-    thread_id: `memory_${Date.now()}`,
-    project_id: projectId,
-    content: { name },
+  const envelope = {
+    version: '2.0',
+    type: 'command.relay',
+    timestamp: Math.floor(Date.now() / 1000),
+    source: { kind: 'mobile' },
+    target: { kind: 'agent', device_key: deviceKey },
+    body: {
+      action: 'memory_delete',
+      project_id: projectId,
+      content: { name },
+    },
+  };
+  const response = await api.post('/gateway/api/v1/message/send', {
+    target_device_key: deviceKey,
+    envelope,
   });
 
   if (response.code !== 0 && response.code !== 202) {
@@ -376,7 +449,7 @@ export async function updateConversation(
     ...updateData,
   });
 
-  if (response.code !== 0) {
-    throw new Error(response.message || i18n.t('toast.updateConversationFailed'));
+    if (response.code !== 0) {
+    throw new Error(response.message || i18n.t('chat.toast.updateConversationFailed'));
   }
 }

@@ -19,15 +19,16 @@ export function CountdownButton({
   disabled = false,
   initialSeconds = 120,
   label,
-  countdownLabel = (seconds) => `${seconds}s`,
+  countdownLabel,
 }: CountdownButtonProps) {
   const { colors } = useTheme();
   const { t } = useTranslation();
-  
+
   // 如果没有传入 label，使用默认的多语言文案
   const displayLabel = label || t('auth.login.getCode');
+  const effectiveCountdownLabel = countdownLabel || ((seconds) => t('common.secondsShort', { count: seconds }));
 
-  
+
   const [countdown, setCountdown] = useState(0);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -45,7 +46,7 @@ export function CountdownButton({
   // 开始倒计时
   const startCountdown = useCallback((seconds: number) => {
     setCountdown(seconds);
-    
+
     timerRef.current = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
@@ -62,7 +63,7 @@ export function CountdownButton({
 
   // 处理点击
   const handlePress = useCallback(async () => {
-    if (countdown > 0 || isLoading || disabled) return;
+    if (countdown > 0 || isLoading || disabled) {return;}
 
     setIsLoading(true);
     try {
@@ -90,7 +91,7 @@ export function CountdownButton({
         },
       ]}
     >
-      {countdown > 0 ? countdownLabel(countdown) : displayLabel}
+      {countdown > 0 ? effectiveCountdownLabel(countdown) : displayLabel}
     </Button>
 
   );

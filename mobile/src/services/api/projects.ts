@@ -41,17 +41,25 @@ export const projectApi = {
     }));
   },
 
-  // 切换项目 (指令类 → Gateway → Desktop)
+  // 切换项目
   switchProject: async (
     data: ProjectSwitchRequest
   ): Promise<ProjectSwitchResponse> => {
+    const envelope = {
+      version: '2.0',
+      type: 'command.relay',
+      timestamp: Math.floor(Date.now() / 1000),
+      source: { kind: 'mobile' },
+      target: { kind: 'agent', device_key: data.deviceKey },
+      body: {
+        action: 'project_switch',
+        project_id: data.projectId,
+        content: { project_id: data.projectId },
+      },
+    };
     const response = await api.post<ApiResponse<ProjectSwitchResponse>>(
-      `/gateway/api/v1/command/send`,
-      {
-        device_key: data.deviceKey,
-        command_type: 'project_switch',
-        payload: { project_id: data.projectId },
-      }
+      `/gateway/api/v1/message/send`,
+      { target_device_key: data.deviceKey, envelope },
     );
     return response.data;
   },

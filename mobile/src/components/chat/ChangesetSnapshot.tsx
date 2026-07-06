@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { Text, Surface } from 'react-native-paper';
+import { Text } from 'react-native-paper';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTheme } from '@/theme';
 import { useTranslation } from 'react-i18next';
@@ -30,39 +30,6 @@ export const ChangesetSnapshot = memo(({ files, totalCount, onViewDetails }: Cha
     return parts[parts.length - 1];
   };
 
-  const getOpStyles = (op: ChangesetFile['operation']) => {
-    switch (op) {
-      case 'added':
-        return {
-          color: colors.success,
-          bg: colors.success + '15',
-          icon: 'plus',
-          label: '+1',
-        };
-      case 'deleted':
-        return {
-          color: colors.error,
-          bg: colors.error + '15',
-          icon: 'minus',
-          label: '-1',
-        };
-      case 'renamed':
-        return {
-          color: colors.info,
-          bg: colors.info + '15',
-          icon: 'file-move-outline',
-          label: '→',
-        };
-      default: // modified
-        return {
-          color: colors.primary,
-          bg: colors.primary + '15',
-          icon: 'pencil-outline',
-          label: '±1',
-        };
-    }
-  };
-
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -85,9 +52,7 @@ export const ChangesetSnapshot = memo(({ files, totalCount, onViewDetails }: Cha
         style={styles.scrollView}
         decelerationRate="fast"
       >
-        {files.map((file, idx) => {
-          const opStyle = getOpStyles(file.operation);
-          return (
+        {files.map((file, idx) => (
             <TouchableOpacity
               key={`${file.path}-${idx}`}
               onPress={() => onViewDetails?.(file.path)}
@@ -114,14 +79,14 @@ export const ChangesetSnapshot = memo(({ files, totalCount, onViewDetails }: Cha
                 {(file.operation === 'added' || file.operation === 'modified' || idx === 0 || idx === 1) && (
                   <View style={[styles.opBadge, { backgroundColor: colors.success + '15' }]}>
                     <Text style={[styles.opLabel, { color: colors.success }]}>
-                      +{idx === 0 ? 99 : idx === 1 ? 10 : (file.additions || 0)}
+                      {t('common.diff.added')}{idx === 0 ? 99 : idx === 1 ? 10 : (file.additions || 0)}
                     </Text>
                   </View>
                 )}
                 {(file.operation === 'deleted' || file.operation === 'modified' || idx === 1 || idx === 2) && (
                   <View style={[styles.opBadge, { backgroundColor: colors.error + '15' }]}>
                     <Text style={[styles.opLabel, { color: colors.error }]}>
-                      -{idx === 1 ? 501 : idx === 2 ? 456 : (file.deletions || 0)}
+                      {t('common.diff.deleted')}{idx === 1 ? 501 : idx === 2 ? 456 : (file.deletions || 0)}
                     </Text>
                   </View>
                 )}
@@ -134,8 +99,7 @@ export const ChangesetSnapshot = memo(({ files, totalCount, onViewDetails }: Cha
 
 
             </TouchableOpacity>
-          );
-        })}
+          ))}
 
         {totalCount > files.length && (
           <TouchableOpacity

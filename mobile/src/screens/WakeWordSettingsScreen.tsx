@@ -10,6 +10,7 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { WakeWordService } from '@/services/voice/WakeWordService';
 import { useTranslation } from 'react-i18next';
 
+// Spoken wake-word phrases; language-specific config values, intentionally not translated.
 const PRESET_WAKE_WORDS = [
   '木头人',
   '你好 EvoLoop',
@@ -82,7 +83,7 @@ export default function WakeWordSettingsScreen() {
       setTestDetectedWord(`${t('settings.voice.startFailedPrefix')} ${error.message}`);
       setTestState('idle');
     }
-  }, [testState, testService, wakeWord]);
+  }, [testState, testService, wakeWord, t]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -191,8 +192,8 @@ export default function WakeWordSettingsScreen() {
           <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
             {t('settings.voice.backgroundListenDesc')}{'\n'}
             {'\n'}
-            <Text style={{ fontWeight: 'bold' }}>iOS:</Text> {t('settings.voice.iosNote')}{'\n'}
-            <Text style={{ fontWeight: 'bold' }}>Android:</Text> {t('settings.voice.androidNote')}{'\n'}
+            <Text style={{ fontWeight: 'bold' }}>{t('common.ios')}:</Text> {t('settings.voice.iosNote')}{'\n'}
+            <Text style={{ fontWeight: 'bold' }}>{t('common.android')}:</Text> {t('settings.voice.androidNote')}{'\n'}
             {'\n'}
             {t('settings.voice.batteryWarning')}
           </Text>

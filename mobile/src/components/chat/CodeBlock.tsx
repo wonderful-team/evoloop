@@ -125,7 +125,7 @@ export function CodeBlock({ code, language = 'text', showLineNumbers = false }: 
       <View style={[styles.header, { borderBottomColor: colors.outline + '30' }]}>
         <View style={styles.headerLeft}>
           <Text style={[styles.language, { color: colors.primary }]}>
-            {language.toUpperCase() || 'TEXT'}
+            {language.toUpperCase() || t('codeBlock.text')}
           </Text>
           {lineCount > 10 && (
             <Text style={[styles.lineCount, { color: colors.onSurfaceVariant }]}>

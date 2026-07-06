@@ -83,10 +83,10 @@ const extractDevices = (response: any): Device[] => {
 };
 
 export const deviceApi = {
-  // 获取设备列表 (从 Gateway 获取当前在线设备)
+  // 获取设备列表 (PHP MC 返回所有已注册设备，含离线)
   getDevices: async (): Promise<Device[]> => {
-    const response = await api.get<BackendDevice[] | ApiResponse<BackendDevice[]>>(
-      `/gateway/api/v1/devices`
+    const response = await api.get<ApiResponse<BackendDevice[]>>(
+      `/member/evolooplink/api/device/list`
     );
     return extractDevices(response);
   },
@@ -113,15 +113,22 @@ export const deviceApi = {
     await api.post(`/member/evolooplink/api/device/unbind`, { device_key: deviceKey });
   },
 
-  // 发送设备指令 (直接通过 Go Gateway 执行，绕过 PHP 业务网关)
+  // 发送设备指令
   sendCommand: async (data: DeviceCommandRequest): Promise<any> => {
-    const response = await api.post<ApiResponse<any>>(
-      `/gateway/api/v1/command/send`,
-      {
-        device_key: data.deviceKey,
-        command_type: data.command.type,
+    const envelope = {
+      version: '2.0',
+      type: 'command.relay',
+      timestamp: Math.floor(Date.now() / 1000),
+      source: { kind: 'mobile' },
+      target: { kind: 'agent', device_key: data.deviceKey },
+      body: {
+        action: data.command.type,
         content: data.command.params,
-      }
+      },
+    };
+    const response = await api.post<ApiResponse<any>>(
+      `/gateway/api/v1/message/send`,
+      { target_device_key: data.deviceKey, envelope },
     );
     return response.data;
   },

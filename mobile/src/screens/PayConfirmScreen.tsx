@@ -13,6 +13,7 @@ import { useTheme } from '@/theme';
 import { handleBenefitError } from '@/utils/subscriptionErrors';
 import { WechatPay } from '@/services/payment/WechatPay';
 import { useTranslation } from 'react-i18next';
+import { formatMoney } from '@/utils/format';
 
 // 支付方式类型
  type PaymentMethod = 'wechat';
@@ -152,7 +153,7 @@ export default function PayConfirmScreen() {
               {isUpgrade ? t('payConfirm.upgradePayAmount') : t('payConfirm.payAmount')}
             </Text>
             <Text variant="displayLarge" style={styles.amount}>
-              ¥{payAmount.toFixed(2)}
+              {formatMoney.cny(payAmount)}
             </Text>
             <Text variant="bodyMedium" style={styles.planName}>
               {t('payConfirm.planName', { name: selectedPlan.level_name, days: selectedPlan.subscription_quota || 30 })}
@@ -163,15 +164,15 @@ export default function PayConfirmScreen() {
               <View style={styles.upgradeInfo}>
                 <View style={styles.upgradeRow}>
                   <Text style={styles.upgradeLabel}>{t('payConfirm.newAmount')}</Text>
-                  <Text style={styles.upgradeValue}>¥{priceInfo.pay_amount}</Text>
+                  <Text style={styles.upgradeValue}>{formatMoney.cny(priceInfo.pay_amount)}</Text>
                 </View>
                 <View style={styles.upgradeRow}>
                   <Text style={styles.upgradeLabel}>{t('payConfirm.refundAmount')}</Text>
-                  <Text style={[styles.upgradeValue, styles.refundValue]}>-¥{priceInfo.refund_amount}</Text>
+                  <Text style={[styles.upgradeValue, styles.refundValue]}>-{formatMoney.cny(priceInfo.refund_amount)}</Text>
                 </View>
                 <View style={[styles.upgradeRow, styles.netRow]}>
                   <Text style={styles.upgradeLabel}>{t('payConfirm.actualAmount')}</Text>
-                  <Text style={[styles.upgradeValue, styles.netValue]}>¥{priceInfo.net_amount}</Text>
+                  <Text style={[styles.upgradeValue, styles.netValue]}>{formatMoney.cny(priceInfo.net_amount)}</Text>
                 </View>
               </View>
             )}

@@ -99,7 +99,7 @@ export function DeviceCard({
           {/* 设备信息 */}
           <View style={styles.info}>
             <Text variant="titleMedium" style={styles.name} numberOfLines={1}>
-              {device.name || `${t('devices.devicePrefix')} ${(device.deviceKey || 'unknown').slice(0, 8)}`}
+              {device.name || `${t('devices.devicePrefix')} ${(device.deviceKey || t('common.unknown')).slice(0, 8)}`}
             </Text>
             {device.lastSeen && (
               <Text variant="bodySmall" style={styles.lastSeen}>
@@ -113,7 +113,7 @@ export function DeviceCard({
             {(device.unreadCount ?? 0) > 0 && (
               <View style={styles.unreadBadge}>
                 <Text style={styles.unreadBadgeText}>
-                  {device.unreadCount! > 99 ? '99+' : device.unreadCount}
+                  {device.unreadCount! > 99 ? t('common.overflowCount') : device.unreadCount}
                 </Text>
               </View>
             )}

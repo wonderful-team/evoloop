@@ -86,6 +86,7 @@
     "interrupted": "Interrupted, please speak",
     "wakeWordDetected": "Wake word detected: \"{{word}}\", please speak",
     "filesReverted": "{{count}} files reverted",
+    "filesRevertedSuffix": "({{count}} files reverted)",
     "rewindSuccess": "Rewinded to specified position",
     "retrying": "Retrying",
     "sendFailed": "Failed to send: ",
@@ -130,11 +131,14 @@
       "clickToOpen": "Click to open",
       "copy": "Copy",
       "me": "Me",
+      "ai": "AI",
       "thinkingProcess": "Thinking Process",
       "fileChanges": "{{count}} file changes",
       "agentChanges": "AGENT CHANGES",
       "more": "more",
       "sending": "Sending",
+      "duration": "Execution Time",
+      "executionSteps": "Thinking & Execution",
 
       "sendFailedRetry": "Send failed, tap to retry",
       "sendTimeoutRetry": "Timed out, tap to retry",
@@ -216,6 +220,9 @@
       "maxLimit": "You can only add up to 5 files"
     },
     "fileLabel": "File: {{name}}",
+    "imageAnalyzePrompt": "Please analyze this image",
+    "voiceMessagePlaceholder": "[Voice message]",
+    "fileMessagePlaceholder": "[File]",
     "threadList": {
       "newConversation": "New Conversation"
     },
@@ -242,7 +249,8 @@
       "deleteConfirmDesc": "Are you sure you want to delete this message? This action cannot be undone.",
       "rewind": "Rewind",
       "quote": "Quote",
-      "addToMemory": "Remember"
+      "addToMemory": "Remember",
+      "removeFromMemory": "Remove from Memory"
     },
     "codeBlock": {
       "copyCode": "Copy Code",
@@ -290,6 +298,14 @@
       "unmuted": "Voice readout enabled",
       "ttsModeCloud": "Voice: Cloud (High Quality)",
       "ttsModeLocal": "Voice: Local (Offline)"
+    },
+    "debug": {
+      "injectMockData": "Inject Mock Data",
+      "simulateStreaming": "Simulate Streaming",
+      "simulateHitlApproval": "Simulate HITL (Approval)",
+      "simulateHitlChoice": "Simulate HITL (Choice)",
+      "simulateHitlText": "Simulate HITL (Text)",
+      "clearAllData": "Clear All Data"
     }
   },
   "conversation": {
@@ -302,6 +318,7 @@
   "auth": {
     "errors": {
       "loadConfigFailed": "Failed to load configuration",
+      "notLoggedIn": "Not logged in",
       "captchaRequired": "Captcha required",
       "passwordTooShort": "Password too short",
       "invalidMobile": "Invalid mobile number",
@@ -415,6 +432,7 @@
     "bindMobile": {
       "title": "Bind Mobile Number",
       "greetingFallback": "Welcome",
+      "greeting": "Welcome, {{nickname}}",
       "hint": "Bind your mobile number to access more features",
       "dynaCodeLabel": "SMS Verification Code",
       "save": "Save",
@@ -483,7 +501,8 @@
     "avatarUpdated": "Avatar Updated",
     "avatarUpdateFailed": "Failed to update avatar, please try again",
     "avatarImageError": "Unable to get image data",
-    "confirm": "Confirm"
+    "confirm": "Confirm",
+    "proBadge": "PRO"
   },
   "projects": {
     "guestTitle": "Login to View Projects",
@@ -578,6 +597,7 @@
     "riskMedium": "Medium Risk",
     "riskHigh": "High Risk",
     "riskCritical": "Critical",
+    "approveWithRisk": "{{action}} ({{risk}})",
     "submit": "Submit",
     "approve": "Approve",
     "reject": "Reject",
@@ -713,6 +733,7 @@
       "errorPrefix": "Error:",
       "startFailedPrefix": "Start failed:",
       "langZhCN": "Chinese (Mandarin)",
+      "langEnUS": "English (US)",
       "langZhHK": "Chinese (Cantonese)",
       "langJaJP": "Japanese",
       "modelConfigTitle": "Model Configuration",
@@ -789,7 +810,11 @@
       "feedback": "Feedback",
       "techInfo": "Technical Information",
       "architecture": "Architecture",
-      "bareWorkflow": "Bare Workflow (Native)"
+      "bareWorkflow": "Bare Workflow (Native)",
+      "github": "GitHub",
+      "reactNative": "React Native",
+      "copyright": "© 2024 EvoLoop. All rights reserved.",
+      "madeWithLove": "Made with ❤️ by Develop Assistant Team"
     }
   },
   "plans": {
@@ -850,6 +875,17 @@
     "close": "Close",
     "tip": "Tip",
     "gotIt": "Got it",
+    "units": {
+      "percent": "%"
+    },
+    "ellipsis": "...",
+    "diff": {
+      "added": "+",
+      "deleted": "-"
+    },
+    "unknown": "Unknown",
+    "ios": "iOS",
+    "android": "Android",
     "cameraPermissionTitle": "Camera Permission",
     "cameraPermissionMessage": "Camera permission is required to take photos",
     "later": "Ask Later",
@@ -864,7 +900,15 @@
     "videoPermissionRequired": "Camera permission is required to record video",
     "videoError": "Failed to record video, please try again",
     "endReached": "You've reached the end",
-    "reload": "Reload"
+    "secondsShort": "{{count}}s",
+    "durationSeconds": "{{value}}s",
+    "durationMilliseconds": "{{value}}ms",
+    "overflowCount": "99+",
+    "reload": "Reload",
+    "listSeparator": ", ",
+    "fileSize": {
+      "units": ["B", "KB", "MB", "GB"]
+    }
   },
   "artifactCard": {
     "passRate": "Pass Rate",
@@ -872,18 +916,24 @@
     "view": "View",
     "download": "Download"
   },
+  "home": {
+    "welcome": "Welcome to EvoLoop Native",
+    "subtitle": "Primary Base Shell Ready"
+  },
   "chatWelcome": {
     "title": "Hello! I am your wooden robot assistant",
     "subtitle": "Tap the microphone to start voice conversation"
   },
   "codeBlock": {
     "lines": " lines",
-    "copied": "Copied"
+    "copied": "Copied",
+    "text": "TEXT"
   },
   "echartsChart": {
     "renderFailed": "Chart render failed",
     "rendering": "Rendering chart...",
-    "clickToEnlarge": "Click to view full image"
+    "clickToEnlarge": "Click to view full image",
+    "errorFallback": "ECharts Error"
   },
   "mermaidChart": {
     "renderFailed": "Chart render failed",
@@ -892,7 +942,12 @@
     "clickToEnlarge": "Click to view full image"
   },
   "messageContent": {
-    "clickToOpen": "Click to open"
+    "clickToOpen": "Click to open",
+    "localFilePreviewNotSupported": "This file is on the workstation's local workspace and cannot be previewed on mobile yet",
+    "htmlPreview": "HTML Preview",
+    "reactComponentPreview": "React Component Preview",
+    "artifactPreview": "Artifact Preview",
+    "fileFallback": "File"
   },
   "referencePicker": {
     "noMemory": "No memories yet",
@@ -948,7 +1003,11 @@
     "loadFailed": "Map load failed",
     "defaultTitle": "Map",
     "loading": "Loading map...",
-    "clickToEnlarge": "Click to enlarge"
+    "clickToEnlarge": "Click to enlarge",
+    "errorPrefix": "Error:",
+    "amapKeyTip": "Please make sure AMAP_KEY and security key are configured in .env",
+    "webViewLoadError": "WebView Load Error",
+    "routeSearchFailed": "Route search failed"
   },
   "emptyState": {
     "errorTitle": "Something went wrong",
@@ -1061,6 +1120,7 @@
   },
   "share": {
     "defaultTitle": "Share",
+    "messageFormat": "{{sender}}:\n{{content}}",
     "messageTitle": "Share Message",
     "codeTitle": "Share Code",
     "codeTitleWithLang": "Share {{language}} Code"
@@ -1077,8 +1137,7 @@
       "browserControl": "Browser Control",
       "mobileControl": "Mobile Control",
       "skillLearning": "Skill Learning",
-      "wikiGeneration": "Project Wiki Generation",
-      "knowledgeBase": "Knowledge Base"
+      "wikiGeneration": "Project Wiki Generation"
     },
     "plans": {
       "creator": "Creator",
@@ -1145,6 +1204,8 @@
       "rewindFailed": "Failed to rewind",
       "retryFailed": "Failed to retry",
       "addMemoryFailed": "Failed to remember",
+      "updateMemoryFailed": "Failed to update memory",
+      "deleteMemoryFailed": "Failed to delete memory",
       "getMemoryFailed": "Failed to get memory",
       "sendMessageFailed": "Failed to send message",
       "syncMessagesFailed": "Failed to sync messages",
@@ -1152,7 +1213,22 @@
       "uploadFailed": "Upload failed",
       "uploadFileFailed": "Failed to upload file",
       "unsupportedFileType": "Unsupported file type: {{ext}}. Supported: {{supportedTypes}}",
-      "sseTimeout": "SSE request timed out"
+      "sseTimeout": "SSE request timed out",
+      "networkError": "Network error, please check your network connection",
+      "timeout": "Request timeout, please check your network"
+    },
+    "httpErrors": {
+      "400": "Invalid request parameters. Please check and try again.",
+      "401": "Session expired. Please log in again.",
+      "403": "You don't have permission to perform this action.",
+      "404": "The requested resource does not exist.",
+      "408": "Request timeout. Please check your network and try again.",
+      "429": "Too many requests. Please try again later.",
+      "500": "Server internal error. Please try again later.",
+      "502": "Gateway error. Please try again later.",
+      "503": "Service temporarily unavailable. Please try again later.",
+      "504": "Gateway timeout. Please try again later.",
+      "default": "Request failed ({{status}})"
     }
   },
   "payment": {
@@ -1182,7 +1258,14 @@
     }
   },
   "format": {
-    "currencyUnit": "CNY"
+    "currencyUnit": "CNY",
+    "currencySymbol": "¥",
+    "dateTime": {
+      "full": "yyyy-MM-dd HH:mm:ss",
+      "date": "yyyy-MM-dd",
+      "time": "HH:mm",
+      "empty": "--"
+    }
   },
   "voiceNLU": {
     "actOpen": "open|show|expand|pull out|bring up|display",

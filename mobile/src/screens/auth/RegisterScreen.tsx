@@ -58,7 +58,7 @@ function validatePasswordComplexity(password: string, complexity: string, t: any
   }
 
   if (errors.length > 0) {
-    return `${t('settings.account.passwordComplexityPrefix')}${errors.join('、')}`;
+    return `${t('settings.account.passwordComplexityPrefix')}${errors.join(t('common.listSeparator'))}`;
   }
   return null;
 }

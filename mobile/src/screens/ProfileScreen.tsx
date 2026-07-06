@@ -183,7 +183,7 @@ function MembershipCard({
           </View>
           {isMember && (
             <View style={styles.proBadge}>
-              <Text style={styles.proBadgeText}>PRO</Text>
+              <Text style={styles.proBadgeText}>{t('profile.proBadge')}</Text>
             </View>
           )}
         </View>
@@ -456,7 +456,7 @@ function UserProfile() {
         <View style={styles.statsRow}>
           <StatCard
             label={t('profile.balance')}
-            value={`¥${balance}`}
+            value={`${t('format.currencySymbol')}${balance}`}
             icon="account-balance-wallet"
             colors={colors}
           />

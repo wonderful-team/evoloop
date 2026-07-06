@@ -144,14 +144,13 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
     }
 
 
-    // 构建消息内容
-    const messageContent: Record<string, any> = {
-      type: content.type,
-    };
+    // 构建 Canonical Envelope（遵循 @schemas/message.json）
+    // content 对象格式遵循 @schemas/types/command.relay.json
+    const messageContent: Record<string, any> = {};
 
     switch (content.type) {
       case 'text':
-        messageContent.message = content.text;
+        messageContent.text = content.text;
         break;
       case 'image':
         messageContent.image_url = content.imageUrl;
@@ -168,24 +167,36 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
         break;
     }
 
-    // 如果有引用（消息引用/文件引用等），塞进 content 透传给 Agent
     if (options?.references && options.references.length > 0) {
       messageContent.references = options.references;
     }
 
-    const data = await api.post('/gateway/api/v1/command/send', {
-      device_key: options.deviceKey,
-      command_type: 'chat',
-      thread_id: options.conversationId,
-      project_id: options.projectId,
+    const bodyPayload: Record<string, any> = {
+      action: 'chat',
+      thread_id: options?.conversationId,
       content: messageContent,
-    }, { signal: abortControllerRef.current?.signal });
+    };
+    if (options?.projectId) {
+      bodyPayload.project_id = options.projectId;
+    }
 
+    const envelope = {
+      version: '2.0',
+      type: 'command.relay',
+      timestamp: Math.floor(Date.now() / 1000),
+      source: { kind: 'mobile' },
+      target: { kind: 'agent', device_key: options?.deviceKey },
+      body: bodyPayload,
+    };
+
+    const data = await api.post('/gateway/api/v1/message/send', {
+      target_device_key: options?.deviceKey,
+      envelope,
+    }, { signal: abortControllerRef.current?.signal });
 
     if (data.code !== 0) {
       const rawMsg = data.message || i18n.t('deviceControl.httpErrors.sendFailed');
 
-      // 检测配额耗尽错误
       if (data.code === 429 || /quota/i.test(rawMsg)) {
         setQuotaExhaustedInfo({
           title: i18n.t('deviceControl.quotaExhaustedTitle'),
@@ -197,17 +208,14 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
         throw quotaError;
       }
 
-      // 其他错误翻译为友好提示
       const friendlyMsg = getFriendlyErrorMessage(data.code || 500, rawMsg);
       throw new Error(friendlyMsg);
     }
 
-    // 链路一：消息由 Desktop Agent 通过 WebSocket 即时推送到 Mobile
-    // Agent 产生消息时直接调用 _push_to_mobile()，不再依赖 MC 轮询
     onMessageSent?.({
-      commandId: data.command_id || 0,
-      threadId: data.data?.thread_id || options?.conversationId || '',
-      messageId: data.data?.message_id,
+      commandId: 0,
+      threadId: options?.conversationId || '',
+      messageId: bodyPayload.message_id,
       mode: 'desktop',
     });
   }, [token, onMessageSent]);
@@ -232,15 +240,15 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
         break;
       case 'image':
         userContent = JSON.stringify([
-          { type: 'text', text: '请分析这张图片' },
+          { type: 'text', text: i18n.t('chat.imageAnalyzePrompt') },
           { type: 'image_url', image_url: { url: content.imageUrl } },
         ]);
         break;
       case 'audio':
-        userContent = `[语音消息] ${content.audioUrl || ''}`;
+        userContent = `${i18n.t('chat.voiceMessagePlaceholder')} ${content.audioUrl || ''}`;
         break;
       case 'file':
-        userContent = `[文件] ${content.fileName || content.fileUrl}`;
+        userContent = `${i18n.t('chat.fileMessagePlaceholder')} ${content.fileName || content.fileUrl}`;
         break;
     }
 
@@ -395,12 +403,22 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
     }
 
     try {
-      await api.post('/gateway/api/v1/hitl/respond', {
-        device_key: activeDeviceKey,
-        request_id: pendingCommand.id,
-        thread_id: pendingCommand.threadId,
-        action: 'confirm',
-        value: confirmed ? 'APPROVED' : 'REJECTED',
+      const envelope = {
+        version: '2.0',
+        type: 'hitl.response',
+        timestamp: Math.floor(Date.now() / 1000),
+        source: { kind: 'mobile' },
+        target: { kind: 'agent', device_key: activeDeviceKey },
+        body: {
+          request_id: pendingCommand.id,
+          thread_id: pendingCommand.threadId,
+          action: 'confirm',
+          value: confirmed ? 'APPROVED' : 'REJECTED',
+        },
+      };
+      await api.post('/gateway/api/v1/message/send', {
+        target_device_key: activeDeviceKey,
+        envelope,
       });
 
       setPendingCommand(null);
@@ -425,12 +443,22 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
       : 'text';
 
     try {
-      await api.post('/gateway/api/v1/hitl/respond', {
-        device_key: activeDeviceKey,
-        request_id: hitlRequest.id,
-        thread_id: hitlRequest.threadId,
-        action,
-        value,
+      const envelope = {
+        version: '2.0',
+        type: 'hitl.response',
+        timestamp: Math.floor(Date.now() / 1000),
+        source: { kind: 'mobile' },
+        target: { kind: 'agent', device_key: activeDeviceKey },
+        body: {
+          request_id: hitlRequest.id,
+          thread_id: hitlRequest.threadId,
+          action,
+          value,
+        },
+      };
+      await api.post('/gateway/api/v1/message/send', {
+        target_device_key: activeDeviceKey,
+        envelope,
       });
 
       setHitlRequest(null);
@@ -451,11 +479,20 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
     }
 
     try {
-      await api.post('/gateway/api/v1/hitl/cancel', {
-        device_key: activeDeviceKey,
-        request_id: hitlRequest.id,
-        thread_id: hitlRequest.threadId,
-        reason: reason || i18n.t('deviceControl.hitlCancelReason'),
+      const envelope = {
+        version: '2.0',
+        type: 'hitl.cancel',
+        timestamp: Math.floor(Date.now() / 1000),
+        source: { kind: 'mobile' },
+        target: { kind: 'agent', device_key: activeDeviceKey },
+        body: {
+          request_id: hitlRequest.id,
+          thread_id: hitlRequest.threadId,
+        },
+      };
+      await api.post('/gateway/api/v1/message/send', {
+        target_device_key: activeDeviceKey,
+        envelope,
       });
 
       setHitlRequest(null);

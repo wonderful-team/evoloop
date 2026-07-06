@@ -146,19 +146,19 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
 
     const result: ConversationSection[] = [];
     if (pinnedList.length > 0) {
-      result.push({ title: t('threadList.sectionPinned') || '置顶会话', data: pinnedList });
+      result.push({ title: t('threadList.sectionPinned'), data: pinnedList });
     }
     if (todayList.length > 0) {
-      result.push({ title: t('threadList.sectionToday') || '今天', data: todayList });
+      result.push({ title: t('threadList.sectionToday'), data: todayList });
     }
     if (yesterdayList.length > 0) {
-      result.push({ title: t('threadList.sectionYesterday') || '昨天', data: yesterdayList });
+      result.push({ title: t('threadList.sectionYesterday'), data: yesterdayList });
     }
     if (recentList.length > 0) {
-      result.push({ title: t('threadList.sectionRecent') || '最近 7 天', data: recentList });
+      result.push({ title: t('threadList.sectionRecent'), data: recentList });
     }
     if (earlierList.length > 0) {
-      result.push({ title: t('threadList.sectionEarlier') || '更早', data: earlierList });
+      result.push({ title: t('threadList.sectionEarlier'), data: earlierList });
     }
     return result;
   }, [conversations, t]);
@@ -182,7 +182,7 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
                 color={colors.onPrimary}
               />
               <Text style={{ color: colors.onPrimary, fontSize: 11, marginTop: 2 }}>
-                {item.is_pinned ? t('threadList.unpin') || '取消置顶' : t('threadList.pin') || '置顶'}
+                {item.is_pinned ? t('threadList.unpin') : t('threadList.pin')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -195,7 +195,7 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
                 color={colors.onError}
               />
               <Text style={{ color: colors.onError, fontSize: 11, marginTop: 2 }}>
-                {t('chat.messageActions.delete') || '删除'}
+                {t('chat.messageActions.delete')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -238,7 +238,7 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
           {unreadCount > 0 && (
             <View style={styles.unreadBadge}>
               <Text style={styles.unreadBadgeText}>
-                {unreadCount > 99 ? '99+' : unreadCount}
+                {unreadCount > 99 ? t('common.overflowCount') : unreadCount}
               </Text>
             </View>
           )}
@@ -296,7 +296,7 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
         ]}
       >
         <Text style={{ color: colors.onSurface, fontSize: 16, fontWeight: '600' }}>
-          {t('threadList.title') || '对话列表'}
+          {t('threadList.title')}
         </Text>
 
         <TouchableOpacity
@@ -333,13 +333,13 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
           <View style={styles.emptyContainer}>
             <MaterialIcons name="chat-bubble-outline" size={48} color={colors.onSurfaceVariant} />
             <Text style={[styles.emptyText, { color: colors.onSurfaceVariant }]}>
-              {t('threadList.empty') || '暂无对话'}
+              {t('threadList.empty')}
             </Text>
             <TouchableOpacity
               style={[styles.newThreadButton, { backgroundColor: colors.primaryContainer }]}
               onPress={onNewThread}
             >
-              <Text style={{ color: colors.primary }}>{t('threadList.startNew') || '开启新对话'}</Text>
+              <Text style={{ color: colors.primary }}>{t('threadList.startNew')}</Text>
             </TouchableOpacity>
           </View>
         }
@@ -349,18 +349,18 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
       {/* 重命名会话对话框 */}
       <Portal>
         <Dialog visible={renameVisible} onDismiss={() => setRenameVisible(false)}>
-          <Dialog.Title>{t('threadList.renameTitle') || '会话重命名'}</Dialog.Title>
+          <Dialog.Title>{t('threadList.renameTitle')}</Dialog.Title>
           <Dialog.Content>
             <TextInput
-              label={t('threadList.renamePlaceholder') || '请输入新的会话标题'}
+              label={t('threadList.renamePlaceholder')}
               value={renameTitle}
               onChangeText={setRenameTitle}
               style={styles.dialogInput}
             />
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setRenameVisible(false)}>{t('threadList.cancel') || '取消'}</Button>
-            <Button onPress={handleRename}>{t('threadList.confirm') || '确定'}</Button>
+            <Button onPress={() => setRenameVisible(false)}>{t('threadList.cancel')}</Button>
+            <Button onPress={handleRename}>{t('threadList.confirm')}</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>

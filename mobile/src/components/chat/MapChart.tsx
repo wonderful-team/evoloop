@@ -34,7 +34,7 @@ interface MapChartProps {
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-const generateAMapHtml = (data: MapChartProps['data'], isDark: boolean) => {
+const generateAMapHtml = (data: MapChartProps['data'], isDark: boolean, routeSearchFailedText: string) => {
   const key = AMAP_CONFIG.key || '74619d8469c894f09d84e55e8c9735d4'; // 兜底 Key 仅供调试
   const securityCode = 'f6b215886617a26f63f350c3132694b8'; // 高德安全密钥（必填）
   const bgColor = isDark ? '#18181b' : '#ffffff';
@@ -65,6 +65,7 @@ const generateAMapHtml = (data: MapChartProps['data'], isDark: boolean) => {
     (function() {
       try {
         const data = ${JSON.stringify(data)};
+        const ROUTE_SEARCH_FAILED = ${JSON.stringify(routeSearchFailedText)};
         
         // 辅助函数：解析坐标格式 [lng, lat] 或 {lng, lat}
         const parsePos = (p) => {
@@ -167,7 +168,7 @@ const generateAMapHtml = (data: MapChartProps['data'], isDark: boolean) => {
             ]).then(function(results) {
               routeInstance.search(results[0], results[1]);
             }).catch(function(e) {
-              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'routeError', message: 'Route search failed' }));
+              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'routeError', message: ROUTE_SEARCH_FAILED }));
             });
           });
         }
@@ -198,9 +199,9 @@ export const MapChart = memo(function MapChart({ data }: MapChartProps) {
 
   const handleError = useCallback(() => {
     setError(true);
-    setErrorMsg('WebView Load Error');
+    setErrorMsg(t('mapChart.webViewLoadError'));
     setLoading(false);
-  }, []);
+  }, [t]);
 
   const handleMessage = useCallback((event: { nativeEvent: { data: string } }) => {
     try {
@@ -230,10 +231,10 @@ export const MapChart = memo(function MapChart({ data }: MapChartProps) {
         </View>
         <View style={[styles.codeBlock, { backgroundColor: colors.background }]}>
           <Text style={[styles.codeText, { color: colors.onSurface, fontSize: 11 }]}>
-            Error: {errorMsg || 'Unknown Error'}
+            {t('mapChart.errorPrefix')} {errorMsg || t('common.error.unknown')}
           </Text>
           <Text style={[styles.codeText, { color: colors.onSurfaceVariant, marginTop: 4 }]}>
-            Tip: 请确认 .env 中配置了有效的 AMAP_KEY 和安全密钥
+            {t('mapChart.amapKeyTip')}
           </Text>
         </View>
       </View>
@@ -241,7 +242,7 @@ export const MapChart = memo(function MapChart({ data }: MapChartProps) {
   }
 
 
-  const htmlContent = generateAMapHtml(data, isDark);
+  const htmlContent = generateAMapHtml(data, isDark, t('mapChart.routeSearchFailed'));
   const height = data.height || 300;
 
   return (

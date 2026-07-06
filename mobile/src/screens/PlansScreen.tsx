@@ -5,6 +5,7 @@ import { View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { Text, Card, Button, Chip, ActivityIndicator, Divider } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import i18n from '@/locales';
 import { Header } from '@/components/common/Header';
 import { router } from '@/utils/navigation';
 import { useCallback, useMemo } from 'react';
@@ -26,7 +27,7 @@ const BENEFIT_ICONS: Record<string, string> = {
 function formatPrice(price: string | number, freeLabel: string): string {
   const num = typeof price === 'string' ? parseFloat(price) : price;
   if (isNaN(num) || num === 0) return freeLabel;
-  return `¥${num}`;
+  return `${i18n.t('format.currencySymbol')}${num}`;
 }
 
 // 单个套餐卡片组件
@@ -171,7 +172,7 @@ function PlanCard({ plan, isCurrentPlan, isDowngrade, currentSort, targetSort, o
             {formatPrice(plan.price, t('plans.free'))}
           </Text>
           {parseFloat(plan.market_price) > parseFloat(plan.price) && (
-            <Text style={styles.marketPrice}>¥{plan.market_price}</Text>
+            <Text style={styles.marketPrice}>{i18n.t('format.currencySymbol')}{plan.market_price}</Text>
           )}
         </View>
         <Text variant="bodyMedium" style={[styles.period, isDowngrade && styles.downgradeText]}>

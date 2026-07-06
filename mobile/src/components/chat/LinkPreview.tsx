@@ -32,27 +32,22 @@ const fetchLinkPreview = async (url: string): Promise<LinkPreviewData | null> =>
   const mockData: Record<string, Partial<LinkPreviewData>> = {
     'github.com': {
       title: 'GitHub',
-      description: 'Where the world builds software',
       siteName: 'GitHub',
     },
     'stackoverflow.com': {
       title: 'Stack Overflow',
-      description: 'Where developers learn, share, and build careers',
       siteName: 'Stack Overflow',
     },
     'youtube.com': {
       title: 'YouTube',
-      description: 'Share your videos with friends, family, and the world',
       siteName: 'YouTube',
     },
     'docs.expo.dev': {
       title: 'Expo Documentation',
-      description: 'Learn how to build native apps with Expo',
       siteName: 'Expo',
     },
     'reactnative.dev': {
       title: 'React Native',
-      description: 'A framework for building native apps using React',
       siteName: 'React Native',
     },
   };
@@ -89,14 +84,12 @@ export function LinkPreview({ url }: LinkPreviewProps) {
   const [error, setError] = useState(false);
   const [imageError, setImageError] = useState(false);
 
-  // 如果没有 url，不渲染
-  if (!url) {
-    return null;
-  }
-
-  // 获取预览数据
   React.useEffect(() => {
     let mounted = true;
+    if (!url) {
+      setLoading(false);
+      return;
+    }
     fetchLinkPreview(url)
       .then(data => {
         if (mounted) {
