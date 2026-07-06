@@ -60,7 +60,7 @@ const DevicesContent = () => {
     onlineCount,
     totalCount,
     refresh,
-    setCurrentDevice,
+    switchDevice,
   } = useDevices({ autoFetch: isLoggedIn });
 
   const [refreshing, setRefreshing] = React.useState(false);
@@ -82,11 +82,11 @@ const DevicesContent = () => {
       setSnackbarVisible(true);
       return;
     }
-    // 设置为当前设备
-    setCurrentDevice(device);
+    // 设置为当前设备（原子化更新 device + conversation store）
+    switchDevice(device);
     // 返回聊天页面
     router.back();
-  }, [setCurrentDevice, isLoggedIn]);
+  }, [switchDevice, isLoggedIn]);
 
   const renderItem = useCallback(({ item }: { item: typeof devices[0] }) => (
     <DeviceCard
@@ -149,16 +149,16 @@ const DevicesContent = () => {
           keyExtractor={(item) => item.deviceKey}
           contentContainerStyle={styles.list}
           ListHeaderComponent={
-            <Card
-              style={[
-                styles.card,
-                styles.cloudCard,
-                !currentDevice && [styles.activeCard, { borderColor: colors.primary }]
-              ]}
-              onPress={() => {
-                setCurrentDevice(null);
-                router.back();
-              }}
+              <Card
+                style={[
+                  styles.card,
+                  styles.cloudCard,
+                  !currentDevice && [styles.activeCard, { borderColor: colors.primary }]
+                ]}
+                onPress={() => {
+                  switchDevice(null);
+                  router.back();
+                }}
             >
               <Card.Content>
                 <View style={styles.itemHeader}>

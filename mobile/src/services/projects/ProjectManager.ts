@@ -3,20 +3,17 @@
 import { projectApi } from '@/services/api/projects';
 import { Project, GLOBAL_PROJECT, isGlobalProject } from '@/types';
 import { useProjectStore } from '@/stores/projectStore';
-import { useDeviceStore } from '@/stores/deviceStore';
 import i18n from '@/locales';
 
 export class ProjectManager {
   // 获取项目列表
-  static async fetchProjects(): Promise<Project[]> {
+  static async fetchProjects(deviceKey?: string): Promise<Project[]> {
     const store = useProjectStore.getState();
-    const deviceStore = useDeviceStore.getState();
-    const currentDevice = deviceStore.currentDevice;
     store.setLoading(true);
     store.setError(null);
 
     try {
-      const projects = await projectApi.getProjects(currentDevice?.deviceKey);
+      const projects = await projectApi.getProjects(deviceKey);
       store.setProjects(projects || []);
       
       // 设置当前项目：如果当前没有设置，或者当前设置的项目不在新获取的项目列表中，重置为全局模式
@@ -41,10 +38,8 @@ export class ProjectManager {
 
   // 切换项目（支持全局模式）
   // 项目归属于设备，指令只发送给当前选中的设备
-  static async switchProject(projectId: number): Promise<Project> {
+  static async switchProject(projectId: number, deviceKey: string): Promise<Project> {
     const store = useProjectStore.getState();
-    const deviceStore = useDeviceStore.getState();
-    const currentDevice = deviceStore.currentDevice;
     store.setLoading(true);
 
     try {
@@ -59,9 +54,13 @@ export class ProjectManager {
         return GLOBAL_PROJECT;
       }
 
+      if (!deviceKey) {
+        throw new Error(i18n.t('projects.deviceRequired'));
+      }
+
       // 非全局模式：向当前设备发送 project_switch 指令
       await projectApi.switchProject({
-        deviceKey: currentDevice?.deviceKey || '',
+        deviceKey,
         projectId,
       });
 

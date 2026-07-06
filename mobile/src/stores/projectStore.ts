@@ -40,16 +40,10 @@ export const useProjectStore = create<ProjectState>()(
       }),
 
       setGlobalMode: (enabled) => {
-        if (enabled) {
-          set({ currentProject: GLOBAL_PROJECT, isGlobalMode: true });
-        } else {
-          const { projects } = get();
-          if (projects.length > 0) {
-            set({ currentProject: projects[0], isGlobalMode: false });
-          } else {
-            set({ currentProject: null, isGlobalMode: false });
-          }
-        }
+        set({
+          currentProject: enabled ? GLOBAL_PROJECT : null,
+          isGlobalMode: enabled,
+        });
       },
 
       addProject: (project) => {

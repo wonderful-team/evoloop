@@ -41,8 +41,6 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
   const {
     conversations,
     currentConversationId,
-    activeProjectId,
-    activeDeviceKey,
     isLoadingConversations,
     hasMoreConversations,
     loadConversations,
@@ -58,16 +56,15 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
   const [renameThreadId, setRenameThreadId] = useState('');
   const [renameTitle, setRenameTitle] = useState('');
 
-  // 加载会话列表（仅在初次加载或 projectId/deviceKey 与缓存不匹配时请求；重复点开抽屉复用现有数据）
+  // 加载会话列表（筛选条件已由 switchDevice/switchProject 写入 store）
   useEffect(() => {
     if (!isLoggedIn) return;
-    if (activeProjectId === projectId && activeDeviceKey === deviceKey && (conversations.length > 0 || !hasMoreConversations)) {
-      return;
-    }
-    loadConversations(projectId, true, deviceKey).catch(() => {
+    if (isLoadingConversations) return;
+    if (conversations.length > 0 || !hasMoreConversations) return;
+    loadConversations(true).catch(() => {
       // 静默处理错误，不显示代码级错误，由调用方决定是否提示用户
     });
-  }, [projectId, deviceKey, isLoggedIn, activeProjectId, activeDeviceKey, conversations.length, hasMoreConversations, loadConversations]);
+  }, [isLoggedIn, isLoadingConversations, conversations.length, hasMoreConversations, loadConversations]);
 
   // 选择会话
   const handleSelectThread = useCallback((conversation: Conversation) => {
@@ -271,7 +268,7 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
   // 下拉刷新
   const handleRefresh = () => {
     if (isLoggedIn) {
-      loadConversations(projectId, true, deviceKey);
+      loadConversations(true);
     }
   };
 

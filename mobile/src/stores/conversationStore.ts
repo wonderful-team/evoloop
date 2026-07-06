@@ -45,8 +45,9 @@ interface ConversationState {
 
   // 操作
   setCurrentConversation: (id: string | null, skipLoadMessages?: boolean) => void;
-  setActiveDeviceKey: (deviceKey: string | undefined) => void;
-  loadConversations: (projectId?: number, refresh?: boolean, deviceKey?: string) => Promise<void>;
+  switchDevice: (deviceKey?: string) => void;
+  switchProject: (projectId: number) => void;
+  loadConversations: (refresh?: boolean) => Promise<void>;
   loadMoreConversations: () => Promise<void>;
   createConversation: (projectId?: number, initialMessage?: string) => Promise<string>;
   deleteConversation: (id: string) => Promise<void>;
@@ -141,39 +142,52 @@ export const useConversationStore = create<ConversationState>()(
         }
       },
 
-      // 设置当前活跃设备 key（统一设备来源）
-      setActiveDeviceKey: (deviceKey) => {
-        set({ activeDeviceKey: deviceKey });
+      switchDevice: (deviceKey) => {
+        set({
+          activeDeviceKey: deviceKey,
+          activeProjectId: undefined,
+          conversations: [],
+          currentConversationId: null,
+          messages: [],
+          hasMoreConversations: true,
+          conversationsPage: 1,
+          hasMoreMessages: true,
+          firstMessageId: null,
+        });
       },
 
-      // 加载会话列表
-      // - refresh=true 时：重置页码并记录新的筛选条件
-      // - refresh=false 时（加载更多）：沿用已记录的 activeDeviceKey/activeProjectId
-      loadConversations: async (projectId, refresh = false, deviceKey) => {
+      switchProject: (projectId) => {
+        set({
+          activeProjectId: projectId,
+          conversations: [],
+          currentConversationId: null,
+          messages: [],
+          conversationsPage: 1,
+          hasMoreConversations: true,
+          hasMoreMessages: true,
+          firstMessageId: null,
+        });
+      },
+
+      // 加载会话列表（从 state 读取筛选条件）
+      loadConversations: async (refresh = false) => {
         set({ isLoadingConversations: true });
 
-        // 筛选条件是否发生了变化
-        const { activeDeviceKey, activeProjectId, conversationsPage } = get();
-        const filterChanged =
-          deviceKey !== activeDeviceKey || projectId !== activeProjectId;
+        const { activeProjectId, activeDeviceKey, conversationsPage } = get();
 
-        // 有新筛选条件时强制 refresh，防止带旧页码混合数据
-        const shouldRefresh = refresh || filterChanged;
+        const shouldRefresh = refresh;
         const page = shouldRefresh ? 1 : conversationsPage;
 
-        // 写入当前筛选条件（refresh 时更新，保持 loadMore 与其一致）
         if (shouldRefresh) {
           set({
-            activeDeviceKey: deviceKey,
-            activeProjectId: projectId,
-            conversations: filterChanged ? [] : get().conversations,
+            conversations: [],
             conversationsPage: 1,
             hasMoreConversations: true,
           });
         }
 
         try {
-          const response = await conversationApi.getConversations(projectId, page, 20, deviceKey);
+          const response = await conversationApi.getConversations(activeProjectId, page, 20, activeDeviceKey);
           const conversations = Array.isArray(response?.conversations) ? response.conversations : [];
 
           set({
@@ -198,12 +212,12 @@ export const useConversationStore = create<ConversationState>()(
               conversationProjectMap: nextProjectMap,
             };
 
-            if (deviceKey) {
+            if (activeDeviceKey) {
               nextState.conversationDeviceMap = {
                 ...state.conversationDeviceMap,
-                [deviceKey]: shouldRefresh
+                [activeDeviceKey]: shouldRefresh
                   ? conversationIds
-                  : [...(state.conversationDeviceMap[deviceKey] || []), ...conversationIds],
+                  : [...(state.conversationDeviceMap[activeDeviceKey] || []), ...conversationIds],
               };
             }
 
@@ -219,11 +233,10 @@ export const useConversationStore = create<ConversationState>()(
         }
       },
 
-      // 加载更多会话——自动沿用 activeDeviceKey / activeProjectId，无需调用方传参
+      // 加载更多会话——自动沿用 activeDeviceKey / activeProjectId
       loadMoreConversations: async () => {
         if (!get().hasMoreConversations || get().isLoadingConversations) {return;}
-        const { activeProjectId, activeDeviceKey } = get();
-        await get().loadConversations(activeProjectId, false, activeDeviceKey);
+        await get().loadConversations(false);
       },
 
       // 创建新会话
@@ -234,8 +247,7 @@ export const useConversationStore = create<ConversationState>()(
         });
 
         // 刷新会话列表（保持当前筛选条件）
-        const { activeDeviceKey, activeProjectId } = get();
-        await get().loadConversations(activeProjectId, true, activeDeviceKey);
+        await get().loadConversations(true);
 
         // 设置为当前会话
         set({ currentConversationId: response.conversation_id });
@@ -643,6 +655,8 @@ export const useConversationStore = create<ConversationState>()(
         unreadCounts: state.unreadCounts,
         conversationDeviceMap: state.conversationDeviceMap,
         conversationProjectMap: state.conversationProjectMap,
+        activeDeviceKey: state.activeDeviceKey,
+        activeProjectId: state.activeProjectId,
       }),
     }
   )

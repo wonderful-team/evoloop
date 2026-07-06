@@ -5,6 +5,7 @@ import { AppState } from 'react-native';
 import { DeviceManager } from '@/services/devices/DeviceManager';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { useConversationStore } from '@/stores/conversationStore';
+import { useProjectStore } from '@/stores/projectStore';
 import { Device } from '@/types';
 import { GatewayClient } from '@/services/gateway/GatewayClient';
 import { GatewayMessageType } from '@/services/gateway/types';
@@ -100,17 +101,6 @@ export function useDevices(options: UseDevicesOptions = {}) {
     };
   }, [autoFetch, store]);
 
-  // 监听 devices/currentDevice 变化：持久化设备若已不在列表中，自动切换到第一个在线设备
-  useEffect(() => {
-    if (currentDevice && !safeDevices.some((d) => d.deviceKey === currentDevice.deviceKey)) {
-      const fallback = safeDevices.find((d) => d.status === 'online') || safeDevices[0] || null;
-      if (fallback?.deviceKey !== currentDevice.deviceKey) {
-        console.log('[useDevices] currentDevice stale, auto-switch to:', fallback?.deviceKey);
-        store.setCurrentDevice(fallback);
-      }
-    }
-  }, [safeDevices, currentDevice, store]);
-
   // 刷新设备列表
   const refresh = useCallback(async () => {
     return DeviceManager.fetchDevices();
@@ -134,10 +124,13 @@ export function useDevices(options: UseDevicesOptions = {}) {
     []
   );
 
-  // 切换当前设备
-  const setCurrentDevice = useCallback((device: Device | null) => {
-    DeviceManager.setCurrentDevice(device);
-  }, []);
+  // 切换当前设备 —— 原子化更新 conversation/device/project store
+  const switchDevice = useCallback((device: Device | null) => {
+    const deviceKey = device?.deviceKey;
+    useConversationStore.getState().switchDevice(deviceKey);
+    store.setCurrentDevice(device);
+    useProjectStore.getState().setCurrentProject(null);
+  }, [store]);
 
   // 获取在线设备数
   const onlineCount = safeDevices.filter((d) => d.status === 'online').length;
@@ -153,7 +146,7 @@ export function useDevices(options: UseDevicesOptions = {}) {
     bindDevice,
     refreshDevice,
     sendCommand,
-    setCurrentDevice,
+    switchDevice,
   };
 }
 

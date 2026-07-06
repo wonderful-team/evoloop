@@ -48,7 +48,7 @@ import { useProjects } from '@/hooks/useProjects';
 import { useDevices } from '@/hooks/useDevices';
 import { useChatGateway } from '@/hooks/chat/useChatGateway';
 import * as conversationApi from '@/services/api/conversations';
-import { useChatDeviceSync } from '@/hooks/chat/useChatDeviceSync';
+
 import { ChatMessage, MessageReference } from '@/types/conversation';
 import type { UploadedFile } from '@/services/api/upload';
 import { ConnectionState } from '@/services/gateway/types';
@@ -66,9 +66,9 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
 
   // 从 MC 拉取项目列表（登录后才请求）
-  const { currentProject, isGlobalMode, setCurrentProject, setGlobalMode } = useProjects({ autoFetch: isLoggedIn });
+  const { currentProject, isGlobalMode } = useProjects({ autoFetch: isLoggedIn });
 
-  // 保持设备列表刷新，并在持久化设备失效时自动切换到在线设备
+  // 保持设备列表刷新
   useDevices({ autoFetch: isLoggedIn });
 
   // 输入模式
@@ -401,7 +401,7 @@ export default function ChatScreen() {
       if (currentConversationId) {
         loadMessages(currentConversationId, true);
       }
-      loadConversations(0, true);
+      loadConversations(true);
 
       // 命令最终状态由 WebSocket command.ack / agent.status 驱动，
       // 不再轮询已删除的 /gateway/api/v1/commands/:id 接口。
@@ -409,17 +409,9 @@ export default function ChatScreen() {
     }, [currentConversationId, loadMessages, loadConversations]),
     onNewThreadDetected: useCallback((_threadId) => {
       // 新会话的首次 message.sync 到达时，PHP MC 已消费队列的概率很高，刷新列表以获取 conversation 元数据
-      loadConversations(0, true);
+      loadConversations(true);
     }, [loadConversations]),
   });
-  const { deviceConversationMap, saveDeviceConversation } = useChatDeviceSync({
-    isLoggedIn,
-    selectedDeviceKey: selectedDevice?.deviceKey,
-    projectId: currentProject?.id,
-    setGlobalMode,
-    loadConversations,
-  });
-
   // 同步 currentConversationId 到 Gateway hook（避免 WebSocket 因 id 变化而重连）
   useEffect(() => {
     setCurrentConversationId(currentConversationId);
@@ -436,18 +428,6 @@ export default function ChatScreen() {
   const clearAgentProcessing = useCallback(() => {
     setIsAgentProcessing(false);
   }, []);
-
-  useEffect(() => {
-    // 只有在未选择设备（全局 AI 模式）时，项目切换才触发这里的列表加载
-    // 已选择设备时，由 useChatDeviceSync 内部处理级联加载
-    if (isLoggedIn && !selectedDevice?.deviceKey) {
-      if (currentProject) {
-        setCurrentProject(null); // 清除具体的项目选择，变为“选择项目”占位状态
-      }
-      setCurrentConversation(null); // 立即重置
-      loadConversations(0, true); // 强制请求 0+0 数据
-    }
-  }, [isLoggedIn, currentProject?.id, currentProject?.isGlobal, selectedDevice?.deviceKey, loadConversations, setGlobalMode]);
 
   // 重发失败消息
   const handleResend = useCallback(async (message: ChatMessage) => {
@@ -598,10 +578,6 @@ export default function ChatScreen() {
         setIsAgentProcessing(true);
       }
 
-      // 发送成功：更新设备-对话映射
-      if (effectiveDeviceKey && conversationId) {
-        saveDeviceConversation(effectiveDeviceKey, conversationId);
-      }
     } catch (error: unknown) {
       clearTimeout(timeoutId);
       // 发送失败：标记为失败
@@ -613,7 +589,7 @@ export default function ChatScreen() {
         showSnackbar(t('chat.sendFailed') + errorText);
       }
     }
-  }, [currentConversationId, sendMessageToDevice, effectiveDeviceKey, addMessage, saveDeviceConversation, updateMessageStatus, updateStreamMessage, flushTTSBuffer, enqueueTTS, cleanForTTS, currentProject, replaceMessageId, setCurrentConversation]);
+  }, [currentConversationId, sendMessageToDevice, effectiveDeviceKey, addMessage, updateMessageStatus, updateStreamMessage, flushTTSBuffer, enqueueTTS, cleanForTTS, currentProject, replaceMessageId, setCurrentConversation]);
 
   useSystemIntent(
     useCallback((text) => {
@@ -717,11 +693,7 @@ export default function ChatScreen() {
     }
     setCurrentConversation(threadId);
     setShowHistoryDrawer(false);
-    // 更新设备-对话映射
-    if (effectiveDeviceKey) {
-      saveDeviceConversation(effectiveDeviceKey, threadId);
-    }
-  }, [setCurrentConversation, effectiveDeviceKey, saveDeviceConversation, pendingForwardContent, sendMessageToDevice, currentProject]);
+  }, [setCurrentConversation, pendingForwardContent, sendMessageToDevice, currentProject]);
 
 
 
@@ -745,11 +717,7 @@ export default function ChatScreen() {
     }
     setCurrentConversation(null);
     setShowHistoryDrawer(false);
-    // 清除当前设备的对话映射（新对话尚未发送消息，不绑定设备）
-    if (effectiveDeviceKey) {
-      saveDeviceConversation(effectiveDeviceKey, null);
-    }
-  }, [setCurrentConversation, effectiveDeviceKey, saveDeviceConversation, pendingForwardContent, sendMessageToDevice, createConversation, currentProject]);
+  }, [setCurrentConversation, pendingForwardContent, sendMessageToDevice, createConversation, currentProject]);
 
   // HITL 响应处理
   const handleHITLRespond = useCallback((value: string) => {

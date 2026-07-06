@@ -65,7 +65,7 @@ const ProjectsContent = () => {
     error,
     refresh,
     switchProject,
-    setGlobalMode,
+    switchGlobal,
   } = useProjects({ autoFetch: isLoggedIn }); // 只有登录后才自动获取
 
   const currentDevice = useDeviceStore(state => state.currentDevice);
@@ -82,7 +82,7 @@ const ProjectsContent = () => {
 
   const handleProjectPress = useCallback(async (project: Project) => {
     if (isGlobalProject(project)) {
-      setGlobalMode(true);
+      switchGlobal();
       router.back();
     } else if (!currentDevice) {
       // 没有选中设备时不能切换项目，弹窗提示
@@ -96,7 +96,7 @@ const ProjectsContent = () => {
         console.error('切换项目失败:', e);
       }
     }
-  }, [switchProject, setGlobalMode, currentDevice, t]);
+  }, [switchProject, switchGlobal, currentDevice, t]);
 
   const renderItem = useCallback(({ item }: { item: Project }) => {
     const isGlobal = isGlobalProject(item);

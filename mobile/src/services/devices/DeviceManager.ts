@@ -1,7 +1,7 @@
 // 设备管理服务
 
 import { deviceApi } from '@/services/api/devices';
-import { Device, DeviceBindingRequest } from '@/types';
+import { Device } from '@/types';
 import { useDeviceStore } from '@/stores/deviceStore';
 import i18n from '@/locales';
 
@@ -19,16 +19,6 @@ export class DeviceManager {
       // 确保返回的是数组
       const safeDevices = Array.isArray(devices) ? devices : [];
       store.setDevices(safeDevices);
-
-      // 自动修正：持久化的当前设备如果已不在列表中，选择第一个在线设备兜底
-      const { currentDevice } = store;
-      if (currentDevice && !safeDevices.some((d) => d.deviceKey === currentDevice.deviceKey)) {
-        const fallback = safeDevices.find((d) => d.status === 'online') || safeDevices[0] || null;
-        if (fallback) {
-          console.log('[DeviceManager] Current device stale, auto-switch to:', fallback.deviceKey);
-        }
-        store.setCurrentDevice(fallback);
-      }
 
       return safeDevices;
     } catch (error) {

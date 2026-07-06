@@ -4,7 +4,8 @@ import { useEffect, useCallback } from 'react';
 import { ProjectManager } from '@/services/projects/ProjectManager';
 import { useProjectStore } from '@/stores/projectStore';
 import { useDeviceStore } from '@/stores/deviceStore';
-import { Project } from '@/types';
+import { useConversationStore } from '@/stores/conversationStore';
+import { GLOBAL_PROJECT } from '@/types';
 
 interface UseProjectsOptions {
   autoFetch?: boolean;
@@ -19,28 +20,26 @@ export function useProjects(options: UseProjectsOptions = {}) {
   // 自动获取项目列表
   useEffect(() => {
     if (autoFetch) {
-      ProjectManager.fetchProjects().catch(console.error);
+      ProjectManager.fetchProjects(deviceKey).catch(console.error);
     }
   }, [autoFetch, deviceKey]);
 
   // 刷新项目列表
   const refresh = useCallback(async () => {
-    return ProjectManager.fetchProjects();
-  }, []);
+    return ProjectManager.fetchProjects(deviceKey);
+  }, [deviceKey]);
 
-  // 切换项目
+  // 切换项目 —— 原子化更新 project + conversation store
   const switchProject = useCallback(async (projectId: number) => {
-    return ProjectManager.switchProject(projectId);
+    const activeDeviceKey = useDeviceStore.getState().currentDevice?.deviceKey;
+    await ProjectManager.switchProject(projectId, activeDeviceKey || '');
+    useConversationStore.getState().switchProject(projectId);
   }, []);
 
-  // 设置当前项目
-  const setCurrentProject = useCallback((project: Project | null) => {
-    ProjectManager.setCurrentProject(project);
-  }, []);
-
-  // 设置全局模式（使用 getState 避免依赖 store 对象导致循环）
-  const setGlobalMode = useCallback((enabled: boolean) => {
-    useProjectStore.getState().setGlobalMode(enabled);
+  // 切换到全局模式（仅切换项目，不清除设备）
+  const switchGlobal = useCallback(() => {
+    useProjectStore.getState().setCurrentProject(GLOBAL_PROJECT);
+    useConversationStore.getState().switchProject(0);
   }, []);
 
   return {
@@ -52,8 +51,7 @@ export function useProjects(options: UseProjectsOptions = {}) {
     projectCount: (projects || []).length,
     refresh,
     switchProject,
-    setCurrentProject,
-    setGlobalMode,
+    switchGlobal,
   };
 }
 
@@ -66,7 +64,8 @@ export function useProject(projectId: number | null) {
 
   const switchToThis = useCallback(async () => {
     if (!projectId) return null;
-    return ProjectManager.switchProject(projectId);
+    const activeDeviceKey = useDeviceStore.getState().currentDevice?.deviceKey;
+    return ProjectManager.switchProject(projectId, activeDeviceKey || '');
   }, [projectId]);
 
   return {
