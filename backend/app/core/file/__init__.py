@@ -11,6 +11,7 @@ Migration Note:
 
 # Editor (for advanced use)
 from . import editor
+
 # Directory Operations
 from .directory import (
     DirectoryEntry,
@@ -33,80 +34,13 @@ from .directory import (
     list_directory,
     move_path,
 )
-from .filter import is_ignored_path, is_encrypted_path, get_grep_exclude_args, get_ripgrep_exclude_args
-# I/O Operations
-from .io import (
-    DEFAULT_PAGE_SIZE,
-    # Constants
-    LARGE_FILE_THRESHOLD,
-    append_to_file,
-    compute_file_hash,
-    detect_encoding,
-    ensure_dir,
-    # Utility functions
-    file_exists,
-    # File info
-    get_file_info,
-    get_pagination_info,
-    # Read operations
-    read_file,
-    read_lines_streaming,
-    # Write operations
-    write_file,
+from .filter import (
+    get_grep_exclude_args,
+    get_ripgrep_exclude_args,
+    is_encrypted_path,
+    is_ignored_path,
 )
-# Models
-from .models import (
-    FileInfo,
-    FileMetadata,
-    FileStatus,
-    ReadResult,
-    WriteResult,
-)
-# Outline extraction (file structure analysis)
-from .outline import (
-    OutlineEntry,
-    get_file_outline,
-    get_large_file_preview,
-)
-from .schemas import (
-    FileChunk,
-    PaginationInfo,
-)
-from .searcher import FileSearcher
-# Legacy service (kept for backward compatibility)
-from .service import (
-    ensure_local_path,
-    filter_code_files,
-    get_file_category,
-    get_file_ext,
-    guess_mime_type,
-    is_archive_file,
-    is_audio_file,
-    is_binary_file,
-    is_code_file,
-    is_document_file,
-    is_image_file,
-    is_test_file,
-    is_text_file,
-    is_video_file,
-    resolve_path,
-    walk_tree,
-)
-from .traverser import FileTraverser, TraverseOptions
-from .tree import TreeService
-# Verification utilities (safe read/write with hash)
-from .verification import (
-    apply_edit_with_verification,
-    get_file_stats,
-    safe_read_with_hash,
-    verify_file_hash,
-    write_file_with_verification,
-)
-# File watching (event system integrated)
-from .watcher import (
-    FileWatcher,
-    FileWatcherManager,
-)
+
 # Hashing Utilities
 from .hash import (
     compute_content_hash,
@@ -117,6 +51,42 @@ from .hash import (
     compute_state_id,
     compute_version_hash,
 )
+
+# I/O Operations
+from .io import (
+    DEFAULT_PAGE_SIZE,
+    # Constants
+    LARGE_FILE_THRESHOLD,
+    append_to_file,
+    detect_encoding,
+    ensure_dir,
+    # Utility functions
+    file_exists,
+    # File info
+    get_file_info,
+    # Read operations
+    read_file,
+    read_lines_streaming,
+    # Write operations
+    write_file,
+)
+
+# Models
+from .models import (
+    FileInfo,
+    FileMetadata,
+    FileStatus,
+    ReadResult,
+    WriteResult,
+)
+
+# Outline extraction (file structure analysis)
+from .outline import (
+    OutlineEntry,
+    get_file_outline,
+    get_large_file_preview,
+)
+
 # Path Utilities
 from .path_utils import (
     cleanup_file,
@@ -130,6 +100,51 @@ from .path_utils import (
     safe_join,
     sanitize_filename,
 )
+from .schemas import (
+    FileChunk,
+    PaginationInfo,
+)
+from .searcher import FileSearcher
+
+# Legacy service (kept for backward compatibility)
+from .service import (
+    ensure_local_path,
+    filter_code_files,
+    resolve_path,
+    walk_tree,
+)
+from .traverser import FileTraverser, TraverseOptions
+from .tree import TreeService
+from .types import (
+    get_category as get_file_category,
+    get_extension as get_file_ext,
+    guess_mime as guess_mime_type,
+    is_archive as is_archive_file,
+    is_audio as is_audio_file,
+    is_binary as is_binary_file,
+    is_code as is_code_file,
+    is_document as is_document_file,
+    is_image as is_image_file,
+    is_test as is_test_file,
+    is_text as is_text_file,
+    is_video as is_video_file,
+)
+
+# Verification utilities (safe read/write with hash)
+from .verification import (
+    apply_edit_with_verification,
+    get_file_stats,
+    safe_read_with_hash,
+    verify_file_hash,
+    write_file_with_verification,
+)
+
+# File watching (event system integrated)
+from .watcher import (
+    FileWatcher,
+    FileWatcherManager,
+)
+
 # No more service level cleanup_file
 
 __all__ = [
@@ -147,6 +162,8 @@ __all__ = [
     "read_lines_streaming",
     "write_file",
     "append_to_file",
+    "detect_encoding",
+    "get_file_info",
 
     # Hashing Operations
     "compute_md5",

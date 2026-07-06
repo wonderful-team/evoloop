@@ -3,7 +3,7 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { AccountLoginAccessTokenData, AccountLoginAccessTokenResponse, AccountRequestMobileCodeData, AccountRequestMobileCodeResponse, AccountLoginMobileData, AccountLoginMobileResponse, AccountGetWechatConfigResponse, AccountGenerateQrCodeResponse, AccountCheckWechatLoginStatusData, AccountCheckWechatLoginStatusResponse, AccountWechatDirectLoginData, AccountWechatDirectLoginResponse, AccountWechatCallbackData, AccountWechatCallbackResponse, AccountLogoutResponse, AgentChatEndpointData, AgentChatEndpointResponse, AgentMockChatData, AgentMockChatResponse, AgentStopChatData, AgentStopChatResponse, AgentRetryChatData, AgentRetryChatResponse, AgentResumeChatData, AgentResumeChatResponse, AgentCancelHitlRequestData, AgentCancelHitlRequestResponse, AgentWebhookEndpointData, AgentWebhookEndpointResponse, AudioListVoicesResponse, AudioTextToSpeechData, AudioTextToSpeechResponse, AudioTextToSpeechStreamData, AudioTextToSpeechStreamResponse, AudioGetTtsFileData, AudioGetTtsFileResponse, AudioListSttProvidersResponse, AudioTranscribeAudioData, AudioTranscribeAudioResponse, AudioTranscribeStreamData, AudioTranscribeStreamResponse, AuthGetCaptchaConfigResponse, AuthGetCaptchaData, AuthGetCaptchaResponse, AuthGetRegisterConfigResponse, AuthGetRegisterAgreementData, AuthGetRegisterAgreementResponse, AuthSendSmsData, AuthSendSmsResponse, AuthRegisterMobileData, AuthRegisterMobileResponse, AuthRegisterUsernameData, AuthRegisterUsernameResponse, AuthLoginMobileData, AuthLoginMobileResponse, AuthCheckMobileData, AuthCheckMobileResponse, AuthResetPasswordData, AuthResetPasswordResponse, ConversationsListConversationsData, ConversationsListConversationsResponse, ConversationsGetConversationMessagesData, ConversationsGetConversationMessagesResponse, ConversationsSearchConversationsData, ConversationsSearchConversationsResponse, ConversationsUpdateConversationData, ConversationsUpdateConversationResponse, ConversationsDeleteConversationData, ConversationsDeleteConversationResponse, ConversationsGetThreadActivityData, ConversationsGetThreadActivityResponse, ConversationsRewindConversationData, ConversationsRewindConversationResponse, ConversationsGetThreadChangesetData, ConversationsGetThreadChangesetResponse, ConversationsRunTerminalCommandData, ConversationsRunTerminalCommandResponse, ConversationsSendTerminalInputData, ConversationsSendTerminalInputResponse, ConversationsGetActiveThreadTasksData, ConversationsGetActiveThreadTasksResponse, DevicesGetDevicesResponse, DevicesSendCommandData, DevicesSendCommandResponse, DevicesGetRecentLogsData, DevicesGetRecentLogsResponse, DevicesSearchLogsData, DevicesSearchLogsResponse, DevicesBindClientData, DevicesBindClientResponse, DevicesBindCurrentDeviceData, DevicesBindCurrentDeviceResponse, DevicesGetDebugStatusResponse, FilesListFilesData, FilesListFilesResponse, FilesCreateFileData, FilesCreateFileResponse, FilesDeleteFileData, FilesDeleteFileResponse, FilesGetFileContentData, FilesGetFileContentResponse, FilesGetRawFileData, FilesGetRawFileResponse, FilesOpenFileData, FilesOpenFileResponse, FilesUploadFileData, FilesUploadFileResponse, FilesWorkspaceUploadData, FilesWorkspaceUploadResponse, FilesSearchFilesData, FilesSearchFilesResponse, FilesSearchFilesByNameData, FilesSearchFilesByNameResponse, FilesCreateDirectoryData, FilesCreateDirectoryResponse, FilesMoveFileData, FilesMoveFileResponse, FilesReadAnyFileData, FilesReadAnyFileResponse, FilesDownloadAnyFileData, FilesDownloadAnyFileResponse, KnowledgeUploadDocumentData, KnowledgeUploadDocumentResponse, KnowledgeListDocumentsData, KnowledgeListDocumentsResponse, KnowledgeReadDocumentData, KnowledgeReadDocumentResponse, KnowledgeDeleteDocumentData, KnowledgeDeleteDocumentResponse, KnowledgeListCollectionsResponse, KnowledgeCreateCollectionData, KnowledgeCreateCollectionResponse, KnowledgeListTagsData, KnowledgeListTagsResponse, KnowledgeSearchDocumentsData, KnowledgeSearchDocumentsResponse, KnowledgeBulkUploadData, KnowledgeBulkUploadResponse, KnowledgeImportZipData, KnowledgeImportZipResponse, KnowledgeValidateZipData, KnowledgeValidateZipResponse, KnowledgeFtsSearchData, KnowledgeFtsSearchResponse, KnowledgeFtsSuggestData, KnowledgeFtsSuggestResponse, KnowledgeAnalyzeDuplicatesData, KnowledgeAnalyzeDuplicatesResponse, KnowledgeMergeDocumentsData, KnowledgeMergeDocumentsResponse, KnowledgeGetPopularDocumentsData, KnowledgeGetPopularDocumentsResponse, KnowledgeGetUsageAnalyticsData, KnowledgeGetUsageAnalyticsResponse, KnowledgeGetRecommendationsData, KnowledgeGetRecommendationsResponse, KnowledgeGetDocumentStatsData, KnowledgeGetDocumentStatsResponse, KnowledgeRunMaintenanceData, KnowledgeRunMaintenanceResponse, KnowledgeAnalyzeMaintenanceDuplicatesData, KnowledgeAnalyzeMaintenanceDuplicatesResponse, KnowledgeMergeMaintenanceDocumentsData, KnowledgeMergeMaintenanceDocumentsResponse, KnowledgeCheckQualityData, KnowledgeCheckQualityResponse, KnowledgeListMaintenanceReportsData, KnowledgeListMaintenanceReportsResponse, LearningGetActionRegistryResponse, LearningListPendingRequestsData, LearningListPendingRequestsResponse, LearningGetRequestData, LearningGetRequestResponse, LearningRespondToRequestData, LearningRespondToRequestResponse, LearningCancelPendingRequestData, LearningCancelPendingRequestResponse, LearningCleanupRequestsData, LearningCleanupRequestsResponse, LearningStartRecordingData, LearningStartRecordingResponse, LearningStopRecordingData, LearningStopRecordingResponse, LearningListRecordingSessionsData, LearningListRecordingSessionsResponse, LearningSynthesizeSkillData, LearningSynthesizeSkillResponse, LearningImportSkillsData, LearningImportSkillsResponse, LearningListSkillsData, LearningListSkillsResponse, LearningGetSkillData, LearningGetSkillResponse, LearningDeleteSkillData, LearningDeleteSkillResponse, LearningUpdateSkillData, LearningUpdateSkillResponse, LearningExecuteSkillData, LearningExecuteSkillResponse, LearningListMirrorDevicesResponse, LearningStartMirrorSessionData, LearningStartMirrorSessionResponse, LearningStartMirrorRecordingData, LearningStartMirrorRecordingResponse, LearningStopMirrorSessionData, LearningStopMirrorSessionResponse, LearningGetDeviceResolutionData, LearningGetDeviceResolutionResponse, LearningPersistMirrorEventsData, LearningPersistMirrorEventsResponse, LearningPersistGlobalEventsData, LearningPersistGlobalEventsResponse, LearningPersistDomEventsData, LearningPersistDomEventsResponse, LearningUploadScreenshotData, LearningUploadScreenshotResponse, LearningValidateSkillData, LearningValidateSkillResponse, LearningSynthesizeFromRecordingData, LearningSynthesizeFromRecordingResponse, LearningPreviewRecordingDataData, LearningPreviewRecordingDataResponse, LearningListAnnotationsData, LearningListAnnotationsResponse, LearningCreateAndroidExtractPointData, LearningCreateAndroidExtractPointResponse, LearningListAndroidExtractPointsData, LearningListAndroidExtractPointsResponse, LearningStartSmartSynthesisData, LearningStartSmartSynthesisResponse, LearningGetSynthesisJobData, LearningGetSynthesisJobResponse, LearningListSessionSynthesisJobsData, LearningListSessionSynthesisJobsResponse, LearningCleanupRecordingSessionData, LearningCleanupRecordingSessionResponse, LearningConfirmLearnedSkillData, LearningConfirmLearnedSkillResponse, LearningCreateSkillFromYamlData, LearningCreateSkillFromYamlResponse, LearningValidateSkillYamlData, LearningValidateSkillYamlResponse, LearningGetSkillYamlData, LearningGetSkillYamlResponse, LearningUpdateSkillYamlData, LearningUpdateSkillYamlResponse, McpListMcpServersResponse, McpAddMcpServerData, McpAddMcpServerResponse, McpDeleteMcpServerData, McpDeleteMcpServerResponse, McpConnectMcpServerData, McpConnectMcpServerResponse, MemberReadUserMeResponse, MemberUpdateUserMeData, MemberUpdateUserMeResponse, MemberChangePasswordData, MemberChangePasswordResponse, MemberGetCancellationInfoResponse, MemberApplyCancellationResponse, MemberCancelCancellationResponse, MemberCheckBenefitsBatchData, MemberCheckBenefitsBatchResponse, MemberGetMemberBenefitsApiData, MemberGetMemberBenefitsApiResponse, MemberInvalidateMemberBenefitsCacheResponse, MemoryListConceptsData, MemoryListConceptsResponse, MemoryAddConceptData, MemoryAddConceptResponse, MemoryListConceptsForMobileData, MemoryListConceptsForMobileResponse, MemoryListConceptsWithCountsData, MemoryListConceptsWithCountsResponse, MemoryGetConceptData, MemoryGetConceptResponse, MemoryDeleteConceptData, MemoryDeleteConceptResponse, MemoryUpdateConceptData, MemoryUpdateConceptResponse, MemorySearchMemoryData, MemorySearchMemoryResponse, MemorySearchMemoryVectorData, MemorySearchMemoryVectorResponse, MemorySearchMemoryHybridData, MemorySearchMemoryHybridResponse, MemoryGetEpisodesByConceptData, MemoryGetEpisodesByConceptResponse, MemoryDeduplicateCheckpointsData, MemoryDeduplicateCheckpointsResponse, PlanningGetPlanData, PlanningGetPlanResponse, ProjectModulesGetBudgetListData, ProjectModulesGetBudgetListResponse, ProjectModulesGetBudgetOverviewData, ProjectModulesGetBudgetOverviewResponse, ProjectModulesGetTimesheetListData, ProjectModulesGetTimesheetListResponse, ProjectModulesQuickAddTimesheetData, ProjectModulesQuickAddTimesheetResponse, ProjectModulesGetProjectStatisticsData, ProjectModulesGetProjectStatisticsResponse, ProjectProfilesDiscoverProfileData, ProjectProfilesDiscoverProfileResponse, ProjectProfilesGetProfileData, ProjectProfilesGetProfileResponse, ProjectProfilesUpdateProfileData, ProjectProfilesUpdateProfileResponse, ProjectsGetProjectsData, ProjectsGetProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsGetCurrentProjectResponse, ProjectsGetProjectStatusData, ProjectsGetProjectStatusResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsRunIndexingEndpointData, ProjectsRunIndexingEndpointResponse, ProjectsScanWorkspaceProjectsEndpointResponse, ProjectsGetDetectedProjectsData, ProjectsGetDetectedProjectsResponse, ProjectsImportDetectedProjectData, ProjectsImportDetectedProjectResponse, ProjectsIgnoreDetectedProjectData, ProjectsIgnoreDetectedProjectResponse, ProjectsGetIgnoredProjectsResponse, ProjectsUnignoreProjectData, ProjectsUnignoreProjectResponse, ProjectsBatchImportProjectsData, ProjectsBatchImportProjectsResponse, ProjectsBatchIgnoreProjectsData, ProjectsBatchIgnoreProjectsResponse, ResourcesListResourcesData, ResourcesListResourcesResponse, ResourcesCreateResourceData, ResourcesCreateResourceResponse, ResourcesDeleteResourceData, ResourcesDeleteResourceResponse, StreamStreamChatData, StreamStreamChatResponse, StreamStreamSystemData, StreamStreamSystemResponse, SubscriptionGetSubscriptionPlansResponse, SubscriptionCalculateUpgradePriceData, SubscriptionCalculateUpgradePriceResponse, SubscriptionGetSubscriptionStatusResponse, SubscriptionGetSubscriptionDetailResponse, SubscriptionCreateSubscriptionOrderData, SubscriptionCreateSubscriptionOrderResponse, SubscriptionCancelSubscriptionData, SubscriptionCancelSubscriptionResponse, SubscriptionCheckSubscriptionOrderStatusData, SubscriptionCheckSubscriptionOrderStatusResponse, SubscriptionGetAiQuotaResponse, SubscriptionGetAllAiQuotasResponse, SubscriptionGetAiQuotaHistoryData, SubscriptionGetAiQuotaHistoryResponse, SubscriptionHandleBenefitsUpdateWebhookData, SubscriptionHandleBenefitsUpdateWebhookResponse, SubtasksCreateTaskWithSubtasksData, SubtasksCreateTaskWithSubtasksResponse, SubtasksGetTaskTreeData, SubtasksGetTaskTreeResponse, SubtasksUpdateTaskProgressData, SubtasksUpdateTaskProgressResponse, SubtasksGetNextExecutableTaskData, SubtasksGetNextExecutableTaskResponse, SubtasksFlattenTaskTreeData, SubtasksFlattenTaskTreeResponse, SubtasksListRootTasksData, SubtasksListRootTasksResponse, SymbolsSearchSymbolsData, SymbolsSearchSymbolsResponse, SystemGetSystemStatusResponse, SystemGetSystemConfigResponse, SystemUpdateSystemConfigData, SystemUpdateSystemConfigResponse, SystemHealthCheckResponse, SystemTestEmbeddingConnectionData, SystemTestEmbeddingConnectionResponse, SystemApplyEmbeddingConfigData, SystemApplyEmbeddingConfigResponse, SystemTestLlmConnectionData, SystemTestLlmConnectionResponse, SystemApplyLlmConfigData, SystemApplyLlmConfigResponse, SystemResetKnowledgeBaseResponse, SystemGetCloudStatusResponse, SystemGetLlmModelsData, SystemGetLlmModelsResponse, SystemGetEmbeddingModelsResponse, SystemGetProjectDiscoveryConfigResponse, SystemSetProjectDiscoveryConfigData, SystemSetProjectDiscoveryConfigResponse, TasksGetProjectTasksData, TasksGetProjectTasksResponse, TasksCreateTaskData, TasksCreateTaskResponse, TasksGetTaskDetailData, TasksGetTaskDetailResponse, TasksUpdateTaskData, TasksUpdateTaskResponse, TasksDeleteTaskData, TasksDeleteTaskResponse, TasksUpdateTaskStatusEndpointData, TasksUpdateTaskStatusEndpointResponse, TasksExecuteTaskData, TasksExecuteTaskResponse, TodosCreateTodoData, TodosCreateTodoResponse, TodosListTodosData, TodosListTodosResponse, TodosGetTodoData, TodosGetTodoResponse, TodosUpdateTodoData, TodosUpdateTodoResponse, TodosDeleteTodoData, TodosDeleteTodoResponse, ToolsListRuntimeToolsResponse, ToolsListAllToolsResponse, UtilsHealthCheckResponse, UtilsGetEvoloopStatusResponse, UtilsGetAiConfigResponse, VaultListCredentialsData, VaultListCredentialsResponse, VaultAddCredentialData, VaultAddCredentialResponse, VaultDeleteCredentialData, VaultDeleteCredentialResponse, WikiGetWikiPagesData, WikiGetWikiPagesResponse, WikiGenerateWikiData, WikiGenerateWikiResponse } from './types.gen';
+import type { AccountLoginAccessTokenData, AccountLoginAccessTokenResponse, AccountRequestMobileCodeData, AccountRequestMobileCodeResponse, AccountLoginMobileData, AccountLoginMobileResponse, AccountGetWechatConfigResponse, AccountGenerateQrCodeResponse, AccountCheckWechatLoginStatusData, AccountCheckWechatLoginStatusResponse, AccountWechatDirectLoginData, AccountWechatDirectLoginResponse, AccountWechatCallbackData, AccountWechatCallbackResponse, AccountLogoutResponse, AgentChatEndpointData, AgentChatEndpointResponse, AgentMockChatData, AgentMockChatResponse, AgentStopChatData, AgentStopChatResponse, AgentRetryChatData, AgentRetryChatResponse, AgentResumeChatData, AgentResumeChatResponse, AgentCancelHitlRequestData, AgentCancelHitlRequestResponse, AgentWebhookEndpointData, AgentWebhookEndpointResponse, AudioListVoicesResponse, AudioTextToSpeechData, AudioTextToSpeechResponse, AudioTextToSpeechStreamData, AudioTextToSpeechStreamResponse, AudioGetTtsFileData, AudioGetTtsFileResponse, AudioListSttProvidersResponse, AudioTranscribeAudioData, AudioTranscribeAudioResponse, AudioTranscribeStreamData, AudioTranscribeStreamResponse, AuthGetCaptchaConfigResponse, AuthGetCaptchaData, AuthGetCaptchaResponse, AuthGetRegisterConfigResponse, AuthGetRegisterAgreementData, AuthGetRegisterAgreementResponse, AuthSendSmsData, AuthSendSmsResponse, AuthRegisterMobileData, AuthRegisterMobileResponse, AuthRegisterUsernameData, AuthRegisterUsernameResponse, AuthLoginMobileData, AuthLoginMobileResponse, AuthCheckMobileData, AuthCheckMobileResponse, AuthResetPasswordData, AuthResetPasswordResponse, ConversationsListConversationsData, ConversationsListConversationsResponse, ConversationsUpdateConversationData, ConversationsUpdateConversationResponse, ConversationsDeleteConversationData, ConversationsDeleteConversationResponse, ConversationsGetThreadActivityData, ConversationsGetThreadActivityResponse, ConversationsGetConversationMessagesData, ConversationsGetConversationMessagesResponse, ConversationsSearchConversationsData, ConversationsSearchConversationsResponse, ConversationsRewindConversationData, ConversationsRewindConversationResponse, ConversationsGetThreadChangesetData, ConversationsGetThreadChangesetResponse, ConversationsRunTerminalCommandData, ConversationsRunTerminalCommandResponse, ConversationsSendTerminalInputData, ConversationsSendTerminalInputResponse, ConversationsGetActiveThreadTasksData, ConversationsGetActiveThreadTasksResponse, DevicesGetDevicesResponse, DevicesSendCommandData, DevicesSendCommandResponse, DevicesGetRecentLogsData, DevicesGetRecentLogsResponse, DevicesSearchLogsData, DevicesSearchLogsResponse, DevicesBindClientData, DevicesBindClientResponse, DevicesBindCurrentDeviceData, DevicesBindCurrentDeviceResponse, DevicesGetDebugStatusResponse, FilesListFilesData, FilesListFilesResponse, FilesCreateFileData, FilesCreateFileResponse, FilesDeleteFileData, FilesDeleteFileResponse, FilesGetFileContentData, FilesGetFileContentResponse, FilesGetRawFileData, FilesGetRawFileResponse, FilesOpenFileData, FilesOpenFileResponse, FilesUploadFileData, FilesUploadFileResponse, FilesWorkspaceUploadData, FilesWorkspaceUploadResponse, FilesSearchFilesData, FilesSearchFilesResponse, FilesSearchFilesByNameData, FilesSearchFilesByNameResponse, FilesCreateDirectoryData, FilesCreateDirectoryResponse, FilesMoveFileData, FilesMoveFileResponse, FilesReadAnyFileData, FilesReadAnyFileResponse, FilesDownloadAnyFileData, FilesDownloadAnyFileResponse, LearningGetActionRegistryResponse, LearningListPendingRequestsData, LearningListPendingRequestsResponse, LearningGetRequestData, LearningGetRequestResponse, LearningRespondToRequestData, LearningRespondToRequestResponse, LearningCancelPendingRequestData, LearningCancelPendingRequestResponse, LearningCleanupRequestsData, LearningCleanupRequestsResponse, LearningSynthesizeSkillData, LearningSynthesizeSkillResponse, LearningImportSkillsData, LearningImportSkillsResponse, LearningListSkillsData, LearningListSkillsResponse, LearningGetSkillData, LearningGetSkillResponse, LearningDeleteSkillData, LearningDeleteSkillResponse, LearningUpdateSkillData, LearningUpdateSkillResponse, LearningExecuteSkillData, LearningExecuteSkillResponse, LearningValidateSkillData, LearningValidateSkillResponse, LearningConfirmLearnedSkillData, LearningConfirmLearnedSkillResponse, LearningCreateSkillFromYamlData, LearningCreateSkillFromYamlResponse, LearningValidateSkillYamlData, LearningValidateSkillYamlResponse, LearningGetSkillYamlData, LearningGetSkillYamlResponse, LearningUpdateSkillYamlData, LearningUpdateSkillYamlResponse, LearningStartRecordingData, LearningStartRecordingResponse, LearningStopRecordingData, LearningStopRecordingResponse, LearningListRecordingSessionsData, LearningListRecordingSessionsResponse, LearningSynthesizeFromRecordingData, LearningSynthesizeFromRecordingResponse, LearningPreviewRecordingDataData, LearningPreviewRecordingDataResponse, LearningListAnnotationsData, LearningListAnnotationsResponse, LearningStartSmartSynthesisData, LearningStartSmartSynthesisResponse, LearningGetSynthesisJobData, LearningGetSynthesisJobResponse, LearningListSessionSynthesisJobsData, LearningListSessionSynthesisJobsResponse, LearningCleanupRecordingSessionData, LearningCleanupRecordingSessionResponse, LearningListMirrorDevicesResponse, LearningStartMirrorSessionData, LearningStartMirrorSessionResponse, LearningStartMirrorRecordingData, LearningStartMirrorRecordingResponse, LearningStopMirrorSessionData, LearningStopMirrorSessionResponse, LearningGetDeviceResolutionData, LearningGetDeviceResolutionResponse, LearningPersistMirrorEventsData, LearningPersistMirrorEventsResponse, LearningPersistGlobalEventsData, LearningPersistGlobalEventsResponse, LearningPersistDomEventsData, LearningPersistDomEventsResponse, LearningUploadScreenshotData, LearningUploadScreenshotResponse, LearningCreateAndroidExtractPointData, LearningCreateAndroidExtractPointResponse, LearningListAndroidExtractPointsData, LearningListAndroidExtractPointsResponse, McpListMcpServersResponse, McpAddMcpServerData, McpAddMcpServerResponse, McpDeleteMcpServerData, McpDeleteMcpServerResponse, McpConnectMcpServerData, McpConnectMcpServerResponse, MemberReadUserMeResponse, MemberUpdateUserMeData, MemberUpdateUserMeResponse, MemberChangePasswordData, MemberChangePasswordResponse, MemberGetCancellationInfoResponse, MemberApplyCancellationResponse, MemberCancelCancellationResponse, MemberCheckBenefitsBatchData, MemberCheckBenefitsBatchResponse, MemberGetMemberBenefitsApiData, MemberGetMemberBenefitsApiResponse, MemberInvalidateMemberBenefitsCacheResponse, MemoryListConceptsData, MemoryListConceptsResponse, MemoryAddConceptData, MemoryAddConceptResponse, MemoryListConceptsForMobileData, MemoryListConceptsForMobileResponse, MemoryListConceptsWithCountsData, MemoryListConceptsWithCountsResponse, MemoryGetConceptData, MemoryGetConceptResponse, MemoryDeleteConceptData, MemoryDeleteConceptResponse, MemoryUpdateConceptData, MemoryUpdateConceptResponse, MemorySearchMemoryData, MemorySearchMemoryResponse, MemorySearchMemoryVectorData, MemorySearchMemoryVectorResponse, MemorySearchMemoryHybridData, MemorySearchMemoryHybridResponse, MemoryGetEpisodesByConceptData, MemoryGetEpisodesByConceptResponse, MemoryDeduplicateCheckpointsData, MemoryDeduplicateCheckpointsResponse, PlanningGetPlanData, PlanningGetPlanResponse, ProjectModulesGetBudgetListData, ProjectModulesGetBudgetListResponse, ProjectModulesGetBudgetOverviewData, ProjectModulesGetBudgetOverviewResponse, ProjectModulesGetTimesheetListData, ProjectModulesGetTimesheetListResponse, ProjectModulesQuickAddTimesheetData, ProjectModulesQuickAddTimesheetResponse, ProjectModulesGetProjectStatisticsData, ProjectModulesGetProjectStatisticsResponse, ProjectsDiscoverProfileData, ProjectsDiscoverProfileResponse, ProjectsGetProfileData, ProjectsGetProfileResponse, ProjectsUpdateProfileData, ProjectsUpdateProfileResponse, ProjectsGetProjectsData, ProjectsGetProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsScanWorkspaceProjectsEndpointResponse, ProjectsGetDetectedProjectsData, ProjectsGetDetectedProjectsResponse, ProjectsImportDetectedProjectData, ProjectsImportDetectedProjectResponse, ProjectsIgnoreDetectedProjectData, ProjectsIgnoreDetectedProjectResponse, ProjectsGetIgnoredProjectsResponse, ProjectsUnignoreProjectData, ProjectsUnignoreProjectResponse, ProjectsBatchImportProjectsData, ProjectsBatchImportProjectsResponse, ProjectsBatchIgnoreProjectsData, ProjectsBatchIgnoreProjectsResponse, ProjectsGetCurrentProjectResponse, ProjectsGetProjectStatusData, ProjectsGetProjectStatusResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsRunIndexingEndpointData, ProjectsRunIndexingEndpointResponse, ResourcesListResourcesData, ResourcesListResourcesResponse, ResourcesCreateResourceData, ResourcesCreateResourceResponse, ResourcesDeleteResourceData, ResourcesDeleteResourceResponse, StreamStreamChatData, StreamStreamChatResponse, StreamStreamSystemData, StreamStreamSystemResponse, SubscriptionGetSubscriptionPlansResponse, SubscriptionCalculateUpgradePriceData, SubscriptionCalculateUpgradePriceResponse, SubscriptionGetSubscriptionStatusResponse, SubscriptionGetSubscriptionDetailResponse, SubscriptionCreateSubscriptionOrderData, SubscriptionCreateSubscriptionOrderResponse, SubscriptionCancelSubscriptionData, SubscriptionCancelSubscriptionResponse, SubscriptionCheckSubscriptionOrderStatusData, SubscriptionCheckSubscriptionOrderStatusResponse, SubscriptionGetAiQuotaResponse, SubscriptionGetAllAiQuotasResponse, SubscriptionGetAiQuotaHistoryData, SubscriptionGetAiQuotaHistoryResponse, SubscriptionHandleBenefitsUpdateWebhookData, SubscriptionHandleBenefitsUpdateWebhookResponse, SubtasksCreateTaskWithSubtasksData, SubtasksCreateTaskWithSubtasksResponse, SubtasksGetTaskTreeData, SubtasksGetTaskTreeResponse, SubtasksUpdateTaskProgressData, SubtasksUpdateTaskProgressResponse, SubtasksGetNextExecutableTaskData, SubtasksGetNextExecutableTaskResponse, SubtasksFlattenTaskTreeData, SubtasksFlattenTaskTreeResponse, SubtasksListRootTasksData, SubtasksListRootTasksResponse, SymbolsSearchSymbolsData, SymbolsSearchSymbolsResponse, SystemGetSystemStatusResponse, SystemGetSystemConfigResponse, SystemUpdateSystemConfigData, SystemUpdateSystemConfigResponse, SystemHealthCheckResponse, SystemTestEmbeddingConnectionData, SystemTestEmbeddingConnectionResponse, SystemApplyEmbeddingConfigData, SystemApplyEmbeddingConfigResponse, SystemTestLlmConnectionData, SystemTestLlmConnectionResponse, SystemApplyLlmConfigData, SystemApplyLlmConfigResponse, SystemGetCloudStatusResponse, SystemGetLlmModelsData, SystemGetLlmModelsResponse, SystemGetEmbeddingModelsResponse, SystemGetProjectDiscoveryConfigResponse, SystemSetProjectDiscoveryConfigData, SystemSetProjectDiscoveryConfigResponse, TasksGetProjectTasksData, TasksGetProjectTasksResponse, TasksCreateTaskData, TasksCreateTaskResponse, TasksGetTaskDetailData, TasksGetTaskDetailResponse, TasksUpdateTaskData, TasksUpdateTaskResponse, TasksDeleteTaskData, TasksDeleteTaskResponse, TasksUpdateTaskStatusEndpointData, TasksUpdateTaskStatusEndpointResponse, TasksExecuteTaskData, TasksExecuteTaskResponse, TodosCreateTodoData, TodosCreateTodoResponse, TodosListTodosData, TodosListTodosResponse, TodosGetTodoData, TodosGetTodoResponse, TodosUpdateTodoData, TodosUpdateTodoResponse, TodosDeleteTodoData, TodosDeleteTodoResponse, ToolsListRuntimeToolsResponse, ToolsListAllToolsResponse, UtilsHealthCheckResponse, UtilsGetEvoloopStatusResponse, UtilsGetAiConfigResponse, VaultListCredentialsData, VaultListCredentialsResponse, VaultAddCredentialData, VaultAddCredentialResponse, VaultDeleteCredentialData, VaultDeleteCredentialResponse, WikiGetWikiPagesData, WikiGetWikiPagesResponse, WikiGenerateWikiData, WikiGenerateWikiResponse } from './types.gen';
 
 export class AccountService {
     /**
@@ -177,7 +177,6 @@ export class AccountService {
 export class AgentService {
     /**
      * Chat Endpoint
-     * Unified entry point for User Chat (Local Background Task).
      * @param data The data for the request.
      * @param data.requestBody
      * @param data.guestId
@@ -207,8 +206,6 @@ export class AgentService {
     
     /**
      * Mock Chat
-     * Simulate a mock chat execution by publishing directly to the event bus.
-     * Supports scenarios: happy_path, hitl, quota_exhausted, long_task.
      * @param data The data for the request.
      * @param data.requestBody
      * @param data.guestId
@@ -238,7 +235,6 @@ export class AgentService {
     
     /**
      * Stop Chat
-     * Stop the current generation for a thread.
      * @param data The data for the request.
      * @param data.requestBody
      * @returns StopChatResponse Successful Response
@@ -258,10 +254,6 @@ export class AgentService {
     
     /**
      * Retry Chat
-     * Retry a specific user message (Targeted Retry).
-     * Rolls back history (deletes messages after the target) and restarts generation.
-     *
-     * Uses the new event-driven RewindOrchestrator for distributed cleanup.
      * @param data The data for the request.
      * @param data.requestBody
      * @param data.guestId
@@ -291,8 +283,6 @@ export class AgentService {
     
     /**
      * Resume Chat
-     * Resume a paused/interrupted graph execution.
-     * Used after Human-in-the-Loop interrupts where user provides input.
      * @param data The data for the request.
      * @param data.requestBody
      * @returns unknown Successful Response
@@ -312,8 +302,6 @@ export class AgentService {
     
     /**
      * Cancel Hitl Request
-     * Cancel a pending HITL (Human-in-the-Loop) request.
-     * This will dismiss the confirmation card and resume execution with a cancellation signal.
      * @param data The data for the request.
      * @param data.requestBody
      * @returns unknown Successful Response
@@ -333,7 +321,6 @@ export class AgentService {
     
     /**
      * Webhook Endpoint
-     * Entry point for External Events (Local BG Task).
      * @param data The data for the request.
      * @param data.requestBody
      * @returns unknown Successful Response
@@ -721,7 +708,6 @@ export class AuthService {
 export class ConversationsService {
     /**
      * List Conversations
-     * List conversations, optionally filtered by project, with pagination and pinning.
      * @param data The data for the request.
      * @param data.projectId
      * @param data.page
@@ -737,54 +723,6 @@ export class ConversationsService {
                 project_id: data.projectId,
                 page: data.page,
                 page_size: data.pageSize
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Get Conversation Messages
-     * @param data The data for the request.
-     * @param data.threadId
-     * @param data.limit
-     * @param data.beforeId
-     * @returns MessageListResponse Successful Response
-     * @throws ApiError
-     */
-    public static getConversationMessages(data: ConversationsGetConversationMessagesData): CancelablePromise<ConversationsGetConversationMessagesResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/conversations/{thread_id}/messages',
-            path: {
-                thread_id: data.threadId
-            },
-            query: {
-                limit: data.limit,
-                before_id: data.beforeId
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Search Conversations
-     * @param data The data for the request.
-     * @param data.q
-     * @param data.projectId
-     * @returns ConversationSearchResult Successful Response
-     * @throws ApiError
-     */
-    public static searchConversations(data: ConversationsSearchConversationsData): CancelablePromise<ConversationsSearchConversationsResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/conversations/search',
-            query: {
-                q: data.q,
-                project_id: data.projectId
             },
             errors: {
                 422: 'Validation Error'
@@ -856,6 +794,54 @@ export class ConversationsService {
     }
     
     /**
+     * Get Conversation Messages
+     * @param data The data for the request.
+     * @param data.threadId
+     * @param data.limit
+     * @param data.beforeId
+     * @returns MessageListResponse Successful Response
+     * @throws ApiError
+     */
+    public static getConversationMessages(data: ConversationsGetConversationMessagesData): CancelablePromise<ConversationsGetConversationMessagesResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/conversations/{thread_id}/messages',
+            path: {
+                thread_id: data.threadId
+            },
+            query: {
+                limit: data.limit,
+                before_id: data.beforeId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Search Conversations
+     * @param data The data for the request.
+     * @param data.q
+     * @param data.projectId
+     * @returns ConversationSearchResult Successful Response
+     * @throws ApiError
+     */
+    public static searchConversations(data: ConversationsSearchConversationsData): CancelablePromise<ConversationsSearchConversationsResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/conversations/search',
+            query: {
+                q: data.q,
+                project_id: data.projectId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
      * Rewind Conversation
      * @param data The data for the request.
      * @param data.threadId
@@ -900,11 +886,6 @@ export class ConversationsService {
     
     /**
      * Run Terminal Command
-     * Start a Shell command in the thread's persistent PTY session.
-     *
-     * The command runs asynchronously.  Output is streamed in real-time via
-     * SSE (``task_output`` events) using the BackgroundTask infrastructure.
-     * Returns the ``task_id`` so the client can correlate SSE events.
      * @param data The data for the request.
      * @param data.threadId
      * @param data.requestBody
@@ -928,11 +909,6 @@ export class ConversationsService {
     
     /**
      * Send Terminal Input
-     * Write raw bytes to the thread's PTY master fd WITHOUT acquiring the session lock.
-     *
-     * This is intentionally lock-free so it can be called *while* a command is
-     * running (e.g. to answer an interactive prompt, send Tab for completion,
-     * or send Ctrl+C '\x03' to interrupt a running process).
      * @param data The data for the request.
      * @param data.threadId
      * @param data.requestBody
@@ -956,10 +932,6 @@ export class ConversationsService {
     
     /**
      * Get Active Thread Tasks
-     * Return all non-completed BackgroundTask objects for a thread.
-     *
-     * Includes the last 1000 lines of buffered output per task so the client
-     * can restore the terminal canvas after a page refresh.
      * @param data The data for the request.
      * @param data.threadId
      * @returns unknown Successful Response
@@ -1472,597 +1444,6 @@ export class FilesService {
     }
 }
 
-export class KnowledgeService {
-    /**
-     * Upload Document
-     * Upload a document to the knowledge base.
-     *
-     * The document will be extracted to Markdown format and stored in the
-     * knowledge base for Agent access via kb_read, kb_search, kb_list tools.
-     *
-     * Supported formats:
-     * - Text: .txt, .md, .rst
-     * - Code: .py, .js, .ts, .java, etc.
-     * - Web: .html, .htm
-     * - Office: .pdf (OCR-based), .docx
-     * - Images: .png, .jpg (OCR-based)
-     * @param data The data for the request.
-     * @param data.formData
-     * @returns DocumentResponse Successful Response
-     * @throws ApiError
-     */
-    public static uploadDocument(data: KnowledgeUploadDocumentData): CancelablePromise<KnowledgeUploadDocumentResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/knowledge/upload',
-            formData: data.formData,
-            mediaType: 'multipart/form-data',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * List Documents
-     * List documents in the knowledge base.
-     *
-     * Returns a paginated list of documents with metadata.
-     * Supports filtering by collection, tags, and workspace project.
-     * @param data The data for the request.
-     * @param data.collection Filter by collection
-     * @param data.pattern File pattern
-     * @param data.tags Filter by tags (comma-separated)
-     * @param data.sourceProjectId Filter by workspace project ID
-     * @param data.limit
-     * @param data.offset
-     * @returns DocumentListResponse Successful Response
-     * @throws ApiError
-     */
-    public static listDocuments(data: KnowledgeListDocumentsData = {}): CancelablePromise<KnowledgeListDocumentsResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/knowledge/documents',
-            query: {
-                collection: data.collection,
-                pattern: data.pattern,
-                tags: data.tags,
-                source_project_id: data.sourceProjectId,
-                limit: data.limit,
-                offset: data.offset
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Read Document
-     * Read a document from the knowledge base.
-     *
-     * Supports pagination via offset and limit parameters.
-     * Use has_more flag to determine if there's more content.
-     * @param data The data for the request.
-     * @param data.path
-     * @param data.offset Line offset (0-based)
-     * @param data.limit Max lines to read
-     * @returns DocumentContentResponse Successful Response
-     * @throws ApiError
-     */
-    public static readDocument(data: KnowledgeReadDocumentData): CancelablePromise<KnowledgeReadDocumentResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/knowledge/documents/{path}',
-            path: {
-                path: data.path
-            },
-            query: {
-                offset: data.offset,
-                limit: data.limit
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Delete Document
-     * Delete a document from the knowledge base.
-     * @param data The data for the request.
-     * @param data.path
-     * @returns DocumentResponse Successful Response
-     * @throws ApiError
-     */
-    public static deleteDocument(data: KnowledgeDeleteDocumentData): CancelablePromise<KnowledgeDeleteDocumentResponse> {
-        return __request(OpenAPI, {
-            method: 'DELETE',
-            url: '/api/v1/knowledge/documents/{path}',
-            path: {
-                path: data.path
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * List Collections
-     * List all knowledge base collections.
-     * @returns CollectionResponse Successful Response
-     * @throws ApiError
-     */
-    public static listCollections(): CancelablePromise<KnowledgeListCollectionsResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/knowledge/collections'
-        });
-    }
-    
-    /**
-     * Create Collection
-     * Create a new knowledge base collection.
-     * @param data The data for the request.
-     * @param data.name
-     * @returns DocumentResponse Successful Response
-     * @throws ApiError
-     */
-    public static createCollection(data: KnowledgeCreateCollectionData): CancelablePromise<KnowledgeCreateCollectionResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/knowledge/collections/{name}',
-            path: {
-                name: data.name
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * List Tags
-     * List all tags in the knowledge base.
-     *
-     * Returns tags with document counts for the tag cloud/filter UI.
-     * @param data The data for the request.
-     * @param data.collection Filter by collection
-     * @param data.limit
-     * @returns TagResponse Successful Response
-     * @throws ApiError
-     */
-    public static listTags(data: KnowledgeListTagsData = {}): CancelablePromise<KnowledgeListTagsResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/knowledge/tags',
-            query: {
-                collection: data.collection,
-                limit: data.limit
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Search Documents
-     * Search documents in the knowledge base.
-     *
-     * Performs full-text search across all documents.
-     * @param data The data for the request.
-     * @param data.q Search query
-     * @param data.collection Limit to collection
-     * @param data.contextLines
-     * @returns DocumentSearchResponse Successful Response
-     * @throws ApiError
-     */
-    public static searchDocuments(data: KnowledgeSearchDocumentsData): CancelablePromise<KnowledgeSearchDocumentsResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/knowledge/search',
-            query: {
-                q: data.q,
-                collection: data.collection,
-                context_lines: data.contextLines
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Bulk Upload
-     * Upload multiple documents at once.
-     *
-     * Supports uploading multiple files in a single request.
-     * Each file is processed independently.
-     * @param data The data for the request.
-     * @param data.formData
-     * @returns BaseAPIResponse Successful Response
-     * @throws ApiError
-     */
-    public static bulkUpload(data: KnowledgeBulkUploadData): CancelablePromise<KnowledgeBulkUploadResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/knowledge/bulk-upload',
-            formData: data.formData,
-            mediaType: 'multipart/form-data',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Import Zip
-     * Import documents from a ZIP archive.
-     *
-     * Extracts and processes all supported documents from the ZIP file.
-     * Directory structure can be preserved or flattened.
-     * @param data The data for the request.
-     * @param data.formData
-     * @returns BaseAPIResponse Successful Response
-     * @throws ApiError
-     */
-    public static importZip(data: KnowledgeImportZipData): CancelablePromise<KnowledgeImportZipResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/knowledge/import-zip',
-            formData: data.formData,
-            mediaType: 'multipart/form-data',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Validate Zip
-     * Validate a ZIP archive before import.
-     *
-     * Returns information about the archive contents without importing.
-     * @param data The data for the request.
-     * @param data.formData
-     * @returns unknown Successful Response
-     * @throws ApiError
-     */
-    public static validateZip(data: KnowledgeValidateZipData): CancelablePromise<KnowledgeValidateZipResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/knowledge/validate-zip',
-            formData: data.formData,
-            mediaType: 'multipart/form-data',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Fts Search
-     * Full-text search using SQLite FTS5.
-     *
-     * Supports FTS5 query syntax:
-     * - Simple: "authentication"
-     * - Phrase: '"JWT token"'
-     * - AND/OR: "auth AND token", "auth OR oauth"
-     * - Prefix: "auth*"
-     * @param data The data for the request.
-     * @param data.q FTS5 search query
-     * @param data.collection Filter by collection
-     * @param data.tags Filter by tags (comma-separated)
-     * @param data.sourceProjectId Filter by workspace project ID
-     * @param data.limit
-     * @param data.offset
-     * @returns FTSSearchResponse Successful Response
-     * @throws ApiError
-     */
-    public static ftsSearch(data: KnowledgeFtsSearchData): CancelablePromise<KnowledgeFtsSearchResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/knowledge/fts/search',
-            query: {
-                q: data.q,
-                collection: data.collection,
-                tags: data.tags,
-                source_project_id: data.sourceProjectId,
-                limit: data.limit,
-                offset: data.offset
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Fts Suggest
-     * Get search suggestions based on prefix.
-     * @param data The data for the request.
-     * @param data.prefix Search prefix
-     * @param data.collection Filter by collection
-     * @param data.limit
-     * @returns FTSSuggestResponse Successful Response
-     * @throws ApiError
-     */
-    public static ftsSuggest(data: KnowledgeFtsSuggestData): CancelablePromise<KnowledgeFtsSuggestResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/knowledge/fts/suggest',
-            query: {
-                prefix: data.prefix,
-                collection: data.collection,
-                limit: data.limit
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Analyze Duplicates
-     * Analyze documents for duplicates and near-duplicates.
-     *
-     * Returns groups of similar documents and suggested merges.
-     * @param data The data for the request.
-     * @param data.collection Collection to analyze
-     * @returns unknown Successful Response
-     * @throws ApiError
-     */
-    public static analyzeDuplicates(data: KnowledgeAnalyzeDuplicatesData = {}): CancelablePromise<KnowledgeAnalyzeDuplicatesResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/knowledge/analytics/duplicates',
-            query: {
-                collection: data.collection
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Merge Documents
-     * Merge multiple documents into one.
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @param data.targetPath
-     * @param data.strategy
-     * @returns unknown Successful Response
-     * @throws ApiError
-     */
-    public static mergeDocuments(data: KnowledgeMergeDocumentsData): CancelablePromise<KnowledgeMergeDocumentsResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/knowledge/merge',
-            query: {
-                target_path: data.targetPath,
-                strategy: data.strategy
-            },
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Get Popular Documents
-     * Get most cited/popular documents.
-     * @param data The data for the request.
-     * @param data.collection Filter by collection
-     * @param data.days
-     * @param data.limit
-     * @returns unknown Successful Response
-     * @throws ApiError
-     */
-    public static getPopularDocuments(data: KnowledgeGetPopularDocumentsData = {}): CancelablePromise<KnowledgeGetPopularDocumentsResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/knowledge/analytics/popular',
-            query: {
-                collection: data.collection,
-                days: data.days,
-                limit: data.limit
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Get Usage Analytics
-     * Get knowledge base usage analytics.
-     * @param data The data for the request.
-     * @param data.days
-     * @returns unknown Successful Response
-     * @throws ApiError
-     */
-    public static getUsageAnalytics(data: KnowledgeGetUsageAnalyticsData = {}): CancelablePromise<KnowledgeGetUsageAnalyticsResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/knowledge/analytics/usage',
-            query: {
-                days: data.days
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Get Recommendations
-     * Get document recommendations based on citation patterns.
-     * @param data The data for the request.
-     * @param data.path Reference document path
-     * @returns unknown Successful Response
-     * @throws ApiError
-     */
-    public static getRecommendations(data: KnowledgeGetRecommendationsData): CancelablePromise<KnowledgeGetRecommendationsResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/knowledge/recommendations',
-            query: {
-                path: data.path
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Get Document Stats
-     * Get citation statistics for a specific document.
-     * @param data The data for the request.
-     * @param data.path
-     * @returns unknown Successful Response
-     * @throws ApiError
-     */
-    public static getDocumentStats(data: KnowledgeGetDocumentStatsData): CancelablePromise<KnowledgeGetDocumentStatsResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/knowledge/{path}/stats',
-            path: {
-                path: data.path
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Run Maintenance
-     * Run knowledge base maintenance tasks.
-     *
-     * Levels:
-     * - light: Analysis only, no changes
-     * - medium: Merge duplicates, archive cold docs
-     * - deep: Full optimization including knowledge graph
-     * @param data The data for the request.
-     * @param data.collection Target collection
-     * @param data.dryRun Preview changes without applying
-     * @param data.level Maintenance level: light, medium, deep
-     * @returns unknown Successful Response
-     * @throws ApiError
-     */
-    public static runMaintenance(data: KnowledgeRunMaintenanceData = {}): CancelablePromise<KnowledgeRunMaintenanceResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/knowledge/maintenance/run',
-            query: {
-                collection: data.collection,
-                dry_run: data.dryRun,
-                level: data.level
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Analyze Maintenance Duplicates
-     * Analyze and return duplicate document report.
-     * @param data The data for the request.
-     * @param data.collection Target collection
-     * @returns unknown Successful Response
-     * @throws ApiError
-     */
-    public static analyzeMaintenanceDuplicates(data: KnowledgeAnalyzeMaintenanceDuplicatesData = {}): CancelablePromise<KnowledgeAnalyzeMaintenanceDuplicatesResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/knowledge/maintenance/duplicates',
-            query: {
-                collection: data.collection
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Merge Maintenance Documents
-     * Merge multiple documents into one.
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @param data.strategy Merge strategy: concatenate, deduplicate
-     * @param data.targetPath Target path for merged document
-     * @returns unknown Successful Response
-     * @throws ApiError
-     */
-    public static mergeMaintenanceDocuments(data: KnowledgeMergeMaintenanceDocumentsData): CancelablePromise<KnowledgeMergeMaintenanceDocumentsResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/knowledge/maintenance/merge',
-            query: {
-                strategy: data.strategy,
-                target_path: data.targetPath
-            },
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Check Quality
-     * Check document quality and return report.
-     * @param data The data for the request.
-     * @param data.collection Target collection
-     * @param data.limit Maximum documents to check
-     * @returns unknown Successful Response
-     * @throws ApiError
-     */
-    public static checkQuality(data: KnowledgeCheckQualityData = {}): CancelablePromise<KnowledgeCheckQualityResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/knowledge/maintenance/quality',
-            query: {
-                collection: data.collection,
-                limit: data.limit
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * List Maintenance Reports
-     * List recent maintenance reports from database.
-     * @param data The data for the request.
-     * @param data.limit Number of recent reports
-     * @returns unknown Successful Response
-     * @throws ApiError
-     */
-    public static listMaintenanceReports(data: KnowledgeListMaintenanceReportsData = {}): CancelablePromise<KnowledgeListMaintenanceReportsResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/knowledge/maintenance/reports',
-            query: {
-                limit: data.limit
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-}
-
 export class LearningService {
     /**
      * Get Action Registry
@@ -2079,8 +1460,7 @@ export class LearningService {
     
     /**
      * List Pending Requests
-     * Get all pending human input requests.
-     * Optionally filter by thread_id.
+     * Get all pending human input requests, optionally filtered by thread_id.
      * @param data The data for the request.
      * @param data.threadId
      * @returns HumanInputRequestOut Successful Response
@@ -2123,7 +1503,6 @@ export class LearningService {
     /**
      * Respond To Request
      * Submit a response to a pending human input request.
-     * This will resume the paused agent workflow.
      * @param data The data for the request.
      * @param data.requestId
      * @param data.requestBody
@@ -2148,7 +1527,6 @@ export class LearningService {
     /**
      * Cancel Pending Request
      * Cancel a pending human input request.
-     * The agent will receive the default value if set.
      * @param data The data for the request.
      * @param data.requestId
      * @returns BaseAPIResponse Successful Response
@@ -2189,72 +1567,8 @@ export class LearningService {
     }
     
     /**
-     * Start Recording
-     * Start a new recording session for imitation learning.
-     * Returns a session_id to associate events with.
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @returns StartRecordingResponse Successful Response
-     * @throws ApiError
-     */
-    public static startRecording(data: LearningStartRecordingData): CancelablePromise<LearningStartRecordingResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/learning/traces/start',
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Stop Recording
-     * Stop a recording session.
-     * @param data The data for the request.
-     * @param data.sessionId
-     * @returns StopRecordingResponse Successful Response
-     * @throws ApiError
-     */
-    public static stopRecording(data: LearningStopRecordingData): CancelablePromise<LearningStopRecordingResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/learning/traces/stop',
-            query: {
-                session_id: data.sessionId
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * List Recording Sessions
-     * List active recording sessions.
-     * @param data The data for the request.
-     * @param data.threadId
-     * @returns RecordingSessionsResponse Successful Response
-     * @throws ApiError
-     */
-    public static listRecordingSessions(data: LearningListRecordingSessionsData = {}): CancelablePromise<LearningListRecordingSessionsResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/learning/traces/sessions',
-            query: {
-                thread_id: data.threadId
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
      * Synthesize Skill
      * Synthesize a new skill from a trace sequence.
-     * Uses LLM to analyze the trace and generate a reusable skill.
      * @param data The data for the request.
      * @param data.requestBody
      * @returns SynthesizeSkillResponse Successful Response
@@ -2274,7 +1588,7 @@ export class LearningService {
     
     /**
      * Import Skills
-     * Bulk import skills from a local directory (containing SKILL.md folders).
+     * Bulk import skills from a local directory.
      * @param data The data for the request.
      * @param data.requestBody
      * @returns ImportSkillsResponse Successful Response
@@ -2386,7 +1700,6 @@ export class LearningService {
     /**
      * Execute Skill
      * Execute a skill by injecting a directive into the agent's conversation.
-     * This ensures the skill runs with full project context and history.
      * @param data The data for the request.
      * @param data.skillId
      * @param data.requestBody
@@ -2402,6 +1715,350 @@ export class LearningService {
             },
             body: data.requestBody,
             mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Validate Skill
+     * Run the validator on a skill and return its health status.
+     * @param data The data for the request.
+     * @param data.skillId
+     * @returns ValidateSkillResponse Successful Response
+     * @throws ApiError
+     */
+    public static validateSkill(data: LearningValidateSkillData): CancelablePromise<LearningValidateSkillResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/learning/skills/{skill_id}/validate',
+            path: {
+                skill_id: data.skillId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Confirm Learned Skill
+     * User confirms a synthesized skill. Updates status from pending_review to verified.
+     * @param data The data for the request.
+     * @param data.skillId
+     * @returns BaseAPIResponse Successful Response
+     * @throws ApiError
+     */
+    public static confirmLearnedSkill(data: LearningConfirmLearnedSkillData): CancelablePromise<LearningConfirmLearnedSkillResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/learning/skills/{skill_id}/confirm',
+            path: {
+                skill_id: data.skillId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Create Skill From Yaml
+     * Create a new skill from YAML macro definition.
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns CreateSkillFromYamlResponse Successful Response
+     * @throws ApiError
+     */
+    public static createSkillFromYaml(data: LearningCreateSkillFromYamlData): CancelablePromise<LearningCreateSkillFromYamlResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/learning/skills/from-yaml',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Validate Skill Yaml
+     * Validate YAML macro format without creating a skill.
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns ValidateYamlResponse Successful Response
+     * @throws ApiError
+     */
+    public static validateSkillYaml(data: LearningValidateSkillYamlData): CancelablePromise<LearningValidateSkillYamlResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/learning/skills/validate-yaml',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Skill Yaml
+     * Get skill macro as YAML format.
+     * @param data The data for the request.
+     * @param data.skillId
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getSkillYaml(data: LearningGetSkillYamlData): CancelablePromise<LearningGetSkillYamlResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/learning/skills/{skill_id}/yaml',
+            path: {
+                skill_id: data.skillId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Update Skill Yaml
+     * Update skill macro from YAML content.
+     * @param data The data for the request.
+     * @param data.skillId
+     * @param data.requestBody
+     * @returns UpdateSkillFromYamlResponse Successful Response
+     * @throws ApiError
+     */
+    public static updateSkillYaml(data: LearningUpdateSkillYamlData): CancelablePromise<LearningUpdateSkillYamlResponse> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/v1/learning/skills/{skill_id}/yaml',
+            path: {
+                skill_id: data.skillId
+            },
+            body: data.requestBody,
+            mediaType: 'text/yaml',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Start Recording
+     * Start a new recording session for imitation learning.
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns StartRecordingResponse Successful Response
+     * @throws ApiError
+     */
+    public static startRecording(data: LearningStartRecordingData): CancelablePromise<LearningStartRecordingResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/learning/traces/start',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Stop Recording
+     * Stop a recording session.
+     * @param data The data for the request.
+     * @param data.sessionId
+     * @returns StopRecordingResponse Successful Response
+     * @throws ApiError
+     */
+    public static stopRecording(data: LearningStopRecordingData): CancelablePromise<LearningStopRecordingResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/learning/traces/stop',
+            query: {
+                session_id: data.sessionId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * List Recording Sessions
+     * List active recording sessions.
+     * @param data The data for the request.
+     * @param data.threadId
+     * @returns RecordingSessionsResponse Successful Response
+     * @throws ApiError
+     */
+    public static listRecordingSessions(data: LearningListRecordingSessionsData = {}): CancelablePromise<LearningListRecordingSessionsResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/learning/traces/sessions',
+            query: {
+                thread_id: data.threadId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Synthesize From Recording
+     * Synthesize a skill from a video recording (multimodal v3).
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns SynthesizeFromRecordingResponse Successful Response
+     * @throws ApiError
+     */
+    public static synthesizeFromRecording(data: LearningSynthesizeFromRecordingData): CancelablePromise<LearningSynthesizeFromRecordingResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/learning/skills/synthesize-from-recording',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Preview Recording Data
+     * Preview recording data (debug) — returns keyframe plan without calling LLM.
+     * @param data The data for the request.
+     * @param data.sessionId
+     * @param data.videoPath
+     * @returns PreviewRecordingDataResponse Successful Response
+     * @throws ApiError
+     */
+    public static previewRecordingData(data: LearningPreviewRecordingDataData): CancelablePromise<LearningPreviewRecordingDataResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/learning/skills/synthesize-from-recording/preview',
+            query: {
+                session_id: data.sessionId,
+                video_path: data.videoPath
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * List Annotations
+     * Get all annotations (region_extract events from TraceEvent).
+     * @param data The data for the request.
+     * @param data.sessionId
+     * @returns AnnotationResponse Successful Response
+     * @throws ApiError
+     */
+    public static listAnnotations(data: LearningListAnnotationsData): CancelablePromise<LearningListAnnotationsResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/learning/recordings/{session_id}/annotations',
+            path: {
+                session_id: data.sessionId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Start Smart Synthesis
+     * Start an async smart synthesis job.
+     * @param data The data for the request.
+     * @param data.sessionId
+     * @param data.requestBody
+     * @returns SmartSynthesisResponse Successful Response
+     * @throws ApiError
+     */
+    public static startSmartSynthesis(data: LearningStartSmartSynthesisData): CancelablePromise<LearningStartSmartSynthesisResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/learning/recordings/{session_id}/smart-synthesis',
+            path: {
+                session_id: data.sessionId
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Synthesis Job
+     * Get synthesis job status and results.
+     * @param data The data for the request.
+     * @param data.jobId
+     * @returns SynthesisJobResponse Successful Response
+     * @throws ApiError
+     */
+    public static getSynthesisJob(data: LearningGetSynthesisJobData): CancelablePromise<LearningGetSynthesisJobResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/learning/synthesis-jobs/{job_id}',
+            path: {
+                job_id: data.jobId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * List Session Synthesis Jobs
+     * Get all synthesis jobs for a recording session.
+     * @param data The data for the request.
+     * @param data.sessionId
+     * @returns SynthesisJobResponse Successful Response
+     * @throws ApiError
+     */
+    public static listSessionSynthesisJobs(data: LearningListSessionSynthesisJobsData): CancelablePromise<LearningListSessionSynthesisJobsResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/learning/recordings/{session_id}/synthesis-jobs',
+            path: {
+                session_id: data.sessionId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Cleanup Recording Session
+     * Clean up all data associated with a recording session.
+     * @param data The data for the request.
+     * @param data.sessionId
+     * @param data.videoPath
+     * @returns CleanupRecordingResponse Successful Response
+     * @throws ApiError
+     */
+    public static cleanupRecordingSession(data: LearningCleanupRecordingSessionData): CancelablePromise<LearningCleanupRecordingSessionResponse> {
+        return __request(OpenAPI, {
+            method: 'DELETE',
+            url: '/api/v1/learning/recordings/{session_id}',
+            path: {
+                session_id: data.sessionId
+            },
+            query: {
+                video_path: data.videoPath
+            },
             errors: {
                 422: 'Validation Error'
             }
@@ -2443,8 +2100,7 @@ export class LearningService {
     
     /**
      * Start Mirror Recording
-     * [NEW] Start event recording for an active mirror session.
-     * Called when user clicks 'Start Recording' button.
+     * Start event recording for an active mirror session.
      * @param data The data for the request.
      * @param data.requestBody
      * @returns MirrorRecordingResponse Successful Response
@@ -2465,9 +2121,6 @@ export class LearningService {
     /**
      * Stop Mirror Session
      * Stop an active mirroring session.
-     *
-     * [v3 Unified] Events are now persisted in real-time during recording,
-     * so this endpoint no longer needs to persist events on stop.
      * @param data The data for the request.
      * @param data.requestBody
      * @returns StopMirrorResponse Successful Response
@@ -2508,14 +2161,7 @@ export class LearningService {
     
     /**
      * Persist Mirror Events
-     * [v3 Unified] Persist Android mirror events to backend.
-     *
-     * [NOTE] With v3 unified architecture, events are now persisted in real-time
-     * during recording via _persist_loop(). This endpoint serves as:
-     * 1. A final flush/confirmation for any remaining buffered events
-     * 2. A retry mechanism in case of network issues during recording
-     *
-     * Called when user confirms skill synthesis (recommended for data integrity).
+     * Persist Android mirror events (final flush / retry for real-time events).
      * @param data The data for the request.
      * @param data.requestBody
      * @returns MirrorPersistResponse Successful Response
@@ -2535,8 +2181,7 @@ export class LearningService {
     
     /**
      * Persist Global Events
-     * Persist global desktop events to backend (real-time/batched persistence).
-     * Unified with mirror events - all events go to TraceEvent table.
+     * Persist global desktop events to backend.
      * @param data The data for the request.
      * @param data.requestBody
      * @returns MirrorPersistResponse Successful Response
@@ -2556,8 +2201,7 @@ export class LearningService {
     
     /**
      * Persist Dom Events
-     * Persist DOM events to backend (real-time/batched persistence).
-     * Unified with mirror events - all events go to TraceEvent table.
+     * Persist DOM events to backend.
      * @param data The data for the request.
      * @param data.requestBody
      * @returns MirrorPersistResponse Successful Response
@@ -2578,7 +2222,6 @@ export class LearningService {
     /**
      * Upload Screenshot
      * Upload a screenshot for a skill step.
-     * Uses hierarchical storage (dataset category for training data).
      * @param data The data for the request.
      * @param data.formData
      * @returns UploadScreenshotResponse Successful Response
@@ -2597,117 +2240,8 @@ export class LearningService {
     }
     
     /**
-     * Validate Skill
-     * Run the validator on a skill and return its health status.
-     * @param data The data for the request.
-     * @param data.skillId
-     * @returns ValidateSkillResponse Successful Response
-     * @throws ApiError
-     */
-    public static validateSkill(data: LearningValidateSkillData): CancelablePromise<LearningValidateSkillResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/learning/skills/{skill_id}/validate',
-            path: {
-                skill_id: data.skillId
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Synthesize From Recording
-     * 从视频录制同步合成 Skill（多模态版本 - v3 统一版）
-     *
-     * 流程：
-     * 1. 【统一】所有录制类型（Desktop/Global/Android）的事件都已通过实时接口持久化到数据库
-     * 2. 【统一】合成器从数据库读取事件（按 session_id 查询）
-     * 3. 从视频提取关键帧
-     * 4. 压缩帧并归一化坐标
-     * 5. 调用 Kimi 多模态 LLM 分析
-     * 6. 解析并保存 Skill
-     *
-     * **注意**：此 API 是同步的，处理时间约 10-60 秒，请设置合适的客户端超时。
-     *
-     * **v3 变更**：
-     * - 所有录制类型统一使用实时事件持久化（/global/events, /dom/events, /mirror/events）
-     * - 合成时统一从数据库读取事件，不再依赖请求中的 events 参数
-     * - 移除了向后兼容的 events 参数处理
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @returns SynthesizeFromRecordingResponse Successful Response
-     * @throws ApiError
-     */
-    public static synthesizeFromRecording(data: LearningSynthesizeFromRecordingData): CancelablePromise<LearningSynthesizeFromRecordingResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/learning/skills/synthesize-from-recording',
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Preview Recording Data
-     * 预览录制数据（调试用）
-     *
-     * 返回关键帧提取计划和事件统计，不实际调用 LLM。
-     * @param data The data for the request.
-     * @param data.sessionId
-     * @param data.videoPath
-     * @returns PreviewRecordingDataResponse Successful Response
-     * @throws ApiError
-     */
-    public static previewRecordingData(data: LearningPreviewRecordingDataData): CancelablePromise<LearningPreviewRecordingDataResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/learning/skills/synthesize-from-recording/preview',
-            query: {
-                session_id: data.sessionId,
-                video_path: data.videoPath
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * List Annotations
-     * 获取录制的所有标注 (从 TraceEvent 表中查询 region_extract 类型事件)
-     * [Scheme A] 废弃 RecordingAnnotation 表，统一使用 TraceEvent
-     * @param data The data for the request.
-     * @param data.sessionId
-     * @returns AnnotationResponse Successful Response
-     * @throws ApiError
-     */
-    public static listAnnotations(data: LearningListAnnotationsData): CancelablePromise<LearningListAnnotationsResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/learning/recordings/{session_id}/annotations',
-            path: {
-                session_id: data.sessionId
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
      * Create Android Extract Point
-     * [Android Mirror] 实时标记数据提取点
-     * [Scheme A] 废弃 RecordingAnnotation 表，统一使用 TraceEvent
-     *
-     * 在Android镜像录制过程中，用户通过悬浮按钮标记需要提取数据的屏幕位置。
-     * 该API创建一个 TraceEvent (action_type="region_extract")，用于后续SmartReplay分析。
-     *
-     * 用户通过悬浮按钮标记需要提取数据的屏幕位置，支持框选区域或单点标记。
+     * Mark a data extraction point during Android mirror recording.
      * @param data The data for the request.
      * @param data.requestBody
      * @returns AndroidExtractPointResponse Successful Response
@@ -2727,8 +2261,7 @@ export class LearningService {
     
     /**
      * List Android Extract Points
-     * [Android Mirror] 获取指定会话的所有提取点
-     * [Scheme A] 从 TraceEvent 表查询 region_extract 类型事件
+     * Get all extract points for a session.
      * @param data The data for the request.
      * @param data.sessionId
      * @returns AndroidExtractPointResponse Successful Response
@@ -2741,232 +2274,6 @@ export class LearningService {
             path: {
                 session_id: data.sessionId
             },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Start Smart Synthesis
-     * 启动智能合成任务
-     *
-     * 基于用户标注和任务目标，异步进行 LLM 推理生成技能。
-     * [Scheme A] 使用 TraceEvent 替代 RecordingAnnotation，查询 action_type="region_extract" 的事件
-     * @param data The data for the request.
-     * @param data.sessionId
-     * @param data.requestBody
-     * @returns SmartSynthesisResponse Successful Response
-     * @throws ApiError
-     */
-    public static startSmartSynthesis(data: LearningStartSmartSynthesisData): CancelablePromise<LearningStartSmartSynthesisResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/learning/recordings/{session_id}/smart-synthesis',
-            path: {
-                session_id: data.sessionId
-            },
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Get Synthesis Job
-     * 获取合成任务状态和结果
-     * @param data The data for the request.
-     * @param data.jobId
-     * @returns SynthesisJobResponse Successful Response
-     * @throws ApiError
-     */
-    public static getSynthesisJob(data: LearningGetSynthesisJobData): CancelablePromise<LearningGetSynthesisJobResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/learning/synthesis-jobs/{job_id}',
-            path: {
-                job_id: data.jobId
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * List Session Synthesis Jobs
-     * 获取录制的所有合成任务
-     * @param data The data for the request.
-     * @param data.sessionId
-     * @returns SynthesisJobResponse Successful Response
-     * @throws ApiError
-     */
-    public static listSessionSynthesisJobs(data: LearningListSessionSynthesisJobsData): CancelablePromise<LearningListSessionSynthesisJobsResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/learning/recordings/{session_id}/synthesis-jobs',
-            path: {
-                session_id: data.sessionId
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Cleanup Recording Session
-     * 清理录制会话的所有关联数据。
-     *
-     * 包括：
-     * 1. 删除 TraceEvent 中的事件记录（包括 region_extract 标注事件）
-     * 2. 删除 SynthesisJob 记录
-     * 3. 删除视频文件（如果提供路径）
-     *
-     * [Scheme A] 已废弃 RecordingAnnotation 表，标注数据统一存储在 TraceEvent 中
-     * @param data The data for the request.
-     * @param data.sessionId
-     * @param data.videoPath
-     * @returns CleanupRecordingResponse Successful Response
-     * @throws ApiError
-     */
-    public static cleanupRecordingSession(data: LearningCleanupRecordingSessionData): CancelablePromise<LearningCleanupRecordingSessionResponse> {
-        return __request(OpenAPI, {
-            method: 'DELETE',
-            url: '/api/v1/learning/recordings/{session_id}',
-            path: {
-                session_id: data.sessionId
-            },
-            query: {
-                video_path: data.videoPath
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Confirm Learned Skill
-     * [NEW] 用户确认合成的技能。
-     * 将状态从 pending_review 更新为 verified。
-     * @param data The data for the request.
-     * @param data.skillId
-     * @returns BaseAPIResponse Successful Response
-     * @throws ApiError
-     */
-    public static confirmLearnedSkill(data: LearningConfirmLearnedSkillData): CancelablePromise<LearningConfirmLearnedSkillResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/learning/skills/{skill_id}/confirm',
-            path: {
-                skill_id: data.skillId
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Create Skill From Yaml
-     * Create a new skill from YAML macro definition.
-     *
-     * The YAML should follow the EvoLoop macro format:
-     * ```yaml
-     * version: "1.0"
-     * metadata:
-     * format: evoloop-macro
-     * steps:
-     * - type: action
-     * event_type: navigate
-     * source: dom
-     * payload:
-     * url: "https://example.com"
-     * ```
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @returns CreateSkillFromYamlResponse Successful Response
-     * @throws ApiError
-     */
-    public static createSkillFromYaml(data: LearningCreateSkillFromYamlData): CancelablePromise<LearningCreateSkillFromYamlResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/learning/skills/from-yaml',
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Validate Skill Yaml
-     * Validate YAML macro format without creating a skill.
-     * Useful for frontend validation before saving.
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @returns ValidateYamlResponse Successful Response
-     * @throws ApiError
-     */
-    public static validateSkillYaml(data: LearningValidateSkillYamlData): CancelablePromise<LearningValidateSkillYamlResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/learning/skills/validate-yaml',
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Get Skill Yaml
-     * Get skill macro as YAML format.
-     *
-     * Returns the macro_script in human-friendly YAML format.
-     * @param data The data for the request.
-     * @param data.skillId
-     * @returns unknown Successful Response
-     * @throws ApiError
-     */
-    public static getSkillYaml(data: LearningGetSkillYamlData): CancelablePromise<LearningGetSkillYamlResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/learning/skills/{skill_id}/yaml',
-            path: {
-                skill_id: data.skillId
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Update Skill Yaml
-     * Update skill macro from YAML content.
-     *
-     * Accepts raw YAML body (not JSON).
-     * @param data The data for the request.
-     * @param data.skillId
-     * @param data.requestBody
-     * @returns UpdateSkillFromYamlResponse Successful Response
-     * @throws ApiError
-     */
-    public static updateSkillYaml(data: LearningUpdateSkillYamlData): CancelablePromise<LearningUpdateSkillYamlResponse> {
-        return __request(OpenAPI, {
-            method: 'PUT',
-            url: '/api/v1/learning/skills/{skill_id}/yaml',
-            path: {
-                skill_id: data.skillId
-            },
-            body: data.requestBody,
-            mediaType: 'text/yaml',
             errors: {
                 422: 'Validation Error'
             }
@@ -3206,7 +2513,6 @@ export class MemberService {
 export class MemoryService {
     /**
      * List Concepts
-     * Get all concepts for a project.
      * @param data The data for the request.
      * @param data.projectId
      * @returns ConceptResponse Successful Response
@@ -3227,7 +2533,6 @@ export class MemoryService {
     
     /**
      * Add Concept
-     * Manually add a concept/memory.
      * @param data The data for the request.
      * @param data.projectId
      * @param data.requestBody
@@ -3251,8 +2556,6 @@ export class MemoryService {
     
     /**
      * List Concepts For Mobile
-     * Mobile-format concept list: returns id/name/description/created_at
-     * for Gateway proxy consumption.
      * @param data The data for the request.
      * @param data.projectId
      * @returns unknown Successful Response
@@ -3273,7 +2576,6 @@ export class MemoryService {
     
     /**
      * List Concepts With Counts
-     * Get all concepts with episode counts.
      * @param data The data for the request.
      * @param data.projectId
      * @param data.limit
@@ -3296,7 +2598,6 @@ export class MemoryService {
     
     /**
      * Get Concept
-     * Get a single concept by name with its episode count.
      * @param data The data for the request.
      * @param data.conceptName
      * @param data.projectId
@@ -3321,7 +2622,6 @@ export class MemoryService {
     
     /**
      * Delete Concept
-     * Delete a concept/memory.
      * @param data The data for the request.
      * @param data.conceptName
      * @param data.projectId
@@ -3336,7 +2636,7 @@ export class MemoryService {
                 concept_name: data.conceptName
             },
             query: {
-                project_id: data.projectId
+                _project_id: data.projectId
             },
             errors: {
                 422: 'Validation Error'
@@ -3346,7 +2646,6 @@ export class MemoryService {
     
     /**
      * Update Concept
-     * Update an existing concept's description or metadata.
      * @param data The data for the request.
      * @param data.conceptName
      * @param data.projectId
@@ -3362,7 +2661,7 @@ export class MemoryService {
                 concept_name: data.conceptName
             },
             query: {
-                project_id: data.projectId
+                _project_id: data.projectId
             },
             body: data.requestBody,
             mediaType: 'application/json',
@@ -3374,10 +2673,6 @@ export class MemoryService {
     
     /**
      * Search Memory
-     * Search memory concepts.
-     *
-     * TODO: `use_vector` is accepted for API compatibility but not yet implemented
-     * in the backend search logic.
      * @param data The data for the request.
      * @param data.q
      * @param data.projectId
@@ -3392,7 +2687,7 @@ export class MemoryService {
             query: {
                 q: data.q,
                 project_id: data.projectId,
-                use_vector: data.useVector
+                _use_vector: data.useVector
             },
             errors: {
                 422: 'Validation Error'
@@ -3402,16 +2697,6 @@ export class MemoryService {
     
     /**
      * Search Memory Vector
-     * Semantic vector search for code and documents.
-     *
-     * Uses embeddings to find semantically similar content rather than just text matching.
-     * This provides better results for conceptual queries.
-     *
-     * Args:
-     * q: Search query (natural language)
-     * project_id: Optional project filter (legacy, use repository_id)
-     * top_k: Number of results to return
-     * repository_id: Optional repository filter
      * @param data The data for the request.
      * @param data.q
      * @param data.projectId
@@ -3438,13 +2723,6 @@ export class MemoryService {
     
     /**
      * Search Memory Hybrid
-     * Hybrid search combining vector similarity and text matching.
-     *
-     * Args:
-     * q: Search query
-     * project_id: Optional project filter
-     * top_k: Number of results
-     * vector_weight: Weight for vector scores (0-1), text match gets (1-weight)
      * @param data The data for the request.
      * @param data.q
      * @param data.projectId
@@ -3471,7 +2749,6 @@ export class MemoryService {
     
     /**
      * Get Episodes By Concept
-     * Find all episodes linked to a specific concept.
      * @param data The data for the request.
      * @param data.projectId
      * @param data.concept
@@ -3496,16 +2773,6 @@ export class MemoryService {
     
     /**
      * Deduplicate Checkpoints
-     * Remove duplicate checkpoint memories.
-     *
-     * Duplicate checkpoints are those with the same thread_id and task_progress
-     * within a 5-minute window. Only the most recent is kept.
-     *
-     * Args:
-     * dry_run: If True, only report duplicates without deleting them
-     *
-     * Returns:
-     * Deduplication statistics
      * @param data The data for the request.
      * @param data.dryRun
      * @returns unknown Successful Response
@@ -3673,18 +2940,13 @@ export class ProjectModulesService {
 export class ProjectProfilesService {
     /**
      * Discover Profile
-     * Trigger Agent-driven project discovery via the Skill system.
-     *
-     * The API resolves the skill, builds an ExecutionTicket with ``skill_id``,
-     * and lets the Skill SOP guide the Worker. No template-level step-by-step
-     * instructions are needed — the SKILL.md owns the execution flow.
      * @param data The data for the request.
      * @param data.projectId
      * @param data.requestBody
      * @returns DiscoverResponse Successful Response
      * @throws ApiError
      */
-    public static discoverProfile(data: ProjectProfilesDiscoverProfileData): CancelablePromise<ProjectProfilesDiscoverProfileResponse> {
+    public static projectsDiscoverProfile(data: ProjectsDiscoverProfileData): CancelablePromise<ProjectsDiscoverProfileResponse> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/projects/{project_id}/profile/discover',
@@ -3701,13 +2963,12 @@ export class ProjectProfilesService {
     
     /**
      * Get Profile
-     * Get the current PROJECT.md content for a project.
      * @param data The data for the request.
      * @param data.projectId
      * @returns ProfileContentResponse Successful Response
      * @throws ApiError
      */
-    public static getProfile(data: ProjectProfilesGetProfileData): CancelablePromise<ProjectProfilesGetProfileResponse> {
+    public static projectsGetProfile(data: ProjectsGetProfileData): CancelablePromise<ProjectsGetProfileResponse> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/projects/{project_id}/profile',
@@ -3722,14 +2983,13 @@ export class ProjectProfilesService {
     
     /**
      * Update Profile
-     * Manually update the PROJECT.md content.
      * @param data The data for the request.
      * @param data.projectId
      * @param data.requestBody
      * @returns ProfileContentResponse Successful Response
      * @throws ApiError
      */
-    public static updateProfile(data: ProjectProfilesUpdateProfileData): CancelablePromise<ProjectProfilesUpdateProfileResponse> {
+    public static projectsUpdateProfile(data: ProjectsUpdateProfileData): CancelablePromise<ProjectsUpdateProfileResponse> {
         return __request(OpenAPI, {
             method: 'PATCH',
             url: '/api/v1/projects/{project_id}/profile',
@@ -3772,7 +3032,6 @@ export class ProjectsService {
     
     /**
      * Create Project
-     * Create a new project directory and sync to Member Center.
      * @param data The data for the request.
      * @param data.requestBody
      * @returns unknown Successful Response
@@ -3791,89 +3050,7 @@ export class ProjectsService {
     }
     
     /**
-     * Get Current Project
-     * Get current project from Cloud (User's focus on Web/Mobile).
-     * Also returns Local Focus if configured.
-     * @returns unknown Successful Response
-     * @throws ApiError
-     */
-    public static getCurrentProject(): CancelablePromise<ProjectsGetCurrentProjectResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/projects/current'
-        });
-    }
-    
-    /**
-     * Get Project Status
-     * Get real-time status of system tasks (Indexing, Summarization) for a project.
-     *
-     * The authoritative local status is stored per repository. This endpoint resolves
-     * the project to its active local repo and returns repo-level status under the
-     * project API surface.
-     * @param data The data for the request.
-     * @param data.projectId
-     * @returns ProjectStatusResponse Successful Response
-     * @throws ApiError
-     */
-    public static getProjectStatus(data: ProjectsGetProjectStatusData): CancelablePromise<ProjectsGetProjectStatusResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/projects/{project_id}/status',
-            path: {
-                project_id: data.projectId
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Delete Project
-     * Delete a project from Cloud and clean up all local associated data.
-     * @param data The data for the request.
-     * @param data.projectId
-     * @returns ProjectDeleteResponse Successful Response
-     * @throws ApiError
-     */
-    public static deleteProject(data: ProjectsDeleteProjectData): CancelablePromise<ProjectsDeleteProjectResponse> {
-        return __request(OpenAPI, {
-            method: 'DELETE',
-            url: '/api/v1/projects/{project_id}',
-            path: {
-                project_id: data.projectId
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Run Indexing Endpoint
-     * Trigger full indexing for a project (Celery Dispatch).
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @returns IndexingRunResponse Successful Response
-     * @throws ApiError
-     */
-    public static runIndexingEndpoint(data: ProjectsRunIndexingEndpointData): CancelablePromise<ProjectsRunIndexingEndpointResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/projects/indexing/run',
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
      * Scan Workspace Projects Endpoint
-     * Manually scan WORKSPACE_ROOT for new projects.
-     * Forces reconciliation even if automatic discovery is disabled.
      * @returns ListResponse_DetectedProjectItem_ Successful Response
      * @throws ApiError
      */
@@ -3886,12 +3063,6 @@ export class ProjectsService {
     
     /**
      * Get Detected Projects
-     * Get all newly detected projects awaiting user confirmation.
-     *
-     * Returns projects with sync_status="DETECTED" that need to be imported or ignored.
-     *
-     * Note: Returns empty list if project discovery is disabled via configuration,
-     * unless force=True is specified.
      * @param data The data for the request.
      * @param data.force
      * @returns ListResponse_DetectedProjectItem_ Successful Response
@@ -3912,12 +3083,6 @@ export class ProjectsService {
     
     /**
      * Import Detected Project
-     * Import a detected project (user confirmed).
-     *
-     * This will:
-     * 1. Update project status to PENDING_CREATION
-     * 2. Start file watching and indexing
-     * 3. Dispatch cloud sync task
      * @param data The data for the request.
      * @param data.repoId
      * @returns ImportProjectResponse Successful Response
@@ -3938,9 +3103,6 @@ export class ProjectsService {
     
     /**
      * Ignore Detected Project
-     * Ignore a detected project (user chose not to import).
-     *
-     * Marks the project as IGNORED. Can be restored later.
      * @param data The data for the request.
      * @param data.repoId
      * @returns IgnoreProjectResponse Successful Response
@@ -3961,9 +3123,6 @@ export class ProjectsService {
     
     /**
      * Get Ignored Projects
-     * Get all ignored projects.
-     *
-     * These projects can be restored (un-ignored) later.
      * @returns ListResponse_DetectedProjectItem_ Successful Response
      * @throws ApiError
      */
@@ -3976,9 +3135,6 @@ export class ProjectsService {
     
     /**
      * Unignore Project
-     * Restore an ignored project to detected status.
-     *
-     * Allows the project to be imported.
      * @param data The data for the request.
      * @param data.repoId
      * @returns UnignoreProjectResponse Successful Response
@@ -3999,11 +3155,6 @@ export class ProjectsService {
     
     /**
      * Batch Import Projects
-     * Import multiple detected projects in batch.
-     *
-     * This will:
-     * 1. Import each project sequentially
-     * 2. Return summary of successes and failures
      * @param data The data for the request.
      * @param data.requestBody
      * @returns BatchImportResponse Successful Response
@@ -4023,7 +3174,6 @@ export class ProjectsService {
     
     /**
      * Batch Ignore Projects
-     * Ignore multiple detected projects in batch.
      * @param data The data for the request.
      * @param data.requestBody
      * @returns BatchImportResponse Successful Response
@@ -4033,6 +3183,143 @@ export class ProjectsService {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/projects/batch/ignore',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Discover Profile
+     * @param data The data for the request.
+     * @param data.projectId
+     * @param data.requestBody
+     * @returns DiscoverResponse Successful Response
+     * @throws ApiError
+     */
+    public static discoverProfile(data: ProjectsDiscoverProfileData): CancelablePromise<ProjectsDiscoverProfileResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/projects/{project_id}/profile/discover',
+            path: {
+                project_id: data.projectId
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Profile
+     * @param data The data for the request.
+     * @param data.projectId
+     * @returns ProfileContentResponse Successful Response
+     * @throws ApiError
+     */
+    public static getProfile(data: ProjectsGetProfileData): CancelablePromise<ProjectsGetProfileResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/projects/{project_id}/profile',
+            path: {
+                project_id: data.projectId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Update Profile
+     * @param data The data for the request.
+     * @param data.projectId
+     * @param data.requestBody
+     * @returns ProfileContentResponse Successful Response
+     * @throws ApiError
+     */
+    public static updateProfile(data: ProjectsUpdateProfileData): CancelablePromise<ProjectsUpdateProfileResponse> {
+        return __request(OpenAPI, {
+            method: 'PATCH',
+            url: '/api/v1/projects/{project_id}/profile',
+            path: {
+                project_id: data.projectId
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Current Project
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getCurrentProject(): CancelablePromise<ProjectsGetCurrentProjectResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/projects/current'
+        });
+    }
+    
+    /**
+     * Get Project Status
+     * @param data The data for the request.
+     * @param data.projectId
+     * @returns ProjectStatusResponse Successful Response
+     * @throws ApiError
+     */
+    public static getProjectStatus(data: ProjectsGetProjectStatusData): CancelablePromise<ProjectsGetProjectStatusResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/projects/{project_id}/status',
+            path: {
+                project_id: data.projectId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Delete Project
+     * @param data The data for the request.
+     * @param data.projectId
+     * @returns ProjectDeleteResponse Successful Response
+     * @throws ApiError
+     */
+    public static deleteProject(data: ProjectsDeleteProjectData): CancelablePromise<ProjectsDeleteProjectResponse> {
+        return __request(OpenAPI, {
+            method: 'DELETE',
+            url: '/api/v1/projects/{project_id}',
+            path: {
+                project_id: data.projectId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Run Indexing Endpoint
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns IndexingRunResponse Successful Response
+     * @throws ApiError
+     */
+    public static runIndexingEndpoint(data: ProjectsRunIndexingEndpointData): CancelablePromise<ProjectsRunIndexingEndpointResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/projects/indexing/run',
             body: data.requestBody,
             mediaType: 'application/json',
             errors: {
@@ -4734,19 +4021,6 @@ export class SystemService {
             errors: {
                 422: 'Validation Error'
             }
-        });
-    }
-    
-    /**
-     * Reset Knowledge Base
-     * [DANGER] Wipe the entire Knowledge Base (Neo4j + Postgres Index).
-     * @returns ResetKnowledgeResponse Successful Response
-     * @throws ApiError
-     */
-    public static resetKnowledgeBase(): CancelablePromise<SystemResetKnowledgeBaseResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/system/reset-knowledge'
         });
     }
     

@@ -158,7 +158,7 @@ function ProfilePage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              PROJECT.md
+              {t("projects.profile.documentTitle")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -167,10 +167,7 @@ function ProfilePage() {
                 className="min-h-[500px] font-mono text-sm"
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
-                placeholder={t(
-                  "projects.profile.editPlaceholder",
-                  "Enter project profile in Markdown...",
-                )}
+                placeholder={t("projects.profile.editPlaceholder")}
               />
             ) : (
               <div>

@@ -400,8 +400,7 @@ export const BatchImportResponseSchema = {
     additionalProperties: true,
     type: 'object',
     required: ['status', 'summary', 'results'],
-    title: 'BatchImportResponse',
-    description: 'Batch import response.'
+    title: 'BatchImportResponse'
 } as const;
 
 export const BatchResultItemSchema = {
@@ -436,8 +435,7 @@ export const BatchResultItemSchema = {
     additionalProperties: true,
     type: 'object',
     required: ['repo_id'],
-    title: 'BatchResultItem',
-    description: 'Single result in batch operation.'
+    title: 'BatchResultItem'
 } as const;
 
 export const BenefitsUpdateWebhookSchema = {
@@ -728,107 +726,6 @@ export const Body_files_workspace_uploadSchema = {
     type: 'object',
     required: ['file'],
     title: 'Body_files-workspace_upload'
-} as const;
-
-export const Body_knowledge_bulk_uploadSchema = {
-    properties: {
-        files: {
-            items: {
-                type: 'string',
-                format: 'binary'
-            },
-            type: 'array',
-            title: 'Files',
-            description: 'Multiple files to upload'
-        },
-        collection: {
-            type: 'string',
-            title: 'Collection',
-            description: 'Collection name',
-            default: 'default'
-        },
-        doc_type: {
-            type: 'string',
-            title: 'Doc Type',
-            description: 'Document type',
-            default: 'doc'
-        }
-    },
-    type: 'object',
-    required: ['files'],
-    title: 'Body_knowledge-bulk_upload'
-} as const;
-
-export const Body_knowledge_import_zipSchema = {
-    properties: {
-        file: {
-            type: 'string',
-            format: 'binary',
-            title: 'File',
-            description: 'ZIP archive containing documents'
-        },
-        collection: {
-            type: 'string',
-            title: 'Collection',
-            description: 'Collection name',
-            default: 'default'
-        },
-        preserve_structure: {
-            type: 'boolean',
-            title: 'Preserve Structure',
-            description: 'Preserve directory structure',
-            default: true
-        }
-    },
-    type: 'object',
-    required: ['file'],
-    title: 'Body_knowledge-import_zip'
-} as const;
-
-export const Body_knowledge_upload_documentSchema = {
-    properties: {
-        file: {
-            type: 'string',
-            format: 'binary',
-            title: 'File',
-            description: 'Document to upload'
-        },
-        collection: {
-            type: 'string',
-            title: 'Collection',
-            description: 'Collection name',
-            default: 'default'
-        },
-        doc_type: {
-            type: 'string',
-            title: 'Doc Type',
-            description: 'Document type (doc, code, guide, etc.)',
-            default: 'doc'
-        },
-        extract_metadata: {
-            type: 'boolean',
-            title: 'Extract Metadata',
-            description: 'Extract metadata automatically',
-            default: true
-        }
-    },
-    type: 'object',
-    required: ['file'],
-    title: 'Body_knowledge-upload_document'
-} as const;
-
-export const Body_knowledge_validate_zipSchema = {
-    properties: {
-        file: {
-            type: 'string',
-            format: 'binary',
-            title: 'File',
-            description: 'ZIP archive to validate'
-        }
-    },
-    type: 'object',
-    required: ['file'],
-    title: 'Body_knowledge-validate_zip'
 } as const;
 
 export const Body_learning_upload_screenshotSchema = {
@@ -1185,38 +1082,6 @@ export const CloudStatusResponseSchema = {
     type: 'object',
     required: ['is_logged_in', 'is_linked', 'device_name', 'api_url'],
     title: 'CloudStatusResponse'
-} as const;
-
-export const CollectionResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        collections: {
-            items: {
-                type: 'string'
-            },
-            type: 'array',
-            title: 'Collections'
-        },
-        stats: {
-            additionalProperties: true,
-            type: 'object',
-            title: 'Stats'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['collections', 'stats'],
-    title: 'CollectionResponse',
-    description: 'Response for listing collections.'
 } as const;
 
 export const CommandParamsSchema = {
@@ -1979,8 +1844,7 @@ export const DetectedProjectItemSchema = {
     additionalProperties: true,
     type: 'object',
     required: ['id', 'name', 'path', 'detected_at'],
-    title: 'DetectedProjectItem',
-    description: 'Detected project awaiting import.'
+    title: 'DetectedProjectItem'
 } as const;
 
 export const DeviceResolutionResponseSchema = {
@@ -2052,350 +1916,6 @@ export const DiscoverResponseSchema = {
     type: 'object',
     required: ['status', 'project_id', 'thread_id'],
     title: 'DiscoverResponse'
-} as const;
-
-export const DocumentContentResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        path: {
-            type: 'string',
-            title: 'Path'
-        },
-        content: {
-            type: 'string',
-            title: 'Content'
-        },
-        metadata: {
-            '$ref': '#/components/schemas/DocumentMetadataResponse'
-        },
-        offset: {
-            type: 'integer',
-            title: 'Offset'
-        },
-        limit: {
-            type: 'integer',
-            title: 'Limit'
-        },
-        total_lines: {
-            type: 'integer',
-            title: 'Total Lines'
-        },
-        has_more: {
-            type: 'boolean',
-            title: 'Has More'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['path', 'content', 'metadata', 'offset', 'limit', 'total_lines', 'has_more'],
-    title: 'DocumentContentResponse',
-    description: 'Response for reading document content.'
-} as const;
-
-export const DocumentListItemSchema = {
-    properties: {
-        path: {
-            type: 'string',
-            title: 'Path'
-        },
-        size_bytes: {
-            type: 'integer',
-            title: 'Size Bytes'
-        },
-        modified_at: {
-            type: 'string',
-            title: 'Modified At'
-        },
-        has_metadata: {
-            type: 'boolean',
-            title: 'Has Metadata'
-        },
-        tags: {
-            items: {
-                type: 'string'
-            },
-            type: 'array',
-            title: 'Tags'
-        },
-        title: {
-            type: 'string',
-            title: 'Title'
-        },
-        source: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Source'
-        },
-        source_project_id: {
-            anyOf: [
-                {
-                    type: 'integer'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Source Project Id'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['path', 'size_bytes', 'modified_at', 'has_metadata', 'tags', 'title'],
-    title: 'DocumentListItem',
-    description: 'Item in a document list from the knowledge base.'
-} as const;
-
-export const DocumentListResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        data: {
-            items: {
-                '$ref': '#/components/schemas/DocumentListItem'
-            },
-            type: 'array',
-            title: 'Data'
-        },
-        total: {
-            type: 'integer',
-            title: 'Total',
-            default: 0
-        },
-        page: {
-            type: 'integer',
-            title: 'Page',
-            default: 1
-        },
-        page_size: {
-            type: 'integer',
-            title: 'Page Size',
-            default: 20
-        },
-        documents: {
-            items: {
-                '$ref': '#/components/schemas/DocumentListItem'
-            },
-            type: 'array',
-            title: 'Documents'
-        },
-        collections: {
-            items: {
-                type: 'string'
-            },
-            type: 'array',
-            title: 'Collections'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['documents', 'collections'],
-    title: 'DocumentListResponse',
-    description: 'Response for listing documents.'
-} as const;
-
-export const DocumentMetadataResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        title: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Title'
-        },
-        source_file: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Source File'
-        },
-        source_mime_type: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Source Mime Type'
-        },
-        file_size_bytes: {
-            anyOf: [
-                {
-                    type: 'integer'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'File Size Bytes'
-        },
-        extracted_at: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Extracted At'
-        },
-        source_project_id: {
-            anyOf: [
-                {
-                    type: 'integer'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Source Project Id'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    title: 'DocumentMetadataResponse',
-    description: 'Structured metadata for a document chunk/response.'
-} as const;
-
-export const DocumentResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        path: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Path'
-        },
-        document: {
-            anyOf: [
-                {
-                    additionalProperties: true,
-                    type: 'object'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Document'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    title: 'DocumentResponse',
-    description: 'Response for document operations.'
-} as const;
-
-export const DocumentSearchItemSchema = {
-    properties: {
-        path: {
-            type: 'string',
-            title: 'Path'
-        },
-        match_count: {
-            type: 'integer',
-            title: 'Match Count'
-        },
-        matches: {
-            items: {
-                additionalProperties: true,
-                type: 'object'
-            },
-            type: 'array',
-            title: 'Matches'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['path', 'match_count', 'matches'],
-    title: 'DocumentSearchItem',
-    description: 'Single document search result.'
-} as const;
-
-export const DocumentSearchResponseSchema = {
-    properties: {
-        query: {
-            type: 'string',
-            title: 'Query'
-        },
-        total: {
-            type: 'integer',
-            title: 'Total'
-        },
-        results: {
-            items: {
-                '$ref': '#/components/schemas/DocumentSearchItem'
-            },
-            type: 'array',
-            title: 'Results'
-        },
-        facets: {
-            additionalProperties: true,
-            type: 'object',
-            title: 'Facets'
-        }
-    },
-    type: 'object',
-    required: ['query', 'total', 'results'],
-    title: 'DocumentSearchResponse',
-    description: 'Response for document search.'
 } as const;
 
 export const DomEventDataSchema = {
@@ -2865,107 +2385,6 @@ export const ExecuteSkillResponseSchema = {
     title: 'ExecuteSkillResponse'
 } as const;
 
-export const FTSSearchResponseSchema = {
-    properties: {
-        query: {
-            type: 'string',
-            title: 'Query'
-        },
-        total: {
-            type: 'integer',
-            title: 'Total'
-        },
-        results: {
-            items: {
-                '$ref': '#/components/schemas/FTSSearchResult'
-            },
-            type: 'array',
-            title: 'Results'
-        },
-        facets: {
-            additionalProperties: true,
-            type: 'object',
-            title: 'Facets'
-        }
-    },
-    type: 'object',
-    required: ['query', 'total', 'results', 'facets'],
-    title: 'FTSSearchResponse',
-    description: 'Response for FTS search.'
-} as const;
-
-export const FTSSearchResultSchema = {
-    properties: {
-        doc_id: {
-            type: 'string',
-            title: 'Doc Id'
-        },
-        path: {
-            type: 'string',
-            title: 'Path'
-        },
-        collection: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Collection'
-        },
-        title: {
-            type: 'string',
-            title: 'Title'
-        },
-        snippet: {
-            type: 'string',
-            title: 'Snippet'
-        },
-        highlights: {
-            type: 'string',
-            title: 'Highlights'
-        },
-        score: {
-            type: 'number',
-            title: 'Score'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['doc_id', 'path', 'collection', 'title', 'snippet', 'highlights', 'score'],
-    title: 'FTSSearchResult',
-    description: 'Single FTS search result.'
-} as const;
-
-export const FTSSuggestResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        suggestions: {
-            items: {
-                type: 'string'
-            },
-            type: 'array',
-            title: 'Suggestions'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['suggestions'],
-    title: 'FTSSuggestResponse',
-    description: 'Response for FTS suggestions.'
-} as const;
-
 export const FileContentSchema = {
     properties: {
         content: {
@@ -3429,8 +2848,7 @@ export const IgnoreProjectResponseSchema = {
     additionalProperties: true,
     type: 'object',
     required: ['status', 'repo_id'],
-    title: 'IgnoreProjectResponse',
-    description: 'Project ignore response.'
+    title: 'IgnoreProjectResponse'
 } as const;
 
 export const ImportProjectResponseSchema = {
@@ -3461,8 +2879,7 @@ export const ImportProjectResponseSchema = {
     additionalProperties: true,
     type: 'object',
     required: ['status', 'repo_id', 'name'],
-    title: 'ImportProjectResponse',
-    description: 'Project import response.'
+    title: 'ImportProjectResponse'
 } as const;
 
 export const ImportSkillsRequestSchema = {
@@ -3548,8 +2965,7 @@ export const IndexingRunResponseSchema = {
     additionalProperties: true,
     type: 'object',
     required: ['status', 'project_id'],
-    title: 'IndexingRunResponse',
-    description: 'Indexing dispatch response.'
+    title: 'IndexingRunResponse'
 } as const;
 
 export const LLMApplyResponseSchema = {
@@ -5056,8 +4472,7 @@ export const ProjectDeleteResponseSchema = {
     additionalProperties: true,
     type: 'object',
     required: ['status', 'id'],
-    title: 'ProjectDeleteResponse',
-    description: 'Project deletion response.'
+    title: 'ProjectDeleteResponse'
 } as const;
 
 export const ProjectDiscoveryConfigRequestSchema = {
@@ -5134,8 +4549,7 @@ export const ProjectStatusActivitySchema = {
     },
     additionalProperties: true,
     type: 'object',
-    title: 'ProjectStatusActivity',
-    description: 'System task activity state.'
+    title: 'ProjectStatusActivity'
 } as const;
 
 export const ProjectStatusResponseSchema = {
@@ -5163,8 +4577,7 @@ export const ProjectStatusResponseSchema = {
     additionalProperties: true,
     type: 'object',
     required: ['indexing', 'summarization', 'wiki'],
-    title: 'ProjectStatusResponse',
-    description: 'Real-time project system status.'
+    title: 'ProjectStatusResponse'
 } as const;
 
 export const ReadFileRequestSchema = {
@@ -5465,29 +4878,6 @@ export const RegisterUsernameRequestSchema = {
     type: 'object',
     required: ['password'],
     title: 'RegisterUsernameRequest'
-} as const;
-
-export const ResetKnowledgeResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        status: {
-            type: 'string',
-            title: 'Status'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['status'],
-    title: 'ResetKnowledgeResponse'
 } as const;
 
 export const ResetPasswordMobileRequestSchema = {
@@ -6877,55 +6267,6 @@ export const TTSResponseSchema = {
     description: '语音合成响应'
 } as const;
 
-export const TagItemSchema = {
-    properties: {
-        name: {
-            type: 'string',
-            title: 'Name'
-        },
-        count: {
-            type: 'integer',
-            title: 'Count'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['name', 'count'],
-    title: 'TagItem',
-    description: 'Single tag with document count.'
-} as const;
-
-export const TagResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        tags: {
-            items: {
-                '$ref': '#/components/schemas/TagItem'
-            },
-            type: 'array',
-            title: 'Tags'
-        },
-        total: {
-            type: 'integer',
-            title: 'Total'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['tags', 'total'],
-    title: 'TagResponse',
-    description: 'Response for listing tags.'
-} as const;
-
 export const TaskCreateRequestSchema = {
     properties: {
         project_id: {
@@ -7435,6 +6776,17 @@ export const TerminalCommandRequestSchema = {
         command: {
             type: 'string',
             title: 'Command'
+        },
+        project_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Project Id'
         }
     },
     type: 'object',
@@ -7447,6 +6799,17 @@ export const TerminalInputRequestSchema = {
         text: {
             type: 'string',
             title: 'Text'
+        },
+        project_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Project Id'
         }
     },
     type: 'object',
@@ -8013,8 +7376,7 @@ export const UnignoreProjectResponseSchema = {
     additionalProperties: true,
     type: 'object',
     required: ['status', 'repo_id', 'name'],
-    title: 'UnignoreProjectResponse',
-    description: 'Project unignore response.'
+    title: 'UnignoreProjectResponse'
 } as const;
 
 export const UpdateProfileRequestSchema = {

@@ -1,7 +1,9 @@
-from typing import List, Optional, Type, Dict, Any
-from pydantic import BaseModel, Field, create_model
-from app.core.events.schemas.lifecycle import ExtractionRequest
 import logging
+from typing import Any, Dict, List, Type, Union
+
+from pydantic import BaseModel, Field, create_model
+
+from app.core.events.schemas.lifecycle import ExtractionRequest
 
 logger = logging.getLogger(__name__)
 
@@ -32,15 +34,15 @@ def _dict_schema_to_model(name: str, schema: dict) -> Type[BaseModel]:
             py_type = str
 
         if not is_required:
-            py_type = Optional[py_type]  # type: ignore
+            py_type = Union[py_type, None]
 
         default = ... if is_required else None
         fields[prop_name] = (py_type, Field(default=default, description=prop_def.get("description", "")))
 
-    return create_model(name.capitalize() + "Item", **fields)  # type: ignore
+    return create_model(name.capitalize() + "Item", **fields)  # type: ignore[no-any-return]
 
 
-def build_dynamic_schema(requests: List[ExtractionRequest], include_base_fields: bool = True) -> Optional[Type[BaseModel]]:
+def build_dynamic_schema(requests: List[ExtractionRequest], include_base_fields: bool = True) -> Type[BaseModel] | None:
     if not requests and not include_base_fields:
         return None
 
@@ -63,4 +65,4 @@ def build_dynamic_schema(requests: List[ExtractionRequest], include_base_fields:
         else:
             logger.warning("[build_dynamic_schema] Plugin '%s' schema is not a dict.", req.name)
 
-    return create_model("DynamicVerdict", **fields)  # type: ignore
+    return create_model("DynamicVerdict", **fields)  # type: ignore[no-any-return]

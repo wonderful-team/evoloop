@@ -27,6 +27,7 @@ GATEWAY_PREFIXES: list[str] = [
     "/api/v1/auth/verify",
     "/api/v1/devices",
     "/api/v1/command/",
+    "/api/v1/message/",
 ]
 
 

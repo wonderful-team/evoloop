@@ -195,7 +195,7 @@ function WechatQRCode({ onSuccess, onError }: WechatLoginProps) {
                 qrCode.qrcode_url ||
                 `https://mp.weixin.qq.com/cgi-bin/showqrcode?ticket=${qrCode.ticket}`
               }
-              alt="WeChat QR Code"
+              alt={t("auth.login.wechatQRAlt")}
               className="w-48 h-48 border rounded-lg"
             />
             {/* Overlay for expired or confirmed states */}

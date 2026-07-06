@@ -13,7 +13,7 @@ from app.domain.tools.files import (
     write_file,
 )
 from app.domain.tools.files import grep_search as search_code
-from app.utils import json as json_utils
+from app.utils.json import dumps
 
 # Initialize FastMCP Server
 mcp = FastMCP("EvoLoop MCP Server")
@@ -38,7 +38,7 @@ async def read_file_ops(path: str, start_line: int = None, end_line: int = None)
             "start_line": start_line,
             "end_line": end_line
         }))
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return f"Error: {e}"
 
 
@@ -51,7 +51,7 @@ async def write_file_ops(path: str, content: str, overwrite: bool = False) -> st
             "content": content,
             "overwrite": overwrite
         })
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return f"Error: {e}"
 
 
@@ -65,7 +65,7 @@ async def edit_file_ops(path: str, target: str, replacement: str, allow_multiple
             "replacement": replacement,
             "allow_multiple": allow_multiple
         })
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return f"Error: {e}"
 
 
@@ -78,7 +78,7 @@ async def list_dir_ops(path: str, depth: int = 3, tree: bool = True) -> str:
             "depth": depth,
             "tree": tree
         }))
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return f"Error: {e}"
 
 
@@ -90,7 +90,7 @@ async def find_symbol_ops(name: str, file_pattern: str = None) -> str:
             "name": name,
             "file_pattern": file_pattern
         }))
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return f"Error: {e}"
 
 
@@ -102,7 +102,7 @@ async def search_code_ops(pattern: str, path: str = None) -> str:
             "pattern": pattern,
             "path": path
         }))
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return f"Error: {e}"
 
 
@@ -111,7 +111,7 @@ async def ask_codebase_ops(question: str) -> str:
     """Ask a natural language question about the codebase."""
     try:
         return _truncate(await ask_codebase.ainvoke({"question": question}))
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return f"Error: {e}"
 
 
@@ -120,7 +120,7 @@ async def execute_command_ops(command: str) -> str:
     """Execute shell command including Git operations."""
     try:
         return _truncate(await execute_command.ainvoke({"command": command}))
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return f"Error: {e}"
 
 
@@ -131,7 +131,7 @@ async def read_document(path: str) -> str:
         from app.domain.tools.document_reader import read_document as read_doc_tool
 
         return _truncate(await read_doc_tool.ainvoke({"file_path": path}))
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return f"Error reading document: {e}"
 
 
@@ -140,7 +140,7 @@ async def search_semantic(query: str) -> str:
     """Semantic search in the codebase."""
     try:
         return await search_codebase.ainvoke({"query": query})
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return f"Error: {e}"
 
 
@@ -154,8 +154,8 @@ async def analyze_code_file(path: str) -> str:
         from app.domain.codebase.analysis.code_analyzer import code_analyzer
 
         result = code_analyzer.analyze_file(path)
-        return json_utils.dumps(result, indent=2)
-    except Exception as e:
+        return dumps(result, indent=2)
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return f"Error analyzing file: {e}"
 
 
@@ -174,7 +174,7 @@ async def get_annotated_tree(path: str = ".") -> str:
 
         generator = AnnotatedTreeGenerator(target_path, file_limit=30)
         return _truncate(await generator.generate())
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return f"Error generating tree: {e}"
 
 
@@ -199,7 +199,7 @@ async def remember_preference(key: str, value: str, description: str = "") -> st
             description=description
         )
         return f"Stored preference: {key}={value}"
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return f"Error: {e}"
 
 
@@ -212,8 +212,8 @@ async def remember_concept(name: str, description: str, related_files: list[str]
     if related_files is None:
         related_files = []
     try:
-        from app.core.memory.schemas import Concept
         from app.core.memory.lifespan import MemoryLifespanManager
+        from app.core.memory.schemas import Concept
 
         if not MemoryLifespanManager.is_initialized():
             await MemoryLifespanManager.ainitialize()
@@ -222,7 +222,7 @@ async def remember_concept(name: str, description: str, related_files: list[str]
         concept = Concept(name=name, description=description, project_id=DEFAULT_PROJECT_ID, related_files=related_files)
         await manager.store_concept(concept)
         return f"Stored concept: {name}"
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return f"Error: {e}"
 
 
@@ -243,5 +243,5 @@ async def query_memory(query: str) -> str:
         results = await manager.search_concepts(query, 0)
         formatted_results = "\n".join([f"- **{r.name}**: {r.description}" for r in results]) if results else "No concepts found."
         return f"{prefs}\n\n**Relevant Concepts:**\n{formatted_results}"
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return f"Error: {e}"

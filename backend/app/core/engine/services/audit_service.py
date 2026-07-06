@@ -8,13 +8,15 @@ import re
 import time
 from typing import Any
 
-from langchain_core.messages import AIMessage, HumanMessage
-from langchain_core.runnables import RunnableConfig
 from pydantic import Field
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager
 from app.core.engine.engine import get_default_engine
+from app.core.engine.message.native_classes import (
+    HumanMessage,
+    RunnableConfig,
+)
 from app.core.engine.message.reasoning import extract_tool_calls
 from app.core.engine.state import AgentState
 from app.core.engine.state.sub_schemas import VerificationStatus
@@ -46,18 +48,22 @@ def _extract_tool_usage(messages: list) -> str:
 
 def _extract_final_summary(messages: list) -> str:
     """Extract the final assistant message for summary."""
+    from app.core.engine.message.utils import get_message_text
+
     for msg in reversed(messages):
-        if isinstance(msg, AIMessage) and msg.content:
-            content = str(msg.content)
-            if "<evoloop_session_audit>" in content and "<evoloop_final_report>" in content:
-                match = re.search(
-                    r"<evoloop_final_report>(.*?)</evoloop_final_report>",
-                    content,
-                    re.IGNORECASE | re.DOTALL,
-                )
-                if match:
-                    return match.group(1).strip()
-            return content
+        role = msg.get("role") if isinstance(msg, dict) else getattr(msg, "type", "")
+        if role in ("assistant", "ai"):
+            content = get_message_text(msg)
+            if content:
+                if "<evoloop_session_audit>" in content and "<evoloop_final_report>" in content:
+                    match = re.search(
+                        r"<evoloop_final_report>(.*?)</evoloop_final_report>",
+                        content,
+                        re.IGNORECASE | re.DOTALL,
+                    )
+                    if match:
+                        return match.group(1).strip()
+                return content
     return "Task completed."
 
 
@@ -118,7 +124,7 @@ class AuditService:
         start = time.time()
 
         ctx = ContextManager.current()
-        messages = list(state.messages)
+        messages = state.messages
 
         current_plan = state.current_plan or ""
         execution_ticket = state.ticket
@@ -138,7 +144,7 @@ class AuditService:
                 snapshot = awakened_state.get_telemetry_snapshot()
                 if snapshot:
                     telemetry = snapshot.model_dump()
-            except Exception as e:
+            except (AttributeError, ValueError, TypeError) as e:
                 logger.warning(f"[AuditService] Telemetry snapshot failed: {e}")
 
         builder = FinishPromptBuilder(
@@ -189,7 +195,7 @@ class AuditService:
         extraction_messages = extraction_trim_result.messages
 
         # 2. Prepare Audit Messages (Fast Synchronous Context)
-        audit_messages = list(extraction_messages)
+        audit_messages = extraction_messages
         if has_structured_input and len(audit_messages) > 25:
             preserved = audit_messages[:3] + audit_messages[-12:]
             logger.info(f"[AuditService] 📉 Truncated audit context: {len(audit_messages)} → {len(preserved)} msgs (structured input available)")
@@ -222,9 +228,13 @@ class AuditService:
         summary = _extract_final_summary(result.messages or [])
 
         # Parse outcome from audit messages
+        from app.core.engine.message.utils import get_message_text
+
         audit_messages = result.messages or []
         full_text = "".join(
-            str(m.content) for m in audit_messages if isinstance(m, AIMessage)
+            get_message_text(m)
+            for m in audit_messages
+            if (m.get("role") if isinstance(m, dict) else getattr(m, "type", "")) in ("assistant", "ai")
         )
         outcome_match = re.search(
             r"<evoloop_audit_outcome>(.*?)</evoloop_audit_outcome>",
@@ -233,7 +243,7 @@ class AuditService:
         )
         final_outcome = outcome_match.group(1).strip() if outcome_match else "COMPLETED"
         state.final_outcome = final_outcome
-        
+
         # Append Finish node tool calls to global tool_history with finish: prefix
         if result.tool_history:
             prefixed = [f"finish:{t}" for t in result.tool_history]
@@ -264,9 +274,9 @@ class AuditService:
         summary: str,
         messages: list,
     ) -> None:
+        from app.core.engine.tasks import engine_audit_structured_extraction
         from app.core.events.base import system_bus
         from app.core.events.schemas.lifecycle import ExtractionRequestedEvent
-        from app.core.engine.tasks import engine_audit_structured_extraction
 
         thread_id = state.thread_id or config.get("configurable", {}).get("thread_id")
         if not thread_id:

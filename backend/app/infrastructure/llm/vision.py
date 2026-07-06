@@ -6,10 +6,9 @@ Provides LLM instances configured for image understanding (GPT-4V, Claude Vision
 import base64
 import logging
 from pathlib import Path
+from typing import Any
 
-from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import HumanMessage
-
+from app.core.engine.message.native_classes import HumanMessage
 from app.infrastructure.llm.factory import LLMFactory
 from app.infrastructure.schemas import LLMConfig
 
@@ -31,7 +30,7 @@ class VisionLLMFactory:
         base_url: str | None = None,
         api_key: str | None = None,
         provider_type: str | None = None,
-    ) -> BaseChatModel:
+    ) -> Any:
         """
         Create a Vision-capable LLM instance using the core LLMFactory.
         
@@ -41,6 +40,7 @@ class VisionLLMFactory:
         This is a synchronous wrapper that works in both sync and async contexts.
         """
         import concurrent.futures
+
         from app.infrastructure.config.service import SystemConfigService
 
         # Fetch dynamic config for vision specifically
@@ -110,7 +110,7 @@ class VisionLLMFactory:
         base_url: str | None = None,
         api_key: str | None = None,
         provider_type: str | None = None,
-    ) -> BaseChatModel:
+    ) -> Any:
         """
         Async version of create_vision_llm.
         Use this when already inside an async context to avoid thread overhead.
@@ -149,7 +149,7 @@ class VisionLLMFactory:
         try:
             with open(path, "rb") as f:
                 return base64.b64encode(f.read()).decode("utf-8")
-        except Exception as e:
+        except OSError as e:
             logger.error(f"Failed to encode image {image_path}: {e}")
             raise
 
@@ -218,11 +218,11 @@ class VisionLLMFactory:
 
 
 # Convenience functions
-def get_vision_llm(model_name: str | None = None, **kwargs) -> BaseChatModel:
+def get_vision_llm(model_name: str | None = None, **kwargs) -> Any:
     """Get a default Vision LLM instance (sync)."""
     return VisionLLMFactory.create_vision_llm(model_name=model_name, **kwargs)
 
 
-async def get_vision_llm_async(model_name: str | None = None, **kwargs) -> BaseChatModel:
+async def get_vision_llm_async(model_name: str | None = None, **kwargs) -> Any:
     """Get a default Vision LLM instance (async). Use inside async contexts."""
     return await VisionLLMFactory.create_vision_llm_async(model_name=model_name, **kwargs)

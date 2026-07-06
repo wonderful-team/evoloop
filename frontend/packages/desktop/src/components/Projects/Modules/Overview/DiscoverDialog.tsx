@@ -78,7 +78,7 @@ export function DiscoverDialog({
         if (status.includes("explor")) setPhase("exploring")
         else if (status.includes("install")) setPhase("installing")
         else if (status.includes("generat")) setPhase("generating")
-        addLog(`[Status] ${status}`)
+        addLog(t("projects.profile.statusLog", { status }))
       } catch {
         // ignore
       }
@@ -88,15 +88,23 @@ export function DiscoverDialog({
       try {
         const data = JSON.parse(e.data)
         if (data.type === "tool_start") {
-          const name = data.data?.toolName || data.data?.displayName || "Tool"
-          addLog(`→ ${name}`)
+          const name =
+            data.data?.toolName ||
+            data.data?.displayName ||
+            t("projects.profile.toolFallback")
+          addLog(t("projects.profile.toolStartLog", { name }))
           if (name.toLowerCase().includes("setup")) setPhase("installing")
           if (name.toLowerCase().includes("write")) setPhase("generating")
         } else if (data.type === "tool_complete") {
-          addLog(`✓ ${data.data?.toolName || "Tool"} complete`)
+          addLog(
+            t("projects.profile.toolCompleteLog", {
+              name: data.data?.toolName || t("projects.profile.toolFallback"),
+            }),
+          )
         } else if (data.type === "thinking") {
           const msg = data.message || ""
-          if (msg.length < 100) addLog(`💭 ${msg}`)
+          if (msg.length < 100)
+            addLog(t("projects.profile.thinkingLog", { message: msg }))
         }
       } catch {
         // ignore
@@ -108,7 +116,7 @@ export function DiscoverDialog({
         try {
           const data = JSON.parse(e.data)
           if (data.error) {
-            addLog(`Error: ${data.error}`)
+            addLog(t("projects.profile.errorLog", { message: data.error }))
           }
         } catch {
           // ignore
@@ -160,14 +168,21 @@ export function DiscoverDialog({
 
       const threadId = result.thread_id
       if (!threadId) {
-        throw new Error("No thread_id returned")
+        throw new Error(t("projects.profile.noThreadId"))
       }
 
-      addLog(`${t("projects.profile.threadCreated")}: ${threadId}`)
+      addLog(
+        t("projects.profile.threadCreatedWithId", {
+          label: t("projects.profile.threadCreated"),
+          threadId,
+        }),
+      )
       connectStream(threadId)
     } catch (err: any) {
       setPhase("error")
-      addLog(`Error: ${err.message || String(err)}`)
+      addLog(
+        t("projects.profile.errorLog", { message: err.message || String(err) }),
+      )
     }
   }
 

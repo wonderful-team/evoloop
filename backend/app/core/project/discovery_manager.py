@@ -85,7 +85,7 @@ class ProjectDiscoveryManager:
             try:
                 logger.info(f"[DiscoveryManager] Triggering reconciliation for: {new_root}")
                 await project_sync_service.reconcile_projects(new_root)
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"[DiscoveryManager] Reconciliation failed: {e}")
             return True
 
@@ -98,7 +98,7 @@ class ProjectDiscoveryManager:
         try:
             logger.info(f"[DiscoveryManager] Triggering reconciliation for: {new_root}")
             await project_sync_service.reconcile_projects(new_root)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[DiscoveryManager] Reconciliation failed: {e}")
 
         return True

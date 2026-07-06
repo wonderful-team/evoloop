@@ -6,9 +6,7 @@ Collects and aggregates results from parallel subtask executions.
 import json
 import logging
 
-from langchain_core.messages import AIMessage
-from langchain_core.runnables import RunnableConfig
-
+from app.core.engine.message.native_classes import AIMessage, RunnableConfig
 from app.core.engine.nodes.base import BaseNode
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.schemas import AggregateResult
@@ -55,7 +53,7 @@ class AggregatorNode(BaseNode):
             )
             result_text = agg_result.aggregated if agg_result else "Aggregation failed"
             logger.info(f"[Aggregator] Post-aggregate result (length={len(result_text)}):\n{result_text}")
-        except Exception as e:
+        except (ValueError, RuntimeError, OSError) as e:
             logger.error(f"[Aggregator] Aggregation failed: {e}")
             result_text = f"Aggregation failed: {e}"
             worker_outcome = "failed"
@@ -95,9 +93,9 @@ class AggregatorNode(BaseNode):
                 aggregated="\n\n---\n\n".join([str(r.get("result", r)) for r in results])
             )
 
-        from app.core.llm import InternalLLMService
+        from app.infrastructure.llm import InternalLLMService
         from app.infrastructure.config.service import SystemConfigService
-        from app.utils import render_template
+        from app.utils.template import render_template
         model_name = SystemConfigService.get_value("LLM_MODEL")
         prompt = render_template(
             "core/engine/tools/orchestration_aggregate.prompt.j2",

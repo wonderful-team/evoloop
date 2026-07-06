@@ -2,7 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from app.api.schemas.mcp import McpOperationResponse, McpConnectResponse
+from app.api.schemas.mcp import McpConnectResponse, McpOperationResponse
 from app.core.mcp import mcp_client_manager
 from app.core.mcp.schemas import McpServerCreate
 
@@ -32,7 +32,7 @@ async def add_mcp_server(server: McpServerCreate):
         }
         result = await mcp_client_manager.add_server(server.name, details)
         return result
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.delete("/server/{name}", response_model=McpOperationResponse)
@@ -45,7 +45,7 @@ async def delete_mcp_server(name: str):
         if not result:
             raise HTTPException(status_code=404, detail="Server not found")
         return McpOperationResponse(status="success", message=f"Server {name} removed")
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/server/{name}/connect", response_model=McpConnectResponse)
@@ -65,5 +65,5 @@ async def connect_mcp_server(name: str):
             name=name,
             tools_count=len(tools)
         )
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -16,7 +16,7 @@ const isDebugMode =
   import.meta.env.DEV && import.meta.env.VITE_STARTUP_DEBUG_MODE === "true"
 
 export default function StartupScreen({ onReady }: StartupScreenProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [logs, setLogs] = useState<string[]>([])
   const logContainerRef = useRef<HTMLDivElement>(null)
   const [isHealthy, setIsHealthy] = useState(false)
@@ -198,7 +198,10 @@ export default function StartupScreen({ onReady }: StartupScreenProps) {
         </div>
         <div className="flex justify-between text-xs text-muted-foreground">
           <span>{t("startup.loading")}</span>
-          <span>{Math.round(progress)}%</span>
+          <span>
+            {Math.round(progress)}
+            {t("common.percent")}
+          </span>
         </div>
       </div>
 
@@ -254,7 +257,12 @@ export default function StartupScreen({ onReady }: StartupScreenProps) {
               className="break-all whitespace-pre-wrap border-l-2 border-transparent hover:border-muted-foreground/30 pl-2 transition-colors"
             >
               <span className="opacity-50 select-none mr-2">
-                {new Date().toLocaleTimeString().split(" ")[0]}
+                {new Intl.DateTimeFormat(i18n.language, {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                  hour12: false,
+                }).format(new Date())}
               </span>
               {log}
             </div>

@@ -14,12 +14,20 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.engine.event.schemas import ConversationDeletedEvent
 from app.core.engine.event.types import ConversationEventType
-from app.core.events.decorators import event_register, event_subscribe, register_instance_handlers
-from app.core.events.schemas.lifecycle import ExtractionRequestedEvent, ExtractionCompletedEvent, ExtractionRequest
-from app.core.engine.rewind.event import RewindEventType, RewindRequestedEvent
+from app.core.engine.rewind import REWIND_REQUESTED, RewindRequestedEvent
 from app.core.events import SystemEventType
 from app.core.events.base import AsyncEventBus
-from app.infrastructure.database.sql.database import session_scope
+from app.core.events.decorators import (
+    event_register,
+    event_subscribe,
+    register_instance_handlers,
+)
+from app.core.events.schemas.lifecycle import (
+    ExtractionCompletedEvent,
+    ExtractionRequest,
+    ExtractionRequestedEvent,
+)
+from app.infrastructure.database import session_scope
 from app.models import Message
 
 logger = logging.getLogger(__name__)
@@ -38,7 +46,7 @@ class MemoryLifecycleSubscriber:
             from app.core.memory.lifespan import MemoryLifespanManager
             await MemoryLifespanManager.shutdown()
             logger.info("[Memory] Memory container shutdown")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[Memory] Failed to shutdown memory container: {e}")
 
     @event_subscribe(SystemEventType.EXTRACTION_REQUESTED)
@@ -159,7 +167,7 @@ class MemoryRewind:
         register_instance_handlers(instance, bus)
         return instance
 
-    @event_subscribe(RewindEventType.REWIND_REQUESTED)
+    @event_subscribe(REWIND_REQUESTED)
     async def _handle_rewind_requested(self, event: RewindRequestedEvent) -> None:
         """
         Handle main rewind event - prepare memory cleanup.
@@ -188,7 +196,7 @@ class MemoryRewind:
                 # --- NEW: Physical Memory Cleanup ---
                 try:
                     await self._cleanup_physical_memory(event)
-                except Exception as pe:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as pe:
                     logger.warning(f"[MemoryRewind] Physical cleanup warning: {pe}")
 
                 # Report back to the main event
@@ -197,7 +205,7 @@ class MemoryRewind:
             else:
                 logger.debug(f"[MemoryRewind] No affected messages identified for thread {event.thread_id}")
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             error_msg = f"Memory cleanup failed: {e}"
             logger.error(f"[MemoryRewind] {error_msg}")
             event.errors.append(error_msg)
@@ -282,7 +290,7 @@ class MemoryRewind:
                         if await memory_manager.delete_memory(mem.id):
                             count += 1
 
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     logger.warning(f"[MemoryRewind] Failed to delete memories for msg {msg_id}: {e}")
 
             # Delete by run_id
@@ -296,10 +304,10 @@ class MemoryRewind:
                     for mem in results:
                         if await memory_manager.delete_memory(mem.id):
                             count += 1
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     logger.warning(f"[MemoryRewind] Failed to delete memories for run {run_id}: {e}")
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[MemoryRewind] Memory manager initialization failed: {e}")
 
         return count
@@ -344,7 +352,7 @@ class MemoryRewind:
                     try:
                         f.unlink()
                         logger.debug(f"[MemoryRewind] Deleted stale context file: {f.name}")
-                    except Exception as exc:
+                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as exc:
                         logger.debug(f"[MemoryRewind] Failed to delete {f.name}: {exc}")
 
         # 2. Regenerate MEMORY.md (Tier 1)
@@ -357,7 +365,7 @@ class MemoryRewind:
             # This will pull from the newly cleaned cold memory (Vector DB)
             await container.memory_manager.regenerate_memory_md()
             logger.info("[MemoryRewind] MEMORY.md regenerated successfully")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[MemoryRewind] Failed to regenerate MEMORY.md: {e}")
 
     def get_deleted_count(self) -> int:
@@ -389,7 +397,7 @@ class MemoryConversationCleanup:
                 memory_manager = container.memory_manager
                 if hasattr(memory_manager, '_engine') and memory_manager._engine:
                     await memory_manager._engine._db_delete_by_source_thread_id(thread_id)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[MemoryCleanup] MemoryIndex cleanup warning: {e}")
 
         logger.info(f"[MemoryCleanup] Memory cleanup done for thread {thread_id}")

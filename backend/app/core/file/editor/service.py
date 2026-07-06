@@ -1,14 +1,14 @@
 import logging
-import os
-from typing import List, Optional, Tuple
+from typing import List
 
 from app.core.file.verification import (
     safe_read_with_hash,
     write_file_with_verification,
 )
-from .engine import EditEngine
+
 from .algorithms import calculate_confidence, generate_unified_diff
-from .models import MatchConfidence, EditPreviewResult, FileEditOperation
+from .engine import EditEngine
+from .models import EditPreviewResult, FileEditOperation, MatchConfidence
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class FileEditorService:
         try:
             # Read file content
             file_content, encoding, stats = safe_read_with_hash(absolute_path)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             return EditPreviewResult(
                 success=False,
                 confidence=MatchConfidence.NONE,
@@ -106,8 +106,8 @@ class FileEditorService:
     async def apply_edits(
         absolute_path: str,
         edits: List[FileEditOperation],
-        expected_hash: Optional[str] = None,
-        display_path: Optional[str] = None
+        expected_hash: str | None = None,
+        display_path: str | None = None
     ) -> dict:
         """
         Apply multiple edits to a single file atomically.
@@ -209,7 +209,7 @@ class FileEditorService:
                 "original_content": file_content
             }
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to apply edits to {absolute_path}: {e}")
             return {
                 "success": False,

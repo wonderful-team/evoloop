@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
-from app.api.schemas.symbols import SymbolResponse, SymbolWikiResponse
+from app.api.schemas.symbols import SymbolResponse
 from app.models import CodeEntity, Repository
 
 router = APIRouter()

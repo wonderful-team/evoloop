@@ -4,16 +4,15 @@ MessageRepository — Database persistence and query operations for messages.
 Extracted from MessageHandler to separate persistence concerns from orchestration.
 """
 import logging
-import uuid
-import json
 
 from sqlalchemy import desc, func, select, update
 from sqlalchemy.orm import selectinload
 
 from app.core.engine.message.category import MessageCategory
 from app.core.engine.message.sequence import SequenceService
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.models import Message, MessageReference
+from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +75,7 @@ class MessageRepository:
 
             async with session_scope() as session:
                 log = Message(
-                    id=message_id or str(uuid.uuid4()),
+                    id=message_id or gen_uuid(),
                     thread_id=self.thread_id,
                     project_id=self.project_id,
                     member_id=self.member_id,
@@ -104,7 +103,7 @@ class MessageRepository:
 
                 if references:
                     for ref_data in references:
-                        # Normalize to dict if it is a ReferenceBlock or other Pydantic model
+                        # Normalize to dict if it is a MessageReference or other Pydantic model
                         if not isinstance(ref_data, dict) and hasattr(ref_data, "model_dump"):
                             ref_dict = ref_data.model_dump()
                         elif isinstance(ref_data, dict):
@@ -113,7 +112,7 @@ class MessageRepository:
                             ref_dict = {}
 
                         ref = MessageReference(
-                            id=ref_dict.get("id") or str(uuid.uuid4()),
+                            id=ref_dict.get("id") or gen_uuid(),
                             message_id=log.id,
                             type=ref_dict.get("type") or "file",
                             target_id=ref_dict.get("target_id") or "",
@@ -126,7 +125,7 @@ class MessageRepository:
 
             return log.id, seq
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[MessageRepository] Failed to persist message: {e}")
             raise
 
@@ -166,7 +165,7 @@ class MessageRepository:
                 logger.info(f"[MessageRepository] Updated message seq={sequence_number}: {fields.keys()}")
                 return msg.id
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[MessageRepository] Failed to update message: {e}")
             raise
 
@@ -230,7 +229,7 @@ class MessageRepository:
                         return False
 
                     ref = MessageReference(
-                        id=str(uuid.uuid4()),
+                        id=gen_uuid(),
                         message_id=target_msg_id,
                         type="changeset",
                         target_id=run_id or target_msg_id,
@@ -245,7 +244,7 @@ class MessageRepository:
 
                 await session.flush()
                 return True
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[MessageRepository] Failed to sync changeset reference: {e}")
             return False
 
@@ -298,7 +297,7 @@ class MessageRepository:
                     if tc.get("id") == tool_call_id:
                         return tc.get("args") or {}
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[MessageRepository] resolve_tool_input failed: {e}")
             raise
         return {}
@@ -320,7 +319,7 @@ class MessageRepository:
                 # but session.execute with update statement is fine.
                 logger.info(f"[MessageRepository] Updated status to {status} for tool_call_id {tool_call_id}")
                 return result.rowcount > 0
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[MessageRepository] Failed to update status by tool_call_id {tool_call_id}: {e}")
             raise
 
@@ -336,7 +335,7 @@ class MessageRepository:
                 )
                 result = await session.execute(stmt)
                 return result.scalar_one_or_none()
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[MessageRepository] Failed to get last message id: {e}")
             return None
 

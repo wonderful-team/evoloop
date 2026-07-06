@@ -1,3 +1,4 @@
+import i18n from "@evoloop/shared/i18n"
 import { cn } from "@evoloop/shared/lib/utils"
 import { createFileRoute, redirect } from "@tanstack/react-router"
 import {
@@ -78,7 +79,7 @@ export const Route = createFileRoute("/_layout/settings")({
   head: () => ({
     meta: [
       {
-        title: "Settings - EvoLoop",
+        title: i18n.t("settings.pageTitle"),
       },
     ],
   }),

@@ -20,12 +20,3 @@ async def publish_file_watcher_event(
     await system_bus.publish(
         FileWatcherEvent(event_type=event_type, data=data)
     )
-
-
-async def publish_files_cleanup(thread_id: str, file_operations: list[dict]) -> None:
-    """Publish a file cleanup event for rewind operations."""
-    from app.core.file.event.schemas import FilesCleanupEvent
-
-    await system_bus.publish(
-        FilesCleanupEvent(thread_id=thread_id, file_operations=file_operations)
-    )

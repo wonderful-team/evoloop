@@ -2,14 +2,19 @@
 Standardized directory operations using the new File Center core.
 All traversal and tree logic is now delegated to traverser.py and tree.py.
 """
-import os
 import logging
+import os
 import shutil
 from typing import Iterator
 
+from .schemas import (
+    DirectoryEntry,
+    DirectoryInfo,
+    DirectoryOperationResult,
+    DirectoryStatus,
+)
 from .traverser import FileTraverser
 from .tree import TreeService
-from .schemas import DirectoryEntry, DirectoryInfo, DirectoryOperationResult, DirectoryStatus
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +46,7 @@ def list_directory(
                 is_dir=entry.is_dir(),
                 size=stat.st_size if entry.is_file() else 0
             )
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.warning(f"Cannot list directory {path}: {e}")
 
 
@@ -81,7 +86,7 @@ def create_directory(path: str, exist_ok: bool = True) -> DirectoryOperationResu
             path=path,
             message=f"Directory ensured: {path}"
         )
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return DirectoryOperationResult(
             success=False,
             status=DirectoryStatus.ERROR,
@@ -99,7 +104,7 @@ def delete_directory(path: str, recursive: bool = False) -> DirectoryOperationRe
         else:
             os.rmdir(path)
         return DirectoryOperationResult(success=True, status=DirectoryStatus.SUCCESS, path=path, message="Deleted")
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return DirectoryOperationResult(success=False, status=DirectoryStatus.ERROR, path=path, message=str(e))
 
 def delete_file(path: str) -> DirectoryOperationResult:
@@ -107,7 +112,7 @@ def delete_file(path: str) -> DirectoryOperationResult:
     try:
         os.remove(path)
         return DirectoryOperationResult(success=True, status=DirectoryStatus.SUCCESS, path=path, message="Deleted")
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return DirectoryOperationResult(success=False, status=DirectoryStatus.ERROR, path=path, message=str(e))
 
 def move_path(source: str, destination: str) -> DirectoryOperationResult:
@@ -116,7 +121,7 @@ def move_path(source: str, destination: str) -> DirectoryOperationResult:
         os.makedirs(os.path.dirname(os.path.abspath(destination)), exist_ok=True)
         shutil.move(source, destination)
         return DirectoryOperationResult(success=True, status=DirectoryStatus.SUCCESS, path=source, destination=destination, message="Moved")
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return DirectoryOperationResult(success=False, status=DirectoryStatus.ERROR, path=source, message=str(e))
 
 # ============================================================================
@@ -171,5 +176,5 @@ def is_empty_directory(path: str) -> bool:
         for _ in FileTraverser.list_entries(path):
             return False
         return True
-    except Exception:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
         return False

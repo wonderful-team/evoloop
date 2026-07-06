@@ -12,7 +12,7 @@ from app.api.schemas.subscription import (
 )
 from app.core.config import settings
 from app.core.evocloud import evocloud_manager
-from app.services.benefit_service import benefit_service
+from app.core.benefits import benefit_service
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +117,7 @@ async def handle_benefits_update_webhook(payload: BenefitsUpdateWebhook):
                 member_id=payload.member_id,
                 event=payload.event,
             )
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[Webhook] Failed to publish subscription changed event: {e}")
 
     return SubscriptionWebhookResponse(

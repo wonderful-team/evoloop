@@ -83,12 +83,7 @@ class LLMPlatformService {
         return []
       } catch (error) {
         console.error("[LLMPlatform] Failed to fetch models:", error)
-        toast.error(
-          i18n.t(
-            "chat.modelSelector.fetchFailed",
-            "Failed to fetch model list",
-          ),
-        )
+        toast.error(i18n.t("chat.modelSelector.fetchFailed"))
         return []
       } finally {
         // 清除请求锁

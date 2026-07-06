@@ -9,8 +9,6 @@ The Engine is completely agnostic of this module's existence.
 """
 import logging
 import re
-from typing import Optional
-
 from app.core.events.base import BaseEvent
 
 logger = logging.getLogger(__name__)
@@ -87,7 +85,7 @@ class ProjectPolisher:
         },
     ]
 
-    def _detect_target_lang(self, topic: str) -> Optional[str]:
+    def _detect_target_lang(self, topic: str) -> str | None:
         """Match topic keywords against fingerprint lang_value and aliases."""
         if not topic:
             return None

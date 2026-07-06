@@ -1,31 +1,27 @@
 """
 Shared message utilities for agent nodes.
-
-Contains common functions for message processing, history repair, and extraction.
-
-This module re-exports functions from specialized sub-modules for backward
-compatibility. New code should import directly from the specialized modules.
 """
 
+import ast
 import json
 import logging
-import ast
 from typing import Any
 
-from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage, HumanMessage
-
+from app.core.engine.message.native_classes import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from app.utils.token import estimate_tokens
 
 logger = logging.getLogger(__name__)
 
 
-
-
-
 def parse_tool_input(input_str: str | None) -> dict:
     """
     Robustly parse tool input string into a dictionary.
-    Handles both standard JSON and LangChain's single-quoted Python dict strings.
     """
     if not input_str or not input_str.strip():
         return {}
@@ -34,13 +30,11 @@ def parse_tool_input(input_str: str | None) -> dict:
     if not input_str.startswith("{"):
         return {}
 
-    # 1. Try standard JSON
     try:
         return json.loads(input_str)
     except (json.JSONDecodeError, ValueError):
         pass
 
-    # 2. Try Python literal eval (for single-quoted strings from LangChain)
     try:
         result = ast.literal_eval(input_str)
         if isinstance(result, dict):
@@ -53,70 +47,80 @@ def parse_tool_input(input_str: str | None) -> dict:
 
 def to_base_message(msg: Any) -> BaseMessage | None:
     """
-    Convert a database Message record or similar object to a LangChain BaseMessage.
-
-    Args:
-        msg: Object with role, content, and optionally tool_calls / tool_call_id
-
-    Returns:
-        A LangChain message object or None if role is unknown
+    Convert database Message record or dict to a native BaseMessage.
     """
-    role = getattr(msg, "role", None)
-    # Defensive: content may be None in DB; LangChain v2 rejects None content
-    content = getattr(msg, "content", "") or ""
+    if not msg:
+        return None
 
-    # Preserve key metadata that fold_messages and other utilities need
-    msg_id = str(getattr(msg, "id", "")) or None
-    created_at = getattr(msg, "created_at", None)
-    thinking_raw = getattr(msg, "thinking", None)
+    if isinstance(msg, dict):
+        role = msg.get("role")
+        content = msg.get("content", "") or ""
+        msg_id = str(msg.get("id", "")) or None
+        created_at = msg.get("created_at")
+        thinking_raw = msg.get("thinking")
+        status = msg.get("status")
+        meta_data = msg.get("meta_data") or msg.get("metadata")
+        node_source = msg.get("node_source")
+        additional_kwargs = dict(msg.get("additional_kwargs", {}) or {})
+    else:
+        role = getattr(msg, "role", None)
+        content = getattr(msg, "content", "") or ""
+        msg_id = str(getattr(msg, "id", "")) or None
+        created_at = getattr(msg, "created_at", None)
+        thinking_raw = getattr(msg, "thinking", None)
+        status = getattr(msg, "status", None)
+        meta_data = getattr(msg, "meta_data", None)
+        node_source = getattr(msg, "node_source", None)
+        additional_kwargs = dict(getattr(msg, "additional_kwargs", {}) or {})
 
-    # Build additional_kwargs explicitly for clarity and version safety
-    additional_kwargs: dict[str, Any] = {}
     if created_at:
         additional_kwargs["created_at"] = created_at
     if thinking_raw:
         additional_kwargs["thinking"] = thinking_raw
-
-    # Preserve status for folder/mapping logic
-    status = getattr(msg, "status", None)
     if status:
         additional_kwargs["status"] = status
-
-    # Preserve raw metadata for normalization recovery
-    meta_data = getattr(msg, "meta_data", None)
     if meta_data:
         additional_kwargs["metadata"] = meta_data
-
-    # Preserve node_source for diagnostics
-    node_source = getattr(msg, "node_source", None)
     if node_source:
         additional_kwargs["node_source"] = node_source
 
     try:
-        if role == "human":
-            return HumanMessage(content=content, id=msg_id, additional_kwargs=additional_kwargs)
-        elif role == "ai":
-            tool_calls = normalize_tool_calls(getattr(msg, "tool_calls", []))
-
-            return AIMessage(
+        message = None
+        if role == "human" or role == "user":
+            message = HumanMessage(content=content, id=msg_id, additional_kwargs=additional_kwargs)
+        elif role == "ai" or role == "assistant":
+            tc_source = msg.get("tool_calls") if isinstance(msg, dict) else getattr(msg, "tool_calls", [])
+            tool_calls = normalize_tool_calls(tc_source)
+            message = AIMessage(
                 content=content,
                 id=msg_id,
                 tool_calls=tool_calls,
                 additional_kwargs=additional_kwargs
             )
         elif role == "tool":
-            # For database records, name might be stored in 'tool_name' or derived from tool_calls
-            return ToolMessage(
+            t_call_id = msg.get("tool_call_id") if isinstance(msg, dict) else getattr(msg, "tool_call_id", "")
+            t_name = msg.get("name") if isinstance(msg, dict) else getattr(msg, "tool_name", None)
+            message = ToolMessage(
                 content=content,
                 id=msg_id,
-                tool_call_id=getattr(msg, "tool_call_id", "") or "",
-                name=getattr(msg, "tool_name", None),
+                tool_call_id=t_call_id or "",
+                name=t_name,
                 additional_kwargs=additional_kwargs
             )
         elif role == "system":
-            return SystemMessage(content=content, id=msg_id, additional_kwargs=additional_kwargs)
-    except Exception as e:
-        logger.warning(f"[to_base_message] Failed to convert msg id={msg_id} role={role}: {e}")
+            message = SystemMessage(content=content, id=msg_id, additional_kwargs=additional_kwargs)
+
+        if message:
+            message.metadata = additional_kwargs
+            is_err_val = additional_kwargs.get("status") == "error" or additional_kwargs.get("is_error") or False
+            if not is_err_val:
+                if isinstance(msg, dict):
+                    is_err_val = msg.get("additional_kwargs", {}).get("is_error") or False
+            if is_err_val:
+                message.metadata["is_error"] = True
+            return message
+    except (ValueError, TypeError, AttributeError) as e:
+        logger.warning(f"[to_base_message] Failed to convert msg role={role}: {e}")
         return None
 
     return None
@@ -124,13 +128,8 @@ def to_base_message(msg: Any) -> BaseMessage | None:
 
 def normalize_tool_call(tc: Any) -> dict[str, Any]:
     """
-    Standardize tool call structure to LangChain format:
+    Standardize tool call structure to:
     {"id": "...", "name": "...", "args": {...}}
-
-    Handles:
-    - LangChain normalized dicts
-    - OpenAI raw tool call dicts (with 'function' and 'arguments' string)
-    - Pydantic models (with .model_dump())
     """
     if not isinstance(tc, dict):
         if hasattr(tc, "model_dump"):
@@ -138,12 +137,16 @@ def normalize_tool_call(tc: Any) -> dict[str, Any]:
         else:
             return {}
 
-    # 1. Check for standard LangChain format
     res_id = tc.get("id") or tc.get("tool_call_id") or ""
     res_name = tc.get("name") or tc.get("tool_name") or ""
     res_args = tc.get("args") or {}
 
-    # 2. Handle OpenAI legacy format: {"function": {"name": "...", "arguments": "{...}"}}
+    if isinstance(res_args, str):
+        try:
+            res_args = json.loads(res_args) if res_args.strip() else {}
+        except (json.JSONDecodeError, ValueError):
+            res_args = {}
+
     if not res_name or not res_args:
         fn_info = tc.get("function")
         if isinstance(fn_info, dict):
@@ -159,16 +162,12 @@ def normalize_tool_call(tc: Any) -> dict[str, Any]:
                 elif isinstance(args_raw, dict):
                     res_args = args_raw
 
-
-
-    # 4. Final structure (standard LangChain format)
     result = {
         "id": res_id,
         "name": res_name,
         "args": res_args,
     }
 
-    # Preserve type and index if present
     if "type" in tc:
         result["type"] = tc["type"]
     if "index" in tc:
@@ -194,27 +193,28 @@ def normalize_tool_calls(tool_calls: Any) -> list[dict[str, Any]]:
     return [normalize_tool_call(tc) for tc in tool_calls]
 
 
-def get_message_text(message) -> str:
+def get_message_text(message: Any) -> str:
     """
-    Robustly extract text content from a message object, handling:
-    - Normal string content
-    - List of blocks (Multimodal/Anthropic)
+    Robustly extract text content from message dict, object or string.
     """
     if isinstance(message, str):
         return message
+    if isinstance(message, dict):
+        content = message.get("content", "")
+    elif hasattr(message, "content"):
+        content = message.content
+    else:
+        content = ""
 
-    content = message.content
     if isinstance(content, str):
         return content
 
     if isinstance(content, list):
-        # Join all text blocks
         text_parts = []
         for block in content:
             if isinstance(block, str):
                 text_parts.append(block)
             elif isinstance(block, dict):
-                # Anthropic style: {"type": "text", "text": "..."}
                 if block.get("type") == "text":
                     text_parts.append(block.get("text", ""))
         return "\n".join(text_parts)
@@ -223,34 +223,34 @@ def get_message_text(message) -> str:
 
 
 def get_last_human_message(messages: list) -> str | None:
-    """Extract the last human message content from a message list."""
-    from langchain_core.messages import HumanMessage
+    """Extract last user message content from message list."""
     for msg in reversed(messages):
-        if isinstance(msg, HumanMessage):
+        role = msg.get("role") if isinstance(msg, dict) else getattr(msg, "type", None)
+        if role in ("user", "human"):
             return get_message_text(msg)
     return None
 
 
-def estimate_message_tokens(msg: BaseMessage) -> int:
+def estimate_message_tokens(msg: Any) -> int:
     """
-    Estimate token count for a single message including structural overhead.
-
-    Uses the unified chars // 4 heuristic from app.utils.token.estimate_tokens.
-
-    Args:
-        msg: A LangChain message.
-
-    Returns:
-        Estimated token count.
+    Estimate token count for a single message.
     """
     text = get_message_text(msg)
     base = estimate_tokens(text)
-    overhead = 4  # role, name, etc.
-    if isinstance(msg, AIMessage) and msg.tool_calls:
-        overhead += 8  # tool_calls have extra overhead
+    overhead = 4
+    
+    if isinstance(msg, dict):
+        role = msg.get("role")
+        tool_calls = msg.get("tool_calls")
+    else:
+        role = getattr(msg, "type", "user")
+        tool_calls = getattr(msg, "tool_calls", None)
+        
+    if role in ("assistant", "ai") and tool_calls:
+        overhead += 8
     return base + overhead
 
 
-def count_total_tokens(messages: list[BaseMessage]) -> int:
-    """Sum estimated tokens for all messages (fast path, no model required)."""
+def count_total_tokens(messages: list) -> int:
+    """Sum estimated tokens for all messages."""
     return sum(estimate_message_tokens(m) for m in messages)

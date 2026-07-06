@@ -108,8 +108,7 @@ export async function getSubscriptionStatus(): Promise<{
 
   return {
     isActive: !data.is_expired,
-    levelName:
-      data.level_name || i18n.t("subscription.plans.free", "Free Plan"),
+    levelName: data.level_name || i18n.t("subscription.plans.free"),
     remainingDays: data.remaining_days || 0,
     expireTime: data.expire_time,
   }

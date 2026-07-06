@@ -9,13 +9,11 @@ Provides:
 """
 
 import logging
-from typing import Optional
-
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from app.infrastructure.database import session_scope
 from app.models.project import ProjectTask
-from app.infrastructure.database.sql.database import session_scope
 from app.utils.id import gen_uuid
 from app.utils.time import utcnow
 
@@ -26,7 +24,7 @@ class SubtaskService:
     """Service for managing hierarchical subtasks."""
 
     @staticmethod
-    async def get_task(task_id: str) -> Optional[ProjectTask]:
+    async def get_task(task_id: str) -> ProjectTask | None:
         """
         Get task by ID, supporting both full UUID and 8-character prefix.
         """
@@ -71,7 +69,7 @@ class SubtaskService:
     async def create_task_with_subtasks(
         project_id: int,
         title: str,
-        analysis_id: Optional[str] = None,
+        analysis_id: str | None = None,
         description: str = "",
         priority: str = "medium",
         estimated_hours: int = 0,
@@ -154,7 +152,7 @@ class SubtaskService:
     async def get_task_tree(
         task_id: str,
         max_depth: int = 5
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """
         Get task tree structure recursively.
         
@@ -214,9 +212,9 @@ class SubtaskService:
     @staticmethod
     async def update_task_progress(
         task_id: str,
-        status: Optional[str] = None,
-        progress: Optional[int] = None,
-        result: Optional[str] = None
+        status: str | None = None,
+        progress: int | None = None,
+        result: str | None = None
     ) -> bool:
         """
         Update task progress and propagate to parent.
@@ -306,7 +304,7 @@ class SubtaskService:
         logger.info(f"[SubtaskService] Updated parent {parent_id} progress to {parent.progress}%")
 
     @staticmethod
-    async def get_next_executable_task(project_id: int) -> Optional[dict]:
+    async def get_next_executable_task(project_id: int) -> dict | None:
         """
         Get next task ready for execution.
         Returns first pending subtask or parent task with no subtasks.

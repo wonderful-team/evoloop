@@ -1,13 +1,13 @@
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import select
 
 from app.core.tools import evoloop_tool
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.models.learning import LearnedSkill
 from app.models.scheduler import AutonomousTask
-from app.utils import ControllerResponse, SystemToolsFormatter
+from app.utils.controller_response import ControllerResponse, SystemToolsFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +20,8 @@ async def schedule_periodic_task(
     intent: str,
     trigger: str,
     skill_name: str,
-    params: Optional[dict[str, Any]] = None,
-    project_id: Optional[int] = None
+    params: dict[str, Any] | None = None,
+    project_id: int | None = None
 ) -> str:
     """
     Delegate a recurring high-level intent to the autonomous scheduler.
@@ -60,7 +60,7 @@ async def schedule_periodic_task(
                 details=f"Task ID: {task_id}",
                 note=f"Trigger: {trigger}"
             )
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Error in schedule_periodic_task: {e}")
         return ControllerResponse.error("Failed to delegate intent", details=str(e))
 
@@ -87,16 +87,16 @@ async def inspect_task_health(task_id: int) -> str:
             
             try:
                 return SystemToolsFormatter.task_health(task)
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"Failed to render task health: {e}")
                 return f"Task {task_id} health: {status}"
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Error in inspect_task_health: {e}")
         return f"Error: Failed to inspect task health. {str(e)}"
 
 
 @evoloop_tool(summary_template="evoloop.tool_summary.list_scheduled_tasks")
-async def list_scheduled_tasks(project_id: Optional[int] = None) -> str:
+async def list_scheduled_tasks(project_id: int | None = None) -> str:
     """
     List all autonomous tasks managed by the agent.
     
@@ -120,9 +120,9 @@ async def list_scheduled_tasks(project_id: Optional[int] = None) -> str:
             
             try:
                 return SystemToolsFormatter.autonomous_tasks(tasks), {"count": len(tasks)}
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"Failed to render task list: {e}")
                 return f"Found {len(tasks)} tasks.", {"count": len(tasks)}
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Error in list_scheduled_tasks: {e}")
         return f"Error: Failed to list tasks. {str(e)}"

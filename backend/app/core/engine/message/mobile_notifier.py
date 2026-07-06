@@ -44,7 +44,7 @@ class MobileErrorNotifier:
                 sequence_number=seq,
                 channels={"mobile"},
             )
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[MobileErrorNotifier] Failed to push error to mobile: {e}")
 
     async def _next_sequence(self) -> int:
@@ -57,7 +57,7 @@ class MobileErrorNotifier:
         try:
             from app.core.engine.message.sequence import SequenceService
             return await SequenceService.next_sequence(self._handler.thread_id)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[MobileErrorNotifier] Failed to get sequence number, using fallback: {e}")
             # Large positive offset to place fallback error messages at the end of timelines
             return 99999999

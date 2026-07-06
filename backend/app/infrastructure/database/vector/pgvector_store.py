@@ -8,15 +8,25 @@ extension is present and tables exist as a fallback.
 import hashlib
 import logging
 from datetime import datetime
-from app.utils.time import utcnow
 from typing import Any
 
-from sqlalchemy import BigInteger, DateTime, Index, String, Text, create_engine, func, text
+from sqlalchemy import (
+    BigInteger,
+    DateTime,
+    Index,
+    String,
+    Text,
+    create_engine,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
-from app.core.config import settings
 from app.constants import DEFAULT_PROJECT_ID
+from app.core.config import settings
+from app.infrastructure.database.vector.base import BaseVectorStore
+from app.utils.time import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +73,7 @@ class VectorEmbedding(VectorBase):
 # ---------------------------------------------------------------------------
 
 
-class PgVectorStore:
+class PgVectorStore(BaseVectorStore):
     """Production vector store backed by PostgreSQL + pgvector."""
 
     def __init__(self, db_uri: str | None = None):
@@ -233,85 +243,6 @@ class PgVectorStore:
             logger.debug(f"[PgVectorStore] Deleted {count} code chunks for repo {repository_id}")
             return count
 
-    # -- knowledge base -----------------------------------------------------
-
-    def upsert_kb_chunks(self, records: list[dict[str, Any]]) -> int:
-        if not records:
-            return 0
-
-        now = utcnow()
-        with self._session() as session:
-            # Delete existing chunks for affected doc_ids (mirrors LanceDB behavior)
-            doc_ids = {r["source_id"] for r in records}
-            for doc_id in doc_ids:
-                session.query(VectorEmbedding).filter(
-                    VectorEmbedding.source_type == "kb_doc",
-                    VectorEmbedding.source_id == doc_id,
-                ).delete(synchronize_session=False)
-
-            for rec in records:
-                session.add(
-                    VectorEmbedding(
-                        source_type="kb_doc",
-                        source_id=rec["source_id"],
-                        collection=rec.get("collection", "default"),
-                        embedding=rec["vector"],
-                        content=rec["content"],
-                        metadata_=rec,
-                        created_at=now,
-                    )
-                )
-            session.commit()
-
-        logger.debug(f"[PgVectorStore] Upserted {len(records)} KB chunks")
-        return len(records)
-
-    def search_kb(
-        self,
-        query_vector: list[float],
-        top_k: int = 10,
-        collection: str | None = None,
-    ) -> list[dict[str, Any]]:
-        with self._session() as session:
-            emb_col = VectorEmbedding.embedding
-            q = (
-                session.query(
-                    VectorEmbedding,
-                    emb_col.cosine_distance(query_vector).label("distance"),
-                )
-                .filter(VectorEmbedding.source_type == "kb_doc")
-                .order_by(emb_col.cosine_distance(query_vector))
-                .limit(top_k)
-            )
-
-            if collection:
-                q = q.filter(VectorEmbedding.collection == collection)
-
-            rows = q.all()
-
-            return [
-                {
-                    "id": r.VectorEmbedding.source_id,
-                    "content": r.VectorEmbedding.content,
-                    "doc_id": r.VectorEmbedding.source_id,
-                    "title": r.VectorEmbedding.metadata_.get("title", ""),
-                    "collection": r.VectorEmbedding.collection or "default",
-                    "score": 1.0 - float(r.distance),
-                }
-                for r in rows
-            ]
-
-    def delete_kb_by_doc(self, doc_id: str) -> int:
-        with self._session() as session:
-            count = (
-                session.query(VectorEmbedding)
-                .filter(VectorEmbedding.source_type == "kb_doc")
-                .filter(VectorEmbedding.source_id == doc_id)
-                .delete(synchronize_session=False)
-            )
-            session.commit()
-            return count
-
     # -- memories -----------------------------------------------------------
 
     def upsert_memory_chunks(self, records: list[dict[str, Any]]) -> int:
@@ -432,10 +363,16 @@ class PgVectorStore:
             session.commit()
         return len(records)
 
-    def search_skills(self, query_vector: list[float], top_k: int = 10) -> list[dict[str, Any]]:
+    def search_skills(
+        self,
+        query_vector: list[float],
+        bundle_id: str | None = None,
+        platform: str | None = None,
+        top_k: int = 10,
+    ) -> list[dict[str, Any]]:
         with self._session() as session:
             emb_col = VectorEmbedding.embedding
-            rows = (
+            q = (
                 session.query(
                     VectorEmbedding,
                     emb_col.cosine_distance(query_vector).label("distance"),
@@ -443,14 +380,22 @@ class PgVectorStore:
                 .filter(VectorEmbedding.source_type == "skill")
                 .order_by(emb_col.cosine_distance(query_vector))
                 .limit(top_k)
-                .all()
             )
+
+            if bundle_id:
+                q = q.filter(VectorEmbedding.metadata_["bundle_id"].astext == bundle_id)
+            if platform:
+                q = q.filter(VectorEmbedding.metadata_["platform"].astext == platform)
+
+            rows = q.all()
 
             return [
                 {
                     "id": r.VectorEmbedding.source_id,
                     "name": r.VectorEmbedding.metadata_.get("name", ""),
                     "description": r.VectorEmbedding.content,
+                    "bundle_id": r.VectorEmbedding.metadata_.get("bundle_id"),
+                    "platform": r.VectorEmbedding.metadata_.get("platform"),
                     "score": 1.0 - float(r.distance),
                 }
                 for r in rows
@@ -518,11 +463,6 @@ class PgVectorStore:
                 .filter(VectorEmbedding.source_type == "code_chunk")
                 .count()
             )
-            kb_count = (
-                session.query(VectorEmbedding)
-                .filter(VectorEmbedding.source_type == "kb_doc")
-                .count()
-            )
             mem_count = (
                 session.query(VectorEmbedding)
                 .filter(VectorEmbedding.source_type == "memory")
@@ -543,7 +483,6 @@ class PgVectorStore:
                 "db_uri": self._db_uri,
                 "total_vectors": total,
                 "code_chunks": code_count,
-                "kb_chunks": kb_count,
                 "memories": mem_count,
                 "skills": skill_count,
                 "concepts": concept_count,

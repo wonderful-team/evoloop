@@ -9,12 +9,12 @@ Unified Code Exploration Tools - Semantic Interface
 import logging
 from typing import Annotated
 
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import InjectedToolArg
-
 from app.constants import DEFAULT_PROJECT_ID
+from app.core.engine.message.native_classes import RunnableConfig
 from app.core.tools import evoloop_tool, get_working_directory
-from app.utils import render_template
+from app.core.tools.base import InjectedToolArg
+from app.utils.template import render_template
+
 from .engine import get_exploration_engine
 
 logger = logging.getLogger(__name__)
@@ -125,6 +125,6 @@ async def ask_codebase(
         lines = [f"- {r.get('name')}: {r.get('description', '')}" for r in results[:10]]
         return f"Relevant concepts for '{question}':\n" + "\n".join(lines), {"count": len(results)}
         
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Ask codebase failed: {e}")
         return f"Error searching codebase: {e}"

@@ -79,6 +79,17 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
             or "EvoLoop-Desktop"
         )
 
+    @property
+    def device_description(self) -> str:
+        """Resolve device description dynamically from runtime config store."""
+        from app.infrastructure.config.service import SystemConfigService
+
+        return (
+            SystemConfigService.get_value("EVOCLOUD_DEVICE_DESCRIPTION")
+            or settings.EVOCLOUD_DEVICE_DESCRIPTION
+            or ""
+        )
+
     async def ensure_device_key(self) -> str:
         """Async initialization of device_key. Must be called before using device_key in async context."""
         if not getattr(self, "_device_key", ""):
@@ -156,7 +167,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                 logger.info(f"[EvoCloud] WS SEND RAW: {payload[:500]}...")
                 await self.ws.send(payload)
                 return True
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(f"[EvoCloud] WS Send Error: {e}, enqueueing for retry")
         else:
             logger.debug("[EvoCloud] WS not connected, enqueueing message for retry")
@@ -215,7 +226,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                 await asyncio.wait_for(self.ws.close(), timeout=2.0)
             except asyncio.TimeoutError:
                 logger.debug("[EvoCloud] WS close timed out, forcing disconnect")
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.debug(f"[EvoCloud] Error closing WS: {e}")
             finally:
                 self.ws = None
@@ -245,7 +256,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     await self.ws.send(payload)
                     logger.info(f"[EvoCloud] WS SEND RETRY: {payload[:200]}")
                     self._send_queue.task_done()
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     logger.warning(
                         f"[EvoCloud] WS retry send failed: {e}, re-enqueueing"
                     )
@@ -261,7 +272,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     self._send_queue.task_done()
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(f"[EvoCloud] Send queue loop error: {e}")
                 await asyncio.sleep(1)
 
@@ -289,7 +300,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     await asyncio.wait_for(self.ws.ping(), timeout=10)
                 except asyncio.TimeoutError:
                     logger.debug("[EvoCloud] WebSocket ping timed out, will reconnect")
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     logger.debug(f"[EvoCloud] WebSocket ping failed: {e}")
 
                 try:
@@ -305,7 +316,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                             body={"timestamp": int(time.time())},
                         )
                         await self.send_message(ping_env.model_dump())
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     logger.debug(f"[EvoCloud] JSON text ping failed: {e}")
             await asyncio.sleep(30)
 
@@ -362,11 +373,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                         "device_type": EnvironmentProbe.get_inferred_device_type(),
                         "device_key": self.device_key,
                         "device_name": self.device_name,
-                        "capabilities": [
-                            c.strip()
-                            for c in settings.EVOCLOUD_DEVICE_CAPABILITIES.split(",")
-                            if c.strip()
-                        ],
+                                        "description": self.device_description,
                         "os_info": platform.platform(),
                     }
                     connect_env = create_envelope(
@@ -390,7 +397,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     )
             except asyncio.CancelledError:
                 raise  # Let cancellation propagate cleanly
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(f"[EvoCloud] WS Connection Error: {e}")
                 if not self._handshake_completed and self.device_key:
                     logger.warning(
@@ -535,7 +542,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                 raw=raw,
             )
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[EvoCloud] WS Handle Error: {e}")
 
     def _on_token_changed(self, token: str | None):
@@ -563,6 +570,6 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         if self.ws:
             try:
                 await self.ws.close()
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.debug(f"[EvoCloud] Error during force reconnect close: {e}")
         self.ws = None

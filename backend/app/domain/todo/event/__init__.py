@@ -2,11 +2,11 @@
 Todo Event Package
 ==================
 
-Public exports for todo event schemas and subscribers.
+Public exports for todo event types, schemas and subscribers.
 """
 
-from .schemas import TodoCleanupEvent
+from .types import TodoEventType
 
 __all__ = [
-    "TodoCleanupEvent",
+    "TodoEventType",
 ]

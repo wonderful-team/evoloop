@@ -112,6 +112,7 @@ class MemoryStateTracker:
 
         self._last_cleanup = now
         expired_threads = []
+        total_expired_ids = 0
 
         for thread_id, memories in self._surfaced.items():
             # Remove expired entries
@@ -121,6 +122,7 @@ class MemoryStateTracker:
             ]
             for mem_id in expired_ids:
                 del memories[mem_id]
+            total_expired_ids += len(expired_ids)
 
             # Mark empty threads for removal
             if not memories:
@@ -129,8 +131,11 @@ class MemoryStateTracker:
         for thread_id in expired_threads:
             del self._surfaced[thread_id]
 
-        if expired_threads or expired_ids:
-            logger.debug(f"[MemoryTracker] Cleanup: removed {len(expired_threads)} empty threads")
+        if expired_threads or total_expired_ids:
+            logger.debug(
+                f"[MemoryTracker] Cleanup: removed {len(expired_threads)} empty threads, "
+                f"{total_expired_ids} expired entries"
+            )
 
 
 # Global instance

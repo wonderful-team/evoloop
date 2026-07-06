@@ -8,10 +8,10 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.project import cache as project_cache
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import CodeChunk, SourceFile
-from app.utils import render_template
+from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -89,14 +89,6 @@ class AnnotatedTreeGenerator:
         if style == "auto":
             style = "tree"
 
-        if style == "flat":
-            return self._render_flat(root_node)
-
-        # 3. Adapt structure (filter nodes based on detail level)
-        # We modify the tree structure in-place or return variants
-        # For simplicity in this refactor, we keep the original logic's "Level" concept
-        # but the actual rendering is now via template.
-        
         try:
             if style == "flat":
                 flat_paths = self._collect_flat_paths(root_node)
@@ -105,7 +97,7 @@ class AnnotatedTreeGenerator:
             # Strategy: Adjust root_node's visibility and render
             # (Note: Original Level 1-4 logic simplified to just rendering the built structure)
             return render_template("domain/codebase/codebase_tree.prompt.j2", style="tree", root=root_node)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to render tree: {e}")
             return "Error rendering tree structure."
 

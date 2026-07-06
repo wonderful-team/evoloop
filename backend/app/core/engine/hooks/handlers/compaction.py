@@ -3,13 +3,13 @@ Pre-compact hook handler — saves checkpoint state before context compression.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import yaml
-from langchain_core.messages import BaseMessage
 
 from app.core.engine.hooks.core import HookContext, HookResult
+from app.core.engine.message.native_classes import BaseMessage
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 
 logger = logging.getLogger(__name__)
@@ -107,7 +107,7 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
             source_message_id = last_msg.id or last_msg.additional_kwargs.get("message_id")
 
         memory_entry = MemoryEntry(
-            id=f"checkpoint_{context.thread_id}_{int(datetime.utcnow().timestamp())}",
+            id=f"checkpoint_{context.thread_id}_{int(datetime.now(timezone.utc).timestamp())}",
             type=MemoryType.PROJECT,
             privacy=PrivacyLevel.PRIVATE,
             title=f"Context Checkpoint - {checkpoint['task_progress'][:50]}...",
@@ -139,7 +139,7 @@ Remaining: {checkpoint['remaining_work'] or 'Unknown'}
             data={"checkpoint": checkpoint, "summary": summary, "checkpoint_id": memory_entry.id},
         )
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         total_elapsed = (datetime.utcnow() - start_time).total_seconds()
         logger.error(f"[PreCompact] ❌ Failed to save state after {total_elapsed:.3f}s: {e}", exc_info=True)
         return HookResult(success=False, error=e)

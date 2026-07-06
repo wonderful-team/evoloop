@@ -39,12 +39,9 @@ export function FilePreviewModal({
         className="!max-w-[calc(100vw-360px)] w-full p-0 flex flex-col h-full bg-background border-l"
       >
         <SheetHeader className="px-4 py-3 border-b m-0 shrink-0 hidden">
-          <SheetTitle>
-            {file?.name ||
-              t("files.previewTitle", { defaultValue: "文件预览" })}
-          </SheetTitle>
+          <SheetTitle>{file?.name || t("files.previewTitle")}</SheetTitle>
           <SheetDescription className="sr-only">
-            Preview for the file
+            {t("files.previewDescription")}
           </SheetDescription>
         </SheetHeader>
         <div className="flex-1 overflow-hidden min-h-0 relative">
@@ -53,7 +50,7 @@ export function FilePreviewModal({
           ) : (
             <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary mr-3" />
-              {t("common.loading", { defaultValue: "Loading..." })}
+              {t("common.loading")}
             </div>
           )}
         </div>

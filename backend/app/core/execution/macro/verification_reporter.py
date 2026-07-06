@@ -14,7 +14,7 @@ from app.core.execution.macro.models import (
     VerificationResponse,
     VerificationStatus,
 )
-from app.utils import render_template
+from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class VerificationReporter:
                 round_status_displays=round_status_displays,
                 step_emojis=step_emojis
             )
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to render Verification template: {e}")
             return f"# Verification Report Error\n\nFailed to render report: {e}"
 
@@ -198,33 +198,44 @@ class VerificationReporter:
     {''.join(rows)}
 </table>"""
 
-    def print_summary(self) -> None:
-        """Print console-friendly summary"""
-        print("\n" + "=" * 60)
-        print("MACRO VERIFICATION REPORT")
-        print("=" * 60)
-        print(f"Status: {self._format_status(self.response.status)}")
-        print(f"Execution Mode: {self.response.execution_mode.value}")
-        print(f"Confidence Score: {self.response.confidence_score:.2%}")
-        print(f"Rounds Completed: {self.response.rounds_completed}")
-        print("-" * 60)
-        print(f"Success Rate: {self.report.summary.overall_success_rate:.2%}")
-        print(f"Adaptation Rate: {self.report.summary.adaptation_rate:.2%}")
-        print(f"Anomalies Detected: {self.report.summary.total_anomalies_detected}")
-        print("=" * 60)
+    def format_summary(self) -> str:
+        """Build console-friendly summary string"""
+        lines = [
+            "",
+            "=" * 60,
+            "MACRO VERIFICATION REPORT",
+            "=" * 60,
+            f"Status: {self._format_status(self.response.status)}",
+            f"Execution Mode: {self.response.execution_mode.value}",
+            f"Confidence Score: {self.response.confidence_score:.2%}",
+            f"Rounds Completed: {self.response.rounds_completed}",
+            "-" * 60,
+            f"Success Rate: {self.report.summary.overall_success_rate:.2%}",
+            f"Adaptation Rate: {self.report.summary.adaptation_rate:.2%}",
+            f"Anomalies Detected: {self.report.summary.total_anomalies_detected}",
+            "=" * 60,
+        ]
 
         if self.report.issues:
-            print("\nIssues Found:")
+            lines.append("")
+            lines.append("Issues Found:")
             for issue in self.report.issues:
                 severity = "[CRITICAL]" if issue.severity == "critical" else "[WARNING]"
-                print(f"  {severity} {issue.category}: {issue.description}")
+                lines.append(f"  {severity} {issue.category}: {issue.description}")
 
         if self.report.recommendations:
-            print("\nRecommendations:")
+            lines.append("")
+            lines.append("Recommendations:")
             for rec in self.report.recommendations:
-                print(f"  • {rec}")
+                lines.append(f"  - {rec}")
 
-        print("=" * 60 + "\n")
+        lines.append("=" * 60)
+        lines.append("")
+        return "\n".join(lines)
+
+    def print_summary(self) -> None:
+        """Log summary via logger"""
+        logger.info(self.format_summary())
 
 
 def generate_comparison_report(
@@ -238,6 +249,6 @@ def generate_comparison_report(
     """
     try:
         return render_template("common/report/comparison.md.j2", original=original_response, evolved=evolved_response)
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to render comparison report: {e}")
         return f"Comparison complete. Improvements: {len(evolved_response.evolution_records)}"

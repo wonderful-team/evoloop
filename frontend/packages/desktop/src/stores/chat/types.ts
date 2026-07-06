@@ -68,7 +68,10 @@ export interface ChatState {
   clearContent: () => void
   setSelectedModel: (model: string | null) => void
   rewindToMessage: (messageId: string) => Promise<void>
-  optimisticTruncate: (messageId: string | number) => Message[]
+  optimisticTruncate: (
+    messageId: string | number,
+    removeHuman?: boolean,
+  ) => Message[]
   restoreSnapshot: (snapshot: Message[]) => void
 
   // --- Terminal Actions ---
@@ -94,4 +97,3 @@ export interface ChatState {
   _clearHumanRequest: () => void
   _attachHumanRequestToLastMessage: (req: any) => void
 }
-

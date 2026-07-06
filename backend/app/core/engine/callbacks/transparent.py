@@ -12,9 +12,7 @@ import logging
 import time
 from typing import Any
 
-from langchain_core.callbacks import AsyncCallbackHandler
-from langchain_core.outputs import LLMResult
-
+from app.core.engine.callbacks.base import AsyncCallbackHandler, LLMResult
 from app.core.engine.callbacks.token_filter import TokenFilter
 from app.core.engine.message import MessageHandler, MessagePublisher
 from app.core.engine.message.reasoning import extract_reasoning_from_kwargs
@@ -34,7 +32,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     Unified CallbackHandler with structured streaming support.
 
     Responsibilities:
-    1. LangChain callback handling (on_llm_start, on_tool_end, etc.)
+    1. Callback handling (on_llm_start, on_tool_end, etc.)
     2. Cancellation checking and special tool notifications
     3. Structured stream event publishing (thinking only)
     """
@@ -88,7 +86,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         await MessageHandler.stream_thinking(self.thread_id, content, message_id=message_id)
 
     # ==============================================================================
-    # LangChain Callback Methods
+    # Callback Methods
     # ==============================================================================
 
     def _is_streaming_disabled(self, run_id: str) -> bool:
@@ -266,7 +264,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if self.thread_id and self.monitor:
             await self.monitor.check_cancellation(self.thread_id)
 
-        # 兼容 LangChain 的不同序列化结构
+        # 兼容不同的序列化结构
         tool_name = (
             serialized.get("name") or
             serialized.get("kwargs", {}).get("name") or

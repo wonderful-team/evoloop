@@ -6,16 +6,15 @@ All business logic is delegated to the TodoService layer.
 """
 from typing import Annotated, Literal
 
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import InjectedToolArg
-
+from app.core.engine.message.native_classes import RunnableConfig
 from app.core.tools import evoloop_tool
+from app.core.tools.base import InjectedToolArg
 from app.domain.todo.schemas import TodoCreate, TodoFilter
 from app.domain.todo.service import TodoNotFoundError
 from app.domain.todo.utils import parse_due_date
 from app.i18n.service import i18n
 from app.models.todo import TodoStatus
-from app.utils import ContentFormatter
+from app.utils.controller_response import ContentFormatter
 
 
 @evoloop_tool(
@@ -79,7 +78,7 @@ async def create_todo(
         run_id = config.get("metadata", {}).get("run_id")
     
     # Create via service layer
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
     async with session_scope() as session:
         from app.domain.todo.service import TodoService
         service = TodoService(session)
@@ -139,7 +138,7 @@ async def list_todos(
     )
     
     # Query via service layer
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
     async with session_scope() as session:
         from app.domain.todo.service import TodoService
         service = TodoService(session)
@@ -177,7 +176,7 @@ async def complete_todo(todo_id: str) -> str:
     if not todo_id:
         return i18n.get("domain_tools.manage_todo.error_id", action="complete")
     
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
     async with session_scope() as session:
         from app.domain.todo.service import TodoService
         service = TodoService(session)
@@ -218,7 +217,7 @@ async def cancel_todo(todo_id: str) -> str:
     if not todo_id:
         return i18n.get("domain_tools.manage_todo.error_id", action="cancel")
     
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
     async with session_scope() as session:
         from app.domain.todo.service import TodoService
         service = TodoService(session)

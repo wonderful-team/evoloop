@@ -1,4 +1,5 @@
 import { Button } from "@evoloop/shared/components/ui/button"
+import i18n from "@evoloop/shared/i18n"
 import { AlertCircle, Check, Copy, MapPin } from "lucide-react"
 import type React from "react"
 import { useEffect, useRef, useState } from "react"
@@ -43,18 +44,20 @@ function loadAMapScript(): Promise<void> {
 
   window._AMapLoadingPromise = new Promise((resolve, reject) => {
     if (!AMAP_KEY) {
-      reject(new Error("AMap Key is not configured"))
+      reject(new Error(i18n.t("chat.artifact.mapErrors.amapKeyMissing")))
       return
     }
     const script = document.createElement("script")
     script.type = "text/javascript"
     script.src = `https://webapi.amap.com/maps?v=2.0&key=${AMAP_KEY}`
-    script.onerror = () => reject(new Error("Failed to load AMap script"))
+    script.onerror = () =>
+      reject(new Error(i18n.t("chat.artifact.mapErrors.amapScriptLoadFailed")))
     script.onload = () => {
       // Wait a tick for AMap global to be ready
       setTimeout(() => {
         if (window.AMap) resolve()
-        else reject(new Error("AMap global not available after script load"))
+        else
+          reject(new Error(i18n.t("chat.artifact.mapErrors.amapGlobalMissing")))
       }, 100)
     }
     document.head.appendChild(script)
@@ -103,7 +106,13 @@ export const MapArtifact: React.FC<MapArtifactProps> = ({ data }) => {
                       if (status === "complete" && res.geocodes?.length > 0) {
                         resolve(res.geocodes[0].location)
                       } else {
-                        reject(new Error(`Geocode failed for: ${m.address}`))
+                        reject(
+                          new Error(
+                            t("chat.artifact.mapErrors.geocodeFailed", {
+                              address: m.address,
+                            }),
+                          ),
+                        )
                       }
                     },
                   )
@@ -175,7 +184,13 @@ export const MapArtifact: React.FC<MapArtifactProps> = ({ data }) => {
                   if (status === "complete" && res2.geocodes?.length > 0) {
                     res(res2.geocodes[0].location)
                   } else {
-                    rej(new Error(`Geocode failed: ${p}`))
+                    rej(
+                      new Error(
+                        t("chat.artifact.mapErrors.geocodeFailed", {
+                          address: p,
+                        }),
+                      ),
+                    )
                   }
                 })
               })
@@ -195,7 +210,9 @@ export const MapArtifact: React.FC<MapArtifactProps> = ({ data }) => {
         if (!isCancelled) setLoading(false)
       } catch (e: any) {
         if (!isCancelled) {
-          setError(e?.message || "Map initialization failed")
+          setError(
+            e?.message || t("chat.artifact.mapErrors.initializationFailed"),
+          )
           setLoading(false)
         }
       }
@@ -219,7 +236,7 @@ export const MapArtifact: React.FC<MapArtifactProps> = ({ data }) => {
       <div className="w-full my-6 border border-destructive/20 bg-destructive/5 rounded-xl overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-3 bg-destructive/10 border-b border-destructive/10 text-destructive text-sm font-bold">
           <AlertCircle className="w-4 h-4" />
-          {data.title || t("chat.artifact.mapError", "Map Error")}
+          {data.title || t("chat.artifact.mapError")}
         </div>
         <div className="p-4">
           <p className="text-xs text-muted-foreground font-medium">{error}</p>
@@ -237,7 +254,7 @@ export const MapArtifact: React.FC<MapArtifactProps> = ({ data }) => {
           </div>
           <div className="flex flex-col">
             <h3 className="text-sm font-bold tracking-tight">
-              {data.title || t("chat.artifact.map", "Location Map")}
+              {data.title || t("chat.artifact.map")}
             </h3>
           </div>
         </div>
@@ -278,7 +295,7 @@ export const MapArtifact: React.FC<MapArtifactProps> = ({ data }) => {
             <div className="flex flex-col items-center gap-3">
               <div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
               <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-                {t("chat.artifact.loadingMap", "Synchronizing Map Data...")}
+                {t("chat.artifact.loadingMap")}
               </span>
             </div>
           </div>

@@ -71,10 +71,10 @@ export function ProjectProfileDrawer({
         exists: true,
       })
       setIsEditing(false)
-      toast.success(t("common.saveSuccess", { defaultValue: "保存成功" }))
+      toast.success(t("common.saveSuccess"))
     } catch (err) {
       console.error("Failed to save profile", err)
-      toast.error(t("common.saveFailed", { defaultValue: "保存失败" }))
+      toast.error(t("common.saveFailed"))
     } finally {
       setIsSaving(false)
     }
@@ -104,9 +104,9 @@ export function ProjectProfileDrawer({
         <SheetHeader className="px-6 py-4 border-b flex-row justify-between items-center m-0 shrink-0">
           <div className="flex items-center gap-3">
             <FileText className="h-5 w-5 text-primary" />
-            <SheetTitle>PROJECT.md</SheetTitle>
+            <SheetTitle>{t("projects.profile.title")}</SheetTitle>
             <SheetDescription className="sr-only">
-              Project Profile Document
+              {t("projects.profile.description")}
             </SheetDescription>
           </div>
 
@@ -114,7 +114,7 @@ export function ProjectProfileDrawer({
             {!isEditing && hasProfile && (
               <Button variant="outline" size="sm" onClick={startEditing}>
                 <Edit className="h-4 w-4 mr-1" />
-                {t("common.edit", { defaultValue: "编辑" })}
+                {t("common.edit")}
               </Button>
             )}
             {isEditing && (
@@ -126,7 +126,7 @@ export function ProjectProfileDrawer({
                   disabled={isSaving}
                 >
                   <X className="h-4 w-4 mr-1" />
-                  {t("common.cancel", { defaultValue: "取消" })}
+                  {t("common.cancel")}
                 </Button>
                 <Button size="sm" onClick={handleSave} disabled={isSaving}>
                   {isSaving ? (
@@ -134,7 +134,7 @@ export function ProjectProfileDrawer({
                   ) : (
                     <Save className="h-4 w-4 mr-1" />
                   )}
-                  {t("common.save", { defaultValue: "保存" })}
+                  {t("common.save")}
                 </Button>
               </>
             )}
@@ -152,9 +152,7 @@ export function ProjectProfileDrawer({
                 className="min-h-full font-mono text-sm resize-none h-full"
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
-                placeholder={t("projects.profile.editPlaceholder", {
-                  defaultValue: "Enter project profile in Markdown...",
-                })}
+                placeholder={t("projects.profile.editPlaceholder")}
               />
             ) : (
               <div className="pb-6">
@@ -165,14 +163,10 @@ export function ProjectProfileDrawer({
             <div className="flex flex-col items-center justify-center py-20 text-muted-foreground h-full">
               <AlertCircle className="h-12 w-12 mb-4 opacity-20" />
               <h3 className="text-lg font-medium">
-                {t("projects.profile.notFound", {
-                  defaultValue: "未找到项目资料",
-                })}
+                {t("projects.profile.notFound")}
               </h3>
               <p className="text-sm max-w-md text-center mt-2">
-                {t("projects.profile.notFoundDescription", {
-                  defaultValue: "项目资料不存在或已被删除。",
-                })}
+                {t("projects.profile.notFoundDescription")}
               </p>
             </div>
           )}

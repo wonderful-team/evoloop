@@ -4,8 +4,12 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 
 from app.api.deps import CurrentUserOptional
-from app.api.schemas.resources import ResourceCreate, ResourceResponse, OperationResponse
-from app.infrastructure.database.sql.database import get_db_session
+from app.api.schemas.resources import (
+    OperationResponse,
+    ResourceCreate,
+    ResourceResponse,
+)
+from app.infrastructure.database import session_scope
 from app.models import ProjectResource
 
 logger = logging.getLogger(__name__)
@@ -15,7 +19,7 @@ router = APIRouter(prefix="/projects/{project_id}/resources", tags=["resources"]
 async def list_resources(project_id: int, current_user: CurrentUserOptional = None):
     """List all pinned resources for a project."""
     try:
-        async with get_db_session() as session:
+        async with session_scope() as session:
             stmt = select(ProjectResource).where(ProjectResource.member_id == (current_user.id if current_user else 0)).where(ProjectResource.project_id == project_id).order_by(ProjectResource.created_at.desc())
             result = await session.execute(stmt)
             resources = result.scalars().all()
@@ -30,7 +34,7 @@ async def list_resources(project_id: int, current_user: CurrentUserOptional = No
                 )
                 for r in resources
             ]
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to list resources: {e}")
         return []
 
@@ -38,7 +42,7 @@ async def list_resources(project_id: int, current_user: CurrentUserOptional = No
 async def create_resource(project_id: int, req: ResourceCreate, current_user: CurrentUserOptional = None):
     """Add a new resource (Pin a file or add a link)."""
     try:
-        async with get_db_session() as session:
+        async with session_scope() as session:
             # Idempotency check for files: don't double pin
             if req.type == "file":
                 stmt = select(ProjectResource).where(ProjectResource.member_id == (current_user.id if current_user else 0)).where(
@@ -77,7 +81,7 @@ async def create_resource(project_id: int, req: ResourceCreate, current_user: Cu
                 content=resource.content,
                 created_at=resource.created_at.isoformat(),
             )
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to create resource: {e}")
         raise HTTPException(500, str(e))
 
@@ -85,7 +89,7 @@ async def create_resource(project_id: int, req: ResourceCreate, current_user: Cu
 async def delete_resource(project_id: int, resource_id: int, current_user: CurrentUserOptional = None):
     """Remove a resource."""
     try:
-        async with get_db_session() as session:
+        async with session_scope() as session:
             resource = await session.get(ProjectResource, resource_id)
             if not resource:
                 # Silent success if already gone
@@ -98,6 +102,6 @@ async def delete_resource(project_id: int, resource_id: int, current_user: Curre
             return OperationResponse(status="success", id=resource_id)
     except HTTPException:
         raise
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to delete resource: {e}")
         raise HTTPException(500, str(e))

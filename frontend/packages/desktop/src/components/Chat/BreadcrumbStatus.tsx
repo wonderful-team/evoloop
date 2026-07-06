@@ -63,7 +63,7 @@ export const BreadcrumbStatus = memo(() => {
         </div>
       ) : (
         <span className="opacity-50 italic shrink-0">
-          {t("chat.status.ready", "Ready")}
+          {t("chat.status.ready")}
         </span>
       )}
 
@@ -81,7 +81,7 @@ export const BreadcrumbStatus = memo(() => {
             >
               {activeStep?.description ||
                 agentState?.task_name ||
-                (isRunning ? t("chat.status.working", "Working...") : "")}
+                (isRunning ? t("chat.status.working") : "")}
             </span>
           </div>
         </>

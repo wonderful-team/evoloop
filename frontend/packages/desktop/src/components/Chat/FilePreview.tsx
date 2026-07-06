@@ -14,7 +14,14 @@ export interface PickedFile {
   id: string
   url: string | number // Can be string (URL) or number (skill ID)
   name: string
-  type: "image" | "file" | "reference" | "message" | "audio" | "skill" | "directory"
+  type:
+    | "image"
+    | "file"
+    | "reference"
+    | "message"
+    | "audio"
+    | "skill"
+    | "directory"
   status?: "uploading" | "success" | "error"
   metadata?: {
     duration?: number
@@ -29,9 +36,14 @@ export interface PickedFile {
 interface FilePreviewProps {
   pickedFiles: PickedFile[]
   onRemove: (id: string) => void
+  onClick?: (file: PickedFile) => void
 }
 
-export function FilePreview({ pickedFiles, onRemove }: FilePreviewProps) {
+export function FilePreview({
+  pickedFiles,
+  onRemove,
+  onClick,
+}: FilePreviewProps) {
   const { t } = useTranslation()
   if (pickedFiles.length === 0) return null
 
@@ -40,8 +52,10 @@ export function FilePreview({ pickedFiles, onRemove }: FilePreviewProps) {
       {pickedFiles.map((file) => (
         <div
           key={file.id}
+          onClick={() => onClick?.(file)}
           className={cn(
             "relative group flex items-center gap-2 pr-7 pl-2 py-1.5 rounded-md border border-border text-xs font-medium transition-all animate-in fade-in zoom-in-95",
+            onClick && "cursor-pointer hover:ring-1 hover:ring-border",
             file.status === "error"
               ? "bg-red-500/10 border-red-500/20 text-red-700 dark:text-red-400"
               : file.type === "message"
@@ -89,18 +103,21 @@ export function FilePreview({ pickedFiles, onRemove }: FilePreviewProps) {
             <span className="truncate max-w-[120px]">{file.name}</span>
             {file.status === "uploading" && (
               <span className="text-[9px] text-muted-foreground opacity-80 mt-0.5">
-                {t("chat.interface.uploading", "上传中...")}
+                {t("chat.interface.uploading")}
               </span>
             )}
             {file.status === "error" && (
               <span className="text-[9px] text-red-500 mt-0.5">
-                {t("chat.interface.uploadFailed", "上传失败")}
+                {t("chat.interface.uploadFailed")}
               </span>
             )}
           </div>
 
           <button
-            onClick={() => onRemove(file.id)}
+            onClick={(e) => {
+              e.stopPropagation()
+              onRemove(file.id)
+            }}
             className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 opacity-60 hover:opacity-100 transition-opacity"
           >
             <X size={12} />

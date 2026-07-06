@@ -1,20 +1,16 @@
 """
 Event Handler Decorators
-========================
+=======================
 
 Provides decorators for automatic event handler registration.
 
 Usage:
     from app.core.events.decorators import event_subscribe, event_register
-    from app.core.engine.rewind.event import RewindEventType
-    
+    from app.core.engine.rewind import REWIND_REQUESTED
+
     @event_register()
     class FileRewind:
-        @event_subscribe(RewindEventType.FILES_CLEANUP)
-        async def _handle_files_cleanup(self, event):
-            ...
-        
-        @event_subscribe(RewindEventType.REWIND_REQUESTED)
+        @event_subscribe(REWIND_REQUESTED)
         async def _handle_rewind_requested(self, event):
             ...
 
@@ -97,7 +93,7 @@ def event_register(arg: Any = None) -> Any:
     if isinstance(arg, type):
         # Called as @event_register
         return event_register_with_bus(system_bus)(arg)
-    
+
     # Called as @event_register(bus=...) or @event_register()
     bus = arg or system_bus
     return event_register_with_bus(bus)

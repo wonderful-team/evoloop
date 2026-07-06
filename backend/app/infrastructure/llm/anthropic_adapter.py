@@ -1,164 +1,206 @@
 import logging
-from functools import cached_property
-from typing import Any
+from typing import Any, AsyncGenerator
 
 import anthropic
+
+from app.core.engine.message.native_classes import AIMessageChunk
 
 logger = logging.getLogger(__name__)
 
 
-try:
-    from langchain_anthropic import ChatAnthropic
-
-    try:
-        from langchain_anthropic.chat_models import _create_usage_metadata
-    except ImportError:
-        # Fallback if _create_usage_metadata is not available or moved
-        from langchain_core.messages.ai import UsageMetadata
-
-        def _create_usage_metadata(usage: Any) -> UsageMetadata:
-            return UsageMetadata(input_tokens=usage.input_tokens, output_tokens=usage.output_tokens)
-
-    from langchain_anthropic.output_parsers import extract_tool_calls
-    from langchain_core.messages import AIMessage
-    from langchain_core.outputs import ChatGeneration, ChatResult
-except ImportError:
-    # Fallback for testing/env without langchain-anthropic
-    class ChatAnthropic:
-        def __init__(self, **kwargs):
-            self.__pydantic_fields_set__ = set()
-            for k, v in kwargs.items(): setattr(self, k, v)
-
-    class AIMessage:
-        def __init__(self, **kwargs):
-            for k, v in kwargs.items(): setattr(self, k, v)
-
-    class ChatGeneration:
-        def __init__(self, **kwargs):
-            for k, v in kwargs.items(): setattr(self, k, v)
-
-    class ChatResult:
-        def __init__(self, **kwargs):
-            for k, v in kwargs.items(): setattr(self, k, v)
-
-    def extract_tool_calls(content):
-        return []
-
-    def _create_usage_metadata(usage):
-        return None
-
-
-class CompatibleChatAnthropic(ChatAnthropic):
+class CompatibleChatAnthropic:
     """
-    Generic adapter for Anthropic-compatible protocols (Zhipu, Kimi, etc.)
-    that might have slight deviations from the standard.
+    A robust, native, SDK-free ChatAnthropic wrapper that connects directly to the Anthropic Messages API.
     """
 
-    fix_tool_args_list: bool = False
-    clean_null_fields: bool = True
-    http_async_client: Any = None
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str,
+        model_name: str,
+        temperature: float = 0.3,
+        streaming: bool = True,
+        model_kwargs: dict | None = None,
+        http_async_client: Any = None,
+        **kwargs: Any
+    ):
+        self.model = model_name
+        self.temperature = temperature
+        self.streaming = streaming
+        self.model_kwargs = model_kwargs or {}
+        self._tools = []
 
-    def __init__(self, **kwargs: Any) -> None:
-        # Extract custom fields first
-        fix_tool_args_list = kwargs.pop("fix_tool_args_list", False)
-        clean_null_fields = kwargs.pop("clean_null_fields", True)
-        http_async_client = kwargs.pop("http_async_client", None)
+        # Anthropic SDK automatically appends /v1/messages, strip it if redundant
+        normalized_url = base_url.rstrip("/")
+        if normalized_url.endswith("/v1"):
+            normalized_url = normalized_url[:-3]
 
-        # Initialize parent (Pydantic model)
-        super().__init__(**kwargs)
-
-        # Set attributes AFTER parent initialization
-        self.fix_tool_args_list = fix_tool_args_list
-        self.clean_null_fields = clean_null_fields
-        self.http_async_client = http_async_client
-
-    @cached_property
-    def _async_client(self) -> anthropic.AsyncClient:
-        if self.http_async_client:
-            client_params = self._client_params
-            return anthropic.AsyncClient(
-                api_key=client_params["api_key"],
-                base_url=client_params["base_url"],
-                http_client=self.http_async_client,
-            )
-        return super()._async_client
-
-    @cached_property
-    def _client(self) -> anthropic.Client:
-        # We don't have a sync pool easily, but we can default or use a dummy for now
-        # Standard usage is async anyway.
-        return super()._client
-
-    async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
-        return await super()._agenerate(messages, stop=stop, run_manager=run_manager, **kwargs)
-
-    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
-        return super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
-
-    def _format_output(self, data: Any, **kwargs: Any) -> ChatResult:
-        data_dict = data.model_dump()
-        content = data_dict["content"]
-
-        if self.fix_tool_args_list and isinstance(content, list):
-            # Zhipu Fix: sometimes returns tool arguments as a list of dicts instead of a dict.
-            for block in content:
-                if block.get("type") == "tool_use":
-                    inp = block.get("input")
-                    if isinstance(inp, list) and inp and isinstance(inp[0], dict):
-                        block["input"] = inp[0]
-                    elif isinstance(inp, list) and not inp:
-                        block["input"] = {}
-
-        if self.clean_null_fields and isinstance(content, list):
-            # Remove citations/thinking if they are None (Copied from original logic)
-            for block in content:
-                if isinstance(block, dict):
-                    if block.get("citations") is None and "citations" in block:
-                        block.pop("citations")
-                    if (
-                            block.get("type") == "thinking"
-                            and block.get("text") is None
-                            and "text" in block
-                    ):
-                        block.pop("text")
-
-        llm_output = {
-            k: v for k, v in data_dict.items() if k not in ("content", "role", "type")
-        }
-        if "model" in llm_output and "model_name" not in llm_output:
-            llm_output["model_name"] = llm_output["model"]
-
-        # Construct AIMessage
-        if not content:
-            msg = AIMessage(content="")
-        elif len(content) == 1 and content[0].get("type") == "text":
-            msg = AIMessage(content=content[0]["text"])
-        elif any(block["type"] == "tool_use" for block in content):
-            tool_calls = extract_tool_calls(content)
-
-            # Manual fallback if library extraction fails but content has tool_use blocks
-            if not tool_calls:
-                manual_calls = []
-                for block in content:
-                    if isinstance(block, dict) and block.get("type") == "tool_use":
-                        manual_calls.append({
-                            "name": block.get("name"),
-                            "args": block.get("input") or {},
-                            "id": block.get("id"),
-                            "type": "tool_call" # internal marker
-                        })
-                if manual_calls:
-                    tool_calls = manual_calls
-
-            msg = AIMessage(
-                content=content,
-                tool_calls=tool_calls,
-            )
-        else:
-            msg = AIMessage(content=content)
-
-        msg.usage_metadata = _create_usage_metadata(data.usage)
-        return ChatResult(
-            generations=[ChatGeneration(message=msg)],
-            llm_output=llm_output,
+        self.client = anthropic.AsyncAnthropic(
+            api_key=api_key,
+            base_url=normalized_url,
+            http_client=http_async_client
         )
+
+    def bind_tools(self, tools: list[Any]) -> "CompatibleChatAnthropic":
+        self._tools = []
+        for t in tools:
+            t_schema = {
+                "name": t.name,
+                "description": t.description or "",
+                "input_schema": t.args_schema.model_json_schema() if getattr(t, "args_schema", None) else {"type": "object", "properties": {}}
+            }
+            if "input_schema" in t_schema:
+                params = t_schema["input_schema"]
+                params.pop("title", None)
+                params.pop("additionalProperties", None)
+                if "$defs" in params:
+                    params.pop("$defs", None)
+            self._tools.append(t_schema)
+        return self
+
+    async def astream(self, messages: list[Any], config: dict = None, **kwargs: Any) -> AsyncGenerator[AIMessageChunk, None]:
+        from app.core.engine.callbacks.bridge import (
+            _get_callbacks, _get_run_id, _get_metadata,
+            emit_llm_start, emit_llm_new_token, emit_llm_end,
+        )
+        from app.core.engine.message.native_classes import AIMessage
+
+        callbacks = _get_callbacks(config)
+        run_id = _get_run_id(config)
+        metadata = _get_metadata(config)
+
+        system_content = None
+        api_messages = []
+
+        # Convert native messages to Anthropic Messages structure
+        for m in messages:
+            role = m.get("role") if isinstance(m, dict) else m.type
+            content = m.get("content") if isinstance(m, dict) else m.content
+
+            if role == "system":
+                system_content = content
+                continue
+
+            if role in ("user", "human"):
+                api_messages.append({"role": "user", "content": content})
+            elif role in ("assistant", "ai"):
+                tool_calls = m.get("tool_calls") if isinstance(m, dict) else getattr(m, "tool_calls", None)
+                if tool_calls:
+                    content_blocks = []
+                    if content:
+                        content_blocks.append({"type": "text", "text": content})
+                    for tc in tool_calls:
+                        content_blocks.append({
+                            "type": "tool_use",
+                            "id": tc.get("id") or tc.get("tool_call_id"),
+                            "name": tc.get("name"),
+                            "input": tc.get("args") or {}
+                        })
+                    api_messages.append({"role": "assistant", "content": content_blocks})
+                else:
+                    api_messages.append({"role": "assistant", "content": content})
+            elif role == "tool":
+                tool_call_id = m.get("tool_call_id") if isinstance(m, dict) else getattr(m, "tool_call_id", None)
+                api_messages.append({
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tool_call_id,
+                            "content": content
+                        }
+                    ]
+                })
+
+        if callbacks:
+            await emit_llm_start(callbacks, run_id, metadata)
+
+        req_params = {
+            "model": self.model,
+            "messages": api_messages,
+            "temperature": self.temperature,
+            **self.model_kwargs
+        }
+        if system_content:
+            req_params["system"] = system_content
+        if self._tools:
+            req_params["tools"] = self._tools
+
+        accumulated: AIMessageChunk | None = None
+        async with self.client.messages.stream(**req_params) as stream:
+            async for event in stream:
+                if event.type == "content_block_start":
+                    block = event.content_block
+                    if block.type == "tool_use":
+                        tc = {
+                            "index": event.index,
+                            "id": block.id,
+                            "name": block.name,
+                            "args": ""
+                        }
+                        msg_chunk = AIMessageChunk(content="", tool_calls=[tc])
+                    else:
+                        continue
+                elif event.type == "content_block_delta":
+                    delta = event.delta
+                    if delta.type == "text_delta":
+                        msg_chunk = AIMessageChunk(content=delta.text)
+                    elif delta.type == "input_delta":
+                        tc = {
+                            "index": event.index,
+                            "args": delta.partial_json
+                        }
+                        msg_chunk = AIMessageChunk(content="", tool_calls=[tc])
+                    else:
+                        continue
+                else:
+                    continue
+
+                if callbacks:
+                    await emit_llm_new_token(callbacks, msg_chunk.content, msg_chunk, run_id)
+
+                if accumulated is None:
+                    accumulated = msg_chunk
+                else:
+                    accumulated = accumulated + msg_chunk
+
+                yield msg_chunk
+
+        if callbacks and accumulated is not None:
+            final_msg = AIMessage(
+                content=accumulated.content,
+                tool_calls=accumulated.tool_calls,
+                additional_kwargs=dict(accumulated.additional_kwargs),
+            )
+            await emit_llm_end(callbacks, final_msg, run_id)
+
+    async def ainvoke(self, messages: list[Any], config: dict = None, **kwargs: Any) -> Any:
+        """Native non-streaming ainvoke wrapper that accumulates astream."""
+        from app.core.engine.message.native_classes import AIMessage
+
+        response_content = ""
+        tool_calls = []
+        additional_kwargs = {}
+
+        async for chunk in self.astream(messages, config=config, **kwargs):
+            if chunk.content:
+                response_content += chunk.content
+            if chunk.tool_calls:
+                tool_calls.extend(chunk.tool_calls)
+            if chunk.additional_kwargs:
+                additional_kwargs.update(chunk.additional_kwargs)
+
+        return AIMessage(
+            content=response_content,
+            tool_calls=tool_calls,
+            additional_kwargs=additional_kwargs
+        )
+
+    def with_structured_output(self, output_schema: type, method: str = "function_calling"):
+        """
+        Bind a Pydantic schema for structured output via function calling.
+        Returns a wrapper whose ainvoke() yields a parsed instance of output_schema.
+        """
+        from app.infrastructure.llm.adaptive import _StructuredOutputWrapper
+
+        return _StructuredOutputWrapper(self, output_schema, method=method)

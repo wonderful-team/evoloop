@@ -3,8 +3,8 @@ import logging
 from fastapi import APIRouter
 from sqlalchemy import select
 
-from app.api.schemas.planning import PlanStepResponse, PlanDataResponse, PlanResponse
-from app.infrastructure.database.sql.database import session_scope
+from app.api.schemas.planning import PlanDataResponse, PlanResponse, PlanStepResponse
+from app.infrastructure.database import session_scope
 from app.models.planning import Plan, PlanStep
 
 logger = logging.getLogger(__name__)
@@ -58,6 +58,6 @@ async def get_plan(thread_id: str):
                 generated_at=db_plan.created_at.isoformat() if db_plan.created_at else None,
             )
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to get plan for {thread_id}: {e}")
         return PlanResponse(status="error", error=str(e))

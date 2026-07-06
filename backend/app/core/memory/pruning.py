@@ -6,9 +6,9 @@ import json
 import logging
 import re
 from datetime import datetime
-from typing import List, Optional
+from typing import List
 
-from app.core.llm import InternalLLMService
+from app.infrastructure.llm import InternalLLMService
 from app.core.memory.models import MemoryEntry, MemoryType
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ class MemoryPruningService:
         self.project_context = project_context
         self.todo_service = todo_service
 
-    async def run_pruning_cycle(self, project_id: Optional[int] = None) -> List[dict]:
+    async def run_pruning_cycle(self, project_id: int | None = None) -> List[dict]:
         """
         Run a full pruning cycle and return a detailed audit log.
         """
@@ -71,7 +71,7 @@ class MemoryPruningService:
 
         return audit_log
 
-    async def _prune_fulfilled_tasks(self, memories: List[MemoryEntry], project_id: Optional[int]) -> List[dict]:
+    async def _prune_fulfilled_tasks(self, memories: List[MemoryEntry], project_id: int | None) -> List[dict]:
         """Prune memories that reference already completed TODOs."""
         logs = []
         # Filter for memories that look like tasks or have 'todo' tags
@@ -86,7 +86,7 @@ class MemoryPruningService:
                 pending_todos = await self.todo_service.list_pending_by_project(project_id)
             else:
                 from app.domain.todo.service import TodoService
-                from app.infrastructure.database.sql.database import session_scope
+                from app.infrastructure.database import session_scope
                 async with session_scope() as session:
                     todo_service = TodoService(session)
                     pending_todos = await todo_service.list_pending_by_project(project_id)
@@ -108,12 +108,12 @@ class MemoryPruningService:
                                 "timestamp": datetime.utcnow().isoformat()
                             })
                             logger.info(f"[Pruning] Silently deleted fulfilled task memory {mem.id}")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[Pruning] Failed to check fulfilled tasks: {e}")
             
         return logs
 
-    async def _prune_semantically(self, memories: List[MemoryEntry], project_id: Optional[int]) -> List[dict]:
+    async def _prune_semantically(self, memories: List[MemoryEntry], project_id: int | None) -> List[dict]:
         """Use LLM to identify redundant or stale memories against project context."""
         if not memories:
             return []
@@ -127,7 +127,7 @@ class MemoryPruningService:
 
             project_root = await project_context.get_project_structure(project_id) if project_id is not None else "No project root found"
             readme = await project_context.extract_description_from_readme(project_id) if project_id is not None else ""
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[Pruning] Failed to gather project context for semantic pruning: {e}")
             return []
         
@@ -173,7 +173,7 @@ class MemoryPruningService:
                             "timestamp": datetime.utcnow().isoformat()
                         })
             return logs
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[Pruning] Semantic pruning failed: {e}")
             return []
 
@@ -186,7 +186,7 @@ class MemoryConsolidator:
     def __init__(self, storage):
         self.storage = storage
 
-    async def consolidate(self, memories: List[MemoryEntry], project_id: Optional[int]) -> List[dict]:
+    async def consolidate(self, memories: List[MemoryEntry], project_id: int | None) -> List[dict]:
         """Find related memories and merge them into high-quality Concepts."""
         if len(memories) < 2:  # Lowered for simulation and small projects
             return []
@@ -219,7 +219,7 @@ class MemoryConsolidator:
                 orig_ids = cluster.get("original_ids", [])
                 
                 if new_data and orig_ids:
-                    from app.core.memory.models import MemoryType, MemoryTier
+                    from app.core.memory.models import MemoryTier, MemoryType
                     new_entry = MemoryEntry(
                         title=new_data["title"],
                         content=new_data["content"],
@@ -247,7 +247,7 @@ class MemoryConsolidator:
                         "timestamp": datetime.utcnow().isoformat()
                     })
             return logs
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[Consolidation] Failed: {e}")
             return []
 

@@ -50,26 +50,6 @@ class BaseVectorStore(Protocol):
         ...
 
     # ------------------------------------------------------------------
-    # Knowledge-base / document embeddings
-    # ------------------------------------------------------------------
-    def upsert_kb_chunks(self, records: list[dict[str, Any]]) -> int:
-        """Upsert knowledge-base chunk records."""
-        ...
-
-    def search_kb(
-        self,
-        query_vector: list[float],
-        top_k: int = 10,
-        collection: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Semantic search over knowledge-base chunks."""
-        ...
-
-    def delete_kb_by_doc(self, doc_id: str) -> int:
-        """Remove all vector chunks for a given document."""
-        ...
-
-    # ------------------------------------------------------------------
     # Memory embeddings
     # ------------------------------------------------------------------
     def upsert_memory_chunks(self, records: list[dict[str, Any]]) -> int:

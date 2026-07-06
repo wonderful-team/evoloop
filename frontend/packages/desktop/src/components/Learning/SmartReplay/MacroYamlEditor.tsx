@@ -25,27 +25,13 @@ interface MacroYamlEditorProps {
   readOnly?: boolean
 }
 
-const DEFAULT_YAML_TEMPLATE = `version: "1.0"
-metadata:
-  format: evoloop-macro
-  step_count: 0
-
-steps:
-  # Example step - replace with your own
-  - type: action
-    event_type: navigate
-    source: dom
-    description: Navigate to target page
-    payload:
-      url: "https://example.com"
-`
-
 export function MacroYamlEditor({
   steps,
   onChange,
   readOnly = false,
 }: MacroYamlEditorProps) {
   const { t } = useTranslation()
+  const getDefaultYamlTemplate = () => t("macroEditor.yamlTemplate")
   const [yamlValue, setYamlValue] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isValid, setIsValid] = useState(true)
@@ -215,10 +201,11 @@ export function MacroYamlEditor({
   }, [steps, t])
 
   const handleLoadTemplate = useCallback(() => {
-    setYamlValue(DEFAULT_YAML_TEMPLATE)
-    editorRef.current?.setValue(DEFAULT_YAML_TEMPLATE)
+    const template = getDefaultYamlTemplate()
+    setYamlValue(template)
+    editorRef.current?.setValue(template)
     // Sync immediately
-    validateAndSync(DEFAULT_YAML_TEMPLATE)
+    validateAndSync(template)
   }, [validateAndSync])
 
   const stepCount = (() => {
@@ -238,7 +225,7 @@ export function MacroYamlEditor({
         <div className="flex items-center justify-between p-2 border-b border-border bg-muted/30 shrink-0">
           <div className="flex items-center gap-2">
             <FileCode className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">YAML</span>
+            <span className="text-sm font-medium">{t("macroEditor.yaml")}</span>
             <span className="text-xs text-muted-foreground">
               ({t("macroEditor.autoSync")})
             </span>
@@ -313,7 +300,9 @@ export function MacroYamlEditor({
           </span>
           <span>{t("macroEditor.steps", { count: stepCount })}</span>
         </div>
-        <div className="font-mono opacity-50">YAML v1.0</div>
+        <div className="font-mono opacity-50">
+          {t("macroEditor.yamlVersion")}
+        </div>
       </div>
     </div>
   )

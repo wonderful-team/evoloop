@@ -39,8 +39,6 @@ tool_bundles:
     - "query_app_atlas"
     - "list_app_atlas"
     - "save_concepts"
-    - "kb_read"
-    - "kb_search"
   planning_tools:
     - "create_plan"
     - "update_step_status"
@@ -123,10 +121,6 @@ nodes:
       - "read_wiki_page"
       # Project Management & Task Breakdown
       - "create_project_tasks"
-      # Knowledge Base (Document reference and search)
-      - "kb_read"
-      - "kb_search"
-      - "kb_list"
       # Research
       - "search_web"
       # Planning & Audit

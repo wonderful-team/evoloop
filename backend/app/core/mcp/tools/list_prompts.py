@@ -46,6 +46,6 @@ async def list_mcp_prompts(server_name: str) -> str:
 
         return output
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Error listing MCP prompts: {e}")
         return f"Error listing prompts from '{server_name}': {str(e)}"

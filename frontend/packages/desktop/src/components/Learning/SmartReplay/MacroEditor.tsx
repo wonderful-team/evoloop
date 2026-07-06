@@ -784,7 +784,7 @@ export function MacroEditor({
                           onChange={(e) =>
                             updateStep(index, { key: e.target.value })
                           }
-                          placeholder="e.g. product_title"
+                          placeholder={t("macroEditor.placeholders.extractKey")}
                           disabled={readOnly}
                         />
                       </div>
@@ -897,7 +897,9 @@ export function MacroEditor({
                             </>
                           ) : (
                             <div className="space-y-2">
-                              <Label className="text-xs">Items Key</Label>
+                              <Label className="text-xs">
+                                {t("macroEditor.itemsKey")}
+                              </Label>
                               <Input
                                 value={step.payload?.items_key || ""}
                                 onChange={(e) =>
@@ -908,7 +910,9 @@ export function MacroEditor({
                                     },
                                   })
                                 }
-                                placeholder="e.g. products"
+                                placeholder={t(
+                                  "macroEditor.placeholders.itemsKey",
+                                )}
                                 disabled={readOnly}
                               />
                             </div>
@@ -1202,7 +1206,11 @@ export function MacroJsonEditor({
       setError(null)
       setOpen(false)
     } catch (e) {
-      setError(t("macroEditor.jsonErrorInvalid") + (e as Error).message)
+      setError(
+        t("macroEditor.jsonErrorInvalidWithMessage", {
+          message: (e as Error).message,
+        }),
+      )
     }
   }
 

@@ -13,6 +13,8 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
+from redis.exceptions import RedisError
+
 from app.utils.pubsub import in_memory_bus
 
 logger = logging.getLogger(__name__)
@@ -38,7 +40,7 @@ class LocalEventBus(EventBus):
         try:
             in_memory_bus.publish(channel, message)
             return 1
-        except Exception as e:
+        except (RuntimeError, TypeError, AttributeError) as e:
             logger.warning(f"[LocalEventBus] Publish failed: {e}")
             return 0
 
@@ -55,7 +57,7 @@ class DistributedEventBus(EventBus):
             # Use the configured cache infrastructure as the message broker
             from app.infrastructure.cache import cache
             return await cache.publish(channel, message)
-        except Exception as e:
+        except (RedisError, OSError, TypeError, ValueError) as e:
             logger.error(f"[DistributedEventBus] Publish failed to channel {channel}: {e}")
             return 0
 

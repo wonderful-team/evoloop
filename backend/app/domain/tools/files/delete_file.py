@@ -2,13 +2,13 @@ import os
 import shutil
 from typing import Annotated
 
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import InjectedToolArg
-
+from app.core.engine.message.native_classes import RunnableConfig
+from app.core.engine.tasks import persist_file_operation_task
 from app.core.file.verification import safe_read_with_hash
 from app.core.tools import evoloop_tool
+from app.core.tools.base import InjectedToolArg
+
 from .utils import resolve_and_validate_path
-from app.core.engine.tasks import persist_file_operation_task
 
 
 @evoloop_tool(
@@ -51,7 +51,7 @@ async def delete_file(
         if is_file:
             try:
                 original_content, _, _ = safe_read_with_hash(absolute_path)
-            except Exception:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                 pass # Binary or unreadable files
 
         # Perform deletion
@@ -76,10 +76,10 @@ async def delete_file(
                         run_id=ctx.run_id,
                         tool_call_id=ctx.current_tool_call_id,
                     )
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     import logging
                     logging.getLogger(__name__).error(f"Failed to persist file operation for delete: {e}")
 
         return f"Successfully deleted '{path}'."
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return f"Error deleting file: {e}"

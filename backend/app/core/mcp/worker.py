@@ -4,8 +4,6 @@ import logging
 from contextlib import AsyncExitStack
 from typing import Any
 
-from langchain_core.tools import StructuredTool
-
 from app.core.mcp.auth.manager import mcp_auth_manager
 from app.core.mcp.config import McpServerConfig
 from app.core.mcp.features.prompts import McpPromptsFeature
@@ -14,6 +12,7 @@ from app.core.mcp.features.tools import McpToolsFeature
 from app.core.mcp.health import McpHealthChecker
 from app.core.mcp.schemas import McpPromptResult, McpResourceContent
 from app.core.mcp.transport import McpTransport
+from app.core.tools.base import EvoLoopTool
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +88,7 @@ class WorkerMcpSession:
                 self._stacks[server_name] = stack
                 self._sessions[server_name] = session
                 self._configs[server_name] = config
-            except Exception:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                 await stack.aclose()
                 raise
 
@@ -114,7 +113,7 @@ class WorkerMcpSession:
 
             return True
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[WorkerMcp] {self.worker_name} failed to connect to {server_name}: {e}")
             if 'stack' in locals():
                 await stack.aclose()
@@ -141,7 +140,7 @@ class WorkerMcpSession:
         if server_name in self._stacks:
             try:
                 await self._stacks[server_name].aclose()
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.debug(f"[WorkerMcp] Error closing stack for '{server_name}': {e}")
             del self._stacks[server_name]
 
@@ -161,14 +160,14 @@ class WorkerMcpSession:
 
         logger.info(f"[WorkerMcp] {self.worker_name} disconnected from all MCP servers")
 
-    def get_tools(self) -> list[StructuredTool]:
+    def get_tools(self) -> list[EvoLoopTool]:
         """Get all tools from all connected servers."""
         all_tools = []
         for feature in self._tools_feature.values():
             all_tools.extend(feature.get_tools())
         return all_tools
 
-    def get_tools_for(self, server_name: str) -> list[StructuredTool]:
+    def get_tools_for(self, server_name: str) -> list[EvoLoopTool]:
         """Get tools for a specific server."""
         feature = self._tools_feature.get(server_name)
         return feature.get_tools() if feature else []

@@ -3,7 +3,7 @@ BlockMapper —— 各层 ↔ MessageBlock 的标准化转换器。
 
 职责：
 1. DB ORM ↔ MessageBlock
-2. LangChain BaseMessage ↔ MessageBlock
+2. Native BaseMessage ↔ MessageBlock
 3. MessageBlock → SSE BlockEvent
 4. MessageBlock → Mobile 推送字典
 
@@ -14,20 +14,19 @@ BlockMapper —— 各层 ↔ MessageBlock 的标准化转换器。
 """
 
 import logging
-from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from app.models.schemas.events import MessageSyncEvent
 
-from langchain_core.messages import (
+from app.core.engine.message.native_classes import (
     AIMessage,
     BaseMessage,
     HumanMessage,
     SystemMessage,
     ToolMessage,
 )
-
 from app.core.engine.message.reasoning import extract_reasoning_from_message
 from app.core.engine.message.schemas import MessageBlock, ToolCall
 from app.core.engine.message.utils import normalize_tool_calls
@@ -45,14 +44,14 @@ class BlockMapper:
     @staticmethod
     def from_db(msg) -> MessageBlock:
         """数据库 Message ORM → MessageBlock"""
-        from app.core.engine.message.schemas import ReferenceBlock
+        from app.core.engine.message.schemas import MessageReference
         from app.models import Message as DBMessage
 
         if not isinstance(msg, DBMessage):
             raise TypeError(f"Expected DB Message, got {type(msg)}")
 
-        # 1. 处理引用（标准化 ReferenceBlock）
-        references: list[ReferenceBlock] = []
+        # 1. 处理引用（标准化 MessageReference）
+        references: list[MessageReference] = []
 
         # 变更集相关顶层字段
         has_file_ops = False
@@ -61,14 +60,14 @@ class BlockMapper:
 
         if msg.references:
             for ref in msg.references:
-                ref_block = ReferenceBlock(
+                msg_ref = MessageReference(
                     id=ref.id,
-                    type=ref.type,  # type: ignore
+                    type=cast(Any, ref.type),
                     target_id=ref.target_id,
                     target_name=ref.target_name,
                     meta_data=ref.meta_data or {},
                 )
-                references.append(ref_block)
+                references.append(msg_ref)
 
                 # 提取 changeset 数据到顶层
                 if ref.type == "changeset":
@@ -92,9 +91,9 @@ class BlockMapper:
             id=str(msg.id),
             thread_id=msg.thread_id,
             run_id=msg.run_id,
-            role=msg.role,  # type: ignore[arg-type]
+            role=cast(Any, msg.role),
             category=msg.category or "",
-            content_type=msg.content_type or "text",  # type: ignore[arg-type]
+            content_type=cast(Any, msg.content_type or "text"),
             content=msg.content or "",
             thinking=msg.thinking,
             tool_calls=validated_tool_calls,
@@ -105,7 +104,7 @@ class BlockMapper:
             has_file_operations=has_file_ops,
             changeset_count=changeset_count,
             changeset_files=changeset_files,
-            status=msg.status or "completed",  # type: ignore[arg-type]
+            status=cast(Any, msg.status or "completed"),
             is_complete=msg.status == "completed",
             is_visible=msg.is_visible,
             created_at=_format_iso(msg.created_at),
@@ -139,12 +138,12 @@ class BlockMapper:
         }
 
     # ------------------------------------------------------------------
-    # LangChain ↔ MessageBlock
+    # Native BaseMessage ↔ MessageBlock
     # ------------------------------------------------------------------
 
     @staticmethod
-    def from_langchain(msg: BaseMessage) -> MessageBlock:
-        """LangChain BaseMessage → MessageBlock"""
+    def from_message(msg: BaseMessage) -> MessageBlock:
+        """Native BaseMessage → MessageBlock"""
         kwargs: dict[str, Any] = {
             "id": _extract_lc_id(msg),
             "thinking": extract_reasoning_from_message(msg),
@@ -204,8 +203,8 @@ class BlockMapper:
             raise ValueError(f"Unsupported message type: {type(msg)}")
 
     @staticmethod
-    def to_langchain(msg: MessageBlock) -> BaseMessage:
-        """MessageBlock → LangChain BaseMessage（用于 LLM 推理）"""
+    def to_message(msg: MessageBlock) -> BaseMessage:
+        """MessageBlock → native BaseMessage（用于 LLM 推理）"""
         kwargs: dict[str, Any] = {
             "id": msg.id,
             "additional_kwargs": {
@@ -254,7 +253,7 @@ class BlockMapper:
 
         return MessageSyncEvent(
             thread_id=msg.thread_id,
-            action=action,  # type: ignore[arg-type]
+            action=cast(Any, action),
             data=msg,
         )
 
@@ -280,7 +279,7 @@ class BlockMapper:
                     safe_tool_calls.append(
                         {"id": str(tc), "type": str(type(tc).__name__)}
                     )
-            safe_msg.tool_calls = safe_tool_calls  # type: ignore[assignment]
+            safe_msg.tool_calls = cast(Any, safe_tool_calls)
 
         data = safe_msg.model_dump(exclude_none=True)
 
@@ -288,6 +287,8 @@ class BlockMapper:
         if msg.created_at:
             try:
                 dt = datetime.fromisoformat(msg.created_at.replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
                 data["created_at"] = int(dt.timestamp())
             except (ValueError, TypeError):
                 data["created_at"] = 0
@@ -301,6 +302,9 @@ class BlockMapper:
         data.pop("thinking", None)
         data.pop("meta_data", None)
 
+        if msg.role == "human" and msg.id:
+            data["client_message_id"] = msg.id
+
         return data
 
 
@@ -310,7 +314,7 @@ class BlockMapper:
 
 
 def _extract_lc_id(msg: BaseMessage) -> str:
-    """从 LangChain 消息中提取或生成 ID"""
+    """从消息中提取或生成 ID"""
     return msg.id or msg.additional_kwargs.get("id") or f"lc-{id(msg)}"
 
 

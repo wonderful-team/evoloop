@@ -3,12 +3,12 @@ Browser Control Tool — Agent-facing thin wrapper over BrowserController.
 
 This module exposes `browser_control` as an @evoloop_tool so the Agent can
 call it via function calling. All actual logic lives in:
-  app.core.environment.controllers.browser_controller.BrowserController
+  app.core.environment.controllers.browser.BrowserController
 """
 import logging
 from typing import Literal
 
-from app.core.environment.controllers.browser_controller import BrowserController
+from app.core.environment.controllers.browser import BrowserController
 from app.core.tools import evoloop_tool
 
 logger = logging.getLogger(__name__)
@@ -88,7 +88,7 @@ async def browser_control(
     content extraction, or browser state management inside a web page.
 
     Action Groups:
-    
+
     NAVIGATION:
     - navigate: Go to `url`, waits for networkidle.
     - back / forward: Browser history.

@@ -7,7 +7,6 @@ Pydantic data classes for memory-related events.
 
 from pydantic import Field
 
-from app.core.engine.rewind.event import RewindEvent, RewindEventType
 from app.core.events.base import BaseEvent, EventData
 
 

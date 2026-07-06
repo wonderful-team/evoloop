@@ -1,12 +1,11 @@
 import logging
 import sys
-from typing import Annotated, Optional
-
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import InjectedToolArg
+from typing import Annotated
 
 from app.core.context import ContextManager
+from app.core.engine.message.native_classes import RunnableConfig
 from app.core.tools import evoloop_tool
+from app.core.tools.base import InjectedToolArg
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +15,7 @@ logger = logging.getLogger(__name__)
     summary_template="evoloop.tool_summary.list_vault_credentials"
 )
 async def list_vault_credentials(
-    type: Optional[str] = None,
+    type: str | None = None,
     config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
     """
@@ -50,7 +49,7 @@ async def list_vault_credentials(
             if c.get("description"):
                 output.append(f"  *Description*: {c['description']}")
         return "\n".join(output)
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to list credentials: {e}")
         return f"Error listing credentials: {str(e)}"
 
@@ -63,7 +62,7 @@ async def request_secure_credential(
     identifier: str,
     type: str,
     fields: list[str],
-    description: Optional[str] = None,
+    description: str | None = None,
     config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
     """
@@ -79,8 +78,9 @@ async def request_secure_credential(
         fields: The list of field names required (e.g. ["password"], ["private_key"], ["host", "password"])
         description: A brief explanation of why this credential is required.
     """
-    from app.infrastructure.config.vault import SecureVaultService
     import getpass
+
+    from app.infrastructure.config.vault import SecureVaultService
     
     ctx = ContextManager.current()
     project_id = ctx.project_id
@@ -95,10 +95,10 @@ async def request_secure_credential(
             f"credential identifier '{identifier}' with keys: {', '.join(fields)}."
         )
     
-    print(f"\n🔑 [HITL REQUIRED] Requesting credential entry for: {identifier} (Type: {type})")
+    logger.info(f"[HITL] Requesting credential entry for: {identifier} (Type: {type})")
     if description:
-        print(f"   Reason: {description}")
-    print(f"   Required Fields: {', '.join(fields)}")
+        logger.info(f"[HITL] Reason: {description}")
+    logger.info(f"[HITL] Required Fields: {', '.join(fields)}")
     
     payload = {}
     for field in fields:
@@ -106,7 +106,7 @@ async def request_secure_credential(
         if "pass" in field.lower() or "key" in field.lower() or "secret" in field.lower() or "token" in field.lower():
             try:
                 val = getpass.getpass(prompt)
-            except Exception:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                 val = input(prompt)
         else:
             val = input(prompt)
@@ -124,6 +124,6 @@ async def request_secure_credential(
             f"✓ Credential '{identifier}' has been successfully saved to the Secure Vault.\n"
             f"You can now use it in tools using the placeholder: `{{{{vault.{identifier}.<field>}}}}`"
         )
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to save credential: {e}")
         return f"Error: Failed to save credential: {str(e)}"

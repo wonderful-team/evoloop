@@ -10,14 +10,19 @@ import logging
 _background_tasks = set()
 
 from app.core.environment.bus import event_bus
+from app.core.environment.event.types import EventType
+from app.core.events.decorators import (
+    event_register,
+    event_register_with_bus,
+    event_subscribe,
+)
+from app.core.events.registry import SystemEventType
+
 from .schemas import (
     AwakenEvent,
     DeviceConnectedEvent,
     DeviceDisconnectedEvent,
 )
-from app.core.environment.event.types import EventType
-from app.core.events.decorators import event_register, event_register_with_bus, event_subscribe
-from app.core.events.registry import SystemEventType
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +78,7 @@ class EnvironmentLifecycleSubscriber:
             # 2. Cleanup Mirrors (Sync)
             mirror_manager.cleanup()
             logger.info("[Environment] All mirror sessions and containers cleaned up")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[Environment] Cleanup errors during shutdown: {e}")
 
 
@@ -110,7 +115,7 @@ class DeviceEventSubscriber:
                     try:
                         explorer = AndroidExplorer()
                         await explorer.scan(device_id)
-                    except Exception as e:
+                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                         logger.warning(f"Failed to probe device {device_id}: {e}")
 
     @event_subscribe(EventType.DEVICE_DISCONNECTED)

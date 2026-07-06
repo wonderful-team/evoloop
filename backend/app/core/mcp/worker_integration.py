@@ -2,12 +2,11 @@
 
 import logging
 
-from langchain_core.tools import StructuredTool
-
 from app.core.engine.state.config import ExecutionTicket
 from app.core.mcp import mcp_client_manager
 from app.core.mcp.worker import worker_mcp_manager
 from app.core.mcp.worker_config import WorkerMcpConfig
+from app.core.tools.base import EvoLoopTool
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ class WorkerMcpIntegration:
         worker_name: str,
         mcp_config: WorkerMcpConfig | None,
         execution_ticket: ExecutionTicket | None
-    ) -> list[StructuredTool]:
+    ) -> list[EvoLoopTool]:
         """
         Initialize MCP for a Worker and return available tools.
         
@@ -56,7 +55,7 @@ class WorkerMcpIntegration:
 
         # Create isolated Worker MCP session
         session = worker_mcp_manager.create_session(worker_id, worker_name)
-        all_tools: list[StructuredTool] = []
+        all_tools: list[EvoLoopTool] = []
 
         # 1. Connect Worker-specific servers
         if mcp_config.auto_connect:
@@ -129,7 +128,7 @@ class WorkerMcpIntegration:
         return all_tools
 
     @staticmethod
-    def get_worker_tools(worker_id: str) -> list[StructuredTool]:
+    def get_worker_tools(worker_id: str) -> list[EvoLoopTool]:
         """
         Get tools from a Worker's existing MCP session.
         

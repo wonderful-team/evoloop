@@ -1,6 +1,9 @@
+import logging
 import os
 
 import pathspec
+
+logger = logging.getLogger(__name__)
 
 
 class GitignoreMatcher:
@@ -18,7 +21,7 @@ class GitignoreMatcher:
         """Parse gitignore content into a PathSpec."""
         try:
             self.spec = pathspec.PathSpec.from_lines("gitwildmatch", content.splitlines())
-        except Exception:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
             # Fallback or log? For now just silent fail or empty spec
             pass
 
@@ -50,7 +53,7 @@ class GitignoreMatcher:
 
         try:
             return self.spec.match_file(check_path)
-        except Exception:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
             return False
 
     @classmethod
@@ -62,8 +65,8 @@ class GitignoreMatcher:
             try:
                 with open(file_path, encoding="utf-8") as f:
                     content = f.read()
-            except Exception:
-                pass
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.debug("Suppressed error: %s", e, exc_info=True)
         return cls(root_path, content)
 
 

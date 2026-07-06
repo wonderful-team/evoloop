@@ -12,11 +12,11 @@ import time
 from typing import Any
 
 import psutil
-from langchain_core.runnables import RunnableConfig
 
 from app.core.context import EvoContext
 from app.core.context.cache import LayeredContextCache
 from app.core.engine.hooks import HookContext, HookEvent, hook_system
+from app.core.engine.message.native_classes import RunnableConfig
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ class AgentContextHydrator:
         memory_manager = memory_container.memory_manager
 
         # Tier 1: Hot Memory (High Priority Instructions)
-        hot_memory = await memory_manager.get_hot_memory()
+        hot_memory = await memory_manager.get_hot_memory(ctx.project_id)
         if hot_memory:
             memory_data['hot_memory'] = hot_memory
 
@@ -117,9 +117,9 @@ class AgentContextHydrator:
                     if env_state.host and env_state.host.os_name == "macOS":
                         try:
                             from app.infrastructure.drivers.macos import macos_driver
-                            active_win = macos_driver.get_active_window()
-                        except Exception:
-                            pass
+                            active_win = macos_driver.get_current_app()
+                        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                            logger.debug("Suppressed error: %s", e, exc_info=True)
 
                     telemetry_data = {
                         "cpu": {"usage_percent": cpu_percent, "load_avg": psutil.getloadavg() if hasattr(psutil, "getloadavg") else []},
@@ -129,7 +129,7 @@ class AgentContextHydrator:
                         "active_window": active_win,
                         "network": env_state.network.internet_connected if env_state.network else False
                     }
-                except Exception:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                     telemetry_data = {}
                 data['telemetry'] = telemetry_data
             return data

@@ -1,11 +1,11 @@
 import enum
-import uuid
 from datetime import datetime
 
 from sqlalchemy import DateTime, Enum, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.infrastructure.database.sql.database import Base
+from app.utils.id import gen_uuid
 from app.utils.time import utcnow
 
 
@@ -24,7 +24,7 @@ class TodoPriority(str, enum.Enum):
 class TodoItem(Base):
     __tablename__ = "todos"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: gen_uuid())
     title: Mapped[str] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[TodoStatus] = mapped_column(Enum(TodoStatus), default=TodoStatus.PENDING)

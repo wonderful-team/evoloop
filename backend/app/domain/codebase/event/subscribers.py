@@ -74,7 +74,7 @@ class IndexingLifecycleSubscriber:
                 logger.info(
                     f"[Indexing] ✓ Active project indexing started: {default_path}"
                 )
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[Indexing] Failed to start active project indexing: {e}")
 
     @event_subscribe(SystemEventType.APP_STOPPING)
@@ -85,7 +85,7 @@ class IndexingLifecycleSubscriber:
 
             await indexing_manager.stop_all()
             logger.info("[Indexing] All indexing watchers and tasks stopped")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[Indexing] Failed to stop indexing manager: {e}")
 
 
@@ -138,7 +138,7 @@ class CodebaseSystemEventSubscriber:
 
                 # Trigger Smart Full-Indexing for "Staleness Check"
                 asyncio.create_task(indexing_manager.run_indexing_background(repo.id))
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(
                     f"[Codebase] Failed to handle project switch for {path}: {e}"
                 )
@@ -173,7 +173,7 @@ class IndexingEventSubscriber:
             logger.info(
                 f"[IndexingHandler] Started watching and indexing: {event.path}"
             )
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(
                 f"[IndexingHandler] Failed to start indexing for {event.path}: {e}"
             )
@@ -194,7 +194,7 @@ class IndexingEventSubscriber:
             await indexing_manager.stop_watching(event.path)
 
             logger.info(f"[IndexingHandler] Stopped watching: {event.path}")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[IndexingHandler] Failed to stop watching {event.path}: {e}")
 
     @event_subscribe(ProjectEventType.PROJECT_MOVED)
@@ -220,5 +220,5 @@ class IndexingEventSubscriber:
             logger.info(
                 f"[IndexingHandler] Updated watcher: {event.src_path} -> {event.dest_path}"
             )
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[IndexingHandler] Failed to handle move: {e}")

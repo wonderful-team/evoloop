@@ -11,7 +11,7 @@ import logging
 import time
 
 from app.core.engine.state import AgentState
-from app.core.memory.schemas import ForgottenRecord, AuditEntry
+from app.core.memory.schemas import AuditEntry, ForgottenRecord
 
 logger = logging.getLogger(__name__)
 
@@ -288,7 +288,7 @@ def get_tool_memory_from_state(state: "AgentState") -> ToolOutputMemory:
     if tool_memory_data:
         try:
             return ToolOutputMemory.from_dict(tool_memory_data)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[ToolOutputMemory] Failed to load from state: {e}")
 
     return ToolOutputMemory()

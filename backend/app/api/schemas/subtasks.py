@@ -1,6 +1,6 @@
 """API schemas for subtasks routes."""
 
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import Field
 
@@ -23,13 +23,13 @@ class TaskWithSubtasksCreate(DynamicBaseModel):
     priority: str = "medium"
     estimated_hours: int = 0
     subtasks: list[SubtaskCreate] = []
-    analysis_id: Optional[str] = None  # Optional, can be dummy
+    analysis_id: str | None = None  # can be dummy
 
 class TaskProgressUpdate(DynamicBaseModel):
     """Task progress update."""
-    status: Optional[str] = None  # pending/in_progress/completed/failed
-    progress: Optional[int] = Field(None, ge=0, le=100)
-    result: Optional[str] = None  # Execution result summary
+    status: str | None = None  # pending/in_progress/completed/failed
+    progress: int | None = Field(None, ge=0, le=100)
+    result: str | None = None  # Execution result summary
 
 class TaskTreeResponse(DynamicBaseModel, TimestampedEntity):
     """Task tree response."""
@@ -49,7 +49,7 @@ class ExecutableTaskResponse(DynamicBaseModel):
     title: str
     description: str
     is_subtask: bool
-    parent_title: Optional[str] = None
+    parent_title: str | None = None
 
 class TaskCreateResponse(BaseAPIResponse):
     """Response after creating a task with subtasks."""

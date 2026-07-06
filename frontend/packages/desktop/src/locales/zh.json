@@ -23,7 +23,8 @@
       "newVersion": "New Version",
       "openingDownload": "Opening Download",
       "skipped": "Skipped",
-      "upToDate": "Up To Date"
+      "upToDate": "Up To Date",
+      "checkFailedWithStatus": "{{message}}：{{status}}"
     },
     "update": {
       "checkUpdate": "Check Update",
@@ -37,7 +38,10 @@
     "versionInfo": {
       "desc": "Desc",
       "title": "Title"
-    }
+    },
+    "copyVersionInfo": "复制版本信息",
+    "versionLabel": "版本 {{version}}",
+    "copyright": "© 2024 EvoLoop。保留所有权利。"
   },
   "app": {
     "name": "EvoLoop"
@@ -55,7 +59,8 @@
       "passwordMin8": "密码长度至少为 8 位",
       "passwordRequired": "请输入密码",
       "passwordsNoMatch": "两次输入的密码不一致",
-      "usernameRequired": "用户名或邮箱不能为空"
+      "usernameRequired": "用户名或邮箱不能为空",
+      "usernameMinLength": "用户名至少需要3个字符"
     },
     "login": {
       "accountTab": "账号登录",
@@ -87,7 +92,8 @@
       "wechatLogin": "微信登录",
       "wechatQRCodeError": "二维码加载失败",
       "wechatScanDesc": "扫描二维码即可快速登录",
-      "wechatScanTitle": "微信扫码"
+      "wechatScanTitle": "微信扫码",
+      "wechatQRAlt": "微信二维码"
     },
     "pleaseLoginAgain": "请重新登录以继续",
     "recover": {
@@ -119,7 +125,9 @@
       "agreementService": "《服务协议》",
       "agreementAnd": "与",
       "agreementPrivacy": "《隐私政策》",
-      "agreeToTermsRequired": "请先阅读并同意服务协议"
+      "agreeToTermsRequired": "请先阅读并同意服务协议",
+      "success": "注册成功",
+      "failed": "注册失败"
     },
     "reset": {
       "confirmPassword": "确认密码",
@@ -129,7 +137,8 @@
       "rememberPassword": "记起密码了？",
       "submit": "重置密码",
       "success": "密码更新成功",
-      "title": "重置密码"
+      "title": "重置密码",
+      "failed": "密码重置失败"
     },
     "resetPassword": {
       "pageTitle": "重置密码 - EvoLoop"
@@ -138,7 +147,10 @@
     "signup": {
       "pageTitle": "注册 - EvoLoop"
     },
-    "tagline": "拥有属于你的AI数字员工"
+    "tagline": "拥有属于你的AI数字员工",
+    "code": {
+      "sendFailed": "发送验证码失败"
+    }
   },
   "chat": {
     "addLinkTitle": "添加外部链接",
@@ -152,7 +164,25 @@
       "mapError": "地图渲染错误",
       "preview": "预览",
       "reactComponent": "React 组件",
-      "saveImage": "保存图片"
+      "saveImage": "保存图片",
+      "scrollToPreview": "滚动以预览",
+      "generatingChart": "正在生成图表...",
+      "bytesReceived": "已接收 {{count}} 字节",
+      "component": "组件",
+      "lines": "{{count}} 行",
+      "standardized": "标准化 V1",
+      "unknownType": "未知产物类型：{{type}}",
+      "lineCount": "({{count}} 行)",
+      "mapErrors": {
+        "amapKeyMissing": "高德地图 Key 未配置",
+        "amapScriptLoadFailed": "加载高德地图脚本失败",
+        "amapGlobalMissing": "高德地图脚本加载后全局对象不可用",
+        "geocodeFailed": "地理编码失败：{{address}}",
+        "initializationFailed": "地图初始化失败"
+      },
+      "htmlPreviewFullscreen": "HTML 全屏预览",
+      "validationFailed": "验证失败",
+      "validationSuccessful": "验证成功"
     },
     "artifacts": {
       "fixSuggestion": "修复建议",
@@ -161,10 +191,18 @@
       "title": "生成的文件"
     },
     "attachSkill": "挂载技能",
+    "loadingHistory": "加载历史消息...",
+    "scrollToLoadMore": "向上滚动加载更多历史消息",
     "changeset": {
       "newChanges": "本次修改了 {{count}} 个文件",
       "viewChanges": "点击审查",
-      "viewed": "已巡检 {{count}} 个文件"
+      "viewed": "已巡检 {{count}} 个文件",
+      "more": "+{{count}} 更多",
+      "opAdd": "新增",
+      "opDel": "删除",
+      "opMod": "修改",
+      "fileChangeset": "文件变更集",
+      "fetchFailed": "获取变更集失败"
     },
     "context": {
       "addMemory": {
@@ -193,14 +231,27 @@
       "tabActivity": "运行",
       "taskCount": "{{count}} 项任务",
       "title": "Agent 工作台",
-      "viewAllMemories": "查看所有 {{count}} 条记忆"
+      "viewAllMemories": "查看所有 {{count}} 条记忆",
+      "executionSummary": "执行摘要",
+      "noDetails": "未保留详细信息。",
+      "objective": "目标",
+      "resultAndOutcome": "结果与产出",
+      "statusFailed": "失败",
+      "statusSuccess": "成功"
     },
     "diff": {
-      "tip": "提示：红线表示删除，绿线表示新增。"
+      "tip": "提示：红线表示删除，绿线表示新增。",
+      "description": "{{path}} 的差异视图"
     },
     "errors": {
       "connection": "连接错误: {{error}}",
-      "sendFailed": "发送失败"
+      "sendFailed": "发送失败",
+      "fetchHistoryFailed": "加载历史消息失败",
+      "loadMoreHistoryFailed": "加载更多历史消息失败",
+      "rewindFailed": "回滚失败",
+      "cancelRequestFailed": "取消请求失败",
+      "resumeAgentFailed": "恢复智能体失败",
+      "stopAgentFailed": "停止智能体失败"
     },
     "externalLinks": "外部链接",
     "goToSettings": "去设置",
@@ -243,7 +294,18 @@
       "uploadError": "上传失败",
       "uploadFile": "上传文件",
       "uploadSuccess": "文件上传成功",
-      "files": "文件"
+      "files": "文件",
+      "uploading": "上传中...",
+      "uploadFailed": "上传失败",
+      "thinking": "思考中...",
+      "openTerminal": "打开终端 – {{title}}",
+      "terminalPlaceholder": "输入终端命令并按 Enter 执行... (例如: ls -la, pwd)",
+      "exitTerminal": "点击退出终端模式，切回对话视图",
+      "terminalMode": "终端交互模式 (PTY)",
+      "enterTerminal": "进入终端交互模式 (PTY)",
+      "addMemoryError": "添加记忆失败",
+      "forget": "忘记",
+      "filesRevertedMessage": "（已恢复 {{count}} 个文件）"
     },
     "interrupted": {
       "addInput": "添加指令",
@@ -262,7 +324,8 @@
       "resume": "继续",
       "resumeWithProject": "使用选中项目继续",
       "selectProject": "选择项目...",
-      "title": "Agent 已暂停"
+      "title": "Agent 已暂停",
+      "selectedProject": "已选项目"
     },
     "linkAdded": "链接已添加",
     "linkFailed": "添加链接失败",
@@ -273,14 +336,15 @@
     "noUsedSkills": "未启动附加技能",
     "llmAuthError": "LLM API 认证失败",
     "llmAuthErrorDesc": "API 密钥无效或已过期，请检查 LLM 设置",
-    "loadingHistory": "加载历史消息...",
     "messageList": {
       "audioNotSupported": "不支持音频播放",
       "clickToOpen": "点击打开",
       "copy": "复制",
       "preview": "预览",
       "imageViewer": "图片查看器",
-      "toolExecution": "工具执行"
+      "toolExecution": "工具执行",
+      "userUpload": "用户上传",
+      "fileFallback": "文件"
     },
     "modelSelector": {
       "customModels": "自定义模型",
@@ -290,7 +354,9 @@
       "platformModels": "平台模型",
       "requiresQuota": "需要配额",
       "selectModel": "请选择模型",
-      "tooltip": "选择用于此对话的 AI 模型"
+      "tooltip": "选择用于此对话的 AI 模型",
+      "customBadge": "自定义",
+      "platformBadge": "平台"
     },
     "noLinks": "没有链接",
     "noPinnedFiles": "在文件浏览器中右键点击文件可将其置顶至此。",
@@ -298,11 +364,11 @@
     "noThinking": "暂无思考记录",
     "pinnedFiles": "置顶文件",
     "process": {
-      "initializing": "初始化中...",
+      "failedIndicator": "!",
+      "initializing": "初始化中",
       "param": "参数",
       "path": "路径",
-      "noResults": "暂无结果",
-      "resultCount": "找到 {{count}} 个结果"
+      "resultCount": "{{count}} 个结果"
     },
     "quota": {
       "banner": {
@@ -331,7 +397,10 @@
       "messages": "消息",
       "noResults": "未找到结果",
       "searchPlaceholder": "搜索...",
-      "typeToSearch": "输入以搜索..."
+      "typeToSearch": "输入以搜索...",
+      "projectRoot": "项目根目录",
+      "messageFallback": "消息",
+      "threadLabel": "会话: {{id}}"
     },
     "request": {
       "cancelled": "已取消",
@@ -357,7 +426,6 @@
       "assistant": "EvoLoop",
       "user": "用户"
     },
-    "scrollToLoadMore": "向上滚动加载更多历史消息",
     "sidebar": {
       "agentChanges": "文件变更",
       "copiedPath": "已复制路径: {{path}}",
@@ -375,7 +443,20 @@
       "wiki": "生成项目百科",
       "projectOnly": "仅支持项目模式",
       "deployStarted": "已启动项目分析与初始化任务",
-      "wikiStarted": "已启动项目百科生成任务"
+      "wikiStarted": "已启动项目百科生成任务",
+      "pinSuccess": "会话已置顶",
+      "unpinSuccess": "会话已取消置顶",
+      "pinActionFailed": "置顶操作失败",
+      "sections": {
+        "pinned": "置顶会话",
+        "today": "今天",
+        "yesterday": "昨天",
+        "recent": "最近 7 天",
+        "earlier": "更早"
+      },
+      "pinThread": "置顶会话",
+      "unpinThread": "取消置顶",
+      "loadMore": "加载更多"
     },
     "skillAttached": "技能已附加",
     "sources": {
@@ -387,6 +468,14 @@
     "status": {
       "ready": "就绪",
       "working": "工作中..."
+    },
+    "runningTasks": {
+      "openTerminalTitle": "打开终端 – {{title}}",
+      "terminalModeActive": "终端模式已激活",
+      "switchToChat": "切换到聊天视图",
+      "switchToTerminal": "切换到终端视图",
+      "exit": "退出",
+      "terminalIcon": ">_"
     },
     "stepGroupsCount": "{{count}} 轮执行",
     "steps": {
@@ -413,7 +502,8 @@
       "gender": {
         "female": "女声",
         "male": "男声"
-      }
+      },
+      "failed": "语音合成失败"
     },
     "turnLabel": "第 {{turn}} 轮",
     "voice": {
@@ -439,15 +529,14 @@
       "uploadFailed": "语音上传失败",
       "wakeWordActive": "唤醒词已激活，请说话...",
       "wakeWordDetected": "检测到唤醒词，开始录音",
-      "wakeWordStatus": "唤醒词: \"{{word}}\""
+      "wakeWordStatus": "唤醒词: \"{{word}}\"",
+      "notRecording": "未在录音"
     },
     "waitingForSteps": "等待 Agent 开始执行...",
     "welcome": {
       "mobileHint": "点击下方输入框开始对话",
       "mobileSubtitle": "你好！我是你的木头机器人助手",
       "nav": {
-        "knowledge": "知识库",
-        "knowledgeDesc": "查阅记忆、文档与技术沉淀",
         "projects": "项目管理",
         "projectsDesc": "管理所有开发项目与工作流",
         "skills": "技能中心",
@@ -455,6 +544,18 @@
         "todos": "待办事项",
         "todosDesc": "追踪任务进展与自动化记录"
       }
+    },
+    "agentRunning": "智能体运行中",
+    "goalBanner": {
+      "title": "当前任务"
+    },
+    "terminal": {
+      "trimMarker": "[终端：超出 512 KB 的历史输出已被截断]",
+      "welcomeBanner": "=== EvoLoop PTY 终端 ===",
+      "promptSymbol": "$"
+    },
+    "toolMessage": {
+      "fallbackName": "工具"
     }
   },
   "common": {
@@ -487,6 +588,7 @@
     "next": "下一页",
     "no": "否",
     "none": "无",
+    "noProject": "未选择项目",
     "ok": "确定",
     "openContextPanel": "打开上下文面板",
     "openMenu": "打开菜单",
@@ -521,17 +623,70 @@
       "hoursAgo": "{{count}} 小时前",
       "justNow": "刚刚",
       "minutesAgo": "{{count}} 分钟前",
-      "unknown": "未知时间"
+      "unknown": "未知时间",
+      "daysAgo": "{{count}} 天前"
     },
     "upload": "上传",
     "uploading": "上传中...",
     "url": "网址",
     "yes": "是",
     "continue": "继续",
-    "rename": "重命名"
+    "rename": "重命名",
+    "open": "打开",
+    "close": "关闭",
+    "copy": "复制",
+    "expand": "展开",
+    "saveSuccess": "保存成功",
+    "saveFailed": "保存失败",
+    "deleteSuccess": "删除成功",
+    "deleteFailed": "删除失败",
+    "copied": "已复制到剪贴板",
+    "loadFailed": "加载失败",
+    "deleteConfirmTitle": "确定吗？",
+    "fileSizeB": "{{size}} B",
+    "fileSizeKB": "{{size}} KB",
+    "fileSizeMB": "{{size}} MB",
+    "ms": "毫秒",
+    "notFound": {
+      "title": "未找到"
+    },
+    "unknown": "未知",
+    "bullet": "•",
+    "check": "✓",
+    "colon": "：",
+    "copyright": "© 2024 EvoLoop。保留所有权利。",
+    "cross": "✗",
+    "currencySymbol": "¥",
+    "ellipsis": "…",
+    "forwardSlash": "/",
+    "hash": "#",
+    "megabyte": "MB",
+    "millisecond": "毫秒",
+    "multiplicationSign": "×",
+    "percent": "%",
+    "second": "秒",
+    "separator": "·",
+    "speedMultiplier": "倍",
+    "terminalIcon": ">_",
+    "terminalPrompt": "$"
   },
   "context": {
     "noDescription": "No Description"
+  },
+  "memberCancellation": {
+    "applyError": "申请注销时出错。",
+    "applyFailed": "申请失败。",
+    "applySuccess": "注销申请已提交。",
+    "withdrawError": "撤回注销申请时出错。",
+    "withdrawFailed": "撤回失败。",
+    "withdrawSuccess": "注销申请已撤回。"
+  },
+  "servicer": {
+    "supportNotConfigured": "客服支持未配置。"
+  },
+  "updateService": {
+    "apiRequestFailed": "API 请求失败：{{status}}",
+    "apiResponseError": "API 返回错误"
   },
   "deleteAccount": {
     "cancel": "取消",
@@ -548,15 +703,15 @@
   },
   "editor": {
     "column": "列",
-    "ghostHint": "Tab 接受建议，Esc 取消",
+    "ghostHint": "按 Tab 接受，按 Esc 取消",
     "line": "行",
-    "thinking": "思考中..."
+    "thinking": "思考中...",
+    "untitled": "untitled.txt"
   },
   "features": {
     "browserControl": "浏览器控制",
     "desktopControl": "桌面控制",
     "gantt": "甘特图",
-    "knowledgeBase": "知识库",
     "mobileControl": "手机控制",
     "skillLearning": "技能学习",
     "timesheet": "工时表",
@@ -581,80 +736,34 @@
     "selectFileToView": "选择文件以查看",
     "selectPrompt": "选择文件以查看内容",
     "text": "文本",
-    "title": "设置"
-  },
-  "knowledge": {
-    "allDocuments": "全部文档",
-    "allProjects": "所有项目",
-    "autoTagged": "自动标签",
-    "bulkUpload": "批量/ZIP",
-    "bulkUploadHint": "支持批量重命名上传或 ZIP 压缩包导入。",
-    "clearFilters": "清除全部",
-    "collection": "集合 / 项目",
-    "collections": "集合",
-    "createCollection": "+ 创建集合",
-    "delete": "删除",
-    "deleteError": "删除失败",
-    "deleteSuccess": "文档已删除",
-    "docType": "文档类型",
-    "docTypes": {
-      "api": "API文档",
-      "architecture": "架构文档",
-      "code": "代码",
-      "design": "设计文档",
-      "doc": "文档",
-      "guide": "指南",
-      "requirement": "需求文档"
-    },
-    "documents": "文档",
-    "dropFile": "点击或拖放文件",
-    "dropMultiple": "选择多个文件或ZIP",
-    "filesCount": "{{count}} 个文件",
-    "filters": "筛选器",
-    "lines": "行",
-    "newCollectionPlaceholder": "输入新集合名称...",
-    "next": "下一页",
-    "noDocuments": "暂无文档",
-    "noPopularDocs": "暂无热门文档",
-    "noPopularDocsHint": "使用知识库后，这里会显示最常用的文档",
-    "noProjectDocs": "暂无项目文档",
-    "noProjectDocsHint": "此项目尚未关联任何文档。您可以在工作空间知识库中上传并分类。",
-    "noSearchResults": "无搜索结果",
-    "noSearchResultsHint": "尝试不同的关键词",
-    "noTags": "暂无标签",
-    "popular": "热门",
-    "popularRankingInfo": "基于引用次数排序 (最近 30 天)",
-    "prev": "上一页",
-    "projectDocs": "项目文档",
-    "projectDocsDescription": "查看和管理与此项目关联的知识库文档。",
-    "relatedDocs": "相关文档",
-    "results": "项结果",
-    "search": "搜索文档...",
-    "singleFile": "单文件",
-    "status": {
-      "citations": "引用 {{count}} 次",
-      "lastAccessed": "最近访问: {{date}}",
-      "sessions": "{{count}} 个会话"
-    },
-    "subtitle": "管理和探索你的文档",
-    "tags": "标签",
-    "title": "知识库",
-    "totalSize": "总大小",
-    "tryDifferentQuery": "尝试不同的查询",
-    "upload": "上传",
-    "uploadBulk": "批量上传",
+    "title": "设置",
+    "newFolder": "新建文件夹",
     "uploadError": "上传失败",
-    "uploadPrompt": "点击右上角上传按钮添加文档",
-    "uploadSuccess": "文档上传成功",
-    "uploadTitle": "上传文档",
-    "view": "查看",
-    "zipFilesCount": "包含 {{count}} 个可处理文件",
-    "zipImport": "ZIP 导入",
-    "zipTotalSize": "总解压大小: {{size}}",
-    "zipValid": "ZIP 文件有效"
+    "uploadFile": "上传文件",
+    "createFolderError": "创建文件夹失败",
+    "previewTitle": "文件预览",
+    "loadingEditor": "正在加载编辑器...",
+    "noFile": "未选择文件",
+    "failedToLoadFile": "文件加载失败",
+    "overwritePrompt": "文件 {{name}} 已存在，是否覆盖？",
+    "uploadNamedError": "上传 {{name}} 失败",
+    "goToSettings": "前往设置",
+    "dropToUpload": "拖放文件至此处上传",
+    "deleteConfirm": "确定要删除 {{name}} 吗？",
+    "docxPreviewError": "DOCX 预览渲染失败。",
+    "deleteError": "删除文件失败",
+    "moveError": "移动文件失败",
+    "moveSuccess": "文件已移动",
+    "preview": "预览",
+    "previewDescription": "文件预览",
+    "rename": "重命名",
+    "renameError": "重命名文件失败",
+    "workspaceNotConfigured": "工作区未配置",
+    "downloadFallback": "download"
   },
   "learning": {
     "agentic": "智能模式",
+    "agenticIcon": "🧠",
     "annotations": "标注数据",
     "appRecording": "仅录制应用窗口 (DOM)",
     "centerSubtitle": "通过录制您的操作，让 Agent 学习新的技能和工作流。",
@@ -674,6 +783,7 @@
     "created": "创建于",
     "desktopRecording": "系统级桌面监控 (全局)",
     "deterministic": "确定性模式",
+    "deterministicIcon": "⚡",
     "domMode": "仅应用内 (DOM)",
     "editor": {
       "addParameter": "添加输入项",
@@ -783,6 +893,7 @@
     "preparingRecording": "准备录制中...",
     "processing": "处理中...",
     "processingTime": "处理时间",
+    "processingTimeSeconds": "{{value}}秒",
     "quickStart": "操作录制",
     "recordedEvents": "录制的事件",
     "recordingAutoStopped": "录制已自动停止。",
@@ -849,7 +960,13 @@
     "videoMissing": "未找到屏幕录制",
     "videoNotFound": "无法访问文件",
     "videoRecordingFailed": "视频录制失败",
-    "viewDetails": "查看详情"
+    "viewDetails": "查看详情",
+    "openVideoFailedWithMessage": "打开视频失败：{{message}}",
+    "stepPreview": "步骤 {{number}}：{{description}}",
+    "videoNotFoundWithPath": "未找到视频文件：{{path}}",
+    "webVideoHint": "视频播放仅在桌面应用中可用。",
+    "executionStartedWithMode": "{{message}}（{{mode}}）",
+    "noRecordingAvailable": "没有可用录制"
   },
   "macroEditor": {
     "actions": "{{count}} 个操作",
@@ -936,7 +1053,9 @@
       "selector": "输入选择器...",
       "timeout": "5000",
       "url": "https://example.com",
-      "xpath": "例如：//button[contains(text(), 'Submit')]"
+      "xpath": "例如：//button[contains(text(), 'Submit')]",
+      "extractKey": "例如 product_title",
+      "itemsKey": "例如 products"
     },
     "previewStep": "预览此步骤",
     "reset": "重置",
@@ -981,7 +1100,12 @@
     "yamlRootObject": "YAML 根必须是对象",
     "yamlStepObject": "步骤 {{index}} 必须是对象",
     "yamlStepTypeMissing": "步骤 {{index}} 缺少 type 字段",
-    "yamlStepsArray": "steps 必须是数组"
+    "yamlStepsArray": "steps 必须是数组",
+    "itemsKey": "列表键",
+    "jsonErrorInvalidWithMessage": "JSON 格式错误：{{message}}",
+    "yaml": "YAML",
+    "yamlTemplate": "version: \"1.0\"\nmetadata:\n  format: evoloop-macro\n  step_count: 0\n\nsteps:\n  # 示例步骤 - 请替换为你自己的步骤\n  - type: action\n    event_type: navigate\n    source: dom\n    description: 导航到目标页面\n    payload:\n      url: \"https://example.com\"\n",
+    "yamlVersion": "YAML v1.0"
   },
   "mcp": {
     "add": "添加工具",
@@ -1017,7 +1141,8 @@
     "title": "外部工具连接"
   },
   "mermaid": {
-    "renderingPartial": "Rendering Partial"
+    "renderingPartial": "Rendering Partial",
+    "diagramSyntaxError": "图表语法错误"
   },
   "overlay": {
     "dragToSelect": "Drag To Select",
@@ -1026,7 +1151,10 @@
     "escToCancel": "Esc To Cancel",
     "hint": "Hint",
     "marked": "Marked",
-    "regionsCount": "Regions Count"
+    "regionsCount": "Regions Count",
+    "androidLabel": "Android",
+    "androidOnly": "Android 标记浮窗仅在桌面应用中可用。",
+    "desktopOnly": "标记浮窗仅在桌面应用中可用。"
   },
   "pending": {
     "actions": "操作",
@@ -1089,14 +1217,17 @@
     "active": "活跃",
     "backToList": "返回项目列表",
     "create": {
-      "description": "创建一个新的项目目录。这也将与会员中心同步。",
+      "description": "创建一个新的项目目录，并将同步到会员中心。",
       "errorNameFormat": "项目名称只能包含字母、数字、下划线或连字符",
-      "errorNameRequired": "项目名称为必填项",
+      "errorNameRequired": "项目名称不能为空",
       "nameLabel": "项目名称",
       "namePlaceholder": "my-awesome-project",
       "submit": "创建项目",
       "success": "项目创建成功",
       "title": "创建新项目"
+    },
+    "global": {
+      "description": "跨项目对话与一般问答"
     },
     "details": {
       "created": "创建时间",
@@ -1170,7 +1301,19 @@
         "connected": "已连接"
       },
       "threadCreated": "任务线程已创建",
-      "title": "项目配置"
+      "title": "项目配置",
+      "reanalyze": "重新分析项目",
+      "missing": "缺少项目资料，这会影响 Agent 的理解。",
+      "description": "项目简介文档",
+      "documentTitle": "PROJECT.md",
+      "statusLog": "[状态] {{status}}",
+      "toolFallback": "工具",
+      "toolStartLog": "→ {{name}}",
+      "toolCompleteLog": "✓ {{name}} 完成",
+      "thinkingLog": "💭 {{message}}",
+      "errorLog": "错误：{{message}}",
+      "noThreadId": "未返回 thread_id",
+      "threadCreatedWithId": "{{label}}：{{threadId}}"
     },
     "refresh": "刷新",
     "reports": {
@@ -1199,7 +1342,6 @@
     "tabs": {
       "files": "文件",
       "gantt": "甘特图",
-      "knowledge": "知识库",
       "overview": "概览",
       "profile": "项目配置",
       "reports": "报表",
@@ -1221,14 +1363,14 @@
         "title": "标题"
       },
       "commentsComingSoon": "评论功能即将推出",
-      "create": "新建任务",
+      "create": "创建任务",
       "execute": "确认并执行",
       "executeFailed": "执行任务失败",
       "failedToLoad": "加载任务失败",
-      "keyModules": "核心模块",
+      "keyModules": "关键模块",
       "matchScore": "匹配度",
-      "noAnalysis": "暂无分析结果",
-      "noChallenges": "未识别到技术难点",
+      "noAnalysis": "暂无分析",
+      "noChallenges": "未识别到挑战",
       "noModules": "未识别到模块",
       "noSubtasks": "无子任务",
       "priorityLabel": {
@@ -1238,8 +1380,9 @@
         "urgent": "紧急"
       },
       "processing": "处理中...",
-      "progressUpdateFailed": "进度更新失败",
+      "progressUpdateFailed": "更新进度失败",
       "progressUpdated": "进度已更新",
+      "progressValue": "{{value}}%",
       "refresh": "刷新",
       "statusLabel": {
         "blocked": "已阻塞",
@@ -1252,6 +1395,7 @@
       "techDifficulty": "Tech Difficulty",
       "title": "任务管理",
       "totalProgress": "总进度",
+      "scoreOutOf": "/100",
       "unassigned": "未分配"
     },
     "timesheet": {
@@ -1293,7 +1437,8 @@
         "testing": "测试"
       }
     },
-    "title": "项目"
+    "title": "项目",
+    "projectNameFallback": "项目 #{{id}}"
   },
   "requirements": {
     "analysis": {
@@ -1319,7 +1464,8 @@
       "title": "分析",
       "untitled": "未命名需求",
       "userStories": "用户故事",
-      "version": "版本"
+      "version": "版本",
+      "impact": "影响"
     },
     "detail": {
       "analysisHistory": "分析历史",
@@ -1363,7 +1509,14 @@
       "syncing": "同步中...",
       "tasks": "个任务",
       "title": "任务列表",
-      "unmapped": "未关联需求"
+      "unmapped": "未关联需求",
+      "status": {
+        "pending": "待同步",
+        "syncing": "同步中",
+        "synced": "已同步",
+        "failed": "失败",
+        "unknown": "未知"
+      }
     },
     "toast": {
       "confirmError": "确认分析失败",
@@ -1379,9 +1532,10 @@
       "uploadSuccess": "文档上传成功，AI 分析中..."
     },
     "upload": {
-      "dragDrop": "拖拽文件到这里，或点击选择",
-      "invalidType": "不支持的文件类型。请上传: {{types}}",
+      "dragDrop": "拖拽文件到此处或点击选择",
+      "invalidType": "不支持的文件类型。请上传：{{types}}",
       "supportedTypes": "支持",
+      "supportedTypesList": "DOCX、PDF、XLSX、MD、TXT",
       "title": "上传需求文档",
       "tooLarge": "文件大小不能超过 50MB"
     }
@@ -1405,20 +1559,13 @@
     "danger": {
       "delete_warning": "注销账号将永久删除您的所有数据，此操作无法撤销。是否继续？",
       "description": "永久删除账户及所有关联数据。",
-      "kb_reset_btn": "重置知识库",
-      "kb_reset_confirm_desc": "这将删除所有已索引的代码、文件摘要和记忆概念。系统需要从头开始重新索引所有内容。",
-      "kb_reset_warning": "重置知识库将清空所有文档索引和记忆映射。活动会话可能会丢失部分本地上下文。",
-      "kb_reset_confirm_title": "您确定吗？",
-      "kb_reset_desc": "清除所有已索引的代码和记忆概念。当 AI 出现困惑或持续幻觉时使用此功能。",
-      "kb_reset_error": "重置失败，请查看控制台日志。",
-      "kb_reset_success": "知识库清除成功。",
-      "kb_reset_title": "重置知识库 & 索引",
       "title": "删除账户"
     },
     "embedding": {
       "activate_reindex": "激活并重建索引",
       "apply_btn": "应用配置 & 重建索引",
       "confirm_switch": "警告：切换 Embedding 模型将删除所有现有的知识索引 (向量)，并触发全面重新索引。此过程不可撤销。确定要继续吗？",
+      "connectionTestFailed": "Embedding 连接测试失败",
       "default_model": "默认 Embedding 模型",
       "default_model_desc": "选择系统用于语义搜索和知识处理的默认向量模型。",
       "error_connection": "连接错误",
@@ -1429,13 +1576,22 @@
       "success_connected": "连接成功！维度：{{dim}}",
       "success_updated": "Embedding 模型已更新并触发重建索引",
       "test_connection": "测试连接",
-      "description": "管理用于知识库索引和语义搜索的向量模型。"
+      "description": "管理用于知识库索引和语义搜索的向量模型。",
+      "apiKeyPlaceholder": "sk-...",
+      "baseUrlPlaceholder": "https://api.openai.com/v1",
+      "dimensionsPlaceholder": "1536",
+      "modelPlaceholder": "text-embedding-3-small",
+      "providerPlaceholder": "openai",
+      "connectionErrorWithMessage": "{{message}}：{{detail}}"
     },
     "general": {
       "browse": "浏览",
       "browseError": "打开目录选择器失败",
       "webBrowseHint": "文件夹选择器仅在桌面客户端中可用。如果在Web环境，请手动输入绝对路径。",
       "description": "配置工作空间系统偏好设置和路径。",
+      "deviceDescription": "设备描述",
+      "deviceDescriptionDesc": "描述此设备的用途，帮助其他 Agent 理解它的角色和能力。",
+      "deviceDescriptionPlaceholder": "例如：Mac mini 开发工作站，配置了 Python、Node.js、Docker",
       "deviceName": "设备名称",
       "deviceNameDesc": "此名称用于在 EvoLoop 网络中标识此设备。",
       "deviceNamePlaceholder": "Device Name Placeholder",
@@ -1468,6 +1624,7 @@
       "connected": "连接成功",
       "connection_error": "连接错误",
       "connection_failed": "连接失败",
+      "connectionTestFailed": "LLM 连接测试失败",
       "custom": "自定义 (需配置下方信息)",
       "default_model": "1. 默认 LLM 模型",
       "default_model_desc": "选择系统在未明确指定模型时的默认生成模型。",
@@ -1477,7 +1634,16 @@
       "select_active_model": "选择当前使用的模型",
       "select_model_placeholder": "请选择模型...",
       "test_connection": "测试连接",
-      "description": "配置语言模型提供商和默认生成模型。"
+      "description": "配置语言模型提供商和默认生成模型。",
+      "headersInvalid": "Headers 必须是有效的 JSON 对象",
+      "apiKeyPlaceholder": "sk-...",
+      "baseUrlPlaceholder": "https://api.openai.com/v1",
+      "connectedWithReply": "连接成功。回复：{{reply}}",
+      "connectionErrorWithMessage": "连接错误：{{message}}",
+      "headersPlaceholder": "{\"User-Agent\": \"KimiCLI/1.5\"}",
+      "modelPlaceholder": "gpt-4o",
+      "providerPlaceholder": "openai",
+      "visionModelPlaceholder": "gpt-4o"
     },
     "modelFields": {
       "apiKey": "API 密钥",
@@ -1608,7 +1774,25 @@
       "wakeWordLabel": "唤醒词",
       "wakeWordPlaceholder": "例如：你好 Evo",
       "wakeWordSaved": "唤醒词已保存",
-      "wakeWordTitle": "唤醒词设置"
+      "wakeWordTitle": "唤醒词设置",
+      "device": {
+        "cpu": "CPU",
+        "cuda": "CUDA (NVIDIA GPU)"
+      },
+      "sttModels": {
+        "paraformer-zh": "paraformer-zh（标准版）",
+        "paraformer-zh-plus": "paraformer-zh-plus（增强版）",
+        "paraformer-zh-streaming": "paraformer-zh-streaming（流式版）"
+      },
+      "shortcutErrors": {
+        "setupListeners": "设置快捷键监听器失败",
+        "startListener": "启动快捷键监听器失败",
+        "stopListener": "停止快捷键监听器失败",
+        "setKey": "设置快捷键失败",
+        "setDuration": "设置长按持续时间失败",
+        "setMode": "设置触发模式失败",
+        "setInterval": "设置双击间隔失败"
+      }
     }
   },
   "startup": {
@@ -1640,7 +1824,6 @@
       "desktop_control": "桌面控制",
       "gantt": "甘特图",
       "interactive_charts": "交互式图表",
-      "knowledge_base": "知识库",
       "mcp": "MCP服务",
       "mobile_control": "手机控制",
       "project_limit": "项目数量",
@@ -1688,7 +1871,8 @@
       "upgradeNote": "Upgrade Note",
       "validityNote": "Validity Note",
       "waiting": "正在等待支付结果...",
-      "wechatPay": "微信扫码支付"
+      "wechatPay": "微信扫码支付",
+      "qrAlt": "付款二维码"
     },
     "plan": {
       "active": "当前使用中",
@@ -1821,7 +2005,8 @@
     "update": {
       "error": "更新待办事项失败",
       "success": "待办事项已更新"
-    }
+    },
+    "executeTaskMessage": "执行：{{title}}\n{{description}}"
   },
   "tour": {
     "finish": "完成",
@@ -1901,13 +2086,17 @@
     "helpDocs": "Help Docs",
     "stage": "Stage",
     "version": "Version",
-    "visitWebsite": "Visit Website"
+    "visitWebsite": "Visit Website",
+    "buildLabel": "构建 {{number}}",
+    "gitCommit": "Git 提交",
+    "versionString": "v{{version}}{{stageTag}}（构建 {{buildNumber}}）"
   },
   "voice": {
     "micError": "麦克风错误：",
     "notSupported": "此设备不支持语音识别。",
     "recognitionError": "识别错误",
-    "webSpeechNotSupported": "此浏览器不支持 Web Speech API。"
+    "webSpeechNotSupported": "此浏览器不支持 Web Speech API。",
+    "recognitionErrorWithDetail": "{{message}}：{{detail}}"
   },
   "wiki": {
     "generate": "生成百科",
@@ -1948,7 +2137,8 @@
       "testFailed": "连接失败，请检查配置",
       "testRequired": "请先测试连接以确保配置正确",
       "testSuccess": "连接成功！模型响应正常。",
-      "title": "配置 AI 模型"
+      "title": "配置 AI 模型",
+      "testErrorWithMessage": "{{message}}：{{detail}}"
     },
     "next": "下一步",
     "prev": "上一步",
@@ -1957,13 +2147,14 @@
       "browseError": "无法打开目录选择器",
       "webBrowseHint": "文件夹选择器仅在桌面客户端中可用。如果在Web环境，请手动输入绝对路径。",
       "info1": "扫描该目录下的各个子目录作为独立项目",
-      "info2": "建立项目的知识索引以提供智能帮助",
+      "info2": "为项目代码建立索引以启用智能辅助",
       "info3": "所有数据保留在本地，不会上传",
       "infoTitle": "EvoLoop 会做什么？",
       "label": "工作空间",
       "subtitle": "选择统一工作空间，该路径下的各个子目录将被自动识别为不同的项目。",
       "suggestions": "常用路径",
-      "title": "设置工作空间"
+      "title": "设置工作空间",
+      "placeholder": "/Users/yourname/Projects"
     },
     "saveError": "保存失败",
     "saveSuccess": "配置已保存",
@@ -1976,7 +2167,8 @@
       "start": "开始配置",
       "subtitle": "您的通用智能体即将就绪！只需 2 分钟完成以下配置，即可开始使用。",
       "title": "欢迎使用 EvoLoop"
-    }
+    },
+    "saveErrorWithMessage": "{{message}}：{{detail}}"
   },
   "vault": {
     "title": "安全密码箱",
@@ -2014,16 +2206,87 @@
         "type": "凭证类型",
         "description": "描述",
         "descriptionPlaceholder": "说明此凭证的用途...",
-        "payload": "凭证字段"
+        "payload": "凭证字段",
+        "hideValue": "隐藏值",
+        "keyPlaceholder": "键名",
+        "sensitiveValuePlaceholder": "敏感字段值",
+        "showValue": "显示值",
+        "valuePlaceholder": "字段值"
       },
       "actions": {
         "addField": "添加字段"
-      }
+      },
+      "identifierPlaceholder": "例如 customer_a_ssh, github_api_token",
+      "typePlaceholder": "选择类型"
     },
     "errors": {
       "identifierRequired": "标识符是必填项",
       "invalidIdentifier": "标识符只能包含字母、数字、下划线或连字符",
       "payloadRequired": "至少需要一个凭证字段"
+    },
+    "types": {
+      "api_key": "API 密钥 / 令牌",
+      "custom": "自定义键值字典",
+      "env": "环境变量 (.env)",
+      "password": "用户名和密码",
+      "ssh": "SSH 服务器（主机、端口、用户、密钥/密码）"
     }
+  },
+  "sidebar": {
+    "excelPreviewError": "Excel 预览失败",
+    "csvPreviewError": "CSV 预览失败",
+    "openInSystemApp": "在系统默认应用中打开",
+    "chat": "聊天",
+    "debug": "调试",
+    "debugTooltip": "调试控制中心",
+    "learning": "学习",
+    "projects": "项目",
+    "searchFilesPlaceholder": "搜索文件...",
+    "settings": "设置",
+    "todos": "待办"
+  },
+  "debug": {
+    "controlCenter": "控制中心",
+    "injectMocks": "注入全域消息块 (本地)",
+    "injectMocksSuccess": "5大类21种形态全域消息块已注入",
+    "backendScenarios": "后端流式场景模拟",
+    "simulateHappyPath": "模拟：正常流程",
+    "simulateHitl": "模拟：交互拦截 (HITL)",
+    "simulateLongTask": "模拟：长程任务/文件",
+    "simulateQuota": "模拟：配额耗尽",
+    "selectThreadFirst": "请先在左侧选中或创建一个对话",
+    "streamStarted": "真实后端流式输出模拟已启动",
+    "streamStartFailed": "请求后端模拟流失败",
+    "localInjection": "本地组件注入",
+    "hitl": {
+      "approval": "审批",
+      "confirmation": "确认",
+      "choice": "选择",
+      "text": "输入",
+      "projectSwitch": "切换",
+      "fileSelect": "文件",
+      "approvalPrompt": "是否批准部署到生产环境？",
+      "textPrompt": "请输入你的 API Key 以继续：",
+      "choicePrompt": "请选择你要执行的重构策略：",
+      "choiceQuick": "快速重构",
+      "choiceDeep": "深度优化",
+      "choiceConservative": "保守修复",
+      "confirmationPrompt": "检测到 node_modules 异常，是否执行强制清理？",
+      "projectSwitchPrompt": "当前操作跨越了多个目录，建议切换到更合适的项目上下文：",
+      "fileSelectPrompt": "请选择需要作为上下文参考的本地源代码文件：",
+      "context": "此请求来自 Agent 的核心安全策略校验。"
+    },
+    "hitlInjected": "{{type}} 类型的 HITL 已注入",
+    "clearMessages": "清空当前消息",
+    "sessionCleared": "会话已清空",
+    "messagesCount": "消息数",
+    "version": "V2.0-通用"
+  },
+  "footer": {
+    "copyright": "© 2024 EvoLoop"
+  },
+  "echarts": {
+    "filenameFallback": "chart",
+    "imageFilterName": "图片"
   }
 }

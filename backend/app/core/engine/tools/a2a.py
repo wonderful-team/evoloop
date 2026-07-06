@@ -1,16 +1,15 @@
-import logging
-import uuid
 import json
-from typing import Any
+import logging
+
 from pydantic import Field
-from sqlalchemy import select
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager
-from app.core.tools import evoloop_tool
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.core.evocloud.manager import evocloud_manager
 from app.core.evocloud.schemas import AgentTask, AgentTaskResult, TaskAttachment
+from app.core.tools import evoloop_tool
+from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,7 @@ class ListAgentsInput(DynamicBaseModel):
 )
 async def list_agents() -> str:
     """
-    Query the EvoCloud registry for all currently online Agent devices and their capabilities.
+    Query the EvoCloud registry for all currently online Agent devices and their descriptions.
     Use this to discover other agents (like servers or desktops) to delegate tasks to.
     """
     try:
@@ -46,11 +45,11 @@ async def list_agents() -> str:
                         "device_key": dev.get("device_key"),
                         "device_name": dev.get("device_name"),
                         "device_type": dev.get("device_type"),
-                        "capabilities": dev.get("capabilities") or []
+                        "description": dev.get("description") or ""
                     })
             return json.dumps(online_agents, ensure_ascii=False, indent=2)
         return json.dumps(devices, ensure_ascii=False, indent=2)
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[A2A] ListAgentsTool failed: {e}")
         return f"Error querying online agents: {e}"
 
@@ -104,8 +103,8 @@ async def send_agent_task(
     caller_role = EnvironmentProbe.get_inferred_device_type()
     global_goal = instruction
 
+    from app.infrastructure.database import session_scope
     from app.models import Conversation
-    from app.infrastructure.database.sql.database import session_scope
     async with session_scope() as session:
         conv = await session.get(Conversation, thread_id)
         if conv:
@@ -122,7 +121,7 @@ async def send_agent_task(
     if hop_count > 3:
         return "Error: Maximum chain delegation depth (3 hops) exceeded to prevent infinite loops."
 
-    task_id = f"task-{str(uuid.uuid4())[:8]}"
+    task_id = f"task-{gen_uuid()[:8]}"
 
     task_attachments = []
     for path in attachments:
@@ -135,7 +134,7 @@ async def send_agent_task(
                 file_size=up_res["file_size"],
                 md5=up_res["md5"]
             ))
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[A2A] Failed to upload attachment {path}: {e}")
             return f"Error uploading attachment {path}: {e}"
 
@@ -167,13 +166,13 @@ async def send_agent_task(
             cmd_data=cmd_data
         )
         logger.info(f"[A2A] Dispatched A2A task {task_id} to device {target_device_key}")
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[A2A] Failed to dispatch task to gateway: {e}")
         return f"Error dispatching task: {e}"
 
     tool_call_id = kwargs.get("tool_call_id") or f"call-{task_id}"
 
-    from app.core.monitoring.activity import activity_monitor, HumanRequestData
+    from app.core.monitoring.activity import HumanRequestData, activity_monitor
     req_data = HumanRequestData(
         type="a2a_callback",
         prompt=f"Waiting for A2A subtask callback from device {target_device_key}...",
@@ -240,8 +239,8 @@ async def complete_task(
     parent_thread_id = None
     caller_device_key = None
 
+    from app.infrastructure.database import session_scope
     from app.models import Conversation
-    from app.infrastructure.database.sql.database import session_scope
     async with session_scope() as session:
         conv = await session.get(Conversation, thread_id)
         if conv:
@@ -262,7 +261,7 @@ async def complete_task(
                 file_size=up_res["file_size"],
                 md5=up_res["md5"]
             ))
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[A2A] Failed to upload callback attachment {path}: {e}")
             return f"Error uploading attachment {path}: {e}"
 
@@ -286,7 +285,7 @@ async def complete_task(
             cmd_data=cmd_data
         )
         logger.info(f"[A2A] Sent A2A callback result for task {thread_id} to device {caller_device_key}")
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[A2A] Failed to send callback to caller: {e}")
         return f"Error sending callback: {e}"
 

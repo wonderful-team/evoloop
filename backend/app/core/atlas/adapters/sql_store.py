@@ -2,11 +2,15 @@ import json
 import logging
 from datetime import datetime
 
-from app.core.atlas.models import AtlasApp, AtlasElement, AtlasState, AtlasTransition
+from sqlalchemy import delete, select
+
+from app.core.atlas.models import AtlasApp
 from app.core.atlas.ports.store import IAtlasStore
 from app.core.atlas.schemas import AtlasAppInfo, AtlasAppSummary, AtlasStateDetail
-from app.infrastructure.database.sql.database import session_scope
-from app.models.atlas import AtlasApp as AtlasAppModel, AtlasState as AtlasStateModel, AtlasTransition as AtlasTransitionModel
+from app.infrastructure.database import session_scope
+from app.models.atlas import AtlasApp as AtlasAppModel
+from app.models.atlas import AtlasState as AtlasStateModel
+from app.models.atlas import AtlasTransition as AtlasTransitionModel
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +22,7 @@ class SQLAtlasStore(IAtlasStore):
         async with session_scope() as session:
             existing = (
                 await session.execute(
-                    __import__("sqlalchemy").select(AtlasAppModel).where(
+                    select(AtlasAppModel).where(
                         AtlasAppModel.bundle_id == atlas_app.bundle_id,
                         AtlasAppModel.platform == atlas_app.platform,
                     )
@@ -35,7 +39,7 @@ class SQLAtlasStore(IAtlasStore):
                     await session.delete(s)
                 old_transitions = (
                     await session.execute(
-                        __import__("sqlalchemy").select(AtlasTransitionModel).where(
+                        select(AtlasTransitionModel).where(
                             AtlasTransitionModel.app_id == app_record.id
                         )
                     )
@@ -81,10 +85,9 @@ class SQLAtlasStore(IAtlasStore):
 
     async def get_app_summary(self, bundle_id: str, platform: str = "macos") -> AtlasAppSummary | None:
         async with session_scope() as session:
-            sa = __import__("sqlalchemy")
             app = (
                 await session.execute(
-                    sa.select(AtlasAppModel).where(
+                    select(AtlasAppModel).where(
                         AtlasAppModel.bundle_id == bundle_id,
                         AtlasAppModel.platform == platform,
                     )
@@ -95,7 +98,7 @@ class SQLAtlasStore(IAtlasStore):
 
             states = (
                 await session.execute(
-                    sa.select(AtlasStateModel).where(AtlasStateModel.app_id == app.id)
+                    select(AtlasStateModel).where(AtlasStateModel.app_id == app.id)
                 )
             ).scalars().all()
 
@@ -110,10 +113,9 @@ class SQLAtlasStore(IAtlasStore):
 
     async def get_state_detail(self, bundle_id: str, state_id: str, platform: str = "macos") -> AtlasStateDetail | None:
         async with session_scope() as session:
-            sa = __import__("sqlalchemy")
             app = (
                 await session.execute(
-                    sa.select(AtlasAppModel).where(
+                    select(AtlasAppModel).where(
                         AtlasAppModel.bundle_id == bundle_id,
                         AtlasAppModel.platform == platform,
                     )
@@ -124,7 +126,7 @@ class SQLAtlasStore(IAtlasStore):
 
             state = (
                 await session.execute(
-                    sa.select(AtlasStateModel).where(
+                    select(AtlasStateModel).where(
                         AtlasStateModel.app_id == app.id,
                         AtlasStateModel.state_id == state_id,
                     )
@@ -142,10 +144,9 @@ class SQLAtlasStore(IAtlasStore):
 
     async def get_transitions_summary(self, bundle_id: str, platform: str = "macos") -> list[dict]:
         async with session_scope() as session:
-            sa = __import__("sqlalchemy")
             app = (
                 await session.execute(
-                    sa.select(AtlasAppModel).where(
+                    select(AtlasAppModel).where(
                         AtlasAppModel.bundle_id == bundle_id,
                         AtlasAppModel.platform == platform,
                     )
@@ -156,7 +157,7 @@ class SQLAtlasStore(IAtlasStore):
 
             transitions = (
                 await session.execute(
-                    sa.select(AtlasTransitionModel).where(
+                    select(AtlasTransitionModel).where(
                         AtlasTransitionModel.app_id == app.id
                     )
                 )
@@ -174,8 +175,7 @@ class SQLAtlasStore(IAtlasStore):
 
     async def list_apps(self) -> list[AtlasAppInfo]:
         async with session_scope() as session:
-            sa = __import__("sqlalchemy")
-            apps = (await session.execute(sa.select(AtlasAppModel))).scalars().all()
+            apps = (await session.execute(select(AtlasAppModel))).scalars().all()
             return [
                 AtlasAppInfo(
                     app_name=a.app_name,
@@ -187,9 +187,8 @@ class SQLAtlasStore(IAtlasStore):
 
     async def clear_all_data(self) -> None:
         async with session_scope() as session:
-            sa = __import__("sqlalchemy")
-            await session.execute(sa.delete(AtlasTransitionModel))
-            await session.execute(sa.delete(AtlasStateModel))
-            await session.execute(sa.delete(AtlasAppModel))
+            await session.execute(delete(AtlasTransitionModel))
+            await session.execute(delete(AtlasStateModel))
+            await session.execute(delete(AtlasAppModel))
             await session.commit()
             logger.warning("Atlas data cleared from SQL")

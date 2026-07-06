@@ -27,6 +27,7 @@ from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_types import (
 from app.infrastructure.solidlsp.lsp_protocol_handler.server import ProcessLaunchInfo
 from app.infrastructure.solidlsp.settings import SolidLSPSettings
 from app.infrastructure.solidlsp.util.zip import SafeZipExtractor
+
 from .common import RuntimeDependency, RuntimeDependencyCollection
 
 log = logging.getLogger(__name__)
@@ -385,7 +386,7 @@ class CSharpLanguageServer(SolidLanguageServer):
             log.info(f"Successfully downloaded and extracted {package_name} version {package_version}")
             return package_extract_dir
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             raise SolidLSPException(
                 f"Failed to download package {package_name} version {package_version} from Azure NuGet feed: {e}"
             ) from e
@@ -458,7 +459,7 @@ class CSharpLanguageServer(SolidLanguageServer):
             log.info(f"Successfully installed .NET 9 runtime to {dotnet_exe}")
             return str(dotnet_exe)
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             raise SolidLSPException(f"Failed to download .NET 9 runtime from {url}: {e}") from e
 
     def _get_initialize_params(self) -> InitializeParams:
@@ -640,7 +641,7 @@ class CSharpLanguageServer(SolidLanguageServer):
 
         try:
             self.server.start()
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             log.info(f"Failed to start language server process: {e}", logging.ERROR)
             raise SolidLSPException(f"Failed to start C# language server: {e}")
 
@@ -651,7 +652,7 @@ class CSharpLanguageServer(SolidLanguageServer):
         try:
             init_response = self.server.send.initialize(initialize_params)
             log.info(f"Received initialize response: {init_response}")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             raise SolidLSPException(f"Failed to initialize C# language server for {self.repository_root_path}: {e}") from e
 
         # Apply diagnostic capabilities

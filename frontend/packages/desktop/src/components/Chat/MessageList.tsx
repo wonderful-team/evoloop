@@ -122,10 +122,7 @@ const TurnStepsGroupView = memo(function TurnStepsGroupView({
         >
           <Layers className="w-3.5 h-3.5 text-primary/70 shrink-0" />
           <span>
-            {t("chat.interface.executionSteps", {
-              defaultValue: "思考与执行过程",
-            })}{" "}
-            ({steps.length})
+            {t("chat.interface.executionSteps")} ({steps.length})
           </span>
           <ChevronRight className="w-3.5 h-3.5 transition-transform duration-200 group-data-[state=open]:rotate-90 text-muted-foreground/50 ml-0.5" />
         </Button>
@@ -195,14 +192,12 @@ const VirtuosoHeader = ({ context }: any) => {
       {isLoadingHistory && (
         <div className="py-4 text-center text-muted-foreground">
           <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
-          <span className="text-xs">
-            {t ? t("chat.loadingHistory") : "Loading..."}
-          </span>
+          <span className="text-xs">{t("chat.loadingHistory")}</span>
         </div>
       )}
       {hasMoreHistory && !isLoadingHistory && messagesLength > 0 && (
         <div className="py-3 text-center text-muted-foreground/50 text-xs">
-          {t ? t("chat.scrollToLoadMore") : "Scroll for more"}
+          {t("chat.scrollToLoadMore")}
         </div>
       )}
     </>
@@ -280,7 +275,10 @@ export const MessageList = memo(function MessageList({
         if (target) {
           const { scrollTop, scrollHeight, clientHeight } = target
           const scrollableHeight = scrollHeight - clientHeight
-          if (scrollableHeight <= 0 || (scrollableHeight > 0 && scrollTop / scrollableHeight <= 0.2)) {
+          if (
+            scrollableHeight <= 0 ||
+            (scrollableHeight > 0 && scrollTop / scrollableHeight <= 0.2)
+          ) {
             loadMoreHistory?.()
           }
         }
@@ -463,8 +461,8 @@ export const MessageList = memo(function MessageList({
             const diffSec = (endMs - startMs) / 1000
             ;(lastAiItem.data as any).turnDuration =
               diffSec >= 1
-                ? `${diffSec.toFixed(1)}s`
-                : `${Math.round(endMs - startMs)}ms`
+                ? `${diffSec.toFixed(1)}${t("common.second")}`
+                : `${Math.round(endMs - startMs)}${t("common.millisecond")}`
           }
         }
       }
@@ -549,7 +547,8 @@ export const MessageList = memo(function MessageList({
         // 中间步骤（AI tool_call、tool_output、未标 isLastInTurn 的 AI 消息）全进 steps
         const isHitlTool =
           item.data.role === "tool" &&
-          (item.data.tool_name === "ask_human" || item.data.tool_name === "ask_confirm")
+          (item.data.tool_name === "ask_human" ||
+            item.data.tool_name === "ask_confirm")
         if (!isHitlTool) {
           currentTurnSteps.push(item.data)
         }
@@ -557,8 +556,11 @@ export const MessageList = memo(function MessageList({
     }
 
     if (currentTurnSteps.length > 0) {
-      const isTailActive = currentTurnSteps.some((s: any) =>
-        s.status === "streaming" || s.status === "running" || s.status === "pending"
+      const isTailActive = currentTurnSteps.some(
+        (s: any) =>
+          s.status === "streaming" ||
+          s.status === "running" ||
+          s.status === "pending",
       )
 
       groupedItems.push({
@@ -570,7 +572,7 @@ export const MessageList = memo(function MessageList({
     }
 
     return groupedItems
-  }, [messages])
+  }, [messages, t])
 
   // Build flat item list for Virtuoso data
   interface VirtItem {

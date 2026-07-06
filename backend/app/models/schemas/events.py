@@ -10,8 +10,8 @@ SSE 流式事件 Schema —— 全系统通用事件定义。
 - 消息/引擎特定事件 → app.core.engine.message.schemas
 """
 
-from enum import Enum
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Dict, Literal, Union
+
 from pydantic import model_validator
 
 from app.core.events.base import BaseEvent
@@ -21,7 +21,7 @@ from app.core.events.base import BaseEvent
 class BaseStreamEvent(BaseEvent):
     """全系统流式协议基类：统一字段、平铺结构、高性能序列化"""
     type: str
-    thread_id: Optional[str] = None
+    thread_id: str | None = None
     
     # Governance: Stream events are always public to the chat channel by default
     is_public: bool = True
@@ -46,7 +46,7 @@ class BaseStreamEvent(BaseEvent):
 class TokenEvent(BaseStreamEvent):
     type: Literal["token"] = "token"
     content: str
-    message_id: Optional[str] = None
+    message_id: str | None = None
 
 
 # --- 2. 思考过程流：Reasoning/Thinking ---
@@ -54,7 +54,7 @@ class ThinkingEvent(BaseStreamEvent):
     type: Literal["thinking"] = "thinking"
     content: str
     is_delta: bool = True
-    message_id: Optional[str] = None
+    message_id: str | None = None
 
 
 # --- 3. 进度与工具执行流 ---
@@ -62,7 +62,7 @@ class ProgressEvent(BaseStreamEvent):
     type: Literal["progress"] = "progress"
     status: Literal["running", "success", "failed", "interrupted"] = "running"
     message: str = ""                                # 给用户看的显示文案
-    progress: Optional[int] = None                   # 0-100
+    progress: int | None = None                   # 0-100
     metadata: Dict[str, Any] = {}                    # 扩展信息：如 tool_name, call_id
 
 
@@ -70,7 +70,7 @@ class ProgressEvent(BaseStreamEvent):
 class StatusEvent(BaseStreamEvent):
     type: Literal["status"] = "status"
     status: str                                      # 内部状态码
-    message: Optional[str] = None                    # 显示消息
+    message: str | None = None                    # 显示消息
 
 
 # --- 5. 资源流：Artifacts (Files, Shell, etc.) ---
@@ -80,17 +80,17 @@ class ArtifactEvent(BaseStreamEvent):
     name: str
     kind: str                                        # file, shell, terminal
     status: str                                      # pending, success, failed
-    path: Optional[str] = None
-    content: Optional[str] = None
+    path: str | None = None
+    content: str | None = None
 
 
 # --- 6. 智能体全局状态流 ---
 class AgentStateEvent(BaseStreamEvent):
     type: Literal["agent_state"] = "agent_state"
     mode: str                                        # PLANNING, EXECUTING
-    task_name: Optional[str] = None
-    task_status: Optional[str] = None
-    active_skills: Optional[list[dict]] = None       # [{id, name, description}] — Worker 实际挂载的技能
+    task_name: str | None = None
+    task_status: str | None = None
+    active_skills: list[dict] | None = None       # [{id, name, description}] — Worker 实际挂载的技能
 
 
 # --- 7. 消息块同步流：同步全量 MessageBlock ---
@@ -108,12 +108,12 @@ class MessageSyncEvent(BaseStreamEvent):
 class HumanRequestEvent(BaseStreamEvent):
     type: Literal["human_request"] = "human_request"
     action: str                                      # create, clear, update
-    id: Optional[str] = None
-    prompt: Optional[str] = None
-    request_type: Optional[str] = None
-    options: Optional[list[str]] = None
-    context: Optional[str] = None
-    default_value: Optional[str] = None
+    id: str | None = None
+    prompt: str | None = None
+    request_type: str | None = None
+    options: list[str] | None = None
+    context: str | None = None
+    default_value: str | None = None
     allow_cancel: bool = True
     payload: Dict[str, Any] = {}
 
@@ -130,28 +130,28 @@ class AuthExpiredEvent(BaseStreamEvent):
     type: Literal["auth_expired"] = "auth_expired"
     title: str = "Auth Expired"
     message: str = "Session expired, please login again."
-    hint: Optional[str] = None
+    hint: str | None = None
 
 
 class LLMAuthErrorEvent(BaseStreamEvent):
     type: Literal["llm_auth_error"] = "llm_auth_error"
     title: str = "LLM Auth Failed"
     message: str = "Invalid API Key or expired."
-    hint: Optional[str] = None
+    hint: str | None = None
 
 
 # --- 10. 运行生命周期流 ---
 class RunStartEvent(BaseStreamEvent):
     type: Literal["run_start"] = "run_start"
-    run_id: Optional[str] = None
-    goal: Optional[str] = None
+    run_id: str | None = None
+    goal: str | None = None
 
 
 class RunEndEvent(BaseStreamEvent):
     type: Literal["run_end"] = "run_end"
-    run_id: Optional[str] = None
+    run_id: str | None = None
     status: Literal["done", "failed", "cancelled", "interrupted"]
-    final_outcome: Optional[str] = None
+    final_outcome: str | None = None
 
 
 # Type alias for all possible stream events
@@ -172,6 +172,7 @@ StreamEvent = Union[
 
 # Type-safe import of MessageBlock for type checking
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from app.core.engine.message.schemas import MessageBlock
 

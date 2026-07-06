@@ -162,7 +162,7 @@ export function LLMSettings() {
         parsedHeaders = JSON.parse(headers)
       }
     } catch (_e) {
-      const msg = "Headers must be a valid JSON object"
+      const msg = t("settings.llm.headersInvalid")
       setTestResult({ success: false, msg })
       toast.error(msg)
       setTesting(false)
@@ -183,7 +183,9 @@ export function LLMSettings() {
       if (res.success) {
         setTestResult({
           success: true,
-          msg: `${t("settings.llm.connected")} Reply: ${res.reply || "OK"}`,
+          msg: t("settings.llm.connectedWithReply", {
+            reply: res.reply || t("common.ok"),
+          }),
         })
         toast.success(t("settings.llm.connected"))
         return true
@@ -193,7 +195,9 @@ export function LLMSettings() {
       toast.error(msg)
       return false
     } catch (error) {
-      const msg = `${t("settings.llm.connection_error")}: ${(error as any).message}`
+      const msg = t("settings.llm.connectionErrorWithMessage", {
+        message: (error as any).message,
+      })
       setTestResult({ success: false, msg })
       toast.error(msg)
       return false
@@ -215,7 +219,7 @@ export function LLMSettings() {
     if (configChanged) {
       const isOk = await handleTestConnection()
       if (!isOk) {
-        throw new Error("LLM Connection test failed")
+        throw new Error(t("settings.llm.connectionTestFailed"))
       }
     }
 
@@ -225,7 +229,7 @@ export function LLMSettings() {
         parsedHeaders = JSON.parse(headers)
       }
     } catch (e) {
-      toast.error("Headers must be a valid JSON object")
+      toast.error(t("settings.llm.headersInvalid"))
       throw e
     }
 
@@ -325,7 +329,7 @@ export function LLMSettings() {
                           variant="secondary"
                           className="text-[10px] h-4 rounded-none"
                         >
-                          Platform
+                          {t("chat.modelSelector.platformBadge")}
                         </Badge>
                       </div>
                     </SelectItem>
@@ -344,7 +348,7 @@ export function LLMSettings() {
                       variant="outline"
                       className="text-[10px] h-4 border-amber-500/30 text-amber-600 rounded-none"
                     >
-                      Custom
+                      {t("chat.modelSelector.customBadge")}
                     </Badge>
                   </div>
                 </SelectItem>
@@ -376,7 +380,7 @@ export function LLMSettings() {
                 {t("settings.modelFields.provider")}
               </Label>
               <Input
-                placeholder="openai"
+                placeholder={t("settings.llm.providerPlaceholder")}
                 value={provider || ""}
                 onChange={(e) => setProvider(e.target.value)}
                 className="h-10 transition-colors focus:border-primary"
@@ -411,7 +415,7 @@ export function LLMSettings() {
                 {t("settings.modelFields.baseUrl")}
               </Label>
               <Input
-                placeholder="https://api.openai.com/v1"
+                placeholder={t("settings.llm.baseUrlPlaceholder")}
                 value={baseUrl || ""}
                 onChange={(e) => setBaseUrl(e.target.value)}
                 className="h-10 transition-colors focus:border-primary"
@@ -422,7 +426,7 @@ export function LLMSettings() {
                 {t("settings.modelFields.modelName")}
               </Label>
               <Input
-                placeholder="gpt-4o"
+                placeholder={t("settings.llm.modelPlaceholder")}
                 value={model || ""}
                 onChange={(e) => setModel(e.target.value)}
                 className="h-10 transition-colors focus:border-primary"
@@ -433,7 +437,7 @@ export function LLMSettings() {
                 {t("settings.modelFields.visionModel")}
               </Label>
               <Input
-                placeholder="gpt-4o"
+                placeholder={t("settings.llm.visionModelPlaceholder")}
                 value={visionModel || ""}
                 onChange={(e) => setVisionModel(e.target.value)}
                 className="h-10 transition-colors focus:border-primary"
@@ -448,7 +452,7 @@ export function LLMSettings() {
             <div className="relative">
               <Input
                 type={showApiKey ? "text" : "password"}
-                placeholder="sk-..."
+                placeholder={t("settings.llm.apiKeyPlaceholder")}
                 value={apiKey || ""}
                 onChange={(e) => setApiKey(e.target.value)}
                 className="pr-10 h-10 transition-colors focus:border-primary"
@@ -474,7 +478,7 @@ export function LLMSettings() {
               {t("settings.modelFields.headers")}
             </Label>
             <Input
-              placeholder='{"User-Agent": "KimiCLI/1.5"}'
+              placeholder={t("settings.llm.headersPlaceholder")}
               value={headers || ""}
               onChange={(e) => setHeaders(e.target.value)}
               className="h-10 transition-colors focus:border-primary font-mono text-xs"

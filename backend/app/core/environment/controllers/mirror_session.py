@@ -12,6 +12,7 @@ from pathlib import Path
 
 from app.core.config import settings
 from app.core.environment.schemas import MirrorSessionStopResult
+
 from .android_event_recorder import AndroidEventRecorder, AndroidTraceEvent
 
 logger = logging.getLogger(__name__)
@@ -101,7 +102,7 @@ class MirrorSession:
                     batch_buffer = []
 
                 self._event_queue.task_done()
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"[MirrorSession] Failed to persist event: {e}")
                 await asyncio.sleep(1)
 
@@ -113,7 +114,7 @@ class MirrorSession:
         """Persist a batch of events to database."""
         import json
 
-        from app.infrastructure.database.sql.database import session_scope
+        from app.infrastructure.database import session_scope
         from app.models import TraceEvent
 
         if not events:
@@ -144,7 +145,7 @@ class MirrorSession:
                     )
                     db.add(trace_event)
             logger.debug(f"[MirrorSession] Persisted {len(events)} events to DB")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[MirrorSession] Failed to persist batch: {e}")
             raise
 
@@ -234,7 +235,7 @@ class MirrorSession:
 
             return True
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             self.error = str(e)
             logger.error(f"Failed to start scrcpy: {e}")
             return False
@@ -269,7 +270,7 @@ class MirrorSession:
             logger.info(f"[MirrorSession] Started Android event recording for session {self.session_id}")
             return True
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[MirrorSession] Failed to start recording: {e}")
             return False
 

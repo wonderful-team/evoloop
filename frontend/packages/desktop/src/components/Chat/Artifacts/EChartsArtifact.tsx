@@ -109,14 +109,11 @@ function EChartsErrorFallback({
         <AlertCircle className="w-4 h-4" />
         {typeof data.title === "string"
           ? data.title
-          : t("chat.artifact.chartError", "Chart Rendering Error")}
+          : t("chat.artifact.chartError")}
       </div>
       <div className="p-4">
         <p className="text-xs text-muted-foreground mb-3 font-medium">
-          {t(
-            "chat.artifact.invalidChartOption",
-            "The chart configuration is invalid or incomplete.",
-          )}
+          {t("chat.artifact.invalidChartOption")}
         </p>
         <pre className="text-[10px] bg-background/50 p-3 rounded-lg border border-destructive/10 overflow-auto max-h-[200px] font-mono leading-relaxed opacity-70">
           {JSON.stringify(data.option, null, 2)}
@@ -256,7 +253,7 @@ const EChartsArtifactInner: React.FC<EChartsArtifactProps> = ({ data }) => {
     if (!instance) return
 
     try {
-      const defaultFilename = `${data.title || "chart"}.png`
+      const defaultFilename = `${data.title || t("echarts.filenameFallback")}.png`
 
       const dataUrl = instance.getDataURL({
         type: "png",
@@ -269,7 +266,9 @@ const EChartsArtifactInner: React.FC<EChartsArtifactProps> = ({ data }) => {
         const { writeFile } = await import("@tauri-apps/plugin-fs")
         const filePath = await save({
           defaultPath: defaultFilename,
-          filters: [{ name: "Image", extensions: ["png"] }],
+          filters: [
+            { name: t("echarts.imageFilterName"), extensions: ["png"] },
+          ],
         })
 
         if (!filePath) return
@@ -314,7 +313,7 @@ const EChartsArtifactInner: React.FC<EChartsArtifactProps> = ({ data }) => {
   const displayTitle =
     typeof data.title === "string" && data.title !== "echarts"
       ? data.title
-      : optionTitleText || t("chat.artifact.chart", "Statistical Analysis")
+      : optionTitleText || t("chat.artifact.chart")
 
   if (!validation.valid) {
     return <EChartsErrorFallback data={data} />
@@ -352,7 +351,7 @@ const EChartsArtifactInner: React.FC<EChartsArtifactProps> = ({ data }) => {
               size="icon"
               className="h-8 w-8 rounded-full bg-background/50 hover:bg-background shadow-sm"
               onClick={handleSaveImage}
-              title={t("chat.artifact.saveImage", "Save as image")}
+              title={t("chat.artifact.saveImage")}
             >
               <Download className="w-4 h-4 text-muted-foreground hover:text-primary transition-colors" />
             </Button>

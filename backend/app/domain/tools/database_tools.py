@@ -1,9 +1,8 @@
+import datetime
 import json
 import logging
 import re
-import datetime
 from decimal import Decimal
-from typing import Any, Dict, List
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
@@ -91,7 +90,7 @@ def sql_query(db_uri: str, sql: str) -> str:
 
             return json.dumps(response, ensure_ascii=False)
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to execute SQL: {e}")
         return json.dumps({"status": "error", "message": str(e)})
 

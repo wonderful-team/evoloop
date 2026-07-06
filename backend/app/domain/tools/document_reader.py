@@ -3,14 +3,20 @@ import os
 import sqlite3
 
 from app.core.context.manager import ContextManager
+from app.core.file import ensure_local_path, read_file, resolve_path
 from app.core.file.document_reader import document_reader_service
 from app.core.tools import evoloop_tool
-from app.domain.tools.schemas import DocxHeading, ExcelSheetInfo, ExcelInspectionResult, DocxInspectionResult, \
-    PdfInspectionResult
-from app.utils import ContentFormatter, ControllerResponse, render_template
-from app.utils import json as json_utils
+from app.domain.tools.schemas import (
+    DocxHeading,
+    DocxInspectionResult,
+    ExcelInspectionResult,
+    ExcelSheetInfo,
+    PdfInspectionResult,
+)
+from app.utils.controller_response import ContentFormatter, ControllerResponse
 from app.utils.detect import detect_language
-from app.core.file import ensure_local_path, read_file, resolve_path
+from app.utils.json import dumps
+from app.utils.template import render_template
 
 try:
     import docx
@@ -53,11 +59,11 @@ def inspect_document(file_path: str) -> str:
     try:
         # Note: file_path should already be resolved and validated by the caller
         real_path = ensure_local_path(file_path)
-    except Exception as e:
-        return json_utils.dumps({"error": str(e)})
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        return dumps({"error": str(e)})
 
     if not os.path.exists(real_path):
-        return json_utils.dumps({"error": f"File not found: {real_path}"})
+        return dumps({"error": f"File not found: {real_path}"})
 
     _ext = os.path.splitext(real_path)[1].lower()
     metadata = {
@@ -77,10 +83,10 @@ def inspect_document(file_path: str) -> str:
         else:
             metadata["info"] = "Standard text file"
 
-        return json_utils.dumps(metadata, indent=2)
-    except Exception as e:
+        return dumps(metadata, indent=2)
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Inspection failed: {e}")
-        return json_utils.dumps({"error": str(e)})
+        return dumps({"error": str(e)})
 
 
 @evoloop_tool(
@@ -144,7 +150,7 @@ async def query_excel_sql(file_path: str, sql_query: str) -> str:
         result = result_df.to_json(orient="records", force_ascii=False)
         return result if result is not None else "[]"
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return f"SQL Execution Error: {str(e)}"
 
 
@@ -180,7 +186,7 @@ async def read_document(file_path: str, start_page: int | None = None, end_page:
 
         return ContentFormatter.file_content(filename, content, lang)
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Read failed: {e}")
         return ControllerResponse.error(f"Error reading file {file_path}", details=str(e))
 
@@ -197,7 +203,7 @@ def _resolve_and_validate(file_path: str) -> tuple[str | None, str | None]:
     try:
         resolved_path = _resolve_project_path(file_path)
         real_path = ensure_local_path(resolved_path)
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return None, f"Error resolving path: {str(e)}"
 
     if os.path.exists(real_path):
@@ -231,8 +237,8 @@ def _resolve_and_validate(file_path: str) -> tuple[str | None, str | None]:
                 f"[{list_str}]\n"
                 f"Please check the spelling or choose an existing file from the list."
             )
-        except Exception:
-            pass
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.debug("Suppressed error: %s", e, exc_info=True)
 
     return None, f"Error: File not found: {real_path}{suggestion} (Resolved from {file_path}){parent_listing_info}"
 
@@ -258,7 +264,7 @@ def _list_directory(real_path: str) -> str:
             f"The path you requested is a directory, not a file. I have listed its contents below for your convenience:\n\n"
             f"{listing_str}"
         )
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return f"Error listing directory: {e}"
 
 
@@ -357,7 +363,7 @@ def _read_pdf(path: str, start: int | None, end: int | None) -> str:
             page_info=f"Pages: {start_idx+1} to {end_idx} (Total {total_pages})",
             content_blocks=content_blocks
         ) + footer_msg
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to render Document template for PDF: {e}")
         # Fallback to simple template
         content_blocks = []
@@ -415,7 +421,7 @@ def _read_excel(path: str) -> str:
             filename=os.path.basename(path),
             content_blocks=content_blocks
         )
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to render Spreadsheet template: {e}")
         # Fallback to spreadsheet formatter
         sheets = []

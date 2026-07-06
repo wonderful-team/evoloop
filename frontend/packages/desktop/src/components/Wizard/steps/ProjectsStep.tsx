@@ -59,7 +59,7 @@ export function ProjectsStep() {
             <Input
               value={data.workspaceRoot}
               onChange={(e) => setData({ workspaceRoot: e.target.value })}
-              placeholder="/Users/yourname/Projects"
+              placeholder={t("wizard.projects.placeholder")}
               className="flex-1"
             />
             <Button

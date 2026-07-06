@@ -1,22 +1,22 @@
+import fnmatch
 import os
 import re
-import fnmatch
-from typing import Annotated, Optional
-
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import InjectedToolArg
+from typing import Annotated
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
-from app.core.tools import evoloop_tool
-from .utils import resolve_and_validate_path
+from app.core.engine.message.native_classes import RunnableConfig
 from app.core.file import FileTraverser, read_file
+from app.core.tools import evoloop_tool
+from app.core.tools.base import InjectedToolArg
+
+from .utils import resolve_and_validate_path
 
 
 async def _search_by_name(
     pattern: str,
     target_path: str,
-    scope: Optional[str],
+    scope: str | None,
     case_insensitive: bool,
     max_files: int = 20,
 ) -> tuple[str, dict]:
@@ -74,7 +74,7 @@ async def _search_by_name(
             
             for i in range(start_idx, min(start_idx + MAX_PREVIEW_LINES, len(all_lines))):
                 preview_lines.append(f"     {i+1:3d}: {all_lines[i]}")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             preview_lines.append(f"     [Could not read preview: {e}]")
 
         preview_block = "\n".join(preview_lines) if preview_lines else "     (empty file)"
@@ -95,7 +95,7 @@ async def _search_by_name(
 async def find_files_internal(
     pattern: str,
     path: str = ".",
-    scope: Optional[str] = None,
+    scope: str | None = None,
     case_insensitive: bool = False,
     max_files: int = 20,
     config: RunnableConfig | None = None,
@@ -137,7 +137,7 @@ async def find_files_internal(
 async def find_files(
     pattern: str,
     path: str = ".",
-    scope: Optional[str] = None,
+    scope: str | None = None,
     case_insensitive: bool = False,
     max_files: int = 20,
     config: Annotated[RunnableConfig, InjectedToolArg] = None,

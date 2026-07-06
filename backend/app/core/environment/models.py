@@ -8,8 +8,15 @@ from typing import TYPE_CHECKING
 
 from pydantic import PrivateAttr
 
-from app.core.environment.schemas import HostEnvironment, AndroidDevice, NetworkStatus, EpisodeSummary, ConceptSummary, \
-    AndroidTelemetry, TelemetrySnapshot
+from app.core.environment.schemas import (
+    AndroidDevice,
+    AndroidTelemetry,
+    ConceptSummary,
+    EpisodeSummary,
+    HostEnvironment,
+    NetworkStatus,
+    TelemetrySnapshot,
+)
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 if TYPE_CHECKING:
@@ -76,7 +83,7 @@ class AwakenedState(DynamicBaseModel):
             cpu_data = {"usage_percent": psutil.cpu_percent(interval=None), "load_avg": psutil.getloadavg() if hasattr(psutil, "getloadavg") else []}
             mem = psutil.virtual_memory()
             mem_data = {"percent": mem.percent, "available": mem.available}
-        except Exception:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
             cpu_data = {}
             mem_data = {}
 

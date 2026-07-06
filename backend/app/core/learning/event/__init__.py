@@ -2,11 +2,11 @@
 Learning Event Package
 ======================
 
-Public exports for learning event schemas and subscribers.
+Public exports for learning event types, schemas and subscribers.
 """
 
-from .schemas import TraceCleanupEvent
+from .types import LearningEventType
 
 __all__ = [
-    "TraceCleanupEvent",
+    "LearningEventType",
 ]

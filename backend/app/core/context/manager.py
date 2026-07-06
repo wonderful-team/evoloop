@@ -10,9 +10,8 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.schemas import ContextMetadata
 from app.core.exceptions import GlobalModeError
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.services.cache_services import ContextCacheService
+from app.core.context._cache_service import ContextCacheService
 from app.utils.id import gen_uuid
-
 
 # ==========================================
 # Core Context Definition
@@ -218,7 +217,7 @@ class ContextManager:
                 cache_service = ContextCacheService()
                 await cache_service.save_context(thread_id, hset_data)
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             import logging
             logging.getLogger(__name__).warning(f"Failed to save context to cache (HSET): {e}")
 
@@ -251,7 +250,7 @@ class ContextManager:
                             reconstructed[k] = json.loads(v) if v else (
                                 [] if k in list_fields else ({} if k in dict_fields or k in flexible_fields else [])
                             )
-                        except Exception:
+                        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                             reconstructed[k] = [] if k in list_fields else {}
                     elif k == "timestamp":
                         reconstructed[k] = float(v) if v else 0.0
@@ -265,7 +264,7 @@ class ContextManager:
                 ctx = EvoContext.model_validate(reconstructed)
                 ContextManager.set(ctx)
                 return ctx
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             import logging
             logging.getLogger(__name__).warning(f"Failed to load context from cache (HGETALL): {e}")
 

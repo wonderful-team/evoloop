@@ -32,7 +32,7 @@ import {
   Quote,
   Trash2,
 } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { FilesService } from "@/client"
@@ -48,6 +48,7 @@ interface FileTreeProps {
   projectId: number
   path?: string
   level?: number
+  activePath?: string
   onSelectFile: (file: FileNode) => void
   onQuoteFile?: (file: FileNode) => void
   isCreatingRootFolder?: boolean
@@ -59,6 +60,7 @@ export function FileTree({
   projectId,
   path = "",
   level = 0,
+  activePath,
   onSelectFile,
   onQuoteFile,
   isCreatingRootFolder,
@@ -106,21 +108,13 @@ export function FileTree({
           error.status === 409 ||
           error.body?.detail?.includes("already exists")
         ) {
-          if (
-            window.confirm(
-              t("files.overwritePrompt", {
-                defaultValue: `文件 ${file.name} 已存在，是否覆盖？`,
-              }),
-            )
-          ) {
+          if (window.confirm(t("files.overwritePrompt", { name: file.name }))) {
             const dt = new DataTransfer()
             dt.items.add(file)
             await handleUpload(targetPath, dt.files, true)
           }
         } else {
-          toast.error(
-            t("files.uploadError", { defaultValue: `上传 ${file.name} 失败` }),
-          )
+          toast.error(t("files.uploadNamedError", { name: file.name }))
         }
       }
     }
@@ -151,8 +145,7 @@ export function FileTree({
   if (isLoading) {
     return (
       <div className="pl-4 py-1 text-xs text-muted-foreground flex items-center">
-        <Loader2 className="h-3 w-3 animate-spin mr-1" />{" "}
-        {t("files.loading", { defaultValue: "加载中..." })}
+        <Loader2 className="h-3 w-3 animate-spin mr-1" /> {t("files.loading")}
       </div>
     )
   }
@@ -165,10 +158,8 @@ export function FileTree({
       <div className="pl-4 py-2 text-xs text-destructive flex flex-col items-start gap-2">
         <span>
           {isGlobalNotConfigured
-            ? t("files.workspaceNotConfigured", {
-                defaultValue: "尚未配置全局工作区目录",
-              })
-            : t("files.error", { defaultValue: "加载失败" })}
+            ? t("files.workspaceNotConfigured")
+            : t("files.error")}
         </span>
         {isGlobalNotConfigured && (
           <Button
@@ -177,7 +168,7 @@ export function FileTree({
             className="h-6 text-[10px]"
             asChild
           >
-            <Link to="/settings">前往设置</Link>
+            <Link to="/settings">{t("files.goToSettings")}</Link>
           </Button>
         )}
       </div>
@@ -224,8 +215,7 @@ export function FileTree({
             />
           </div>
         )}
-        {t("files.empty", { defaultValue: "空文件夹" })} (Drop files here to
-        upload)
+        {t("files.empty")} ({t("files.dropToUpload")})
       </div>
     )
   }
@@ -282,6 +272,7 @@ export function FileTree({
           node={node}
           level={level}
           projectId={projectId}
+          activePath={activePath}
           onSelectFile={onSelectFile}
           onQuoteFile={onQuoteFile}
           onUpload={handleUpload}
@@ -295,6 +286,7 @@ function FileTreeNode({
   node,
   level,
   projectId,
+  activePath,
   onSelectFile,
   onQuoteFile,
   onUpload,
@@ -302,11 +294,19 @@ function FileTreeNode({
   node: FileNode
   level: number
   projectId: number
+  activePath?: string
   onSelectFile: (file: FileNode) => void
   onQuoteFile?: (file: FileNode) => void
   onUpload: (targetPath: string, files: FileList) => Promise<void>
 }) {
-  const [isOpen, setIsOpen] = useState(false)
+  const isFolder = node.type === "directory"
+  const isActive = activePath === node.path
+  const isAncestor =
+    isFolder &&
+    !!activePath &&
+    (activePath.startsWith(`${node.path}/`) || activePath === node.path)
+
+  const [isOpen, setIsOpen] = useState(isAncestor)
   const [isDragOver, setIsDragOver] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
   const [renameInput, setRenameInput] = useState(node.name)
@@ -314,9 +314,14 @@ function FileTreeNode({
   const [childFolderInput, setChildFolderInput] = useState("")
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  const isFolder = node.type === "directory"
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (isAncestor && !isOpen) {
+      setIsOpen(true)
+    }
+  }, [isAncestor, isOpen])
 
   const refreshFiles = () => {
     queryClient.invalidateQueries({ queryKey: ["files", projectId] })
@@ -374,9 +379,9 @@ function FileTreeNode({
             },
           })
           refreshFiles()
-          toast.success(t("files.moveSuccess", { defaultValue: "移动成功" }))
+          toast.success(t("files.moveSuccess"))
         } catch (_error) {
-          toast.error(t("files.moveError", { defaultValue: "移动失败" }))
+          toast.error(t("files.moveError"))
         }
       }
       return
@@ -404,7 +409,7 @@ function FileTreeNode({
       })
       refreshFiles()
     } catch (_error) {
-      toast.error(t("files.renameError", { defaultValue: "重命名失败" }))
+      toast.error(t("files.renameError"))
       setRenameInput(node.name)
     }
   }
@@ -427,9 +432,7 @@ function FileTreeNode({
       refreshFiles()
       setIsOpen(true)
     } catch (_error) {
-      toast.error(
-        t("files.createFolderError", { defaultValue: "创建文件夹失败" }),
-      )
+      toast.error(t("files.createFolderError"))
     }
   }
 
@@ -442,7 +445,7 @@ function FileTreeNode({
       })
       refreshFiles()
     } catch (_error) {
-      toast.error(t("files.deleteError", { defaultValue: "删除失败" }))
+      toast.error(t("files.deleteError"))
     }
   }
 
@@ -451,6 +454,7 @@ function FileTreeNode({
       className={cn(
         "flex items-center gap-1.5 py-1.5 px-3 hover:bg-primary/5 cursor-pointer rounded-lg select-none whitespace-nowrap transition-all group relative",
         isDragOver && isFolder && "bg-primary/20 ring-1 ring-primary",
+        isActive && "bg-primary/10 text-primary font-medium",
       )}
       style={{ paddingLeft: `${level * 16 + 12}px` }}
       onClick={handleClick}
@@ -531,7 +535,7 @@ function FileTreeNode({
           {!isFolder && (
             <ContextMenuItem onClick={() => onSelectFile(node)}>
               <Eye size={14} className="mr-2" />
-              {t("files.preview", { defaultValue: "预览" })}
+              {t("files.preview")}
             </ContextMenuItem>
           )}
           {!isFolder && onQuoteFile && (
@@ -548,7 +552,7 @@ function FileTreeNode({
               }}
             >
               <FolderPlus size={14} className="mr-2" />
-              {t("files.newFolder", { defaultValue: "新建文件夹" })}
+              {t("files.newFolder")}
             </ContextMenuItem>
           )}
           {(onQuoteFile || isFolder) && <ContextMenuSeparator />}
@@ -559,14 +563,14 @@ function FileTreeNode({
             }}
           >
             <Edit2 size={14} className="mr-2" />
-            {t("files.rename", { defaultValue: "重命名" })}
+            {t("files.rename")}
           </ContextMenuItem>
           <ContextMenuItem
             onClick={() => setShowDeleteConfirm(true)}
             className="text-destructive focus:text-destructive"
           >
             <Trash2 size={14} className="mr-2" />
-            {t("common.delete", { defaultValue: "删除" })}
+            {t("common.delete")}
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
@@ -575,23 +579,19 @@ function FileTreeNode({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {t("common.deleteConfirmTitle", { defaultValue: "确认删除" })}
+              {t("common.deleteConfirmTitle")}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {t("files.deleteConfirm", {
-                defaultValue: `确定要删除 ${node.name} 吗？`,
-              })}
+              {t("files.deleteConfirm", { name: node.name })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>
-              {t("common.cancel", { defaultValue: "取消" })}
-            </AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
               onClick={handleDelete}
             >
-              {t("common.delete", { defaultValue: "删除" })}
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -632,6 +632,7 @@ function FileTreeNode({
             projectId={projectId}
             path={node.path}
             level={level + 1}
+            activePath={activePath}
             onSelectFile={onSelectFile}
             onQuoteFile={onQuoteFile}
           />

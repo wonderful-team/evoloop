@@ -6,8 +6,6 @@ Simplified routing logic that supports the flattened graph topology.
 import logging
 from enum import Enum
 
-from langgraph.types import Send
-
 from app.core.config import settings
 from app.core.engine.state import AgentState
 from app.core.engine.subtask_spawner import build_subtask_sends
@@ -44,16 +42,11 @@ def route_worker_by_outcome(state: AgentState) -> str:
     return "finish"
 
 
-def route_supervisor(state: AgentState) -> str | list[Send]:
+def route_supervisor(state: AgentState) -> str:
     """
     Decides the next node after Supervisor.
 
-    Returns:
-        * ``str`` — normal routing target (chat, worker, finish, ...).
-        * ``list[Send]`` — **dynamic subgraph spawning**.  This is a LangGraph
-          conditional-edge feature (not a regular node target).  When returned,
-          LangGraph creates parallel Worker subgraphs for each ``Send``.  After
-          all subgraphs complete, execution resumes at Supervisor.
+    Returns a routing target node name (chat, worker, finish, ...).
     """
     next_node = state.next_node
 
@@ -82,6 +75,7 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
             RoutingTarget.AGGREGATOR,
             RoutingTarget.SPAWN_SUBTASKS,
             RoutingTarget.SEQUENTIAL_WORKFLOW,
+            RoutingTarget.END,
         }
 
         if next_node in terminal_targets:
@@ -89,7 +83,7 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
 
         # If it's an intelligent target (not in terminal_targets), it MUST be handled by worker
         logger.info(f"[Router] Remapping intelligent target '{next_node}' -> 'worker'")
-        
+
         # Verify ticket exists in state before routing to worker
         if not state.ticket:
             raise ValueError(

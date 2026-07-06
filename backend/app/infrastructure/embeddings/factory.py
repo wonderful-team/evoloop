@@ -63,8 +63,8 @@ class EmbedderFactory:
         if not model_name:
             try:
                 model_name = SystemConfigService.get_value("EMBEDDING_MODEL")
-            except Exception:
-                pass
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.debug("Suppressed error: %s", e, exc_info=True)
 
         # 1. Auto-detect custom embedding model by ID prefix
         if model_name and (model_name.startswith("custom-embedding-") or model_name.startswith("custom-")):
@@ -95,7 +95,7 @@ class EmbedderFactory:
         # 2. Try DB Config (handle case where DB tables don't exist yet)
         try:
             provider = SystemConfigService.get_value("EMBEDDING_PROVIDER")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug(f"Could not read EMBEDDING_PROVIDER from DB (tables may not exist yet): {e}")
             provider = None
 

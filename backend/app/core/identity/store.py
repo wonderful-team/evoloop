@@ -1,8 +1,6 @@
 import logging
-import os
 
 from app.infrastructure.cache import cache
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 

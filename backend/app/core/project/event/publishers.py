@@ -8,6 +8,7 @@ Helper functions for publishing project lifecycle events.
 from datetime import datetime
 
 from app.core.events import system_bus
+
 from .schemas import (
     NewProjectDetectedEvent,
     ProjectCreatedEvent,

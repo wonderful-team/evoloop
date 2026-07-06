@@ -1,10 +1,12 @@
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
 import { useQuery } from "@tanstack/react-query"
+import { useTranslation } from "react-i18next"
 import { UtilsService } from "@/client/sdk.gen"
 
 type Platform = "mobile" | "desktop"
 
 export const useServicer = (platform: Platform = "desktop") => {
+  const { t } = useTranslation()
   const { showErrorToast } = useCustomToast()
 
   const { data: config, isLoading } = useQuery({
@@ -50,7 +52,7 @@ export const useServicer = (platform: Platform = "desktop") => {
     if (url) {
       window.open(url, "_blank")
     } else {
-      showErrorToast("Support not configured.")
+      showErrorToast(t("servicer.supportNotConfigured"))
     }
   }
 

@@ -21,7 +21,6 @@ import { Route as LayoutTodosRouteImport } from './routes/_layout/todos'
 import { Route as LayoutSubscriptionRouteImport } from './routes/_layout.subscription'
 import { Route as LayoutSettingsRouteImport } from './routes/_layout/settings'
 import { Route as LayoutLearningRouteImport } from './routes/_layout/learning'
-import { Route as LayoutKnowledgeRouteImport } from './routes/_layout/knowledge'
 import { Route as LayoutChatRouteImport } from './routes/_layout/chat'
 import { Route as LayoutSubscriptionIndexRouteImport } from './routes/_layout.subscription.index'
 import { Route as LayoutProjectsIndexRouteImport } from './routes/_layout/projects.index'
@@ -33,7 +32,6 @@ import { Route as LayoutProjectsProjectIdTimesheetRouteImport } from './routes/_
 import { Route as LayoutProjectsProjectIdTasksRouteImport } from './routes/_layout/projects.$projectId.tasks'
 import { Route as LayoutProjectsProjectIdReportsRouteImport } from './routes/_layout/projects.$projectId.reports'
 import { Route as LayoutProjectsProjectIdProfileRouteImport } from './routes/_layout/projects.$projectId.profile'
-import { Route as LayoutProjectsProjectIdKnowledgeRouteImport } from './routes/_layout/projects.$projectId.knowledge'
 import { Route as LayoutProjectsProjectIdGanttRouteImport } from './routes/_layout/projects.$projectId.gantt'
 import { Route as LayoutProjectsProjectIdFilesRouteImport } from './routes/_layout/projects.$projectId.files'
 import { Route as LayoutLearningSkillsSkillIdEditRouteImport } from './routes/_layout/learning.skills.$skillId.edit'
@@ -95,11 +93,6 @@ const LayoutSettingsRoute = LayoutSettingsRouteImport.update({
 const LayoutLearningRoute = LayoutLearningRouteImport.update({
   id: '/learning',
   path: '/learning',
-  getParentRoute: () => LayoutRoute,
-} as any)
-const LayoutKnowledgeRoute = LayoutKnowledgeRouteImport.update({
-  id: '/knowledge',
-  path: '/knowledge',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutChatRoute = LayoutChatRouteImport.update({
@@ -164,12 +157,6 @@ const LayoutProjectsProjectIdProfileRoute =
     path: '/profile',
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
-const LayoutProjectsProjectIdKnowledgeRoute =
-  LayoutProjectsProjectIdKnowledgeRouteImport.update({
-    id: '/knowledge',
-    path: '/knowledge',
-    getParentRoute: () => LayoutProjectsProjectIdRoute,
-  } as any)
 const LayoutProjectsProjectIdGanttRoute =
   LayoutProjectsProjectIdGanttRouteImport.update({
     id: '/gantt',
@@ -198,7 +185,6 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/chat': typeof LayoutChatRoute
-  '/knowledge': typeof LayoutKnowledgeRoute
   '/learning': typeof LayoutLearningRouteWithChildren
   '/settings': typeof LayoutSettingsRoute
   '/subscription': typeof LayoutSubscriptionRouteWithChildren
@@ -208,7 +194,6 @@ export interface FileRoutesByFullPath {
   '/subscription/': typeof LayoutSubscriptionIndexRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
-  '/projects/$projectId/knowledge': typeof LayoutProjectsProjectIdKnowledgeRoute
   '/projects/$projectId/profile': typeof LayoutProjectsProjectIdProfileRoute
   '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
   '/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
@@ -226,7 +211,6 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/chat': typeof LayoutChatRoute
-  '/knowledge': typeof LayoutKnowledgeRoute
   '/learning': typeof LayoutLearningRouteWithChildren
   '/settings': typeof LayoutSettingsRoute
   '/todos': typeof LayoutTodosRoute
@@ -235,7 +219,6 @@ export interface FileRoutesByTo {
   '/subscription': typeof LayoutSubscriptionIndexRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
-  '/projects/$projectId/knowledge': typeof LayoutProjectsProjectIdKnowledgeRoute
   '/projects/$projectId/profile': typeof LayoutProjectsProjectIdProfileRoute
   '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
   '/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
@@ -255,7 +238,6 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/_layout/chat': typeof LayoutChatRoute
-  '/_layout/knowledge': typeof LayoutKnowledgeRoute
   '/_layout/learning': typeof LayoutLearningRouteWithChildren
   '/_layout/settings': typeof LayoutSettingsRoute
   '/_layout/subscription': typeof LayoutSubscriptionRouteWithChildren
@@ -266,7 +248,6 @@ export interface FileRoutesById {
   '/_layout/subscription/': typeof LayoutSubscriptionIndexRoute
   '/_layout/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/_layout/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
-  '/_layout/projects/$projectId/knowledge': typeof LayoutProjectsProjectIdKnowledgeRoute
   '/_layout/projects/$projectId/profile': typeof LayoutProjectsProjectIdProfileRoute
   '/_layout/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
   '/_layout/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
@@ -287,7 +268,6 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/chat'
-    | '/knowledge'
     | '/learning'
     | '/settings'
     | '/subscription'
@@ -297,7 +277,6 @@ export interface FileRouteTypes {
     | '/subscription/'
     | '/projects/$projectId/files'
     | '/projects/$projectId/gantt'
-    | '/projects/$projectId/knowledge'
     | '/projects/$projectId/profile'
     | '/projects/$projectId/reports'
     | '/projects/$projectId/tasks'
@@ -315,7 +294,6 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/chat'
-    | '/knowledge'
     | '/learning'
     | '/settings'
     | '/todos'
@@ -324,7 +302,6 @@ export interface FileRouteTypes {
     | '/subscription'
     | '/projects/$projectId/files'
     | '/projects/$projectId/gantt'
-    | '/projects/$projectId/knowledge'
     | '/projects/$projectId/profile'
     | '/projects/$projectId/reports'
     | '/projects/$projectId/tasks'
@@ -343,7 +320,6 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/_layout/chat'
-    | '/_layout/knowledge'
     | '/_layout/learning'
     | '/_layout/settings'
     | '/_layout/subscription'
@@ -354,7 +330,6 @@ export interface FileRouteTypes {
     | '/_layout/subscription/'
     | '/_layout/projects/$projectId/files'
     | '/_layout/projects/$projectId/gantt'
-    | '/_layout/projects/$projectId/knowledge'
     | '/_layout/projects/$projectId/profile'
     | '/_layout/projects/$projectId/reports'
     | '/_layout/projects/$projectId/tasks'
@@ -461,13 +436,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutLearningRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/knowledge': {
-      id: '/_layout/knowledge'
-      path: '/knowledge'
-      fullPath: '/knowledge'
-      preLoaderRoute: typeof LayoutKnowledgeRouteImport
-      parentRoute: typeof LayoutRoute
-    }
     '/_layout/chat': {
       id: '/_layout/chat'
       path: '/chat'
@@ -545,13 +513,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutProjectsProjectIdProfileRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
-    '/_layout/projects/$projectId/knowledge': {
-      id: '/_layout/projects/$projectId/knowledge'
-      path: '/knowledge'
-      fullPath: '/projects/$projectId/knowledge'
-      preLoaderRoute: typeof LayoutProjectsProjectIdKnowledgeRouteImport
-      parentRoute: typeof LayoutProjectsProjectIdRoute
-    }
     '/_layout/projects/$projectId/gantt': {
       id: '/_layout/projects/$projectId/gantt'
       path: '/gantt'
@@ -602,7 +563,6 @@ const LayoutSubscriptionRouteWithChildren =
 interface LayoutProjectsProjectIdRouteChildren {
   LayoutProjectsProjectIdFilesRoute: typeof LayoutProjectsProjectIdFilesRoute
   LayoutProjectsProjectIdGanttRoute: typeof LayoutProjectsProjectIdGanttRoute
-  LayoutProjectsProjectIdKnowledgeRoute: typeof LayoutProjectsProjectIdKnowledgeRoute
   LayoutProjectsProjectIdProfileRoute: typeof LayoutProjectsProjectIdProfileRoute
   LayoutProjectsProjectIdReportsRoute: typeof LayoutProjectsProjectIdReportsRoute
   LayoutProjectsProjectIdTasksRoute: typeof LayoutProjectsProjectIdTasksRoute
@@ -616,8 +576,6 @@ const LayoutProjectsProjectIdRouteChildren: LayoutProjectsProjectIdRouteChildren
   {
     LayoutProjectsProjectIdFilesRoute: LayoutProjectsProjectIdFilesRoute,
     LayoutProjectsProjectIdGanttRoute: LayoutProjectsProjectIdGanttRoute,
-    LayoutProjectsProjectIdKnowledgeRoute:
-      LayoutProjectsProjectIdKnowledgeRoute,
     LayoutProjectsProjectIdProfileRoute: LayoutProjectsProjectIdProfileRoute,
     LayoutProjectsProjectIdReportsRoute: LayoutProjectsProjectIdReportsRoute,
     LayoutProjectsProjectIdTasksRoute: LayoutProjectsProjectIdTasksRoute,
@@ -635,7 +593,6 @@ const LayoutProjectsProjectIdRouteWithChildren =
 
 interface LayoutRouteChildren {
   LayoutChatRoute: typeof LayoutChatRoute
-  LayoutKnowledgeRoute: typeof LayoutKnowledgeRoute
   LayoutLearningRoute: typeof LayoutLearningRouteWithChildren
   LayoutSettingsRoute: typeof LayoutSettingsRoute
   LayoutSubscriptionRoute: typeof LayoutSubscriptionRouteWithChildren
@@ -647,7 +604,6 @@ interface LayoutRouteChildren {
 
 const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutChatRoute: LayoutChatRoute,
-  LayoutKnowledgeRoute: LayoutKnowledgeRoute,
   LayoutLearningRoute: LayoutLearningRouteWithChildren,
   LayoutSettingsRoute: LayoutSettingsRoute,
   LayoutSubscriptionRoute: LayoutSubscriptionRouteWithChildren,

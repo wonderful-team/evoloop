@@ -456,7 +456,7 @@ class SolidLanguageServer(ABC):
             if process.stdin and not process.stdin.closed:
                 process.stdin.close()
             log.debug("Stage 1 shutdown complete.")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             log.debug(f"Exception during graceful shutdown: {e}")
             # Ignore errors here, we are proceeding to terminate anyway.
 
@@ -478,7 +478,7 @@ class SolidLanguageServer(ABC):
                 log.info(f"Language server process killed successfully with exit code {exit_code}.")
             except subprocess.TimeoutExpired:
                 log.error(f"Process {process.pid} could not be killed within timeout.")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             log.error(f"Error during process shutdown: {e}")
 
     @contextmanager
@@ -762,7 +762,7 @@ class SolidLanguageServer(ABC):
         with self.open_file(relative_file_path):
             try:
                 response = self._send_references_request(relative_file_path, line=line, column=column)
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 # Catch LSP internal error (-32603) and raise a more informative exception
                 if isinstance(e, LSPError) and getattr(e, "code", None) == -32603:
                     raise RuntimeError(
@@ -1229,7 +1229,7 @@ class SolidLanguageServer(ABC):
                                     try:
                                         path = path.relative_to(self.repository_root_path)
                                         node["location"]["relativePath"] = str(path)
-                                    except Exception:
+                                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                                         pass
                             if "children" in node:
                                 fix_relative_path(node["children"])
@@ -1718,7 +1718,7 @@ class SolidLanguageServer(ABC):
         try:
             save_cache(str(cache_file), self._raw_document_symbols_cache_version(), self._raw_document_symbols_cache)
             self._raw_document_symbols_cache_is_modified = False
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             log.error(
                 "Failed to save raw document symbols cache to %s: %s. Note: this may have resulted in a corrupted cache file.",
                 cache_file,
@@ -1754,7 +1754,7 @@ class SolidLanguageServer(ABC):
                     self._save_raw_document_symbols_cache()
                     legacy_cache_file.unlink()
                     return
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     log.error("Error during cache migration: %s", e)
                     return
 
@@ -1766,7 +1766,7 @@ class SolidLanguageServer(ABC):
                 if saved_cache is not None:
                     self._raw_document_symbols_cache = saved_cache
                     log.info(f"Loaded {len(self._raw_document_symbols_cache)} entries from raw document symbols cache.")
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 # cache can become corrupt, so just skip loading it
                 log.warning(
                     "Failed to load raw document symbols cache from %s (%s); Ignoring cache.",
@@ -1785,7 +1785,7 @@ class SolidLanguageServer(ABC):
         try:
             save_cache(str(cache_file), self.DOCUMENT_SYMBOL_CACHE_VERSION, self._document_symbols_cache)
             self._document_symbols_cache_is_modified = False
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             log.error(
                 "Failed to save document symbols cache to %s: %s. Note: this may have resulted in a corrupted cache file.",
                 cache_file,
@@ -1801,7 +1801,7 @@ class SolidLanguageServer(ABC):
                 if saved_cache is not None:
                     self._document_symbols_cache = saved_cache
                     log.info(f"Loaded {len(self._document_symbols_cache)} entries from document symbols cache.")
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 # cache can become corrupt, so just skip loading it
                 log.warning(
                     "Failed to load document symbols cache from %s (%s); Ignoring cache.",
@@ -1905,7 +1905,7 @@ class SolidLanguageServer(ABC):
         """
         try:
             self._shutdown(timeout=shutdown_timeout)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             log.warning(f"Exception while shutting down language server: {e}")
 
     @property

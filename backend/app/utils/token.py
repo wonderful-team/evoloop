@@ -11,10 +11,7 @@ All token counting in the system should import from this module.
 import logging
 from functools import lru_cache
 
-from langchain_core.messages import (
-    AIMessage,
-    BaseMessage,
-)
+from app.core.engine.message.native_classes import AIMessage, BaseMessage
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +133,7 @@ def count_messages_tokens(messages: list[BaseMessage], model: str) -> int:
     matching OpenAI's token counting methodology.
 
     Args:
-        messages: List of LangChain messages.
+        messages: List of messages.
         model: The model name for encoding selection.
 
     Returns:

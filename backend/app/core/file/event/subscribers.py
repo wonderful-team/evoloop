@@ -8,50 +8,36 @@ Event subscribers for file lifecycle and rewind operations.
 import logging
 from pathlib import Path
 
-from app.core.engine.rewind.event import RewindEventType, RewindRequestedEvent
+from app.core.engine.rewind import REWIND_REQUESTED, RewindRequestedEvent
 from app.core.events.base import AsyncEventBus
-from app.core.events.decorators import event_register, event_subscribe, register_instance_handlers
-from app.core.file.event.schemas import FilesCleanupEvent
+from app.core.events.decorators import (
+    event_register,
+    event_subscribe,
+    register_instance_handlers,
+)
 
 logger = logging.getLogger(__name__)
 
 
 @event_register()
 class FileRewind:
-    """Event-driven file restoration handler for rewind operations."""
+    """File restoration handler for rewind operations."""
 
     def __init__(self):
         self._reverted_count = 0
 
     @classmethod
     def register(cls, bus: AsyncEventBus) -> "FileRewind":
-        """
-        Register this handler to the event bus.
-        
-        Args:
-            bus: The event bus to subscribe to
-            
-        Returns:
-            The handler instance
-        """
         instance = cls()
         register_instance_handlers(instance, bus)
         return instance
 
-    @event_subscribe(RewindEventType.REWIND_REQUESTED)
+    @event_subscribe(REWIND_REQUESTED)
     async def _handle_rewind_requested(self, event: RewindRequestedEvent) -> None:
-        """
-        Handle main rewind event - prepare file operations list.
-        
-        Uses event.affected_message_ids when available to avoid querying
-        the messages table after another handler has already deleted rows.
-        After reverting physical files, also cleans up the DB records.
-        """
         if not event.revert_files:
             logger.debug("[FileRewind] File revert disabled, skipping")
             return
 
-        # Query file operations for this thread
         target_ids = event.affected_message_ids
         if target_ids:
             file_ops = await self._find_file_operations_by_message_ids(
@@ -67,38 +53,14 @@ class FileRewind:
             )
 
         if file_ops:
-            # Perform restoration
             count = await self._revert_files(file_ops)
             self._reverted_count = count
             event.results["files"] = count
 
-            # Clean up database records for the reverted operations
             db_count = await self._cleanup_database_records(file_ops)
-            logger.info(f"[FileRewind] Cleaned up {db_count} file_operation records")
-
-            from app.core.file.event.publishers import publish_files_cleanup
-            await publish_files_cleanup(
-                thread_id=event.thread_id,
-                file_operations=file_ops,
-            )
-            logger.info(f"[FileRewind] Reverted {count} files for thread {event.thread_id}")
+            logger.info(f"[FileRewind] Reverted {count} files, cleaned {db_count} DB records for thread {event.thread_id}")
         else:
             logger.info(f"[FileRewind] No file operations to revert for thread {event.thread_id}")
-
-    @event_subscribe(RewindEventType.FILES_CLEANUP)
-    async def _handle_files_cleanup(self, event: FilesCleanupEvent) -> None:
-        """
-        Handle specific file cleanup event.
-        
-        This performs the actual file restoration.
-        """
-        try:
-            count = await self._revert_files(event.file_operations)
-            self._reverted_count = count
-            logger.info(f"[FileRewind] Reverted {count} files")
-        except Exception as e:
-            logger.error(f"[FileRewind] File cleanup failed: {e}")
-            raise
 
     async def _find_file_operations(
         self,
@@ -108,9 +70,10 @@ class FileRewind:
     ) -> list[dict]:
         """Find file operations to revert for the given thread."""
         from sqlalchemy import select
-        from app.infrastructure.database.sql.database import session_scope
-        from app.models.file_operation import FileOperation
+
+        from app.infrastructure.database import session_scope
         from app.models import Message
+        from app.models.file_operation import FileOperation
 
         async with session_scope() as session:
             stmt = select(FileOperation).where(FileOperation.thread_id == thread_id)
@@ -120,7 +83,7 @@ class FileRewind:
                 stmt_target = select(Message.sequence_number).where(Message.id == target_message_id)
                 res_target = await session.execute(stmt_target)
                 target_seq = res_target.scalar_one_or_none()
-                
+
                 if target_seq is None:
                     logger.warning(f"[FileRewind] Target message {target_message_id} not found")
                     return []
@@ -137,7 +100,7 @@ class FileRewind:
             stmt = stmt.order_by(FileOperation.created_at.desc())
             result = await session.execute(stmt)
             ops = result.scalars().all()
-            
+
             return [{
                 "id": op.id,
                 "message_id": op.message_id,
@@ -156,19 +119,20 @@ class FileRewind:
         if not message_ids and not run_ids:
             return []
 
-        from sqlalchemy import select, or_
-        from app.infrastructure.database.sql.database import session_scope
+        from sqlalchemy import or_, select
+
+        from app.infrastructure.database import session_scope
         from app.models.file_operation import FileOperation
 
         async with session_scope() as session:
             stmt = select(FileOperation).where(FileOperation.thread_id == thread_id)
-            
+
             conditions = []
             if message_ids:
                 conditions.append(FileOperation.message_id.in_(message_ids))
             if run_ids:
                 conditions.append(FileOperation.run_id.in_(run_ids))
-                
+
             if len(conditions) > 1:
                 stmt = stmt.where(or_(*conditions))
             else:
@@ -222,7 +186,7 @@ class FileRewind:
                     else:
                         logger.warning(f"⚠️ Cannot undo {operation} for {op['path']}: no backup")
 
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"❌ Undo failed for {op.get('path', 'unknown')}: {e}")
 
         return count
@@ -242,7 +206,7 @@ class FileRewind:
 
         from sqlalchemy import delete
 
-        from app.infrastructure.database.sql.database import session_scope
+        from app.infrastructure.database import session_scope
         from app.models.file_operation import FileOperation
 
         operation_ids = [op["id"] for op in file_operations if "id" in op]
@@ -264,7 +228,7 @@ class FileRewind:
 
         from sqlalchemy import select
 
-        from app.infrastructure.database.sql.database import session_scope
+        from app.infrastructure.database import session_scope
         from app.models.file_operation import FileOperation
 
         # Convert message IDs to file operations

@@ -18,7 +18,6 @@ from app.api.schemas.system import (
     ProjectDiscoveryConfigRequest,
     ProjectDiscoveryConfigResponse,
     ProjectDiscoveryConfigUpdateResponse,
-    ResetKnowledgeResponse,
     SystemStatusResponse,
 )
 from app.infrastructure.config import EmbeddingConfigService
@@ -170,17 +169,6 @@ async def apply_llm_config(req: LLMConfigRequest) -> LLMApplyResponse:
     LLMFactory.clear_cache()
 
     return LLMApplyResponse(status="applied", message="LLM Configuration applied successfully.")
-
-
-@router.post("/reset-knowledge", dependencies=[Depends(get_current_user)])
-async def reset_knowledge_base() -> ResetKnowledgeResponse:
-    """
-    [DANGER] Wipe the entire Knowledge Base (Neo4j + Postgres Index).
-    """
-    from app.domain.knowledge.maintenance import wipe_knowledge_base
-
-    await wipe_knowledge_base()
-    return ResetKnowledgeResponse(status="success", message="Knowledge Base Wiped.")
 
 
 @router.get("/cloud-status")

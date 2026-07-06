@@ -5,9 +5,9 @@ Standardizes LLM prompts for memory-related operations (Extraction, Pruning, Ret
 Separates static system instructions from dynamic context to support prompt caching.
 """
 import logging
-from typing import List, Optional
+from typing import List
 
-from app.utils import render_template
+from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class MemoryExtractionPromptBuilder:
         existing_memories: str = "",
         multi_source_context: str = "",
         messages_text: str = "",
-        summary: Optional[str] = None,
+        summary: str | None = None,
     ):
         self.readme_summary = readme_summary
         self.pending_todos = pending_todos

@@ -1,4 +1,5 @@
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
+import i18n from "@evoloop/shared/i18n"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import {
@@ -48,16 +49,16 @@ const useAuth = () => {
         requestBody: data as any,
       })
       if (res.code !== undefined && res.code < 0) {
-        throw new Error(res.message || "Registration failed")
+        throw new Error(res.message || i18n.t("auth.register.failed"))
       }
       return res
     },
     onSuccess: () => {
-      showSuccessToast("注册成功")
+      showSuccessToast(i18n.t("auth.register.success"))
       navigate({ to: "/login" })
     },
     onError: (err: any) => {
-      showErrorToast(err.message || "Something went wrong.")
+      showErrorToast(err.message || i18n.t("common.error.unknown"))
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] })
@@ -68,16 +69,16 @@ const useAuth = () => {
     mutationFn: async (data: any) => {
       const res = await AuthService.registerMobile({ requestBody: data })
       if (res.code !== undefined && res.code < 0) {
-        throw new Error(res.message || "Registration failed")
+        throw new Error(res.message || i18n.t("auth.register.failed"))
       }
       return res
     },
     onSuccess: () => {
-      showSuccessToast("注册成功")
+      showSuccessToast(i18n.t("auth.register.success"))
       navigate({ to: "/login" })
     },
     onError: (err: any) => {
-      showErrorToast(err.message || "Something went wrong.")
+      showErrorToast(err.message || i18n.t("common.error.unknown"))
     },
   })
 
@@ -85,16 +86,16 @@ const useAuth = () => {
     mutationFn: async (data: any) => {
       const res = await AuthService.resetPassword({ requestBody: data })
       if (res.code !== undefined && res.code < 0) {
-        throw new Error(res.message || "Reset failed")
+        throw new Error(res.message || i18n.t("auth.reset.failed"))
       }
       return res
     },
     onSuccess: () => {
-      showSuccessToast("密码重置成功")
+      showSuccessToast(i18n.t("auth.reset.success"))
       navigate({ to: "/login" })
     },
     onError: (err: any) => {
-      showErrorToast(err.message || "Something went wrong.")
+      showErrorToast(err.message || i18n.t("common.error.unknown"))
     },
   })
 
@@ -125,12 +126,12 @@ const useAuth = () => {
       const requestData = { type: "login", ...data }
       const res = await AuthService.sendSms({ requestBody: requestData as any })
       if (res.code !== undefined && res.code < 0) {
-        throw new Error(res.message || "Failed to send code")
+        throw new Error(res.message || i18n.t("auth.code.sendFailed"))
       }
       return res
     },
     onError: (err: any) => {
-      showErrorToast(err.message || "Something went wrong.")
+      showErrorToast(err.message || i18n.t("common.error.unknown"))
     },
   })
 

@@ -1,5 +1,6 @@
 import { useTheme } from "@evoloop/shared/components/theme-provider"
 import { Button } from "@evoloop/shared/components/ui/button"
+import i18n from "@evoloop/shared/i18n"
 import Editor from "@monaco-editor/react"
 import { useQuery } from "@tanstack/react-query"
 import { renderAsync } from "docx-preview"
@@ -89,7 +90,7 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
   const { data: fileContent, isLoading: isContentLoading } = useQuery({
     queryKey: ["fileContent", projectId, file?.path],
     queryFn: () => {
-      if (!file) throw new Error("No file")
+      if (!file) throw new Error(t("files.noFile"))
       if (isAbsolutePath(file.path)) {
         return FilesService.readAnyFile({
           requestBody: { path: file.path },
@@ -116,17 +117,17 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
       if (fileType === "docx") {
         try {
           const res = await fetch(rawUrl)
-          if (!res.ok) throw new Error("Failed to load file")
+          if (!res.ok) throw new Error(t("files.failedToLoadFile"))
           const blob = await res.blob()
           await renderAsync(blob, containerRef.current!)
         } catch (e) {
           console.error(e)
-          containerRef.current!.innerHTML = `<div class="p-4 text-red-500">Failed to render DOCX preview.</div>`
+          containerRef.current!.innerHTML = `<div class="p-4 text-red-500">${i18n.t("files.docxPreviewError")}</div>`
         }
       } else if (fileType === "xlsx") {
         try {
           const res = await fetch(rawUrl)
-          if (!res.ok) throw new Error("Failed to load file")
+          if (!res.ok) throw new Error(t("files.failedToLoadFile"))
           const blob = await res.blob()
           const buffer = await blob.arrayBuffer()
           const wb = XLSX.read(buffer, { type: "array" })
@@ -136,7 +137,7 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
           containerRef.current!.innerHTML = `<div class="p-4 overflow-auto">${html}</div>`
         } catch (e) {
           console.error(e)
-          containerRef.current!.innerHTML = `<div class="p-4 text-red-500">${t("sidebar.excelPreviewError", "Excel preview error")}</div>`
+          containerRef.current!.innerHTML = `<div class="p-4 text-red-500">${t("sidebar.excelPreviewError")}</div>`
         }
       } else if (fileType === "csv" && fileContent) {
         try {
@@ -147,7 +148,7 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
           containerRef.current!.innerHTML = `<div class="p-4 overflow-auto prose prose-slate max-w-none">${html}</div>`
         } catch (e) {
           console.error(e)
-          containerRef.current!.innerHTML = `<div class="p-4 text-red-500">${t("sidebar.csvPreviewError", "CSV preview error")}</div>`
+          containerRef.current!.innerHTML = `<div class="p-4 text-red-500">${t("sidebar.csvPreviewError")}</div>`
         }
       }
     }
@@ -161,10 +162,10 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
         projectId: Number(projectId),
         requestBody: { path: file.path },
       })
-      toast.success(t("files.openExternal", "Opened in external app"))
+      toast.success(t("files.openExternal"))
     } catch (error) {
       console.error(error)
-      toast.error(t("files.openExternalError", "Failed to open external app"))
+      toast.error(t("files.openExternalError"))
     }
   }
 
@@ -172,7 +173,7 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground/50 bg-muted/5 h-full">
         <FileCode className="h-16 w-16 mb-4 opacity-10" />
-        <p>{t("files.selectFileToView", "Select a file to view")}</p>
+        <p>{t("files.selectFileToView")}</p>
       </div>
     )
   }
@@ -218,7 +219,7 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
               size="icon"
               className="h-7 w-7"
               onClick={handleOpenInApp}
-              title={t("sidebar.openInSystemApp", "Open in system default app")}
+              title={t("sidebar.openInSystemApp")}
             >
               <ExternalLink className="h-4 w-4" />
             </Button>
@@ -239,7 +240,7 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
             key="pdf"
             src={rawUrl}
             className="w-full h-full"
-            title={t("files.pdfPreview", "PDF Preview")}
+            title={t("files.pdfPreview")}
           />
         ) : fileType === "docx" || fileType === "xlsx" || fileType === "csv" ? (
           <div
@@ -268,7 +269,7 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
             className="h-full flex items-center justify-center text-muted-foreground text-sm"
           >
             <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            {t("files.loadingContent", "Loading content...")}
+            {t("files.loadingContent")}
           </div>
         ) : fileType === "markdown" ? (
           (fileContent as any)?.content?.length > 50000 ? (
@@ -290,14 +291,14 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
           >
             {!(fileContent as any)?.content && !isContentLoading && (
               <div className="text-center text-muted-foreground mt-10">
-                {t("files.previewNotAvailable", "Preview not available")}
+                {t("files.previewNotAvailable")}
                 <br />
                 <button
                   type="button"
                   onClick={() => downloadFile(file?.path || "", projectId)}
                   className="text-primary hover:underline mt-2 inline-block cursor-pointer"
                 >
-                  {t("files.downloadFile", "Download File")}
+                  {t("files.downloadFile")}
                 </button>
               </div>
             )}
@@ -321,7 +322,7 @@ export function FilePreview({ projectId, file }: FilePreviewProps) {
                 loading={
                   <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    {t("files.loadingEditor", "Loading editor...")}
+                    {t("files.loadingEditor")}
                   </div>
                 }
               />

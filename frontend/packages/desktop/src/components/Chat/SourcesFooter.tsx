@@ -112,7 +112,7 @@ function ImagePreview({ ref, index }: { ref: Reference; index: number }) {
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] p-0 bg-black/90 border-none">
           <DialogTitle className="sr-only">
-            {t("chat.sources.imagePreview", "Image Preview")} - {ref.name}
+            {t("chat.sources.imagePreview")} - {ref.name}
           </DialogTitle>
           <div className="relative w-full h-full flex items-center justify-center p-4">
             <img
@@ -179,7 +179,7 @@ export const SourcesFooter = memo(
       <div className="mt-6 pt-4 border-t border-[var(--doc-border)]/50">
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/40 shrink-0">
-            {t("chat.sources.title", "References")}
+            {t("chat.sources.title")}
           </span>
           {visibleRefs.map((ref, idx) => {
             // 图片类型引用使用专门的预览组件
@@ -235,7 +235,7 @@ export const SourcesFooter = memo(
               className="h-5 px-1.5 text-xs text-muted-foreground hover:text-foreground"
               onClick={() => setIsExpanded(true)}
             >
-              +{hiddenCount} {t("chat.sources.more", "more")}
+              +{hiddenCount} {t("chat.sources.more")}
               <ChevronDown size={12} className="ml-0.5" />
             </Button>
           )}
@@ -246,7 +246,7 @@ export const SourcesFooter = memo(
               className="h-5 px-1.5 text-xs text-muted-foreground hover:text-foreground"
               onClick={() => setIsExpanded(false)}
             >
-              {t("chat.sources.showLess", "Show less")}
+              {t("chat.sources.showLess")}
             </Button>
           )}
         </div>

@@ -11,14 +11,17 @@ from sqlalchemy import delete, select
 
 from app.core.engine.event.schemas import ConversationDeletedEvent
 from app.core.engine.event.types import ConversationEventType
-from app.core.engine.rewind.event import RewindEventType, RewindRequestedEvent
+from app.core.engine.rewind import REWIND_REQUESTED, RewindRequestedEvent
 from app.core.events import SystemEventType
 from app.core.events.base import AsyncEventBus
-from app.core.events.decorators import event_register, event_subscribe, register_instance_handlers
+from app.core.events.decorators import (
+    event_register,
+    event_subscribe,
+    register_instance_handlers,
+)
 from app.core.events.schemas import SessionCompletedEvent
-from app.core.learning.event.schemas import TraceCleanupEvent
 from app.core.learning.skill_sync_service import skill_sync_service
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.models import Message
 
 logger = logging.getLogger(__name__)
@@ -43,13 +46,13 @@ class LearningLifecycleSubscriber:
         3. Warm up user preferences
         """
         from app.core.learning.discovery import skill_discovery
-        
+
         # 1. Sync system skills
         try:
             logger.info("[Learning] 📚 Synchronizing system skills...")
             await skill_discovery._sync_system_skills()
             logger.info("[Learning] ✓ System skills synchronized")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[Learning] Skill synchronization failed: {e}")
 
         # 2. Start skills file watcher
@@ -57,14 +60,14 @@ class LearningLifecycleSubscriber:
             from app.core.learning.skill_file_watcher import skills_file_watcher
             skills_file_watcher.start()
             logger.info("[Learning] ✓ Skills file watcher started")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[Learning] Failed to start skills file watcher: {e}")
 
         # 3. Warm up caches
         try:
             skills = await skill_discovery.get_active_skills_list()
             logger.info(f"[Learning] ✓ Skills cache warmed: {len(skills)} skills")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[Learning] Skills cache warming failed: {e}")
 
         # 3. User preferences
@@ -72,7 +75,7 @@ class LearningLifecycleSubscriber:
             from app.infrastructure.config.service import SystemConfigService
             lang_pref = SystemConfigService.get_language_preference()
             logger.info(f"[Learning] ✓ User preferences cached: language={lang_pref}")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[Learning] User preferences caching failed: {e}")
 
     @event_subscribe(SystemEventType.APP_STOPPING)
@@ -112,8 +115,11 @@ class LearningLifecycleSubscriber:
         logger.info(f"[Learning] 🎓 Session completed for thread {data.thread_id}. Recording experience...")
 
         try:
-            from app.core.engine.tasks import record_episode_task, reconcile_skill_macro_task
-            
+            from app.core.engine.tasks import (
+                reconcile_skill_macro_task,
+                record_episode_task,
+            )
+
             # Record Episode (experience)
             record_episode_task.delay(
                 thread_id=data.thread_id,
@@ -124,7 +130,7 @@ class LearningLifecycleSubscriber:
                 source_message_id=data.run_id or data.thread_id,
                 model=data.model,
             )
-            
+
             # Reconcile Skill
             if data.original_skill_id:
                 logger.info(f"[Learning] 🔄 Triggering macro reconciliation for Skill {data.original_skill_id}")
@@ -133,7 +139,7 @@ class LearningLifecycleSubscriber:
                     thread_id=data.thread_id,
                     model=data.model,
                 )
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[Learning] Failed to trigger learning tasks: {e}")
 
 
@@ -159,14 +165,9 @@ class TraceRewind:
         register_instance_handlers(instance, bus)
         return instance
 
-    @event_subscribe(RewindEventType.REWIND_REQUESTED)
+    @event_subscribe(REWIND_REQUESTED)
     async def _handle_rewind_requested(self, event: RewindRequestedEvent) -> None:
-        """
-        Handle main rewind event - prepare trace cleanup.
-        
-        Extracts message IDs and publishes a TRACE_CLEANUP event.
-        """
-        # Use pre-computed database IDs if available, otherwise fall back to query
+        """Handle main rewind event - delete trace events."""
         message_ids = event.affected_message_ids or await self._find_message_ids(
             thread_id=event.thread_id,
             target_message_id=event.target_message_id,
@@ -180,34 +181,9 @@ class TraceRewind:
             )
             self._deleted_count = count
             event.results["traces"] = count
-
-            from app.core.learning.event.publishers import publish_trace_cleanup
-            await publish_trace_cleanup(
-                thread_id=event.thread_id,
-                source_message_ids=message_ids,
-                affected_run_ids=event.affected_run_ids
-            )
             logger.info(f"[TraceRewind] Deleted {count} trace events for thread {event.thread_id}")
         else:
             logger.debug(f"[TraceRewind] No trace events found to delete for thread {event.thread_id}")
-
-    @event_subscribe(RewindEventType.TRACE_CLEANUP)
-    async def _handle_trace_cleanup(self, event: "TraceCleanupEvent") -> None:
-        """
-        Handle specific trace cleanup event.
-        
-        This performs the actual trace event deletion.
-        """
-        try:
-            count = await self._delete_traces(
-                source_message_ids=event.source_message_ids,
-                run_ids=event.affected_run_ids
-            )
-            self._deleted_count = count
-            logger.info(f"[TraceRewind] Deleted {count} trace events")
-        except Exception as e:
-            logger.error(f"[TraceRewind] Trace cleanup failed: {e}")
-            raise
 
     async def _find_message_ids(
         self,
@@ -226,7 +202,7 @@ class TraceRewind:
                 stmt_target = select(Message.sequence_number).where(Message.id == target_message_id)
                 res_target = await session.execute(stmt_target)
                 target_seq = res_target.scalar_one_or_none()
-                
+
                 if target_seq is None:
                     logger.warning(f"[TraceRewind] Target message {target_message_id} not found")
                     return []
@@ -257,7 +233,7 @@ class TraceRewind:
                 stmt_msg = select(Message.run_id).where(Message.id.in_(source_message_ids))
                 res_msg = await session.execute(stmt_msg)
                 final_run_ids = [r[0] for r in res_msg.all() if r[0]]
-            
+
             if not final_run_ids:
                 return 0
 
@@ -289,6 +265,7 @@ class LearningConversationCleanup:
         logger.info(f"[LearningCleanup] Cleaning up learning data for thread {thread_id}")
 
         from sqlalchemy import delete
+
         from app.models.learning import SynthesisJob, TraceEvent
 
         async with session_scope() as session:

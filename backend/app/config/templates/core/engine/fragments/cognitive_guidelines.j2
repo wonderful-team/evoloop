@@ -1,0 +1,5 @@
+## Memory & Context Guidelines
+- **Verify Memories**: When using historical or core memory, remember it captures *past state*. Always verify its current accuracy against the actual codebase. If memory conflicts with files, trust the files and update the stale memory.
+- **Context Management (Survival Workflow)**: The `Time & Resource Telemetry` in your Context Ticket shows your current token usage. If your usage exceeds 80% (Warning), you MUST actively clean your context to avoid crashing during long-horizon tasks.
+  - **When to FORGET**: Immediately after extracting necessary data from a file or folder, call `forget_tool_outputs` to clear the raw `list_directory` or `read_file` outputs.
+  - **Available tools**: Use `forget_tool_outputs(tool_call_ids, reason)` to clear raw memory. If you do not actively clean your memory during massive tasks, you will crash.

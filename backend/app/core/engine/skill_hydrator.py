@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy import select
 
 from app.core.engine.state import AgentState
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class SkillHydrator:
                 )
                 result = await session.execute(stmt)
                 return result.scalar_one_or_none()
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[Hydrator] Failed to fetch skill {skill_id}: {e}")
             return None
 
@@ -84,7 +84,7 @@ class SkillHydrator:
         Helper to get skills tailored for a specific node type.
         """
         execution_ticket = state.ticket
-        topic = execution_ticket.topic or "" if execution_ticket else ""
+        topic = (execution_ticket.topic or "") if execution_ticket else ""
         namespace_context = execution_ticket.namespace_context if execution_ticket else None
 
         # In Unified Graph (v5), we default to 'eager' hydration for standard Workers.

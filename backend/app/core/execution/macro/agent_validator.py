@@ -12,6 +12,14 @@ import time
 from typing import Any
 
 from app.core.execution.macro.evolution_engine import MacroEvolutionEngine
+from app.core.execution.macro.optimizer import MacroOptimizer
+from app.core.execution.macro.reasoning_engine import AgentReasoningEngine
+from app.core.execution.macro.round_orchestrator import (
+    BaselineStrategy,
+    ChaosStrategy,
+    RoundOrchestrator,
+    StressTestStrategy,
+)
 from app.core.execution.macro.schemas import (
     AdaptationRecord,
     AnomalyType,
@@ -30,14 +38,6 @@ from app.core.execution.macro.schemas import (
     VerificationRequest,
     VerificationResponse,
     VerificationStatus,
-)
-from app.core.execution.macro.optimizer import MacroOptimizer
-from app.core.execution.macro.reasoning_engine import AgentReasoningEngine
-from app.core.execution.macro.round_orchestrator import (
-    BaselineStrategy,
-    ChaosStrategy,
-    RoundOrchestrator,
-    StressTestStrategy,
 )
 from app.core.execution.macro.verification_worker import VerificationWorker
 
@@ -170,7 +170,7 @@ class AgentMacroValidator:
             # Generate final response
             return await self._build_response()
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[Validator] Verification failed: {e}")
             return self._build_error_response(str(e))
 
@@ -621,7 +621,7 @@ class AgentMacroValidator:
 
         try:
             if self.worker.config.platform == "android":
-                from app.core.environment.controllers.mobile_controller import (
+                from app.core.environment.controllers.mobile import (
                     MobileController,
                 )
                 current_app = await MobileController.get_current_app_cached(
@@ -629,7 +629,7 @@ class AgentMacroValidator:
                 )
                 state["current_activity"] = current_app.get("activity")
                 state["package_name"] = current_app.get("package")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[Validator] Failed to capture app state: {e}")
 
         return state
@@ -655,7 +655,7 @@ class AgentMacroValidator:
                 )
         except asyncio.TimeoutError:
             return {"error": "timeout", "message": f"Step timed out after {config.timeout_per_step}s"}
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             return {"error": "execution_failed", "message": str(e)}
 
     def _has_engine_error(self, result: Any) -> bool:

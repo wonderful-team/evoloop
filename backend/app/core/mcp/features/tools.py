@@ -3,12 +3,12 @@
 import logging
 from typing import Any
 
-from langchain_core.tools import StructuredTool
 from mcp import ClientSession
 from pydantic import Field, create_model
 
 from app.core.mcp.features.base import McpFeature, format_mcp_tool_name
 from app.core.mcp.schemas import McpFeatureCapabilities
+from app.core.tools.base import EvoLoopTool
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ class McpToolsFeature(McpFeature):
         self._server_name: str = ""
         self._tools: list = []
         self._schemas: dict[str, Any] = {}
-        self._lc_tools: list[StructuredTool] = []
+        self._native_tools: list[EvoLoopTool] = []
 
     async def initialize(self, session: ClientSession, server_name: str) -> None:
         """Initialize by fetching tools from server."""
@@ -33,12 +33,12 @@ class McpToolsFeature(McpFeature):
         try:
             result = await session.list_tools()
             self._tools = result.tools
-            self._lc_tools = self._convert_to_langchain_tools()
-            logger.info(f"Loaded {len(self._lc_tools)} tools from {server_name}")
-        except Exception as e:
+            self._native_tools = self._convert_to_native_tools()
+            logger.info(f"Loaded {len(self._native_tools)} tools from {server_name}")
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to list tools for {server_name}: {e}")
             self._tools = []
-            self._lc_tools = []
+            self._native_tools = []
 
     async def get_capabilities(self) -> McpFeatureCapabilities:
         """Get tools capabilities."""
@@ -50,13 +50,13 @@ class McpToolsFeature(McpFeature):
             ]
         )
 
-    def get_tools(self) -> list[StructuredTool]:
-        """Get converted LangChain tools."""
-        return self._lc_tools
+    def get_tools(self) -> list[EvoLoopTool]:
+        """Get converted tools."""
+        return self._native_tools
 
     def get_tool_names(self) -> list[str]:
         """Get list of tool names."""
-        return [t.name for t in self._lc_tools]
+        return [t.name for t in self._native_tools]
 
     def reset(self) -> None:
         """Reset state."""
@@ -64,49 +64,37 @@ class McpToolsFeature(McpFeature):
         self._server_name = ""
         self._tools = []
         self._schemas = {}
-        self._lc_tools = []
+        self._native_tools = []
 
-    def _convert_to_langchain_tools(self) -> list[StructuredTool]:
-        """Convert MCP tools to LangChain StructuredTools."""
+    def _convert_to_native_tools(self) -> list[EvoLoopTool]:
+        """Convert MCP tools to native EvoLoopTool wrappers."""
         if not self._session:
             return []
 
-        lc_tools = []
-        session = self._session  # Capture for closure
+        native_tools = []
+        session = self._session
         server_name = self._server_name
 
         for tool in self._tools:
-            # Create async function that calls the MCP tool
             async def _tool_func(*_args, tool_name: str = tool.name, **kwargs) -> Any:
                 return await session.call_tool(tool_name, arguments=kwargs)
 
-            # Create Pydantic schema from JSON schema
             args_schema = self._create_args_schema(tool.name, tool.inputSchema)
-
-            # Generate standardized tool name
             formatted_name = format_mcp_tool_name(server_name, tool.name)
 
-            lc_tool = StructuredTool.from_function(
-                func=None,
-                coroutine=_tool_func,
+            native_tool = EvoLoopTool(
+                func=_tool_func,
                 name=formatted_name,
                 description=tool.description or f"MCP tool '{tool.name}' from server '{server_name}'",
                 args_schema=args_schema,
             )
-            lc_tools.append(lc_tool)
+            native_tools.append(native_tool)
 
-        return lc_tools
+        return native_tools
 
     def _create_args_schema(self, tool_name: str, schema: dict[str, Any]) -> type:
         """
         Dynamically create a Pydantic model from JSON schema.
-        
-        Args:
-            tool_name: Name of the tool (for model naming)
-            schema: JSON schema dict
-            
-        Returns:
-            Pydantic model class
         """
         type_map = {
             "string": str,

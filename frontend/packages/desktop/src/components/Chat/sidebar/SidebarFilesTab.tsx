@@ -61,6 +61,7 @@ export function SidebarFilesTab({
   const queryClient = useQueryClient()
   const currentProject = useProjectStore((s) => s.currentProject)
   const fetchProjects = useProjectStore((s) => s.fetchProjects)
+  const locateFilePath = useUIStore((s) => s.locateFilePath)
   const [isProjectOpen, setIsProjectOpen] = useState(true)
   const [isChangesOpen, setIsChangesOpen] = useState(expandChanges)
   const [discoverOpen, setDiscoverOpen] = useState(false)
@@ -90,24 +91,16 @@ export function SidebarFilesTab({
       await WikiService.generateWiki({
         requestBody: {
           project_id: projectId,
-          topic: t("wiki.topic.full_documentation", {
-            defaultValue: "完整项目百科",
-          }),
+          topic: t("wiki.topic.full_documentation"),
           force_regenerate: true,
         },
       })
-      toast.success(
-        t("wiki.toast.start", {
-          defaultValue: "百科生成已开始！将在后台运行。",
-        }),
-      )
+      toast.success(t("wiki.toast.start"))
       queryClient.invalidateQueries({ queryKey: ["wiki"] })
       fetchProjects()
     } catch (error) {
       console.error("Failed to start wiki generation task:", error)
-      toast.error(
-        t("wiki.toast.error", { defaultValue: "启动百科生成任务失败" }),
-      )
+      toast.error(t("wiki.toast.error"))
     }
   }
 
@@ -133,10 +126,8 @@ export function SidebarFilesTab({
             )}
             <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex-1">
               {isGlobal
-                ? t("chat.sidebar.workspaceFiles", {
-                    defaultValue: "工作区文件",
-                  })
-                : t("chat.sidebar.projectFiles", { defaultValue: "项目文件" })}
+                ? t("chat.sidebar.workspaceFiles")
+                : t("chat.sidebar.projectFiles")}
             </span>
 
             <div className="flex items-center gap-0.5">
@@ -158,7 +149,7 @@ export function SidebarFilesTab({
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top">
-                      {t("files.newFolder", { defaultValue: "新建文件夹" })}
+                      {t("files.newFolder")}
                     </TooltipContent>
                   </Tooltip>
 
@@ -196,19 +187,13 @@ export function SidebarFilesTab({
                                   queryKey: ["files", projectId],
                                 }),
                               )
-                              .catch(() =>
-                                toast.error(
-                                  t("files.uploadError", {
-                                    defaultValue: "上传失败",
-                                  }),
-                                ),
-                              )
+                              .catch(() => toast.error(t("files.uploadError")))
                           }}
                         />
                       </div>
                     </TooltipTrigger>
                     <TooltipContent side="top">
-                      {t("files.uploadFile", { defaultValue: "上传文件" })}
+                      {t("files.uploadFile")}
                     </TooltipContent>
                   </Tooltip>
                 </>
@@ -234,9 +219,7 @@ export function SidebarFilesTab({
                   </TooltipTrigger>
                   {isGlobal && (
                     <TooltipContent side="top">
-                      {t("chat.sidebar.projectOnly", {
-                        defaultValue: "仅项目内可用",
-                      })}
+                      {t("chat.sidebar.projectOnly")}
                     </TooltipContent>
                   )}
                 </Tooltip>
@@ -247,14 +230,10 @@ export function SidebarFilesTab({
                   onClick={(e) => e.stopPropagation()}
                 >
                   <DropdownMenuLabel className="text-[11px] font-bold uppercase tracking-tight text-muted-foreground/80">
-                    {t("chat.sidebar.actions", { defaultValue: "项目操作" })}
+                    {t("chat.sidebar.actions")}
                     {isGlobal && (
                       <span className="ml-2 text-[10px] font-normal lowercase opacity-60">
-                        (
-                        {t("chat.sidebar.projectOnly", {
-                          defaultValue: "仅项目内可用",
-                        })}
-                        )
+                        ({t("chat.sidebar.projectOnly")})
                       </span>
                     )}
                   </DropdownMenuLabel>
@@ -270,12 +249,8 @@ export function SidebarFilesTab({
                     <BookOpen className="h-3.5 w-3.5 text-green-500" />
                     <span>
                       {currentProject?.has_wiki
-                        ? t("wiki.regenerate_action", {
-                            defaultValue: "重新生成百科",
-                          })
-                        : t("chat.sidebar.wiki", {
-                            defaultValue: "生成项目百科",
-                          })}
+                        ? t("wiki.regenerate_action")
+                        : t("chat.sidebar.wiki")}
                     </span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -318,9 +293,7 @@ export function SidebarFilesTab({
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent side="top">
-                            {t("projects.profile.reanalyze", {
-                              defaultValue: "重新分析项目",
-                            })}
+                            {t("projects.profile.reanalyze")}
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
@@ -341,7 +314,7 @@ export function SidebarFilesTab({
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent side="top">
-                            {t("common.edit", { defaultValue: "编辑" })}
+                            {t("common.edit")}
                           </TooltipContent>
                         </Tooltip>
                       </div>
@@ -349,9 +322,7 @@ export function SidebarFilesTab({
                   ) : (
                     <div className="px-3 py-3 border border-dashed border-muted-foreground/30 rounded-md bg-muted/5 flex flex-col items-center justify-center gap-2 text-center">
                       <p className="text-[11px] text-muted-foreground leading-tight">
-                        {t("projects.profile.missing", {
-                          defaultValue: "缺少项目资料，这会影响 Agent 的理解。",
-                        })}
+                        {t("projects.profile.missing")}
                       </p>
                       <Button
                         variant="outline"
@@ -360,9 +331,7 @@ export function SidebarFilesTab({
                         onClick={() => setDiscoverOpen(true)}
                       >
                         <Wand2 className="h-3 w-3 mr-1.5 text-primary" />
-                        {t("projects.profile.discoverTitle", {
-                          defaultValue: "分析与初始化",
-                        })}
+                        {t("projects.profile.discoverTitle")}
                       </Button>
                     </div>
                   )}
@@ -370,6 +339,7 @@ export function SidebarFilesTab({
                 <div className="flex-1 overflow-auto">
                   <FileTree
                     projectId={projectId}
+                    activePath={locateFilePath || undefined}
                     onSelectFile={(file) => {
                       useUIStore
                         .getState()
@@ -391,11 +361,7 @@ export function SidebarFilesTab({
                         })
                         setIsCreatingRootFolder(false)
                       } catch (_error) {
-                        toast.error(
-                          t("files.createFolderError", {
-                            defaultValue: "创建文件夹失败",
-                          }),
-                        )
+                        toast.error(t("files.createFolderError"))
                       }
                     }}
                   />
@@ -403,7 +369,7 @@ export function SidebarFilesTab({
               </>
             ) : (
               <div className="p-4 text-center text-xs text-muted-foreground italic">
-                {t("chat.sidebar.noProject", { defaultValue: "未选择项目" })}
+                {t("chat.sidebar.noProject")}
               </div>
             )}
           </div>
@@ -429,9 +395,7 @@ export function SidebarFilesTab({
               )}
               <History className="h-3.5 w-3.5 text-amber-500/70" />
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex-1">
-                {t("chat.sidebar.agentChanges", {
-                  defaultValue: "Agent 改动记录",
-                })}
+                {t("chat.sidebar.agentChanges")}
               </span>
             </div>
           </CollapsibleTrigger>

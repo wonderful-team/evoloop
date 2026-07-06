@@ -1,8 +1,6 @@
 import json
 import logging
 
-from langchain_openai import ChatOpenAI
-
 from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
@@ -20,70 +18,70 @@ class LLMConfigService:
         """
         Pre-flight check: Validates that the LLM can actually generate text.
         """
+        # 1. Load custom headers from database
+        from app.infrastructure.config.service import SystemConfigService
+        db_headers_str = SystemConfigService.get_value("LLM_HEADERS", "{}")
         try:
-            # 1. Load custom headers from database
-            from app.infrastructure.config.service import SystemConfigService
-            db_headers_str = SystemConfigService.get_value("LLM_HEADERS", "{}")
-            try:
-                final_headers = json.loads(db_headers_str) if db_headers_str else {}
-            except Exception:
-                final_headers = {}
+            final_headers = json.loads(db_headers_str) if db_headers_str else {}
+        except json.JSONDecodeError:
+            final_headers = {}
 
-            # 2. Merge with explicit headers passed to validation (e.g. from UI testing form)
-            if headers:
-                final_headers.update(headers)
+        # 2. Merge with explicit headers passed to validation (e.g. from UI testing form)
+        if headers:
+            final_headers.update(headers)
 
-            if provider == "anthropic" or "api/anthropic" in (base_url or ""):
-                from app.infrastructure.llm.anthropic_adapter import CompatibleChatAnthropic
+        if provider == "anthropic" or "api/anthropic" in (base_url or ""):
+            from app.infrastructure.llm.anthropic_adapter import (
+                CompatibleChatAnthropic,
+            )
 
-                # Anthropic SDK automatically appends /v1/messages.
-                # Strip trailing /v1 to avoid double path (e.g. /coding/v1/v1/messages).
-                normalized = base_url.rstrip("/")
-                if normalized.endswith("/v1"):
-                    normalized = normalized[:-3]
+            # Anthropic SDK automatically appends /v1/messages.
+            # Strip trailing /v1 to avoid double path (e.g. /coding/v1/v1/messages).
+            normalized = base_url.rstrip("/")
+            if normalized.endswith("/v1"):
+                normalized = normalized[:-3]
 
-                llm = CompatibleChatAnthropic(
-                    api_key=api_key,
-                    base_url=normalized,
-                    model_name=model,
-                    temperature=0,
-                    max_tokens=5,
-                    streaming=False,
-                    # Auto-detect fixes based on URL similar to factory.py
-                    fix_tool_args_list="bigmodel.cn" in (base_url or ""),
-                )
-            else:
-                # We assume OpenAI compatible for now (provider check can expand later)
-                llm = ChatOpenAI(
-                    api_key=api_key or "dummy",
-                    base_url=base_url,
-                    model=model,
-                    temperature=0,
-                    max_tokens=5,
-                    default_headers=final_headers if final_headers else None,
-                )
+            llm = CompatibleChatAnthropic(
+                api_key=api_key,
+                base_url=normalized,
+                model_name=model,
+                temperature=0,
+                max_tokens=5,
+                streaming=False,
+                # Auto-detect fixes based on URL similar to factory.py
+                fix_tool_args_list="bigmodel.cn" in (base_url or ""),
+            )
+        else:
+            # We assume OpenAI compatible for now (provider check can expand later)
+            from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
 
-            # Test invocation
-            # For thinking/reasoning models, the content might be empty if max_tokens is small 
-            # and it only generated thinking/reasoning tokens.
-            # We use stream to confirm connectivity by checking if any chunk contains text/reasoning.
-            content = ""
-            async for chunk in llm.astream("Ping"):
-                content += chunk.content
-                # Capture reasoning_content from patched additional_kwargs if present
-                reasoning = chunk.additional_kwargs.get("reasoning_content") or chunk.additional_kwargs.get("thinking")
-                if reasoning:
-                    content += reasoning
-                if len(content) > 100:
-                    break
+            llm = AdaptiveChatOpenAI(
+                api_key=api_key or "dummy",
+                base_url=base_url,
+                model=model,
+                temperature=0,
+                max_tokens=5,
+                default_headers=final_headers if final_headers else None,
+            )
 
-            if not content:
-                raise ValueError("Empty response from LLM")
+        # Test invocation
+        # For thinking/reasoning models, the content might be empty if max_tokens is small 
+        # and it only generated thinking/reasoning tokens.
+        # We use stream to confirm connectivity by checking if any chunk contains text/reasoning.
+        content = ""
+        async for chunk in llm.astream("Ping"):
+            content += chunk.content
+            # Capture reasoning_content from patched additional_kwargs if present
+            reasoning = chunk.additional_kwargs.get("reasoning_content") or chunk.additional_kwargs.get("thinking")
+            if reasoning:
+                content += reasoning
+            if len(content) > 100:
+                break
 
-            return True, content
-        except Exception as e:
-            logger.error(f"LLM Validation Failed: {e}")
-            raise e
+        if not content:
+            raise ValueError("Empty response from LLM")
+
+        return True, content
 
     @staticmethod
     async def applied_llm_config(

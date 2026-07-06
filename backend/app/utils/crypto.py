@@ -1,7 +1,10 @@
 import base64
 import hashlib
+
 from cryptography.fernet import Fernet
+
 from app.core.config import settings
+
 
 def _get_fernet_key() -> bytes:
     # Derive a static 32-byte key from settings.SECRET_KEY

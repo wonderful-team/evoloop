@@ -7,6 +7,7 @@
  * - 版本比较工具函数
  */
 
+import i18n from "@evoloop/shared/i18n"
 import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import versionInfo from "@/version.json"
@@ -76,7 +77,11 @@ export function getVersionDisplayString(
   info: VersionInfo = localVersion,
 ): string {
   const stageTag = info.stage !== "stable" ? `-${info.stage}` : ""
-  return `v${info.version}${stageTag} (Build ${info.buildNumber})`
+  return i18n.t("versionDisplay.versionString", {
+    version: info.version,
+    stageTag,
+    buildNumber: info.buildNumber,
+  })
 }
 
 /**
@@ -120,7 +125,12 @@ export function useVersion() {
       )
 
       if (!response.ok) {
-        throw new Error(`${t("about.toast.checkFailed")}: ${response.status}`)
+        throw new Error(
+          t("about.toast.checkFailedWithStatus", {
+            message: t("about.toast.checkFailed"),
+            status: response.status,
+          }),
+        )
       }
 
       const result = await response.json()

@@ -1,6 +1,5 @@
 import logging
 import os
-import uuid
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -10,7 +9,8 @@ from app.constants import BINARY_EXTENSIONS, DEFAULT_PROJECT_ID
 from app.core.engine.message.schemas import ReferenceContext
 from app.core.file.document_reader import document_reader_service
 from app.models.conversation import Message
-from app.utils import render_template
+from app.utils.id import gen_uuid
+from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ class ReferenceService:
 
                 # 为数据库持久化记录引用
                 references.append({
-                    "id": str(uuid.uuid4()),
+                    "id": gen_uuid(),
                     "type": "message",
                     "target_id": att_id,
                     "target_name": att_name,
@@ -80,7 +80,7 @@ class ReferenceService:
 
                 # 为数据库持久化记录引用
                 references.append({
-                    "id": str(uuid.uuid4()),
+                    "id": gen_uuid(),
                     "type": "file",
                     "target_id": target_id,
                     "target_name": att_name,
@@ -107,7 +107,7 @@ class ReferenceService:
 
                 # 为数据库持久化记录引用
                 references.append({
-                    "id": str(uuid.uuid4()),
+                    "id": gen_uuid(),
                     "type": "directory",
                     "target_id": target_id,
                     "target_name": att_name,
@@ -125,7 +125,7 @@ class ReferenceService:
                 })
                 reference_notes.append(f"Image Reference: {att_name} (Path: {att_id})")
                 references.append({
-                    "id": str(uuid.uuid4()),
+                    "id": gen_uuid(),
                     "type": "image",
                     "target_id": att_id,
                     "target_name": att_name,
@@ -140,8 +140,36 @@ class ReferenceService:
                 })
                 reference_notes.append(f"Audio Reference: {att_name} (Path: {att_id})")
                 references.append({
-                    "id": str(uuid.uuid4()),
+                    "id": gen_uuid(),
                     "type": "audio",
+                    "target_id": att_id,
+                    "target_name": att_name,
+                    "metadata": {"filename": att_name},
+                })
+
+            # 4.5. Video References
+            elif att_type == "video":
+                # Extract keyframes as image_url blocks for LLM vision support
+                try:
+                    from app.infrastructure.video.service import VideoService
+                    frames = await VideoService.extract_keyframes(att_id, count=3)
+                    for frame in frames:
+                        import base64
+                        b64 = base64.b64encode(frame.data).decode("utf-8")
+                        content_blocks.append({
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{b64}"}
+                        })
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                    logger.warning(f"[ReferenceService] Video keyframe extraction failed for {att_id}: {e}")
+                content_blocks.append({
+                    "type": "text",
+                    "text": f"[Video: {att_name}]({att_id})"
+                })
+                reference_notes.append(f"Video Reference: {att_name} (Path: {att_id})")
+                references.append({
+                    "id": gen_uuid(),
+                    "type": "video",
                     "target_id": att_id,
                     "target_name": att_name,
                     "metadata": {"filename": att_name},
@@ -160,7 +188,7 @@ class ReferenceService:
                     "content": f"Using learned skill: {skill_name}"
                 })
                 references.append({
-                    "id": str(uuid.uuid4()),
+                    "id": gen_uuid(),
                     "type": "skill",
                     "target_id": skill_id,
                     "target_name": skill_name,
@@ -207,7 +235,7 @@ class ReferenceService:
                 if len(ref_msg.content) > 500:
                     snippet += "..."
                 return snippet, f"Quoted Message: {name}"
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Error fetching message reference {msg_id_str}: {e}")
 
         return None, f"Quoted Message (Fetch Failed): {name}"
@@ -225,7 +253,7 @@ class ReferenceService:
             if len(content) > 2000:
                 snippet += "\n\n... (Content truncated for length)"
             return snippet, f"Referencing File: {name} (Path: {file_path})"
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"Failed to read quoted file {target_path}: {e}")
             return None, f"Referencing File (Read Failed): {name} (Path: {file_path})"
 
@@ -262,7 +290,7 @@ class ReferenceService:
                         snippet += "\n... (File content truncated)"
                     snippets.append(f"--- File: {rel_to_dir} ---\n{snippet}")
                     file_count += 1
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     logger.debug(f"Skipping directory-ref file read error for {full_path}: {e}")
 
             sections = [
@@ -274,7 +302,7 @@ class ReferenceService:
             combined_content = "\n\n".join(sections)
             return combined_content, f"Referencing Directory: {name} (Path: {dir_path})"
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Error resolving directory reference {target_path}: {e}")
             return None, f"Referencing Directory (Read Failed): {name} (Path: {dir_path})"
 
@@ -316,7 +344,7 @@ class ReferenceService:
                 if os.path.commonpath([abs_root, abs_resolved]) != abs_root:
                     logger.warning(f"Path traversal blocked! Root={abs_root}, Path={abs_resolved}")
                     return "/dev/null"
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"Error validating path isolation: {e}")
                 return "/dev/null"
 

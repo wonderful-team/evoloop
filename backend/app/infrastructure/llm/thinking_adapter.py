@@ -4,7 +4,9 @@ Thinking Budget Adapter
 每个函数都是纯函数，无副作用，便于单元测试。
 """
 from __future__ import annotations
+
 from typing import Any
+
 from app.infrastructure.schemas import ThinkingConfig
 
 # --- 模型族检测 ---

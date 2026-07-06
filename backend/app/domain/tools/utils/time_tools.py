@@ -22,6 +22,6 @@ async def wait_for(seconds: float) -> str:
     try:
         await asyncio.sleep(seconds)
         return f"Waited for {seconds} seconds."
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Wait tool error: {e}")
         return f"Error during wait: {e}"

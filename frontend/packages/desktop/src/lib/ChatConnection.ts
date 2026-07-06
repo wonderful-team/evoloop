@@ -22,7 +22,11 @@ export interface ChatConnectionCallbacks {
   onError: (error: string) => void
   onUnauthorized?: () => void
   /** Real-time PTY output chunk from a background task */
-  onTaskOutput?: (event: { task_id: string; output: string; timestamp: string }) => void
+  onTaskOutput?: (event: {
+    task_id: string
+    output: string
+    timestamp: string
+  }) => void
   /** Task lifecycle state changes (created / started / completed / failed / cancelled / timeout) */
   onTaskStatus?: (event: { task: any; action: string }) => void
 }

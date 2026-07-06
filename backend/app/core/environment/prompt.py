@@ -11,7 +11,7 @@ from app.core.context.plugins import plugin_registry
 from app.core.tools.manager import tool_manager
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.drivers.browser import browser_manager
-from app.utils import render_template
+from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ class AppEnvironmentPrompt:
 
             return render_template("core/environment/awakening.prompt.j2", **template_vars)
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to render environment block: {e}")
             return ""
 
@@ -84,14 +84,15 @@ def _get_active_background_tasks() -> list[dict]:
             }
             for t in active_tasks
         ]
-    except Exception:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
         return []
 
 
 def _get_listening_local_ports() -> list[dict]:
     try:
-        import psutil
         import warnings
+
+        import psutil
         ports = []
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
@@ -113,7 +114,7 @@ def _get_listening_local_ports() -> list[dict]:
             if port not in seen_ports or (p["pid"] and not seen_ports[port]["pid"]):
                 seen_ports[port] = p
         return sorted(list(seen_ports.values()), key=lambda x: x["port"])
-    except Exception:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
         return []
 
 
@@ -193,22 +194,40 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
 
         return data
 
-    except Exception:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
         return {}
 
 
 def build_environment_prompt(relevance: str = "auto") -> str:
-    """Legacy wrapper for build_environment_summaries."""
-    summaries = build_environment_summaries(relevance=relevance)
+    """Legacy wrapper for build_environment_summaries.
 
-    # Add capability boundaries for the legacy prompt
+    build_environment_summaries returns a dict, not a list.
+    This wrapper formats it into a string with boundary info.
+    """
+    data = build_environment_summaries(relevance=relevance)
+    if not data:
+        return ""
+
+    lines = []
+    host = data.get("host", {})
+    if host:
+        lines.append(f"Host: {host.get('platform', 'unknown')}")
+
+    devices = data.get("android_devices", [])
+    for dev in devices:
+        lines.append(f"Device: {dev.get('serial', 'unknown')} (battery: {dev.get('battery_percent', '?')}%)")
+
+    net = data.get("network", {})
+    if net:
+        lines.append(f"Network: {'connected' if net.get('internet_connected') else 'offline'}")
+
     boundaries = get_capability_boundaries()
     if boundaries:
-        summaries.append("Limitations:")
+        lines.append("Limitations:")
         for boundary in boundaries[:5]:
-            summaries.append(f"  - {boundary}")
+            lines.append(f"  - {boundary}")
 
-    return "\n".join([f"- {s}" if not s.startswith(" ") else s for s in summaries])
+    return "\n".join(lines)
 
 
 def get_capability_boundaries() -> list[str]:
@@ -220,13 +239,13 @@ def get_capability_boundaries() -> list[str]:
     try:
         from app.core.environment.boundaries import boundary_manager
         return boundary_manager.get_all_boundaries()
-    except Exception:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
         # Fallback to state boundaries if manager unavailable
         try:
             from app.core.environment import get_awakened_state
             state = get_awakened_state()
             return state.capability_boundaries if state else []
-        except Exception:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
             return []
 
 
@@ -236,6 +255,6 @@ def _get_browser_status() -> dict | None:
         return browser_manager.get_status()
     except ImportError:
         return None
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.debug(f"Failed to get browser status: {e}")
         return None

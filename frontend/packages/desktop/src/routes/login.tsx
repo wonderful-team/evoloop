@@ -9,6 +9,7 @@ import {
 import { Input } from "@evoloop/shared/components/ui/input"
 import { LoadingButton } from "@evoloop/shared/components/ui/loading-button"
 import { PasswordInput } from "@evoloop/shared/components/ui/password-input"
+import i18n from "@evoloop/shared/i18n"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
   createFileRoute,
@@ -54,13 +55,10 @@ export const Route = createFileRoute("/login")({
     }
   },
   head: () => {
-    // Use i18n directly since head doesn't have access to hook
-    // This runs before component, so we use a static approach
-    // The title will be updated by the component's useEffect
     return {
       meta: [
         {
-          title: "Log In - EvoLoop",
+          title: i18n.t("auth.login.pageTitle"),
         },
       ],
     }

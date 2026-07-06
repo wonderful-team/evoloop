@@ -6,7 +6,9 @@ LLM Platform Service - 从 EvoLoop Gateway 获取模型配置
 import asyncio
 import logging
 import time
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List
+
+from pydantic import ValidationError
 
 from app.constants import DEFAULT_MAX_CONTEXT_TOKENS
 from app.infrastructure.schemas import PlatformModel
@@ -118,7 +120,7 @@ class LLMPlatformService:
                 logger.info(f"[LLMPlatform] Fetched {len(platform_models)} platform models")
                 return platform_models
 
-            except Exception as e:
+            except ValidationError as e:
                 logger.error(f"[LLMPlatform] Error fetching models: {e}")
                 return []
     
@@ -126,7 +128,7 @@ class LLMPlatformService:
         """获取缓存的模型列表"""
         return list(self._models_cache.values())
     
-    def get_model_by_id(self, model_id: str) -> Optional[PlatformModel]:
+    def get_model_by_id(self, model_id: str) -> PlatformModel | None:
         """根据 ID 获取模型配置"""
         return self._models_cache.get(model_id)
     

@@ -1,3 +1,5 @@
+import logging
+
 """
 Tool execution state management for the context module.
 
@@ -24,6 +26,8 @@ from pydantic import Field
 from app.core.tools.registry import get_tool_metadata
 from app.i18n.service import i18n
 from app.infrastructure.pydantic_base import DynamicBaseModel
+
+logger = logging.getLogger(__name__)
 
 logger = __import__("logging").getLogger(__name__)
 
@@ -75,8 +79,8 @@ class ToolState(DynamicBaseModel):
                             lines=line_count, items=line_count),
                     is_file_content
                 )
-            except Exception:
-                pass
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.debug("Suppressed error: %s", e, exc_info=True)
 
         # Truncate if output is too long (>500 chars or >20 lines)
         if len(output_str) > 500:
@@ -125,7 +129,7 @@ class ToolStateStore:
         
         Args:
             thread_id: The thread/session ID
-            run_id: The LangChain run_id for this tool execution
+            run_id: The run_id for this tool execution
             name: Tool name
             arguments: JSON string of tool arguments
             path: Optional affected file path
@@ -155,7 +159,7 @@ class ToolStateStore:
         
         Args:
             thread_id: The thread/session ID
-            run_id: The LangChain run_id for this tool execution
+            run_id: The run_id for this tool execution
             
         Returns:
             ToolState if found, None otherwise
@@ -172,7 +176,7 @@ class ToolStateStore:
         
         Args:
             thread_id: The thread/session ID
-            run_id: The LangChain run_id for this tool execution
+            run_id: The run_id for this tool execution
             
         Returns:
             ToolState if found, None otherwise
@@ -189,7 +193,7 @@ class ToolStateStore:
         
         Args:
             thread_id: The thread/session ID
-            run_id: The LangChain run_id for this tool execution
+            run_id: The run_id for this tool execution
             
         Returns:
             Duration in seconds if tool is running, None otherwise

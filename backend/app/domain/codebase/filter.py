@@ -13,15 +13,13 @@ from app.constants import (
     CODE_QUALITY_THRESHOLDS,
     COMPRESSED_FILE_PATTERNS,
     COMPRESSIBLE_EXTENSIONS,
-    DEFAULT_EXCLUDED_DIRS,
-    DEFAULT_EXCLUDED_FILES,
     LIKELY_COMPRESSED_CODE_DIRS,
     SEMANTIC_LANGUAGE_MAP,
     SOURCE_MAP_EXTENSIONS,
     SUSPICIOUS_JS_PATTERNS,
 )
-from app.core.file.service import is_text_file
 from app.core.file import get_file_ext, is_encrypted_path, is_ignored_path
+from app.core.file.types import is_text as is_text_file
 
 
 class FileFilter:
@@ -216,7 +214,7 @@ class FileFilter:
                 return True
 
             return False
-        except Exception:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
             return False
 
     def _is_compressed_content(self, file_path: str) -> bool:
@@ -279,6 +277,6 @@ class FileFilter:
 
             return False
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logging.debug(f"Error analyzing file {file_path}: {str(e)}")
             return False

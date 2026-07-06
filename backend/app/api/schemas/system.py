@@ -48,10 +48,6 @@ class LLMApplyResponse(BaseAPIResponse):
     status: str
 
 
-class ResetKnowledgeResponse(BaseAPIResponse):
-    status: str
-
-
 class CloudStatusResponse(BaseAPIResponse):
     is_logged_in: bool
     device_key: str | None = None

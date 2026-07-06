@@ -1,14 +1,18 @@
 import logging
-from typing import Optional
-
 from fastapi import APIRouter, HTTPException
 
-from app.api.deps import CurrentUserOptional, TokenDep
 from app.api.responses import BaseAPIResponse
 from app.api.schemas.subtasks import (
-    TaskWithSubtasksCreate, TaskProgressUpdate, TaskCreateResponse,
-    TaskTreeWrapperResponse, NextTaskResponse, TaskFlatResponse, TaskListItem, TaskListResponse
+    NextTaskResponse,
+    TaskCreateResponse,
+    TaskFlatResponse,
+    TaskListItem,
+    TaskListResponse,
+    TaskProgressUpdate,
+    TaskTreeWrapperResponse,
+    TaskWithSubtasksCreate,
 )
+from app.api.deps import CurrentUserOptional, TokenDep
 from app.core.project.subtask_service import subtask_service
 from app.utils.id import gen_uuid
 
@@ -68,7 +72,7 @@ async def create_task_with_subtasks(
             task=tree
         )
         
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[SubtasksAPI] Failed to create task: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -167,15 +171,16 @@ async def flatten_task_tree(
 @router.get("/list", response_model=TaskListResponse)
 async def list_root_tasks(
     project_id: int,
-    status: Optional[str] = None,
+    status: str | None = None,
     limit: int = 50,
     token=None,
     current_user: CurrentUserOptional = None,
 ):
     """List root tasks (parent tasks) for a project."""
     from sqlalchemy import select
+
+    from app.infrastructure.database import session_scope
     from app.models.project import ProjectTask
-    from app.infrastructure.database.sql.database import session_scope
     
     async with session_scope() as session:
         query = select(ProjectTask).where(

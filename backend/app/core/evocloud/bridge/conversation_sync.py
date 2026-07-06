@@ -9,9 +9,10 @@ from sqlalchemy import select
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.evocloud.schemas import SyncConversation, SyncMessage
-from app.infrastructure.database.sql.database import get_db_session
+from app.infrastructure.database import session_scope
 from app.models import Conversation as ConversationModel
 from app.models import Message as MessageModel
+from app.utils.time import ts_from_dt
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,7 @@ class ConversationSyncManager:
 
         except asyncio.CancelledError:
             logger.debug("[ConversationSync] Sync loop cancelled")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[ConversationSync] Sync loop error: {e}", exc_info=True)
 
     async def _schedule_full_sync(self):
@@ -97,7 +98,7 @@ class ConversationSyncManager:
         try:
             from app.core.evocloud.bridge.sync_tasks import full_sync_task
 
-            async with get_db_session() as db:
+            async with session_scope() as db:
                 # 获取未同步的会话
                 conversations_result = await db.execute(
                     select(ConversationModel).where(ConversationModel.sync_status != 'synced')
@@ -130,7 +131,7 @@ class ConversationSyncManager:
                     f"task_id={result.id}"
                 )
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[ConversationSync] Failed to schedule full sync: {e}", exc_info=True)
 
     async def _schedule_incremental_sync(self):
@@ -142,7 +143,7 @@ class ConversationSyncManager:
         try:
             from app.core.evocloud.bridge.sync_tasks import incremental_sync_task
 
-            async with get_db_session() as db:
+            async with session_scope() as db:
                 # 1. 获取未同步的会话ID
                 result = await db.execute(
                     select(ConversationModel.id).where(ConversationModel.sync_status != 'synced')
@@ -177,7 +178,7 @@ class ConversationSyncManager:
                     f"{(len(thread_ids) + batch_size - 1) // batch_size} batches"
                 )
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[ConversationSync] Failed to schedule incremental sync: {e}", exc_info=True)
 
     # ==================== 公共 API ====================
@@ -204,8 +205,8 @@ class ConversationSyncManager:
             id=str(conv.id),
             project_id=conv.project_id if conv.project_id is not None else DEFAULT_PROJECT_ID,
             title=conv.title or "新会话",
-            created_at=int(conv.created_at.timestamp()) if conv.created_at else int(datetime.now().timestamp()),
-            updated_at=int(conv.updated_at.timestamp()) if conv.updated_at else int(datetime.now().timestamp()),
+            created_at=ts_from_dt(conv.created_at, default=int(datetime.now().timestamp())),
+            updated_at=ts_from_dt(conv.updated_at, default=int(datetime.now().timestamp())),
             is_pinned=bool(conv.is_pinned),
         )
 
@@ -221,7 +222,7 @@ class ConversationSyncManager:
             role=msg.role,
             content=msg.content,
             thinking=msg.thinking,
-            created_at=int(msg.created_at.timestamp()) if msg.created_at else int(datetime.now().timestamp()),
+            created_at=ts_from_dt(msg.created_at, default=int(datetime.now().timestamp())),
             sequence_number=msg.sequence_number or 0,
             checkpoint_id=msg.checkpoint_id or "",
             tool_calls=msg.tool_calls if msg.tool_calls else None,

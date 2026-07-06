@@ -225,7 +225,7 @@ class TaploServer(SolidLanguageServer):
             os.remove(archive_path)
             log.info(f"Taplo installed successfully at: {executable_path}")
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             log.error(f"Failed to download Taplo: {e}")
             raise RuntimeError(
                 f"Failed to download Taplo from {download_url}. Try installing manually: cargo install taplo-cli --locked"

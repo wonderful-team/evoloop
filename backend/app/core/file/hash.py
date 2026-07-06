@@ -5,7 +5,6 @@ Provides consistent hashing for content and files.
 
 import hashlib
 import logging
-import os
 
 logger = logging.getLogger(__name__)
 

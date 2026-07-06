@@ -2,8 +2,8 @@ import logging
 import os
 import random
 
-from app.utils import render_template
 from app.core.file import read_file
+from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +36,8 @@ class ProjectStandardsAnalyst:
                 content = result.content
                 if content:
                     files_info.append({"path": os.path.basename(fpath), "content": content})
-            except Exception:
-                pass
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.debug("Suppressed error: %s", e, exc_info=True)
 
         prompt_text = render_template(
             "domain/codebase/code_audit.prompt.j2",
@@ -46,7 +46,7 @@ class ProjectStandardsAnalyst:
         )
 
         try:
-            from app.core.llm import InternalLLMService
+            from app.infrastructure.llm import InternalLLMService
             from app.infrastructure.config.service import SystemConfigService
             model_name = SystemConfigService.get_value("LLM_MODEL")
             response = await InternalLLMService.invoke(
@@ -76,7 +76,7 @@ class ProjectStandardsAnalyst:
 
             return standards_report
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[StandardsAnalyst] Analysis Failed: {e}")
 
     def _sample_files(self, root_path: str, count: int = 15) -> list[str]:

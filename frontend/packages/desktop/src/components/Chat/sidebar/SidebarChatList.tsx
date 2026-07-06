@@ -1,5 +1,6 @@
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Input } from "@evoloop/shared/components/ui/input"
+import i18n from "@evoloop/shared/i18n"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   Check,
@@ -47,16 +48,16 @@ function formatRelativeTime(dateString: string) {
     const diffDays = Math.floor(diffHours / 24)
 
     if (diffMins < 1) {
-      return "刚刚"
+      return i18n.t("common.time.justNow")
     }
     if (diffMins < 60) {
-      return `${diffMins}分钟前`
+      return i18n.t("common.time.minutesAgo", { count: diffMins })
     }
     if (diffHours < 24) {
-      return `${diffHours}小时前`
+      return i18n.t("common.time.hoursAgo", { count: diffHours })
     }
     if (diffDays < 7) {
-      return `${diffDays}天前`
+      return i18n.t("common.time.daysAgo", { count: diffDays })
     }
 
     const mm = String(date.getMonth() + 1).padStart(2, "0")
@@ -220,11 +221,31 @@ export function SidebarChatList({
         {(() => {
           const grouped = groupedThreads
           const sections = [
-            { key: "pinned", label: "置顶会话", items: grouped.pinned },
-            { key: "today", label: "今天", items: grouped.today },
-            { key: "yesterday", label: "昨天", items: grouped.yesterday },
-            { key: "recent", label: "最近 7 天", items: grouped.recent },
-            { key: "earlier", label: "更早", items: grouped.earlier },
+            {
+              key: "pinned",
+              label: t("chat.sidebar.sections.pinned"),
+              items: grouped.pinned,
+            },
+            {
+              key: "today",
+              label: t("chat.sidebar.sections.today"),
+              items: grouped.today,
+            },
+            {
+              key: "yesterday",
+              label: t("chat.sidebar.sections.yesterday"),
+              items: grouped.yesterday,
+            },
+            {
+              key: "recent",
+              label: t("chat.sidebar.sections.recent"),
+              items: grouped.recent,
+            },
+            {
+              key: "earlier",
+              label: t("chat.sidebar.sections.earlier"),
+              items: grouped.earlier,
+            },
           ]
 
           const renderThreadItem = (thread: Thread) => (
@@ -340,7 +361,11 @@ export function SidebarChatList({
                         e.stopPropagation()
                         onTogglePin?.(thread.thread_id, !thread.is_pinned)
                       }}
-                      title={thread.is_pinned ? "取消置顶" : "置顶会话"}
+                      title={
+                        thread.is_pinned
+                          ? t("chat.sidebar.unpinThread")
+                          : t("chat.sidebar.pinThread")
+                      }
                     >
                       {thread.is_pinned ? (
                         <PinOff
@@ -366,7 +391,7 @@ export function SidebarChatList({
                           setEditingThreadId(thread.thread_id)
                           setEditingTitle(thread.title || "")
                         }}
-                        title={t("common.rename") || "重命名"}
+                        title={t("common.rename")}
                       >
                         <Pencil
                           size={12}
@@ -385,7 +410,7 @@ export function SidebarChatList({
                           e.stopPropagation()
                           onStopThread(thread.thread_id)
                         }}
-                        title={t("chat.interface.stop") || "停止"}
+                        title={t("chat.interface.stop")}
                       >
                         <div className="h-2 w-2 bg-current rounded-[1px]" />
                       </Button>
@@ -401,7 +426,7 @@ export function SidebarChatList({
                           e.stopPropagation()
                           onDeleteThread(thread.thread_id)
                         }}
-                        title={t("common.delete") || "删除"}
+                        title={t("common.delete")}
                       >
                         <Trash2
                           size={12}
@@ -421,7 +446,7 @@ export function SidebarChatList({
                         e.stopPropagation()
                         onStopThread(thread.thread_id)
                       }}
-                      title={t("chat.interface.stop") || "停止"}
+                      title={t("chat.interface.stop")}
                     >
                       <div className="h-2 w-2 bg-current rounded-[1px]" />
                     </Button>
@@ -456,7 +481,9 @@ export function SidebarChatList({
             ref={sentinelRef}
             className="py-2 text-center text-xs text-muted-foreground"
           >
-            {isFetchingNextPage ? "加载中..." : "加载更多"}
+            {isFetchingNextPage
+              ? t("common.loading")
+              : t("chat.sidebar.loadMore")}
           </div>
         )}
         {threads.length === 0 && (

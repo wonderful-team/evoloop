@@ -1,3 +1,5 @@
+import logging
+
 """
 Base Extractor Classes
 ======================
@@ -12,6 +14,8 @@ from typing import Generic, TypeVar
 
 from app.constants import SEMANTIC_LANGUAGE_MAP
 from app.core.file import read_file
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
 
@@ -52,7 +56,8 @@ class SemanticExtractorBase(ABC, Generic[T]):
         try:
             result = read_file(file_path)
             return result.content
-        except Exception:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.debug("Suppressed error: %s", e, exc_info=True)
             return None
 
     @abstractmethod

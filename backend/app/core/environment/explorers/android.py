@@ -21,10 +21,10 @@ class AndroidExplorer(BaseExplorer):
                 from app.core.environment.explorers.dynamic_apps import DynamicAppTriage
                 triage = DynamicAppTriage()
                 await triage.sync_dynamic_apps(android_packages=packages)
-            except Exception as triage_e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as triage_e:
                 logger.warning(f"Dynamic app triage failed for {device_id}: {triage_e}")
 
             return packages
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Android scan failed for {device_id}: {e}")
             return []

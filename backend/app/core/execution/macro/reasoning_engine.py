@@ -8,8 +8,7 @@ import logging
 import re
 from typing import Any
 
-from langchain_core.messages import SystemMessage
-
+from app.core.engine.message.native_classes import SystemMessage
 from app.core.execution.macro.models import (
     AIAnalysisResult,
     RedundancyCheckResult,
@@ -19,7 +18,7 @@ from app.core.execution.macro.models import (
 )
 from app.core.execution.macro.schemas import ActionDecision
 from app.infrastructure.llm.vision import VisionLLMFactory
-from app.utils import render_template
+from app.utils.template import render_template
 from app.utils.yaml import safe_yaml_dumps
 
 logger = logging.getLogger(__name__)
@@ -104,7 +103,7 @@ class AgentReasoningEngine:
 
             return result
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[LLM:{context}:{step_number}] Decision failed: {e}")
             return ActionDecision(
                 action="execute",
@@ -167,7 +166,7 @@ class AgentReasoningEngine:
 
             return success, reasoning
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[LLM:VERIFY:{step_number}] Verification failed: {e}")
             return False, f"Verification error: {e}"
 
@@ -215,7 +214,7 @@ class AgentReasoningEngine:
             logger.info(f"[LLM:TERMINAL:{step_number}] Reasoning: {reasoning}")
 
             return is_terminal
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[LLM:TERMINAL:{step_number}] Analysis failed: {e}. Defaulting to terminal for safety.")
             return True
 
@@ -346,7 +345,7 @@ class AgentReasoningEngine:
             logger.info(f"[LLM:REDUNDANCY:{step_number}] Result: is_redundant={result.is_redundant}, type={result.redundancy_type.value}")
             return result
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[LLM:REDUNDANCY:{step_number}] Check failed: {e}")
             return RedundancyCheckResult(is_redundant=False)
 
@@ -422,6 +421,6 @@ class AgentReasoningEngine:
             logger.info(f"[LLM:ANALYZE] Found {len(result.issues)} issues, {len(result.recommendations)} recommendations")
 
             return result
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[LLM:ANALYZE] Analysis failed: {e}")
             return AIAnalysisResult(qualitative_assessment=f"Analysis failed: {e}")

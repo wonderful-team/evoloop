@@ -60,7 +60,7 @@ async def ask_human(
         command_id = ctx.command_id
         current_tool_call_id = ctx.current_tool_call_id
         last_ai_message_id = ctx.last_ai_message_id
-    except Exception:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
         thread_id = "unknown"
         project_id = None
         command_id = None
@@ -186,7 +186,7 @@ async def ask_confirm(
         command_id = ctx.command_id
         current_tool_call_id = ctx.current_tool_call_id
         last_ai_message_id = ctx.last_ai_message_id
-    except Exception:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
         thread_id = "unknown"
         project_id = None
         command_id = None

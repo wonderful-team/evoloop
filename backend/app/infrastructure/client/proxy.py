@@ -34,7 +34,7 @@ Performance:
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from app.core.config import settings
 from app.infrastructure.client.http import ClientToolExecutor, ToolExecutionError
@@ -55,8 +55,8 @@ class ClientProxy:
     """
 
     def __init__(self):
-        self._http_executor: Optional[ClientToolExecutor] = None
-        self._ws_executor: Optional[DirectClientToolExecutor] = None
+        self._http_executor: ClientToolExecutor | None = None
+        self._ws_executor: DirectClientToolExecutor | None = None
 
     def _get_executor(self) -> Any:
         """Get the best available executor."""
@@ -139,7 +139,7 @@ class ClientProxy:
             )
         except ToolExecutionError:
             raise
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[ClientProxy] Tool execution failed: {e}")
             raise ToolExecutionError(str(e))
 
@@ -160,7 +160,7 @@ class ClientProxy:
         """List directory via Client."""
         return await self.execute(thread_id, "file_list", {"path": path})
 
-    async def shell(self, command: str, cwd: Optional[str] = None, timeout: int = 60, thread_id: str = "default") -> dict:
+    async def shell(self, command: str, cwd: str | None = None, timeout: int = 60, thread_id: str = "default") -> dict:
         """Execute shell command via Client."""
         params = {"command": command, "timeout": timeout}
         if cwd:

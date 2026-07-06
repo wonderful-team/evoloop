@@ -1,11 +1,10 @@
 import asyncio
 import functools
+import inspect
 import json
 import logging
 import os
-
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import tool as langchain_tool
+from typing import Any
 
 from app.core.tools.schemas import EvoLoopToolConfig
 
@@ -22,37 +21,29 @@ class ToolResult(str):
         return obj
 
 
-def get_working_directory(config: RunnableConfig | None = None) -> str:
+def get_working_directory(config: dict | None = None) -> str:
     """
     Extracts the working directory from the context or configuration.
-    Prioritizes:
-    1. Context variable 'working_directory'
-    2. Config 'measurable' > 'working_directory' (Legacy)
-    3. os.getcwd()
     """
-    # 1. Check ContextVar
     from app.core.context.manager import ContextManager
     ctx = ContextManager.current()
     if ctx.working_directory:
         return ctx.working_directory
 
-    # 2. Check RunnableConfig
     if config and "configurable" in config:
         wd = config["configurable"].get("working_directory")
         if wd:
             return wd
 
-    # 3. Check ThreadContextStore by thread_id (returns project directory if in project, or default_root if global)
     if ctx.thread_id:
         try:
             from app.core.context import thread_context_store
             managed_cwd = thread_context_store.get_working_directory(ctx.thread_id)
             if managed_cwd:
                 return managed_cwd
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"Failed to fetch working directory from thread_context_store: {e}")
 
-    # 4. Fallback to SystemConfig WORKSPACE_ROOT
     try:
         from app.infrastructure.config.service import SystemConfigService
         workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
@@ -61,8 +52,74 @@ def get_working_directory(config: RunnableConfig | None = None) -> str:
     except (OSError, RuntimeError, TypeError, ValueError) as e:
         logger.warning(f"Failed to fetch WORKSPACE_ROOT for tool fallback: {e}")
 
-    # 5. Final Fallback
     return os.getcwd()
+
+
+class StructuredTool:
+    """Mock StructuredTool for runtime compatibility with dynamic tools."""
+    def __init__(self, func, name: str, description: str):
+        self.func = func
+        self.name = name
+        self.description = description
+        self.coroutine = func if inspect.iscoroutinefunction(func) else None
+        self.metadata = {}
+        self.handle_tool_error = True
+
+    @classmethod
+    def from_function(cls, func, name: str, description: str) -> "StructuredTool":
+        return cls(func, name, description)
+
+    async def ainvoke(self, args: Any, config: dict | None = None) -> Any:
+        kwargs = {}
+        if isinstance(args, dict):
+            kwargs.update(args)
+        if inspect.iscoroutinefunction(self.func):
+            return await self.func(**kwargs)
+        return self.func(**kwargs)
+
+
+class EvoLoopTool(StructuredTool):
+    """
+    A native, SDK-free tool implementation serving as the native tool base class.
+    """
+
+    def __init__(self, func, name: str = None, description: str = None, args_schema: Any = None):
+        self.func = func
+        self.coroutine = func if inspect.iscoroutinefunction(func) else None
+        self.name = name or func.__name__
+        self.description = description or func.__doc__ or ""
+        self.args_schema = args_schema
+        self.metadata = {}
+        self.handle_tool_error = True
+
+        sig = inspect.signature(func)
+        self._accepts_config = "config" in sig.parameters
+
+    async def ainvoke(self, args: Any, config: dict | None = None) -> Any:
+        kwargs = {}
+        if isinstance(args, dict):
+            kwargs.update(args)
+        if self._accepts_config:
+            kwargs["config"] = config
+
+        if inspect.iscoroutinefunction(self.func):
+            return await self.func(**kwargs)
+        else:
+            return self.func(**kwargs)
+
+    def invoke(self, args: Any, config: dict | None = None) -> Any:
+        kwargs = {}
+        if isinstance(args, dict):
+            kwargs.update(args)
+        if self._accepts_config:
+            kwargs["config"] = config
+
+        if inspect.iscoroutinefunction(self.func):
+            raise RuntimeError("Cannot invoke coroutine synchronously")
+        return self.func(**kwargs)
+
+    def __call__(self, *args, **kwargs):
+        return self.func(*args, **kwargs)
 
 
 def evoloop_tool(
@@ -82,7 +139,6 @@ def evoloop_tool(
     """
     Decorator that applies standard EvoLoop tool behaviors.
     """
-    # Build config from legacy kwargs when not provided explicitly
     if config is None:
         config = EvoLoopToolConfig(
             is_state_mutating=is_state_mutating,
@@ -97,12 +153,11 @@ def evoloop_tool(
         )
 
     def decorator(func):
-        # 1. Permission check logic
         async def _check_permission(func_name, input_data):
             if config.required_benefit:
-                from app.core.context.manager import ContextManager
-                from app.services.benefit_service import benefit_service
+                from app.core.benefits import create_benefit_error_detail, benefit_service
                 from app.core.config import settings
+                from app.core.context.manager import ContextManager
 
                 ctx = ContextManager.current()
                 if ctx.member_id:
@@ -111,7 +166,6 @@ def evoloop_tool(
                             ctx.member_id, config.required_benefit
                         )
                         if not has_benefit:
-                            from app.api.deps import create_benefit_error_detail
                             error_detail = create_benefit_error_detail(config.required_benefit)
                             display_name = config.get_display_name(func_name, args=input_data)
                             return ToolResult(
@@ -119,11 +173,10 @@ def evoloop_tool(
                                 meta={"status": "error", "error": "permission_denied"},
                                 display_name=display_name
                             )
-                    except Exception:
+                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                         if not settings.EMBEDDED_MODE:
                             raise
                 elif not settings.EMBEDDED_MODE:
-                    from app.api.deps import create_benefit_error_detail
                     error_detail = create_benefit_error_detail(config.required_benefit)
                     display_name = config.get_display_name(func_name, args=input_data)
                     return ToolResult(
@@ -133,33 +186,29 @@ def evoloop_tool(
                     )
             return None
 
-        # 2. Result processing logic (Standardization)
         def _process_result(result, func_name, input_data):
             result_meta = {}
 
-            # Handle (content, meta) tuple
             if isinstance(result, tuple) and len(result) == 2:
                 content, meta = result
                 if isinstance(meta, dict):
                     result_meta = meta
                 result = content
 
-            # Extract meta from dict/model if not explicitly provided
             if not result_meta:
                 if isinstance(result, dict):
                     for key in ["count", "id", "status", "path", "target"]:
                         if key in result:
                             result_meta[key] = result[key]
-                elif hasattr(result, "model_dump"): # Pydantic v2
+                elif hasattr(result, "model_dump"):
                     try:
                         data = result.model_dump()
                         for key in ["count", "id", "status", "path", "target"]:
                             if key in data:
                                 result_meta[key] = data[key]
-                    except Exception:
-                        pass
+                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                        logger.debug("Suppressed error: %s", e, exc_info=True)
 
-            # Automatic Serialization to JSON
             if not isinstance(result, str):
                 if hasattr(result, "model_dump_json"):
                     result = result.model_dump_json()
@@ -168,7 +217,6 @@ def evoloop_tool(
                 else:
                     result = str(result)
 
-            # Render display_name and Wrap in ToolResult
             display_name = config.get_display_name(func_name, args={**input_data, **result_meta})
 
             return ToolResult(result, meta=result_meta, display_name=display_name)
@@ -176,10 +224,7 @@ def evoloop_tool(
         if asyncio.iscoroutinefunction(func):
             @functools.wraps(func)
             async def wrapper(*args_f, **kwargs_f):
-                # 提取 input_data 用于 display_name 渲染
                 input_data = {k: v for k, v in kwargs_f.items() if k != "config" and not k.startswith("_")}
-                
-                # Check permission
                 perm_error = await _check_permission(func.__name__, input_data)
                 if perm_error:
                     return perm_error
@@ -187,7 +232,7 @@ def evoloop_tool(
                 try:
                     result = await func(*args_f, **kwargs_f)
                     return _process_result(result, func.__name__, input_data)
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     display_name = config.get_display_name(func.__name__, args=input_data)
                     return ToolResult(f"Error: {str(e)}", meta={"status": "error", "error": str(e)}, display_name=display_name)
         else:
@@ -197,19 +242,19 @@ def evoloop_tool(
                 try:
                     result = func(*args_f, **kwargs_f)
                     return _process_result(result, func.__name__, input_data)
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     display_name = config.get_display_name(func.__name__, args=input_data)
                     return ToolResult(f"Error: {str(e)}", meta={"status": "error", "error": str(e)}, display_name=display_name)
 
-        # Mark for Auto-Discovery on the wrapper function
         wrapper.is_evoloop_active = True
         wrapper.evoloop_module = func.__module__
-        # Apply LangChain's @tool (passing through any arguments)
-        tool_instance = langchain_tool(*args, **kwargs)(wrapper)
 
-        # Inject EvoLoop metadata for engine orchestration
-        if tool_instance.metadata is None:
-            tool_instance.metadata = {}
+        tool_instance = EvoLoopTool(
+            wrapper,
+            name=kwargs.get("name"),
+            description=kwargs.get("description"),
+            args_schema=kwargs.get("args_schema")
+        )
 
         tool_instance.metadata["is_state_mutating"] = config.is_state_mutating
         tool_instance.metadata["affected_path_keys"] = config.affected_path_keys
@@ -219,18 +264,15 @@ def evoloop_tool(
         tool_instance.metadata["is_hidden"] = config.is_hidden
         tool_instance.metadata["is_hitl"] = config.is_hitl
 
-        # Enable error handling to return validation errors as text to the Agent
-        # Note: HITL tools should set handle_tool_error=False to allow interrupt exceptions to propagate
         tool_instance.handle_tool_error = config.handle_tool_error
 
         return tool_instance
 
-    # Handle both @evoloop_tool and @evoloop_tool(...)
     if len(args) == 1 and callable(args[0]):
-        # Used as @evoloop_tool
         func = args[0]
         args = ()
         return decorator(func)
     else:
-        # Used as @evoloop_tool(...)
         return decorator
+# Marker for arguments injected dynamically by the agent runtime
+InjectedToolArg = object

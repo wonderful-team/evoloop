@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from neo4j import AsyncGraphDatabase
+
 from app.infrastructure.database.graph.driver import IGraphDriver
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ class Neo4jDriver(IGraphDriver):
         try:
             await self._driver.verify_connectivity()
             return True
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Neo4j connectivity check failed: {e}")
             return False
 

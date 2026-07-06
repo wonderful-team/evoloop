@@ -14,10 +14,11 @@ from sqlalchemy import select, update
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.evocloud.schemas import SyncConversation, SyncMessage
-from app.infrastructure.database.sql.database import get_db_session
+from app.infrastructure.database import session_scope
 from app.infrastructure.queue.factory import shared_task
 from app.models import Conversation as ConversationModel
 from app.models import Message as MessageModel
+from app.utils.time import ts_from_dt
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +139,7 @@ async def full_sync_task(device_key: str, data: dict) -> dict:
         )
 
         # Update sync status for everything
-        async with get_db_session() as db:
+        async with session_scope() as db:
             thread_ids = [c.get("id") for c in conversations if c.get("id")]
             if thread_ids:
                 await db.execute(
@@ -158,7 +159,7 @@ async def full_sync_task(device_key: str, data: dict) -> dict:
 
         return {"code": 0, "data": {"conversations": len(conversations), "messages": total_synced}}
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         err_str = str(e).lower()
         if any(kw in err_str for kw in ("connect", "unreachable", "timeout", "socket", "network")):
             logger.warning(f"[SyncTask] Cloud unreachable during full sync (device={device_key}). Skipping noisy retry.")
@@ -189,7 +190,7 @@ async def incremental_sync_task(device_key: str, thread_ids: list[str]) -> dict:
     results = {"synced": 0, "failed": 0}
 
     try:
-        async with get_db_session() as db:
+        async with session_scope() as db:
             for thread_id in thread_ids:
                 try:
                     result = await db.execute(
@@ -204,8 +205,8 @@ async def incremental_sync_task(device_key: str, thread_ids: list[str]) -> dict:
                             id=str(conv.id),
                             project_id=conv.project_id if conv.project_id is not None else DEFAULT_PROJECT_ID,
                             title=conv.title or "新会话",
-                            created_at=int(conv.created_at.timestamp()) if conv.created_at else 0,
-                            updated_at=int(conv.updated_at.timestamp()) if conv.updated_at else 0,
+                            created_at=ts_from_dt(conv.created_at),
+                            updated_at=ts_from_dt(conv.updated_at),
                         )
 
                         api_result = await api.sync_conversation(device_key, conv_data.model_dump())
@@ -237,7 +238,7 @@ async def incremental_sync_task(device_key: str, thread_ids: list[str]) -> dict:
                                 sm = SyncMessage(
                                     id=m.id, thread_id=m.thread_id, project_id=m.project_id if m.project_id is not None else DEFAULT_PROJECT_ID,
                                     role=m.role, content=m.content, thinking=m.thinking,
-                                    created_at=int(m.created_at.timestamp()) if m.created_at else 0,
+                                    created_at=ts_from_dt(m.created_at),
                                     sequence_number=m.sequence_number or 0,
                                     checkpoint_id=m.checkpoint_id or "",
                                     tool_calls=m.tool_calls,
@@ -271,7 +272,7 @@ async def incremental_sync_task(device_key: str, thread_ids: list[str]) -> dict:
                                 f"{api_result.get('message')}"
                             )
 
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     results["failed"] += 1
                     logger.error(f"[SyncTask] Error syncing thread {thread_id}: {e}")
 
@@ -281,7 +282,7 @@ async def incremental_sync_task(device_key: str, thread_ids: list[str]) -> dict:
         )
         return {"code": 0, "data": results}
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[SyncTask] Exception in incremental sync: {e}")
         raise
 
@@ -297,7 +298,7 @@ async def sync_device_info_task(device_key: str, info: dict) -> dict:
 
     Args:
         device_key: Server-issued device identifier.
-        info: Metadata fields such as device_name, device_type, os_info.
+        info: Metadata fields such as device_name, device_description, device_type, os_info.
 
     Returns:
         API response result.
@@ -322,7 +323,7 @@ async def sync_device_info_task(device_key: str, info: dict) -> dict:
         )
         return {"code": 0, "data": info}
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         err_str = str(e).lower()
         if any(kw in err_str for kw in ("connect", "unreachable", "timeout", "socket", "network")):
             logger.warning(

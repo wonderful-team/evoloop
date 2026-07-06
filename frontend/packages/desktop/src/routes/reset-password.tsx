@@ -9,6 +9,7 @@ import {
 import { LoadingButton } from "@evoloop/shared/components/ui/loading-button"
 import { PasswordInput } from "@evoloop/shared/components/ui/password-input"
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
+import i18n from "@evoloop/shared/i18n"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation } from "@tanstack/react-query"
 import {
@@ -61,7 +62,7 @@ export const Route = createFileRoute("/reset-password")({
   head: () => ({
     meta: [
       {
-        title: "Reset Password - FastAPI Cloud",
+        title: i18n.t("auth.resetPassword.pageTitle"),
       },
     ],
   }),

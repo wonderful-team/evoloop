@@ -72,7 +72,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     let normalized = newStatus
     if (["done", "failed", "cancelled"].includes(newStatus)) normalized = "idle"
     else if (newStatus === "stopping") normalized = "stopped"
-    else if (["waiting_human", "human_interrupt", "interrupted"].includes(newStatus))
+    else if (
+      ["waiting_human", "human_interrupt", "interrupted"].includes(newStatus)
+    )
       normalized = "interrupted"
 
     let humanReq = data.human_request || null
@@ -181,11 +183,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     }),
 
   _setLLMAuthError: (ev) => {
-    toast.error(ev.title || i18n.t("chat.llmAuthError", "LLM API 认证失败"), {
-      description:
-        ev.message || i18n.t("chat.llmAuthErrorDesc", "API 密钥无效或已过期"),
+    toast.error(ev.title || i18n.t("chat.llmAuthError"), {
+      description: ev.message || i18n.t("chat.llmAuthErrorDesc"),
       action: {
-        label: i18n.t("chat.goToSettings", "去设置"),
+        label: i18n.t("chat.goToSettings"),
         onClick: () => {
           window.location.hash = "#/settings"
         },
@@ -211,7 +212,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         ? { ...state.agentState, task_status: ev.message }
         : {
             mode: "PLANNING",
-            task_name: "Agent Running",
+            task_name: i18n.t("chat.agentRunning"),
             task_status: ev.message,
           },
     })),
@@ -290,7 +291,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       })
       set({ status: "stopped" })
     } catch (_e) {
-      toast.error("Failed to stop agent")
+      toast.error(i18n.t("chat.errors.stopAgentFailed"))
     }
   },
 
@@ -303,7 +304,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       })
       set({ status: "running", humanRequest: null })
     } catch (_e) {
-      toast.error("Failed to resume agent")
+      toast.error(i18n.t("chat.errors.resumeAgentFailed"))
     }
   },
 
@@ -317,7 +318,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       set({ humanRequest: null, status: "idle" })
       useChatStore.getState()._clearHumanRequest()
     } catch (_e) {
-      toast.error("Failed to cancel request")
+      toast.error(i18n.t("chat.errors.cancelRequestFailed"))
     }
   },
 }))

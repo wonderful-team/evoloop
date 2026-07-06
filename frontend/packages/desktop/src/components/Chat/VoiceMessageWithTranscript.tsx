@@ -78,7 +78,7 @@ export function VoiceMessageWithTranscript({
             )}
             onClick={handleTranscribe}
           >
-            {t("chat.voice.transcribe", "转文字")}
+            {t("chat.voice.transcribe")}
           </Button>
         )}
 
@@ -91,9 +91,7 @@ export function VoiceMessageWithTranscript({
             )}
           >
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            <span className="text-xs">
-              {t("chat.voice.transcribing", "转文字中...")}
-            </span>
+            <span className="text-xs">{t("chat.voice.transcribing")}</span>
           </div>
         )}
 
@@ -122,7 +120,7 @@ export function VoiceMessageWithTranscript({
                       : "text-muted-foreground",
                   )}
                 >
-                  {t("chat.voice.expand", "展开")}
+                  {t("chat.voice.expand")}
                 </span>
               )}
             </button>
@@ -142,7 +140,7 @@ export function VoiceMessageWithTranscript({
                   e.stopPropagation()
                   handleTranscribe()
                 }}
-                title={t("chat.voice.retranscribe", "重新转文字")}
+                title={t("chat.voice.retranscribe")}
               >
                 <RotateCcw className="w-3 h-3" />
               </Button>
@@ -173,7 +171,7 @@ export function TranscriptionBadge({
         onClick={onClick}
         className="text-xs text-muted-foreground hover:text-foreground underline"
       >
-        {t("chat.voice.transcribe", "转文字")}
+        {t("chat.voice.transcribe")}
       </button>
     )
   }
@@ -182,7 +180,7 @@ export function TranscriptionBadge({
     return (
       <span className="text-xs text-muted-foreground flex items-center gap-1">
         <Loader2 className="w-3 h-3 animate-spin" />
-        {t("chat.voice.transcribing", "转文字中...")}
+        {t("chat.voice.transcribing")}
       </span>
     )
   }
@@ -190,7 +188,7 @@ export function TranscriptionBadge({
   if (status === "done") {
     return (
       <span className="text-xs text-green-600">
-        {t("chat.voice.transcribed", "已转文字")}
+        {t("chat.voice.transcribed")}
       </span>
     )
   }
@@ -202,7 +200,7 @@ export function TranscriptionBadge({
         onClick={onClick}
         className="text-xs text-red-500 hover:text-red-600 underline"
       >
-        {t("chat.voice.transcribeFailed", "转文字失败，重试")}
+        {t("chat.voice.transcribeFailed")}
       </button>
     )
   }

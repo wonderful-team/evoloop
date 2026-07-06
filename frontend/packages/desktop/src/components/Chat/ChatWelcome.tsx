@@ -4,7 +4,7 @@
 import { cn } from "@evoloop/shared/lib/utils"
 import { useNavigate } from "@tanstack/react-router"
 import { motion } from "framer-motion"
-import { ArrowRight, Brain, LayoutGrid, ListTodo, Wand2 } from "lucide-react"
+import { ArrowRight, LayoutGrid, ListTodo, Wand2 } from "lucide-react"
 import type React from "react"
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -747,13 +747,6 @@ export const ChatWelcome: React.FC = () => {
               label: t("chat.welcome.nav.todos"),
               desc: t("chat.welcome.nav.todosDesc"),
               color: "text-emerald-500",
-            },
-            {
-              to: "/knowledge",
-              icon: <Brain size={16} />,
-              label: t("chat.welcome.nav.knowledge"),
-              desc: t("chat.welcome.nav.knowledgeDesc"),
-              color: "text-amber-500",
             },
             {
               to: "/learning",

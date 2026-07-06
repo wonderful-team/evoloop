@@ -17,15 +17,15 @@ export function BenefitRequirementDialog() {
   if (!info) return null
 
   const planKey = PLAN_KEY_MAP[info.requiredPlan || ""] || info.requiredPlan
-  const planName = t(`subscription.plans.${planKey}`, {
-    defaultValue: info.requiredPlan || t("subscription.plans.higher"),
-  })
-  const benefitName = t(`subscription.benefits.${info.feature}`, {
-    defaultValue:
-      info.featureName ||
-      info.feature ||
-      t("subscription.errors.featureFallback"),
-  })
+  const planName = t([
+    `subscription.plans.${planKey}`,
+    "subscription.plans.higher",
+  ] as any)
+  const benefitName = t([
+    `subscription.benefits.${info.feature}`,
+    ...(info.featureName ? [info.featureName] : []),
+    "subscription.errors.featureFallback",
+  ] as any)
 
   const handleUpgrade = () => {
     window.location.hash = "#/subscription"

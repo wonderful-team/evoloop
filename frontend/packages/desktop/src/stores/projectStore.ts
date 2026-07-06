@@ -1,3 +1,4 @@
+import i18n from "@evoloop/shared/i18n"
 import { create } from "zustand"
 import { ProjectsService } from "@/client"
 
@@ -44,11 +45,11 @@ export interface TaskStats {
 export const GLOBAL_PROJECT: Project = {
   id: 0,
   name: "global",
-  description: "Cross-project conversations and general Q&A",
+  description: i18n.t("projects.global.description"),
   path: "",
   project_id: 0,
   project_name: "global",
-  project_desc: "Cross-project conversations and general Q&A",
+  project_desc: i18n.t("projects.global.description"),
   owner_member_id: 0,
   owner_member_name: "",
   status: 1,

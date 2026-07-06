@@ -1,4 +1,5 @@
 from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
@@ -43,7 +44,7 @@ def add_credential(data: CredentialCreate) -> dict[str, Any]:
             description=data.description
         )
         return {"success": True, "identifier": credential.identifier}
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/credentials/{identifier}", dependencies=[Depends(get_current_user)])
@@ -58,5 +59,5 @@ def delete_credential(identifier: str, project_id: int | None = Query(None)) -> 
         return {"success": True}
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         raise HTTPException(status_code=500, detail=str(e))

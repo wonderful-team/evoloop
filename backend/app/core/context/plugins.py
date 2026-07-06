@@ -85,7 +85,7 @@ class ContextPluginRegistry:
         for plugin in self._plugins:
             try:
                 plugin.hydrate(ctx)
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"Error executing ContextPlugin {plugin.__class__.__name__}: {e}")
 
         # Cache the result

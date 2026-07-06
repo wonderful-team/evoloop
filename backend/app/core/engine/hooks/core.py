@@ -38,7 +38,7 @@ import re
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from enum import Enum, auto
-from typing import Any, overload
+from typing import Any, cast, overload
 
 from app.core.engine.hooks.schemas import HookContext, HookResult
 
@@ -255,7 +255,7 @@ class HookSystem:
                 if result.modified_context:
                     context = result.modified_context
 
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"[HookSystem] Handler {handler.__name__} failed: {e}")
                 if event == HookEvent.ERROR:
                     # Don't recurse on error
@@ -306,7 +306,7 @@ class HookSystem:
 
         # Ensure result is HookResult
         if not isinstance(result, HookResult):
-            result = HookResult(success=True, data=result if result else {})  # type: ignore[arg-type]
+            result = HookResult(success=True, data=cast(dict, result if result else {}))
 
         return result
 

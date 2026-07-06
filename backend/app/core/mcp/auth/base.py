@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 
-from app.core.mcp.schemas.auth import AuthToken, AuthConfig
+from app.core.mcp.schemas.auth import AuthConfig, AuthToken
 
 
 class AuthMethod(str, Enum):

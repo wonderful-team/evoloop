@@ -5,15 +5,20 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.schemas.account import (
-    MobileCodeRequest, MobileLoginRequest, MobileCodeResponse, WeChatConfigResponse,
-    WeChatQRResponse, WeChatStatusResponse, LogoutResponse,
+    LogoutResponse,
+    MobileCodeRequest,
+    MobileCodeResponse,
+    MobileLoginRequest,
+    WeChatConfigResponse,
+    WeChatQRResponse,
+    WeChatStatusResponse,
 )
-from app.core.evocloud import evocloud_manager
+from app.core.config import settings
 from app.core.events.publishers import publish_user_logged_in, publish_user_logged_out
+from app.core.evocloud import evocloud_manager
 from app.core.identity import identity_service
 from app.models import Token
 from app.models.schemas.auth import EvoCloudProxyResponse
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +134,7 @@ async def get_wechat_config() -> WeChatConfigResponse:
         is_configured = result.get("code", -1) == 0
 
         return WeChatConfigResponse(enabled=is_configured, app_id=None)
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.warning(f"Failed to check WeChat config: {e}")
         return WeChatConfigResponse(enabled=False, app_id=None)
 
@@ -158,7 +163,7 @@ async def generate_qr_code() -> WeChatQRResponse:
         )
     except HTTPException:
         raise
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to generate QR code: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -199,7 +204,7 @@ async def check_wechat_login_status(
                 status="pending",
                 message="Waiting for scan",
             )
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to check login status: {e}")
         return WeChatStatusResponse(status="error", message="Failed to check status")
 
@@ -245,7 +250,7 @@ async def wechat_direct_login(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"WeChat login failed: {e}")
         raise HTTPException(status_code=500, detail=f"Login failed: {str(e)}")
 
@@ -269,7 +274,7 @@ async def wechat_callback(
             data=body,
         )
         return result
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to forward callback: {e}")
         return {"message": "OK"}
 

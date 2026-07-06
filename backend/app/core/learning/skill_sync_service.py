@@ -13,7 +13,7 @@ import threading
 from app.core.config import settings
 from app.core.learning.skill_importer import SkillImporter
 from app.core.learning.synthesizer_utils import export_skill_to_filesystem
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.models.learning import LearnedSkill
 
 logger = logging.getLogger(__name__)
@@ -80,7 +80,7 @@ class SkillSyncService:
                         db_skill.resource_path = skill_dir
 
             return path
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[Sync] Failed to export skill {skill_id} to file: {e}")
             return None
         finally:
@@ -133,7 +133,7 @@ class SkillSyncService:
                             return True
 
             return False
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[Sync] Failed to delete skill file for {skill_id}: {e}")
             return False
         finally:
@@ -170,7 +170,7 @@ class SkillSyncService:
                 await skill_discovery.reload()
 
             return success
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[Sync] Failed to import skill from {skill_md_path}: {e}")
             return False
         finally:
@@ -226,7 +226,7 @@ class SkillSyncService:
 
             from app.core.learning.discovery import skill_discovery
             await skill_discovery.reload()
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[Sync] Failed to delete skill by path {skill_md_path}: {e}")
             return False
         finally:

@@ -1,10 +1,12 @@
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useTranslation } from "react-i18next"
 import { MemberService } from "@/client/sdk.gen"
 
 type Platform = "mobile" | "desktop"
 
 export const useMemberCancellation = (platform: Platform = "desktop") => {
+  const { t } = useTranslation()
   const { showSuccessToast, showErrorToast } = useCustomToast()
   const queryClient = useQueryClient()
 
@@ -26,16 +28,16 @@ export const useMemberCancellation = (platform: Platform = "desktop") => {
     mutationFn: api.apply,
     onSuccess: (res: any) => {
       if (res?.code >= 0 || res?.success) {
-        showSuccessToast("Cancellation applied successfully.")
+        showSuccessToast(t("memberCancellation.applySuccess"))
         queryClient.invalidateQueries({ queryKey: ["memberCancellation"] })
         // Force logout might be needed depending on business logic,
         // but usually cancellation takes time (audit).
       } else {
-        showErrorToast(res?.message || "Failed to apply.")
+        showErrorToast(res?.message || t("memberCancellation.applyFailed"))
       }
     },
     onError: (err: any) => {
-      showErrorToast(err.message || "Error applying cancellation.")
+      showErrorToast(err.message || t("memberCancellation.applyError"))
     },
   })
 
@@ -43,14 +45,14 @@ export const useMemberCancellation = (platform: Platform = "desktop") => {
     mutationFn: api.cancel,
     onSuccess: (res: any) => {
       if (res?.code >= 0 || res?.success) {
-        showSuccessToast("Cancellation request withdrawn.")
+        showSuccessToast(t("memberCancellation.withdrawSuccess"))
         queryClient.invalidateQueries({ queryKey: ["memberCancellation"] })
       } else {
-        showErrorToast(res?.message || "Failed to withdraw.")
+        showErrorToast(res?.message || t("memberCancellation.withdrawFailed"))
       }
     },
     onError: (err: any) => {
-      showErrorToast(err.message || "Error withdrawing cancellation.")
+      showErrorToast(err.message || t("memberCancellation.withdrawError"))
     },
   })
 

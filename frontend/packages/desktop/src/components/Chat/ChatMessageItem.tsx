@@ -30,6 +30,7 @@ export interface MessageReference {
   id: string
   type:
     | "file"
+    | "directory"
     | "image"
     | "audio"
     | "message"
@@ -109,7 +110,11 @@ interface ChatMessageItemProps {
   msg: Message
   isGrouped?: boolean
   showAvatar?: boolean
-  onAddToMemory?: (text: string, messageId: string | number, isRemembered?: boolean) => void
+  onAddToMemory?: (
+    text: string,
+    messageId: string | number,
+    isRemembered?: boolean,
+  ) => void
   onRewind?: (msg: Message) => void
   onRetry?: (msg: Message) => void
   onQuote?: () => void
@@ -161,7 +166,10 @@ const ChatMessageItem = memo(
     }
 
     // Hide HITL tool messages
-    if (msg.role === "tool" && (msg.tool_name === "ask_human" || msg.tool_name === "ask_confirm")) {
+    if (
+      msg.role === "tool" &&
+      (msg.tool_name === "ask_human" || msg.tool_name === "ask_confirm")
+    ) {
       return null
     }
 
@@ -183,9 +191,15 @@ const ChatMessageItem = memo(
           <div className="w-1.5 h-1.5 rounded-full bg-primary/50 shrink-0" />
           <span
             className="truncate flex-1"
-            title={msg.tool_meta?.display_name || msg.tool_name || "TOOL"}
+            title={
+              msg.tool_meta?.display_name ||
+              msg.tool_name ||
+              t("chat.toolMessage.fallbackName")
+            }
           >
-            {msg.tool_meta?.display_name || msg.tool_name || "TOOL"}
+            {msg.tool_meta?.display_name ||
+              msg.tool_name ||
+              t("chat.toolMessage.fallbackName")}
           </span>
           {msg.status === "running" && (
             <Loader2 className="h-3 w-3 animate-spin text-primary ml-2 shrink-0" />
@@ -195,12 +209,32 @@ const ChatMessageItem = memo(
               variant="secondary"
               className="h-4 px-1.5 text-[9px] bg-primary/10 text-primary border-none shrink-0 ml-auto"
             >
-              {msg.changeset_count}{" "}
-              {t("chat.interface.files", { defaultValue: "FILES" })}
+              {msg.changeset_count} {t("chat.interface.files")}
             </Badge>
           )}
         </motion.div>
       )
+    }
+
+    const handleReferenceClick = (ref: MessageReference) => {
+      if (ref.type === "changeset") {
+        onViewChangeset?.(msg.id)
+        return
+      }
+
+      const preview = resolveReferencePreview(ref)
+      if (preview) {
+        // Dispatch locate event for file tree auto-expansion
+        window.dispatchEvent(
+          new CustomEvent("locate-file", {
+            detail: { path: preview.path },
+          }),
+        )
+        // Preview if it's a file
+        if (ref.type !== "directory") {
+          previewFile(preview.path, preview.name)
+        }
+      }
     }
 
     // 1. User Message Layout (Ultra compact: no bottom line, no timestamp, actions folded in absolute hover pill)
@@ -211,7 +245,11 @@ const ChatMessageItem = memo(
           data-run-id={msg.run_id}
         >
           <MessageContent content={msg.content} isUser={isUser} />
-          <MessageReferences references={msg.references || []} isUser={true} />
+          <MessageReferences
+            references={msg.references || []}
+            isUser={true}
+            onReferenceClick={handleReferenceClick}
+          />
 
           {/* Absolute Hover Action Pill (Folded into top-right corner on hover, saving vertical space) */}
           <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/90 backdrop-blur-sm px-1 py-0.5 rounded-md shadow-sm border border-border/40 z-10">
@@ -248,10 +286,18 @@ const ChatMessageItem = memo(
                     ? "text-primary fill-primary"
                     : "text-muted-foreground/80 hover:text-foreground"
                 }`}
-                onClick={() => onAddToMemory(actionContent, msg.id, msg.is_remembered)}
-                title={msg.is_remembered ? t("chat.interface.forget") : t("chat.interface.memorize")}
+                onClick={() =>
+                  onAddToMemory(actionContent, msg.id, msg.is_remembered)
+                }
+                title={
+                  msg.is_remembered
+                    ? t("chat.interface.forget")
+                    : t("chat.interface.memorize")
+                }
               >
-                <Brain className={`h-3 w-3 ${msg.is_remembered ? "fill-current" : ""}`} />
+                <Brain
+                  className={`h-3 w-3 ${msg.is_remembered ? "fill-current" : ""}`}
+                />
               </Button>
             )}
             {/* Rewind */}
@@ -306,12 +352,8 @@ const ChatMessageItem = memo(
                 <Brain className="h-3 w-3 text-primary/70" />
                 <span>
                   {!msg.content && isCurrentlyStreaming
-                    ? t("chat.interface.thinking", {
-                        defaultValue: "Thinking...",
-                      })
-                    : t("chat.interface.thinkingProcess", {
-                        defaultValue: "Worked for thought",
-                      })}
+                    ? t("chat.interface.thinking")
+                    : t("chat.interface.thinkingProcess")}
                 </span>
                 {!msg.content && isCurrentlyStreaming ? (
                   <Loader2 className="h-3 w-3 animate-spin text-muted-foreground/50" />
@@ -342,17 +384,7 @@ const ChatMessageItem = memo(
               references={(msg.references || []).filter(
                 (r) => r.type !== "artifact",
               )}
-              onReferenceClick={(ref) => {
-                if (ref.type === "changeset") {
-                  onViewChangeset?.(msg.id)
-                  return
-                }
-
-                const preview = resolveReferencePreview(ref)
-                if (preview) {
-                  previewFile(preview.path, preview.name)
-                }
-              }}
+              onReferenceClick={handleReferenceClick}
             />
           </div>
         )}
@@ -423,10 +455,18 @@ const ChatMessageItem = memo(
                       ? "text-primary fill-primary"
                       : "text-muted-foreground/70 hover:text-foreground"
                   }`}
-                  onClick={() => onAddToMemory(actionContent, msg.id, msg.is_remembered)}
-                  title={msg.is_remembered ? t("chat.interface.forget") : t("chat.interface.memorize")}
+                  onClick={() =>
+                    onAddToMemory(actionContent, msg.id, msg.is_remembered)
+                  }
+                  title={
+                    msg.is_remembered
+                      ? t("chat.interface.forget")
+                      : t("chat.interface.memorize")
+                  }
                 >
-                  <Brain className={`h-3 w-3 ${msg.is_remembered ? "fill-current" : ""}`} />
+                  <Brain
+                    className={`h-3 w-3 ${msg.is_remembered ? "fill-current" : ""}`}
+                  />
                 </Button>
               )}
             </div>

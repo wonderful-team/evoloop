@@ -338,13 +338,13 @@ export function VoiceControlSettings() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="paraformer-zh">
-                    paraformer-zh (Standard)
+                    {t("settings.voice.sttModels.paraformer-zh")}
                   </SelectItem>
                   <SelectItem value="paraformer-zh-plus">
-                    paraformer-zh-plus (Enhanced)
+                    {t("settings.voice.sttModels.paraformer-zh-plus")}
                   </SelectItem>
                   <SelectItem value="paraformer-zh-streaming">
-                    paraformer-zh-streaming (Streaming)
+                    {t("settings.voice.sttModels.paraformer-zh-streaming")}
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -370,13 +370,13 @@ export function VoiceControlSettings() {
                   <SelectItem value="cpu">
                     <div className="flex items-center gap-2">
                       <Cpu className="h-4 w-4" />
-                      <span>CPU</span>
+                      <span>{t("settings.voice.device.cpu")}</span>
                     </div>
                   </SelectItem>
                   <SelectItem value="cuda">
                     <div className="flex items-center gap-2">
                       <Zap className="h-4 w-4 text-amber-500" />
-                      <span>CUDA (NVIDIA GPU)</span>
+                      <span>{t("settings.voice.device.cuda")}</span>
                     </div>
                   </SelectItem>
                 </SelectContent>
@@ -631,7 +631,7 @@ export function VoiceControlSettings() {
                   {tempTriggerMode === "doubleClick"
                     ? tempDoubleClickInterval
                     : tempShortcutDuration}
-                  ms
+                  {t("common.ms")}
                 </span>
               </div>
               <input

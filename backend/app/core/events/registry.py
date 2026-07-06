@@ -57,3 +57,7 @@ class SystemEventType(str, Enum):
 # - ProjectEventType -> app.core.project.event.types
 # - IndexingEventType -> app.domain.codebase.event.types
 # - FileSystemEventType -> app.core.file.event.types
+# - LearningEventType -> app.core.learning.event.types
+# - ToolEventType -> app.core.tools.event.types
+# - TodoEventType -> app.domain.todo.event.types
+# - VisionEventType -> app.infrastructure.vision.event.types

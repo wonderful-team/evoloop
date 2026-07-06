@@ -1,20 +1,23 @@
-import json
+import asyncio
 import logging
 import os
 import re
 import shutil
 import time
 
-from sqlalchemy import func, select, text, desc
+from sqlalchemy import desc, func, select
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.learning.trace_recorder import sync_thread_to_graph
 from app.infrastructure.config import SystemConfigService
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.infrastructure.queue.factory import shared_task
 from app.models import FileOperation, Message
+from app.utils.pydantic_helpers import (
+    clean_none_values,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -108,9 +111,10 @@ async def persist_file_operation_task(
     tool_call_id: str | None = None,
 ):
     """Background task wrapper."""
+    from sqlalchemy.orm import selectinload
+
     from app.core.engine.message.mapper import BlockMapper
     from app.core.engine.message.publisher import MessagePublisher
-    from sqlalchemy.orm import selectinload
 
     await _persist_file_operation_task(
         thread_id=thread_id,
@@ -129,7 +133,7 @@ async def persist_file_operation_task(
         stmt = select(Message).where(Message.id == message_id).options(selectinload(Message.references))
         result = await session.execute(stmt)
         db_msg = result.scalar_one_or_none()
-        
+
         if db_msg:
             block = BlockMapper.from_db(db_msg)
             publisher = MessagePublisher(thread_id=thread_id)
@@ -143,7 +147,7 @@ async def persist_file_operation_task(
     try:
         publisher = MessagePublisher(thread_id=thread_id)
         await publisher.publish_custom_event("changeset.updated", {"message_id": message_id, "file_path": file_path, "operation": operation})
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.warning(f"[Celery] Failed to publish changeset updated event: {e}")
 
 
@@ -159,7 +163,7 @@ async def harvest_concepts_task(concepts_data: list[dict], project_id: int):
     from app.core.memory.lifespan import MemoryLifespanManager
 
     logger.info(f"[Celery] Harvesting {len(concepts_data)} concepts...")
-    
+
     # Ensure memory is initialized once per batch
     if not MemoryLifespanManager.is_initialized():
         await MemoryLifespanManager.ainitialize()
@@ -179,7 +183,9 @@ async def harvest_concepts_task(concepts_data: list[dict], project_id: int):
                 pkg_match = re.search(r"\(([^)]+)\)", name)
                 bundle_id = pkg_match.group(1) if pkg_match else "unknown"
 
-                from app.core.environment.event.publishers import publish_ui_tree_observed
+                from app.core.environment.event.publishers import (
+                    publish_ui_tree_observed,
+                )
                 await publish_ui_tree_observed(
                     platform="android",
                     bundle_id=bundle_id,
@@ -240,7 +246,7 @@ async def record_episode_task(
                 count_res = await db.execute(stmt)
                 event_count = count_res.scalar()
 
-            if event_count and event_count >= 3: 
+            if event_count and event_count >= 3:
                 logger.info(f"[Celery] 🧬 Auto-triggering skill synthesis for thread {thread_id} ({event_count} events)")
                 synthesizer = WorkflowSynthesizer(thread_id=thread_id)
                 result = await synthesizer.synthesize()
@@ -250,30 +256,6 @@ async def record_episode_task(
                     logger.info("[Celery] ⏩ Skill synthesis skipped (no unique pattern found)")
     finally:
         ContextManager.reset(token)
-
-
-@shared_task(name="engine_prune_checkpoints")
-async def prune_checkpoints_task(keep_days: int = 7):
-    """
-    Background task to prune old LangGraph checkpoints.
-    """
-    is_sqlite = settings.EMBEDDED_MODE or "sqlite" in settings.SQLALCHEMY_DATABASE_URI
-
-    async with session_scope() as session:
-        if is_sqlite:
-            # SQLite pruning logic
-            await session.execute(text("DELETE FROM writes WHERE thread_id NOT IN (SELECT thread_id FROM checkpoints)"))
-            logger.info("[Celery] Pruned orphaned LangGraph 'writes' in SQLite.")
-        else:
-            # Postgres pruning
-            await session.execute(
-                text("DELETE FROM checkpoint_writes WHERE timestamp < now() - interval ':days day'"),
-                {"days": keep_days}
-            )
-            await session.execute(text("DELETE FROM checkpoints WHERE thread_id NOT IN (SELECT thread_id FROM checkpoint_writes)"))
-            await session.execute(text("DELETE FROM checkpoint_blobs WHERE thread_id NOT IN (SELECT thread_id FROM checkpoints)"))
-
-    logger.info(f"[Celery] Pruned LangGraph checkpoints/writes (Keep: {keep_days} days).")
 
 
 @shared_task(name="engine_cleanup_artifacts")
@@ -299,7 +281,7 @@ def cleanup_artifacts_task(max_age_days: int = 3):
                         os.remove(entry.path)
                     elif entry.is_dir():
                         shutil.rmtree(entry.path)
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(f"Failed to delete artifact {entry.path}: {e}")
 
 
@@ -311,7 +293,6 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
     ctx = EvoContext(project_id=project_id, active_model=model)
     token = ContextManager.set(ctx)
 
-    import subprocess
     from app.infrastructure.config.service import SystemConfigService
     from app.models.schemas.git import GitConceptExtractionResult
 
@@ -322,25 +303,30 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
             return
 
         cmd = ["git", "diff", "HEAD"]
-        process = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=15)
-        diff_text = process.stdout
+        process = await asyncio.create_subprocess_exec(
+            *cmd, cwd=cwd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout_bytes, _ = await asyncio.wait_for(process.communicate(), timeout=15)
+        diff_text = stdout_bytes.decode("utf-8", errors="replace")
         if not diff_text.strip():
             return
-        
+
         if len(diff_text) > 10000:
             diff_text = diff_text[:10000] + "\n...(truncated)"
 
         # 2. Extract
         user_lang = SystemConfigService.get_language_preference()
 
-        from app.utils import render_template
+        from app.utils.template import render_template
         prompt_text = render_template(
             "core/engine/tasks/git_harvest.prompt.j2",
             diff_content=diff_text,
             user_language=user_lang
         )
 
-        from app.core.llm import InternalLLMService
+        from app.infrastructure.llm import InternalLLMService
         model_name = SystemConfigService.get_value("LLM_MODEL")
         result = await InternalLLMService.invoke_structured(
             messages=[{"role": "system", "content": prompt_text}],
@@ -356,7 +342,7 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
             if not MemoryLifespanManager.is_initialized():
                 await MemoryLifespanManager.ainitialize()
             container = MemoryLifespanManager.get_container()
-            
+
             from app.core.memory.schemas import Concept
             for concept in result.concepts:
                 mem_concept = Concept(
@@ -460,7 +446,7 @@ async def run_autonomous_task_execution(task_id: int, project_id: int | None = N
 
         thread_id = f"auton-{task_id}-{int(time.time())}"
 
-        from app.utils import render_template
+        from app.utils.template import render_template
         prompt = render_template(
             "core/engine/tasks/autonomous_task.prompt.j2",
             intent_description=intent_description,
@@ -499,189 +485,8 @@ async def run_autonomous_task_execution(task_id: int, project_id: int | None = N
         await DevicePool.release_device(device_id, task_id=f"task-{task_id}")
 
 
-def resolve_base_type(ann):
-    import typing
-    origin = typing.get_origin(ann) or ann
-    if origin is typing.Union:
-        args = typing.get_args(ann)
-        for arg in args:
-            if arg is not type(None):
-                return typing.get_origin(arg) or arg
-    return origin
-
-
-def _clean_none_values(d: any, schema: type = None) -> any:
-    """
-    递归将字典或列表中的 None 值或类型不匹配的值替换为/强制转换为对应类型的规范值，防止 Pydantic 字段校验失败。
-    """
-    import typing
-    from pydantic import BaseModel
-
-    if schema is None or not isinstance(d, dict) or not issubclass(schema, BaseModel):
-        # 降级兜底逻辑
-        if isinstance(d, dict):
-            return {k: _clean_none_values(v) for k, v in d.items()}
-        elif isinstance(d, list):
-            return [_clean_none_values(x) for x in d]
-        elif d is None:
-            return ""
-        return d
-
-    result = d.copy()
-    for fname, finfo in schema.model_fields.items():
-        if fname not in result:
-            continue
-        val = result[fname]
-        annotation = finfo.annotation
-        
-        # 使用 resolve_base_type 解析出最底层的实际类型（去除 Optional/Union 包装）
-        base_type = resolve_base_type(annotation)
-
-        if val is None:
-            # 根据字段被定义的基本类型返回对应的零值
-            if base_type is bool:
-                result[fname] = False
-            elif base_type is list:
-                result[fname] = []
-            elif base_type is dict:
-                result[fname] = {}
-            elif base_type is int:
-                result[fname] = 0
-            elif base_type is float:
-                result[fname] = 0.0
-            else:
-                result[fname] = ""
-        else:
-            # 类型校验与强力纠偏 (Discipline the data source)
-            if base_type is list:
-                if not isinstance(val, list):
-                    if isinstance(val, str):
-                        if val.strip():
-                            # 尝试对逗号分隔的标签字符串进行切割和清洗
-                            result[fname] = [t.strip() for t in val.split(",") if t.strip()]
-                        else:
-                            result[fname] = []
-                    else:
-                        result[fname] = []
-                else:
-                    # 确保 list 内部所有元素都是 String (如果 annotation 声明了 list[str])
-                    args = typing.get_args(annotation)
-                    if args and args[0] is str:
-                        result[fname] = [str(x) for x in val if x is not None]
-            elif base_type is dict:
-                if not isinstance(val, dict):
-                    result[fname] = {}
-            elif base_type is str:
-                if not isinstance(val, str):
-                    result[fname] = str(val)
-            elif base_type is bool:
-                if not isinstance(val, bool):
-                    if isinstance(val, str):
-                        result[fname] = val.lower() in ("true", "1", "yes")
-                    else:
-                        result[fname] = bool(val)
-            elif base_type is int or base_type is float:
-                if not isinstance(val, (int, float)):
-                    try:
-                        result[fname] = base_type(val)
-                    except (ValueError, TypeError):
-                        result[fname] = 0.0 if base_type is float else 0
-
-        # 递归清理嵌套字典/列表
-        val = result[fname]
-        if isinstance(val, dict):
-            sub_model = None
-            if isinstance(annotation, type) and issubclass(annotation, BaseModel):
-                sub_model = annotation
-            else:
-                args = typing.get_args(annotation)
-                if args:
-                    for arg in args:
-                        if isinstance(arg, type) and issubclass(arg, BaseModel):
-                            sub_model = arg
-                            break
-            if sub_model:
-                result[fname] = _clean_none_values(val, sub_model)
-        elif isinstance(val, list) and val:
-            args = typing.get_args(annotation)
-            sub_model = None
-            if args:
-                arg = args[0]
-                if isinstance(arg, type) and issubclass(arg, BaseModel):
-                    sub_model = arg
-                else:
-                    for sub in typing.get_args(arg):
-                        if isinstance(sub, type) and issubclass(sub, BaseModel):
-                            sub_model = sub
-                            break
-            if sub_model:
-                result[fname] = [_clean_none_values(x, sub_model) if isinstance(x, dict) else x for x in val]
-
-    return result
-
-
-def _distribute_list_to_schema_fields(data: list, schema: type) -> dict:
-    """
-    将一个 list 中的元素按照字段特征分流到 schema 中所有的 list 类型字段中（仅在提取模块内部使用，保证底层解耦）。
-    """
-    import typing
-    from pydantic import BaseModel
-
-    # 1. 查找 schema 中所有列表字段及其元素 model 类型
-    list_fields = {}
-    for fname, finfo in schema.model_fields.items():
-        annotation = finfo.annotation
-        origin = typing.get_origin(annotation)
-        if annotation is list or origin is list:
-            # 寻找其包含的 BaseModel 类型
-            args = typing.get_args(annotation)
-            if args:
-                arg = args[0]
-                # 可能是直接的 BaseModel
-                if isinstance(arg, type) and issubclass(arg, BaseModel):
-                    list_fields[fname] = arg
-                else:
-                    # 可能是 Optional 或 Union，获取其中的 BaseModel
-                    for sub in typing.get_args(arg):
-                        if isinstance(sub, type) and issubclass(sub, BaseModel):
-                            list_fields[fname] = sub
-                            break
-
-    if not list_fields:
-        return {}
-
-    # 2. 对 data 中的每一个 item，找出它最匹配的列表字段
-    result = {fname: [] for fname in list_fields.keys()}
-    for item in data:
-        if not isinstance(item, dict):
-            first_fname = list(list_fields.keys())[0]
-            result[first_fname].append(item)
-            continue
-
-        best_fname = None
-        best_score = -1
-
-        for fname, item_model in list_fields.items():
-            model_keys = set(item_model.model_fields.keys())
-            item_keys = set(item.keys())
-            overlap = model_keys.intersection(item_keys)
-            score = len(overlap)
-
-            from pydantic_core import PydanticUndefined
-            required_overlap = 0
-            for rname, rinfo in item_model.model_fields.items():
-                if rinfo.default is PydanticUndefined and rname in item_keys:
-                    required_overlap += 1
-            score += required_overlap * 2
-
-            if score > best_score:
-                best_score = score
-                best_fname = fname
-
-        if best_fname:
-            result[best_fname].append(item)
-
-    return result
+# resolve_base_type, clean_none_values, distribute_list_to_schema_fields
+# moved to app.utils.pydantic_helpers
 
 
 async def run_engine_audit_structured_extraction(
@@ -698,13 +503,22 @@ async def run_engine_audit_structured_extraction(
     Heavy reasoning extraction implementation.
     """
     import json
+
     from app.core.engine.extraction.schema import build_dynamic_schema
-    from app.core.events.schemas.lifecycle import ExtractionRequest, ExtractionCompletedEvent
-    from app.core.events.base import system_bus
-    from app.core.llm import InternalLLMService
-    from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
-    from app.utils.template import render_template
     from app.core.engine.message.converter import EvoMessageConverter
+    from app.core.engine.message.native_classes import (
+        AIMessage,
+        HumanMessage,
+        SystemMessage,
+        ToolMessage,
+    )
+    from app.core.events.base import system_bus
+    from app.core.events.schemas.lifecycle import (
+        ExtractionCompletedEvent,
+        ExtractionRequest,
+    )
+    from app.infrastructure.llm import InternalLLMService
+    from app.utils.template import render_template
 
     if not collected_schemas:
         logger.info(f"[Celery] No extraction schemas requested for thread {thread_id}, skipping extraction.")
@@ -759,7 +573,7 @@ async def run_engine_audit_structured_extraction(
             extracted_data = response.model_dump()
             extracted_data.pop("summary", None)
             extracted_data.pop("is_completed", None)
-            extracted_data = _clean_none_values(extracted_data, DynamicVerdict)
+            extracted_data = clean_none_values(extracted_data, DynamicVerdict)
 
             event = ExtractionCompletedEvent(
                 thread_id=thread_id,
@@ -770,7 +584,7 @@ async def run_engine_audit_structured_extraction(
             )
             logger.info(f"[Celery] 🚀 Publishing ExtractionCompletedEvent for thread {thread_id}")
             await system_bus.publish(event)
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[Celery] engine_audit_structured_extraction failed for thread {thread_id}: {e!r}")
         raise
 

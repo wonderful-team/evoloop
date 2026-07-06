@@ -7,7 +7,6 @@ from app.constants import (
     DocumentType,
 )
 
-
 # If EXTENSION_MAP is missing in constants, I should probably define a comprehensive one here or rely on CODE_EXTENSION_MAP.
 # The `document_reader` had a very rich EXTENSION_MAP.
 # Let's verify `app/constants.py` content later or define a local map if needed.

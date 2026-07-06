@@ -1,9 +1,38 @@
+import asyncio
+import functools
 import logging
+from collections.abc import Callable
+from typing import Any, TypeVar
+
+import openai
 
 from app.core.engine.schemas import ErrorClassification
 from app.core.exceptions import InferenceError
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
+
+# Exceptions that LLM calls may raise: stdlib + openai SDK + httpx (transport layer)
+LLM_EXCEPTIONS = (
+    ValueError,
+    OSError,
+    RuntimeError,
+    TypeError,
+    KeyError,
+    AttributeError,
+    openai.APIError,
+    openai.APIConnectionError,
+    openai.APITimeoutError,
+    openai.AuthenticationError,
+    openai.BadRequestError,
+    openai.ConflictError,
+    openai.InternalServerError,
+    openai.NotFoundError,
+    openai.PermissionDeniedError,
+    openai.RateLimitError,
+    openai.UnprocessableEntityError,
+)
 
 
 class LLMErrorHandler:
@@ -18,7 +47,6 @@ class LLMErrorHandler:
             ErrorClassification object with type, localized messages, and hints.
         """
         from app.i18n.service import i18n
-        import openai
 
         error_str = str(e).lower()
         error_full = str(e)
@@ -129,13 +157,6 @@ class LLMErrorHandler:
         )
 
 
-import asyncio
-import functools
-from collections.abc import Callable
-from typing import Any, TypeVar
-
-T = TypeVar("T")
-
 def with_llm_retry(max_attempts: int = 3, base_delay: float = 2.0, backoff: float = 2.0):
     """
     Standardized retry decorator for LLM API calls.
@@ -149,7 +170,7 @@ def with_llm_retry(max_attempts: int = 3, base_delay: float = 2.0, backoff: floa
             for attempt in range(1, max_attempts + 1):
                 try:
                     return await func(*args, **kwargs)
-                except Exception as e:
+                except LLM_EXCEPTIONS as e:
                     # Classify exception to see if it's terminal
                     classification = LLMErrorHandler.classify_exception(e)
                     

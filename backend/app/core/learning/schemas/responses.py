@@ -3,14 +3,14 @@
 from datetime import datetime
 from typing import Any
 
-from app.api.responses import BaseAPIResponse, ListResponse
+from app.core.schemas import BaseAPIResponse, ListResponse
 from app.core.learning.schemas.events import (
     PreviewEventsSummary,
     PreviewKeyframeSummary,
     PreviewVideoInfo,
     RecordingSessionItem,
 )
-from app.core.learning.schemas.skills import SkillDTO, SkillDetailResponse
+from app.core.learning.schemas.skills import SkillDetailResponse, SkillDTO
 
 
 class PaginatedSkillsResponse(ListResponse[SkillDTO]):

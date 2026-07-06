@@ -121,8 +121,8 @@ class LocalEmbedder(BaseEmbedder):
 
         import torch
         torch.set_num_threads(2)
-        from sentence_transformers import SentenceTransformer
         import huggingface_hub.constants as _st_cache
+        from sentence_transformers import SentenceTransformer
 
         candidates = [self.model_name]
         if self.model_name != self._FALLBACK_MODELS[0]:
@@ -149,7 +149,7 @@ class LocalEmbedder(BaseEmbedder):
                 else:
                     logger.info("[LocalEmbedder] Model loaded.")
                 return loaded
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 last_error = e
                 logger.warning(f"[LocalEmbedder] Failed to load '{model_name}': {e}")
                 continue
@@ -223,6 +223,6 @@ class LocalEmbedder(BaseEmbedder):
             )
         return embedding.tolist()
 
-    # LangChain-compatible aliases
+    # Compatibility aliases
     aembed_documents = embed_documents
     aembed_query = embed_query

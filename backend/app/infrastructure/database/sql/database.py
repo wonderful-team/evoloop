@@ -1,6 +1,8 @@
 import logging
-from contextlib import asynccontextmanager
-from sqlalchemy.orm import DeclarativeBase
+from contextlib import asynccontextmanager, contextmanager
+
+from sqlalchemy.orm import DeclarativeBase, Session
+
 from app.infrastructure.database.resource_manager import db_resource_manager
 
 logger = logging.getLogger(__name__)
@@ -50,8 +52,6 @@ def __getattr__(name):
         return DatabaseResourceProxy("engine")
     if name == "AsyncSessionLocal":
         return DatabaseResourceProxy("AsyncSessionLocal")
-    if name == "get_db_session":
-        return session_scope
     raise AttributeError(f"module {__name__} has no attribute {name}")
 
 
@@ -71,7 +71,7 @@ async def get_db():
     async with db_resource_manager.session_factory() as session:
         try:
             yield session
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Database session error: {e}")
             await session.rollback()
             raise
@@ -88,8 +88,28 @@ async def session_scope():
         try:
             yield session
             await session.commit()
-        except Exception:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
             await session.rollback()
             raise
         finally:
             await session.close()
+
+
+@contextmanager
+def sync_session_scope():
+    """
+    Synchronous session scope for use in non-async contexts
+    (e.g. ContextPlugin.hydrate which is sync).
+    """
+    engine = db_resource_manager.sync_engine
+    if engine is None:
+        raise RuntimeError("sync_engine accessed before initialization")
+    with Session(engine) as session:
+        try:
+            yield session
+            session.commit()
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+            session.rollback()
+            raise
+        finally:
+            session.close()

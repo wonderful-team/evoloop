@@ -9,21 +9,25 @@ Audio processing API - Speech-to-Text and Text-to-Speech
 import logging
 import os
 import tempfile
-from typing import Optional
-
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Form
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse, StreamingResponse
 
 from app.api.deps import require_benefit
-from app.api.schemas.audio import TranscriptionResponse, TTSRequest, TTSResponse, VoiceListResponse, \
-    STTProvidersResponse
-from app.core.voice import (
-    get_tts_provider,
-    get_stt_provider,
-    TTSOptions,
-    STTOptions,
-    VoiceLocale,
+from app.api.schemas.audio import (
+    STTProvidersResponse,
+    TranscriptionResponse,
+    TTSRequest,
+    TTSResponse,
+    VoiceListResponse,
 )
+from app.infrastructure.voice import (
+    STTOptions,
+    TTSOptions,
+    VoiceLocale,
+    get_stt_provider,
+    get_tts_provider,
+)
+from app.utils.id import gen_uuid_hex
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["audio"])
@@ -38,12 +42,12 @@ async def list_voices():
     
     返回 Edge-TTS 支持的所有声音（中文、英文、日文、韩文等）
     """
-    from app.core.voice import list_tts_voices
+    from app.infrastructure.voice import list_tts_voices
     
     try:
         voices = list_tts_voices()
         return VoiceListResponse(voices=voices)
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to list voices: {e}")
         raise HTTPException(500, f"Failed to list voices: {str(e)}")
 
@@ -95,8 +99,7 @@ async def text_to_speech(request: TTSRequest):
         tts_dir = os.path.join(tempfile.gettempdir(), "evoloop_tts")
         os.makedirs(tts_dir, exist_ok=True)
         
-        import uuid
-        filename = f"tts_{uuid.uuid4().hex}.mp3"
+        filename = f"tts_{gen_uuid_hex()}.mp3"
         file_path = os.path.join(tts_dir, filename)
         
         with open(file_path, "wb") as f:
@@ -108,7 +111,7 @@ async def text_to_speech(request: TTSRequest):
         
     except HTTPException:
         raise
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"TTS failed: {e}")
         raise HTTPException(500, f"TTS failed: {str(e)}")
 
@@ -142,7 +145,7 @@ async def text_to_speech_stream(
         provider = get_tts_provider()
         
         # 检查文本内容（清理后）
-        from app.core.voice.utils import optimize_for_tts
+        from app.infrastructure.voice.utils import optimize_for_tts
         cleaned_text = optimize_for_tts(text)
         if not cleaned_text or not cleaned_text.strip():
             raise HTTPException(400, "Text is empty after processing. Please provide valid text content.")
@@ -179,7 +182,7 @@ async def text_to_speech_stream(
         
     except HTTPException:
         raise
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"TTS stream failed: {e}")
         raise HTTPException(500, f"TTS failed: {str(e)}")
 
@@ -223,12 +226,12 @@ async def list_stt_providers():
     
     返回所有可用的语音识别提供商及其状态
     """
-    from app.core.voice import list_stt_providers
+    from app.infrastructure.voice import list_stt_providers
     
     try:
         providers = list_stt_providers()
         return STTProvidersResponse(providers=providers)
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to list STT providers: {e}")
         raise HTTPException(500, f"Failed to list providers: {str(e)}")
 
@@ -238,8 +241,8 @@ async def transcribe_audio(
     file: UploadFile = File(...),
     language: str = Form("auto"),
     model: str = Form("auto"),
-    prompt: Optional[str] = Form(None),
-    provider: Optional[str] = Form(None),
+    prompt: str | None = Form(None),
+    provider: str | None = Form(None),
 ):
     """
     语音转文字
@@ -315,12 +318,12 @@ async def transcribe_audio(
         
     except HTTPException:
         raise
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Transcription failed: {e}")
         raise HTTPException(500, f"Transcription failed: {str(e)}")
 
 
-def _get_audio_format(filename: Optional[str], content_type: str) -> str:
+def _get_audio_format(filename: str | None, content_type: str) -> str:
     """从文件名或 content-type 推断音频格式"""
     # 从 content_type
     type_map = {

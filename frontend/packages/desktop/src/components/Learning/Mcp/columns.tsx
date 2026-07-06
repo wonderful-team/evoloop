@@ -81,7 +81,7 @@ export const getColumns = ({
         }`}
       >
         {row.original.status
-          ? t(`mcp.status.${row.original.status}`, row.original.status)
+          ? t([`mcp.status.${row.original.status}`, row.original.status] as any)
           : t("mcp.table.unknown")}
       </span>
     ),

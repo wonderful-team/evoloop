@@ -27,7 +27,7 @@ Usage:
 """
 
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from app.core.config import settings
 
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Global cache backend instance
-_cache_instance: Optional["Cache"] = None
+_cache_instance: "Cache | None" = None
 
 
 def get_cache() -> "Cache":

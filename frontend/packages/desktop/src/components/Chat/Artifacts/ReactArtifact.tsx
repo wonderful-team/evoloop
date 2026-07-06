@@ -30,7 +30,7 @@ export const ReactArtifact: React.FC<ReactArtifactProps> = ({ data }) => {
           <h3 className="text-sm font-bold tracking-tight">
             {data.title ||
               data.componentName ||
-              t("chat.artifact.reactComponent", "React Component")}
+              t("chat.artifact.reactComponent")}
           </h3>
         </div>
         <div className="flex items-center gap-2">
@@ -77,13 +77,13 @@ export const ReactArtifact: React.FC<ReactArtifactProps> = ({ data }) => {
 
       <div className="px-5 py-2.5 bg-muted/10 border-t border-[var(--doc-border)] flex items-center justify-between">
         <span className="text-[10px] text-muted-foreground font-medium">
-          {data.componentName || "Component"} • {data.code.split("\n").length}{" "}
-          lines
+          {data.componentName || t("chat.artifact.component")} •{" "}
+          {data.code.split("\n").length} {t("chat.artifact.lines")}
         </span>
         <div className="flex items-center gap-1.5">
           <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
           <span className="text-[10px] text-muted-foreground font-bold tracking-tight">
-            STANDARDIZED V1
+            {t("chat.artifact.standardized")}
           </span>
         </div>
       </div>

@@ -1,7 +1,6 @@
 import { createFileRoute, Link, Outlet, redirect } from "@tanstack/react-router"
 import {
   AlertCircle,
-  BookOpen,
   CheckSquare,
   ChevronLeft,
   FileCode,
@@ -93,12 +92,6 @@ function ProjectLayout() {
       path: "/wiki",
     },
     {
-      id: "knowledge",
-      label: t("projects.tabs.knowledge"),
-      icon: BookOpen,
-      path: "/knowledge",
-    },
-    {
       id: "profile",
       label: t("projects.tabs.profile"),
       icon: FileText,
@@ -106,7 +99,7 @@ function ProjectLayout() {
     },
     {
       id: "vault",
-      label: t("projects.tabs.vault", "Vault"),
+      label: t("projects.tabs.vault"),
       icon: Key,
       path: "/vault",
     },
@@ -129,7 +122,8 @@ function ProjectLayout() {
             className="font-semibold text-sm truncate"
             title={displayProject?.name}
           >
-            {displayProject?.name || `Project #${projectId}`}
+            {displayProject?.name ||
+              t("projects.projectNameFallback", { id: projectId })}
           </span>
         </div>
 

@@ -5,8 +5,8 @@ Simple cache operations for project-specific data.
 Uses the global cache backend (Redis or FileCache).
 """
 
-from app.infrastructure.cache import cache
 from app.constants import DEFAULT_PROJECT_ID
+from app.infrastructure.cache import cache
 
 KEY_PREFIX = "project"
 DEFAULT_TTL = 3600  # 1 hour

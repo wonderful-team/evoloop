@@ -662,7 +662,10 @@ export function TodoList() {
                           to="/chat"
                           search={{
                             thread_id: todo.source_conversation_id,
-                            message: `${t("todos.executeTaskPrefix")}${todo.title}\n${todo.description || ""}`,
+                            message: t("todos.executeTaskMessage", {
+                              title: todo.title,
+                              description: todo.description || "",
+                            }),
                             autoSend: "true",
                             quoteId: todo.source_message_id,
                           }}

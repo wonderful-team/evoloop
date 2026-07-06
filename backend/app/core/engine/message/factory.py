@@ -6,13 +6,13 @@ MessageBlockFactory - 统一视图层出厂转换器
 """
 import json
 import logging
-import uuid
-from datetime import datetime
-from typing import Any, Union
+from datetime import datetime, timezone
+from typing import Any, cast
 
 from app.core.engine.message.schemas import MessageBlock, ToolCall
 from app.core.engine.message.utils import normalize_tool_calls
 from app.core.tools.registry import get_tool_metadata
+from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -59,18 +59,18 @@ class MessageBlockFactory:
         executor_device_name = cls._get_val(msg, "executor_device_name")
 
         # 3. Handle References (if present in ORM)
-        from app.core.engine.message.schemas import ReferenceBlock
+        from app.core.engine.message.schemas import MessageReference
         references = []
         if hasattr(msg, "references") and msg.references:
             for ref in msg.references:
-                ref_block = ReferenceBlock(
+                msg_ref = MessageReference(
                     id=ref.id,
                     type=ref.type,
                     target_id=ref.target_id,
                     target_name=ref.target_name,
                     meta_data=ref.meta_data or {},
                 )
-                references.append(ref_block)
+                references.append(msg_ref)
 
         # 4. Human / System / AI / Tool
         if role == "ai":
@@ -141,11 +141,11 @@ class MessageBlockFactory:
         else:
             return MessageBlock(
                 id=msg_id,
-                role=role, # type: ignore
+                role=cast(Any, role),
                 content=content,
                 references=references,
                 created_at=created_at or "",
-                status=status,
+                status=cast(Any, status),
                 meta_data=meta_data,
                 thread_id=thread_id,
                 executor_device_key=executor_device_key,
@@ -229,33 +229,31 @@ class MessageBlockFactory:
                 validated_tool_calls.append(ToolCall(**tc))
 
         # Resolve References
-        from app.core.engine.message.schemas import ReferenceBlock
+        from app.core.engine.message.schemas import MessageReference
         ref_blocks = []
         if references:
             for ref in references:
                 if isinstance(ref, dict):
-                    # Ensure metadata is mapped to meta_data for Pydantic schema validation
                     if "metadata" in ref and "meta_data" not in ref:
                         ref = {**ref, "meta_data": ref["metadata"]}
-                    rb = ReferenceBlock(**ref)
-                    ref_blocks.append(rb)
-                elif isinstance(ref, ReferenceBlock):
+                    ref_blocks.append(MessageReference(**ref))
+                elif isinstance(ref, MessageReference):
                     ref_blocks.append(ref)
 
         return MessageBlock(
-            id=message_id or str(uuid.uuid4()),
+            id=message_id or gen_uuid(),
             thread_id=thread_id,
             run_id=run_id,
-            role=role,  # type: ignore[arg-type]
+            role=cast(Any, role),
             category=category,
             content=content or "",
             thinking=thinking,
             tool_calls=validated_tool_calls,
             references=ref_blocks,
-            status=status,  # type: ignore[arg-type]
+            status=cast(Any, status),
             is_visible=True,
             sequence_number=sequence_number,
-            created_at=datetime.now().isoformat(),
+            created_at=datetime.now(timezone.utc).isoformat(),
             parent_id=parent_id,
             tool_name=tool_name,
             tool_call_id=tool_call_id,

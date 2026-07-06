@@ -48,7 +48,7 @@ export function ChatInterface() {
   const sendMessage = useChatStore((s) => s.sendMessage)
   const _truncateMessages = useChatStore((s) => s._truncateMessages)
   const isTerminalMode = useChatStore((s) => s.isTerminalMode)
-  const setTerminalMode = useChatStore((s) => s.setTerminalMode)
+  const _setTerminalMode = useChatStore((s) => s.setTerminalMode)
   const sendTerminalCommand = useChatStore((s) => s.sendTerminalCommand)
   const status = useAgentStore((s) => s.status)
   const humanRequest = useAgentStore((s) => s.humanRequest)
@@ -74,7 +74,9 @@ export function ChatInterface() {
     null,
   )
 
-  const [rememberingMessageId, setRememberingMessageId] = useState<string | number | null>(null)
+  const [rememberingMessageId, setRememberingMessageId] = useState<
+    string | number | null
+  >(null)
 
   const chatInputRef = useRef<ChatInputAreaHandle | null>(null)
 
@@ -228,7 +230,8 @@ export function ChatInterface() {
             type: "message",
             id: msg.id.toString(),
             name:
-              msg.content.slice(0, 50) + (msg.content.length > 50 ? "..." : ""),
+              msg.content.slice(0, 50) +
+              (msg.content.length > 50 ? t("common.ellipsis") : ""),
             detail: msg.role,
           })
 
@@ -335,10 +338,14 @@ export function ChatInterface() {
         queryClient.invalidateQueries({
           queryKey: ["projectConversations", projectId],
         })
-        toast.success(isPinned ? "已置顶会话" : "已取消置顶")
+        toast.success(
+          isPinned
+            ? t("chat.sidebar.pinSuccess")
+            : t("chat.sidebar.unpinSuccess"),
+        )
       } catch (err) {
         console.error(err)
-        toast.error("操作失败")
+        toast.error(t("chat.sidebar.pinActionFailed"))
       }
     },
     [projectId, queryClient],
@@ -384,7 +391,6 @@ export function ChatInterface() {
       }
     },
     [sendMessage, sendTerminalCommand, isTerminalMode, projectId, queryClient],
-
   )
 
   const handleDeleteThread = useCallback(
@@ -446,7 +452,7 @@ export function ChatInterface() {
       isRemembered?: boolean
     }) => {
       if (projectId === undefined || projectId === null)
-        throw new Error("No project")
+        throw new Error(t("common.noProject"))
       return MemoryService.addConcept({
         projectId,
         requestBody: {
@@ -460,7 +466,9 @@ export function ChatInterface() {
       })
     },
     onMutate: async ({ messageId, isRemembered }) => {
-      await queryClient.cancelQueries({ queryKey: ["messages", activeThreadId] })
+      await queryClient.cancelQueries({
+        queryKey: ["messages", activeThreadId],
+      })
       const previousMessages = queryClient.getQueryData<any[]>([
         "messages",
         activeThreadId,
@@ -505,7 +513,9 @@ export function ChatInterface() {
     chatInputRef.current?.addReference({
       type: "message",
       id: msg.id.toString(),
-      name: quoteText.slice(0, 50) + (quoteText.length > 50 ? "..." : ""),
+      name:
+        quoteText.slice(0, 50) +
+        (quoteText.length > 50 ? t("common.ellipsis") : ""),
       detail: msg.role,
     })
   }, [])
@@ -596,6 +606,7 @@ export function ChatInterface() {
         rewindMutation.mutate({
           revertFiles: false,
           messageId: msg.id.toString(),
+          content: msg.role === "human" ? msg.content : undefined,
         })
       }
     },
@@ -647,17 +658,30 @@ export function ChatInterface() {
       }
     }
 
+    const handleLocateFile = (e: CustomEvent<{ path: string }>) => {
+      const path = e.detail.path
+      if (path) {
+        setSidebarActiveTab("files")
+        useUIStore.getState().setLocateFilePath(path)
+        // Ensure context panel is shown if needed, or if they meant the left sidebar?
+        // Wait, left sidebar is open by default, but if on mobile we might need to open it.
+        // But AppSidebar toggle is managed by useSidebar. We'll leave it simple for now.
+      }
+    }
+
     window.addEventListener(
       "chat-scroll-to-run" as any,
       handleScrollToRun as any,
     )
+    window.addEventListener("locate-file" as any, handleLocateFile as any)
     return () => {
       window.removeEventListener(
         "chat-scroll-to-run" as any,
         handleScrollToRun as any,
       )
+      window.removeEventListener("locate-file" as any, handleLocateFile as any)
     }
-  }, [])
+  }, [setSidebarActiveTab])
 
   // Keyboard Shortcuts: Esc to Stop Agent
   useEffect(() => {
@@ -721,8 +745,15 @@ export function ChatInterface() {
         <ResizableHandle withHandle />
 
         {/* Center Chat Panel */}
-        <ResizablePanel defaultSize={showContextPanel ? 64 : 84} minSize={20} className="min-w-0 overflow-hidden">
-          <div className="flex flex-col h-full relative min-h-0 min-w-0 w-full overflow-hidden" style={{ contain: "content" }}>
+        <ResizablePanel
+          defaultSize={showContextPanel ? 64 : 84}
+          minSize={20}
+          className="min-w-0 overflow-hidden"
+        >
+          <div
+            className="flex flex-col h-full relative min-h-0 min-w-0 w-full overflow-hidden"
+            style={{ contain: "content" }}
+          >
             {/* Top Right Controls */}
             <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
               {/* Toggle Context Panel Button */}
@@ -743,7 +774,10 @@ export function ChatInterface() {
             <HITLBanner />
             <QuotaExhaustedBanner />
 
-            <div className="flex-1 min-h-0 min-w-0 w-full" data-tour="chat-messages">
+            <div
+              className="flex-1 min-h-0 min-w-0 w-full"
+              data-tour="chat-messages"
+            >
               {isTerminalMode ? (
                 <TerminalCanvas />
               ) : (
@@ -771,7 +805,9 @@ export function ChatInterface() {
                 ref={chatInputRef}
                 onSend={handleSendMessage}
                 onStop={stopAgent}
-                isAgentWorking={status === "running" || status === "summarizing"}
+                isAgentWorking={
+                  status === "running" || status === "summarizing"
+                }
                 isSending={false}
                 isStopPending={false}
                 currentProject={currentProject}
@@ -818,9 +854,7 @@ export function ChatInterface() {
             className="w-[320px] sm:w-[400px] max-w-[85vw] p-0 border-l border-border bg-background [&>button]:hidden shadow-2xl flex flex-col min-w-0 overflow-hidden"
           >
             <SheetHeader className="sr-only">
-              <SheetTitle>
-                {t("chat.context.title", { defaultValue: "Agent 工作台" })}
-              </SheetTitle>
+              <SheetTitle>{t("chat.context.title")}</SheetTitle>
             </SheetHeader>
             <ContextPanel
               projectId={currentProject?.id}
@@ -841,7 +875,11 @@ export function ChatInterface() {
         mode={confirmMode}
         onConfirm={(revertFiles) => {
           if (confirmMode === "rewind") {
-            rewindMutation.mutate({ revertFiles, messageId: selectedMessageId })
+            rewindMutation.mutate({
+              revertFiles,
+              messageId: selectedMessageId,
+              content: rewindContent,
+            })
           } else {
             retryMutation.mutate({ revertFiles, messageId: selectedMessageId })
           }

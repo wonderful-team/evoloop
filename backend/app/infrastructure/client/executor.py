@@ -10,63 +10,35 @@ This module provides decorators and wrappers for transparent routing.
 
 import logging
 from functools import wraps
+from pathlib import Path
 from typing import Any, Callable
 
+import yaml
+
 from app.core.config import settings
-from app.infrastructure.client.http import get_client_executor, ToolExecutionError
+from app.infrastructure.client.http import ToolExecutionError, get_client_executor
 
 logger = logging.getLogger(__name__)
 
-# Tools that should be executed via Client (local-only tools)
-# These tools require local environment access (filesystem, shell, devices, browser, desktop)
-CLIENT_TOOLS = {
-    # File operations
-    "file_read",
-    "file_write",
-    "file_list",
-    "file_edit",
-    "file_delete",
-    "file_search",
-    "file_search_name",
-    "file_open",
-    # Shell execution
-    "shell",
-    "shell_execute",
-    # Python execution (local only)
-    "python_execute",
-    "exec_python",
-    # ADB (Android Debug Bridge) - device automation
-    "adb_connect",
-    "adb_shell",
-    "adb_screenshot",
-    "adb_tap",
-    "adb_swipe",
-    "adb_dump_ui",
-    "adb_input",
-    "adb_key",
-    "adb_get_current_app",
-    # Browser automation
-    "browser_navigate",
-    "browser_click",
-    "browser_type",
-    "browser_screenshot",
-    "browser_get_html",
-    "browser_get_url",
-    "browser_back",
-    "browser_forward",
-    "browser_refresh",
-    "browser_close",
-    # Desktop automation
-    "desktop_screenshot",
-    "desktop_click",
-    "desktop_type",
-    "desktop_key",
-    "desktop_get_cursor",
-    # MCP tool execution
-    "mcp",
-    # Context retrieval
-    "get_context",
-}
+_CONFIG_PATH = Path(__file__).parent / "client_tools.yaml"
+
+
+def _load_client_tools() -> tuple[set[str], tuple[str, ...]]:
+    """Load client tool names and prefix patterns from YAML config.
+
+    Returns (exact_names, prefixes). Falls back to empty sets on error.
+    """
+    try:
+        data = yaml.safe_load(_CONFIG_PATH.read_text("utf-8")) or {}
+        exact = set(data.get("exact", []))
+        prefixes = tuple(data.get("prefixes", []))
+        return exact, prefixes
+    except (OSError, yaml.YAMLError) as e:
+        logger.warning(f"[ClientExecutor] Failed to load client_tools.yaml: {e}")
+        return set(), ()
+
+
+_CLIENT_TOOLS, _CLIENT_PREFIXES = _load_client_tools()
 
 
 def should_use_client(tool_name: str) -> bool:
@@ -96,18 +68,13 @@ def should_use_client(tool_name: str) -> bool:
     if client_capabilities.is_reported():
         return client_capabilities.supports_tool(tool_name)
 
-    # Priority 3: Fallback to hardcoded list (backward compatibility)
+    # Priority 3: Fallback to config-driven list (backward compatibility)
     # This handles HTTP mode before capabilities are reported
-    if tool_name in CLIENT_TOOLS:
+    if tool_name in _CLIENT_TOOLS:
         return True
 
-    # Check for MCP tools (mcp__server__tool format)
-    if tool_name.startswith("mcp__"):
-        return True
-
-    # Check for device/browser/desktop automation tools (prefix matching)
-    local_prefixes = ("adb_", "browser_", "desktop_")
-    if tool_name.startswith(local_prefixes):
+    # Check prefix patterns from config
+    if _CLIENT_PREFIXES and tool_name.startswith(_CLIENT_PREFIXES):
         return True
 
     return False
@@ -142,7 +109,7 @@ async def execute_via_client(
     except ToolExecutionError as e:
         logger.error(f"[ClientExecutor] Tool execution failed: {e}")
         raise
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[ClientExecutor] Unexpected error: {e}")
         raise ToolExecutionError(f"Failed to execute {tool_name}: {e}")
 
@@ -191,7 +158,7 @@ def wrap_tool_for_client(tool_func: Callable) -> Callable:
 
 class ClientToolWrapper:
     """
-    Wrapper for LangChain tools to route execution through Client.
+    Wrapper for native tools to route execution through Client.
     """
 
     def __init__(self, tool: Any):
@@ -230,7 +197,7 @@ def wrap_tools_for_client(tools: list[Any]) -> list[Any]:
     Wrap a list of tools for Client execution.
 
     Args:
-        tools: List of LangChain tools
+        tools: List of native tools
 
     Returns:
         List of wrapped tools

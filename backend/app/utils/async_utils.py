@@ -2,8 +2,8 @@ import asyncio
 import functools
 import logging
 import weakref
-from collections.abc import Callable, Awaitable
-from typing import TypeVar, Generic
+from collections.abc import Awaitable, Callable
+from typing import Generic, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -340,7 +340,7 @@ class Throttler:
     
     def trigger(self, *args, **kwargs) -> None:
         """Trigger a throttled call."""
-        now = asyncio.get_event_loop().time()
+        now = asyncio.get_running_loop().time()
         elapsed = now - self._last_call
         
         if elapsed >= self.min_interval:
@@ -355,7 +355,7 @@ class Throttler:
     
     def _execute(self, *args, **kwargs) -> None:
         """Execute the function."""
-        self._last_call = asyncio.get_event_loop().time()
+        self._last_call = asyncio.get_running_loop().time()
         asyncio.create_task(self.func(*args, **kwargs))
     
     async def _delayed_execute(self, delay: float) -> None:

@@ -3,9 +3,9 @@
 from enum import Enum
 from typing import Literal
 
-from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.engine.message.native_classes import RunnableConfig
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
@@ -47,6 +47,9 @@ class FileEditOperation(BaseModel):
     target: str
     replacement: str
     allow_multiple: bool = False
+    mode: str | None = "replace"
+    start_line: int | None = None
+    end_line: int | None = None
 
 class EditFileRequest(BaseModel):
     """Request model for editing a file."""
@@ -58,6 +61,9 @@ class EditFileRequest(BaseModel):
     verify_types: bool = True
     config: RunnableConfig | None = None
     edits: list[FileEditOperation] | None = None
+    mode: str | None = "replace"
+    start_line: int | None = None
+    end_line: int | None = None
 
 class EditPreviewResult(BaseModel):
     """Result of previewing an edit."""

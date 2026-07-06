@@ -56,12 +56,7 @@ export function RecordingButton({
 
     // 1. Check Video Permission (Always needed)
     if (hasVideoPermission !== true) {
-      toast.error(
-        t(
-          "learning.screenRecordingPermissionTitle",
-          "Screen Recording Permission Required",
-        ),
-      )
+      toast.error(t("learning.screenRecordingPermissionTitle"))
       requestVideoPermission()
       return
     }
@@ -69,12 +64,7 @@ export function RecordingButton({
     // 2. Check AX Permission (Only if desktop recording)
     if (isDesktopRecording && hasAxPermission !== true) {
       console.log("[RecordingButton] Requesting AX permission...")
-      toast.error(
-        t(
-          "learning.permissionRequired",
-          "Permission required. Check system settings.",
-        ),
-      )
+      toast.error(t("learning.permissionRequired"))
       requestAxPermission()
       return
     }
@@ -123,7 +113,7 @@ export function RecordingButton({
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            {t("learning.recordingRequiresThread", "请先选择或创建一个对话")}
+            {t("learning.recordingRequiresThread")}
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -147,8 +137,8 @@ export function RecordingButton({
           </TooltipTrigger>*/}
           <TooltipContent>
             {isDesktopRecording
-              ? t("learning.desktopRecording", "System Monitoring (Desktop)")
-              : t("learning.appRecording", "App Window Only (DOM)")}
+              ? t("learning.desktopRecording")
+              : t("learning.appRecording")}
           </TooltipContent>
         </Tooltip>
       )}
@@ -167,12 +157,7 @@ export function RecordingButton({
                 <ShieldAlert className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>
-              {t(
-                "learning.permissionRequired",
-                "Accessibility permission required for global recording",
-              )}
-            </TooltipContent>
+            <TooltipContent>{t("learning.permissionRequired")}</TooltipContent>
           </Tooltip>
         </div>
       )}
@@ -192,10 +177,7 @@ export function RecordingButton({
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              {t(
-                "learning.screenRecordingPermissionTitle",
-                "Screen recording permission required",
-              )}
+              {t("learning.screenRecordingPermissionTitle")}
             </TooltipContent>
           </Tooltip>
         </div>
@@ -228,8 +210,8 @@ export function RecordingButton({
         </TooltipTrigger>
         <TooltipContent>
           {isRecording
-            ? t("learning.stopRecording", "Stop Recording")
-            : t("learning.startRecording", "Start Recording")}
+            ? t("learning.stopRecording")
+            : t("learning.startRecording")}
         </TooltipContent>
       </Tooltip>
     </div>

@@ -14,7 +14,6 @@ from app.core.execution.macro.evolution_engine import (
     MacroEvolutionEngine,
     StepTransformer,
 )
-from app.core.execution.macro.schemas import EvolutionRule
 from app.core.execution.macro.round_orchestrator import (
     BaselineStrategy,
     ChaosStrategy,
@@ -31,6 +30,7 @@ from app.core.execution.macro.round_orchestrator import (
     RoundStrategy,
     StressTestStrategy,
 )
+from app.core.execution.macro.schemas import EvolutionRule
 from app.core.execution.macro.verification_reporter import (
     VerificationReporter,
     generate_comparison_report,

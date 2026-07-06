@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import List
 
 from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -26,7 +26,7 @@ class ProjectTask(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     
     # Optional link to requirement analysis (for historical compatibility or future trace)
-    analysis_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True, index=True)
+    analysis_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     
     project_id: Mapped[int] = mapped_column(Integer, index=True)
 
@@ -34,10 +34,10 @@ class ProjectTask(Base):
     member_id: Mapped[int] = mapped_column(Integer, default=0, index=True)
 
     # EvoCloud task ID (backfilled after sync)
-    evocloud_task_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    evocloud_task_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Hierarchy support for subtasks
-    parent_id: Mapped[Optional[str]] = mapped_column(
+    parent_id: Mapped[str | None] = mapped_column(
         ForeignKey("project_tasks.id"), 
         nullable=True,
         index=True
@@ -61,8 +61,8 @@ class ProjectTask(Base):
 
     # Sync status
     sync_status: Mapped[str] = mapped_column(String(50), default="pending")
-    sync_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    synced_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    sync_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow
@@ -72,7 +72,7 @@ class ProjectTask(Base):
     )
 
     # Relationships
-    parent: Mapped[Optional["ProjectTask"]] = relationship(
+    parent: Mapped["ProjectTask | None"] = relationship(
         "ProjectTask",
         remote_side="ProjectTask.id",
         back_populates="subtasks"

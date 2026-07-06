@@ -1,6 +1,7 @@
 import logging
 
 from openai import AsyncOpenAI
+
 from .base import BaseEmbedder
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ class GenericOpenAIEmbedder(BaseEmbedder):
         try:
             response = await self.client.embeddings.create(**kwargs)
             return [data.embedding for data in response.data]
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Embedding Error (Docs): {e}")
             raise e
 
@@ -46,12 +47,12 @@ class GenericOpenAIEmbedder(BaseEmbedder):
             if not response.data:
                 raise ValueError(f"OpenAI returned empty data. Full Response: {response}")
             return response.data[0].embedding
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             # Log full stack if needed, but for now specific error message
             logger.error(f"Embedding Error (Query): {e}\nParams: {kwargs}")
             raise e
 
-    # LangChain-compatible aliases
+    # Compatibility aliases
     aembed_documents = embed_documents
     aembed_query = embed_query
 

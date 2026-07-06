@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { AudioService } from "@/client"
 
 export interface TranscriptionResult {
@@ -16,6 +17,7 @@ export interface UseTranscriptionOptions {
 }
 
 export function useTranscription(options: UseTranscriptionOptions = {}) {
+  const { t } = useTranslation()
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
@@ -57,13 +59,13 @@ export function useTranscription(options: UseTranscriptionOptions = {}) {
         return result
       } catch (err: any) {
         console.error("Transcription error:", err)
-        setError(err.message || "Transcription failed")
+        setError(err.message || t("chat.voice.transcribeFailed"))
         return null
       } finally {
         setIsTranscribing(false)
       }
     },
-    [options.language, options.model, options.prompt, options.provider],
+    [options.language, options.model, options.prompt, options.provider, t],
   )
 
   const transcribeFile = useCallback(
@@ -83,13 +85,13 @@ export function useTranscription(options: UseTranscriptionOptions = {}) {
         return await transcribe(blob, customOptions)
       } catch (err: any) {
         console.error("Transcription error:", err)
-        setError(err.message || "Transcription failed")
+        setError(err.message || t("chat.voice.transcribeFailed"))
         return null
       } finally {
         setIsTranscribing(false)
       }
     },
-    [transcribe],
+    [transcribe, t],
   )
 
   return {

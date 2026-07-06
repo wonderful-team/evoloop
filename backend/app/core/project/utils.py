@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.project.local_index import local_project_index
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.models import Repository
 
 logger = logging.getLogger(__name__)
@@ -68,7 +68,7 @@ def read_project_json(project_path: str) -> dict:
     try:
         with open(meta_file, encoding="utf-8") as f:
             return json.load(f) or {}
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.warning(f"[ProjectUtils] Failed to read {meta_file}: {e}")
         return {}
 
@@ -87,7 +87,7 @@ def write_project_json(project_path: str, data: dict) -> None:
         os.makedirs(os.path.dirname(meta_file), exist_ok=True)
         with open(meta_file, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2, ensure_ascii=False)
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.warning(f"[ProjectUtils] Failed to write {meta_file}: {e}")
 
 
@@ -131,7 +131,7 @@ async def get_project_path(project_id: int) -> str:
 
                 if repo.local_path and os.path.isdir(repo.local_path):
                     return repo.local_path
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.debug(f"DB lookup failed for {project_id}: {e}")
 
     return ""
@@ -196,6 +196,6 @@ async def resolve_project_to_repo(project_id: int) -> Repository | None:
                         return repo
 
             return repos[0]
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.warning(f"[ProjectUtils] Failed to resolve project_id {project_id} to repo: {e}")
         return None

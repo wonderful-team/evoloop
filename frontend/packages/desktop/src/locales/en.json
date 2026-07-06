@@ -23,7 +23,8 @@
       "newVersion": "New Version",
       "openingDownload": "Opening Download",
       "skipped": "Skipped",
-      "upToDate": "Up To Date"
+      "upToDate": "Up To Date",
+      "checkFailedWithStatus": "{{message}}: {{status}}"
     },
     "update": {
       "checkUpdate": "Check Update",
@@ -37,7 +38,10 @@
     "versionInfo": {
       "desc": "Desc",
       "title": "Title"
-    }
+    },
+    "copyVersionInfo": "Copy version information",
+    "versionLabel": "Version {{version}}",
+    "copyright": "© 2024 EvoLoop. All rights reserved."
   },
   "app": {
     "name": "EvoLoop"
@@ -55,7 +59,8 @@
       "passwordMin8": "Password must be at least 8 characters",
       "passwordRequired": "Password is required",
       "passwordsNoMatch": "The passwords don't match",
-      "usernameRequired": "Username or Email is required"
+      "usernameRequired": "Username or Email is required",
+      "usernameMinLength": "Username must be at least 3 characters"
     },
     "login": {
       "accountTab": "Account Login",
@@ -87,7 +92,8 @@
       "wechatLogin": "WeChat Login",
       "wechatQRCodeError": "Failed to load QR code",
       "wechatScanDesc": "Scan the QR code to login instantly",
-      "wechatScanTitle": "WeChat Scan"
+      "wechatScanTitle": "WeChat Scan",
+      "wechatQRAlt": "WeChat QR Code"
     },
     "pleaseLoginAgain": "Please log in again to continue",
     "recover": {
@@ -119,7 +125,9 @@
       "agreementService": "Service Agreement",
       "agreementAnd": "and",
       "agreementPrivacy": "Privacy Policy",
-      "agreeToTermsRequired": "Please read and agree to the terms of service"
+      "agreeToTermsRequired": "Please read and agree to the terms of service",
+      "success": "Registration successful",
+      "failed": "Registration failed"
     },
     "reset": {
       "confirmPassword": "Confirm Password",
@@ -129,7 +137,8 @@
       "rememberPassword": "Remember your password?",
       "submit": "Reset Password",
       "success": "Password updated successfully",
-      "title": "Reset Password"
+      "title": "Reset Password",
+      "failed": "Password reset failed"
     },
     "resetPassword": {
       "pageTitle": "Reset Password - EvoLoop"
@@ -138,7 +147,10 @@
     "signup": {
       "pageTitle": "Sign Up - EvoLoop"
     },
-    "tagline": "Personalize Your AI Workforce"
+    "tagline": "Personalize Your AI Workforce",
+    "code": {
+      "sendFailed": "Failed to send verification code"
+    }
   },
   "chat": {
     "addLinkTitle": "Add External Link",
@@ -152,7 +164,25 @@
       "mapError": "Map Error",
       "preview": "Preview",
       "reactComponent": "React Component",
-      "saveImage": "Save Image"
+      "saveImage": "Save Image",
+      "scrollToPreview": "Scroll to preview",
+      "generatingChart": "Generating Chart...",
+      "bytesReceived": "{{count}} bytes received",
+      "component": "Component",
+      "lines": "{{count}} lines",
+      "standardized": "STANDARDIZED V1",
+      "unknownType": "Unknown Artifact Type: {{type}}",
+      "lineCount": "({{count}} lines)",
+      "mapErrors": {
+        "amapKeyMissing": "AMap Key is not configured",
+        "amapScriptLoadFailed": "Failed to load AMap script",
+        "amapGlobalMissing": "AMap global not available after script load",
+        "geocodeFailed": "Geocode failed for: {{address}}",
+        "initializationFailed": "Map initialization failed"
+      },
+      "htmlPreviewFullscreen": "HTML Preview Fullscreen",
+      "validationFailed": "Validation Failed",
+      "validationSuccessful": "Validation Successful"
     },
     "artifacts": {
       "fixSuggestion": "Suggested Fix",
@@ -161,10 +191,18 @@
       "title": "Generated Files"
     },
     "attachSkill": "Attach Skill",
+    "loadingHistory": "Loading history...",
+    "scrollToLoadMore": "Scroll up to load more history",
     "changeset": {
       "newChanges": "Modified {{count}} files",
       "viewChanges": "Click to Review",
-      "viewed": "{{count}} files reviewed"
+      "viewed": "{{count}} files reviewed",
+      "more": "+{{count}} more",
+      "opAdd": "ADD",
+      "opDel": "DEL",
+      "opMod": "MOD",
+      "fileChangeset": "File Changeset",
+      "fetchFailed": "Failed to fetch changeset"
     },
     "context": {
       "addMemory": {
@@ -193,14 +231,27 @@
       "tabActivity": "Activity",
       "taskCount": "{{count}} tasks",
       "title": "Agent Workstation",
-      "viewAllMemories": "View all {{count}} memories"
+      "viewAllMemories": "View all {{count}} memories",
+      "executionSummary": "Execution Summary",
+      "noDetails": "No details preserved.",
+      "objective": "Objective",
+      "resultAndOutcome": "Result & Outcome",
+      "statusFailed": "FAILED",
+      "statusSuccess": "SUCCESS"
     },
     "diff": {
-      "tip": "Tip: Red lines are deletions, green lines are additions."
+      "tip": "Tip: Red lines are deletions, green lines are additions.",
+      "description": "Diff View for {{path}}"
     },
     "errors": {
       "connection": "Connection Error: {{error}}",
-      "sendFailed": "Send failed"
+      "sendFailed": "Send failed",
+      "fetchHistoryFailed": "Failed to load history",
+      "loadMoreHistoryFailed": "Failed to load more history",
+      "rewindFailed": "Failed to rewind",
+      "cancelRequestFailed": "Failed to cancel request",
+      "resumeAgentFailed": "Failed to resume agent",
+      "stopAgentFailed": "Failed to stop agent"
     },
     "externalLinks": "External Links",
     "goToSettings": "Go to Settings",
@@ -243,7 +294,18 @@
       "uploadError": "Upload failed",
       "uploadFile": "Upload File",
       "uploadSuccess": "File uploaded successfully",
-      "files": "Files"
+      "files": "Files",
+      "uploading": "Uploading...",
+      "uploadFailed": "Upload failed",
+      "thinking": "Thinking...",
+      "openTerminal": "Open terminal – {{title}}",
+      "terminalPlaceholder": "Enter terminal command and press Enter to execute... (e.g. ls -la, pwd)",
+      "exitTerminal": "Click to exit terminal mode and return to chat view",
+      "terminalMode": "Terminal Interactive Mode (PTY)",
+      "enterTerminal": "Enter terminal interactive mode (PTY)",
+      "addMemoryError": "Failed to add memory",
+      "forget": "Forget",
+      "filesRevertedMessage": " ({{count}} files reverted)"
     },
     "interrupted": {
       "addInput": "Add Instructions",
@@ -262,7 +324,8 @@
       "resume": "Resume",
       "resumeWithProject": "Resume with Selected Project",
       "selectProject": "Select a Project...",
-      "title": "Agent Paused"
+      "title": "Agent Paused",
+      "selectedProject": "Selected Project"
     },
     "linkAdded": "Link added",
     "linkFailed": "Failed to add link",
@@ -273,14 +336,15 @@
     "noUsedSkills": "No skills utilized",
     "llmAuthError": "LLM API Authentication Failed",
     "llmAuthErrorDesc": "API key is invalid or expired, please check LLM settings",
-    "loadingHistory": "Loading history...",
     "messageList": {
       "audioNotSupported": "Audio playback not supported",
       "clickToOpen": "Click to open",
       "copy": "Copy",
       "preview": "Preview",
       "imageViewer": "Image Viewer",
-      "toolExecution": "Tool Execution"
+      "toolExecution": "Tool Execution",
+      "userUpload": "User upload",
+      "fileFallback": "File"
     },
     "modelSelector": {
       "customModels": "Custom Models",
@@ -290,7 +354,9 @@
       "platformModels": "Platform Models",
       "requiresQuota": "Requires Quota",
       "selectModel": "Please select a model",
-      "tooltip": "Select AI model for this conversation"
+      "tooltip": "Select AI model for this conversation",
+      "customBadge": "Custom",
+      "platformBadge": "Platform"
     },
     "noLinks": "No links",
     "noPinnedFiles": "Right click files in file explorer to pin them here.",
@@ -298,11 +364,11 @@
     "noThinking": "No thinking recorded.",
     "pinnedFiles": "Pinned Files",
     "process": {
-      "initializing": "Initializing...",
-      "param": "Param",
+      "failedIndicator": "!",
+      "initializing": "Initializing",
+      "param": "Parameter",
       "path": "Path",
-      "noResults": "No results",
-      "resultCount": "Found {{count}} results"
+      "resultCount": "{{count}} results"
     },
     "quota": {
       "banner": {
@@ -331,7 +397,10 @@
       "messages": "Messages",
       "noResults": "No results found",
       "searchPlaceholder": "Search...",
-      "typeToSearch": "Type to search..."
+      "typeToSearch": "Type to search...",
+      "projectRoot": "Project root",
+      "messageFallback": "Message",
+      "threadLabel": "Thread: {{id}}"
     },
     "request": {
       "cancelled": "Cancelled",
@@ -357,7 +426,6 @@
       "assistant": "Assistant",
       "user": "User"
     },
-    "scrollToLoadMore": "Scroll up to load more history",
     "sidebar": {
       "agentChanges": "File Changes",
       "copiedPath": "Copied path: {{path}}",
@@ -375,7 +443,20 @@
       "wiki": "Generate Project Wiki",
       "projectOnly": "Project mode only",
       "deployStarted": "Project analysis & initialization task started",
-      "wikiStarted": "Project wiki generation task started"
+      "wikiStarted": "Project wiki generation task started",
+      "pinSuccess": "Thread pinned",
+      "unpinSuccess": "Thread unpinned",
+      "pinActionFailed": "Pin action failed",
+      "sections": {
+        "pinned": "Pinned Conversations",
+        "today": "Today",
+        "yesterday": "Yesterday",
+        "recent": "Last 7 Days",
+        "earlier": "Earlier"
+      },
+      "pinThread": "Pin conversation",
+      "unpinThread": "Unpin conversation",
+      "loadMore": "Load more"
     },
     "skillAttached": "Skill attached",
     "sources": {
@@ -387,6 +468,14 @@
     "status": {
       "ready": "Ready",
       "working": "Working..."
+    },
+    "runningTasks": {
+      "openTerminalTitle": "Open terminal – {{title}}",
+      "terminalModeActive": "Terminal Mode active",
+      "switchToChat": "Switch to Chat view",
+      "switchToTerminal": "Switch to Terminal view",
+      "exit": "Exit",
+      "terminalIcon": ">_"
     },
     "stepGroupsCount": "{{count}} turns",
     "steps": {
@@ -413,7 +502,8 @@
       "gender": {
         "female": "Female",
         "male": "Male"
-      }
+      },
+      "failed": "TTS failed"
     },
     "turnLabel": "Turn {{turn}}",
     "voice": {
@@ -439,15 +529,14 @@
       "uploadFailed": "Voice upload failed",
       "wakeWordActive": "Wake word active, please speak...",
       "wakeWordDetected": "Wake word detected, starting recording...",
-      "wakeWordStatus": "Wake word: \"{{word}}\""
+      "wakeWordStatus": "Wake word: \"{{word}}\"",
+      "notRecording": "Not recording"
     },
     "waitingForSteps": "Waiting for agent to start...",
     "welcome": {
       "mobileHint": "Click the input box below to start a conversation",
       "mobileSubtitle": "Hello! I am your Wooden Robot assistant",
       "nav": {
-        "knowledge": "Knowledge Base",
-        "knowledgeDesc": "Access memory, docs & assets",
         "projects": "Project Management",
         "projectsDesc": "Manage all development projects",
         "skills": "Skill Center",
@@ -455,6 +544,18 @@
         "todos": "To-do Items",
         "todosDesc": "Track progress and automations"
       }
+    },
+    "agentRunning": "Agent Running",
+    "goalBanner": {
+      "title": "Current Mission"
+    },
+    "terminal": {
+      "trimMarker": "[Terminal: older output was trimmed to stay within 512 KB]",
+      "welcomeBanner": "=== EvoLoop PTY Terminal ===",
+      "promptSymbol": "$"
+    },
+    "toolMessage": {
+      "fallbackName": "TOOL"
     }
   },
   "common": {
@@ -487,6 +588,7 @@
     "next": "Next",
     "no": "No",
     "none": "None",
+    "noProject": "No project",
     "ok": "OK",
     "openContextPanel": "Open Context Panel",
     "openMenu": "Open menu",
@@ -521,17 +623,70 @@
       "hoursAgo": "{{count}}h ago",
       "justNow": "Just now",
       "minutesAgo": "{{count}}m ago",
-      "unknown": "Unknown time"
+      "unknown": "Unknown time",
+      "daysAgo": "{{count}}d ago"
     },
     "upload": "Upload",
     "uploading": "Uploading...",
     "url": "URL",
     "yes": "Yes",
     "continue": "Continue",
-    "rename": "Rename"
+    "rename": "Rename",
+    "open": "Open",
+    "close": "Close",
+    "copy": "Copy",
+    "expand": "Expand",
+    "saveSuccess": "Saved successfully",
+    "saveFailed": "Failed to save",
+    "deleteSuccess": "Deleted successfully",
+    "deleteFailed": "Failed to delete",
+    "copied": "Copied to clipboard",
+    "loadFailed": "Failed to load",
+    "deleteConfirmTitle": "Are you sure?",
+    "fileSizeB": "{{size}} B",
+    "fileSizeKB": "{{size}} KB",
+    "fileSizeMB": "{{size}} MB",
+    "ms": "ms",
+    "notFound": {
+      "title": "Not Found"
+    },
+    "unknown": "Unknown",
+    "bullet": "•",
+    "check": "✓",
+    "colon": ":",
+    "copyright": "© 2024 EvoLoop. All rights reserved.",
+    "cross": "✗",
+    "currencySymbol": "¥",
+    "ellipsis": "…",
+    "forwardSlash": "/",
+    "hash": "#",
+    "megabyte": "MB",
+    "millisecond": "ms",
+    "multiplicationSign": "×",
+    "percent": "%",
+    "second": "s",
+    "separator": "·",
+    "speedMultiplier": "x",
+    "terminalIcon": ">_",
+    "terminalPrompt": "$"
   },
   "context": {
     "noDescription": "No Description"
+  },
+  "memberCancellation": {
+    "applyError": "Error applying cancellation.",
+    "applyFailed": "Failed to apply.",
+    "applySuccess": "Cancellation applied successfully.",
+    "withdrawError": "Error withdrawing cancellation.",
+    "withdrawFailed": "Failed to withdraw.",
+    "withdrawSuccess": "Cancellation request withdrawn."
+  },
+  "servicer": {
+    "supportNotConfigured": "Support not configured."
+  },
+  "updateService": {
+    "apiRequestFailed": "API request failed: {{status}}",
+    "apiResponseError": "API returned an error"
   },
   "deleteAccount": {
     "cancel": "Cancel",
@@ -550,13 +705,13 @@
     "column": "Col",
     "ghostHint": "Tab to accept, Esc to dismiss",
     "line": "Line",
-    "thinking": "Thinking..."
+    "thinking": "Thinking...",
+    "untitled": "untitled.txt"
   },
   "features": {
     "browserControl": "Browser Control",
     "desktopControl": "Desktop Control",
     "gantt": "Gantt Chart",
-    "knowledgeBase": "Knowledge Base",
     "mobileControl": "Mobile Control",
     "skillLearning": "Skill Learning",
     "timesheet": "Timesheet",
@@ -581,80 +736,34 @@
     "selectFileToView": "Select a file to view",
     "selectPrompt": "Select a file to view content",
     "text": "TEXT",
-    "title": "Files"
-  },
-  "knowledge": {
-    "allDocuments": "All Documents",
-    "allProjects": "All Projects",
-    "autoTagged": "Auto Tagged",
-    "bulkUpload": "Bulk/ZIP",
-    "bulkUploadHint": "Supports bulk upload or ZIP archive import.",
-    "clearFilters": "Clear All",
-    "collection": "Collection / Project",
-    "collections": "Collections",
-    "createCollection": "+ Create Collection",
-    "delete": "Delete",
-    "deleteError": "Failed to delete",
-    "deleteSuccess": "Document deleted",
-    "docType": "Document Type",
-    "docTypes": {
-      "api": "API Documentation",
-      "architecture": "Architecture Document",
-      "code": "Code",
-      "design": "Design Document",
-      "doc": "Document",
-      "guide": "Guide",
-      "requirement": "Requirement Document"
-    },
-    "documents": "Documents",
-    "dropFile": "Click or drop files",
-    "dropMultiple": "Select multiple files or ZIP",
-    "filesCount": "{{count}} files",
-    "filters": "Filters",
-    "lines": "lines",
-    "newCollectionPlaceholder": "Enter new collection name...",
-    "next": "Next",
-    "noDocuments": "No documents",
-    "noPopularDocs": "No popular documents",
-    "noPopularDocsHint": "Most frequently used documents will appear here after using the knowledge base.",
-    "noProjectDocs": "No project documents",
-    "noProjectDocsHint": "This project has no associated documents yet. You can upload and categorize them in the workspace Knowledge Base.",
-    "noSearchResults": "No search results",
-    "noSearchResultsHint": "Try different keywords",
-    "noTags": "No tags available",
-    "popular": "Popular",
-    "popularRankingInfo": "Ordered by citations (last 30 days)",
-    "prev": "Previous",
-    "projectDocs": "Project Documents",
-    "projectDocsDescription": "View and manage knowledge base documents associated with this project.",
-    "relatedDocs": "Related Documents",
-    "results": "results",
-    "search": "Search documents...",
-    "singleFile": "Single File",
-    "status": {
-      "citations": "Cited {{count}} times",
-      "lastAccessed": "Last accessed: {{date}}",
-      "sessions": "{{count}} sessions"
-    },
-    "subtitle": "Manage and explore your documents",
-    "tags": "Tags",
-    "title": "Knowledge Base",
-    "totalSize": "Total Size",
-    "tryDifferentQuery": "Try a different query",
-    "upload": "Upload",
-    "uploadBulk": "Bulk Upload",
+    "title": "Files",
+    "newFolder": "New Folder",
     "uploadError": "Upload failed",
-    "uploadPrompt": "Click the upload button to add documents",
-    "uploadSuccess": "Document uploaded successfully",
-    "uploadTitle": "Upload Document",
-    "view": "View",
-    "zipFilesCount": "Contains {{count}} processable files",
-    "zipImport": "ZIP Import",
-    "zipTotalSize": "Total uncompressed size: {{size}}",
-    "zipValid": "ZIP valid"
+    "uploadFile": "Upload File",
+    "createFolderError": "Failed to create folder",
+    "previewTitle": "File Preview",
+    "loadingEditor": "Loading editor...",
+    "noFile": "No file",
+    "failedToLoadFile": "Failed to load file",
+    "overwritePrompt": "File {{name}} already exists. Overwrite?",
+    "uploadNamedError": "Failed to upload {{name}}",
+    "goToSettings": "Go to Settings",
+    "dropToUpload": "Drop files here to upload",
+    "deleteConfirm": "Are you sure you want to delete {{name}}?",
+    "docxPreviewError": "Failed to render DOCX preview.",
+    "deleteError": "Failed to delete file",
+    "moveError": "Failed to move file",
+    "moveSuccess": "File moved",
+    "preview": "Preview",
+    "previewDescription": "Preview for the file",
+    "rename": "Rename",
+    "renameError": "Failed to rename file",
+    "workspaceNotConfigured": "Workspace not configured",
+    "downloadFallback": "download"
   },
   "learning": {
     "agentic": "Agentic",
+    "agenticIcon": "🧠",
     "annotations": "Annotations",
     "appRecording": "App Window Only (DOM)",
     "centerSubtitle": "Manage learned skills and train agents via interactive recording sessions.",
@@ -674,6 +783,7 @@
     "created": "Created",
     "desktopRecording": "Full Desktop Monitoring (Global)",
     "deterministic": "Deterministic",
+    "deterministicIcon": "⚡",
     "domMode": "App Only (DOM)",
     "editor": {
       "addParameter": "Add Input Item",
@@ -783,6 +893,7 @@
     "preparingRecording": "Preparing recording...",
     "processing": "Processing...",
     "processingTime": "Processing Time",
+    "processingTimeSeconds": "{{value}}s",
     "quickStart": "Quick Record",
     "recordedEvents": "Recorded events",
     "recordingAutoStopped": "Recording was stopped automatically.",
@@ -849,7 +960,13 @@
     "videoMissing": "Screen recording not found",
     "videoNotFound": "File not accessible",
     "videoRecordingFailed": "Video recording failed",
-    "viewDetails": "View Details"
+    "viewDetails": "View Details",
+    "openVideoFailedWithMessage": "Failed to open video: {{message}}",
+    "stepPreview": "Step {{number}}: {{description}}",
+    "videoNotFoundWithPath": "Video file not found: {{path}}",
+    "webVideoHint": "Video playback is only available in the desktop app.",
+    "executionStartedWithMode": "{{message}} ({{mode}})",
+    "noRecordingAvailable": "No recording available"
   },
   "macroEditor": {
     "actions": "{{count}} actions",
@@ -936,7 +1053,9 @@
       "selector": "Enter selector...",
       "timeout": "5000",
       "url": "https://example.com",
-      "xpath": "e.g., //button[contains(text(), 'Submit')]"
+      "xpath": "e.g., //button[contains(text(), 'Submit')]",
+      "extractKey": "e.g. product_title",
+      "itemsKey": "e.g. products"
     },
     "previewStep": "Preview this step",
     "reset": "Reset",
@@ -981,7 +1100,12 @@
     "yamlRootObject": "YAML root must be an object",
     "yamlStepObject": "Step {{index}} must be an object",
     "yamlStepTypeMissing": "Step {{index}} missing type field",
-    "yamlStepsArray": "steps must be an array"
+    "yamlStepsArray": "steps must be an array",
+    "itemsKey": "Items Key",
+    "jsonErrorInvalidWithMessage": "Invalid JSON: {{message}}",
+    "yaml": "YAML",
+    "yamlTemplate": "version: \"1.0\"\nmetadata:\n  format: evoloop-macro\n  step_count: 0\n\nsteps:\n  # Example step - replace with your own\n  - type: action\n    event_type: navigate\n    source: dom\n    description: Navigate to target page\n    payload:\n      url: \"https://example.com\"\n",
+    "yamlVersion": "YAML v1.0"
   },
   "mcp": {
     "add": "Add Tool",
@@ -1017,7 +1141,8 @@
     "title": "External Tools"
   },
   "mermaid": {
-    "renderingPartial": "Rendering Partial"
+    "renderingPartial": "Rendering Partial",
+    "diagramSyntaxError": "Diagram Syntax Error"
   },
   "overlay": {
     "dragToSelect": "Drag To Select",
@@ -1026,7 +1151,10 @@
     "escToCancel": "Esc To Cancel",
     "hint": "Hint",
     "marked": "Marked",
-    "regionsCount": "Regions Count"
+    "regionsCount": "Regions Count",
+    "androidLabel": "Android",
+    "androidOnly": "Android marker overlay is only available in the desktop app.",
+    "desktopOnly": "Marker overlay is only available in the desktop app."
   },
   "pending": {
     "actions": "Actions",
@@ -1097,6 +1225,9 @@
       "submit": "Create Project",
       "success": "Project created successfully",
       "title": "Create New Project"
+    },
+    "global": {
+      "description": "Cross-project conversations and general Q&A"
     },
     "details": {
       "created": "Created",
@@ -1170,7 +1301,19 @@
         "connected": "Connected"
       },
       "threadCreated": "Task thread created",
-      "title": "Project Profile"
+      "title": "Project Profile",
+      "reanalyze": "Reanalyze Project",
+      "missing": "Missing project profile. This may affect Agent understanding.",
+      "description": "Project Profile Document",
+      "documentTitle": "PROJECT.md",
+      "statusLog": "[Status] {{status}}",
+      "toolFallback": "Tool",
+      "toolStartLog": "→ {{name}}",
+      "toolCompleteLog": "✓ {{name}} complete",
+      "thinkingLog": "💭 {{message}}",
+      "errorLog": "Error: {{message}}",
+      "noThreadId": "No thread_id returned",
+      "threadCreatedWithId": "{{label}}: {{threadId}}"
     },
     "refresh": "Refresh",
     "reports": {
@@ -1199,7 +1342,6 @@
     "tabs": {
       "files": "Files",
       "gantt": "Gantt",
-      "knowledge": "Knowledge",
       "overview": "Overview",
       "profile": "Profile",
       "reports": "Reports",
@@ -1240,6 +1382,7 @@
       "processing": "Processing...",
       "progressUpdateFailed": "Failed to update progress",
       "progressUpdated": "Progress updated",
+      "progressValue": "{{value}}%",
       "refresh": "Refresh",
       "statusLabel": {
         "blocked": "Blocked",
@@ -1252,6 +1395,7 @@
       "techDifficulty": "Tech Difficulty",
       "title": "Tasks",
       "totalProgress": "total progress",
+      "scoreOutOf": "/100",
       "unassigned": "Unassigned"
     },
     "timesheet": {
@@ -1293,7 +1437,8 @@
         "testing": "Testing"
       }
     },
-    "title": "Projects"
+    "title": "Projects",
+    "projectNameFallback": "Project #{{id}}"
   },
   "requirements": {
     "analysis": {
@@ -1319,7 +1464,8 @@
       "title": "Analysis",
       "untitled": "Untitled Requirement",
       "userStories": "User Stories",
-      "version": "Version"
+      "version": "Version",
+      "impact": "Impact"
     },
     "detail": {
       "analysisHistory": "Analysis History",
@@ -1363,7 +1509,14 @@
       "syncing": "Syncing...",
       "tasks": "tasks",
       "title": "Task List",
-      "unmapped": "Unmapped"
+      "unmapped": "Unmapped",
+      "status": {
+        "pending": "Pending",
+        "syncing": "Syncing",
+        "synced": "Synced",
+        "failed": "Failed",
+        "unknown": "Unknown"
+      }
     },
     "toast": {
       "confirmError": "Failed to confirm analysis",
@@ -1382,6 +1535,7 @@
       "dragDrop": "Drag files here or click to select",
       "invalidType": "Unsupported file type. Please upload: {{types}}",
       "supportedTypes": "Supports",
+      "supportedTypesList": "DOCX, PDF, XLSX, MD, TXT",
       "title": "Upload Requirements",
       "tooLarge": "File size cannot exceed 50MB"
     }
@@ -1405,20 +1559,13 @@
     "danger": {
       "delete_warning": "Deleting your account will permanently remove all your data. This action cannot be undone. Do you wish to continue?",
       "description": "Permanently delete your account and all associated data.",
-      "kb_reset_btn": "Reset Knowledge Base",
-      "kb_reset_confirm_desc": "This will delete all indexed code, file summaries, and memory concepts. The system will need to re-index everything from scratch.",
-      "kb_reset_warning": "Resetting the knowledge base will clear all document indices and memory maps. Active sessions might lose some local context.",
-      "kb_reset_confirm_title": "Are you absolutely sure?",
-      "kb_reset_desc": "Wipe all indexed code and memory concepts. Use this if the AI seems confused or hallucinations persist.",
-      "kb_reset_error": "Failed to wipe Knowledge Base.",
-      "kb_reset_success": "Knowledge Base wiped successfully.",
-      "kb_reset_title": "Reset Knowledge Base & Index",
       "title": "Delete Account"
     },
     "embedding": {
       "activate_reindex": "Activate & Re-index",
       "apply_btn": "Apply & Re-Index",
       "confirm_switch": "WARNING: Switching embedding models will DELETE all existing knowledge indices (Vectors) and trigger a full re-index. This process cannot be undone. Are you sure?",
+      "connectionTestFailed": "Embedding connection test failed",
       "default_model": "Default Embedding Model",
       "default_model_desc": "Select the default vector model used for semantic search and knowledge processing.",
       "error_connection": "Connection Error",
@@ -1429,13 +1576,22 @@
       "success_connected": "Connected! Dimensions: {{dim}}",
       "success_updated": "Embedding Model Updated & Re-indexing Triggered",
       "test_connection": "Test Connection",
-      "description": "Manage vector models used for knowledge base indexing and semantic search."
+      "description": "Manage vector models used for knowledge base indexing and semantic search.",
+      "apiKeyPlaceholder": "sk-...",
+      "baseUrlPlaceholder": "https://api.openai.com/v1",
+      "dimensionsPlaceholder": "1536",
+      "modelPlaceholder": "text-embedding-3-small",
+      "providerPlaceholder": "openai",
+      "connectionErrorWithMessage": "{{message}}: {{detail}}"
     },
     "general": {
       "browse": "Browse",
       "browseError": "Failed to open directory selector",
       "webBrowseHint": "Directory picker is only available in the desktop app. Please type the path manually.",
       "description": "Configure workspace system preferences and paths.",
+      "deviceDescription": "Device Description",
+      "deviceDescriptionDesc": "Describe what this device is used for. This helps other agents understand its role.",
+      "deviceDescriptionPlaceholder": "e.g. Mac mini development workstation with Python, Node.js, and Docker",
       "deviceName": "Device Name",
       "deviceNameDesc": "This name identifies this device in the EvoLoop network.",
       "deviceNamePlaceholder": "Device Name Placeholder",
@@ -1468,6 +1624,7 @@
       "connected": "Connected successfully",
       "connection_error": "Connection Error",
       "connection_failed": "Connection Failed",
+      "connectionTestFailed": "LLM connection test failed",
       "custom": "Custom (requires config below)",
       "default_model": "1. Default LLM Model",
       "default_model_desc": "Select the default generation model when no specific model is requested.",
@@ -1477,7 +1634,16 @@
       "select_active_model": "Select Active Model",
       "select_model_placeholder": "Choose a model...",
       "test_connection": "Test Connection",
-      "description": "Configure language model providers and default generation models."
+      "description": "Configure language model providers and default generation models.",
+      "headersInvalid": "Headers must be a valid JSON object",
+      "apiKeyPlaceholder": "sk-...",
+      "baseUrlPlaceholder": "https://api.openai.com/v1",
+      "connectedWithReply": "Connected. Reply: {{reply}}",
+      "connectionErrorWithMessage": "Connection error: {{message}}",
+      "headersPlaceholder": "{\"User-Agent\": \"KimiCLI/1.5\"}",
+      "modelPlaceholder": "gpt-4o",
+      "providerPlaceholder": "openai",
+      "visionModelPlaceholder": "gpt-4o"
     },
     "modelFields": {
       "apiKey": "API Key",
@@ -1608,7 +1774,25 @@
       "wakeWordLabel": "Wake Word",
       "wakeWordPlaceholder": "e.g., Hey Evo",
       "wakeWordSaved": "Wake word saved",
-      "wakeWordTitle": "Wake Word Settings"
+      "wakeWordTitle": "Wake Word Settings",
+      "device": {
+        "cpu": "CPU",
+        "cuda": "CUDA (NVIDIA GPU)"
+      },
+      "sttModels": {
+        "paraformer-zh": "paraformer-zh (Standard)",
+        "paraformer-zh-plus": "paraformer-zh-plus (Enhanced)",
+        "paraformer-zh-streaming": "paraformer-zh-streaming (Streaming)"
+      },
+      "shortcutErrors": {
+        "setupListeners": "Failed to setup shortcut listeners",
+        "startListener": "Failed to start shortcut listener",
+        "stopListener": "Failed to stop shortcut listener",
+        "setKey": "Failed to set shortcut key",
+        "setDuration": "Failed to set shortcut duration",
+        "setMode": "Failed to set trigger mode",
+        "setInterval": "Failed to set double click interval"
+      }
     }
   },
   "startup": {
@@ -1640,7 +1824,6 @@
       "desktop_control": "Desktop Control",
       "gantt": "Gantt Chart",
       "interactive_charts": "Interactive Charts",
-      "knowledge_base": "Knowledge Base",
       "mcp": "MCP Services",
       "mobile_control": "Mobile Control",
       "project_limit": "Project Limit",
@@ -1688,7 +1871,8 @@
       "upgradeNote": "Upgrade Note",
       "validityNote": "Validity Note",
       "waiting": "Waiting for payment result...",
-      "wechatPay": "Pay with WeChat"
+      "wechatPay": "Pay with WeChat",
+      "qrAlt": "Payment QR"
     },
     "plan": {
       "active": "Currently Active",
@@ -1821,7 +2005,8 @@
     "update": {
       "error": "Failed to update todo",
       "success": "Todo updated"
-    }
+    },
+    "executeTaskMessage": "Execute: {{title}}\n{{description}}"
   },
   "tour": {
     "finish": "Finish",
@@ -1901,13 +2086,17 @@
     "helpDocs": "Help Docs",
     "stage": "Stage",
     "version": "Version",
-    "visitWebsite": "Visit Website"
+    "visitWebsite": "Visit Website",
+    "buildLabel": "Build {{number}}",
+    "gitCommit": "Git Commit",
+    "versionString": "v{{version}}{{stageTag}} (Build {{buildNumber}})"
   },
   "voice": {
     "micError": "Mic Error: ",
     "notSupported": "Speech recognition not supported on this device.",
     "recognitionError": "Recognition error",
-    "webSpeechNotSupported": "Web Speech API not supported in this browser."
+    "webSpeechNotSupported": "Web Speech API not supported in this browser.",
+    "recognitionErrorWithDetail": "{{message}}: {{detail}}"
   },
   "wiki": {
     "generate": "Generate Wiki",
@@ -1948,7 +2137,8 @@
       "testFailed": "Connection failed, please check your configuration",
       "testRequired": "Please test the connection to ensure correct configuration",
       "testSuccess": "Connection successful! Model responded.",
-      "title": "Configure AI Model"
+      "title": "Configure AI Model",
+      "testErrorWithMessage": "{{message}}: {{detail}}"
     },
     "next": "Next",
     "prev": "Previous",
@@ -1957,13 +2147,14 @@
       "browseError": "Failed to open directory selector",
       "webBrowseHint": "Directory picker is only available in the desktop app. Please type the path manually.",
       "info1": "Scan subdirectories in this workspace as individual projects",
-      "info2": "Build knowledge index for smart assistance",
+      "info2": "Build code index for smart assistance",
       "info3": "All data stays local, nothing uploaded",
       "infoTitle": "What will EvoLoop do?",
       "label": "Workspace",
       "subtitle": "Choose the root directory for your Agent workspace. Subdirectories within will be automatically recognized as independent projects.",
       "suggestions": "Common paths",
-      "title": "Set Workspace"
+      "title": "Set Workspace",
+      "placeholder": "/Users/yourname/Projects"
     },
     "saveError": "Failed to save",
     "saveSuccess": "Configuration saved",
@@ -1976,7 +2167,8 @@
       "start": "Get Started",
       "subtitle": "Your Universal AI Agent is almost ready! Just 2 minutes to complete the setup.",
       "title": "Welcome to EvoLoop"
-    }
+    },
+    "saveErrorWithMessage": "{{message}}: {{detail}}"
   },
   "vault": {
     "title": "Secure Vault",
@@ -2014,16 +2206,87 @@
         "type": "Credential Type",
         "description": "Description",
         "descriptionPlaceholder": "Explain what this credential is for...",
-        "payload": "Credential Fields"
+        "payload": "Credential Fields",
+        "hideValue": "Hide value",
+        "keyPlaceholder": "Key name",
+        "sensitiveValuePlaceholder": "Sensitive field value",
+        "showValue": "Show value",
+        "valuePlaceholder": "Field value"
       },
       "actions": {
         "addField": "Add Field"
-      }
+      },
+      "identifierPlaceholder": "e.g. customer_a_ssh, github_api_token",
+      "typePlaceholder": "Select type"
     },
     "errors": {
       "identifierRequired": "Identifier is required",
       "invalidIdentifier": "Identifier must only contain letters, numbers, underscores, or hyphens",
       "payloadRequired": "At least one credential field is required"
+    },
+    "types": {
+      "api_key": "API Secret Key / Token",
+      "custom": "Custom Key-Value Dictionary",
+      "env": "Environment Variable (.env)",
+      "password": "Username & Password",
+      "ssh": "SSH Server (Host, Port, User, Key/Password)"
     }
+  },
+  "sidebar": {
+    "excelPreviewError": "Excel preview error",
+    "csvPreviewError": "CSV preview error",
+    "openInSystemApp": "Open in system default app",
+    "chat": "Chat",
+    "debug": "Debug",
+    "debugTooltip": "Debug Control Center",
+    "learning": "Learning",
+    "projects": "Projects",
+    "searchFilesPlaceholder": "Search files...",
+    "settings": "Settings",
+    "todos": "Todos"
+  },
+  "debug": {
+    "controlCenter": "Control Center",
+    "injectMocks": "Inject Universal Message Blocks (Local)",
+    "injectMocksSuccess": "5 categories, 21 forms of universal message blocks injected",
+    "backendScenarios": "Backend Streaming Scenarios",
+    "simulateHappyPath": "Simulate: Happy Path",
+    "simulateHitl": "Simulate: HITL",
+    "simulateLongTask": "Simulate: Long Task / Files",
+    "simulateQuota": "Simulate: Quota Exhausted",
+    "selectThreadFirst": "Please select or create a conversation first",
+    "streamStarted": "Real backend streaming simulation started",
+    "streamStartFailed": "Failed to start backend simulation stream",
+    "localInjection": "Local Component Injection",
+    "hitl": {
+      "approval": "Approve",
+      "confirmation": "Confirm",
+      "choice": "Choice",
+      "text": "Input",
+      "projectSwitch": "Switch",
+      "fileSelect": "Files",
+      "approvalPrompt": "Approve deployment to production?",
+      "textPrompt": "Please enter your API Key to continue:",
+      "choicePrompt": "Please choose a refactoring strategy:",
+      "choiceQuick": "Quick Refactor",
+      "choiceDeep": "Deep Optimization",
+      "choiceConservative": "Conservative Fix",
+      "confirmationPrompt": "node_modules anomaly detected. Force clean?",
+      "projectSwitchPrompt": "This operation spans multiple directories. Switch to a more suitable project context:",
+      "fileSelectPrompt": "Please select local source files as context references:",
+      "context": "This request comes from the Agent's core security policy check."
+    },
+    "hitlInjected": "{{type}} HITL injected",
+    "clearMessages": "Clear Current Messages",
+    "sessionCleared": "Session cleared",
+    "messagesCount": "MSGS",
+    "version": "V2.0-UNIVERSAL"
+  },
+  "footer": {
+    "copyright": "© 2024 EvoLoop"
+  },
+  "echarts": {
+    "filenameFallback": "chart",
+    "imageFilterName": "Image"
   }
 }

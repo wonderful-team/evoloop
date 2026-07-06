@@ -45,7 +45,7 @@ function formatToolInput(
   }
 
   if (typeof data === "string") {
-    return { label: t("chat.process.param", "参数"), value: data }
+    return { label: t("chat.process.param"), value: data }
   }
 
   // 1. Use backend-provided affected_path_keys
@@ -53,7 +53,7 @@ function formatToolInput(
     for (const key of toolMeta.affected_path_keys) {
       if (data[key] != null && data[key] !== "") {
         return {
-          label: t("chat.process.path", "路径"),
+          label: t("chat.process.path"),
           value: String(data[key]),
         }
       }
@@ -120,7 +120,7 @@ function summarizeOutput(
     return {
       title:
         errorMsg.length > MAX_LENGTH
-          ? `${errorMsg.slice(0, MAX_LENGTH)}...`
+          ? `${errorMsg.slice(0, MAX_LENGTH)}${t("common.ellipsis")}`
           : errorMsg,
       hasMore: errorMsg.length > MAX_LENGTH,
     }
@@ -233,7 +233,7 @@ function StepRow({ step }: { step: ToolStep }) {
           <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
         ) : isFailed ? (
           <div className="h-3.5 w-3.5 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold">
-            !
+            {t("chat.process.failedIndicator")}
           </div>
         ) : (
           <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 group-hover:bg-muted-foreground/60 transition-colors" />
@@ -276,7 +276,7 @@ function StepRow({ step }: { step: ToolStep }) {
               {outputSummary.title}
               {outputSummary.subtitle && (
                 <span className="text-muted-foreground/50 ml-1">
-                  · {outputSummary.subtitle}
+                  {t("common.separator")} {outputSummary.subtitle}
                 </span>
               )}
             </span>

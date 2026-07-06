@@ -1,17 +1,5 @@
 """
 InferenceEngine - Pure LLM execution logic.
-
-Responsible for:
-- LLM initialization and provider detection
-- Prompt caching optimizations
-- ReAct loop and single-shot execution
-- Telemetry recording
-- LLM error classification
-
-Explicitly NOT responsible for:
-- Message hydration, repair, or windowing
-- Signal interception (handled by SignalRegistry via interceptors)
-- Blackboard parsing (handled by BlackboardParser)
 """
 
 import hashlib
@@ -20,15 +8,74 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
-from langchain_core.runnables import RunnableConfig
-
 from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
-from app.core.engine.error_handler import LLMErrorHandler, with_llm_retry
+from app.core.engine.error_handler import LLM_EXCEPTIONS, LLMErrorHandler, with_llm_retry
+from app.core.exceptions import InferenceError
+from app.core.engine.message.converter import EvoMessageConverter
+from app.core.engine.message.native_classes import (
+    AIMessage,
+    AIMessageChunk,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from app.core.engine.message.reasoning import extract_reasoning_from_message
 from app.infrastructure.llm.factory import LLMFactory
 
 logger = logging.getLogger(__name__)
+
+
+def _dicts_to_messages(messages: list[dict]) -> list[BaseMessage]:
+    """Helper to convert standard dict messages to native BaseMessage for LLM compatibility."""
+    lc_messages = []
+    for m in messages:
+        role = m.get("role")
+        content = m.get("content", "")
+        additional_kwargs = m.get("additional_kwargs") or {}
+        
+        if role == "system":
+            lc_messages.append(SystemMessage(content=content, additional_kwargs=additional_kwargs))
+        elif role == "user":
+            lc_messages.append(HumanMessage(content=content, name=m.get("name"), additional_kwargs=additional_kwargs))
+        elif role == "assistant":
+            tool_calls = m.get("tool_calls") or []
+            # Normalize tool calls to standard structure: [{'name': '...', 'args': {...}, 'id': '...'}]
+            lc_tool_calls = []
+            for tc in tool_calls:
+                lc_tool_calls.append({
+                    "name": tc.get("name") or "",
+                    "args": tc.get("args") or {},
+                    "id": tc.get("id") or tc.get("tool_call_id") or "",
+                })
+            lc_messages.append(AIMessage(content=content, tool_calls=lc_tool_calls, additional_kwargs=additional_kwargs))
+        elif role == "tool":
+            lc_messages.append(ToolMessage(
+                content=content,
+                tool_call_id=m.get("tool_call_id") or "",
+                name=m.get("name"),
+                additional_kwargs=additional_kwargs
+            ))
+        else:
+            lc_messages.append(HumanMessage(content=content, additional_kwargs=additional_kwargs))
+    return lc_messages
+
+
+def _message_to_dict(msg: BaseMessage) -> dict:
+    """Helper to convert native BaseMessage back to standard dict."""
+    from app.core.engine.message.utils import normalize_tool_calls
+
+    res = {
+        "role": "assistant" if isinstance(msg, AIMessage) else ("user" if isinstance(msg, HumanMessage) else ("system" if isinstance(msg, SystemMessage) else "tool")),
+        "content": msg.content,
+        "additional_kwargs": dict(msg.additional_kwargs or {}),
+    }
+    if isinstance(msg, AIMessage):
+        res["tool_calls"] = normalize_tool_calls(msg.tool_calls)
+    elif isinstance(msg, ToolMessage):
+        res["tool_call_id"] = msg.tool_call_id
+        res["name"] = msg.name
+    return res
 
 
 class InferenceEngine:
@@ -43,22 +90,17 @@ class InferenceEngine:
         self._context_trimmer = context_trimmer or ContextTrimmer()
 
     async def create_llm(self, model: str | None, temperature: float, streaming: bool = True):
-        """Initialize LLM and detect provider."""
         llm = await self._llm_factory.create_llm(model_name=model, temperature=temperature, streaming=streaming)
         provider = self._detect_provider(llm)
         return llm, provider
 
     def _detect_provider(self, llm) -> str:
-        """Detect LLM provider for prompt-caching optimizations."""
         class_name = llm.__class__.__name__
         if "Anthropic" in class_name:
-            return "anthropic"
-        if "anthropic" in str(getattr(llm, "lc_secrets", {})).lower():
             return "anthropic"
         return "openai"
 
     def bind_tools(self, llm, tools: list[Any]):
-        """Bind tools to LLM and return tool map."""
         if tools:
             return llm.bind_tools(tools), {t.name: t for t in tools}
         return llm, {}
@@ -66,24 +108,26 @@ class InferenceEngine:
     @staticmethod
     @with_llm_retry(max_attempts=3)
     async def _stream_llm_response(llm_with_tools, loop_messages, config):
-        """Stream LLM response and accumulate chunks into a complete AIMessage.
-
-        Uses astream() so on_llm_new_token callbacks fire for real-time
-        thinking/streaming display. Falls back to ainvoke() on providers
-        that don't support streaming (e.g. kimi with long context).
-        """
-        from langchain_core.messages import AIMessage, AIMessageChunk
-
-        # astream() triggers on_llm_new_token callbacks for real-time thinking/streaming.
-        # AdaptiveChatOpenAI handles retries and parameter reduction internally.
         response = None
-        async for chunk in llm_with_tools.astream(loop_messages, config=config):
+        # Construct config with callbacks mapped properly
+        lc_config = {
+            "callbacks": config.get("callbacks"),
+            "configurable": config.get("configurable"),
+            "metadata": config.get("metadata"),
+        }
+        async for chunk in llm_with_tools.astream(loop_messages, config=lc_config):
             if response is None:
                 response = chunk
             else:
                 response = response + chunk
 
-        # Convert accumulated chunk to a proper AIMessage for downstream compatibility
+        if response is None:
+            raise InferenceError(
+                error_type="empty_response",
+                user_friendly_msg="LLM returned an empty response (no chunks received).",
+                raw_error="Empty stream from LLM provider",
+            )
+
         if isinstance(response, AIMessageChunk):
             response = AIMessage(
                 content=response.content,
@@ -96,49 +140,49 @@ class InferenceEngine:
 
     def build_system_messages(
         self, system_prompt: str, provider: str
-    ) -> list[SystemMessage]:
+    ) -> list[dict]:
         """Build provider-optimized system messages."""
         if provider == "anthropic":
             return [
-                SystemMessage(
-                    content=[
+                {
+                    "role": "system",
+                    "content": [
                         {
                             "type": "text",
                             "text": system_prompt,
                             "cache_control": {"type": "ephemeral"},
                         }
                     ]
-                )
+                }
             ]
-        return [SystemMessage(content=system_prompt)]
+        return [{"role": "system", "content": system_prompt}]
 
     async def _prepare_turn_context(
         self,
-        loop_messages: list[BaseMessage],
+        loop_messages: list[dict],
         model: str | None,
         name: str,
         thread_id: str | None,
         run_id: str | None,
-        config: RunnableConfig,
-    ) -> tuple[list[BaseMessage], dict[str, Any] | None]:
-        """Trims context and calculates usage metrics."""
+        config: dict,
+    ) -> tuple[list[dict], dict[str, Any] | None]:
         if model:
             trim_result = self._context_trimmer.trim(
                 messages=loop_messages,
                 model=model,
-                node_source=name.lower(),  # type: ignore[arg-type]
+                node_source=name.lower(),
                 stages={"window", "repair"},
             )
             if trim_result.trigger != TrimTrigger.NONE:
-                # Trigger PRE_COMPACT hook BEFORE applying the trim to save state
                 from app.core.engine.hooks import HookContext, HookEvent, hook_system
 
+                # Map messages to native BaseMessage list for hook
                 await hook_system.trigger(
                     HookEvent.PRE_COMPACT,
                     HookContext(
                         thread_id=thread_id,
                         run_id=run_id,
-                        messages=loop_messages,
+                        messages=_dicts_to_messages(loop_messages),
                         project_id=config.get("configurable", {}).get("project_id"),
                         member_id=config.get("configurable", {}).get("member_id"),
                         compact_trigger=trim_result.trigger.name.lower(),
@@ -147,29 +191,24 @@ class InferenceEngine:
 
                 loop_messages = trim_result.messages
                 logger.info(
-                    f"[{name}] ✂️ Loop trim: {trim_result.before_count} -> {trim_result.after_count} msgs, "
-                    f"{trim_result.before_tokens} -> {trim_result.after_tokens} tokens"
+                    f"[{name}] Loop trim: {trim_result.before_count} -> {trim_result.after_count} msgs"
                 )
 
-            # --- Cognitive Enhancement: Inject Context Dashboard into the message stream ---
-            # We inject this into the last HumanMessage (usually the context_ticket)
-            # so the Agent sees it as part of its current 'world state'.
             if loop_messages:
-                # Find the last HumanMessage to append the dashboard
+                # Find last user message
                 for i in range(len(loop_messages) - 1, -1, -1):
-                    if isinstance(loop_messages[i], HumanMessage):
+                    if loop_messages[i].get("role") == "user":
                         from app.core.engine.context_monitor import ContextMonitor
 
+                        # Compute stats via ContextMonitor (expects list of dicts)
                         dashboard = (
                             "\n\n"
                             + ContextMonitor.calculate(
-                                loop_messages, model=model
+                                _dicts_to_messages(loop_messages), model=model
                             ).to_prompt()
                         )
 
-                        # Create a new message with appended dashboard to avoid side effects on the original history
-                        original_msg = loop_messages[i]
-                        original_content = original_msg.content
+                        original_content = loop_messages[i].get("content", "")
                         if isinstance(original_content, str):
                             new_content = original_content + dashboard
                         elif isinstance(original_content, list):
@@ -177,34 +216,19 @@ class InferenceEngine:
                                 {"type": "text", "text": dashboard.strip()}
                             ]
                         else:
-                            # Skip dashboard injection for other non-string/non-list content
-                            # to avoid corrupting message format expected by the LLM provider
-                            logger.debug(
-                                f"[{name}] Skipping dashboard injection: "
-                                f"HumanMessage content is {type(original_content).__name__}, not str or list"
-                            )
                             break
-                        loop_messages[i] = HumanMessage(
-                            content=new_content,
-                            name=original_msg.name,
-                            additional_kwargs=original_msg.additional_kwargs,
-                        )
+
+                        # Copy message dict to avoid mutating history directly
+                        loop_messages[i] = {
+                            **loop_messages[i],
+                            "content": new_content,
+                        }
                         break
 
-        # DEBUG: Check loop_messages before returning
-        for idx, msg in enumerate(loop_messages):
-            if not isinstance(msg, BaseMessage):
-                logger.error(
-                    f"[{name}] 🚨 _prepare_turn_context returning non-BaseMessage at index {idx}: "
-                    f"type={type(msg).__name__}, repr={repr(msg)[:200]}"
-                )
-
-        # Log context window size before each LLM call
         msg_count = len(loop_messages)
         if model:
             from app.core.engine.context_monitor import ContextMonitor
-
-            stats = ContextMonitor.calculate(loop_messages, model=model)
+            stats = ContextMonitor.calculate(_dicts_to_messages(loop_messages), model=model)
             logger.info(
                 f"--- {name} Context: {msg_count} msgs, ~{stats.total_tokens} tokens ({stats.usage_ratio * 100:.1f}%) ---"
             )
@@ -215,72 +239,49 @@ class InferenceEngine:
 
     @staticmethod
     def _format_llm_endpoint(llm) -> str:
-        """Extract the API endpoint URL and model name from an LLM instance for logging."""
         raw = getattr(llm, "bound", llm)
-
-        # OpenAI-compatible
         base_url = getattr(raw, "openai_api_base", None)
         model = getattr(raw, "model", None) or getattr(raw, "model_name", None) or "?"
         if base_url:
             return f"POST {base_url}/chat/completions  model={model}"
-
-        # Anthropic-compatible
         client_params = getattr(raw, "_client_params", None) or {}
         base_url = client_params.get("base_url") or getattr(raw, "base_url", "")
         if base_url:
             return f"POST {base_url}/v1/messages  model={model}"
-
         return f"model={model}"
 
     async def _execute_llm_call(
         self,
         llm_with_tools,
-        loop_messages: list[BaseMessage],
-        config: RunnableConfig,
+        loop_messages: list[dict],
+        config: dict,
         name: str,
         system_prompt: str,
-        history_messages: list[BaseMessage],
+        history_messages: list[dict],
         turn_id: int,
         on_thinking: Callable | None = None,
         max_steps: int | None = None,
         is_single_shot: bool = False,
         sys_hash: str | None = None,
-    ) -> AIMessage:
-        """Executes LLM call and extracts reasoning."""
+    ) -> dict:
         endpoint = self._format_llm_endpoint(llm_with_tools)
         logger.info(f"[{name}] ▶️ LLM call (turn={turn_id}) {endpoint}")
+        
+        # Convert loop messages to native BaseMessage format for LLM invocation
+        lc_loop_messages = _dicts_to_messages(loop_messages)
+        
         try:
             start_perf = time.perf_counter()
-            response = await self._stream_llm_response(llm_with_tools, loop_messages, config)
+            response = await self._stream_llm_response(llm_with_tools, lc_loop_messages, config)
             latency = time.perf_counter() - start_perf
-            logger.info(f"[{name}] ⏱️ LLM Latency: {latency:.2f}s")
-
-            if is_single_shot and sys_hash:
-                logger.warning(f"[{name}] PROMPT CACHE DIAGNOSTIC: SystemPromptHash={sys_hash} | Latency={latency:.2f}s")
-
-            # [DIAGNOSTIC] Deep inspection of raw response
-            logger.debug(
-                f"[{name}] 🔍 RAW RESPONSE DIAGNOSTIC:\n"
-                f"  - Content length: {len(response.content)}\n"
-                f"  - Tool Calls: {response.tool_calls}\n"
-                f"  - Invalid Tool Calls: {response.invalid_tool_calls}\n"
-                f"  - Additional Kwargs: {list(response.additional_kwargs.keys())}\n"
-                f"  - Finish Reason: {response.response_metadata.get('finish_reason')}\n"
-                f"  - Model Metadata: {response.response_metadata}\n"
-            )
-
-        except Exception as e:
+            logger.info(f"[{name}] LLM Latency: {latency:.2f}s")
+        except LLM_EXCEPTIONS as e:
             LLMErrorHandler.raise_inference_error(e)
 
-        # Inject run_id
         run_id = config.get("configurable", {}).get("run_id")
         if run_id:
             response.additional_kwargs["run_id"] = run_id
 
-        # Backfill DB-assigned id and sequence_number from MessageHandler.
-        # _stream_llm_response creates a fresh AIMessage from accumulated chunks,
-        # which does NOT inherit the values set by on_llm_end on generation.message.
-        # Without this, FinishNode._mark_turn_summary can't find the message.
         handler = config.get("configurable", {}).get("message_handler")
         if handler and handler.last_persisted_message_id:
             response.id = handler.last_persisted_message_id
@@ -288,47 +289,41 @@ class InferenceEngine:
                 handler.last_persisted_sequence
             )
 
-        # Extract thinking content using unified utility
         thinking_content = extract_reasoning_from_message(response)
         if thinking_content:
             logger.info(f"[{name}] Thinking: {thinking_content[:200]}...")
             if on_thinking:
                 await on_thinking(thinking_content)
 
-        return response
+        return _message_to_dict(response)
 
     async def _process_tool_executions(
         self,
-        response: AIMessage,
+        response: dict,
         name: str,
-        config: RunnableConfig,
+        config: dict,
         interceptors: dict[str, Callable] | None,
         tool_executor: Any | None,
         local_tool_history: list,
-    ) -> tuple[list[BaseMessage], Any | None, list[Any]]:
-        """Processes tool calls, handles interceptors, and executes tools.
-
-        Returns:
-            (tool_results, primary_signal, queued_signals)
-            queued_signals: additional signals captured in the same turn that would
-            previously have been silently dropped. SupervisorNode persists these to
-            state.pending_signals so they can be drained serially without
-            re-running the Supervisor LLM.
-        """
+    ) -> tuple[list[dict], Any | None, list[Any]]:
         pending_signal = None
         queued_signals: list[Any] = []
         remaining_tool_calls = []
 
-        for tc in response.tool_calls:
+        if isinstance(response, dict):
+            tool_calls = response.get("tool_calls") or []
+        else:
+            tool_calls = getattr(response, "tool_calls", None) or []
+        for tc in tool_calls:
             interceptor = (interceptors or {}).get(tc["name"])
             if interceptor:
                 sig = await interceptor(tc, config)
                 if sig is not None:
                     if pending_signal is None:
-                        pending_signal = sig  # first signal fires immediately
+                        pending_signal = sig
                     else:
                         logger.info(f"[{name}] Queuing additional signal: {tc['name']}")
-                        queued_signals.append(sig)  # subsequent signals are queued
+                        queued_signals.append(sig)
                     continue
 
             remaining_tool_calls.append(tc)
@@ -336,7 +331,7 @@ class InferenceEngine:
         tool_results = []
         if remaining_tool_calls and tool_executor is not None:
             logger.info(
-                f"[{name}] 🛠️ Executing {len(remaining_tool_calls)} tool calls via tool_executor"
+                f"[{name}] 🛠   Executing {len(remaining_tool_calls)} tool calls"
             )
             res, batch_signal = await tool_executor.execute_batch(
                 remaining_tool_calls, local_tool_history
@@ -345,32 +340,26 @@ class InferenceEngine:
 
             if batch_signal and pending_signal is None:
                 logger.info(
-                    f"[{name}] ⚡ Post-execution signal detected: {type(batch_signal).__name__}"
+                    f"[{name}] Post-execution signal detected: {type(batch_signal).__name__}"
                 )
                 pending_signal = batch_signal
 
-            logger.info(f"[{name}] 📦 tool_results returned: {len(tool_results)} items")
-            for tool_msg in tool_results:
-                logger.info(
-                    f"[{name}] Result ({tool_msg.name}): {str(tool_msg.content)[:200]}..."
-                )
+            logger.info(f"[{name}] tool_results returned: {len(tool_results)} items")
         else:
             if remaining_tool_calls:
                 logger.warning(
-                    f"[{name}] ⚠️ tool_executor is None! Cannot execute {len(remaining_tool_calls)} tool calls."
+                    f"[{name}] tool_executor is None! Cannot execute tool calls."
                 )
-            else:
-                logger.info(f"[{name}] ℹ️ No remaining tool_calls after interception.")
 
         return tool_results, pending_signal, queued_signals
 
     async def run_react_loop(
         self,
         llm_with_tools,
-        messages: list[BaseMessage],
+        messages: list[dict],
         system_prompt: str,
         provider: str,
-        config: RunnableConfig,
+        config: dict,
         name: str,
         max_steps: int = 5,
         tool_executor: Any | None = None,
@@ -379,17 +368,12 @@ class InferenceEngine:
         model: str | None = None,
         iteration_count: int | None = None,
     ) -> dict:
-        """
-        Core ReAct loop.
-
-        Returns:
-            dict with keys: messages, tool_history, last_response, is_truncated, signal
-        """
         from app.core.monitoring.activity import activity_monitor
 
+        messages = [EvoMessageConverter.to_dict(m) for m in messages]
         system_messages = self.build_system_messages(system_prompt, provider)
-        history_messages = [m for m in messages if not isinstance(m, SystemMessage)]
-        loop_messages: list[BaseMessage] = system_messages + history_messages
+        history_messages = [m for m in messages if m.get("role") != "system"]
+        loop_messages: list[dict] = system_messages + history_messages
 
         if not history_messages:
             logger.error(f"[{name}] No history messages! Returning empty.")
@@ -401,18 +385,16 @@ class InferenceEngine:
                 "signal": None,
             }
 
-        new_messages: list[BaseMessage] = []
+        new_messages: list[dict] = []
         local_tool_history = []
         last_response = None
 
         logger.info(
-            f"[{name}] ▶️ run_react_loop START | iteration={iteration_count} | model={model} | max_steps={max_steps} | msg_count={len(messages)} | tool_executor={'YES' if tool_executor else 'NO'}"
+            f"[{name}] ▶️ run_react_loop START | iteration={iteration_count} | max_steps={max_steps}"
         )
 
         for i in range(max_steps):
-            logger.info(
-                f"[{name}] 🔄 Step {i + 1}/{max_steps} (Iteration {iteration_count})"
-            )
+            logger.info(f"[{name}] 🔄 Step {i + 1}/{max_steps}")
             thread_id = config.get("configurable", {}).get("thread_id")
             run_id = config.get("configurable", {}).get("run_id")
             if thread_id:
@@ -443,21 +425,12 @@ class InferenceEngine:
             loop_messages.append(response)
             new_messages.append(response)
 
-            if not response.tool_calls:
-                finish_reason = response.response_metadata.get("finish_reason")
-                if finish_reason == "pause_turn":
-                    # kimi-k2-thinking-turbo may return pause_turn when it pauses during
-                    # reasoning without emitting tool_calls yet. Continue the loop so
-                    # the model can complete its thought and emit tools on the next turn.
-                    logger.info(
-                        f"[{name}] ⏸️ Model paused (pause_turn), continuing loop..."
-                    )
-                    continue
+            if not response.get("tool_calls"):
                 logger.info(f"[{name}] Finished with text response (no tool calls).")
                 break
 
             logger.info(
-                f"[{name}] 🔧 tool_calls detected: {len(response.tool_calls)} calls"
+                f"[{name}] tool_calls detected: {len(response['tool_calls'])} calls"
             )
 
             (
@@ -488,32 +461,24 @@ class InferenceEngine:
                 }
 
         is_truncated = False
-        if last_response and last_response.tool_calls:
+        if last_response and last_response.get("tool_calls"):
             logger.error(f"[{name}] Hit max_steps ({max_steps}) with open tool calls.")
-            tools_summary = (
-                ", ".join(local_tool_history) if local_tool_history else "None"
-            )
-            truncation_msg = AIMessage(
-                content=(
-                    f"[TRUNCATION] Agent reached the maximum step limit ({max_steps}) "
-                    f"with pending tool calls. The task may be incomplete or stuck in a loop. "
-                    f"Tools executed in this batch: {tools_summary}. "
-                    f"Supervisor review and replanning is required."
+            tools_summary = ", ".join(local_tool_history) if local_tool_history else "None"
+            truncation_msg = {
+                "role": "assistant",
+                "content": (
+                    f"[TRUNCATION] Agent reached maximum step limit ({max_steps}) "
+                    f"with pending tool calls. Tools executed: {tools_summary}."
                 ),
-                additional_kwargs={
+                "additional_kwargs": {
                     "is_truncated": True,
                     "max_steps": max_steps,
                     "requires_replan": True,
-                },
-            )
+                }
+            }
             new_messages.append(truncation_msg)
             is_truncated = True
 
-        logger.info(
-            f"[{name}] ⏹️ run_react_loop END | new_messages={len(new_messages)} | "
-            f"types={[type(m).__name__ for m in new_messages]} | "
-            f"truncated={is_truncated}"
-        )
         return {
             "messages": new_messages,
             "tool_history": local_tool_history,
@@ -525,17 +490,17 @@ class InferenceEngine:
     async def run_single_shot(
         self,
         llm_with_tools,
-        messages: list[BaseMessage],
+        messages: list[dict],
         system_prompt: str,
         provider: str,
-        config: RunnableConfig,
+        config: dict,
         name: str,
         tool_executor: Any | None = None,
         interceptors: dict[str, Callable] | None = None,
     ) -> dict:
-        """Single-shot execution for subtasks."""
+        messages = [EvoMessageConverter.to_dict(m) for m in messages]
         system_messages = self.build_system_messages(system_prompt, provider)
-        history_messages = [m for m in messages if not isinstance(m, SystemMessage)]
+        history_messages = [m for m in messages if m.get("role") != "system"]
         loop_messages = system_messages + history_messages
 
         if not history_messages:
@@ -561,10 +526,10 @@ class InferenceEngine:
             sys_hash=sys_hash,
         )
 
-        new_messages: list[BaseMessage] = [response]
+        new_messages = [response]
         local_tool_history = []
 
-        if response.tool_calls:
+        if response.get("tool_calls"):
             tool_results, batch_signal, _ = await self._process_tool_executions(
                 response=response,
                 name=name,

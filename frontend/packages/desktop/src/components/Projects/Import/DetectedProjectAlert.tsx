@@ -172,17 +172,11 @@ export function DetectedProjectAlert() {
 
     if (successCount > 0) {
       toast.success(
-        t("projects.import.importAllSuccess", "{{count}} projects imported", {
-          count: successCount,
-        }),
+        t("projects.import.importAllSuccess", { count: successCount }),
       )
     }
     if (failCount > 0) {
-      toast.error(
-        t("projects.import.importAllFailed", "{{count}} projects failed", {
-          count: failCount,
-        }),
-      )
+      toast.error(t("projects.import.importAllFailed", { count: failCount }))
     }
 
     setIsOpen(false)
@@ -215,10 +209,8 @@ export function DetectedProjectAlert() {
     const hours = Math.floor(diff / 3600000)
 
     if (minutes < 1) return t("common.time.justNow")
-    if (minutes < 60)
-      return t("common.time.minutesAgo", "{{count}}m ago", { count: minutes })
-    if (hours < 24)
-      return t("common.time.hoursAgo", "{{count}}h ago", { count: hours })
+    if (minutes < 60) return t("common.time.minutesAgo", { count: minutes })
+    if (hours < 24) return t("common.time.hoursAgo", { count: hours })
     return date.toLocaleDateString()
   }
 
@@ -248,9 +240,7 @@ export function DetectedProjectAlert() {
         {importingIds.size > 0 && (
           <div className="py-2 px-3 bg-muted rounded-md text-sm text-center text-muted-foreground flex items-center justify-center gap-2">
             <RefreshCw className="h-4 w-4 animate-spin" />
-            {t("projects.import.importing", "Importing {{count}} projects...", {
-              count: importingIds.size,
-            })}
+            {t("projects.import.importing", { count: importingIds.size })}
           </div>
         )}
 
@@ -334,7 +324,7 @@ export function DetectedProjectAlert() {
               className="w-full sm:w-auto"
             >
               <Check className="h-4 w-4 mr-1" />
-              {t("projects.import.importAll", "Import All ({{count}})", {
+              {t("projects.import.importAll", {
                 count: visibleProjects.length,
               })}
             </Button>

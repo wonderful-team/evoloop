@@ -1,3 +1,5 @@
+import logging
+
 """
 Path-specific utilities for the File Center.
 Consolidated from app.utils.path and other legacy locations.
@@ -6,7 +8,7 @@ Consolidated from app.utils.path and other legacy locations.
 import os
 import re
 from pathlib import Path
-from typing import Optional
+logger = logging.getLogger(__name__)
 
 def normalize_path(path: str) -> str:
     """Normalize path separators to forward slashes."""
@@ -66,7 +68,7 @@ def get_relative_path(path: str, start: str) -> str:
     """Get relative path from start to path."""
     try:
         return os.path.relpath(path, start)
-    except (ValueError, Exception):
+    except ValueError:
         return path
 
 def get_absolute_path(path: str) -> str:
@@ -86,10 +88,10 @@ def is_path_writable(path: str) -> bool:
     parent = os.path.dirname(path) or '.'
     return os.path.isdir(parent) and os.access(parent, os.W_OK)
 
-def cleanup_file(filepath: Optional[str]) -> None:
+def cleanup_file(filepath: str | None) -> None:
     """Safely remove a file if it exists."""
     if filepath and os.path.exists(filepath):
         try:
             os.remove(filepath)
-        except Exception:
-            pass
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.debug("Suppressed error: %s", e, exc_info=True)

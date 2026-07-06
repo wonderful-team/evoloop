@@ -19,7 +19,7 @@ from app.core.memory.event.types import MEMORY_CONTEXT_GATHER_EVENT_TYPE
 from app.core.project.sync_service import ProjectSyncService
 from app.core.project.utils import get_project_path
 from app.infrastructure.config import SystemConfigService
-from app.utils import render_template
+from app.utils.template import render_template
 
 from .schemas import (
     ProjectCreatedEvent,
@@ -50,7 +50,7 @@ class ProjectSwitchWebSocketSubscriber:
             cmd = RemoteCommand.model_validate(event.payload)
             action = cmd.get_action()
             payload = cmd.get_payload()
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[ProjectSwitchWS] Failed to parse message: {e}")
             return
 
@@ -79,7 +79,7 @@ class ProjectSwitchWebSocketSubscriber:
                         "Ignoring switch to avoid using a foreign/external path."
                     )
                     return
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"[ProjectSwitchWS] Failed to resolve project {project_id}: {e}")
                 return
 
@@ -91,7 +91,7 @@ class ProjectSwitchWebSocketSubscriber:
                 resolved_path = await get_project_path(project_id)
                 if resolved_path and os.path.isdir(resolved_path):
                     path = resolved_path
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.debug(f"[ProjectSwitchWS] Local path resolution failed, keeping event path: {e}")
 
         if not path or not os.path.isdir(path):
@@ -126,7 +126,7 @@ class ProjectDomainSubscriber:
         """Handle project creation."""
         try:
             await self._sync_service.handle_project_created(event.path)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[ProjectHandlers] Failed to handle project created: {e}")
 
     @event_subscribe(ProjectEventType.PROJECT_DELETED)
@@ -134,7 +134,7 @@ class ProjectDomainSubscriber:
         """Handle project deletion."""
         try:
             await self._sync_service.handle_project_deleted(event.path)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[ProjectHandlers] Failed to handle project deleted: {e}")
 
     @event_subscribe(ProjectEventType.PROJECT_MOVED)
@@ -142,7 +142,7 @@ class ProjectDomainSubscriber:
         """Handle project moved."""
         try:
             await self._sync_service.handle_project_moved(event.src_path, event.dest_path)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[ProjectHandlers] Failed to handle project moved: {e}")
 
     @event_subscribe(SystemEventType.APP_STARTED)
@@ -155,7 +155,7 @@ class ProjectDomainSubscriber:
                 await self._sync_service.sync_cloud_project()
             else:
                 logger.info("[ProjectHandlers] No token on startup, skipping project sync. Will sync on USER_LOGGED_IN.")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[ProjectHandlers] Failed to sync cloud project on start: {e}")
 
     @event_subscribe(SystemEventType.USER_LOGGED_IN)
@@ -164,7 +164,7 @@ class ProjectDomainSubscriber:
         logger.info("[ProjectHandlers] User logged in, syncing cloud project...")
         try:
             await self._sync_service.sync_cloud_project()
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[ProjectHandlers] Failed to sync cloud project on login: {e}")
 
     @event_subscribe(ProjectEventType.PROJECT_SWITCHED)
@@ -228,7 +228,7 @@ class ProjectLifecycleSubscriber:
             logger.info(f"[Project] Synchronizing projects in {root_projects_dir}...")
             await project_sync_service.reconcile_projects(root_projects_dir)
             logger.info("[Project] ✓ Discovery and synchronization complete")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[Project] Startup initialization failed: {e}")
 
     @event_subscribe(SystemEventType.APP_STOPPING)
@@ -239,7 +239,7 @@ class ProjectLifecycleSubscriber:
 
             discovery_manager.stop()
             logger.info("[Project] Project discovery manager stopped")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[Project] Failed to stop discovery manager: {e}")
 
     @event_subscribe(SystemEventType.CONTEXT_POLISHING)
@@ -249,7 +249,7 @@ class ProjectLifecycleSubscriber:
             from app.core.project.polisher import project_polisher
 
             await project_polisher.handle_context_polishing(event)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[Project] Context polishing failed: {e}")
 
     @event_subscribe(SystemEventType.CONFIG_CHANGED)
@@ -277,7 +277,7 @@ class ProjectLifecycleSubscriber:
                 discovery_manager.start(new_value)
                 logger.info(f"[Project] Discovery manager restarted for {new_value}")
 
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"[Project] Failed to handle WORKSPACE_ROOT change: {e}")
 
 
@@ -312,7 +312,7 @@ class ProjectMemoryContextSubscriber:
                 )
                 if fragment.strip():
                     event.data.context_fragments.append(fragment.strip())
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[ProjectContextProvider] Failed to render context: {e}")
 
     async def _build_template_context(self, project_path: str) -> dict | None:
@@ -323,28 +323,23 @@ class ProjectMemoryContextSubscriber:
         structure = ""
 
         try:
-            loop = asyncio.get_event_loop()
-            readme = await loop.run_in_executor(
-                None,
+            readme = await asyncio.to_thread(
                 project_context_manager.extract_description_from_readme,
                 project_path,
             )
             readme = readme[:1000] if readme else ""
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug(f"[ProjectContextProvider] README extraction failed: {e}")
 
         try:
             structure = await project_context_manager.get_project_structure(project_path)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug(f"[ProjectContextProvider] Structure extraction failed: {e}")
 
         norms = []
         try:
-            loop = asyncio.get_event_loop()
-            norms = await loop.run_in_executor(
-                None, self._scan_norm_files_sync, project_path
-            )
-        except Exception as e:
+            norms = await asyncio.to_thread(self._scan_norm_files_sync, project_path)
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug(f"[ProjectContextProvider] Norms scan failed: {e}")
 
         if not readme and not structure and not norms:
@@ -373,7 +368,7 @@ class ProjectMemoryContextSubscriber:
                         quota = 5000 if norm_file == "PROJECT.md" else 1000
                         content = f.read(quota)
                         norms.append((norm_file, content))
-                except Exception:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                     continue
         return norms
 
@@ -426,5 +421,5 @@ class ProjectContextHydratorSubscriber:
             # Update legacy thread_context_store for backward compatibility
             thread_context_store.set_working_directory(ctx.thread_id, working_dir)
             thread_context_store.set_active_project(ctx.thread_id, project_id)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[ProjectHydrator] Failed to resolve project {project_id}: {e}")

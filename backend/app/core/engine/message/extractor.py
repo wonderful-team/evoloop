@@ -3,15 +3,16 @@ AttachmentExtractor — AI 回复产出物自动提取器。
 
 职责：
 1. 扫描 AI 回复文本，检测代码块类型（echarts/mermaid/map/artifact/react）和标准 Markdown 链接（[链接](file://...) / uploads/...）
-2. 将检测结果结构化为 ReferenceBlock 数据，自动挂载到 AI 消息的引用列表
+2. 将检测结果结构化为 MessageReference 数据，自动挂载到 AI 消息的引用列表
 3. 无副作用：仅做数据提取，不操作数据库或文件系统
 """
 
 import json
 import logging
 import re
-import uuid
 from typing import Any
+
+from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,8 @@ logger = logging.getLogger(__name__)
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico"}
 # 音频扩展名
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".ogg", ".m4a", ".flac", ".aac"}
+# 视频扩展名
+VIDEO_EXTENSIONS = {".mp4", ".webm", ".mov", ".avi", ".m4v", ".mkv"}
 
 # 代码块类型 → artifact_type 映射
 ARTIFACT_CODE_BLOCK_TYPES = {
@@ -41,7 +44,7 @@ _JSON_BLOCK_PATTERN = re.compile(r"```json\s*\n?(.*?)\n?```", re.DOTALL)
 
 class AttachmentExtractor:
     """
-    扫描 AI 回复内容，自动提取产出物为 ReferenceBlock 数据。
+    扫描 AI 回复内容，自动提取产出物为 MessageReference 数据。
     """
 
     def extract_from_ai_response(
@@ -72,9 +75,9 @@ class AttachmentExtractor:
                 continue
             seen_targets.add(key)
 
-            artifact_id = str(uuid.uuid4())
+            artifact_id = gen_uuid()
             references.append({
-                "id": str(uuid.uuid4()),
+                "id": gen_uuid(),
                 "type": "artifact",
                 "target_id": artifact_id,
                 "target_name": f"{lang.capitalize()} 组件",
@@ -99,9 +102,9 @@ class AttachmentExtractor:
                         seen_targets.add(key)
 
                         references.append({
-                            "id": str(uuid.uuid4()),
+                            "id": gen_uuid(),
                             "type": "artifact",
-                            "target_id": str(uuid.uuid4()),
+                            "target_id": gen_uuid(),
                             "target_name": f"{a_type.capitalize()} 组件",
                             "metadata": {
                                 "artifact_type": a_type,
@@ -123,6 +126,8 @@ class AttachmentExtractor:
                 ref_type = "image"
             elif ext in AUDIO_EXTENSIONS:
                 ref_type = "audio"
+            elif ext in VIDEO_EXTENSIONS:
+                ref_type = "video"
             else:
                 ref_type = "file"
 
@@ -136,7 +141,7 @@ class AttachmentExtractor:
             seen_targets.add(key)
 
             references.append({
-                "id": str(uuid.uuid4()),
+                "id": gen_uuid(),
                 "type": ref_type,
                 "target_id": target_id,
                 "target_name": target_name,

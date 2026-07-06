@@ -12,14 +12,14 @@ This is the fallback mechanism when WebSocket is not available.
 
 import asyncio
 import logging
-import uuid
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 
 from app.core.config import settings
 from app.infrastructure.schemas import ToolRequest
+from app.utils.id import gen_uuid_hex
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ class ToolRequestManager:
     _lock = asyncio.Lock()
     _requests: dict[str, ToolRequest]
     _thread_requests: dict[str, list[str]]
-    _cleanup_task: Optional[asyncio.Task]
+    _cleanup_task: asyncio.Task | None
 
     def __new__(cls):
         if cls._instance is None:
@@ -66,7 +66,7 @@ class ToolRequestManager:
         params: dict[str, Any]
     ) -> ToolRequest:
         """Create a new tool request."""
-        request_id = f"tool-{uuid.uuid4().hex[:12]}"
+        request_id = f"tool-{gen_uuid_hex()[:12]}"
         request = ToolRequest(
             request_id=request_id,
             thread_id=thread_id,
@@ -83,7 +83,7 @@ class ToolRequestManager:
         logger.info(f"[Client] Created tool request {request_id} for thread {thread_id}: {tool}")
         return request
 
-    async def get_request(self, request_id: str) -> Optional[ToolRequest]:
+    async def get_request(self, request_id: str) -> ToolRequest | None:
         """Get a request by ID."""
         async with self._lock:
             return self._requests.get(request_id)
@@ -109,7 +109,7 @@ class ToolRequestManager:
         self,
         request_id: str,
         result: Any,
-        error: Optional[str] = None
+        error: str | None = None
     ) -> bool:
         """Mark a request as completed with result or error."""
         async with self._lock:
@@ -131,7 +131,7 @@ class ToolRequestManager:
         self,
         request_id: str,
         timeout: float = 300.0
-    ) -> Optional[ToolRequest]:
+    ) -> ToolRequest | None:
         """Wait for a request to complete."""
         request = await self.get_request(request_id)
         if not request:
@@ -166,7 +166,7 @@ class ToolRequestManager:
                 await self._cleanup_old_requests()
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"[Client] Cleanup error: {e}")
 
     async def _cleanup_old_requests(self):
@@ -274,7 +274,7 @@ class ClientToolExecutor:
     3. Return result to Agent
     """
 
-    def __init__(self, client_callback_url: Optional[str] = None):
+    def __init__(self, client_callback_url: str | None = None):
         self.client_callback_url = client_callback_url or settings.CLIENT_CALLBACK_URL
         self._http_client = httpx.AsyncClient(timeout=30.0)
 

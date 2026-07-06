@@ -63,6 +63,6 @@ async def read_mcp_resource(server_name: str, uri: str) -> str:
 
         return "\n".join(lines)
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Error reading MCP resource: {e}")
         return f"Error reading resource '{uri}' from '{server_name}': {str(e)}"

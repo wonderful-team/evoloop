@@ -1,13 +1,13 @@
 import json
 import logging
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager
 from app.core.evocloud import evocloud_manager
-from app.core.tools import evoloop_tool
 from app.core.project.subtask_service import subtask_service
 from app.core.project.sync_tasks import sync_tasks_to_evocloud_task
+from app.core.tools import evoloop_tool
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ async def create_project_tasks(
             "message": f"Successfully created {len(tasks)} tasks and triggered cloud sync."
         })
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.exception(f"Failed to create project tasks: {e}")
         return json.dumps({
             "success": False,
@@ -102,6 +102,6 @@ async def create_project_task(project_id: int | None = None, task_data: str = ""
             return f"Success: Task created with ID {response.get('data', {}).get('task_id')}"
         else:
             return f"Failed: {response.get('message')}"
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Task creation failed: {e}")
         return f"Error: {str(e)}"

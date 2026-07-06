@@ -1,9 +1,11 @@
 import { AnimatePresence, motion } from "framer-motion"
 import { Target } from "lucide-react"
 import { memo } from "react"
+import { useTranslation } from "react-i18next"
 import { useChatStore } from "@/stores/chatStore"
 
 export const GoalBanner = memo(() => {
+  const { t } = useTranslation()
   const sessionGoal = useChatStore((s) => s.sessionGoal)
 
   if (!sessionGoal) return null
@@ -22,7 +24,7 @@ export const GoalBanner = memo(() => {
           </div>
           <div className="flex-1 min-w-0">
             <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
-              Current Mission
+              {t("chat.goalBanner.title")}
             </h4>
             <p className="text-sm text-foreground leading-relaxed font-medium">
               {sessionGoal}

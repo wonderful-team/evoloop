@@ -9,18 +9,14 @@ DatabaseCallbackHandler - 数据库日志回调处理器（重构版）
 不再包含复杂的过滤逻辑！
 """
 import contextvars
-import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from uuid import UUID
 
-from langchain_core.callbacks import AsyncCallbackHandler
-from langchain_core.outputs import LLMResult
-
+from app.core.engine.callbacks.base import AsyncCallbackHandler, LLMResult
 from app.core.engine.message import MessageHandler
 from app.core.engine.message.reasoning import extract_reasoning_from_message
 from app.core.engine.message.utils import parse_tool_input
-
 
 current_node_source: contextvars.ContextVar[str | None] = contextvars.ContextVar('db_node_source', default=None)
 
@@ -46,7 +42,7 @@ def _censor_secrets(val: Any) -> Any:
             return {k: _censor_secrets(v) for k, v in val.items()}
         elif isinstance(val, list):
             return [_censor_secrets(x) for x in val]
-    except Exception as e:
+    except (TypeError, ValueError, AttributeError) as e:
         logger.warning(f"Error during secret censorship in callback: {e}")
     return val
 
@@ -56,7 +52,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     数据库日志回调处理器
     
     职责：
-    1. 接收 LangChain 回调事件
+    1. 接收回调事件
     2. 提取消息数据
     3. 委托给 MessageHandler 处理
     
@@ -79,7 +75,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         # 步骤追踪（用于与 activity_monitor 协调）
         self._last_attributed_step_index: int = 0
 
-        # 当前工具名称追踪（LangChain on_tool_end 不传递 name，需要在 on_tool_start 存储）
+        # 当前工具名称追踪（on_tool_end 不传递 name，需要在 on_tool_start 存储）
         self._tool_info_by_run_id: dict[str, dict[str, Any]] = {}
 
         # 消息父子关系追踪
@@ -101,11 +97,8 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         self._last_ai_message_id = message_id
 
         from app.core.context.manager import ContextManager
-        try:
-            ctx = ContextManager.current()
-            ctx.last_ai_message_id = message_id
-        except Exception:
-            pass
+        ctx = ContextManager.current()
+        ctx.last_ai_message_id = message_id
         logger.debug(f"[DatabaseCallback] LLM started. Pre-allocated message_id={message_id}")
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> Any:
@@ -167,11 +160,8 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         if result.get("message_id"):
             self._last_ai_message_id = result["message_id"]
             from app.core.context.manager import ContextManager
-            try:
-                ctx = ContextManager.current()
-                ctx.last_ai_message_id = result.message_id
-            except Exception:
-                pass
+            ctx = ContextManager.current()
+            ctx.last_ai_message_id = result.message_id
 
         # 重要：将持久化后的 ID 和序列号回填给消息对象，供后续环节（如 MemoryExtractor）使用
         if result.get("message_id"):
@@ -255,15 +245,15 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         input_str: str,
         *,
         run_id: UUID,
-        parent_run_id: Optional[UUID] = None,
-        tags: Optional[List[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        parent_run_id: UUID | None = None,
+        tags: List[str] | None = None,
+        metadata: Dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
         """
         工具执行开始时调用 — 预插入 running 状态记录
         """
-        # 提取工具名称（兼容 LangChain 不同版本的序列化格式）
+        # 提取工具名称（兼容不同版本的序列化格式）
         tool_name = str(
             serialized.get("name") or 
             serialized.get("kwargs", {}).get("name") or 

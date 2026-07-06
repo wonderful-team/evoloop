@@ -3,9 +3,9 @@
 from typing import Any
 
 from app.api.schemas.responses import BaseAPIResponse
+from app.constants import DEFAULT_PROJECT_ID
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.schemas.base import ScopedRequest
-from app.constants import DEFAULT_PROJECT_ID
 
 
 class ChatRequest(ScopedRequest):

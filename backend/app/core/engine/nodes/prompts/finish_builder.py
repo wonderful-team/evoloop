@@ -3,7 +3,8 @@ import logging
 from typing import Any
 
 from app.core.engine.state.config import ExecutionTicket
-from app.utils import render_template
+from app.utils.template import render_template
+
 from .base_builder import BasePromptBuilder
 
 logger = logging.getLogger(__name__)

@@ -15,7 +15,6 @@ import {
   useSidebar,
 } from "@evoloop/shared/components/ui/sidebar"
 import {
-  BookOpen,
   Bug,
   FolderOpen,
   GraduationCap,
@@ -59,12 +58,6 @@ export function AppSidebar() {
       path: "/todos",
       dataTour: "sidebar-todos",
     },
-    {
-      icon: BookOpen,
-      title: t("sidebar.knowledge"),
-      path: "/knowledge",
-      dataTour: "sidebar-knowledge",
-    },
   ]
 
   const authItems: Item[] = [
@@ -106,12 +99,12 @@ export function AppSidebar() {
               <Popover open={debugOpen} onOpenChange={setDebugOpen}>
                 <PopoverTrigger asChild>
                   <SidebarMenuButton
-                    tooltip="Debug Control Center"
+                    tooltip={t("sidebar.debugTooltip")}
                     isActive={debugOpen}
                     className="text-amber-500/70 hover:text-amber-400 hover:bg-amber-500/10 data-[active=true]:bg-amber-500/10 data-[active=true]:text-amber-400"
                   >
                     <Bug className="h-4 w-4 shrink-0" />
-                    <span>Debug</span>
+                    <span>{t("sidebar.debug")}</span>
                   </SidebarMenuButton>
                 </PopoverTrigger>
                 <PopoverContent

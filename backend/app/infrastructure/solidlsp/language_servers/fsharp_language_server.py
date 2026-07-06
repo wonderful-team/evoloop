@@ -286,7 +286,7 @@ class FSharpLanguageServer(SolidLanguageServer):
                         base_path = line.split(":", 1)[1].strip()
                         # Get the parent directory (remove 'sdk/version' part)
                         return str(Path(base_path).parent.parent)
-            except (subprocess.CalledProcessError, Exception):
+            except subprocess.CalledProcessError:
                 pass
 
         # Fallback: use the directory containing dotnet executable
@@ -355,7 +355,7 @@ class FSharpLanguageServer(SolidLanguageServer):
 
         try:
             self.server.start()
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             log.error(f"Failed to start F# language server process: {e}")
             raise SolidLSPException(f"Failed to start F# language server: {e}")
 
@@ -366,7 +366,7 @@ class FSharpLanguageServer(SolidLanguageServer):
         try:
             self.server.send.initialize(initialize_params)
             log.debug("Received initialize response from F# language server")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             raise SolidLSPException(f"Failed to initialize F# language server for {self.repository_root_path}: {e}") from e
 
         # Complete initialization

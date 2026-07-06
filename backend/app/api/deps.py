@@ -6,13 +6,13 @@ from fastapi import Depends, Header, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session
 
+from app.core.benefits import BenefitErrorDetail, create_benefit_error_detail
+from app.core.benefits.service import benefit_service
 from app.core.config import settings
-from app.core.evocloud import evocloud_manager
 from app.core.identity import identity_service
 from app.infrastructure.database.resource_manager import db_resource_manager
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import User
-from app.services.benefit_service import benefit_service
 from app.services.cache_services import RateLimitService
 
 logger = logging.getLogger(__name__)
@@ -89,7 +89,7 @@ async def _get_authenticated_user(request: Request, token: str | None = None) ->
                     return User(id=member_id, is_active=True)
 
         return None
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Auth error during user resolution: {str(e)}", exc_info=True)
         return None
 
@@ -138,7 +138,7 @@ async def check_benefit(benefit_code: str, token: TokenDep) -> bool:
             return False
 
         return await benefit_service.has_benefit(member_id, benefit_code)
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Benefit check failed [{benefit_code}]: {e}")
         return False
 
@@ -167,33 +167,9 @@ async def check_multiple_benefits(benefit_codes: list[str], token: TokenDep) -> 
             val = benefits.get(code, False)
             result[code] = val if isinstance(val, bool) else (val > 0 if isinstance(val, int | float) else False)
         return result
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Batch benefit check failed: {e}")
         return {code: False for code in benefit_codes}
-
-
-class BenefitErrorDetail(DynamicBaseModel):
-    """统一的权益错误详情."""
-    code: str = "BENEFIT_REQUIRED"
-    feature: str
-    feature_name: str
-    message: str
-    required_plan: str = "订阅版本"
-    current_level: str = "免费用户"
-    upgrade_url: str = "#/subscription"
-
-
-def create_benefit_error_detail(benefit_code: str, current_level: str | None = None) -> BenefitErrorDetail:
-    """
-    创建统一的权益错误详情
-    """
-    feature_name = benefit_service.get_benefit_label(benefit_code)
-    return BenefitErrorDetail(
-        feature=benefit_code,
-        feature_name=feature_name,
-        message=f"需要开通「{feature_name}」权益才能使用此功能",
-        current_level=current_level or "免费用户",
-    )
 
 
 def raise_benefit_required(benefit_code: str, current_level: str | None = None):
@@ -229,8 +205,8 @@ def require_benefit(benefit_code: str):
                 member_id = await identity_service.get_member_id(token)
                 benefits_data = await benefit_service.get_member_entitlements(member_id, token)
                 current_level = benefits_data.get("level_name")
-            except Exception:
-                pass
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.debug("Suppressed error: %s", e, exc_info=True)
             
             raise_benefit_required(benefit_code, current_level)
         
@@ -263,7 +239,7 @@ async def verify_guest_access(
             member_id = await identity_service.resolve_member_id_from_token(token)
             if member_id is not None:
                 return
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug(f"Query token validation failed: {e}")
             pass
 
@@ -301,7 +277,7 @@ async def verify_guest_access(
 
     except HTTPException as he:
         raise he
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Cache error during guest check: {e}")
         # Fail-Close: If cache is down, we cannot verify quota, so we must deny to prevent abuse.
         raise HTTPException(status_code=503, detail="Guest validation service temporary unavailable.")

@@ -11,10 +11,10 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from app.core.execution.macro.schemas import (
+    EvolutionContext,
     MacroEvolutionRecord,
     StepExecutionStatus,
     StepResult,
-    EvolutionContext,
 )
 
 logger = logging.getLogger(__name__)

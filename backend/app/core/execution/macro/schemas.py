@@ -12,7 +12,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.yaml import macro_from_yaml, macro_to_yaml
 
-
 # === Classes migrated from schema.py (singular) ===
 
 class MacroSource(str, Enum):

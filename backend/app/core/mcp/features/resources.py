@@ -38,7 +38,7 @@ class McpResourcesFeature(McpFeature):
             try:
                 template_result = await session.list_resource_templates()
                 self._resource_templates = template_result.resourceTemplates
-            except Exception:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                 # Not all servers support templates
                 self._resource_templates = []
 
@@ -46,7 +46,7 @@ class McpResourcesFeature(McpFeature):
                 f"Loaded {len(self._resources)} resources and "
                 f"{len(self._resource_templates)} templates from {server_name}"
             )
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug(f"Resources not supported by {server_name}: {e}")
             self._resources = []
             self._resource_templates = []
@@ -141,7 +141,7 @@ class McpResourcesFeature(McpFeature):
                 is_binary=False,
             )
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to read resource {uri}: {e}")
             raise
 

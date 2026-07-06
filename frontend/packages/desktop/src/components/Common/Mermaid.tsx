@@ -54,7 +54,7 @@ export const Mermaid = memo(({ chart }: { chart: string }) => {
             error instanceof Error ? error.message : String(error)
           ref.current.innerHTML = `
                         <div class="text-left w-full opacity-60">
-                            <div class="text-[11px] text-destructive italic mb-2 font-medium">⚠️ Diagram Syntax Error</div>
+                            <div class="text-[11px] text-destructive italic mb-2 font-medium">⚠️ ${t("mermaid.diagramSyntaxError")}</div>
                             <pre class="text-[10px] text-muted-foreground bg-black/5 dark:bg-white/5 p-3 rounded-lg overflow-x-auto border border-border/50 whitespace-pre-wrap break-all font-mono"><code>${chart.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</code></pre>
                         </div>
                     `

@@ -13,36 +13,21 @@ from app.core.hitl.core import (
     push_hitl_notification,
     raise_hitl_interrupt,
 )
-from app.core.tools.registry import is_hitl_tool
 
 logger = logging.getLogger(__name__)
 
 
-async def get_pending_hitl_call(graph, config: dict) -> dict | None:
+async def get_pending_hitl_call(config: dict) -> dict | None:
     """
-    Detects if the graph is currently interrupted by a HITL-enabled tool.
+    Detects a pending HITL request from the Message table.
     Returns the tool_call dictionary if found, otherwise None.
     """
-    try:
-        current_state = await graph.aget_state(config)
-        if current_state.values and "messages" in current_state.values:
-            history = current_state.values["messages"]
-            if history:
-                last_msg = history[-1]
-                if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
-                    last_tool_call = last_msg.tool_calls[-1]
-                    if is_hitl_tool(last_tool_call["name"]):
-                        return last_tool_call
-    except Exception as e:
-        logger.warning(f"Failed to detect pending HITL call: {e}")
-
-    # --- FALLBACK: Authorization-style HITL persisted in Message table ---
     try:
         thread_id = config.get("configurable", {}).get("thread_id")
         if thread_id:
             from sqlalchemy import select
 
-            from app.infrastructure.database.sql.database import session_scope
+            from app.infrastructure.database import session_scope
             from app.models import Message
 
             async with session_scope() as session:
@@ -68,7 +53,7 @@ async def get_pending_hitl_call(graph, config: dict) -> dict | None:
                     if t_name and t_call_id:
                         logger.info(
                             f"[HITL] Located pending authorization request for "
-                            f"{t_name} ({t_call_id}) from Message table fallback."
+                            f"{t_name} ({t_call_id}) from Message table."
                         )
                         return {
                             "id": t_call_id,
@@ -76,8 +61,8 @@ async def get_pending_hitl_call(graph, config: dict) -> dict | None:
                             "args": t_args,
                             "request_id": request_id,
                         }
-    except Exception as e:
-        logger.warning(f"Failed message fallback for pending HITL call: {e}")
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        logger.warning(f"Failed to find pending HITL call: {e}")
 
     return None
 
@@ -117,7 +102,7 @@ async def close_hitl_interaction(
             logger.warning(
                 f"Failed to find HITL message for tool_call_id: {tool_call_id}"
             )
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Error closing HITL interaction: {e}")
 
 
@@ -128,10 +113,10 @@ class HITLOrchestrator:
     """
 
     @staticmethod
-    async def get_pending_request(graph, thread_id: str, model: str) -> dict | None:
-        """Standardized detection of pending HITL calls."""
+    async def get_pending_request(thread_id: str, model: str) -> dict | None:
+        """Standardized detection of pending HITL calls from the Message table."""
         config = {"configurable": {"thread_id": thread_id, "model": model}}
-        return await get_pending_hitl_call(graph, config)
+        return await get_pending_hitl_call(config)
 
     @staticmethod
     async def handle_resume(
@@ -148,7 +133,7 @@ class HITLOrchestrator:
         if request_id:
             try:
                 await complete_request(request_id, normalized)
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(f"[HITL] complete_request failed for {request_id}: {e}")
         return normalized
 
@@ -164,7 +149,7 @@ class HITLOrchestrator:
         if request_id:
             try:
                 await cancel_request(request_id)
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(f"[HITL] cancel_request failed for {request_id}: {e}")
         return "CANCELLED"
 

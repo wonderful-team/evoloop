@@ -1,3 +1,4 @@
+import i18n from "@evoloop/shared/i18n"
 import { OpenAPI } from "@/client"
 import { isTauri } from "@/lib/tauri"
 import { isAbsolutePath } from "./fileUtils"
@@ -33,7 +34,7 @@ export async function downloadFile(
 
   // 项目内相对路径或 uploads/ 路径：通过 raw endpoint 下载
   const url = `${apiBase}/api/v1/files/raw?project_id=${projectId ?? 0}&path=${encodeURIComponent(path)}`
-  const filename = path.split("/").pop() || "download"
+  const filename = path.split("/").pop() || i18n.t("files.downloadFallback")
   await downloadFromUrl(url, filename)
 }
 
@@ -42,7 +43,7 @@ async function downloadExternalFile(
   apiBase: string,
 ): Promise<void> {
   const url = `${apiBase}/api/v1/files/download`
-  const filename = path.split("/").pop() || "download"
+  const filename = path.split("/").pop() || i18n.t("files.downloadFallback")
 
   if (isTauri()) {
     try {

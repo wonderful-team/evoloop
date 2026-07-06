@@ -111,7 +111,7 @@ class MemoryLifespanManager:
             try:
                 await cls._instance.shutdown()
                 logger.info("[MemoryLifespan] MemoryContainer shutdown")
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"[MemoryLifespan] Error during shutdown: {e}")
             finally:
                 cls._instance = None

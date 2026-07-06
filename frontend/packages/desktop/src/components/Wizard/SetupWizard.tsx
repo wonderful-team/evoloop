@@ -143,7 +143,12 @@ export function SetupWizard({ open, onOpenChange }: SetupWizardProps) {
           startTour()
         }, 500)
       } catch (error) {
-        toast.error(`${t("wizard.saveError")}: ${(error as Error).message}`)
+        toast.error(
+          t("wizard.saveErrorWithMessage", {
+            message: t("wizard.saveError"),
+            detail: (error as Error).message,
+          }),
+        )
       }
     },
     [queryClient, onOpenChange, startTour, t],

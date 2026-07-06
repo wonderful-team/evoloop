@@ -53,7 +53,7 @@ export const VersionDisplay: React.FC<VersionDisplayProps> = ({
 
   // 格式化构建时间
   const formatBuildTime = (timeStr: string): string => {
-    if (!timeStr || timeStr.length !== 14) return "Unknown"
+    if (!timeStr || timeStr.length !== 14) return t("common.unknown")
 
     const year = timeStr.slice(0, 4)
     const month = timeStr.slice(4, 6)
@@ -149,7 +149,11 @@ export const VersionDisplay: React.FC<VersionDisplayProps> = ({
           </div>
           <div className="flex items-center gap-1.5">
             <Info className="w-3.5 h-3.5" />
-            <span>Build {versionInfo.buildNumber}</span>
+            <span>
+              {t("versionDisplay.buildLabel", {
+                number: versionInfo.buildNumber,
+              })}
+            </span>
             <span>•</span>
             <span>{formatBuildTime(versionInfo.buildTime)}</span>
           </div>
@@ -176,7 +180,7 @@ export const VersionDisplay: React.FC<VersionDisplayProps> = ({
         <button
           onClick={handleCopy}
           className="p-1 rounded hover:bg-accent transition-colors"
-          title="复制版本信息"
+          title={t("about.copyVersionInfo")}
         >
           {copied ? (
             <Check className="w-3.5 h-3.5 text-green-500" />
@@ -200,7 +204,7 @@ export const VersionDialog: React.FC<{
   if (!open) return null
 
   const formatBuildTime = (timeStr: string): string => {
-    if (!timeStr || timeStr.length !== 14) return "Unknown"
+    if (!timeStr || timeStr.length !== 14) return t("common.unknown")
     const year = timeStr.slice(0, 4)
     const month = timeStr.slice(4, 6)
     const day = timeStr.slice(6, 8)
@@ -213,7 +217,7 @@ export const VersionDialog: React.FC<{
     { label: t("versionDisplay.version"), value: versionInfo.version },
     { label: t("versionDisplay.buildNumber"), value: versionInfo.buildNumber },
     { label: t("versionDisplay.stage"), value: versionInfo.stage },
-    { label: "Git Commit", value: versionInfo.gitCommit },
+    { label: t("versionDisplay.gitCommit"), value: versionInfo.gitCommit },
     {
       label: t("versionDisplay.buildTime"),
       value: formatBuildTime(versionInfo.buildTime),

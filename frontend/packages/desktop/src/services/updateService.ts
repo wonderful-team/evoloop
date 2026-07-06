@@ -9,6 +9,7 @@
  * 5. 应用从后台恢复时检查 (可选)
  */
 
+import i18n from "@evoloop/shared/i18n"
 import type { UpdateCheckResult } from "@/hooks/useVersion"
 import versionInfo from "@/version.json"
 
@@ -251,13 +252,17 @@ class UpdateService {
     )
 
     if (!response.ok) {
-      throw new Error(`API 请求失败: ${response.status}`)
+      throw new Error(
+        i18n.t("updateService.apiRequestFailed", { status: response.status }),
+      )
     }
 
     const apiResult = await response.json()
 
     if (apiResult.code !== 0) {
-      throw new Error(apiResult.message || "API 返回错误")
+      throw new Error(
+        apiResult.message || i18n.t("updateService.apiResponseError"),
+      )
     }
 
     const data = apiResult.data

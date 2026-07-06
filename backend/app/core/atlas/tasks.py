@@ -5,6 +5,7 @@ import os
 from app.core.atlas.models import AtlasApp
 from app.infrastructure.drivers.adb import adb_driver
 from app.infrastructure.drivers.macos import macos_driver
+
 # Unified task queue (Huey in embedded mode, Celery in full mode)
 from app.infrastructure.queue.factory import shared_task
 from app.utils.async_utils import flush_loop_bound_resources
@@ -20,12 +21,12 @@ def run_async(coro):
         # Fallback for cases where a loop is already running (e.g. weird pool configs)
         if "already running" in str(e).lower():
             try:
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
                 import nest_asyncio
                 nest_asyncio.apply()
                 return loop.run_until_complete(coro)
-            except Exception:
-                pass
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.debug("Suppressed error: %s", e, exc_info=True)
         raise e
 
 
@@ -45,7 +46,7 @@ def map_observed_ui_task(
 
     async def _execute():
         try:
-            from app.core.vision.pipeline.manager import pipeline_manager
+            from app.infrastructure.vision.pipeline.manager import pipeline_manager
 
             # 1. Run perception pipeline
             elements, _ = await pipeline_manager.perceive(
@@ -83,7 +84,7 @@ def map_observed_ui_task(
                         # Compute stable version hash using AtlasApp's logic
                         dummy_app = AtlasApp(app_name=version_lookup_id, bundle_id=version_lookup_id, platform="android")
                         version_hash = dummy_app.compute_version_hash(ver_name, upd_time)
-                    except Exception as ve:
+                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as ve:
                         logger.warning(f"[AtlasTask] Failed to get version info for {version_lookup_id}: {ve}")
             else:
                 detected_bundle_id = "unknown"
@@ -136,7 +137,7 @@ def map_observed_ui_task(
 
             logger.info(f"[AtlasTask] Successfully mapped {len(atlas_elements)} elements for {final_bundle_id}")
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[AtlasTask] Background mapping failed: {e}", exc_info=True)
 
     async def _run_with_flush():

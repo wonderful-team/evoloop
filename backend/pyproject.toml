@@ -21,11 +21,6 @@ dependencies = [
     "sentry-sdk[fastapi]<2.0.0,>=1.40.6",
     "pyjwt<3.0.0,>=2.8.0",
     # EvoLoop Dependencies
-    "langchain>=1.2.3",
-    "langchain-core>=1.2.7",
-    "langchain-community>=0.4.1",
-    "langchain-openai>=1.1.7",
-    "langchain-anthropic>=1.3.1",
     "tree-sitter>=0.23.0",
     "google-genai>=1.0.0", # Adjusted version constraint for broad compatibility
     "openai>=1.30.0",
@@ -85,8 +80,6 @@ dependencies = [
     "pyarrow>=15.0.0", # Required by LanceDB
     "ddgs>=9.11.4",
     "beautifulsoup4>=4.12.0",
-    "langgraph-checkpoint-sqlite>=3.0.3",
-    "langgraph-checkpoint-postgres>=3.0.4",
     "pgvector>=0.3.6",
     "aiofiles>=25.1.0",
     "psycopg[binary]>=3.1.13,<4.0.0",
@@ -108,10 +101,6 @@ full = [
     "celery>=5.3.0",
     "redis>=5.0.0",
     "meilisearch>=0.31.0",
-    "langchain-postgres>=0.0.9",
-    "langchain-neo4j>=0.7.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
-    "langgraph-checkpoint-sqlite>=3.0.3",
-    "langgraph-checkpoint-postgres>=3.0.4",
 ]
 # Embedded mode only (lighter, no external deps)
 embedded = [

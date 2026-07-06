@@ -115,12 +115,9 @@ export function TaskVisualization({
     return (
       <div className="text-center py-8 text-muted-foreground">
         <Layers className="h-12 w-12 mx-auto mb-3 opacity-30" />
-        <p>{t("requirements.tasks.noTasks", "暂无任务")}</p>
+        <p>{t("requirements.tasks.noTasks")}</p>
         <p className="text-xs mt-1">
-          {t(
-            "requirements.tasks.analysisNotConfirmed",
-            "请先确认分析结果以生成任务",
-          )}
+          {t("requirements.tasks.analysisNotConfirmed")}
         </p>
       </div>
     )
@@ -138,7 +135,7 @@ export function TaskVisualization({
             <div className="flex items-center gap-2">
               <Cloud className="h-5 w-5 text-primary" />
               <span className="font-medium">
-                {t("requirements.tasks.syncProgress", "EvoCloud 同步进度")}
+                {t("requirements.tasks.syncProgress")}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -146,18 +143,18 @@ export function TaskVisualization({
                 progress.has_failures ? (
                   <Badge variant="outline" className="text-orange-600">
                     <AlertCircle className="h-3 w-3 mr-1" />
-                    {t("requirements.tasks.partialSync", "部分同步")}
+                    {t("requirements.tasks.partialSync")}
                   </Badge>
                 ) : (
                   <Badge variant="outline" className="text-green-600">
                     <CheckCircle2 className="h-3 w-3 mr-1" />
-                    {t("requirements.tasks.syncComplete", "同步完成")}
+                    {t("requirements.tasks.syncComplete")}
                   </Badge>
                 )
               ) : (
                 <Badge variant="outline" className="text-blue-600">
                   <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                  {t("requirements.tasks.syncing", "同步中...")}
+                  {t("requirements.tasks.syncing")}
                 </Badge>
               )}
               <Button
@@ -175,7 +172,7 @@ export function TaskVisualization({
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">
                 {progress.synced}/{progress.total}{" "}
-                {t("requirements.tasks.synced", "已同步")}
+                {t("requirements.tasks.synced")}
               </span>
               <span className="font-medium">{progress.percentage}%</span>
             </div>
@@ -186,28 +183,26 @@ export function TaskVisualization({
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full bg-gray-400" />
               <span className="text-muted-foreground">
-                {t("requirements.tasks.pending", "待同步")}:{" "}
-                {sync_stats.pending}
+                {t("requirements.tasks.pending")}: {sync_stats.pending}
               </span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
               <span className="text-muted-foreground">
-                {t("requirements.tasks.syncing", "同步中")}:{" "}
-                {sync_stats.syncing}
+                {t("requirements.tasks.syncing")}: {sync_stats.syncing}
               </span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full bg-green-500" />
               <span className="text-muted-foreground">
-                {t("requirements.tasks.synced", "已同步")}: {sync_stats.synced}
+                {t("requirements.tasks.synced")}: {sync_stats.synced}
               </span>
             </div>
             {sync_stats.failed > 0 && (
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-full bg-red-500" />
                 <span className="text-red-600">
-                  {t("requirements.tasks.failed", "失败")}: {sync_stats.failed}
+                  {t("requirements.tasks.failed")}: {sync_stats.failed}
                 </span>
               </div>
             )}
@@ -220,7 +215,7 @@ export function TaskVisualization({
         <div className="flex items-center gap-2">
           <Layers className="h-5 w-5 text-muted-foreground" />
           <span className="font-medium">
-            {t("requirements.tasks.title", "任务列表")}
+            {t("requirements.tasks.title")}
             <span className="text-muted-foreground ml-2">({tasks.length})</span>
           </span>
         </div>
@@ -230,7 +225,7 @@ export function TaskVisualization({
             size="sm"
             onClick={() => setViewMode("list")}
           >
-            {t("requirements.tasks.listView", "列表")}
+            {t("requirements.tasks.listView")}
           </Button>
           <Button
             variant={viewMode === "mapping" ? "secondary" : "ghost"}
@@ -238,7 +233,7 @@ export function TaskVisualization({
             onClick={() => setViewMode("mapping")}
           >
             <Link2 className="h-4 w-4 mr-1" />
-            {t("requirements.tasks.mappingView", "映射")}
+            {t("requirements.tasks.mappingView")}
           </Button>
         </div>
       </div>
@@ -330,7 +325,7 @@ function TaskCard({
             )}
           >
             {getSyncStatusIcon(task.sync_status)}
-            {task.sync_status}
+            {t(`requirements.tasks.status.${task.sync_status}`)}
           </Badge>
           {isExpanded ? (
             <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -349,7 +344,7 @@ function TaskCard({
               <div className="flex items-center gap-2 text-sm">
                 <Clock className="h-4 w-4 text-muted-foreground" />
                 <span>
-                  {t("requirements.tasks.estimatedHours", "预计工时")}:{" "}
+                  {t("requirements.tasks.estimatedHours")}:{" "}
                   {task.estimated_hours}h
                 </span>
               </div>
@@ -368,7 +363,7 @@ function TaskCard({
             {task.acceptance_criteria.length > 0 && (
               <div>
                 <h5 className="text-sm font-medium mb-2">
-                  {t("requirements.tasks.acceptanceCriteria", "验收标准")}
+                  {t("requirements.tasks.acceptanceCriteria")}
                 </h5>
                 <ul className="text-sm space-y-1">
                   {task.acceptance_criteria.map((criteria, idx) => (
@@ -445,7 +440,7 @@ function RequirementTaskMapping({
                 </Badge>
                 <ArrowRight className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm text-muted-foreground">
-                  {taskIds.length} {t("requirements.tasks.tasks", "个任务")}
+                  {taskIds.length} {t("requirements.tasks.tasks")}
                 </span>
               </div>
               <div className="space-y-2 pl-4 border-l-2 border-primary/20">
@@ -460,11 +455,11 @@ function RequirementTaskMapping({
           <div className="border rounded-lg p-3 bg-muted/30">
             <div className="flex items-center gap-2 mb-3">
               <Badge variant="secondary" className="text-xs">
-                {t("requirements.tasks.unmapped", "未关联需求")}
+                {t("requirements.tasks.unmapped")}
               </Badge>
               <span className="text-sm text-muted-foreground">
                 {requirementMapping.unmapped_tasks.length}{" "}
-                {t("requirements.tasks.tasks", "个任务")}
+                {t("requirements.tasks.tasks")}
               </span>
             </div>
             <div className="space-y-2 pl-4 border-l-2 border-muted">

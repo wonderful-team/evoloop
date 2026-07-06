@@ -7,12 +7,12 @@ import subprocess
 import termios
 import threading
 import time
-import uuid
 from collections.abc import Callable
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from app.core.context.manager import ContextManager
+from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +136,7 @@ class PersistentTerminal(BaseModel):
             self._start_shell()
 
         # Generate a unique marker for this specific execution
-        sig = str(uuid.uuid4())
+        sig = gen_uuid()
         marker = f"EVO_SIG_DONE_{sig}_"
         marker_bytes = marker.encode()
         # Wrap command to echo status at the end
@@ -232,7 +232,7 @@ class PersistentTerminal(BaseModel):
 
     def _sync_state(self):
         """Silently query the shell for current CWD to keep session state accurate."""
-        sig = str(uuid.uuid4())
+        sig = gen_uuid()
         marker = f"EVO_PWD_SIG_{sig}_"
         cmd = f"pwd\nprintf '{marker}%d\\n' $?\n"
         os.write(self._master_fd, cmd.encode())
@@ -267,10 +267,10 @@ class PersistentTerminal(BaseModel):
                 self._proc.wait(timeout=1)
             except (OSError, ProcessLookupError):
                 try: self._proc.kill()
-                except (OSError, ProcessLookupError): pass
+                except (OSError, ProcessLookupError): logger.debug("Process already exited during kill")
         if self._master_fd != -1:
             try: os.close(self._master_fd)
-            except OSError: pass
+            except OSError: logger.debug("master_fd already closed")
 
 
 class TerminalSession(BaseModel):
@@ -322,8 +322,8 @@ class TerminalManager:
                     try:
                         os.write(session.pty._master_fd, f"cd {current_cwd}\n".encode())
                         session.pty.cwd = current_cwd
-                    except Exception:
-                        pass
+                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                        logger.debug("Suppressed error: %s", e, exc_info=True)
 
         return cls._sessions[key]
 
@@ -364,7 +364,7 @@ class TerminalManager:
                 # Sync session level CWD
                 session.cwd = pty_sess.cwd
             return stdout, "", exit_code
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.exception(f"[TerminalManager][{key}] System Error")
             return "", str(e), 1
 

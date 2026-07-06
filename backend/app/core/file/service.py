@@ -10,32 +10,21 @@ import os
 import shutil
 import tempfile
 import urllib.request
-from typing import Iterator, List, Optional, Callable
+from typing import Callable, Iterator, List, Optional
 from urllib.parse import urlparse
 
+from .traverser import FileTraverser, TraverseOptions
 from .types import (
     is_text as is_text_file,
-    is_binary as is_binary_file,
-    is_test as is_test_file,
-    is_image as is_image_file,
-    is_video as is_video_file,
-    is_audio as is_audio_file,
-    is_archive as is_archive_file,
-    is_document as is_document_file,
-    is_code as is_code_file,
-    get_extension as get_file_ext,
-    guess_mime as guess_mime_type,
-    get_category as get_file_category,
 )
-from .traverser import FileTraverser, TraverseOptions
 
 logger = logging.getLogger(__name__)
 
 
 def walk_tree(
     root_path: str,
-    exclude_dirs: Optional[List[str]] = None,
-    max_depth: Optional[int] = None,
+    exclude_dirs: List[str] | None = None,
+    max_depth: int | None = None,
     include_dirs: bool = False,
     filter_func: Optional[Callable[[str], bool]] = None,
     dir_filter: Optional[Callable[[str], bool]] = None,
@@ -54,7 +43,7 @@ def walk_tree(
     return FileTraverser.walk(root_path, options)
 
 
-def resolve_path(file_path: str, base_path: Optional[str] = None) -> Optional[str]:
+def resolve_path(file_path: str, base_path: str | None = None) -> str | None:
     """
     Smart path resolution. 
     Handles:
@@ -70,7 +59,7 @@ def resolve_path(file_path: str, base_path: Optional[str] = None) -> Optional[st
     if file_path.startswith(("http://", "https://")):
         try:
             return ensure_local_path(file_path)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to resolve URL {file_path}: {e}")
             return None
 
@@ -133,7 +122,7 @@ def ensure_local_path(file_path: str) -> str:
 
         logger.info(f"Downloaded {file_path} to {temp_path}")
         return temp_path
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         raise ValueError(f"Failed to download remote file: {e}")
 
 

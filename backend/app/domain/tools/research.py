@@ -1,10 +1,13 @@
 import asyncio
+import logging
 import re
 from urllib.parse import quote, quote_plus
 
 import requests
 
 from app.core.tools import evoloop_tool
+
+logger = logging.getLogger(__name__)
 
 
 def _detect_wiki_language(query: str) -> str:
@@ -34,7 +37,8 @@ async def _search_duckduckgo(query: str) -> list[str] | None:
                     f"Description: {result['body']}\n"
                 )
         return results if results else None
-    except Exception:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        logger.debug("Suppressed error: %s", e, exc_info=True)
         return None
 
 
@@ -57,7 +61,7 @@ async def _search_baidu(query: str) -> list[str] | None:
     url = f"https://www.baidu.com/s?wd={quote_plus(query)}"
 
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     response = await loop.run_in_executor(
         None,
         lambda: requests.get(url, headers=headers, timeout=15)
@@ -98,7 +102,7 @@ async def _search_baidu(query: str) -> list[str] | None:
                     f"URL: {result_url}\n"
                     f"Description: {description}\n"
                 )
-        except Exception:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
             continue
 
     return results if results else None
@@ -123,7 +127,7 @@ async def _search_wikipedia(query: str) -> list[str] | None:
     }
 
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         response = await loop.run_in_executor(
             None,
             lambda: requests.get(api_url, params=params, timeout=15)
@@ -151,7 +155,8 @@ async def _search_wikipedia(query: str) -> list[str] | None:
 
         return results if results else None
 
-    except Exception:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        logger.debug("Suppressed error: %s", e, exc_info=True)
         return None
 
 
@@ -169,7 +174,7 @@ async def _fetch_wikipedia_summary(title: str, lang: str = "en") -> str | None:
     }
 
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         response = await loop.run_in_executor(
             None,
             lambda: requests.get(api_url, params=params, timeout=15)
@@ -183,7 +188,8 @@ async def _fetch_wikipedia_summary(title: str, lang: str = "en") -> str | None:
             if extract:
                 return extract.strip()
         return None
-    except Exception:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        logger.debug("Suppressed error: %s", e, exc_info=True)
         return None
 
 
@@ -195,7 +201,7 @@ async def search_web(query: str) -> str:
     Searches the web for the given query using DuckDuckGo, Baidu, or Wikipedia.
     Returns a list of search results with titles and URLs.
     """
-    from app.utils import ContentFormatter, ControllerResponse
+    from app.utils.controller_response import ContentFormatter, ControllerResponse
     
     # 首先尝试 DuckDuckGo
     results = await _search_duckduckgo(query)

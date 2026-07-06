@@ -1,4 +1,4 @@
-from typing import Any, Iterator, Optional
+from typing import Any, Iterator
 
 
 class LegacyDictMixin:
@@ -29,7 +29,7 @@ class LegacyDictMixin:
         except AttributeError:
             raise KeyError(key)
 
-    def get(self, key: str, default: Optional[Any] = None) -> Any:
+    def get(self, key: str, default: Any | None = None) -> Any:
         return getattr(self, key, default)
 
     def __contains__(self, key: str) -> bool:
@@ -70,7 +70,7 @@ class LegacyDictMixin:
                 return args[0]
             raise KeyError(key)
 
-    def setdefault(self, key: str, default: Optional[Any] = None) -> Any:
+    def setdefault(self, key: str, default: Any | None = None) -> Any:
         if key in self:
             return getattr(self, key)
         setattr(self, key, default)

@@ -254,7 +254,7 @@ class TodoRepositorySync:
     
     def create_sync(self, data: TodoCreateInternal) -> TodoItem:
         """Create a new Todo (sync version)."""
-        from app.infrastructure.database.sql.database import session_scope
+        from app.infrastructure.database import session_scope
         
         with session_scope() as session:
             todo = TodoItem(**data.model_dump(exclude_unset=True))
@@ -268,7 +268,7 @@ class TodoRepositorySync:
     
     def get_by_id_sync(self, todo_id: str) -> TodoItem | None:
         """Get a Todo by ID (sync version)."""
-        from app.infrastructure.database.sql.database import session_scope
+        from app.infrastructure.database import session_scope
         
         with session_scope() as session:
             result = session.execute(
@@ -285,7 +285,7 @@ class TodoRepositorySync:
         filters: TodoFilter | None = None
     ) -> Sequence[TodoItem]:
         """List todos with filters (sync version)."""
-        from app.infrastructure.database.sql.database import session_scope
+        from app.infrastructure.database import session_scope
         
         filters = filters or TodoFilter()
         with session_scope() as session:

@@ -3,9 +3,8 @@ import importlib.util
 import logging
 import os
 
-from langchain_core.tools import StructuredTool
-
 from app.core.tools import evoloop_tool
+from app.core.tools.base import StructuredTool
 from app.core.tools.registry import REGISTRY
 from app.domain.tools.schemas import CreatePythonToolInput
 
@@ -103,7 +102,7 @@ def create_python_tool(name: str, description: str, code: str, version: str = "1
     try:
         with open(filepath, "w") as f:
             f.write(code)
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return f"Error writing tool file: {e}"
 
     # 3. Dynamic Import
@@ -130,7 +129,7 @@ def create_python_tool(name: str, description: str, code: str, version: str = "1
         if not target_func:
             return f"Error: Could not find a callable function in the provided code. Ensure function name matches '{name}'."
 
-        # 5. Wrap as LangChain Tool
+        # 5. Wrap as native Tool
         # Use StructuredTool.from_function to inspect type hints automatically
         new_tool = StructuredTool.from_function(
             func=target_func,
@@ -143,6 +142,6 @@ def create_python_tool(name: str, description: str, code: str, version: str = "1
 
         return f"Success: Tool '{name}' created and registered. You can now use it."
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to load dynamic tool {name}: {e}")
         return f"Error loading tool: {e}"

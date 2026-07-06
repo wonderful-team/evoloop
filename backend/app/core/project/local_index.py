@@ -24,6 +24,10 @@ class LocalProjectEntry:
     repo_id: int | None = None
     name: str | None = None
 
+    def __fspath__(self) -> str:
+        """Support os.path / pathlib operations."""
+        return self.path
+
 
 class LocalProjectIndex:
     """
@@ -51,7 +55,7 @@ class LocalProjectIndex:
         except json.JSONDecodeError as e:
             logger.warning(f"[LocalProjectIndex] Invalid JSON at {meta_path}: {e}")
             return None
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[LocalProjectIndex] Failed to read {meta_path}: {e}")
             return None
 
@@ -79,7 +83,7 @@ class LocalProjectIndex:
 
         try:
             entries = os.listdir(workspace_root)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[LocalProjectIndex] Failed to list {workspace_root}: {e}")
             return {}
 

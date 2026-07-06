@@ -31,7 +31,7 @@ from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.engine.message.reference import reference_service
 from app.core.project.utils import get_project_path
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.models import Conversation
 
 logger = logging.getLogger(__name__)
@@ -128,11 +128,9 @@ async def dispatch_agent_run(
             working_directory=working_directory,
         )
     else:
-        # Ensure active_model is synchronized
-        update_data = {"active_model": active_model}
+        context.active_model = active_model
         if working_directory:
-            update_data["working_directory"] = working_directory
-        context = context.model_copy(update=update_data)
+            context.working_directory = working_directory
 
     ContextManager.set(context)
     await ContextManager.save(thread_id)
@@ -158,7 +156,7 @@ async def dispatch_agent_run(
                 logger.info(
                     f"[Dispatch] Upload session {upload_session_id} promoted to thread {thread_id}"
                 )
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(f"[Dispatch] Failed to promote upload session: {e}")
 
     # ------------------------------------------------------------------
@@ -171,15 +169,21 @@ async def dispatch_agent_run(
         upload_root = os.path.join(settings.CHAT_UPLOAD_DIR, "global")
 
     combined_refs = references or []
-    async with session_scope() as session:
-        ref_context = await reference_service.process_references(
-            message_text=message_content,
-            references_input=combined_refs,
-            session=session,
-            root_path=upload_root,  # 使用隔离后的目录作为根
-            project_id=project_id,  # 传入项目 ID 以保持 URL 一致性
-        )
-    content_blocks = ref_context.content_blocks
+    references_list = []
+    try:
+        async with session_scope() as session:
+            ref_context = await reference_service.process_references(
+                message_text=message_content,
+                references_input=combined_refs,
+                session=session,
+                root_path=upload_root,  # 使用隔离后的目录作为根
+                project_id=project_id,  # 传入项目 ID 以保持 URL 一致性
+            )
+        content_blocks = ref_context.content_blocks
+        references_list = ref_context.references
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        logger.warning(f"[Dispatch] Reference service failed: {e}, falling back to raw message_content")
+        content_blocks = message_content
 
     # ------------------------------------------------------------------
     # 2.5 Extract explicit skill_ids from references for downstream routing
@@ -254,7 +258,7 @@ async def dispatch_agent_run(
                 content=message_content,
                 category="user",
                 is_visible=True,
-                references=ref_context.references,
+                references=references_list,
                 source=source,
                 message_id=message_id,
             )
@@ -271,7 +275,7 @@ async def dispatch_agent_run(
                     content=message_content,
                     category="user",
                     status="completed",
-                    references=ref_context.references,
+                    references=references_list,
                     message_id=msg_id,
                     source=source,
                 )

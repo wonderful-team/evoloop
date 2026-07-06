@@ -21,7 +21,7 @@ from app.domain.todo.schemas import (
 from app.domain.todo.utils import parse_due_date
 from app.i18n.service import i18n
 from app.models.todo import TodoItem, TodoPriority, TodoStatus
-from app.utils import ContentFormatter
+from app.utils.controller_response import ContentFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class TodoService:
         try:
             from app.domain.todo.event.publishers import publish_todo_updated
             await publish_todo_updated(todo_id=todo_id, action=action, project_id=project_id)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[TodoService] Failed to publish todo updated event: {e}")
 
     # ============== Creation ==============
@@ -370,7 +370,7 @@ class TodoServiceSync:
         Raises:
             TodoNotFoundError: If todo not found
         """
-        from app.infrastructure.database.sql.database import session_scope
+        from app.infrastructure.database import session_scope
 
         with session_scope() as session:
             # Re-query within session context
@@ -407,7 +407,7 @@ class TodoServiceSync:
         Raises:
             TodoNotFoundError: If todo not found
         """
-        from app.infrastructure.database.sql.database import session_scope
+        from app.infrastructure.database import session_scope
 
         with session_scope() as session:
             from sqlalchemy import select

@@ -14,9 +14,12 @@ import asyncio
 import logging
 
 from app.core.events.decorators import event_register, event_subscribe
-
+from app.domain.codebase.event.schemas import (
+    FileModifiedEvent,
+    FileMovedEvent,
+    FileRemovedEvent,
+)
 from app.domain.codebase.event.types import IndexingEventType
-from app.domain.codebase.event.schemas import FileModifiedEvent, FileRemovedEvent, FileMovedEvent
 
 logger = logging.getLogger(__name__)
 
@@ -133,8 +136,8 @@ class DebouncedIndexHandler:
 
         from app.domain.codebase.indexing.tasks import (
             index_file_task,
-            remove_file_task,
             move_file_task,
+            remove_file_task,
         )
 
         try:

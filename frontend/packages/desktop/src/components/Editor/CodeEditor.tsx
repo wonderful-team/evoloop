@@ -22,13 +22,14 @@ interface CodeEditorProps {
 export function CodeEditor({
   value,
   onChange,
-  filePath = "untitled.txt",
+  filePath,
   placeholder,
   className,
   language,
   readOnly = false,
 }: CodeEditorProps) {
   const { t } = useTranslation()
+  const displayPath = filePath || t("editor.untitled")
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [cursorLine, setCursorLine] = useState(1)
   const [cursorColumn, setCursorColumn] = useState(0)
@@ -58,7 +59,7 @@ export function CodeEditor({
       setCursorLine(line)
       setCursorColumn(column)
     },
-    [onChange, filePath, calculateCursorPosition],
+    [onChange, displayPath, calculateCursorPosition],
   )
 
   const handleKeyDown = useCallback(
@@ -99,7 +100,7 @@ export function CodeEditor({
       {/* Status bar */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-muted/30 border-b text-xs text-muted-foreground">
         <div className="flex items-center gap-4">
-          <span>{filePath.split("/").pop()}</span>
+          <span>{displayPath.split("/").pop()}</span>
           {language && (
             <span className="px-1.5 py-0.5 bg-muted rounded text-[10px]">
               {language}

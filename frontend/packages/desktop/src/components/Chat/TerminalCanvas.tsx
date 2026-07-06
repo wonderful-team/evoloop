@@ -10,8 +10,9 @@
  *      server-side PTY receives Tab, arrow keys, Ctrl+C, etc.
  */
 
-import { useEffect, useRef } from "react"
 import { useTheme } from "@evoloop/shared/components/theme-provider"
+import { useEffect, useRef } from "react"
+import { useTranslation } from "react-i18next"
 import { useChatStore } from "@/stores/chatStore"
 
 const DARK_THEME = {
@@ -63,6 +64,7 @@ const LIGHT_THEME = {
 }
 
 export function TerminalCanvas() {
+  const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<import("@xterm/xterm").Terminal | null>(null)
   const fitAddonRef = useRef<import("@xterm/addon-fit").FitAddon | null>(null)
@@ -90,7 +92,8 @@ export function TerminalCanvas() {
       const term = new Terminal({
         scrollback: 50_000,
         theme: initialTheme,
-        fontFamily: '"Fira Code", "Cascadia Code", Menlo, Monaco, "Courier New", monospace',
+        fontFamily:
+          '"Fira Code", "Cascadia Code", Menlo, Monaco, "Courier New", monospace',
         fontSize: 13,
         lineHeight: 1.4,
         cursorBlink: true,
@@ -113,7 +116,7 @@ export function TerminalCanvas() {
         writtenLengthRef.current = currentBuffer.length
       } else {
         // Welcoming starting banner for terminal session initialization feedback
-        term.writeln("\x1b[1;36m=== EvoLoop PTY Terminal ===\x1b[0m")
+        term.writeln(`\x1b[1;36m${t("chat.terminal.welcomeBanner")}\x1b[0m`)
       }
 
       term.focus()
@@ -162,9 +165,6 @@ export function TerminalCanvas() {
   }, [buffer])
 
   return (
-    <div
-      ref={containerRef}
-      className="w-full h-full overflow-hidden px-4"
-    />
+    <div ref={containerRef} className="w-full h-full overflow-hidden px-4" />
   )
 }

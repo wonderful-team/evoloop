@@ -23,7 +23,7 @@ interface PlanComparisonProps {
 // 简单的权益格式化函数
 function formatBenefitValue(key: string, value: any, t: any): string {
   if (typeof value === "boolean") {
-    return value ? "✓" : "✗"
+    return value ? t("common.check") : t("common.cross")
   }
   if (key === "ai_quota" && value === 0) {
     return t("subscription.plan.unlimited")
@@ -61,8 +61,12 @@ function BenefitsList({
   if (!benefits) {
     return (
       <ul className="space-y-2 text-[13px] text-muted-foreground">
-        <li>• {t("subscription.plan.defaultBenefit1")}</li>
-        <li>• {t("subscription.plan.defaultBenefit2")}</li>
+        <li>
+          {t("common.bullet")} {t("subscription.plan.defaultBenefit1")}
+        </li>
+        <li>
+          {t("common.bullet")} {t("subscription.plan.defaultBenefit2")}
+        </li>
       </ul>
     )
   }
@@ -191,7 +195,8 @@ export const PlanComparison = ({
                 ) : (
                   <>
                     <span className="text-3xl font-bold tracking-tighter">
-                      ¥{plan.price}
+                      {t("common.currencySymbol")}
+                      {plan.price}
                     </span>
                     <span className="text-[13px] text-muted-foreground font-medium">
                       {t("subscription.plan.perMonth")}
@@ -204,7 +209,8 @@ export const PlanComparison = ({
                 parseFloat(plan.price) > 0 && (
                   <div className="flex items-center gap-2">
                     <span className="line-through text-xs text-muted-foreground/60 italic">
-                      ¥{plan.market_price}
+                      {t("common.currencySymbol")}
+                      {plan.market_price}
                     </span>
                     <Badge
                       variant="outline"

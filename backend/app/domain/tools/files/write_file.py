@@ -8,17 +8,19 @@ All heavy lifting is done by app.core.file module.
 import os
 from typing import Annotated
 
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import InjectedToolArg
-
+from app.core.engine.message.native_classes import RunnableConfig
+from app.core.engine.tasks import persist_file_operation_task
 from app.core.file import (
-    write_file as core_write_file,
     FileStatus,
 )
+from app.core.file import (
+    write_file as core_write_file,
+)
 from app.core.tools import evoloop_tool
+from app.core.tools.base import InjectedToolArg
 from app.i18n.service import i18n
+
 from .utils import resolve_and_validate_path
-from app.core.engine.tasks import persist_file_operation_task
 
 
 async def handle_write(
@@ -75,7 +77,7 @@ async def handle_write(
                         run_id=ctx.run_id,
                         tool_call_id=ctx.current_tool_call_id,
                     )
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     import logging
                     logging.getLogger(__name__).error(f"Failed to persist file operation: {e}")
             
@@ -85,7 +87,7 @@ async def handle_write(
         else:
             return i18n.get("domain_tools.files.write_error", error=result.error_message)
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return i18n.get("domain_tools.files.write_error", error=str(e))
 
 

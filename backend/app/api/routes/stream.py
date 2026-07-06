@@ -51,7 +51,7 @@ async def stream_chat(thread_id: str):
             try:
                 activity = await activity_monitor.get_activity(thread_id)
                 logger.debug(f"[SSE] Fetched initial activity for {thread_id}")
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(f"[SSE] Initial activity fetch failed for {thread_id} ({type(e).__name__}): {e}. Retrying in 1s...")
                 await asyncio.sleep(1.0)
                 activity = await activity_monitor.get_activity(thread_id)
@@ -70,12 +70,12 @@ async def stream_chat(thread_id: str):
             reconnect_attempts = 0
             MAX_RECONNECT_ATTEMPTS = 10
             BASE_BACKOFF = 0.5
-            last_heartbeat = asyncio.get_event_loop().time()
+            last_heartbeat = asyncio.get_running_loop().time()
 
             while True:
                 try:
                     # Heartbeat to keep connection alive and flush buffers
-                    now = asyncio.get_event_loop().time()
+                    now = asyncio.get_running_loop().time()
                     if now - last_heartbeat > 15.0:
                         yield ": ping\n\n"
                         last_heartbeat = now
@@ -97,7 +97,7 @@ async def stream_chat(thread_id: str):
                     await asyncio.sleep(backoff)
                     await pubsub.subscribe(channel)
                     continue
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     if "Buffer is closed" in str(e):
                         reconnect_attempts += 1
                         if reconnect_attempts > MAX_RECONNECT_ATTEMPTS:
@@ -129,14 +129,14 @@ async def stream_chat(thread_id: str):
                         else:
                             yield f"event: {event_type}\ndata: {raw_data}\n\n"
 
-                    except Exception as e:
+                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                         yield f"event: error\ndata: {json.dumps({'error': 'Failed to process server event', 'details': str(e)})}\n\n"
 
                 await asyncio.sleep(0.01)
 
         except asyncio.CancelledError:
             logger.info(f"Stream cancelled: {thread_id}")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Stream error: {e}", exc_info=True)
             yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
         finally:
@@ -184,11 +184,11 @@ async def stream_system():
             reconnect_attempts = 0
             MAX_RECONNECT_ATTEMPTS = 10
             BASE_BACKOFF = 0.5
-            last_heartbeat = asyncio.get_event_loop().time()
+            last_heartbeat = asyncio.get_running_loop().time()
 
             while True:
                 try:
-                    now = asyncio.get_event_loop().time()
+                    now = asyncio.get_running_loop().time()
                     if now - last_heartbeat > 15.0:
                         yield ": ping\n\n"
                         last_heartbeat = now
@@ -208,7 +208,7 @@ async def stream_system():
                     await asyncio.sleep(backoff)
                     await pubsub.subscribe(channel)
                     continue
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     if "Buffer is closed" in str(e):
                         reconnect_attempts += 1
                         if reconnect_attempts > MAX_RECONNECT_ATTEMPTS:
@@ -230,14 +230,14 @@ async def stream_system():
                         # UniversalBridgeSubscriber wraps events with {"type": "system_event", "event": "..."}
                         event_name = event_data.get("event", "system_event")
                         yield f"event: {event_name}\ndata: {raw_data}\n\n"
-                    except Exception as e:
+                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                         yield f"event: error\ndata: {json.dumps({'error': 'Failed to process system event', 'details': str(e)})}\n\n"
 
                 await asyncio.sleep(0.01)
 
         except asyncio.CancelledError:
             logger.info("System stream cancelled")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"System stream error: {e}", exc_info=True)
             yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
         finally:

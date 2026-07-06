@@ -101,7 +101,7 @@ class SafeZipExtractor:
             if self.verbose:
                 log.info(f"Extracted: {member.filename}")
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             log.error(f"Failed to extract {member.filename}: {e}")
 
     @staticmethod

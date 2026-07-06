@@ -5,7 +5,7 @@ Provides standardized response formatting for environment controllers.
 Eliminates repetitive render_template calls for report/response.prompt.j2
 """
 
-from typing import Optional, Dict, Any
+from typing import Any, Dict
 
 from app.utils.template import render_template
 
@@ -38,8 +38,8 @@ class ControllerResponse:
     def render(
         success: bool,
         message: str,
-        details: Optional[str] = None,
-        note: Optional[str] = None,
+        details: str | None = None,
+        note: str | None = None,
         **extra_vars
     ) -> str:
         """
@@ -65,14 +65,14 @@ class ControllerResponse:
         )
 
     @staticmethod
-    def success(message: str, details: Optional[str] = None, note: Optional[str] = None) -> str:
+    def success(message: str, details: str | None = None, note: str | None = None) -> str:
         """Render a success response."""
         return ControllerResponse.render(
             success=True, message=message, details=details, note=note
         )
 
     @staticmethod
-    def error(message: str, details: Optional[str] = None, note: Optional[str] = None) -> str:
+    def error(message: str, details: str | None = None, note: str | None = None) -> str:
         """Render an error response."""
         return ControllerResponse.render(
             success=False, message=message, details=details, note=note
@@ -89,7 +89,7 @@ class ControllerResponse:
         return ControllerResponse.error(f"Missing required parameter: '{param_name}'")
 
     @staticmethod
-    def invalid_param(param_name: str, reason: Optional[str] = None) -> str:
+    def invalid_param(param_name: str, reason: str | None = None) -> str:
         """Render an 'invalid parameter' error response."""
         msg = f"Invalid parameter: '{param_name}'"
         if reason:
@@ -99,10 +99,10 @@ class ControllerResponse:
     @staticmethod
     def action_result(
         action: str,
-        target: Optional[str] = None,
+        target: str | None = None,
         success: bool = True,
-        details: Optional[str] = None,
-        note: Optional[str] = None,
+        details: str | None = None,
+        note: str | None = None,
     ) -> str:
         """
         Render an action result response.
@@ -127,8 +127,8 @@ class ControllerResponse:
     def navigation_result(
         url: str,
         success: bool = True,
-        title: Optional[str] = None,
-        details: Optional[str] = None
+        title: str | None = None,
+        details: str | None = None
     ) -> str:
         """Render a navigation result response."""
         message = f"Navigated to: {url}"
@@ -144,9 +144,9 @@ class ControllerResponse:
     @staticmethod
     def input_result(
         field_name: str,
-        value: Optional[str] = None,
+        value: str | None = None,
         success: bool = True,
-        details: Optional[str] = None
+        details: str | None = None
     ) -> str:
         """Render an input action result response."""
         if value:
@@ -161,8 +161,8 @@ class ControllerResponse:
     @staticmethod
     def swipe_result(
         direction: str,
-        start: Optional[tuple] = None,
-        end: Optional[tuple] = None,
+        start: tuple | None = None,
+        end: tuple | None = None,
         success: bool = True
     ) -> str:
         """Render a swipe gesture result response."""
@@ -180,9 +180,9 @@ class ControllerResponse:
     def tap_result(
         x: int,
         y: int,
-        element_name: Optional[str] = None,
+        element_name: str | None = None,
         success: bool = True,
-        details: Optional[str] = None
+        details: str | None = None
     ) -> str:
         """Render a tap action result response."""
         if element_name:
@@ -197,8 +197,8 @@ class ControllerResponse:
     @staticmethod
     def screenshot_result(
         success: bool = True,
-        filename: Optional[str] = None,
-        error: Optional[str] = None
+        filename: str | None = None,
+        error: str | None = None
     ) -> str:
         """Render a screenshot capture result response."""
         if success:
@@ -212,7 +212,7 @@ class ControllerResponse:
     @staticmethod
     def screenshot_analysis(
         analysis_text: str,
-        prompt_used: Optional[str] = None
+        prompt_used: str | None = None
     ) -> str:
         """Render a screenshot analysis response."""
         details = analysis_text
@@ -227,7 +227,7 @@ class ControllerResponse:
     def connection_result(
         device_id: str,
         connected: bool = True,
-        error: Optional[str] = None
+        error: str | None = None
     ) -> str:
         """Render a device connection result response."""
         if connected:
@@ -468,7 +468,7 @@ class ProjectManagementFormatter:
 class SkillResponse:
 
     @staticmethod
-    def success(skill_name: str, extracted_data: Optional[Dict[str, Any]] = None) -> str:
+    def success(skill_name: str, extracted_data: Dict[str, Any] | None = None) -> str:
         """Render a skill success response."""
         details = None
         if extracted_data:
@@ -486,8 +486,8 @@ class SkillResponse:
     def error(
         skill_name: str,
         message: str,
-        fallback_context: Optional[Dict[str, Any]] = None,
-        suggestions: Optional[list] = None
+        fallback_context: Dict[str, Any] | None = None,
+        suggestions: list | None = None
     ) -> str:
         """Render a skill error response with optional fallback details."""
         details = None
@@ -507,7 +507,7 @@ class SkillResponse:
         )
 
     @staticmethod
-    def cancelled(skill_name: str, reason: Optional[str] = None) -> str:
+    def cancelled(skill_name: str, reason: str | None = None) -> str:
         """Render a skill cancellation response."""
         msg = f"Skill '{skill_name}' was cancelled"
         if reason:

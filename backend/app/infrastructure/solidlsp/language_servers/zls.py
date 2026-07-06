@@ -234,5 +234,5 @@ class ZigLanguageServer(SolidLanguageServer):
                         }
                     )
                     log.info("Opened build.zig to provide project context to ZLS")
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 log.warning(f"Failed to open build.zig: {e}")

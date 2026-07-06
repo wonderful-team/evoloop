@@ -1,0 +1,137 @@
+import json
+import logging
+import os
+import re
+
+from app.core.execution.macro.schemas import MacroSource
+from app.core.monitoring.activity import activity_monitor
+
+logger = logging.getLogger(__name__)
+
+
+class ExtractionMixin:
+    @classmethod
+    async def _handle_extraction(cls, thread_id, step, selector, payload, params, extracted_data):
+        from app.core.environment.controllers.browser import BrowserController
+        from app.core.environment.controllers.desktop import DesktopController
+        from app.core.environment.controllers.mobile import MobileController
+
+        key = cls._inject_params(step.key, params) or "data"
+        extract_type = step.extract_type or step.event_type
+
+        desc = f"Extract '{key}' from {selector}"
+        await activity_monitor.log_event("macro_thought", {"text": desc}, thread_id)
+
+        if step.source == MacroSource.DOM:
+            call_kwargs = {"action": extract_type, "selector": selector}
+            if extract_type == "get_attribute" and "attribute" in payload:
+                call_kwargs["attribute"] = payload["attribute"]
+            elif extract_type in ("run_js", "evaluate") and ("script" in payload or "expression" in payload):
+                call_kwargs["action"] = "run_js"
+                call_kwargs["script"] = payload.get("script") or payload.get("expression")
+
+            res = await BrowserController.execute(**call_kwargs)
+            if extract_type == "screenshot":
+                match = re.search(r"(/.*\.png)", str(res))
+                extracted_data[key] = match.group(1) if match else res
+            else:
+                try:
+                    if isinstance(res, str) and (res.startswith("[") or res.startswith("{")):
+                        extracted_data[key] = json.loads(res)
+                    else:
+                        extracted_data[key] = res
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                    logger.exception(f"Macro extraction error: {e}")
+                    extracted_data[key] = res
+
+        elif step.source in (MacroSource.MOBILE, MacroSource.GLOBAL, MacroSource.DESKTOP):
+            if extract_type == "gui_extract":
+                await cls._handle_gui_extract(thread_id, step, selector, payload, params, extracted_data)
+                return
+
+            if extract_type == "dump_ui":
+                if step.source == MacroSource.DESKTOP:
+                    res = await DesktopController.execute(action="dump_ui")
+                else:
+                    res = await MobileController.execute(action="dump_ui")
+                extracted_data[key] = res
+            elif extract_type == "screenshot":
+                if step.source == MacroSource.DESKTOP:
+                    res = await DesktopController.execute(action="screenshot", region=payload.get("region"))
+                else:
+                    res = await MobileController.execute(action="screenshot", region=payload.get("region"))
+
+                match = re.search(r"(/.*\.png)", str(res))
+                filepath = match.group(1) if match else str(res)
+                if selector and filepath.endswith(".png"):
+                    if step.source == MacroSource.MOBILE:
+                        filepath = await cls._crop_mobile_screenshot(filepath, selector)
+                extracted_data[key] = filepath
+
+    @classmethod
+    async def _handle_gui_extract(cls, thread_id, step, selector, payload, params, extracted_data):
+        from app.core.environment.controllers.desktop import DesktopController
+        from app.core.environment.controllers.mobile import MobileController
+
+        key = cls._inject_params(step.key, params) or "extracted_text"
+        pos = payload.get("relative_position") or {"x": payload.get("x", 0.5), "y": payload.get("y", 0.5)}
+        region = payload.get("region")
+
+        try:
+            if step.source == MacroSource.DESKTOP:
+                res = await DesktopController.execute(
+                    action="gui_extract",
+                    x=pos.get("x"),
+                    y=pos.get("y"),
+                    region=region
+                )
+                extracted_data[key] = res
+            elif step.source == MacroSource.MOBILE:
+                res = await MobileController.execute(
+                    action="gui_extract",
+                    x=pos.get("x"),
+                    y=pos.get("y"),
+                    region=region,
+                    extraction_method=payload.get("extraction_method")
+                )
+
+                if isinstance(res, str) and (res.startswith("[") or res.startswith("{")):
+                    try:
+                        extracted_data[key] = json.loads(res)
+                    except (json.JSONDecodeError, TypeError, ValueError):
+                        extracted_data[key] = res
+                else:
+                    extracted_data[key] = res
+            else:
+                extracted_data[key] = None
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.error(f"GUI Extract OCR failed: {e}")
+            extracted_data[key] = None
+
+    @classmethod
+    async def _crop_mobile_screenshot(cls, filepath, selector):
+        try:
+            from PIL import Image
+
+            from app.infrastructure.vision.providers.native.android_a11y import (
+                android_a11y_provider,
+            )
+            from app.infrastructure.vision.types import VisionTask
+
+            def _norm(t): return re.sub(r'\s+', '', t).lower() if t else ""
+            a11y_res = await android_a11y_provider.process(VisionTask.DETECT, "", device_id=None)
+
+            if a11y_res.success:
+                target_norm = _norm(selector)
+                for el in a11y_res.elements:
+                    if _norm(el.text) == target_norm or target_norm in _norm(el.metadata.get("resource_id", "")):
+                        bounds = (el.x - el.width//2, el.y - el.height//2, el.x + el.width//2, el.y + el.height//2)
+                        with Image.open(filepath) as img:
+                            cropped = img.crop(bounds)
+                            new_path = filepath.replace(".png", f"_crop_{_norm(selector)[:15]}.png")
+                            cropped.save(new_path)
+                            os.remove(filepath)
+                            return new_path
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.warning(f"MacroEngine cropping failed: {e}")
+        return filepath

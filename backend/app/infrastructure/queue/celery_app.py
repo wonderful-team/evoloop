@@ -6,9 +6,9 @@ connected to Redis broker. Used by factory.py for distributed task execution.
 """
 
 import logging
-from pathlib import Path
 
 from celery.signals import setup_logging
+
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -29,8 +29,9 @@ def config_loggers(*args, **kwargs):
 
 def create_celery_app():
     """Create and return a configured Celery application instance."""
-    from celery import Celery
     import os
+
+    from celery import Celery
 
     os.makedirs(os.path.dirname(settings.CELERY_SCHEDULE_DB_PATH), exist_ok=True)
 
@@ -52,12 +53,12 @@ def create_celery_app():
         beat_schedule_filename=settings.CELERY_SCHEDULE_DB_PATH,
         beat_schedule={
             "cleanup-screenshots-daily": {
-                "task": "app.core.vision.cleanup_screenshots",
+                "task": "app.infrastructure.vision.cleanup_screenshots",
                 "schedule": 86400.0,
                 "args": (False,),
             },
             "cleanup-screen-recordings-daily": {
-                "task": "app.core.vision.cleanup_screen_recordings",
+                "task": "app.infrastructure.vision.cleanup_screen_recordings",
                 "schedule": 86400.0,
                 "args": (False,),
             },

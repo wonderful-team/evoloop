@@ -134,7 +134,9 @@ export const ChangesetSnapshot = memo(
                          text-muted-foreground hover:text-foreground hover:border-border transition-colors shrink-0"
               >
                 <span className="text-[11px] font-medium">
-                  +{totalCount - files.length} more
+                  {t("chat.changeset.more", {
+                    count: totalCount - files.length,
+                  })}
                 </span>
                 <ChevronRight className="h-3 w-3" />
               </button>

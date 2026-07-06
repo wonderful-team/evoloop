@@ -2,7 +2,7 @@ import json
 import logging
 from abc import ABC, abstractmethod
 
-from app.utils import render_template
+from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class BaseExplorer(ABC):
                 platform=platform,
             ).strip()
 
-            from app.core.llm import InternalLLMService
+            from app.infrastructure.llm import InternalLLMService
             from app.infrastructure.config.service import SystemConfigService
             model_name = SystemConfigService.get_value("LLM_MODEL")
             response = await InternalLLMService.invoke(
@@ -60,6 +60,6 @@ class BaseExplorer(ABC):
 
             data = json.loads(content)
             return data.get("selected", {})
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"Intelligent Triage failed for {platform}: {e}")
             return {}

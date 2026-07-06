@@ -1,9 +1,8 @@
 """Wiki database models."""
 from datetime import datetime
-from typing import Optional
-
 from sqlalchemy import Column, Text
-from sqlmodel import Field as SQLField, Relationship, SQLModel
+from sqlmodel import Field as SQLField
+from sqlmodel import Relationship, SQLModel
 
 
 class WikiPage(SQLModel, table=True):
@@ -18,5 +17,5 @@ class WikiPage(SQLModel, table=True):
     created_at: datetime = SQLField(default_factory=datetime.utcnow)
     updated_at: datetime = SQLField(default_factory=datetime.utcnow)
 
-    parent: Optional["WikiPage"] = Relationship(back_populates="children", sa_relationship_kwargs={"remote_side": "WikiPage.id"})
+    parent: "WikiPage" = Relationship(back_populates="children", sa_relationship_kwargs={"remote_side": "WikiPage.id"})
     children: list["WikiPage"] = Relationship(back_populates="parent")

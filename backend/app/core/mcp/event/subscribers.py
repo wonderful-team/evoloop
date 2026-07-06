@@ -11,7 +11,7 @@ from app.core.config import settings
 from app.core.events import SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
 from app.infrastructure.config import SystemConfigService
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.models import McpServer
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ class McpLifecycleSubscriber:
             from app.core.mcp import mcp_client_manager
             await mcp_client_manager.disconnect_all()
             logger.info("[MCP] All clients disconnected")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[MCP] Cleanup failed: {e}")
 
     @event_subscribe(SystemEventType.CONFIG_CHANGED)
@@ -93,7 +93,7 @@ async def init_mcp(force_update: bool = False) -> dict[str, str]:
             await _add_mcp_server_to_db("local-postgres", details_pg)
             logger.info("MCP 'local-postgres' added to DB.")
             results["local-postgres"] = "added"
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to add local-postgres to DB: {e}")
             results["local-postgres"] = "error"
     else:
@@ -134,7 +134,7 @@ async def init_mcp(force_update: bool = False) -> dict[str, str]:
                         await session.delete(server)
                 existing_db_servers.discard("filesystem")
                 needs_add = True
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(f"Error removing existing filesystem MCP from DB: {e}")
 
         if needs_add:
@@ -148,7 +148,7 @@ async def init_mcp(force_update: bool = False) -> dict[str, str]:
                 await _add_mcp_server_to_db("filesystem", details_fs)
                 logger.info(f"MCP 'filesystem' added to DB for {workspace_root}.")
                 results["filesystem"] = "added"
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"Failed to add filesystem to DB: {e}")
                 results["filesystem"] = "error"
         else:
@@ -171,7 +171,7 @@ async def init_mcp(force_update: bool = False) -> dict[str, str]:
                 await _add_mcp_server_to_db("brave-search", details_brave)
                 logger.info("MCP 'brave-search' added to DB.")
                 results["brave-search"] = "added"
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"Failed to add brave-search to DB: {e}")
                 results["brave-search"] = "error"
         else:
@@ -218,7 +218,7 @@ async def reload_mcp_for_workspace_change() -> dict[str, str]:
         connected = await mcp_client_manager.ensure_connected("filesystem")
         results["reconnect"] = "success" if connected else "failed"
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to reload MCP for workspace change: {e}")
         results["error"] = str(e)
 

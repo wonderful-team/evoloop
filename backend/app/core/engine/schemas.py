@@ -1,11 +1,10 @@
 """Core engine schemas — graph config, execution results, and operational models."""
 
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
-
 
 # ---------------------------------------------------------------------------
 # Graph Configuration (from schema.py)
@@ -136,7 +135,7 @@ class EngineResult(DynamicBaseModel):
 class ErrorClassification(BaseModel):
     """Structured error classification result."""
     error_type: str
-    status_code: Optional[int] = None
+    status_code: int | None = None
     title: str
     message: str
     hint: str

@@ -3,7 +3,8 @@ import logging
 
 import tree_sitter
 
-from app.core.file.service import is_test_file
+from app.core.file import get_file_ext
+from app.core.file.types import is_test as is_test_file
 from app.domain.codebase.indexing.base import BaseExtractor
 from app.domain.codebase.indexing.parsers import parser_registry
 from app.domain.codebase.indexing.queries import TREE_SITTER_QUERIES
@@ -13,7 +14,6 @@ from app.domain.codebase.schemas import (
     ExtractedRelation,
     ExtractionResult,
 )
-from app.core.file import get_file_ext
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ class TreeSitterExtractor(BaseExtractor):
         parser, language = parser_info
         try:
             tree = await asyncio.to_thread(parser.parse, bytes(content, "utf8"))
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"TreeSitter binary parse failed: {e}")
             return ExtractionResult(documents=[], entities=[], relations=[])
 
@@ -131,7 +131,7 @@ class TreeSitterExtractor(BaseExtractor):
                 imp_query = language.query(imports_query_str)
                 imp_cursor = tree_sitter.QueryCursor(imp_query)
                 matches.extend(list(imp_cursor.matches(tree.root_node)))
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"TreeSitter query failed: {e}")
             # Continue with whatever matches we might have (or empty matches)
 
@@ -364,7 +364,7 @@ class TreeSitterExtractor(BaseExtractor):
             skeleton = f"{capture_name} {signature}\n{docstring}"
             return skeleton.strip()
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             # Fallback to first 200 chars or summary
             logger.warning(f"Skeleton extraction failed: {e}")
             return node.text.decode("utf8")[:200]

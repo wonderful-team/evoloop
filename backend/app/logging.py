@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from app.core.config import settings
 from app.core.context.manager import ContextManager
-from app.utils import json as json_utils
+from app.utils.json import dumps
 
 
 class ContextFilter(logging.Filter):
@@ -38,7 +38,7 @@ class JSONFormatter(logging.Formatter):
         if record.exc_info:
             log_obj["exception"] = self.formatException(record.exc_info)
 
-        return json_utils.dumps(log_obj)
+        return dumps(log_obj)
 
 
 def setup_logging():
@@ -85,7 +85,6 @@ def setup_logging():
 
     # Enable detailed logs for our app
     logging.getLogger("app").setLevel(logging.DEBUG)
-    logging.getLogger("langchain.core").setLevel(logging.DEBUG)
 
 
 logger = logging.getLogger("evoloop")

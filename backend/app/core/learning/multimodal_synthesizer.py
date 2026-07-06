@@ -28,15 +28,18 @@ from sqlalchemy import or_, select
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
-from app.core.learning.frame_compressor import (
-    CompressedFrame,
+from app.infrastructure.video.compressor import (
     CoordinateNormalizer,
     FrameCompressor,
-    KeyframeCandidate,
     KeyframeSelector,
 )
+from app.infrastructure.video.schemas import (
+    CompressedFrame,
+    KeyframeCandidate,
+    VideoInfo,
+)
 from app.core.learning.prompts.builder import LearningPromptBuilder
-from app.core.learning.schemas import RecordingSession, VideoInfo
+from app.core.learning.schemas import RecordingSession
 from app.core.learning.skill_synthesizer import SynthesizedSkill
 from app.core.learning.synthesizer_utils import (
     MacroVerificationResult,
@@ -49,7 +52,7 @@ from app.core.learning.synthesizer_utils import (
     verify_macro_script,
 )
 from app.infrastructure.config.service import SystemConfigService
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.infrastructure.drivers.adb import adb_driver
 from app.infrastructure.llm.vision import VisionLLMFactory
 from app.models import TraceEvent
@@ -151,7 +154,7 @@ class MultimodalSkillSynthesizer:
                 frames=frames_with_events,
                 event_context=event_context
             )
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Vision LLM call failed: {e}")
             raise RuntimeError(f"LLM analysis failed: {e}")
 
@@ -177,7 +180,7 @@ class MultimodalSkillSynthesizer:
             if cleaned_macro.startswith("[") or cleaned_macro.startswith("{"):
                 try:
                     target_macro = json.loads(cleaned_macro)
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     logger.warning(f"Failed to parse LLM macro string as JSON: {e}")
                     target_macro = compiled_macro
             else:
@@ -250,7 +253,7 @@ class MultimodalSkillSynthesizer:
                 if isinstance(data, dict) and "steps" in data:
                     return data["steps"]
                 return data if isinstance(data, list) else []
-            except Exception:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                 return []
         return macro_yaml if isinstance(macro_yaml, list) else []
 
@@ -290,7 +293,7 @@ class MultimodalSkillSynthesizer:
             fps = float(fps_str.split("/")[0]) / float(fps_str.split("/")[1]) if "/" in fps_str else float(fps_str)
 
             return VideoInfo(duration=duration, width=width, height=height, fps=fps)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to get video info for {video_path}: {e}")
             return VideoInfo(duration=30.0, width=1920, height=1080, fps=self.DEFAULT_VIDEO_FPS)
 
@@ -381,7 +384,7 @@ class MultimodalSkillSynthesizer:
                 )
 
                 frames.append(compressed)
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(
                     f"[KeyframeExtraction] Failed to process frame {i} at {keyframe.timestamp}s: {e} | "
                     f"Context: {keyframe.context}, Description: {keyframe.description}"
@@ -415,7 +418,7 @@ class MultimodalSkillSynthesizer:
 
     def _build_event_context(self, events: list[TraceEvent], original_resolution: tuple[int, int]) -> str:
         """构建详细的事件内容上下文 (用于 Prompt) - 使用模板渲染"""
-        from app.utils import render_template
+        from app.utils.template import render_template
 
         normalizer = CoordinateNormalizer(original_resolution[0], original_resolution[1])
 
@@ -501,7 +504,8 @@ class MultimodalSkillSynthesizer:
                 pkg = app_info.get("package")
                 if pkg and pkg not in ("unknown", "error", "") and not pkg.startswith(system_prefixes):
                     all_apps.append(pkg)
-            except Exception: pass
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.debug(f"Failed to get current app from ADB: {e}")
 
         if not all_apps:
             return "unknown"
@@ -510,7 +514,7 @@ class MultimodalSkillSynthesizer:
 
     async def _call_vision_llm(self, task_description: str, bundle_id: str, frames: list[CompressedFrame], event_context: str) -> str:
         """构建多模态消息并调用 LLM"""
-        from langchain_core.messages import HumanMessage, SystemMessage
+        from app.core.engine.message.native_classes import HumanMessage, SystemMessage
 
         # 加载新的系统模板
         system_prompt = self.prompt_builder.build_multimodal_synthesis_prompt({})
@@ -556,10 +560,10 @@ class MultimodalSkillSynthesizer:
             frame_vars.append(f_data)
 
         try:
-            from app.utils import render_template
+            from app.utils.template import render_template
             frames_narrative = render_template("core/vision/multimodal_frames.prompt.j2", frames=frame_vars)
             content.append({"type": "text", "text": frames_narrative})
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to render Multimodal Frames template: {e}")
             content.append({"type": "text", "text": "## Keyframes Analysis\n(Error rendering frames detail)"})
 
@@ -589,7 +593,7 @@ class MultimodalSkillSynthesizer:
 
         try:
             metadata = yaml.safe_load(yaml_content) if yaml_content else {}
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to parse LLM YAML metadata: {e}")
             metadata = {}
 

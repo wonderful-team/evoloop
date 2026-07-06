@@ -1,19 +1,15 @@
-import json
 import logging
 import os
 import shutil
 from typing import Any
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from sqlalchemy import select
 
 from app.core.config import settings
-from app.core.learning.prompts import prompt_builder
 from app.core.learning.schemas import SkillListItem, SkillMatch
 from app.core.learning.skill_importer import SkillImporter
 from app.infrastructure.config import SystemConfigService
-from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.llm import get_default_llm
+from app.infrastructure.database import session_scope
 from app.models.learning import LearnedSkill
 
 logger = logging.getLogger(__name__)
@@ -72,7 +68,7 @@ class SkillDiscovery:
                 "Indicates that the system skills have been successfully synchronized on first launch"
             )
             self._system_skills_synced = True
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[Discovery] Failed to sync system SOPs: {e}")
 
     def _copy_builtin_skills(self, builtin_path: str, user_path: str) -> None:

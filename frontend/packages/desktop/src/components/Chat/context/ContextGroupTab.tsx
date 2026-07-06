@@ -44,7 +44,7 @@ interface ContextGroupTabProps {
 }
 
 export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
 
   // --- STATE & DATA ---
@@ -65,7 +65,7 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
 
   const addLinkMutation = useMutation({
     mutationFn: async () => {
-      if (!projectId) throw new Error("No project")
+      if (!projectId) throw new Error(t("common.noProject"))
       return ResourcesService.createResource({
         projectId,
         requestBody: { type: "link", name: newLinkName, content: newLinkUrl },
@@ -82,7 +82,7 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
 
   const deleteResourceMutation = useMutation({
     mutationFn: async (id: number) => {
-      if (!projectId) throw new Error("No project")
+      if (!projectId) throw new Error(t("common.noProject"))
       return ResourcesService.deleteResource({ projectId, resourceId: id })
     },
     onSuccess: () => {
@@ -127,7 +127,7 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
 
   const addMemoryMutation = useMutation({
     mutationFn: async () => {
-      if (!projectId) throw new Error("No project")
+      if (!projectId) throw new Error(t("common.noProject"))
       return MemoryService.addConcept({
         projectId,
         requestBody: {
@@ -155,10 +155,7 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
       <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-6 text-center select-none">
         <Brain className="h-12 w-12 mb-3 opacity-20" />
         <p className="text-xs font-medium leading-relaxed">
-          {t("chat.context.selectProject", {
-            defaultValue:
-              "请在左侧选择具体项目以查看并管理专属资源与记忆上下文",
-          })}
+          {t("chat.context.selectProject")}
         </p>
       </div>
     )
@@ -518,17 +515,25 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
                           >
                             {ep.error ? (
                               <>
-                                <XCircle className="h-3 w-3" /> FAILED
+                                <XCircle className="h-3 w-3" />{" "}
+                                {t("chat.context.statusFailed")}
                               </>
                             ) : (
                               <>
-                                <CheckCircle2 className="h-3 w-3" /> SUCCESS
+                                <CheckCircle2 className="h-3 w-3" />{" "}
+                                {t("chat.context.statusSuccess")}
                               </>
                             )}
                           </div>
                           {ep.timestamp && (
                             <span className="text-[10px] text-muted-foreground font-mono">
-                              {new Date(ep.timestamp).toLocaleString()}
+                              {new Intl.DateTimeFormat(i18n.language, {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              }).format(new Date(ep.timestamp))}
                             </span>
                           )}
                         </div>
@@ -537,7 +542,7 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
                           <div className="mb-4">
                             <div className="flex items-center gap-1.5 text-muted-foreground mb-1.5 font-bold text-[10px]">
                               <Target className="h-3 w-3" />
-                              Objective
+                              {t("chat.context.objective")}
                             </div>
                             <div className="font-semibold text-sm text-foreground/90 leading-relaxed pl-4 border-l-2 border-muted/50">
                               {ep.goal}
@@ -549,12 +554,14 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
                           <div className="flex items-center gap-1.5 text-muted-foreground mb-1.5 font-bold text-[10px]">
                             <ClipboardCheck className="h-3 w-3" />
                             {isRedundant
-                              ? "Execution Summary"
-                              : "Result & Outcome"}
+                              ? t("chat.context.executionSummary")
+                              : t("chat.context.resultAndOutcome")}
                           </div>
                           <div className="text-sm text-foreground/80 leading-relaxed pl-4 border-l-2 border-primary py-2 bg-primary/5 rounded-r-md">
                             <MessageContent
-                              content={displayResult || "No details preserved."}
+                              content={
+                                displayResult || t("chat.context.noDetails")
+                              }
                             />
                           </div>
                         </div>

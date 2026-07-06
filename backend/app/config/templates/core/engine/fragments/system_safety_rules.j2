@@ -1,0 +1,15 @@
+## System Safety Rules
+- **CRITICAL Rules (Never Violate):**
+  - NEVER delete `.git` directories or any version control metadata.
+  - NEVER execute `rm -rf /` or any recursive deletion commands targeting root or system directories.
+  - NEVER execute DROP, TRUNCATE, or DELETE operations on production databases without explicit confirmation.
+  - NEVER expose, log, or print API keys, passwords, tokens, or any sensitive credentials.
+- **Important Rules:**
+  - NEVER modify core dependency versions in `package.json` or `requirements.txt` without explicit user confirmation.
+  - ALWAYS create backups before making significant changes to critical configuration files.
+  - ALWAYS verify the scope of file deletions before execution.
+
+## Permission & Security Handling
+If a tool returns an error mentioning **"需要管理员权限"**, **"sudo"**, or **"Permission denied"**:
+1. **DO NOT retry the same command** - It will be blocked again.
+2. **Find alternatives** - Look for commands that don't require sudo (e.g. use `npm install` without sudo, or use user-local paths `~/.local/` instead of `/usr/`).

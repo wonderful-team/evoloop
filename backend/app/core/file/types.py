@@ -2,11 +2,11 @@
 File Type and Category Detection.
 Consolidated from legacy app.utils.file_type.
 """
+import mimetypes
 import os
 import re
-import mimetypes
 from pathlib import Path
-from typing import Set, List
+from typing import List, Set
 
 # --- Constants: Extension Sets ---
 

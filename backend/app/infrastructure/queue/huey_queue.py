@@ -14,13 +14,13 @@ Features:
 
 import asyncio
 import logging
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
 # Lazy import huey to avoid import errors if not installed
 try:
-    from huey import SqliteHuey, Huey
+    from huey import Huey, SqliteHuey
     from huey.api import Task
 
     HUEY_AVAILABLE = True
@@ -31,7 +31,7 @@ except ImportError:
     Task = None
 
 
-from app.infrastructure.queue.base import TaskScheduler, SyncTaskMixin, TaskResult
+from app.infrastructure.queue.base import SyncTaskMixin, TaskResult, TaskScheduler
 
 
 class HueyTaskResult(TaskResult):
@@ -116,7 +116,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
             )
         
         self.name = name
-        self._huey: Optional[SqliteHuey] = None
+        self._huey: SqliteHuey | None = None
         self._tasks: dict[str, Callable] = {}
         self._init_huey()
 
@@ -235,7 +235,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
         except RuntimeError:
             is_running = False
             try:
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
             except RuntimeError:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
@@ -264,7 +264,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
                 return loop.run_until_complete(_execute())
             else:
                 return loop.run_until_complete(_execute())
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             # Log the full exception for debugging
             error_msg = f"[Huey] Task execution failed: {func.__name__}: {type(e).__name__}: {e}"
             logger.error(error_msg)
@@ -276,7 +276,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
             try:
                 from app.utils.async_utils import flush_loop_bound_resources
                 loop.run_until_complete(flush_loop_bound_resources())
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(f"[Huey] Failed to flush resources in task {func.__name__}: {e}")
 
     def _create_result(self, huey_task: Task) -> HueyTaskResult:
@@ -328,7 +328,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
             logger.debug(f"[Huey] Task {name} dispatched via stored wrapper")
             return self._create_result(huey_task)
             
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             # If execution fails, log and re-raise
             logger.error(f"[Huey] Task {name} execution failed: {e}")
             raise
@@ -340,7 +340,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
         for module_path in discover_task_modules():
             try:
                 __import__(module_path)
-            except Exception:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                 continue
             # Check if the task name is now registered
             if task_name in self._tasks:
@@ -399,7 +399,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
                 __import__(module_path)
                 loaded_count += 1
                 logger.debug(f"[Huey] Loaded module: {module_path}")
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(f"[Huey] Failed to load {module_path}: {e}")
         
         logger.info(f"[Huey] Pre-loaded {loaded_count} task modules")

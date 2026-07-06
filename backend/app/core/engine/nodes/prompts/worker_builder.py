@@ -1,10 +1,12 @@
 import logging
 from typing import Any
 
+from jinja2 import TemplateError
+
 from app.core.config import settings
 from app.core.context import ContextManager, plugin_registry
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
-from app.utils import render_template
+from app.utils.template import render_template
 
 from .base_builder import BasePromptBuilder
 
@@ -14,6 +16,11 @@ logger = logging.getLogger(__name__)
 class WorkerPromptBuilder(BasePromptBuilder):
     """
     Constructs the system prompt for dynamic, ephemeral sub-agents via Jinja2.
+
+    Worker receives skills ALREADY selected by the Supervisor (via ExecutionTicket.skill_ids).
+    Therefore the Worker injects the FULL skill content (not an index) — the routing
+    decision has already been made upstream. NLP skill indexing / lazy loading belongs
+    to the Supervisor, not here.
     """
     def __init__(
         self,
@@ -68,17 +75,14 @@ class WorkerPromptBuilder(BasePromptBuilder):
 
         # Static Feature Check
         has_interactive_charts = False
-        try:
-            from app.core.evocloud import evocloud_manager
-            from app.services.benefit_service import benefit_service
-            token = await evocloud_manager.get_token()
-            member_id = ctx.member_id
-            if token and member_id:
-                has_interactive_charts = await benefit_service.has_benefit(
-                    member_id, "interactive_charts", token
-                )
-        except Exception as e:
-            logger.debug(f"[WorkerPrompt] Benefit check failed: {e}")
+        from app.core.evocloud import evocloud_manager
+        from app.services.benefit_service import benefit_service
+        token = await evocloud_manager.get_token()
+        member_id = ctx.member_id
+        if token and member_id:
+            has_interactive_charts = await benefit_service.has_benefit(
+                member_id, "interactive_charts", token
+            )
 
         template_vars = {
             "project_id": ctx.project_id,
@@ -162,30 +166,26 @@ class WorkerPromptBuilder(BasePromptBuilder):
         """
         Prepare knowledge blocks for all skills.
 
+        Worker injects FULL skill content because the Supervisor has already
+        selected which skills are relevant — there is no routing decision left
+        for the Worker to make, so no need for a lightweight index.
+
         Uses a single template render with the knowledge_blocks_wrapper.j2
         template for efficiency, then splits the result into individual blocks.
-
-        Returns:
-            List of rendered knowledge block strings
         """
         if not self.skills:
             return []
 
         try:
-            # Render all blocks in a single template call for efficiency
             rendered = render_template(
                 "core/engine/fragments/knowledge_blocks_wrapper.j2",
                 skills=self.skills,
                 is_subtask=self.agent_config.is_subtask if self.agent_config else False
             )
-
-            # Split by double newline to get individual blocks
             blocks = [b.strip() for b in rendered.split('\n\n\n') if b.strip()]
             return blocks or [rendered.strip()]
-
-        except Exception as e:
+        except (ImportError, TemplateError) as e:
             logger.error(f"Error rendering Knowledge Blocks: {e}")
-            # Fallback: render each skill individually
             blocks = []
             for i, skill in enumerate(self.skills):
                 block = render_template(
@@ -195,5 +195,4 @@ class WorkerPromptBuilder(BasePromptBuilder):
                     is_subtask=self.agent_config.is_subtask if self.agent_config else False
                 )
                 blocks.append(block)
-
             return blocks

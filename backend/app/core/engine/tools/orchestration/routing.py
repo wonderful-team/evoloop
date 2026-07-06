@@ -43,7 +43,6 @@ def route_to(
         session_goal: Optional session-level goal to establish or refine the active goal on the UI.
     """
     target_val = target.value
-    from app.core.tools.registry import get_tool_bundle
 
     ctx = context or RoutingContext()
     context_dict = ctx.model_dump()

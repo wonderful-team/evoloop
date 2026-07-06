@@ -1,10 +1,10 @@
 import logging
-import time
 
 from app.core.config import settings
-from app.models.schemas.auth import LoginResult
-from .store import IdentityStore
 from app.infrastructure.cache import cache
+from app.models.schemas.auth import LoginResult
+
+from .store import IdentityStore
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +116,7 @@ class IdentityService:
                                 await self.store.save_access_token(token)
                                 await self.store.save_member_id(mid)
                         return mid
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"Failed to resolve member_id from token: {e}")
             return None
 

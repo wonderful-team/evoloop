@@ -6,7 +6,7 @@ from app.core.context.manager import ContextManager
 from app.core.monitoring.ui_actions import require_project_for_tool
 from app.core.tools import evoloop_tool
 from app.domain.codebase.retrieval.service import RetrievalService
-from app.utils import render_template
+from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +82,7 @@ async def search_codebase(
                     usages = await usages_task
                     if usages:
                         graph_data["incoming"] = [f"{u['source']} (references)" for u in usages]
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Symbol lookup failed: {e}")
 
     rag_results = []
@@ -90,7 +90,7 @@ async def search_codebase(
         results = await vector_task
         if results:
             rag_results = results
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"RAG search failed: {e}")
 
     count = len(rag_results)
@@ -104,7 +104,7 @@ async def search_codebase(
             rag_results=rag_results
         )
         return content, {"count": count, "pattern": query}
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to render Codebase Retrieval template: {e}")
         return "Search results processing error.", {"count": 0}
 

@@ -38,7 +38,7 @@ class I18nService:
                     with open(file_path, encoding="utf-8") as f:
                         self._locales[code] = json.load(f)
                     logger.info(f"Loaded locale: {code}")
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     logger.error(f"Failed to load locale {code}: {e}")
 
         self._loaded = True
@@ -113,7 +113,7 @@ class I18nService:
                 
                 return value.format_map(SafeFormatter(**kwargs))
                 
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"Error formatting i18n string '{key}': {e}")
                 return value
         

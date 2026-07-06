@@ -38,25 +38,25 @@ export function useTTS(): UseTTSReturn {
       id: "zh-CN-XiaoxiaoNeural",
       name: "Xiaoxiao",
       gender: "female",
-      description: "Gentle and natural, highly recommended",
+      description: t("settings.tts.voices.zhCNXiaoxiaoNeural"),
     },
     {
       id: "zh-CN-YunxiNeural",
       name: "Yunxi",
       gender: "male",
-      description: "Young and sunny, highly recommended",
+      description: t("settings.tts.voices.zhCNYunxiNeural"),
     },
     {
       id: "zh-CN-YunjianNeural",
       name: "Yunjian",
       gender: "male",
-      description: "News broadcasting style",
+      description: t("settings.tts.voices.zhCNYunjianNeural"),
     },
     {
       id: "zh-CN-XiaoyiNeural",
       name: "Xiaoyi",
       gender: "female",
-      description: "Lively and young",
+      description: t("settings.tts.voices.zhCNXiaoyiNeural"),
     },
   ])
   const [currentVoice, setCurrentVoice] = useState("zh-CN-XiaoxiaoNeural")
@@ -134,7 +134,7 @@ export function useTTS(): UseTTSReturn {
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.detail || "TTS failed")
+          throw new Error(errorData.detail || t("chat.tts.failed"))
         }
 
         // Get audio blob from stream

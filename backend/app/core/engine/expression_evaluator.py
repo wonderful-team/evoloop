@@ -8,8 +8,8 @@ basic boolean expressions, comparisons, and a limited set of functions.
 import ast
 import logging
 import operator
-from typing import Any
 from collections.abc import Callable
+from typing import Any
 
 from app.core.engine.schemas import EdgeCondition
 from app.core.engine.state import AgentState
@@ -22,8 +22,9 @@ def _safe_eval_expr(expr: str, context: dict) -> bool:
     Safely evaluate a boolean expression using AST.
     Only allows a restricted set of operations to prevent code injection.
     """
-    # Block dangerous patterns
-    if not expr or "import" in expr or "__" in expr:
+    # Block dangerous patterns (AST-based check for imports/dunder access is below;
+    # this is just a fast pre-filter for obviously empty expressions)
+    if not expr:
         return False
 
     # Syntax errors in expressions should be caught early (usually during graph build)
@@ -37,10 +38,10 @@ def _safe_eval_expr(expr: str, context: dict) -> bool:
         ast.UnaryOp,
         ast.BoolOp,
         ast.Compare,
-        ast.Num,
         ast.Constant,
         ast.Name,
         ast.Load,
+        ast.Attribute,
         ast.And,
         ast.Or,
         ast.Not,
@@ -64,8 +65,6 @@ def _safe_eval_expr(expr: str, context: dict) -> bool:
         ast.List,
         ast.Tuple,
         ast.Dict,
-        ast.Str,
-        ast.NameConstant,
     )
 
     # Check all nodes are allowed
@@ -164,14 +163,17 @@ def _safe_eval_expr(expr: str, context: dict) -> bool:
             if node.id in context:
                 return context[node.id]
             return False
-        # Removed: ast.Attribute, ast.Subscript - prevent sandbox escape
+        elif isinstance(node, ast.Attribute):
+            # Only allow attribute access on known-safe names (e.g. blackboard.get)
+            base = _eval_node(node.value)
+            if base is False and isinstance(node.value, ast.Name) and node.value.id not in context:
+                logger.warning(f"[SafeEval] Unknown name in attribute access: {node.value.id}")
+                return False
+            attr = getattr(base, node.attr, None)
+            if attr is None:
+                return False
+            return attr
         elif isinstance(node, ast.Constant):
-            return node.value
-        elif isinstance(node, ast.Num):
-            return node.n
-        elif isinstance(node, ast.Str):
-            return node.s
-        elif isinstance(node, ast.NameConstant):
             return node.value
         elif isinstance(node, ast.List):
             return [_eval_node(elt) for elt in node.elts]

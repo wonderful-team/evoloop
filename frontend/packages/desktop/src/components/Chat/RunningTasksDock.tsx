@@ -6,9 +6,10 @@
  * see the live output.
  */
 
-import { Terminal, X, Clock, Loader2 } from "lucide-react"
-import { useChatStore } from "@/stores/chatStore"
+import { Clock, Loader2, Terminal, X } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import type { ActiveTaskInfo } from "@/stores/chat/types"
+import { useChatStore } from "@/stores/chatStore"
 
 function TaskPill({
   task,
@@ -17,9 +18,12 @@ function TaskPill({
   task: ActiveTaskInfo
   onClick: () => void
 }) {
+  const { t } = useTranslation()
   const isRunning = task.status === "running"
   const label =
-    task.title.length > 40 ? task.title.slice(0, 37) + "…" : task.title
+    task.title.length > 40
+      ? `${task.title.slice(0, 37)}${t("common.ellipsis")}`
+      : task.title
 
   return (
     <button
@@ -28,7 +32,7 @@ function TaskPill({
                  bg-background border border-border text-foreground
                  hover:border-primary hover:bg-muted/50
                  focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
-      title={`Open terminal – ${task.title}`}
+      title={t("chat.runningTasks.openTerminalTitle", { title: task.title })}
     >
       {isRunning ? (
         <Loader2 className="h-3 w-3 animate-spin text-green-500 flex-shrink-0" />
@@ -41,6 +45,7 @@ function TaskPill({
 }
 
 export function RunningTasksDock() {
+  const { t } = useTranslation()
   const activeTasks = useChatStore((s) => s.activeTasks)
   const isTerminalMode = useChatStore((s) => s.isTerminalMode)
   const setTerminalMode = useChatStore((s) => s.setTerminalMode)
@@ -55,7 +60,7 @@ export function RunningTasksDock() {
       <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-x-auto hide-scrollbar">
         {tasks.length === 0 && (
           <span className="text-xs text-muted-foreground font-mono">
-            Terminal Mode active
+            {t("chat.runningTasks.terminalModeActive")}
           </span>
         )}
         {tasks.map((task) => (
@@ -77,17 +82,21 @@ export function RunningTasksDock() {
                         ? "bg-primary/10 text-primary border-primary/30"
                         : "text-muted-foreground border-transparent hover:text-primary hover:border-border"
                     }`}
-        title={isTerminalMode ? "Switch to Chat view" : "Switch to Terminal view"}
+        title={
+          isTerminalMode
+            ? t("chat.runningTasks.switchToChat")
+            : t("chat.runningTasks.switchToTerminal")
+        }
       >
         {isTerminalMode ? (
           <>
             <X className="h-3 w-3" />
-            <span>Exit</span>
+            <span>{t("chat.runningTasks.exit")}</span>
           </>
         ) : (
           <>
             <Terminal className="h-3 w-3" />
-            <span>&gt;_</span>
+            <span>{t("chat.runningTasks.terminalIcon")}</span>
           </>
         )}
       </button>

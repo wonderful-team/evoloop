@@ -313,7 +313,12 @@ export function SkillEditorPage({
         response.execution_mode === "deterministic"
           ? t("learning.deterministic")
           : t("learning.agentic")
-      toast.success(`${t("learning.executionStarted")} (${modeLabel})`)
+      toast.success(
+        t("learning.executionStartedWithMode", {
+          message: t("learning.executionStarted"),
+          mode: modeLabel,
+        }),
+      )
     } catch (_e) {
       toast.error(t("learning.executionFailed"))
     }
@@ -481,7 +486,7 @@ export function SkillEditorPage({
                       : "hover:bg-muted text-muted-foreground"
                   }`}
                 >
-                  🧠 {t("learning.agentic")}
+                  {t("learning.agenticIcon")} {t("learning.agentic")}
                 </button>
                 <button
                   onClick={() => setExecutionMode("deterministic")}
@@ -491,7 +496,8 @@ export function SkillEditorPage({
                       : "hover:bg-muted text-muted-foreground"
                   }`}
                 >
-                  ⚡ {t("learning.deterministic")}
+                  {t("learning.deterministicIcon")}{" "}
+                  {t("learning.deterministic")}
                 </button>
               </div>
             </div>
@@ -500,10 +506,7 @@ export function SkillEditorPage({
             <MarkdownEditor
               value={instructions}
               onChange={setInstructions}
-              placeholder={t(
-                "learning.editor.expertGuidePlaceholder",
-                "Write markdown instructions for the agent... e.g. \\n1. Go to github.com\\n2. Click the 'New Repository' button",
-              )}
+              placeholder={t("learning.editor.expertGuidePlaceholder")}
             />
           ) : (
             <div className="flex-1 min-h-0 border rounded-xl bg-background shadow-sm overflow-hidden">
@@ -523,7 +526,10 @@ export function SkillEditorPage({
                   onStepPreview={(step) => {
                     console.log("Preview step:", step)
                     toast.info(
-                      `Step ${step.step_number}: ${step.description || step.event_type}`,
+                      t("learning.stepPreview", {
+                        number: step.step_number,
+                        description: step.description || step.event_type,
+                      }),
                     )
                   }}
                 />

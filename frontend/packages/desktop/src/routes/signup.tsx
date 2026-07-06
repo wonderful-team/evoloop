@@ -16,6 +16,7 @@ import {
 import { Input } from "@evoloop/shared/components/ui/input"
 import { LoadingButton } from "@evoloop/shared/components/ui/loading-button"
 import { PasswordInput } from "@evoloop/shared/components/ui/password-input"
+import i18n from "@evoloop/shared/i18n"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
   createFileRoute,
@@ -34,19 +35,13 @@ const createSchema = (t: any) =>
   z
     .object({
       username: z.string().min(3, {
-        message: t(
-          "auth.errors.usernameMinLength",
-          "Username must be at least 3 characters",
-        ),
+        message: t("auth.errors.usernameMinLength"),
       }),
       password: z
         .string()
         .min(1, { message: t("auth.errors.passwordRequired") })
-        .min(6, {
-          message: t(
-            "auth.errors.passwordMin8",
-            "Password must be at least 6 characters",
-          ),
+        .min(8, {
+          message: t("auth.errors.passwordMin8"),
         }),
       confirm_password: z
         .string()
@@ -72,7 +67,7 @@ export const Route = createFileRoute("/signup")({
   head: () => ({
     meta: [
       {
-        title: "Sign Up - EvoLoop",
+        title: i18n.t("auth.signup.pageTitle"),
       },
     ],
   }),
@@ -171,9 +166,7 @@ function SignUp() {
 
         {registerConfigQuery.isLoading ? (
           <div className="flex justify-center p-8">
-            <span className="text-muted-foreground">
-              {t("common.loading")}...
-            </span>
+            <span className="text-muted-foreground">{t("common.loading")}</span>
           </div>
         ) : (
           <div className="w-full">
@@ -187,16 +180,11 @@ function SignUp() {
                   name="username"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>
-                        {t("auth.register.username", "Username")}
-                      </FormLabel>
+                      <FormLabel>{t("auth.register.username")}</FormLabel>
                       <FormControl>
                         <Input
                           data-testid="username-input"
-                          placeholder={t(
-                            "auth.register.usernamePlaceholder",
-                            "Please enter a username",
-                          )}
+                          placeholder={t("auth.register.usernamePlaceholder")}
                           type="text"
                           {...field}
                         />
@@ -328,7 +316,7 @@ function SignUp() {
           <div className="py-4">
             {isAgreementLoading ? (
               <div className="flex justify-center p-8 text-muted-foreground">
-                {t("common.loading")}...
+                {t("common.loading")}
               </div>
             ) : (
               <div

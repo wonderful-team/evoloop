@@ -8,6 +8,7 @@ to eliminate duplication across BaseAgentNode, FinishNode, AggregatorNode, etc.
 import logging
 import os
 from typing import Any
+
 from pydantic import BaseModel
 
 from app.core.config import settings
@@ -32,7 +33,7 @@ def to_template_context(obj: Any) -> Any:
         try:
             res = {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
             return to_template_context(res)
-        except Exception:
+        except AttributeError:
             return str(obj)
     if isinstance(obj, BaseModel):
         res = obj.model_dump()
@@ -84,10 +85,5 @@ def read_project_profile(working_directory: str | None, log_prefix: str = "") ->
     if not os.path.isfile(profile_path):
         return ""
 
-    try:
-        from app.core import file as file_utils
-        return file_utils.read_file(profile_path).content or ""
-    except Exception as e:
-        prefix = f"{log_prefix} " if log_prefix else ""
-        logger.debug(f"{prefix}Failed to read PROJECT.md: {e}")
-        return ""
+    from app.core import file as file_utils
+    return file_utils.read_file(profile_path).content or ""

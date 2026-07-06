@@ -50,7 +50,7 @@ export function ArtifactsList({ artifacts }: ArtifactsListProps) {
     <div className="flex flex-col gap-2 mb-4 w-full">
       <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 ml-1">
         <Package className="h-3 w-3" />
-        {t("chat.artifacts.title", "Generated Files")}
+        {t("chat.artifacts.title")}
       </div>
 
       <div className="grid grid-cols-1 gap-2">

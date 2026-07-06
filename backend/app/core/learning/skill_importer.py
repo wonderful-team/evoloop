@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from app.core.learning.schemas import SkillImportResult
 from app.core.learning.skill_validator import SkillValidator
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.models.learning import LearnedSkill
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,7 @@ class SkillImporter:
                     results["imported"] += 1
                 else:
                     results["skipped"] += 1
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"Failed to import skill from {folder}: {e}")
                 results["errors"].append(f"{folder.name}: {str(e)}")
 
@@ -131,6 +131,6 @@ class SkillImporter:
             metadata = yaml.safe_load(parts[1])
             instructions = parts[2].strip()
             return metadata, instructions
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to parse YAML frontmatter: {e}")
             return None, content

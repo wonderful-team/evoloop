@@ -1,19 +1,19 @@
 """PostgreSQL implementation of short-term memory using Message table."""
 import logging
-from typing import Any
 
-from langchain_core.messages import (
+from sqlalchemy import delete, or_, select
+
+from app.core.engine.message.native_classes import (
     AIMessage,
     BaseMessage,
     HumanMessage,
     SystemMessage,
     ToolMessage,
 )
-from sqlalchemy import delete, or_, select
-
-from app.core.memory.interfaces.short_term import IShortTermMemory
-from app.infrastructure.database.sql.database import session_scope
+from app.core.memory.interfaces import IShortTermMemory
+from app.infrastructure.database import session_scope
 from app.models.conversation import Message
+from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +51,8 @@ class SqlShortTermMemory(IShortTermMemory):
             last_seq = result.scalar()
             next_seq = (last_seq or 0) + 1
 
-            import uuid
             new_message = Message(
-                id=str(uuid.uuid4()),
+                id=gen_uuid(),
                 thread_id=thread_id,
                 role=role,
                 content=message.content if isinstance(message.content, str) else str(message.content),

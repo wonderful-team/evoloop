@@ -4,12 +4,12 @@ Desktop Control Tool — Agent-facing thin wrapper over DesktopController.
 This module exposes `desktop_control`, `verify_ui_state`, `quick_check_screen`
 as @evoloop_tools so the Agent can call them via function calling.
 All actual logic lives in:
-  app.core.environment.controllers.desktop_controller.DesktopController
+  app.core.environment.controllers.desktop.DesktopController
 """
 import logging
 from typing import Literal
 
-from app.core.environment.controllers.desktop_controller import DesktopController
+from app.core.environment.controllers.desktop import DesktopController
 from app.core.tools import evoloop_tool
 
 logger = logging.getLogger(__name__)
@@ -87,7 +87,7 @@ async def desktop_control(
 
     Slow - Don't do this (3 separate calls with screenshots):
       desktop_control(action="click") -> screenshot -> verify
-      desktop_control(action="type_text") -> screenshot -> verify  
+      desktop_control(action="type_text") -> screenshot -> verify
       desktop_control(action="key_press") -> screenshot -> verify
 
     Args:
@@ -129,26 +129,26 @@ async def desktop_control(
         ocr: If True for "screenshot", immediately performs OCR and returns text elements + coordinates.
             NOTE: Coordinates are automatically converted to screen coordinates, even for partial screenshots.
             You can directly use these coordinates with click/double_click actions.
-        actions: List of action dicts for batch mode. 
-            
+        actions: List of action dicts for batch mode.
+
             CORRECT USE CASES (Safe for batch):
             - All actions target the SAME input field
             - Pure keyboard sequence: [cmd+f -> type -> return]
             - Known workflow: [click input -> type -> return to send]
-            
+
             DON'T USE BATCH (Use separate calls with verification):
             - Actions that change screen/state
             - Actions that need to wait for loading
             - Actions across different windows
-            
+
             EXAMPLE 1 - WeChat send message (GOOD):
             [
                 {"action": "click", "element_name": "输入框"},
-                {"action": "type_text", "text": "Hello"},  
+                {"action": "type_text", "text": "Hello"},
                 {"action": "key_press", "key": "return"}
             ]
             Result: 1 screenshot at start, 1 at end. Fast!
-            
+
             EXAMPLE 2 - Chrome search (GOOD):
             [
                 {"action": "key_press", "key": "cmd+l"},      # Focus address bar
@@ -157,7 +157,7 @@ async def desktop_control(
                 {"action": "key_press", "key": "return"}
             ]
             Result: All keyboard, very fast, no coordinates needed!
-            
+
             EXAMPLE 3 - Form fill (GOOD):
             [
                 {"action": "click", "element_name": "用户名"},

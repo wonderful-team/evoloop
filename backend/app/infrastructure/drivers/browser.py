@@ -66,7 +66,7 @@ class BrowserManager:
                     self._pages = list(ctx_pages)
                     self._active_page_idx = min(self._active_page_idx, len(self._pages) - 1)
                 return self._pages[self._active_page_idx]
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 # Catch cases where context exists but is closed (e.g. TargetClosed)
                 if "closed" in str(e).lower():
                     logger.warning(f"[Browser] Context is closed ({e}). Re-starting.")
@@ -77,6 +77,7 @@ class BrowserManager:
 
     async def _start(self) -> None:
         import subprocess
+
         from playwright.async_api import async_playwright
         self._playwright = await async_playwright().start()
 
@@ -92,7 +93,7 @@ class BrowserManager:
                 self._context = await self._browser.new_context()
             logger.info("✅ [Browser] Mode 1: Took over existing Chrome via CDP.")
             self._is_cdp = True
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.info(f"ℹ️ [Browser] No external Chrome found ({type(e).__name__}). Will auto-launch.")
             self._is_cdp = False
 
@@ -112,7 +113,7 @@ class BrowserManager:
                 try:
                     # Check if the hardware supports arm64
                     is_apple_silicon = subprocess.check_output(["sysctl", "-n", "hw.optional.arm64"]).decode().strip() == "1"
-                except Exception:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                     # Fallback to platform check
                     is_apple_silicon = platform.machine() == "arm64"
 
@@ -147,7 +148,7 @@ class BrowserManager:
                     self._context = await self._browser.new_context()
                 self._is_cdp = True
                 logger.info("✅ [Browser] Mode 2: auto-launched Chrome + CDP connected.")
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"[Browser] Mode 2 (auto-launch CDP) failed: {e}")
                 raise RuntimeError(
                     f"Browser startup failed. Could not connect to CDP at {settings.CHROME_CDP_URL}. "
@@ -193,8 +194,8 @@ class BrowserManager:
         try:
             if self._pages and self._active_page_idx < len(self._pages):
                 active_url = self._pages[self._active_page_idx].url
-        except Exception:
-            pass
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.debug("Suppressed error: %s", e, exc_info=True)
 
         return {
             "mode": mode,
@@ -214,19 +215,19 @@ class BrowserManager:
         if self._is_cdp and self._browser:
             try:
                 await self._browser.close()
-            except Exception:
-                pass
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.debug("Suppressed error: %s", e, exc_info=True)
         elif self._context:
             try:
                 await self._context.close()
-            except Exception:
-                pass
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.debug("Suppressed error: %s", e, exc_info=True)
 
         if self._playwright:
             try:
                 await self._playwright.stop()
-            except Exception:
-                pass
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.debug("Suppressed error: %s", e, exc_info=True)
 
         # 2. Terminate auto-launched subprocess if any
         if self._chrome_proc:
@@ -240,7 +241,7 @@ class BrowserManager:
                     await asyncio.sleep(0.1)
                 if self._chrome_proc.poll() is None:
                     self._chrome_proc.kill()
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(f"[Browser] Failed to terminate Chrome subprocess: {e}")
             self._chrome_proc = None
 

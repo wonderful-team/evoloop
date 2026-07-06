@@ -132,7 +132,6 @@ class Settings(BaseSettings):
     DB_CONNECT_TIMEOUT: float = 99.5  # Strategic: unified timeout for unstable networks
     DB_POOL_SIZE: int = 5  # Base connection pool size per engine
     DB_MAX_OVERFLOW: int = 10  # Max overflow connections per pool beyond pool_size
-    DB_CHECKPOINTER_POOL_SIZE: int = 5  # Max connections for the checkpointer pool
 
     # --- Vector Database Configuration (PostgreSQL + pgvector, separate instance) ---
     # Defaults to the same server as the main database, but with a different DB name.
@@ -163,9 +162,6 @@ class Settings(BaseSettings):
 
     # Celery Beat Schedule DB
     CELERY_SCHEDULE_DB_PATH: Annotated[str | None, BeforeValidator(expand_path)] = None
-
-    # Knowledge Base Storage
-    KNOWLEDGE_BASE_PATH: Annotated[str | None, BeforeValidator(expand_path)] = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -332,7 +328,7 @@ class Settings(BaseSettings):
     EVOCLOUD_ACCESS_TOKEN: str | None = Field(None, validation_alias="EVOCLOUD_ACCESS_TOKEN")
     EVOCLOUD_DEVICE_NAME: str | None = Field(default_factory=lambda: platform.node() or "EvoLoop-Desktop", validation_alias="EVOCLOUD_DEVICE_NAME")
     EVOCLOUD_DEVICE_TYPE: str = Field("desktop", validation_alias="EVOCLOUD_DEVICE_TYPE")
-    EVOCLOUD_DEVICE_CAPABILITIES: str = Field("code_write,code_build,local_test", validation_alias="EVOCLOUD_DEVICE_CAPABILITIES")
+    EVOCLOUD_DEVICE_DESCRIPTION: str = Field("", validation_alias="EVOCLOUD_DEVICE_DESCRIPTION")
     EVOCLOUD_SSL_VERIFY: bool = Field(True, validation_alias="EVOCLOUD_SSL_VERIFY")
 
     # Mobile Sync
@@ -465,9 +461,6 @@ class Settings(BaseSettings):
         if not self.CELERY_SCHEDULE_DB_PATH:
             self.CELERY_SCHEDULE_DB_PATH = os.path.join(base_dir, "database/celerybeat-schedule.db")
 
-        if not self.KNOWLEDGE_BASE_PATH:
-            self.KNOWLEDGE_BASE_PATH = os.path.join(base_dir, "knowledge")
-
         if not self.MODELS_DIR:
             self.MODELS_DIR = os.path.join(base_dir, "models")
 
@@ -491,7 +484,7 @@ class Settings(BaseSettings):
     MEMORY_SEARCH_LIMIT: int = 5
     RESEARCH_MAX_ITERATIONS: int = 5
     TREE_VIEW_MAX_LINES: int = 1500
-    RECURSION_LIMIT: int = 100  # Default LangGraph recursion limit
+    RECURSION_LIMIT: int = 100  # Default engine recursion limit
 
     # --- RAG & Search Tunable Parameters ---
     DEFAULT_SEARCH_TOP_K: int = 10

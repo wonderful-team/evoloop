@@ -13,15 +13,19 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlmodel import Session
 
 from app.api.deps import CurrentUserOptional, TokenDep, require_benefit
-from app.domain.wiki.schemas import WikiGenerationRequest, WikiGenerationResponse, WikiPageRead
-from app.domain.wiki.service import wiki_service
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.core.project.utils import get_project_path
+from app.core.tools.registry import get_tool_bundle
+from app.domain.wiki.schemas import (
+    WikiGenerationRequest,
+    WikiGenerationResponse,
+    WikiPageRead,
+)
+from app.domain.wiki.service import wiki_service
 from app.i18n.service import i18n
 from app.infrastructure.config.service import SystemConfigService
-from app.core.tools.registry import get_tool_bundle
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +34,7 @@ router = APIRouter(tags=["wiki"])
 
 async def _ensure_wiki_generation_skill():
     """Fetch or import the 'Wiki Generation' learned skill."""
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
     from app.models.learning import LearnedSkill
 
     async with session_scope() as session:
@@ -53,7 +57,7 @@ async def _ensure_wiki_generation_skill():
             )
             result = await session.execute(stmt)
             return result.scalar_one_or_none()
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.warning(f"[Wiki] Failed to import Wiki Generation skill: {e}")
         return None
 
@@ -94,7 +98,10 @@ async def generate_wiki(
 
     if req.force_regenerate:
         from sqlmodel import delete
-        from app.infrastructure.database.resource_manager import db_resource_manager as rm
+
+        from app.infrastructure.database.resource_manager import (
+            db_resource_manager as rm,
+        )
         from app.models.wiki import WikiPage
         with Session(rm.sync_engine) as session:
             session.exec(delete(WikiPage).where(WikiPage.project_id == req.project_id))

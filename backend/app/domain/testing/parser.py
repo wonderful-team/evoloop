@@ -79,7 +79,7 @@ class TestParser:
 
             return report
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             # Fallback
             return TestReport(
                 failures=1,

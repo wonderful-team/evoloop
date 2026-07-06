@@ -11,13 +11,15 @@ from app.core.project.utils import get_project_path
 from app.domain.codebase.indexing.components.content_indexer import ContentIndexer
 from app.domain.codebase.indexing.components.file_preparer import FilePreparer
 from app.domain.codebase.indexing.components.sql_persister import SQLPersister
-from app.domain.codebase.indexing.extractors.treesitter_extractor import TreeSitterExtractor
+from app.domain.codebase.indexing.extractors.treesitter_extractor import (
+    TreeSitterExtractor,
+)
 from app.domain.codebase.schemas import IndexedContent, PreparedFile
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
+from app.infrastructure.database.vector import get_vector_store
 from app.infrastructure.embeddings.base import BaseEmbedder
 from app.infrastructure.embeddings.batched import BatchedEmbedder
 from app.infrastructure.embeddings.factory import EmbedderFactory
-from app.infrastructure.database.vector import get_vector_store
 from app.models import (
     Repository,
     SourceFile,
@@ -82,7 +84,7 @@ class IndexingService:
                         if p.get("path") and os.path.abspath(p.get("path")) == abs_path:
                             resolved_pid = p.get("id")
                             break
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     logger.warning(f"Failed to resolve project_id for {path}: {e}")
 
             if not resolved_pid:
@@ -234,7 +236,7 @@ class IndexingService:
                 else:
                     logger.debug(f"Skipping vector upsert for {prepared.rel_path}: embeddings disabled or not generated.")
 
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"Error indexing file {file_path}: {e}")
                 await session.rollback()
 
@@ -278,7 +280,7 @@ class IndexingService:
                     file_summary_doc=file_summary_doc,
                 )
                 return prepared, indexed
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"Error preparing/extracting {file_path}: {e}")
                 await session.rollback()
                 return None
@@ -360,7 +362,7 @@ class IndexingService:
                     await session.delete(source_file)
                     logger.info(f"Removed {rel_path} from SQL Index")
 
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"Error removing file {file_path}: {e}")
                 await session.rollback()
 
@@ -497,7 +499,7 @@ class IndexingService:
                 )
                 try:
                     embeddings = await batched_embedder.embed_documents(window_texts)
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     logger.error(f"Window embedding failed: {e}")
                     persist_error_count += len(window)
                     window.clear()
@@ -570,7 +572,7 @@ class IndexingService:
                     last_repo_path = repo_path
                     all_window_vectors.extend(vector_collector)
 
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"Window persist failed: {e}")
                 window_ok = False
 
@@ -614,7 +616,7 @@ class IndexingService:
                 logger.info(
                     f"Vector upsert complete: {len(all_chunks)} chunks"
                 )
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"Final vector upsert failed: {e}")
 
         error_count = extract_error_count + persist_error_count

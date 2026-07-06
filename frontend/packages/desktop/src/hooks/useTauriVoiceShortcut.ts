@@ -1,5 +1,6 @@
 import type { UnlistenFn } from "@tauri-apps/api/event"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { isTauri, safeInvoke, safeListen } from "@/lib/tauri"
 
 type TriggerMode = "longPress" | "doubleClick"
@@ -25,6 +26,7 @@ interface UseTauriVoiceShortcutReturn {
 export function useTauriVoiceShortcut(
   options: UseTauriVoiceShortcutOptions = {},
 ): UseTauriVoiceShortcutReturn {
+  const { t } = useTranslation()
   const { onShortcutStart, onShortcutEnd, enabled = true } = options
 
   const [isListening, setIsListening] = useState(false)
@@ -55,7 +57,7 @@ export function useTauriVoiceShortcut(
         })
       } catch (e) {
         console.error("Failed to setup voice shortcut listeners:", e)
-        setError("Failed to setup shortcut listeners")
+        setError(t("settings.voice.shortcutErrors.setupListeners"))
       }
     }
 
@@ -65,7 +67,7 @@ export function useTauriVoiceShortcut(
       unlistenStartRef.current?.()
       unlistenEndRef.current?.()
     }
-  }, [enabled, onShortcutStart, onShortcutEnd])
+  }, [enabled, onShortcutStart, onShortcutEnd, t])
 
   const startListening = useCallback(async () => {
     try {
@@ -74,10 +76,10 @@ export function useTauriVoiceShortcut(
       setIsListening(true)
     } catch (e) {
       console.error("Failed to start voice shortcut listener:", e)
-      setError("Failed to start shortcut listener")
+      setError(t("settings.voice.shortcutErrors.startListener"))
       throw e
     }
-  }, [])
+  }, [t])
 
   const stopListening = useCallback(async () => {
     try {
@@ -86,45 +88,57 @@ export function useTauriVoiceShortcut(
       setIsRecording(false)
     } catch (e) {
       console.error("Failed to stop voice shortcut listener:", e)
-      setError("Failed to stop shortcut listener")
+      setError(t("settings.voice.shortcutErrors.stopListener"))
     }
-  }, [])
+  }, [t])
 
-  const setShortcutKey = useCallback(async (key: string) => {
-    try {
-      await safeInvoke("set_voice_shortcut_key", { key })
-    } catch (e) {
-      console.error("Failed to set shortcut key:", e)
-      setError("Failed to set shortcut key")
-    }
-  }, [])
+  const setShortcutKey = useCallback(
+    async (key: string) => {
+      try {
+        await safeInvoke("set_voice_shortcut_key", { key })
+      } catch (e) {
+        console.error("Failed to set shortcut key:", e)
+        setError(t("settings.voice.shortcutErrors.setKey"))
+      }
+    },
+    [t],
+  )
 
-  const setShortcutDuration = useCallback(async (durationMs: number) => {
-    try {
-      await safeInvoke("set_voice_shortcut_duration", { durationMs })
-    } catch (e) {
-      console.error("Failed to set shortcut duration:", e)
-      setError("Failed to set shortcut duration")
-    }
-  }, [])
+  const setShortcutDuration = useCallback(
+    async (durationMs: number) => {
+      try {
+        await safeInvoke("set_voice_shortcut_duration", { durationMs })
+      } catch (e) {
+        console.error("Failed to set shortcut duration:", e)
+        setError(t("settings.voice.shortcutErrors.setDuration"))
+      }
+    },
+    [t],
+  )
 
-  const setTriggerMode = useCallback(async (mode: TriggerMode) => {
-    try {
-      await safeInvoke("set_voice_shortcut_mode", { mode })
-    } catch (e) {
-      console.error("Failed to set trigger mode:", e)
-      setError("Failed to set trigger mode")
-    }
-  }, [])
+  const setTriggerMode = useCallback(
+    async (mode: TriggerMode) => {
+      try {
+        await safeInvoke("set_voice_shortcut_mode", { mode })
+      } catch (e) {
+        console.error("Failed to set trigger mode:", e)
+        setError(t("settings.voice.shortcutErrors.setMode"))
+      }
+    },
+    [t],
+  )
 
-  const setDoubleClickInterval = useCallback(async (intervalMs: number) => {
-    try {
-      await safeInvoke("set_voice_shortcut_interval", { intervalMs })
-    } catch (e) {
-      console.error("Failed to set double click interval:", e)
-      setError("Failed to set double click interval")
-    }
-  }, [])
+  const setDoubleClickInterval = useCallback(
+    async (intervalMs: number) => {
+      try {
+        await safeInvoke("set_voice_shortcut_interval", { intervalMs })
+      } catch (e) {
+        console.error("Failed to set double click interval:", e)
+        setError(t("settings.voice.shortcutErrors.setInterval"))
+      }
+    },
+    [t],
+  )
 
   return {
     isListening,

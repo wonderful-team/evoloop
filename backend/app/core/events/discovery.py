@@ -141,12 +141,12 @@ def _scan_module_recursive(module_name: str, scanned: set[str] | None = None) ->
                     # Recursively scan submodule
                     sub_classes = _scan_module_recursive(submodule_name, scanned)
                     discovered_classes.extend(sub_classes)
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     logger.debug(f"[Discovery] Failed to scan {submodule_name}: {e}")
 
     except ImportError as e:
         logger.debug(f"[Discovery] Failed to import {module_name}: {e}")
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.warning(f"[Discovery] Error scanning {module_name}: {e}")
 
     return discovered_classes
@@ -187,7 +187,7 @@ def auto_discover_handlers(scan_roots: list[str] | None = None, instantiate: boo
         try:
             classes = _scan_module_recursive(root_package)
             discovered_classes.extend(classes)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[Discovery] Error scanning {root_package}: {e}")
 
     # Instantiate each discovered class (triggers auto-registration)
@@ -202,7 +202,7 @@ def auto_discover_handlers(scan_roots: list[str] | None = None, instantiate: boo
                 instantiated_handlers.append(instance)
                 _registered_handlers.add(cls)
                 logger.debug(f"[Discovery] Instantiated {cls.__module__}.{cls.__name__}")
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(f"[Discovery] Failed to instantiate {cls.__name__}: {e}")
 
     logger.info(f"[Discovery] ✓ Discovered {len(discovered_classes)} handler classes, "

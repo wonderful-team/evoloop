@@ -6,12 +6,11 @@ from app.core.atlas.adapters.sql_store import SQLAtlasStore
 from app.core.atlas.models import AtlasApp, AtlasElement, AtlasState
 from app.core.atlas.ports.store import IAtlasStore
 from app.core.atlas.strategy import AppStrategy, AtlasStrategyStore, InteractionStrategy
-from app.core.config import settings
 from app.core.environment.explorers.dynamic_apps import DynamicAppTriage
-from app.utils import render_template
 from app.core.file import compute_state_id
-from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.infrastructure.database.vector import get_vector_store
+from app.infrastructure.embeddings.factory import EmbedderFactory
+from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +55,7 @@ class AtlasEngine:
                     screenshot_hash=screenshot_hash
                 )
                 return
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug(f"[AtlasEngine] Dynamic app check failed: {e}")
 
         try:
@@ -83,7 +82,7 @@ class AtlasEngine:
             await self.store.save_app_model(app_model)
             logger.info(f"[AtlasEngine] Background mapped state '{window_title}' for {bundle_id}")
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[AtlasEngine] Failed to index observed UI tree for {bundle_id}: {e}")
 
     async def query_app_atlas(self, bundle_ids: str | list[str] | None = None, state_id: str | None = None, platform: str = "macos") -> str:
@@ -245,7 +244,7 @@ class AtlasEngine:
                                             "y": el["y"],
                                             "source": "atlas_memory"
                                         }
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.debug(f"[AtlasEngine] Historical memory check failed: {e}")
 
             # 4. Learned Skills Fallback (Task-specific memory)
@@ -290,10 +289,10 @@ class AtlasEngine:
                                 "y": skills[0]["y"],
                                 "source": "atlas_skill_semantic"
                             }
-            except Exception as se:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as se:
                 import traceback
                 logger.debug(f"[AtlasEngine] Skill search failed: {se}\n{traceback.format_exc()}")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug(f"[AtlasEngine] resolve_spatial_element failed: {e}")
         return None
 
@@ -380,7 +379,7 @@ class AtlasEngine:
             await AtlasStrategyStore.save_strategy(strategy)
             logger.debug(f"[AtlasEngine] Saved strategy for {bundle_id}")
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[AtlasEngine] Failed to save strategy: {e}")
 
     async def _store_dynamic_app_infrastructure(
@@ -459,7 +458,7 @@ class AtlasEngine:
                 f"for dynamic app '{bundle_id}'"
             )
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[AtlasEngine] Failed to store dynamic app infrastructure: {e}")
 
     def _classify_element_category(self, element: AtlasElement, platform: str) -> str:

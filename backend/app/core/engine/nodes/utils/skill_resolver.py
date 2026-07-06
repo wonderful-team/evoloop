@@ -8,9 +8,10 @@ import logging
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.engine.skill_hydrator import SkillHydrator
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ class SkillResolver:
                     if generic_healer:
                         if not any(getattr(s, 'id', None) == generic_healer.id for s in relevant_sops):
                             relevant_sops.append(generic_healer)
-            except Exception as e:
+            except (ImportError, SQLAlchemyError) as e:
                 logger.error(f"[Worker] Failed to fetch fallback skill instructions: {e}")
         return relevant_sops
 

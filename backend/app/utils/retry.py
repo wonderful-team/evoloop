@@ -66,7 +66,7 @@ def wait_for_db(db_engine: Engine) -> None:
             with Session(db_engine) as session:
                 # Try to create session to check if DB is awake
                 session.exec(select(1))
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Database not ready yet: {e}")
             raise e
 
@@ -156,7 +156,7 @@ def retry_with_fallback(fallback_value: T):
         async def wrapper(*args, **kwargs) -> Any:
             try:
                 return await func(*args, **kwargs)
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(f"{func.__name__} failed, returning fallback: {e}")
                 return fallback_value
         return wrapper
@@ -174,7 +174,7 @@ class RetryContext:
                     result = await api.call()
                     retry.success()
                     break
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     retry.fail(e)
     """
     

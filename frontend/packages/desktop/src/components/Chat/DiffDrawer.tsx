@@ -62,7 +62,7 @@ export function DiffDrawer({ isOpen, onClose, path, diff }: DiffDrawerProps) {
       >
         <SheetHeader className="p-4 border-b border-border bg-muted/20 shrink-0">
           <SheetDescription className="sr-only">
-            Diff View for {path.split("/").pop()}
+            {t("chat.diff.description", { file: path.split("/").pop() })}
           </SheetDescription>
           <div className="flex items-center gap-3">
             <div className="p-2 bg-primary/10 rounded-md">
@@ -107,7 +107,7 @@ export function DiffDrawer({ isOpen, onClose, path, diff }: DiffDrawerProps) {
           {isRendering ? (
             <div className="w-full h-full flex items-center justify-center text-muted-foreground p-8">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mr-3" />
-              {t("common.loading", { defaultValue: "Loading..." })}
+              {t("common.loading")}
             </div>
           ) : (
             <div

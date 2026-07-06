@@ -12,8 +12,8 @@ from urllib.parse import parse_qs, urlencode, urlparse
 
 import aiohttp
 
-from app.infrastructure.cache import cache
 from app.core.mcp.auth.base import AuthConfig, AuthHandler, AuthMethod, AuthToken
+from app.infrastructure.cache import cache
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
                 return await self.refresh(token)
 
             return token
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to load stored token: {e}")
             return None
 
@@ -92,7 +92,7 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
             # Also store refresh token separately for safety
             if token.refresh_token:
                 await cache.set(self._get_refresh_key(), token.refresh_token)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to store token: {e}")
 
     async def authenticate(self) -> AuthToken:
@@ -154,7 +154,7 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
             Authorization code from callback
         """
         # Create future to wait for callback
-        future = asyncio.get_event_loop().create_future()
+        future = asyncio.get_running_loop().create_future()
         self._pending_codes[self._state] = future
 
         try:

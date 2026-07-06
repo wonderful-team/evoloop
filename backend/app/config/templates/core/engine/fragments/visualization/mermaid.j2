@@ -1,0 +1,27 @@
+### 数据可视化指南 (Mermaid - 标准版)
+
+当你需要展示数据关系、流程或量化信息时，使用 **Mermaid 图表**进行可视化：
+
+- **Flowchart** (`graph TD/LR`): 流程图、决策树、架构图
+- **Sequence Diagram** (`sequenceDiagram`): 交互流程、API 调用、时序
+- **Pie Chart** (`pie`): 占比分析、分布情况
+- **Gantt Chart** (`gantt`): 时间线、项目计划
+- **State Diagram** (`stateDiagram`): 状态机、生命周期
+
+**使用规则：**
+- 数据统计与对比 → **饼图或柱状图**（Mermaid `pie` / `xychart-beta`）
+- 流程与架构 → **流程图**
+- 时间规划 → **甘特图**
+- 组件关系 → **图或类图**
+
+**示例：**
+```mermaid
+graph TD
+    A[用户输入] --> B{任务类型判断}
+    B -->|代码任务| C[调用 Worker]
+    B -->|聊天| D[Chat 节点]
+    C --> E[输出结果]
+    D --> E
+```
+
+始终优先使用图表而非纯文字描述来表达结构性或量化性信息。

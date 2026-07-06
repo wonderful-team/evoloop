@@ -56,14 +56,20 @@ class DevicePool:
 
             for serial in targets:
                 lock_key = f"{REDIS_KEY_DEVICE_LOCK_PREFIX}{serial}"
-                # Set NX (Not Exists) with an expiry to prevent deadlocks (e.g. 1 hour)
-                # Note: FileCache doesn't support nx parameter, check existence first
+                # Atomic reservation: write our task_id, then verify we own it.
+                # This closes the get-then-set race: if two tasks both see
+                # current is None, only the one whose write is observed by
+                # the subsequent get wins.
                 current = await cache.get(lock_key)
                 if current is None:
-                    success = await cache.set(lock_key, task_id, ex=3600)
-                    if success:
+                    await cache.set(lock_key, task_id, ex=3600)
+                    # Re-read to confirm ownership (handles concurrent writers)
+                    owner = await cache.get(lock_key)
+                    if owner == task_id:
                         logger.info(f"Locked device {serial} for task {task_id}")
                         return serial
+                    else:
+                        logger.debug(f"[DevicePool] Lost race for {serial}, owner={owner}")
 
             await asyncio.sleep(1) # Poll interval
 

@@ -20,11 +20,11 @@ import { useProjectStore } from "./projectStore"
 // Module-level state so the debounce timer survives re-renders / store updates.
 // ---------------------------------------------------------------------------
 const TERMINAL_HISTORY_BUFFER_MAX = 512 * 1024 // 512 KB in chars (≈ bytes for ASCII/UTF-8)
-const RAW_INPUT_DEBOUNCE_MS = 16              // one animation frame — imperceptible to users
+const RAW_INPUT_DEBOUNCE_MS = 16 // one animation frame — imperceptible to users
 
-let _rawInputBuffer = ""           // pending characters not yet sent
+let _rawInputBuffer = "" // pending characters not yet sent
 let _rawInputTimer: ReturnType<typeof setTimeout> | null = null
-let _rawInputThreadId: string | null = null  // thread the buffer belongs to
+let _rawInputThreadId: string | null = null // thread the buffer belongs to
 
 /** Flush the accumulated raw-input buffer as a single POST, then clear it. */
 async function _flushRawInput() {
@@ -35,7 +35,8 @@ async function _flushRawInput() {
   _rawInputThreadId = null
   if (!text || !threadId) return
   const currentProject = useProjectStore.getState().currentProject
-  const activeProjectId = currentProject?.id ?? useChatStore.getState().projectId
+  const activeProjectId =
+    currentProject?.id ?? useChatStore.getState().projectId
   try {
     await fetch(`/api/v1/conversations/${threadId}/terminal/input`, {
       method: "POST",
@@ -130,7 +131,10 @@ export const useChatStore = create<ChatState>((set, get) => {
     // --- Core Actions ---
     setThread: async (threadId, projectId, skillIds) => {
       const currentThreadId = get().threadId
-      const isUpgradingNewConversation = currentThreadId === null && threadId !== null && get().messages.length > 0
+      const isUpgradingNewConversation =
+        currentThreadId === null &&
+        threadId !== null &&
+        get().messages.length > 0
 
       set({
         threadId,
@@ -198,7 +202,9 @@ export const useChatStore = create<ChatState>((set, get) => {
             const { task, action } = ev
             if (["created", "started", "updated"].includes(action)) {
               get().updateActiveTask(task)
-            } else if (["completed", "failed", "cancelled", "timeout"].includes(action)) {
+            } else if (
+              ["completed", "failed", "cancelled", "timeout"].includes(action)
+            ) {
               get().removeActiveTask(task.task_id)
             }
           },
@@ -261,9 +267,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         })
       } catch (e) {
         console.error("[ChatStore] Fetch history failed", e)
-        toast.error(
-          i18n.t("chat.errors.fetchHistoryFailed", "加载历史消息失败"),
-        )
+        toast.error(i18n.t("chat.errors.fetchHistoryFailed"))
       } finally {
         set({ isLoadingHistory: false })
       }
@@ -309,9 +313,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         }))
       } catch (e) {
         console.error("[ChatStore] Load more history failed", e)
-        toast.error(
-          i18n.t("chat.errors.loadMoreHistoryFailed", "加载更多历史消息失败"),
-        )
+        toast.error(i18n.t("chat.errors.loadMoreHistoryFailed"))
       } finally {
         set({ isLoadingHistory: false })
       }
@@ -338,11 +340,11 @@ export const useChatStore = create<ChatState>((set, get) => {
         useChangesetStore.getState().fetchChangeset(threadId)
         useAgentStore.setState({ status: "idle" })
       } catch (_e) {
-        toast.error("Failed to rewind conversation")
+        toast.error(i18n.t("chat.errors.rewindFailed"))
         useAgentStore.setState({ status: "idle" })
       }
     },
-    optimisticTruncate: (messageId) => {
+    optimisticTruncate: (messageId, removeHuman = false) => {
       const state = get()
       const currentMessages = state.messages
       const snapshot = [...currentMessages]
@@ -371,8 +373,9 @@ export const useChatStore = create<ChatState>((set, get) => {
       }
 
       if (targetHumanIndex !== -1) {
-        // Keep the target human message, remove its AI responses and everything after
-        set({ messages: currentMessages.slice(0, targetHumanIndex + 1) })
+        // Truncate based on removeHuman flag
+        const endIndex = removeHuman ? targetHumanIndex : targetHumanIndex + 1
+        set({ messages: currentMessages.slice(0, endIndex) })
       }
       return snapshot
     },
@@ -382,7 +385,11 @@ export const useChatStore = create<ChatState>((set, get) => {
     },
 
     sendMessage: async (content, pickedFiles, skillIds) => {
-      const { threadId, projectId: storeProjectId, skillIds: stateSkillIds } = get()
+      const {
+        threadId,
+        projectId: storeProjectId,
+        skillIds: stateSkillIds,
+      } = get()
       const currentProject = useProjectStore.getState().currentProject
       const projectId = currentProject?.id ?? storeProjectId
       if (projectId === null) return
@@ -497,11 +504,16 @@ export const useChatStore = create<ChatState>((set, get) => {
         // When over-limit, drop the oldest bytes so the most recent output is always
         // available, and write a marker line so users know data was trimmed.
         if (combined.length > TERMINAL_HISTORY_BUFFER_MAX) {
-          const trimmed = combined.slice(combined.length - TERMINAL_HISTORY_BUFFER_MAX)
+          const trimmed = combined.slice(
+            combined.length - TERMINAL_HISTORY_BUFFER_MAX,
+          )
           // Find the first newline so we don't start mid-line
           const firstNewline = trimmed.indexOf("\n")
-          const safe = firstNewline !== -1 ? trimmed.slice(firstNewline + 1) : trimmed
-          return { terminalHistoryBuffer: "\r\n\x1b[33m[Terminal: older output was trimmed to stay within 512 KB]\x1b[0m\r\n" + safe }
+          const safe =
+            firstNewline !== -1 ? trimmed.slice(firstNewline + 1) : trimmed
+          return {
+            terminalHistoryBuffer: `\r\n\x1b[33m${i18n.t("chat.terminal.trimMarker")}\x1b[0m\r\n${safe}`,
+          }
         }
         return { terminalHistoryBuffer: combined }
       }),
@@ -578,7 +590,10 @@ export const useChatStore = create<ChatState>((set, get) => {
           },
         )
         if (!res.ok) {
-          console.error("[ChatStore] sendTerminalCommand failed", await res.text())
+          console.error(
+            "[ChatStore] sendTerminalCommand failed",
+            await res.text(),
+          )
         }
       } catch (e) {
         console.error("[ChatStore] sendTerminalCommand error", e)

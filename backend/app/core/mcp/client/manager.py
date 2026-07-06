@@ -6,7 +6,6 @@ import os
 from contextlib import AsyncExitStack
 from typing import Any
 
-from langchain_core.tools import StructuredTool
 from sqlalchemy import select
 
 from app.core.mcp.auth.manager import mcp_auth_manager
@@ -22,10 +21,17 @@ from app.core.mcp.features.prompts import McpPromptsFeature
 from app.core.mcp.features.resources import McpResourcesFeature
 from app.core.mcp.features.tools import McpToolsFeature
 from app.core.mcp.health import HealthStatus, McpHealthChecker
-from app.core.mcp.schemas import McpPromptResult, McpResourceContent
-from app.core.mcp.schemas import McpResource, McpPromptArgument, McpPrompt, McpServerSummary
+from app.core.mcp.schemas import (
+    McpPrompt,
+    McpPromptArgument,
+    McpPromptResult,
+    McpResource,
+    McpResourceContent,
+    McpServerSummary,
+)
 from app.core.mcp.transport import McpTransport
-from app.infrastructure.database.sql.database import session_scope
+from app.core.tools.base import EvoLoopTool
+from app.infrastructure.database import session_scope
 from app.models import McpServer
 
 logger = logging.getLogger(__name__)
@@ -120,7 +126,7 @@ class McpClientManager:
                 self._stacks[server_name] = stack
                 self._sessions[server_name] = session
                 self._configs[server_name] = config
-            except Exception:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                 await stack.aclose()
                 raise
 
@@ -152,7 +158,7 @@ class McpClientManager:
                 tools_count=tools_count
             )
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Error connecting to {server_name}: {e}")
             if 'stack' in locals():
                 await stack.aclose()
@@ -230,7 +236,7 @@ class McpClientManager:
                 try:
                     result = await self.connect_from_db(server.name)
                     results.append(result)
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     logger.error(f"Failed to connect to MCP server '{server.name}': {e}")
                     results.append(ConnectionResult(
                         success=False,
@@ -249,7 +255,7 @@ class McpClientManager:
         if server_name in self._stacks:
             try:
                 await self._stacks[server_name].aclose()
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.debug(f"Error closing stack for '{server_name}': {e}")
             del self._stacks[server_name]
 
@@ -321,7 +327,7 @@ class McpClientManager:
         """Access configs (for backward compatibility)."""
         return self._configs
 
-    async def get_tools(self, server_name: str | None = None) -> list[StructuredTool]:
+    async def get_tools(self, server_name: str | None = None) -> list[EvoLoopTool]:
         """
         Get tools for a specific server, or all tools if no server specified.
         
@@ -329,7 +335,7 @@ class McpClientManager:
             server_name: Server name (optional, None = get all)
             
         Returns:
-            List of LangChain tools
+            List of native tools
         """
         if server_name is None:
             # Return all tools from all connected servers
@@ -341,7 +347,7 @@ class McpClientManager:
                 return feature.get_tools()
         return []
 
-    async def aget_all_tools(self) -> list[StructuredTool]:
+    async def aget_all_tools(self) -> list[EvoLoopTool]:
         """Get all tools from all connected servers, ensuring connections are alive."""
         all_tools = []
         for server_name in list(self._configs.keys()):
@@ -603,7 +609,7 @@ class McpClientManager:
                         )
                         session.add(new_server)
                 logger.info("Legacy MCP config migrated successfully.")
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"Failed to migrate legacy config: {e}")
 
     @staticmethod
@@ -612,7 +618,7 @@ class McpClientManager:
         if isinstance(value, str):
             try:
                 return json.loads(value)
-            except Exception:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                 return default
         return value if value is not None else default
 

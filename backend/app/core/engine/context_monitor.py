@@ -9,14 +9,10 @@ All metrics are token-based and aligned with ContextTrimmer budgets.
 
 import logging
 
-from langchain_core.messages import (
-    BaseMessage,
-    ToolMessage,
-)
-
 from app.constants import DEFAULT_MAX_CONTEXT_TOKENS
+from app.core.engine.message.native_classes import BaseMessage, ToolMessage
 from app.core.engine.message.utils import estimate_message_tokens
-from app.core.engine.schemas import ToolCallInfo, ContextStats
+from app.core.engine.schemas import ContextStats, ToolCallInfo
 from app.infrastructure.llm.platform_service import llm_platform_service
 
 # Context usage thresholds (pure ratios, unit-agnostic)

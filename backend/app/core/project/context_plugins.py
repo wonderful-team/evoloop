@@ -1,16 +1,24 @@
+"""
+ProjectStateContextPlugin — hydrates EvoContext with project DB state.
+
+Renames the duplicate ProjectContextPlugin (which conflicts with
+context_plugin.py) to ProjectStateContextPlugin. Fixes the sync/async
+bug where session_scope (an asynccontextmanager) was used with `with`
+instead of `async with`.
+"""
 import logging
 
 from sqlalchemy import or_, select
 
 from app.core.context.manager import EvoContext
-from app.core.context.plugins import ContextPlugin
-from app.infrastructure.database.sql.database import session_scope
+from app.core.context.plugins import ContextPlugin, plugin_registry
+from app.infrastructure.database import sync_session_scope
 from app.models.todo import TodoItem, TodoPriority, TodoStatus
 
 logger = logging.getLogger(__name__)
 
 
-class ProjectContextPlugin(ContextPlugin):
+class ProjectStateContextPlugin(ContextPlugin):
     """
     Hydrates the EvoContext with project-specific database state:
     - Active Plans
@@ -22,7 +30,7 @@ class ProjectContextPlugin(ContextPlugin):
             return
 
         try:
-            with session_scope() as session:
+            with sync_session_scope() as session:
                 todos = session.execute(
                     select(TodoItem).where(
                         TodoItem.project_id == ctx.project_id,
@@ -34,7 +42,6 @@ class ProjectContextPlugin(ContextPlugin):
                     )
                 ).scalars().all()
 
-                # Fetch Active Plan if thread exists
                 active_plan = None
                 if ctx.thread_id:
                     from app.models.planning import Plan, PlanStep
@@ -70,7 +77,8 @@ class ProjectContextPlugin(ContextPlugin):
 
                         ctx.metadata.active_plan_context = active_plan_context
 
-        except Exception as e:
-            logger.error(f"[ProjectContextPlugin] Failed to fetch context from DB: {e}")
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.error(f"[ProjectStateContextPlugin] Failed to fetch context from DB: {e}")
 
 
+plugin_registry.register(ProjectStateContextPlugin())

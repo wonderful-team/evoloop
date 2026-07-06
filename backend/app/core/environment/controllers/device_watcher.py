@@ -101,7 +101,7 @@ class DeviceWatcher:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"DeviceWatcher error: {e}")
                 await asyncio.sleep(5)
 
@@ -116,14 +116,14 @@ class DeviceWatcher:
                 logger.info(f"🔍 Detecting UI automation capabilities for {serial}...")
                 from app.infrastructure.drivers.adb import adb_driver
                 # Run in executor to not block async loop
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
                 capabilities = await loop.run_in_executor(
                     None,
                     adb_driver.detect_device_capabilities,
                     serial
                 )
                 logger.info(f"✅ Device {serial} capabilities: {capabilities}")
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(f"⚠️ Failed to detect capabilities for {serial}: {e}")
 
             await mirror_manager.on_device_connected(serial)
@@ -133,7 +133,9 @@ class DeviceWatcher:
         else:
             logger.info(f"Device disconnected/offline: {serial} ({status})")
             mirror_manager.on_device_disconnected(serial)
-            from app.core.environment.event.publishers import publish_device_disconnected
+            from app.core.environment.event.publishers import (
+                publish_device_disconnected,
+            )
             await publish_device_disconnected(device_id=serial)
 
 

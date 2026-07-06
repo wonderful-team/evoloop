@@ -4,9 +4,14 @@ Core file editing engine - Fuzzy matching and replacement strategies.
 This module provides the foundational editing capabilities used by file tools.
 """
 
-from .algorithms import levenshtein, generate_unified_diff, calculate_confidence
+from .algorithms import calculate_confidence, generate_unified_diff, levenshtein
 from .engine import EditEngine
-from .models import MatchConfidence, EditPreviewResult, FileEditOperation, EditFileRequest
+from .models import (
+    EditFileRequest,
+    EditPreviewResult,
+    FileEditOperation,
+    MatchConfidence,
+)
 from .service import FileEditorService
 from .strategies import (
     STRATEGIES,

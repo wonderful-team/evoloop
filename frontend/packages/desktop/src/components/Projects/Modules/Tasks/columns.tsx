@@ -57,7 +57,10 @@ export const getColumns = (t: TFunction): ColumnDef<Task>[] => [
       const score = row.original.match_score
       if (score === undefined) return null
       return (
-        <Badge variant={score > 80 ? "default" : "secondary"}>{score}%</Badge>
+        <Badge variant={score > 80 ? "default" : "secondary"}>
+          {score}
+          {t("common.percent")}
+        </Badge>
       )
     },
   },
@@ -114,7 +117,10 @@ export const getColumns = (t: TFunction): ColumnDef<Task>[] => [
               style={{ width: `${progress}%` }}
             />
           </div>
-          <div className="text-xs text-muted-foreground mt-1">{progress}%</div>
+          <div className="text-xs text-muted-foreground mt-1">
+            {progress}
+            {t("common.percent")}
+          </div>
         </div>
       )
     },

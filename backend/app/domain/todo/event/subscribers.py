@@ -7,22 +7,29 @@ Handles todo lifecycle (harvesting), memory context provision, and rewind cleanu
 
 import logging
 
-from sqlalchemy import delete, select, or_
+from sqlalchemy import delete, or_, select
 
-from app.core.engine.rewind.event import RewindEventType, RewindRequestedEvent
+from app.core.engine.rewind import REWIND_REQUESTED, RewindRequestedEvent
 from app.core.events import SystemEventType
 from app.core.events.base import AsyncEventBus
-from app.core.events.decorators import event_register, event_subscribe, register_instance_handlers
-from app.core.events.schemas.lifecycle import ExtractionRequestedEvent, ExtractionCompletedEvent, ExtractionRequest
+from app.core.events.decorators import (
+    event_register,
+    event_subscribe,
+    register_instance_handlers,
+)
+from app.core.events.schemas.lifecycle import (
+    ExtractionCompletedEvent,
+    ExtractionRequest,
+    ExtractionRequestedEvent,
+)
 from app.core.memory.event import (
     MEMORY_CONTEXT_GATHER_EVENT_TYPE,
     MemoryContextGatherEvent,
 )
-from app.domain.todo.event.schemas import TodoCleanupEvent
 from app.domain.todo.schemas import TodoCreate
 from app.domain.todo.service import TodoService
-from app.infrastructure.database.sql.database import session_scope
-from app.utils import render_template
+from app.infrastructure.database import session_scope
+from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +159,7 @@ class TodoMemoryContextProvider:
 
         try:
             from app.domain.todo.service import TodoService
-            from app.infrastructure.database.sql.database import session_scope
+            from app.infrastructure.database import session_scope
 
             async with session_scope() as session:
                 todo_service = TodoService(session)
@@ -167,7 +174,7 @@ class TodoMemoryContextProvider:
                     )
                     if fragment.strip():
                         event.data.context_fragments.append(fragment.strip())
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[TodoContextProvider] Failed to render TODO context: {e}")
 
 
@@ -193,14 +200,9 @@ class TodoRewind:
         register_instance_handlers(instance, bus)
         return instance
 
-    @event_subscribe(RewindEventType.REWIND_REQUESTED)
+    @event_subscribe(REWIND_REQUESTED)
     async def _handle_rewind_requested(self, event: RewindRequestedEvent) -> None:
-        """
-        Handle main rewind event - prepare todo cleanup.
-
-        Uses event.affected_message_ids (pre-computed by RewindOrchestrator)
-        to avoid race conditions with other handlers querying the messages table.
-        """
+        """Handle main rewind event - delete todo items."""
         message_ids = event.affected_message_ids or await self._find_message_ids(
             thread_id=event.thread_id,
             target_message_id=event.target_message_id,
@@ -214,34 +216,9 @@ class TodoRewind:
             )
             self._deleted_count = count
             event.results["todos"] = count
-
-            from app.domain.todo.event.publishers import publish_todo_cleanup
-            await publish_todo_cleanup(
-                thread_id=event.thread_id,
-                source_message_ids=message_ids,
-                affected_run_ids=event.affected_run_ids,
-            )
             logger.info(f"[TodoRewind] Deleted {count} todo items for thread {event.thread_id}")
         else:
             logger.debug(f"[TodoRewind] No todo items found to delete for thread {event.thread_id}")
-
-    @event_subscribe(RewindEventType.TODO_CLEANUP)
-    async def _handle_todo_cleanup(self, event: "TodoCleanupEvent") -> None:
-        """
-        Handle specific todo cleanup event.
-
-        This performs the actual todo deletion.
-        """
-        try:
-            count = await self._delete_todos(
-                message_ids=event.source_message_ids,
-                run_ids=event.affected_run_ids
-            )
-            self._deleted_count = count
-            logger.info(f"[TodoRewind] Deleted {count} todo items")
-        except Exception as e:
-            logger.error(f"[TodoRewind] Todo cleanup failed: {e}")
-            raise
 
     async def _find_message_ids(
         self,

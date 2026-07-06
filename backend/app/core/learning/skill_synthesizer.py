@@ -8,13 +8,13 @@ It produces structured skill configurations that can be registered and executed.
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 import yaml
 from pydantic import Field
-from typing import TYPE_CHECKING, Any
 
-from app.core.config import settings
 from app.constants import DEFAULT_PROJECT_ID
+from app.core.config import settings
 
 if TYPE_CHECKING:
     from app.core.execution.macro.schemas import MacroScript
@@ -200,7 +200,7 @@ class WorkflowSynthesizer:
         logger.info(f"--- [Skill Synthesis Prompt Start] ---\n{prompt}\n--- [Skill Synthesis Prompt End] ---")
 
         # Use InternalLLMService to prevent internal synthesis from being logged to chat
-        from app.core.llm import InternalLLMService
+        from app.infrastructure.llm import InternalLLMService
         from app.infrastructure.config.service import SystemConfigService
         model_name = SystemConfigService.get_value("LLM_MODEL", "gpt-4o")
         response = await InternalLLMService.invoke(
@@ -225,7 +225,13 @@ class WorkflowSynthesizer:
 
     def _compile_macro_script(self, sequence: TraceSequence) -> MacroScript:
         """Compile raw TraceSteps into a clean structured MacroScript."""
-        from app.core.execution.macro.schemas import MacroScript, MacroStep, MacroStepType, MacroSource, MacroActionType
+        from app.core.execution.macro.schemas import (
+            MacroActionType,
+            MacroScript,
+            MacroSource,
+            MacroStep,
+            MacroStepType,
+        )
         
         steps = []
         has_extract = False

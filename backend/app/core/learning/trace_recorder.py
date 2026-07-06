@@ -5,14 +5,12 @@ import time
 from datetime import datetime
 from typing import Any
 
-from langchain_core.callbacks import AsyncCallbackHandler
-from langchain_core.outputs import LLMResult
-
 from app.core.config import settings
 from app.core.context.manager import ContextManager
-from app.core.learning.schemas import ActionTrace
-from app.infrastructure.database.sql.database import session_scope
+from app.core.engine.callbacks.base import AsyncCallbackHandler, LLMResult
 from app.core.file import ensure_dir
+from app.core.learning.schemas import ActionTrace
+from app.infrastructure.database import session_scope
 
 logger = logging.getLogger(__name__)
 
@@ -110,13 +108,13 @@ def get_recorder(session_id: str) -> TraceRecorder:
 
 
 # ---------------------------------------------------------------------------
-# LangChain Callback Handler — persists agent actions into TraceEvent table
+# Callback Handler — persists agent actions into TraceEvent table
 # ---------------------------------------------------------------------------
 
 
 class TraceCallbackHandler(AsyncCallbackHandler):
     """
-    LangChain callback that records every tool call and LLM output into
+    Callback that records every tool call and LLM output into
     the `TraceEvent` database table for imitation learning.
 
     Attached automatically by AgentEngine._setup_callbacks() for every
@@ -130,7 +128,7 @@ class TraceCallbackHandler(AsyncCallbackHandler):
         self._step = 0
 
     # ------------------------------------------------------------------
-    # Public LangChain callbacks
+    # Public callbacks
     # ------------------------------------------------------------------
 
     async def on_tool_start(self, serialized: dict, input_str: str, **kwargs) -> None:
@@ -163,7 +161,7 @@ class TraceCallbackHandler(AsyncCallbackHandler):
                     output_str = json.dumps(output, default=str)
                 except (TypeError, ValueError):
                     output_str = str(output)
-        except Exception:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
             output_str = str(output)
 
         # Truncate long outputs
@@ -185,8 +183,8 @@ class TraceCallbackHandler(AsyncCallbackHandler):
                 action_type="llm_output",
                 payload={"content": text},
             )
-        except Exception:
-            pass
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.debug("Suppressed error: %s", e, exc_info=True)
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -195,7 +193,7 @@ class TraceCallbackHandler(AsyncCallbackHandler):
     async def _save_event(self, action_type: str, payload: dict) -> None:
         """Persist a single trace event into the TraceEvent table."""
         try:
-            from app.infrastructure.database.sql.database import session_scope
+            from app.infrastructure.database import session_scope
             from app.models.learning import (
                 TraceEvent,  # avoid circular import at module load
             )
@@ -220,7 +218,7 @@ class TraceCallbackHandler(AsyncCallbackHandler):
                     is_human_action=False,
                 )
                 session.add(event)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug(f"[TraceCallbackHandler] Failed to save event: {e}")
 
     def _sanitize_snapshot(self, state: Any) -> dict:
@@ -254,6 +252,7 @@ async def sync_thread_to_graph(
     """
     try:
         from sqlalchemy import select
+
         from app.models.learning import TraceEvent
 
         async with session_scope() as session:
@@ -292,5 +291,5 @@ async def sync_thread_to_graph(
 
         logger.info(f"Episode recorded for thread '{thread_id}' (id={episode_id})")
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to sync thread '{thread_id}': {e}")

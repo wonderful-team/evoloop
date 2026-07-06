@@ -3,9 +3,9 @@ YAML Content-Type support for FastAPI
 """
 import json
 
-from fastapi import Request, HTTPException
+from fastapi import HTTPException, Request
 
-from app.utils.yaml import macro_from_yaml, YAMLError
+from app.utils.yaml import YAMLError, macro_from_yaml
 
 
 async def parse_macro_body(request: Request) -> list[dict]:
@@ -30,5 +30,5 @@ async def parse_macro_body(request: Request) -> list[dict]:
             return data.get("steps", data) if isinstance(data, dict) else data
     except (YAMLError, json.JSONDecodeError) as e:
         raise HTTPException(status_code=400, detail=f"Parse error: {str(e)}")
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         raise HTTPException(status_code=400, detail=f"Invalid format: {str(e)}")

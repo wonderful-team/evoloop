@@ -5,14 +5,16 @@ Provides LLM factory, adapters, and configuration services.
 """
 
 from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
+from app.infrastructure.llm.anthropic_adapter import CompatibleChatAnthropic
 from app.infrastructure.llm.config import LLMConfigService
 from app.infrastructure.llm.factory import LLMFactory, get_default_llm
+from app.infrastructure.llm.internal_service import InternalLLMService
 from app.infrastructure.llm.platform_service import (
     LLMPlatformService,
-    llm_platform_service,
-    get_available_llm_models,
-    get_available_embedding_models,
     PlatformModel,
+    get_available_embedding_models,
+    get_available_llm_models,
+    llm_platform_service,
 )
 
 
@@ -21,9 +23,9 @@ from app.infrastructure.llm.platform_service import (
 # which may not be fully initialized during import
 def __getattr__(name):
     if name == "CompatibleChatAnthropic":
-        from app.infrastructure.llm.anthropic_adapter import CompatibleChatAnthropic
         return CompatibleChatAnthropic
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     # Factory
@@ -40,4 +42,5 @@ __all__ = [
     # Adapters
     "AdaptiveChatOpenAI",
     "CompatibleChatAnthropic",
+    "InternalLLMService",
 ]

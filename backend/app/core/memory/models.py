@@ -1,15 +1,15 @@
 import hashlib
 import re
-import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 from pydantic import Field, model_validator
 
 from app.core.memory.schemas import MemoryMetadata
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.utils.id import gen_uuid_hex
 
 
 class MemoryType(str, Enum):
@@ -41,7 +41,7 @@ class MemoryEntry(DynamicBaseModel):
     Format compatible with Claude Code memory files (Markdown + YAML Frontmatter).
     """
     # Identity
-    id: str = Field(default_factory=lambda: f"mem_{uuid.uuid4().hex[:8]}")
+    id: str = Field(default_factory=lambda: f"mem_{gen_uuid_hex()[:8]}")
 
     # Classification
     type: MemoryType = MemoryType.PROJECT
@@ -232,7 +232,7 @@ class MemoryIndexEntry(DynamicBaseModel):
         return f"- [{self.title}]({self.path})"
 
     @classmethod
-    def from_index_line(cls, line: str) -> Optional["MemoryIndexEntry"]:
+    def from_index_line(cls, line: str) -> "MemoryIndexEntry | None":
         """Parse from index line."""
         import re
         pattern = r"^- \[([^\]]+)\]\(([^)]+)\)(?:\s*—\s*(.+))?"

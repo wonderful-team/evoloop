@@ -1,6 +1,6 @@
 """API schemas for audio routes."""
 
-from typing import Any, Optional
+from typing import Any
 
 from app.api.schemas.responses import BaseAPIResponse
 from app.infrastructure.pydantic_base import DynamicBaseModel
@@ -11,7 +11,7 @@ class TranscriptionResponse(BaseAPIResponse):
     text: str
     duration: float
     language: str
-    confidence: Optional[float] = None
+    confidence: float | None = None
 
 class TTSRequest(DynamicBaseModel):
     """语音合成请求"""
@@ -23,7 +23,7 @@ class TTSRequest(DynamicBaseModel):
 class TTSResponse(BaseAPIResponse):
     """语音合成响应"""
     url: str
-    duration: Optional[float] = None
+    duration: float | None = None
 
 class VoiceListResponse(BaseAPIResponse):
     """TTS 声音列表响应"""

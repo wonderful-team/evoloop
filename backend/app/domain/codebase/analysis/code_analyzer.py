@@ -12,9 +12,11 @@ Previous standalone implementation was merged to eliminate redundancy.
 import logging
 from typing import Any
 
-from app.domain.codebase.indexing.extractors.treesitter_extractor import TreeSitterExtractor
-from app.domain.codebase.indexing.parsers import parser_registry
 from app.core.file import get_file_ext
+from app.domain.codebase.indexing.extractors.treesitter_extractor import (
+    TreeSitterExtractor,
+)
+from app.domain.codebase.indexing.parsers import parser_registry
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +49,7 @@ class CodeAnalyzer:
             try:
                 with open(file_path, encoding="utf-8", errors="ignore") as f:
                     content = f.read()
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"Error reading file {file_path}: {e}")
                 return {"file_path": file_path, "error": str(e)}
 
@@ -92,7 +94,7 @@ class CodeAnalyzer:
         import asyncio
         try:
             result = asyncio.run(self._extractor.extract(file_path, content))
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"TreeSitter extraction failed for {file_path}: {e}")
             result = None
 

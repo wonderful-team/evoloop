@@ -12,14 +12,13 @@ Architecture:
 """
 
 import logging
-from typing import Any, Optional
-
-from langchain_core.messages import BaseMessage
+from typing import Any
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
+from app.core.engine.message.native_classes import BaseMessage
 from app.core.memory.config import MemoryConfig
-from app.core.memory.interfaces.short_term import IShortTermMemory
+from app.core.memory.interfaces import IShortTermMemory
 from app.core.memory.models import (
     MemoryEntry,
     MemorySearchResult,
@@ -30,6 +29,7 @@ from app.core.memory.retrieval import MemoryRetriever
 from app.core.memory.schemas import CheckpointDedupResult, Concept, Episode
 from app.core.memory.short_term import SqlShortTermMemory
 from app.core.memory.store import MemoryStore
+from app.utils.id import gen_uuid_hex
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class MemoryManager:
 
     def __init__(
         self,
-        config: Optional['MemoryConfig'] = None,
+        config: 'MemoryConfig | None' = None,
         storage: MemoryStore | None = None,
         short_term: IShortTermMemory | None = None,
     ):
@@ -269,13 +269,12 @@ class MemoryManager:
         """
         Record a task episode.
         """
-        import uuid
         source_message_id = episode.source_message_id
         project_id = episode.project_id
         goal = episode.goal
         outcome = episode.result
 
-        entry_id = f"ep_{source_message_id or uuid.uuid4().hex[:8]}"
+        entry_id = f"ep_{source_message_id or gen_uuid_hex()[:8]}"
         goal_short = goal[:60] + "..." if len(goal) > 60 else goal
 
         entry = MemoryEntry(
@@ -411,7 +410,7 @@ class MemoryManager:
     # Two-Tier Memory Operations
     # ========================================================================
 
-    async def get_hot_memory(self) -> str:
+    async def get_hot_memory(self, project_id: int | None = None) -> str:
         """
         Get Tier 1 hot memory (MEMORY.md).
         
@@ -421,11 +420,20 @@ class MemoryManager:
         Returns:
             MEMORY.md content (truncated if exceeds limits)
         """
+        project_path = None
+        if project_id:
+            try:
+                from app.core.project.utils import get_project_path
+                project_path = await get_project_path(project_id)
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.debug("Suppressed error: %s", e, exc_info=True)
+
         from app.core.memory.two_tier import TwoTierMemoryManager
         two_tier = TwoTierMemoryManager(
             storage=self._storage,
             config=self.config,
-            analyzer=self.quality
+            analyzer=self.quality,
+            root_path=project_path
         )
         return await two_tier.get_hot_memory()
 
@@ -455,18 +463,27 @@ class MemoryManager:
         )
         return await two_tier.search_cold_memory(query, max_results)
 
-    async def regenerate_memory_md(self) -> None:
+    async def regenerate_memory_md(self, project_id: int | None = None) -> None:
         """
         Regenerate MEMORY.md from cold memory.
         
         This updates the hot memory (Tier 1) based on the current
         state of cold memory (Tier 2), applying budgets and rankings.
         """
+        project_path = None
+        if project_id:
+            try:
+                from app.core.project.utils import get_project_path
+                project_path = await get_project_path(project_id)
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.debug("Suppressed error: %s", e, exc_info=True)
+
         from app.core.memory.two_tier import TwoTierMemoryManager
         two_tier = TwoTierMemoryManager(
             storage=self._storage,
             config=self.config,
-            analyzer=self.quality
+            analyzer=self.quality,
+            root_path=project_path
         )
         await two_tier.regenerate_memory_md()
 

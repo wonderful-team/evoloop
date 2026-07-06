@@ -9,14 +9,14 @@ import logging
 
 from sqlalchemy import select
 
-from app.core.engine.rewind.event import RewindEventType, RewindRequestedEvent
+from app.core.engine.rewind import REWIND_REQUESTED, RewindRequestedEvent
 from app.core.events.base import AsyncEventBus
 from app.core.events.decorators import (
     event_register,
     event_subscribe,
     register_instance_handlers,
 )
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class PlanRewind:
         register_instance_handlers(instance, bus)
         return instance
 
-    @event_subscribe(RewindEventType.REWIND_REQUESTED)
+    @event_subscribe(REWIND_REQUESTED)
     async def _handle_rewind_requested(self, event: RewindRequestedEvent) -> None:
         try:
             async with session_scope() as session:
@@ -78,7 +78,7 @@ class PlanRewind:
                         from app.core.engine.message.publisher import MessagePublisher
                         publisher = MessagePublisher(thread_id=event.thread_id)
                         await publisher.publish_custom_event("plan.updated", {"plan_id": plan.id, "status": "deleted"})
-                    except Exception as e:
+                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                         logger.warning(
                             "[PlanRewind] Failed to publish plan updated event for deletion: %s",
                             e,
@@ -125,7 +125,7 @@ class PlanRewind:
                         from app.core.engine.message.publisher import MessagePublisher
                         publisher = MessagePublisher(thread_id=event.thread_id)
                         await publisher.publish_custom_event("plan.updated", {"plan_id": plan.id})
-                    except Exception as e:
+                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                         logger.warning(
                             "[PlanRewind] Failed to publish plan updated event: %s",
                             e,
@@ -136,7 +136,7 @@ class PlanRewind:
                         plan.id,
                         event.thread_id,
                     )
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error("[PlanRewind] Plan cleanup failed: %s", e)
             event.errors.append(str(e))
             event.success = False

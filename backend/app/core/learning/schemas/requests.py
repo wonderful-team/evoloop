@@ -4,10 +4,10 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.learning.schemas.events import DomEventData, GlobalEventData
 from app.core.learning.schemas.skills import SkillExecutionParams
 from app.models.schemas.base import ScopedRequest
-from app.constants import DEFAULT_PROJECT_ID
 
 
 class HumanInputRequestOut(BaseModel):

@@ -4,8 +4,9 @@ from datetime import datetime
 from app.core.evocloud import evocloud_manager
 from app.domain.codebase.indexing.service import IndexingService
 from app.infrastructure.queue.factory import shared_task
-from app.utils import render_template
+from app.models.codebase import Repository
 from app.utils.async_utils import flush_loop_bound_resources
+from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 @shared_task(
     name="sync_project_to_cloud",
     bind=True,
-    autoretry_for=(Exception,),
+    autoretry_for=(RuntimeError, OSError, ConnectionError, TimeoutError),
     retry_backoff=True,
     retry_backoff_max=300,  # 5 minutes max backoff
     max_retries=5,
@@ -32,7 +33,7 @@ async def sync_project_to_cloud_task(_self, repo_id: int):
         indexing_service = IndexingService()
 
         async with indexing_service.session_factory() as session:
-            repo = await session.get(type(await indexing_service.get_or_create_repo(".", "dummy")), repo_id)
+            repo = await session.get(Repository, repo_id)
             if not repo:
                 logger.error(f"[SyncTask] Repo {repo_id} not found.")
                 return
@@ -57,9 +58,9 @@ async def sync_project_to_cloud_task(_self, repo_id: int):
                     repo.sync_status = "SYNCED"
                     session.add(repo)
                 else:
-                    raise Exception(f"Cloud API Failed: {res.get('message')}")
+                    raise RuntimeError(f"Cloud API Failed: {res.get('message')}")
 
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"[SyncTask] Sync Failed: {e}")
                 raise e  # Trigger Retry
     finally:
@@ -80,8 +81,8 @@ async def sync_tasks_to_evocloud_task(_self, task_ids: list[str], analysis_id: s
     Called automatically after requirement analysis is confirmed.
     """
     from app.infrastructure.database.resource_manager import db_resource_manager
+    from app.infrastructure.database import session_scope
     from app.models.project import ProjectTask
-    from app.infrastructure.database.sql.database import session_scope
 
     await db_resource_manager.initialize(create_tables=False, seed_data=False)
 
@@ -134,7 +135,7 @@ async def sync_tasks_to_evocloud_task(_self, task_ids: list[str], analysis_id: s
                         failed_count += 1
                         logger.error(f"[ReqSync] Task {task.id} failed: {task.sync_error}")
 
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     task.sync_status = "failed"
                     task.sync_error = str(e)
                     failed_count += 1
@@ -158,6 +159,6 @@ def _format_task_description(task_data: dict) -> str:
             references=task_data.get("requirement_refs", []),
             checklist=task_data.get("acceptance_criteria", [])
         )
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to render task description: {e}")
         return task_data.get("description", "Formatting error.")

@@ -1,8 +1,8 @@
 """Codebase tools package."""
 
 from app.domain.codebase.exploration import (
-    find_symbol,
     ask_codebase,
+    find_symbol,
 )
 
 __all__ = [

@@ -5,7 +5,7 @@ from typing import Any
 from croniter import croniter
 from sqlalchemy import select
 
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.models.learning import LearnedSkill
 from app.models.scheduler import AutonomousTask
 
@@ -43,7 +43,7 @@ class SchedulerService:
         for task_id in due_task_ids:
             try:
                 await SchedulerService.dispatch_task(task_id)
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"[Scheduler] Failed to dispatch task {task_id}: {e}")
 
     @staticmethod

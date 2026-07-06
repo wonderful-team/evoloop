@@ -99,9 +99,6 @@ export type BatchImportRequest = {
     [key: string]: unknown | number;
 };
 
-/**
- * Batch import response.
- */
 export type BatchImportResponse = {
     success?: boolean;
     message?: string;
@@ -113,9 +110,6 @@ export type BatchImportResponse = {
     [key: string]: unknown | boolean | string | BatchResultItem;
 };
 
-/**
- * Single result in batch operation.
- */
 export type BatchResultItem = {
     repo_id: number;
     name?: (string | null);
@@ -189,62 +183,6 @@ export type Body_files_workspace_upload = {
     file: (Blob | File);
     target_dir?: string;
     overwrite?: boolean;
-};
-
-export type Body_knowledge_bulk_upload = {
-    /**
-     * Multiple files to upload
-     */
-    files: Array<((Blob | File))>;
-    /**
-     * Collection name
-     */
-    collection?: string;
-    /**
-     * Document type
-     */
-    doc_type?: string;
-};
-
-export type Body_knowledge_import_zip = {
-    /**
-     * ZIP archive containing documents
-     */
-    file: (Blob | File);
-    /**
-     * Collection name
-     */
-    collection?: string;
-    /**
-     * Preserve directory structure
-     */
-    preserve_structure?: boolean;
-};
-
-export type Body_knowledge_upload_document = {
-    /**
-     * Document to upload
-     */
-    file: (Blob | File);
-    /**
-     * Collection name
-     */
-    collection?: string;
-    /**
-     * Document type (doc, code, guide, etc.)
-     */
-    doc_type?: string;
-    /**
-     * Extract metadata automatically
-     */
-    extract_metadata?: boolean;
-};
-
-export type Body_knowledge_validate_zip = {
-    /**
-     * ZIP archive to validate
-     */
-    file: (Blob | File);
 };
 
 export type Body_learning_upload_screenshot = {
@@ -327,19 +265,6 @@ export type CloudStatusResponse = {
     is_linked: boolean;
     device_name: string;
     api_url: string;
-    [key: string]: unknown | boolean | string;
-};
-
-/**
- * Response for listing collections.
- */
-export type CollectionResponse = {
-    success?: boolean;
-    message?: string;
-    collections: Array<(string)>;
-    stats: {
-        [key: string]: unknown;
-    };
     [key: string]: unknown | boolean | string;
 };
 
@@ -514,9 +439,6 @@ export type DebugStatusResponse = {
     [key: string]: unknown | boolean | string;
 };
 
-/**
- * Detected project awaiting import.
- */
 export type DetectedProjectItem = {
     id: number;
     name: string;
@@ -545,104 +467,6 @@ export type DiscoverResponse = {
     project_id: number;
     thread_id: string;
     [key: string]: unknown | boolean | string | number;
-};
-
-/**
- * Response for reading document content.
- */
-export type DocumentContentResponse = {
-    success?: boolean;
-    message?: string;
-    path: string;
-    content: string;
-    metadata: DocumentMetadataResponse;
-    offset: number;
-    limit: number;
-    total_lines: number;
-    has_more: boolean;
-    [key: string]: unknown | boolean | string | DocumentMetadataResponse | number;
-};
-
-/**
- * Item in a document list from the knowledge base.
- */
-export type DocumentListItem = {
-    path: string;
-    size_bytes: number;
-    modified_at: string;
-    has_metadata: boolean;
-    tags: Array<(string)>;
-    title: string;
-    source?: (string | null);
-    source_project_id?: (number | null);
-    [key: string]: unknown | string | number | boolean;
-};
-
-/**
- * Response for listing documents.
- */
-export type DocumentListResponse = {
-    success?: boolean;
-    message?: string;
-    data?: Array<DocumentListItem>;
-    total?: number;
-    page?: number;
-    page_size?: number;
-    documents: Array<DocumentListItem>;
-    collections: Array<(string)>;
-    [key: string]: unknown | boolean | string | DocumentListItem | number;
-};
-
-/**
- * Structured metadata for a document chunk/response.
- */
-export type DocumentMetadataResponse = {
-    success?: boolean;
-    message?: string;
-    title?: (string | null);
-    source_file?: (string | null);
-    source_mime_type?: (string | null);
-    file_size_bytes?: (number | null);
-    extracted_at?: (string | null);
-    source_project_id?: (number | null);
-    [key: string]: unknown | boolean | string;
-};
-
-/**
- * Response for document operations.
- */
-export type DocumentResponse = {
-    success?: boolean;
-    message?: string;
-    path?: (string | null);
-    document?: ({
-    [key: string]: unknown;
-} | null);
-    [key: string]: unknown | boolean | string;
-};
-
-/**
- * Single document search result.
- */
-export type DocumentSearchItem = {
-    path: string;
-    match_count: number;
-    matches: Array<{
-        [key: string]: unknown;
-    }>;
-    [key: string]: unknown | string | number;
-};
-
-/**
- * Response for document search.
- */
-export type DocumentSearchResponse = {
-    query: string;
-    total: number;
-    results: Array<DocumentSearchItem>;
-    facets?: {
-        [key: string]: unknown;
-    };
 };
 
 /**
@@ -793,42 +617,6 @@ export type FileSearchResult = {
 };
 
 /**
- * Response for FTS search.
- */
-export type FTSSearchResponse = {
-    query: string;
-    total: number;
-    results: Array<FTSSearchResult>;
-    facets: {
-        [key: string]: unknown;
-    };
-};
-
-/**
- * Single FTS search result.
- */
-export type FTSSearchResult = {
-    doc_id: string;
-    path: string;
-    collection: (string | null);
-    title: string;
-    snippet: string;
-    highlights: string;
-    score: number;
-    [key: string]: unknown | string | number;
-};
-
-/**
- * Response for FTS suggestions.
- */
-export type FTSSuggestResponse = {
-    success?: boolean;
-    message?: string;
-    suggestions: Array<(string)>;
-    [key: string]: unknown | boolean | string;
-};
-
-/**
  * 全局桌面事件数据
  */
 export type GlobalEventData = {
@@ -909,9 +697,6 @@ export type HybridSearchResponse = {
     [key: string]: unknown | boolean | string | HybridResultItem | number;
 };
 
-/**
- * Project ignore response.
- */
 export type IgnoreProjectResponse = {
     success?: boolean;
     message?: string;
@@ -920,9 +705,6 @@ export type IgnoreProjectResponse = {
     [key: string]: unknown | boolean | string | number;
 };
 
-/**
- * Project import response.
- */
 export type ImportProjectResponse = {
     success?: boolean;
     message?: string;
@@ -950,9 +732,6 @@ export type IndexingRequest = {
     thread_id?: (string | null);
 };
 
-/**
- * Indexing dispatch response.
- */
 export type IndexingRunResponse = {
     success?: boolean;
     message?: string;
@@ -1366,9 +1145,6 @@ export type ProfileContentResponse = {
     [key: string]: unknown | boolean | string;
 };
 
-/**
- * Project deletion response.
- */
 export type ProjectDeleteResponse = {
     success?: boolean;
     message?: string;
@@ -1390,9 +1166,6 @@ export type ProjectDiscoveryConfigUpdateResponse = {
     [key: string]: unknown | boolean | string;
 };
 
-/**
- * System task activity state.
- */
 export type ProjectStatusActivity = {
     status?: string;
     updated_at?: number;
@@ -1403,9 +1176,6 @@ export type ProjectStatusActivity = {
     [key: string]: unknown | string | number;
 };
 
-/**
- * Real-time project system status.
- */
 export type ProjectStatusResponse = {
     success?: boolean;
     message?: string;
@@ -1478,13 +1248,6 @@ export type RegisterUsernameRequest = {
     captcha_id?: (string | null);
     captcha_code?: (string | null);
     [key: string]: unknown | string;
-};
-
-export type ResetKnowledgeResponse = {
-    success?: boolean;
-    message?: string;
-    status: string;
-    [key: string]: unknown | boolean | string;
 };
 
 export type ResetPasswordMobileRequest = {
@@ -1828,26 +1591,6 @@ export type SystemStatusResponse = {
     [key: string]: unknown | boolean | string | number;
 };
 
-/**
- * Single tag with document count.
- */
-export type TagItem = {
-    name: string;
-    count: number;
-    [key: string]: unknown | string | number;
-};
-
-/**
- * Response for listing tags.
- */
-export type TagResponse = {
-    success?: boolean;
-    message?: string;
-    tags: Array<TagItem>;
-    total: number;
-    [key: string]: unknown | boolean | string | TagItem | number;
-};
-
 export type TaskCreateRequest = {
     project_id: number;
     thread_id?: (string | null);
@@ -1970,10 +1713,12 @@ export type TaskWithSubtasksCreate = {
 
 export type TerminalCommandRequest = {
     command: string;
+    project_id?: (number | null);
 };
 
 export type TerminalInputRequest = {
     text: string;
+    project_id?: (number | null);
 };
 
 export type TimesheetQuickAddRequest = {
@@ -2099,9 +1844,6 @@ export type TTSResponse = {
     [key: string]: unknown | boolean | string;
 };
 
-/**
- * Project unignore response.
- */
 export type UnignoreProjectResponse = {
     success?: boolean;
     message?: string;
@@ -2549,21 +2291,6 @@ export type ConversationsListConversationsData = {
 
 export type ConversationsListConversationsResponse = (ConversationListResponse);
 
-export type ConversationsGetConversationMessagesData = {
-    beforeId?: (string | null);
-    limit?: number;
-    threadId: string;
-};
-
-export type ConversationsGetConversationMessagesResponse = (MessageListResponse);
-
-export type ConversationsSearchConversationsData = {
-    projectId?: (number | null);
-    q: string;
-};
-
-export type ConversationsSearchConversationsResponse = (Array<ConversationSearchResult>);
-
 export type ConversationsUpdateConversationData = {
     requestBody: ConversationUpdateRequest;
     threadId: string;
@@ -2582,6 +2309,21 @@ export type ConversationsGetThreadActivityData = {
 };
 
 export type ConversationsGetThreadActivityResponse = (unknown);
+
+export type ConversationsGetConversationMessagesData = {
+    beforeId?: (string | null);
+    limit?: number;
+    threadId: string;
+};
+
+export type ConversationsGetConversationMessagesResponse = (MessageListResponse);
+
+export type ConversationsSearchConversationsData = {
+    projectId?: (number | null);
+    q: string;
+};
+
+export type ConversationsSearchConversationsResponse = (Array<ConversationSearchResult>);
 
 export type ConversationsRewindConversationData = {
     requestBody?: RewindRequest;
@@ -2753,253 +2495,6 @@ export type FilesDownloadAnyFileData = {
 
 export type FilesDownloadAnyFileResponse = (unknown);
 
-export type KnowledgeUploadDocumentData = {
-    formData: Body_knowledge_upload_document;
-};
-
-export type KnowledgeUploadDocumentResponse = (DocumentResponse);
-
-export type KnowledgeListDocumentsData = {
-    /**
-     * Filter by collection
-     */
-    collection?: (string | null);
-    limit?: number;
-    offset?: number;
-    /**
-     * File pattern
-     */
-    pattern?: string;
-    /**
-     * Filter by workspace project ID
-     */
-    sourceProjectId?: (number | null);
-    /**
-     * Filter by tags (comma-separated)
-     */
-    tags?: (string | null);
-};
-
-export type KnowledgeListDocumentsResponse = (DocumentListResponse);
-
-export type KnowledgeReadDocumentData = {
-    /**
-     * Max lines to read
-     */
-    limit?: number;
-    /**
-     * Line offset (0-based)
-     */
-    offset?: number;
-    path: string;
-};
-
-export type KnowledgeReadDocumentResponse = (DocumentContentResponse);
-
-export type KnowledgeDeleteDocumentData = {
-    path: string;
-};
-
-export type KnowledgeDeleteDocumentResponse = (DocumentResponse);
-
-export type KnowledgeListCollectionsResponse = (CollectionResponse);
-
-export type KnowledgeCreateCollectionData = {
-    name: string;
-};
-
-export type KnowledgeCreateCollectionResponse = (DocumentResponse);
-
-export type KnowledgeListTagsData = {
-    /**
-     * Filter by collection
-     */
-    collection?: (string | null);
-    limit?: number;
-};
-
-export type KnowledgeListTagsResponse = (TagResponse);
-
-export type KnowledgeSearchDocumentsData = {
-    /**
-     * Limit to collection
-     */
-    collection?: (string | null);
-    contextLines?: number;
-    /**
-     * Search query
-     */
-    q: string;
-};
-
-export type KnowledgeSearchDocumentsResponse = (DocumentSearchResponse);
-
-export type KnowledgeBulkUploadData = {
-    formData: Body_knowledge_bulk_upload;
-};
-
-export type KnowledgeBulkUploadResponse = (BaseAPIResponse);
-
-export type KnowledgeImportZipData = {
-    formData: Body_knowledge_import_zip;
-};
-
-export type KnowledgeImportZipResponse = (BaseAPIResponse);
-
-export type KnowledgeValidateZipData = {
-    formData: Body_knowledge_validate_zip;
-};
-
-export type KnowledgeValidateZipResponse = (unknown);
-
-export type KnowledgeFtsSearchData = {
-    /**
-     * Filter by collection
-     */
-    collection?: (string | null);
-    limit?: number;
-    offset?: number;
-    /**
-     * FTS5 search query
-     */
-    q: string;
-    /**
-     * Filter by workspace project ID
-     */
-    sourceProjectId?: (number | null);
-    /**
-     * Filter by tags (comma-separated)
-     */
-    tags?: (string | null);
-};
-
-export type KnowledgeFtsSearchResponse = (FTSSearchResponse);
-
-export type KnowledgeFtsSuggestData = {
-    /**
-     * Filter by collection
-     */
-    collection?: (string | null);
-    limit?: number;
-    /**
-     * Search prefix
-     */
-    prefix: string;
-};
-
-export type KnowledgeFtsSuggestResponse = (FTSSuggestResponse);
-
-export type KnowledgeAnalyzeDuplicatesData = {
-    /**
-     * Collection to analyze
-     */
-    collection?: (string | null);
-};
-
-export type KnowledgeAnalyzeDuplicatesResponse = (unknown);
-
-export type KnowledgeMergeDocumentsData = {
-    requestBody: Array<(string)>;
-    strategy?: string;
-    targetPath?: (string | null);
-};
-
-export type KnowledgeMergeDocumentsResponse = (unknown);
-
-export type KnowledgeGetPopularDocumentsData = {
-    /**
-     * Filter by collection
-     */
-    collection?: (string | null);
-    days?: number;
-    limit?: number;
-};
-
-export type KnowledgeGetPopularDocumentsResponse = (unknown);
-
-export type KnowledgeGetUsageAnalyticsData = {
-    days?: number;
-};
-
-export type KnowledgeGetUsageAnalyticsResponse = (unknown);
-
-export type KnowledgeGetRecommendationsData = {
-    /**
-     * Reference document path
-     */
-    path: string;
-};
-
-export type KnowledgeGetRecommendationsResponse = (unknown);
-
-export type KnowledgeGetDocumentStatsData = {
-    path: string;
-};
-
-export type KnowledgeGetDocumentStatsResponse = (unknown);
-
-export type KnowledgeRunMaintenanceData = {
-    /**
-     * Target collection
-     */
-    collection?: (string | null);
-    /**
-     * Preview changes without applying
-     */
-    dryRun?: boolean;
-    /**
-     * Maintenance level: light, medium, deep
-     */
-    level?: string;
-};
-
-export type KnowledgeRunMaintenanceResponse = (unknown);
-
-export type KnowledgeAnalyzeMaintenanceDuplicatesData = {
-    /**
-     * Target collection
-     */
-    collection?: (string | null);
-};
-
-export type KnowledgeAnalyzeMaintenanceDuplicatesResponse = (unknown);
-
-export type KnowledgeMergeMaintenanceDocumentsData = {
-    requestBody: Array<(string)>;
-    /**
-     * Merge strategy: concatenate, deduplicate
-     */
-    strategy?: string;
-    /**
-     * Target path for merged document
-     */
-    targetPath?: (string | null);
-};
-
-export type KnowledgeMergeMaintenanceDocumentsResponse = (unknown);
-
-export type KnowledgeCheckQualityData = {
-    /**
-     * Target collection
-     */
-    collection?: (string | null);
-    /**
-     * Maximum documents to check
-     */
-    limit?: number;
-};
-
-export type KnowledgeCheckQualityResponse = (unknown);
-
-export type KnowledgeListMaintenanceReportsData = {
-    /**
-     * Number of recent reports
-     */
-    limit?: number;
-};
-
-export type KnowledgeListMaintenanceReportsResponse = (unknown);
-
 export type LearningGetActionRegistryResponse = (Array<ActionDef>);
 
 export type LearningListPendingRequestsData = {
@@ -3032,24 +2527,6 @@ export type LearningCleanupRequestsData = {
 };
 
 export type LearningCleanupRequestsResponse = (BaseAPIResponse);
-
-export type LearningStartRecordingData = {
-    requestBody: StartRecordingRequest;
-};
-
-export type LearningStartRecordingResponse = (StartRecordingResponse);
-
-export type LearningStopRecordingData = {
-    sessionId: string;
-};
-
-export type LearningStopRecordingResponse = (StopRecordingResponse);
-
-export type LearningListRecordingSessionsData = {
-    threadId?: (string | null);
-};
-
-export type LearningListRecordingSessionsResponse = (RecordingSessionsResponse);
 
 export type LearningSynthesizeSkillData = {
     requestBody: SynthesizeRequest;
@@ -3096,6 +2573,106 @@ export type LearningExecuteSkillData = {
 };
 
 export type LearningExecuteSkillResponse = (ExecuteSkillResponse);
+
+export type LearningValidateSkillData = {
+    skillId: number;
+};
+
+export type LearningValidateSkillResponse = (ValidateSkillResponse);
+
+export type LearningConfirmLearnedSkillData = {
+    skillId: number;
+};
+
+export type LearningConfirmLearnedSkillResponse = (BaseAPIResponse);
+
+export type LearningCreateSkillFromYamlData = {
+    requestBody: CreateSkillFromYamlRequest;
+};
+
+export type LearningCreateSkillFromYamlResponse = (CreateSkillFromYamlResponse);
+
+export type LearningValidateSkillYamlData = {
+    requestBody: ValidateYamlRequest;
+};
+
+export type LearningValidateSkillYamlResponse = (ValidateYamlResponse);
+
+export type LearningGetSkillYamlData = {
+    skillId: number;
+};
+
+export type LearningGetSkillYamlResponse = (unknown);
+
+export type LearningUpdateSkillYamlData = {
+    requestBody: string;
+    skillId: number;
+};
+
+export type LearningUpdateSkillYamlResponse = (UpdateSkillFromYamlResponse);
+
+export type LearningStartRecordingData = {
+    requestBody: StartRecordingRequest;
+};
+
+export type LearningStartRecordingResponse = (StartRecordingResponse);
+
+export type LearningStopRecordingData = {
+    sessionId: string;
+};
+
+export type LearningStopRecordingResponse = (StopRecordingResponse);
+
+export type LearningListRecordingSessionsData = {
+    threadId?: (string | null);
+};
+
+export type LearningListRecordingSessionsResponse = (RecordingSessionsResponse);
+
+export type LearningSynthesizeFromRecordingData = {
+    requestBody: SynthesizeFromRecordingRequest;
+};
+
+export type LearningSynthesizeFromRecordingResponse = (SynthesizeFromRecordingResponse);
+
+export type LearningPreviewRecordingDataData = {
+    sessionId: string;
+    videoPath: string;
+};
+
+export type LearningPreviewRecordingDataResponse = (PreviewRecordingDataResponse);
+
+export type LearningListAnnotationsData = {
+    sessionId: string;
+};
+
+export type LearningListAnnotationsResponse = (Array<AnnotationResponse>);
+
+export type LearningStartSmartSynthesisData = {
+    requestBody: SmartSynthesisRequest;
+    sessionId: string;
+};
+
+export type LearningStartSmartSynthesisResponse = (SmartSynthesisResponse);
+
+export type LearningGetSynthesisJobData = {
+    jobId: number;
+};
+
+export type LearningGetSynthesisJobResponse = (SynthesisJobResponse);
+
+export type LearningListSessionSynthesisJobsData = {
+    sessionId: string;
+};
+
+export type LearningListSessionSynthesisJobsResponse = (Array<SynthesisJobResponse>);
+
+export type LearningCleanupRecordingSessionData = {
+    sessionId: string;
+    videoPath?: (string | null);
+};
+
+export type LearningCleanupRecordingSessionResponse = (CleanupRecordingResponse);
 
 export type LearningListMirrorDevicesResponse = (MirrorDevicesResponse);
 
@@ -3147,31 +2724,6 @@ export type LearningUploadScreenshotData = {
 
 export type LearningUploadScreenshotResponse = (UploadScreenshotResponse);
 
-export type LearningValidateSkillData = {
-    skillId: number;
-};
-
-export type LearningValidateSkillResponse = (ValidateSkillResponse);
-
-export type LearningSynthesizeFromRecordingData = {
-    requestBody: SynthesizeFromRecordingRequest;
-};
-
-export type LearningSynthesizeFromRecordingResponse = (SynthesizeFromRecordingResponse);
-
-export type LearningPreviewRecordingDataData = {
-    sessionId: string;
-    videoPath: string;
-};
-
-export type LearningPreviewRecordingDataResponse = (PreviewRecordingDataResponse);
-
-export type LearningListAnnotationsData = {
-    sessionId: string;
-};
-
-export type LearningListAnnotationsResponse = (Array<AnnotationResponse>);
-
 export type LearningCreateAndroidExtractPointData = {
     requestBody: AndroidExtractPointRequest;
 };
@@ -3183,63 +2735,6 @@ export type LearningListAndroidExtractPointsData = {
 };
 
 export type LearningListAndroidExtractPointsResponse = (Array<AndroidExtractPointResponse>);
-
-export type LearningStartSmartSynthesisData = {
-    requestBody: SmartSynthesisRequest;
-    sessionId: string;
-};
-
-export type LearningStartSmartSynthesisResponse = (SmartSynthesisResponse);
-
-export type LearningGetSynthesisJobData = {
-    jobId: number;
-};
-
-export type LearningGetSynthesisJobResponse = (SynthesisJobResponse);
-
-export type LearningListSessionSynthesisJobsData = {
-    sessionId: string;
-};
-
-export type LearningListSessionSynthesisJobsResponse = (Array<SynthesisJobResponse>);
-
-export type LearningCleanupRecordingSessionData = {
-    sessionId: string;
-    videoPath?: (string | null);
-};
-
-export type LearningCleanupRecordingSessionResponse = (CleanupRecordingResponse);
-
-export type LearningConfirmLearnedSkillData = {
-    skillId: number;
-};
-
-export type LearningConfirmLearnedSkillResponse = (BaseAPIResponse);
-
-export type LearningCreateSkillFromYamlData = {
-    requestBody: CreateSkillFromYamlRequest;
-};
-
-export type LearningCreateSkillFromYamlResponse = (CreateSkillFromYamlResponse);
-
-export type LearningValidateSkillYamlData = {
-    requestBody: ValidateYamlRequest;
-};
-
-export type LearningValidateSkillYamlResponse = (ValidateYamlResponse);
-
-export type LearningGetSkillYamlData = {
-    skillId: number;
-};
-
-export type LearningGetSkillYamlResponse = (unknown);
-
-export type LearningUpdateSkillYamlData = {
-    requestBody: string;
-    skillId: number;
-};
-
-export type LearningUpdateSkillYamlResponse = (UpdateSkillFromYamlResponse);
 
 export type McpListMcpServersResponse = (Array<unknown>);
 
@@ -3429,25 +2924,25 @@ export type ProjectModulesGetProjectStatisticsData = {
 
 export type ProjectModulesGetProjectStatisticsResponse = (unknown);
 
-export type ProjectProfilesDiscoverProfileData = {
+export type ProjectsDiscoverProfileData = {
     projectId: number;
     requestBody: DiscoverRequest;
 };
 
-export type ProjectProfilesDiscoverProfileResponse = (DiscoverResponse);
+export type ProjectsDiscoverProfileResponse = (DiscoverResponse);
 
-export type ProjectProfilesGetProfileData = {
+export type ProjectsGetProfileData = {
     projectId: number;
 };
 
-export type ProjectProfilesGetProfileResponse = (ProfileContentResponse);
+export type ProjectsGetProfileResponse = (ProfileContentResponse);
 
-export type ProjectProfilesUpdateProfileData = {
+export type ProjectsUpdateProfileData = {
     projectId: number;
     requestBody: UpdateProfileRequest;
 };
 
-export type ProjectProfilesUpdateProfileResponse = (ProfileContentResponse);
+export type ProjectsUpdateProfileResponse = (ProfileContentResponse);
 
 export type ProjectsGetProjectsData = {
     filterType?: (string | null);
@@ -3462,26 +2957,6 @@ export type ProjectsCreateProjectData = {
 };
 
 export type ProjectsCreateProjectResponse = (unknown);
-
-export type ProjectsGetCurrentProjectResponse = (unknown);
-
-export type ProjectsGetProjectStatusData = {
-    projectId: number;
-};
-
-export type ProjectsGetProjectStatusResponse = (ProjectStatusResponse);
-
-export type ProjectsDeleteProjectData = {
-    projectId: number;
-};
-
-export type ProjectsDeleteProjectResponse = (ProjectDeleteResponse);
-
-export type ProjectsRunIndexingEndpointData = {
-    requestBody: IndexingRequest;
-};
-
-export type ProjectsRunIndexingEndpointResponse = (IndexingRunResponse);
 
 export type ProjectsScanWorkspaceProjectsEndpointResponse = (ListResponse_DetectedProjectItem_);
 
@@ -3522,6 +2997,26 @@ export type ProjectsBatchIgnoreProjectsData = {
 };
 
 export type ProjectsBatchIgnoreProjectsResponse = (BatchImportResponse);
+
+export type ProjectsGetCurrentProjectResponse = (unknown);
+
+export type ProjectsGetProjectStatusData = {
+    projectId: number;
+};
+
+export type ProjectsGetProjectStatusResponse = (ProjectStatusResponse);
+
+export type ProjectsDeleteProjectData = {
+    projectId: number;
+};
+
+export type ProjectsDeleteProjectResponse = (ProjectDeleteResponse);
+
+export type ProjectsRunIndexingEndpointData = {
+    requestBody: IndexingRequest;
+};
+
+export type ProjectsRunIndexingEndpointResponse = (IndexingRunResponse);
 
 export type ResourcesListResourcesData = {
     projectId: number;
@@ -3704,8 +3199,6 @@ export type SystemApplyLlmConfigData = {
 };
 
 export type SystemApplyLlmConfigResponse = (LLMApplyResponse);
-
-export type SystemResetKnowledgeBaseResponse = (ResetKnowledgeResponse);
 
 export type SystemGetCloudStatusResponse = (CloudStatusResponse);
 

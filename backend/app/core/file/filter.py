@@ -1,7 +1,12 @@
+import logging
 import os
 import re
-import logging
-from app.constants import DEFAULT_EXCLUDED_DIRS, DEFAULT_EXCLUDED_FILES, DEFAULT_EXCLUDED_EXTENSIONS
+
+from app.constants import (
+    DEFAULT_EXCLUDED_DIRS,
+    DEFAULT_EXCLUDED_EXTENSIONS,
+    DEFAULT_EXCLUDED_FILES,
+)
 
 logger = logging.getLogger(__name__)
 

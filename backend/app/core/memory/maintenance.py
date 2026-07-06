@@ -12,8 +12,6 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from jinja2 import Template
-
 from app.core.config import settings
 from app.core.memory.lifespan import MemoryLifespanManager
 from app.infrastructure.queue.factory import periodic_task
@@ -56,13 +54,13 @@ class MemoryMaintenanceAgent:
 
             return results
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[Maintenance] Failed: {e}")
             # Still try to cleanup
             try:
                 await self._cleanup_thread()
-            except Exception:
-                pass
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.debug("Suppressed error: %s", e, exc_info=True)
             raise
 
     def _log_time(self, time: datetime):
@@ -76,7 +74,7 @@ class MemoryMaintenanceAgent:
         try:
             from sqlalchemy import delete
 
-            from app.infrastructure.database.sql.database import session_scope
+            from app.infrastructure.database import session_scope
             from app.models.conversation import Message
 
             async with session_scope() as session:
@@ -87,7 +85,7 @@ class MemoryMaintenanceAgent:
                 deleted = result.rowcount
                 logger.debug(f"[Maintenance] Cleaned {deleted} messages from {self.thread_id}")
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[Maintenance] Cleanup warning: {e}")
 
     def get_last_time(self) -> datetime | None:
@@ -101,7 +99,7 @@ class MemoryMaintenanceAgent:
                 if lines:
                     last_line = lines[-1]
                     return datetime.strptime(last_line, "%Y-%m-%d %H:%M")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[Maintenance] Failed to read log: {e}")
 
         return None
@@ -191,7 +189,7 @@ if _MAINTENANCE_ENABLED:
                 scheduler = MaintenanceScheduler()
                 result = await scheduler.run()
                 return {"triggered": result is not None}
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"[Maintenance] Scheduled task failed: {e}")
                 return {"triggered": False, "error": str(e)}
 

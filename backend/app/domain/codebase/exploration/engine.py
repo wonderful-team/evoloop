@@ -8,7 +8,7 @@ based on data availability and query characteristics.
 import logging
 import re
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.file import FileSearcher
@@ -34,8 +34,8 @@ class CodeExplorationEngine:
         self,
         name: str,
         project_id: int = DEFAULT_PROJECT_ID,
-        repo_path: Optional[str] = None
-    ) -> Optional[dict]:
+        repo_path: str | None = None
+    ) -> dict | None:
         """
         Find symbol definition using SQL retrieval, with grep fallback.
         """
@@ -49,7 +49,7 @@ class CodeExplorationEngine:
                     "source": "sql",
                     "results": results
                 }
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug(f"[Engine] SQL lookup failed: {e}")
 
         try:
@@ -60,7 +60,7 @@ class CodeExplorationEngine:
                     "source": "search_center",
                     "results": results
                 }
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug(f"[Engine] Search center lookup failed: {e}")
 
         return None
@@ -68,8 +68,8 @@ class CodeExplorationEngine:
     async def search_code(
         self,
         pattern: str,
-        scope: Optional[str] = None,
-        repo_path: Optional[str] = None
+        scope: str | None = None,
+        repo_path: str | None = None
     ) -> List[Dict[str, Any]]:
         """Search code using unified FileSearcher."""
         if not repo_path:
@@ -84,7 +84,7 @@ class CodeExplorationEngine:
             "content": r["content"]
         } for r in results]
 
-    async def _grep_find_symbol(self, name: str, repo_path: Optional[str]) -> List[Dict[str, Any]]:
+    async def _grep_find_symbol(self, name: str, repo_path: str | None) -> List[Dict[str, Any]]:
         """Use unified FileSearcher to find symbol definition."""
         if not repo_path:
             from app.core.tools import get_working_directory
@@ -104,7 +104,7 @@ class CodeExplorationEngine:
     async def check_types(
         self,
         file_path: str,
-        repo_path: Optional[str] = None
+        repo_path: str | None = None
     ) -> List[Dict[str, Any]]:
         """Check for type errors using LSP."""
         if not repo_path:
@@ -132,7 +132,7 @@ class CodeExplorationEngine:
             
             return self._format_diagnostics(diagnostics)
             
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[Engine] Type check failed: {e}")
             return [{"error": str(e)}]
     
@@ -143,11 +143,11 @@ class CodeExplorationEngine:
         try:
             usages = await retriever.find_usages(symbol, project_id)
             return usages or []
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[Engine] Impact analysis failed: {e}")
             return []
     
-    def _get_language_from_suffix(self, suffix: str) -> Optional[str]:
+    def _get_language_from_suffix(self, suffix: str) -> str | None:
         """Map file suffix to language name."""
         mapping = {
             ".py": "python",
@@ -179,7 +179,7 @@ class CodeExplorationEngine:
         return formatted
 
 # Singleton getter
-_engine: Optional[CodeExplorationEngine] = None
+_engine: CodeExplorationEngine | None = None
 
 def get_exploration_engine() -> CodeExplorationEngine:
     global _engine

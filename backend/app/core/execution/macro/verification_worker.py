@@ -80,7 +80,7 @@ class VerificationWorker:
     async def _init_mobile(self) -> None:
         """Initialize mobile controller"""
         try:
-            from app.core.environment.controllers.mobile_controller import (
+            from app.core.environment.controllers.mobile import (
                 MobileController,
             )
 
@@ -148,7 +148,7 @@ class VerificationWorker:
             else:
                 raise ValueError(f"Unknown source/platform: {source}/{self._current_platform}")
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[Worker] Step execution failed: {e}")
             return {"error": "execution_failed", "message": str(e), "step": step}
 
@@ -269,7 +269,7 @@ class VerificationWorker:
         """Execute mobile/Android step using MobileController.execute"""
         import asyncio
 
-        from app.core.environment.controllers.mobile_controller import MobileController
+        from app.core.environment.controllers.mobile import MobileController
         from app.infrastructure.drivers.adb import adb_driver
 
         # Map event types to MobileController actions
@@ -306,7 +306,7 @@ class VerificationWorker:
                             abs_y = int(y * screen[1])
                         else:
                             abs_x, abs_y = int(x * 1080), int(y * 2340)
-                    except Exception as e:
+                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                         logger.warning(f"[Worker] Failed to get screen size: {e}, using defaults")
                         abs_x, abs_y = int(x * 1080), int(y * 2340)
                 else:
@@ -427,7 +427,7 @@ class VerificationWorker:
                         disable_trace_screenshot=True,
                         disable_atlas=True
                     )
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(f"[Worker] Scroll failed: {e}")
             return {"status": "skipped", "reason": "scroll not supported"}
 
@@ -636,7 +636,7 @@ class VerificationWorker:
                 "extracted_data": extracted_data  # Include all extracted data
             }
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[Worker] Extraction failed: {e}", exc_info=True)
             return {
                 "status": "failed",
@@ -674,7 +674,7 @@ class VerificationWorker:
                     state["screenshot"] = await self._browser_controller.screenshot()
 
             elif self._current_platform == "android":
-                from app.core.environment.controllers.mobile_controller import (
+                from app.core.environment.controllers.mobile import (
                     MobileController,
                 )
 
@@ -714,7 +714,7 @@ class VerificationWorker:
                 if self.agent_config.enable_screenshot_analysis:
                     state["screenshot"] = await self._desktop_controller.screenshot()
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[Worker] Failed to capture state: {e}")
             state["error"] = str(e)
 
@@ -738,7 +738,7 @@ class VerificationWorker:
                 await self._desktop_controller.cleanup()
                 self._desktop_controller = None
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[Worker] Cleanup error: {e}")
 
         self._initialized = False

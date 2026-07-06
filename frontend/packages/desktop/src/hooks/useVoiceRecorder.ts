@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 
 export interface VoiceRecorderState {
   isRecording: boolean
@@ -14,6 +15,7 @@ export interface VoiceRecorderResult {
 }
 
 export function useVoiceRecorder() {
+  const { t } = useTranslation()
   const [state, setState] = useState<VoiceRecorderState>({
     isRecording: false,
     duration: 0,
@@ -147,7 +149,7 @@ export function useVoiceRecorder() {
         error:
           err.name === "NotAllowedError"
             ? "microphone_permission_denied"
-            : err.message || "recording_failed",
+            : err.message || t("chat.voice.recordingError"),
       }))
       throw err
     }
@@ -158,7 +160,7 @@ export function useVoiceRecorder() {
     return new Promise((resolve, reject) => {
       const mediaRecorder = mediaRecorderRef.current
       if (!mediaRecorder || mediaRecorder.state === "inactive") {
-        reject(new Error("Not recording"))
+        reject(new Error(t("chat.voice.notRecording")))
         return
       }
 
@@ -187,7 +189,7 @@ export function useVoiceRecorder() {
       }
 
       mediaRecorder.onerror = (_e) => {
-        reject(new Error("Recording error"))
+        reject(new Error(t("chat.voice.recordingError")))
       }
 
       mediaRecorder.stop()

@@ -37,7 +37,7 @@ export function resolveReferencePreview(
     "type" | "target_id" | "target_name" | "meta_data"
   >,
 ): PreviewTarget | null {
-  if (ref.type === "file") {
+  if (ref.type === "file" || ref.type === "directory") {
     const path =
       ref.meta_data?.source_path ||
       ref.meta_data?.source_id ||

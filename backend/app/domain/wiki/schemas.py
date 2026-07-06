@@ -1,6 +1,7 @@
 from datetime import datetime
 
-from sqlmodel import Field as SQLField, SQLModel
+from sqlmodel import Field as SQLField
+from sqlmodel import SQLModel
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

@@ -31,13 +31,13 @@ export function RewindConfirmDialog({
 
   const title =
     mode === "rewind"
-      ? t("chat.rewind.confirmTitle", "确认撤回")
-      : t("chat.retry.confirmTitle", "确认重试")
+      ? t("chat.rewind.confirmTitle")
+      : t("chat.retry.confirmTitle")
 
   const description =
     mode === "rewind"
-      ? t("chat.rewind.confirmDescription", "将删除此消息及其后的所有内容。")
-      : t("chat.retry.confirmDescription", "将删除后续内容并重新尝试。")
+      ? t("chat.rewind.confirmDescription")
+      : t("chat.retry.confirmDescription")
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -54,19 +54,19 @@ export function RewindConfirmDialog({
             onCheckedChange={(checked) => setRevertFiles(checked === true)}
           />
           <Label htmlFor="revert-files" className="text-sm cursor-pointer">
-            {t("chat.rewind.revertFiles", "同时恢复 Agent 修改过的文件内容")}
+            {t("chat.rewind.revertFiles")}
             <span className="block text-xs text-muted-foreground">
-              {t("chat.rewind.revertFilesHint", "（恢复到修改前的状态）")}
+              {t("chat.rewind.revertFilesHint")}
             </span>
           </Label>
         </div>
 
         <AlertDialogFooter>
-          <AlertDialogCancel>{t("common.cancel", "取消")}</AlertDialogCancel>
+          <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
           <AlertDialogAction onClick={() => onConfirm(revertFiles)}>
             {mode === "rewind"
-              ? t("chat.rewind.confirm", "确认撤回")
-              : t("chat.retry.confirm", "确认重试")}
+              ? t("chat.rewind.confirm")
+              : t("chat.retry.confirm")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

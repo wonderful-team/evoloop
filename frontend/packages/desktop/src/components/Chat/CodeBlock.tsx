@@ -62,7 +62,8 @@ export const CodeBlock = memo(
       <div className="not-prose my-2 rounded-md overflow-hidden bg-zinc-50 dark:bg-[#1e1e1e] border border-zinc-200 dark:border-[#3e3e3e] max-w-full flex flex-col">
         <div className="flex items-center justify-between px-3 py-1 bg-zinc-100 dark:bg-[#252526] text-[10px] text-zinc-500 dark:text-gray-400 border-b border-zinc-200 dark:border-[#3e3e3e] w-full shrink-0">
           <span>
-            {language} {isLong && `(${lineCount} lines)`}
+            {language}{" "}
+            {isLong && t("chat.artifact.lineCount", { count: lineCount })}
           </span>
           <div className="flex items-center gap-2">
             {onPreview && (
@@ -71,7 +72,7 @@ export const CodeBlock = memo(
                 onClick={() => onPreview(codeString)}
                 className="hover:text-zinc-900 dark:hover:text-white transition-colors"
               >
-                {t("chat.messageList.preview", "Preview")}
+                {t("chat.messageList.preview")}
               </button>
             )}
             <button
@@ -79,7 +80,7 @@ export const CodeBlock = memo(
               onClick={() => navigator.clipboard.writeText(codeString)}
               className="hover:text-zinc-900 dark:hover:text-white transition-colors"
             >
-              {t("chat.messageList.copy", "Copy")}
+              {t("chat.messageList.copy")}
             </button>
           </div>
         </div>

@@ -3,18 +3,20 @@ Supervisor Prompt Builder
 
 Constructs the system prompt for the Supervisor ReAct Agent.
 Allows for dynamic context injection and potential LLM-specific adaptations.
+
+The Supervisor owns skill ROUTING — it sees a lightweight skill index (name + desc)
+in its static system prompt and uses read_skill_sop / route_to to dispatch the
+selected skill_ids to Workers. Workers receive the full skill content downstream.
 """
 import json
 import logging
 from typing import Any
 
-from langchain_core.runnables import RunnableConfig
-
 from app.core.config import settings
-from app.core.tools.registry import get_tool_bundle
+from app.core.engine.prompts import PromptAssemblyBuilder
 from app.core.engine.schemas import SupervisorContext
 from app.infrastructure.config.service import SystemConfigService
-from app.utils import render_template
+from app.utils.template import render_template
 
 from .base_builder import BasePromptBuilder
 
@@ -32,12 +34,13 @@ class SupervisorPromptBuilder(BasePromptBuilder):
         self.iteration_count = iteration_count
         self.context: Any = context or {}
 
-    async def build(self, config: RunnableConfig = None) -> str:
-        """Constructs the STATIC system prompt using Jinja2 templating.
+    async def build(self, config: Any = None) -> str:
+        """Constructs the STATIC system prompt using Jinja2 templating + PromptAssemblyBuilder.
 
-        Dynamic per-turn state (Blackboard, Memory, Environment, Active Plan)
-        is now separated into build_context_ticket() which is injected as a
-        User Message prefix — this makes the System Prompt cacheable.
+        The Jinja2 template renders the static role/protocol.
+        PromptAssemblyBuilder appends a lightweight skills index so the Supervisor
+        can route tasks to the right skill without loading full SKILL.md content —
+        it uses read_skill_sop to inspect details only when needed (NLP Skill Loading).
         """
         from app.core.context import ContextManager, plugin_registry
 
@@ -49,8 +52,6 @@ class SupervisorPromptBuilder(BasePromptBuilder):
         mode = self.get_sandbox_mode()
 
         # 2. Protocol & Sys Info Prep (STATIC parts only)
-
-        # Read PROJECT.md if exists (static for the session)
         project_profile = self.read_project_profile(ctx.working_directory, "[SupervisorPrompt]")
 
         # 3. Prepare Template Variables (STATIC only — no blackboard/memory/telemetry)
@@ -71,12 +72,46 @@ class SupervisorPromptBuilder(BasePromptBuilder):
             "agent_website": SystemConfigService.get_value("AGENT_WEBSITE", "https://evoloop.cn"),
         }
 
-        # 4. Render Template
-        rendered = render_template("core/engine/supervisor.prompt.j2", **template_vars)
-        logger.info(f"[SupervisorPrompt] 📝 Static prompt length: {len(rendered)} chars")
+        # 4. Render Core Template
+        base_prompt = render_template("core/engine/supervisor.prompt.j2", **template_vars)
+
+        # 5. Append lightweight skills index via PromptAssemblyBuilder
+        # Supervisor owns routing — it only needs name+desc to decide which skill
+        # to dispatch. Full SKILL.md is fetched on demand via read_skill_sop.
+        skills_index = self._extract_skills_index(ctx)
+        if skills_index:
+            assembly = PromptAssemblyBuilder()
+            assembly.add_section("core", base_prompt, priority=0)
+            assembly.add_skills_index(skills_index)
+            rendered = assembly.build()
+        else:
+            rendered = base_prompt
+
+        logger.info(f"[SupervisorPrompt] 📝 Static prompt length: {len(rendered)} chars (skills index: {len(skills_index)} entries)")
         return rendered
 
-    async def build_context_ticket(self, config: RunnableConfig, session_goal: str | None = None) -> str:
+    def _extract_skills_index(self, ctx: Any) -> list[dict]:
+        """Extract lightweight skill metadata for the Supervisor's routing index."""
+        active_skills = ctx.metadata.get("active_skills", []) or []
+        index = []
+        for s in active_skills:
+            if isinstance(s, dict):
+                index.append({
+                    "id": s.get("id", ""),
+                    "name": s.get("name", ""),
+                    "description": s.get("description", ""),
+                })
+            else:
+                # SkillListItem / object form
+                index.append({
+                    "id": getattr(s, "id", "") or "",
+                    "name": getattr(s, "name", "") or "",
+                    "description": getattr(s, "description", "") or "",
+                })
+        return index
+
+
+    async def build_context_ticket(self, config: Any = None, session_goal: str | None = None) -> str:
         """Constructs the dynamic CONTEXT TICKET for injection as a User Message.
 
         This contains all per-turn state: Blackboard, Memory, Environment Block,
@@ -101,24 +136,7 @@ class SupervisorPromptBuilder(BasePromptBuilder):
         explicit_skills = run_metadata.get("explicit_skills")
 
         # Collect dynamic metadata from flat state
-        metadata_fields = {
-            "tool_history": state.tool_history,
-            "pending_approvals": [x.model_dump() if hasattr(x, "model_dump") else x for x in (state.pending_approvals or [])],
-            "audit_anomalies": [x.model_dump() if hasattr(x, "model_dump") else x for x in (state.audit_anomalies or [])],
-            "tool_memory": state.tool_memory,
-            "final_outcome": state.final_outcome,
-            "shadow_audit": state.shadow_audit,
-            "termination_outcome": state.termination_outcome,
-            "last_aggregation_result": state.last_aggregation_result,
-            "audit_tier": state.audit_tier,
-            "audit_meta": state.audit_meta.model_dump() if hasattr(state.audit_meta, "model_dump") and state.audit_meta else state.audit_meta,
-            "blocked_by_hook": state.blocked_by_hook,
-            "plan_progress": state.plan_progress.model_dump() if hasattr(state.plan_progress, "model_dump") and state.plan_progress else state.plan_progress,
-            "max_supervisor_steps": state.max_supervisor_steps,
-            "audit_input_data": state.audit_input_data.model_dump() if hasattr(state.audit_input_data, "model_dump") and state.audit_input_data else state.audit_input_data,
-            "force_comprehensive_audit": state.force_comprehensive_audit,
-        }
-        metadata_clean = {k: v for k, v in metadata_fields.items() if v is not None}
+        metadata_clean = state.build_metadata_dict()
 
         template_vars = {
             "iteration_count": self.iteration_count,

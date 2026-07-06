@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import (
     JSON,
@@ -92,7 +91,7 @@ class Message(Base):
     tool_call_id: Mapped[str | None] = mapped_column(String(255), index=True)
     tool_name: Mapped[str | None] = mapped_column(String(255)) # Tool name or user name
 
-    parent: Mapped[Optional["Message"]] = relationship("Message", remote_side="[Message.id]", backref="children")
+    parent: Mapped["Message | None"] = relationship("Message", remote_side="[Message.id]", backref="children")
 
     # Node source tracking — identifies which graph node produced this message
     node_source: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
@@ -129,10 +128,11 @@ class MessageReference(Base):
     Persistent Context References
     挂载在消息上的所有非文本引用的持久化存储。
 
-    type 字段的合法值（与 ReferenceBlock.type 严格对应）：
+    type 字段的合法值（与 engine/message/schemas.MessageReference.type 严格对应）：
     - "file"       : 可下载文件（PDF、Excel、TXT 等）
     - "image"      : 图片（截图、AI 生成图）
     - "audio"      : 音频（语音回复、上传音频）
+    - "video"      : 视频（上传或生成视频）
     - "message"    : 引用历史消息（target_id = message UUID）
     - "artifact"   : 可交互组件（echarts/mermaid/map/html）
     - "changeset"  : 代码变更集（target_id = run_id，meta_data 含 files 列表）
@@ -190,7 +190,7 @@ class Conversation(Base):
         primaryjoin=lambda: Message.thread_id == Conversation.id,
         foreign_keys=[Message.thread_id],
     )
-    plan: Mapped[Optional["Plan"]] = relationship(
+    plan: Mapped["Plan | None"] = relationship(
         "Plan",
         back_populates="conversation",
         uselist=False,

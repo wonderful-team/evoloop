@@ -22,14 +22,14 @@ from app.core.monitoring.schemas import (
     SystemLogPayload,
 )
 from app.infrastructure.cache import cache
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.models import AgentActivity
 from app.models.schemas.events import (
     AgentStateEvent,
     ArtifactEvent,
     HumanRequestEvent,
 )
-from app.services.cache_services import ActivityStateService
+from app.core.monitoring.activity_state import ActivityStateService
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +119,7 @@ class ActivityMonitor:
             )
             raise
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(
                 f"[ActivityMonitor] ❌ Run {run_id} failed with error: {e}",
                 exc_info=True,
@@ -443,7 +443,7 @@ class ActivityMonitor:
                 logger.info(
                     f"[ActivityMonitor] Session goal updated for thread {thread_id}: {new_goal}"
                 )
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(
                     f"[ActivityMonitor] Failed to publish goal update event: {e}"
                 )

@@ -3,21 +3,18 @@ Memory & Context Management Tools.
 Consolidated from core and domain layers for unified architecture.
 """
 
-import json
 import logging
 import time
-import uuid
 from typing import Annotated
-
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import InjectedToolArg
 
 from app.constants import FORGET_SAFETY_WINDOW
 from app.core.context.manager import ContextManager
-from app.core.memory.short_term import SqlShortTermMemory
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
+from app.core.memory.short_term import SqlShortTermMemory
 from app.core.tools import evoloop_tool
-from app.utils import ContentFormatter
+from app.utils.controller_response import ContentFormatter
+from app.utils.id import gen_uuid_hex
+
 from .retrieval import get_relevant_memories
 
 logger = logging.getLogger(__name__)
@@ -55,7 +52,7 @@ async def write_handover_notes(notes: str, key: str = "general") -> str:
             logger.info(f"[MemoryTool] Wrote handover notes for key: {key}")
             return f"Successfully saved handover notes under key '{key}'."
         return "Error: State context not available."
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[MemoryTool] Failed to write handover notes: {e}")
         return f"Failed to write handover notes: {str(e)}"
 
@@ -98,7 +95,7 @@ async def remember(content: str, context: str = "", is_user_preference: bool = F
         if context:
             full_content += f"\n\nContext: {context}"
 
-        entry_id = f"mem_{uuid.uuid4().hex[:12]}"
+        entry_id = f"mem_{gen_uuid_hex()[:12]}"
 
         # Ensure IDs are types that MemoryEntry expects (support mocks in tests)
         project_id = int(ctx.project_id) if ctx and ctx.project_id is not None else None
@@ -130,7 +127,7 @@ async def remember(content: str, context: str = "", is_user_preference: bool = F
         logger.info(f"[MemoryTool] Remembered: {title[:40]}... (ID: {entry_id})")
         return f"Remembered: {title} (ID: {entry_id})"
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[MemoryTool] Failed to remember: {e}")
         return f"Failed to save memory: {str(e)}"
 
@@ -184,7 +181,7 @@ async def recall(query: str, limit: int = 5) -> str:
 
         return "\n".join(lines), {"count": len(entries)}
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[MemoryTool] Recall failed: {e}")
         return f"Failed to recall: {str(e)}"
 
@@ -218,7 +215,7 @@ async def forget_memory(memory_id: str) -> str:
         else:
             return f"Could not find memory with ID '{memory_id}' to delete."
             
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[MemoryTool] Failed to forget memory: {e}")
         return f"Error deleting memory: {str(e)}"
 
@@ -235,7 +232,7 @@ async def search_history(
     query: str,
     limit: int = 10,
     thread_id: str | None = None,
-    config: Annotated[RunnableConfig, InjectedToolArg] = None,
+    config: dict | None = None,
 ) -> str:
     """
     Search conversation history for specific keywords or topics.
@@ -270,7 +267,7 @@ async def search_history(
         meta["top_k"] = limit
         return text, meta
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[MemoryTool] History search failed: {e}")
         return f"Failed to search history: {str(e)}"
 
@@ -287,7 +284,7 @@ async def forget_tool_outputs(
     tool_call_ids: Annotated[list[str], "List of tool_call_ids to forget"],
     reason: Annotated[str, "Why these tool outputs are being forgotten"],
     custom_summaries: Annotated[dict[str, str] | None, "Optional custom summaries"] = None,
-    config: Annotated[RunnableConfig, InjectedToolArg] = None,
+    config: dict | None = None,
 ) -> str:
     """
     Forget (fold) old tool outputs to free context space.
@@ -302,7 +299,7 @@ async def forget_tool_outputs(
     try:
         from sqlalchemy import select
 
-        from app.infrastructure.database.sql.database import session_scope
+        from app.infrastructure.database import session_scope
         from app.models import Message
 
         async with session_scope() as session:
@@ -367,7 +364,7 @@ async def forget_tool_outputs(
                         pass  # Already forgotten
                 state.tool_memory = memory.to_dict()
                 ctx.metadata.tool_memory = memory.to_dict()
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[ContextMgmt] Failed to persist tool_memory: {e}")
 
         msg = f"Successfully forgot {len(results['forgotten'])} outputs, saved {total_saved} chars."
@@ -379,7 +376,7 @@ async def forget_tool_outputs(
             "_signal": "forget_tool_outputs"
         }
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[ContextMgmt] Forget failed: {e}")
         return f"Error: {str(e)}", {"status": "error"}
 
@@ -390,7 +387,7 @@ async def forget_tool_outputs(
 )
 async def recall_tool_output(
     tool_call_id: Annotated[str, "The tool_call_id to recall"],
-    config: Annotated[RunnableConfig, InjectedToolArg] = None,
+    config: dict | None = None,
 ) -> str:
     """Recall a forgotten tool output, restoring its full content to context."""
     thread_id = config.get("configurable", {}).get("thread_id", "unknown") if config else "unknown"
@@ -398,7 +395,7 @@ async def recall_tool_output(
     try:
         from sqlalchemy import select
 
-        from app.infrastructure.database.sql.database import session_scope
+        from app.infrastructure.database import session_scope
         from app.models import Message
 
         async with session_scope() as session:
@@ -420,7 +417,7 @@ async def recall_tool_output(
                     memory.remove_from_forgotten(tool_call_id)
                     state.tool_memory = memory.to_dict()
                     ctx.metadata.tool_memory = memory.to_dict()
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(f"[ContextMgmt] Failed to update tool_memory on recall: {e}")
 
             return f"Successfully recalled content for {tool_call_id} (Length: {len(msg.content)})", {
@@ -429,7 +426,7 @@ async def recall_tool_output(
                 "_signal": "recall_tool_output"
             }
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[ContextMgmt] Recall failed: {e}")
         return f"Error: {str(e)}", {"status": "error"}
 
@@ -440,7 +437,7 @@ async def recall_tool_output(
 )
 async def list_forgotten_outputs(
     limit: Annotated[int, "Max records to return"] = 20,
-    config: Annotated[RunnableConfig, InjectedToolArg] = None,
+    config: dict | None = None,
 ) -> str:
     """List all previously forgotten tool outputs in the current conversation."""
     ctx = ContextManager.current()
@@ -471,7 +468,7 @@ async def list_forgotten_outputs(
             lines.append("")
 
         return "\n".join(lines), {"count": len(forgotten_records)}
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[ContextMgmt] List forgotten failed: {e}")
         return f"Error retrieving forgotten outputs: {str(e)}"
 

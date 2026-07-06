@@ -20,9 +20,6 @@ class EnvironmentContextPlugin(ContextPlugin):
         try:
             from app.core.environment import get_awakened_state
             state = get_awakened_state()
-            has_android = False
-            if state and state.android_devices:
-                has_android = True
 
             # 1. Hydrate Active Boundaries
             ctx.active_boundaries = list(boundary_manager.get_all_boundaries())
@@ -32,8 +29,6 @@ class EnvironmentContextPlugin(ContextPlugin):
 
             if not isinstance(ctx.spatial_awareness, dict):
                 ctx.spatial_awareness = {}
-
-            state = get_awakened_state()
 
             # Reset metadata flags
             ctx.metadata.has_android = False
@@ -45,36 +40,7 @@ class EnvironmentContextPlugin(ContextPlugin):
                 if state.host and state.host.os_name == "macOS":
                     ctx.metadata.has_macos = True
 
-                # 3. Hydrate Spatial Awareness (Discovery Report)
-                if getattr(state, "discovery_report", None):
-                    report = state.discovery_report
-                    all_new_apps = []
-                    all_missing_skills = []
-
-                    for device_serial, discovery in report.get("android", {}).items():
-                        if discovery.get("new_apps_found"):
-                            all_new_apps.extend(discovery["new_apps_found"])
-                        if discovery.get("missing_skills"):
-                            all_missing_skills.extend(discovery["missing_skills"])
-
-                    if all_new_apps:
-                        ctx.spatial_awareness["new_apps"] = all_new_apps[:5]
-                    if all_missing_skills:
-                        ctx.spatial_awareness["missing_skills"] = list(set(all_missing_skills))
-
-                    verified_layouts = []
-                    if getattr(state, "relevant_concepts", None):
-                        for c in state.relevant_concepts:
-                            if c.name.startswith("android_layout:"):
-                                verified_layouts.append(c.name.split(":", 1)[1])
-                    if verified_layouts and state.android_devices:
-                        ctx.spatial_awareness["verified_layouts"] = verified_layouts
-
-                    macos_verified = report.get("macos", {}).get("verified_apps", [])
-                    if macos_verified:
-                        ctx.spatial_awareness["macos_verified"] = macos_verified
-
-                # 4. Hydrate Memory Replay
+                # 3. Hydrate Memory Replay
                 ctx.memory_replay = {}
 
                 if getattr(state, "recent_episodes", None):
@@ -131,7 +97,7 @@ class EnvironmentContextPlugin(ContextPlugin):
             # This pre-rendered block is what the Engine will use.
             ctx.environment_block = AppEnvironmentPrompt.render_environment_block(skip_hydrate=True)
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to hydrate EnvironmentContextPlugin: {e}")
 
 

@@ -85,7 +85,7 @@ class FilePreparer:
                     and file_mtime < source_file.last_indexed_at
                 ):
                     return None  # File unchanged
-            except Exception:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                 pass  # Fallback to checksum
 
         # Read content
@@ -93,7 +93,7 @@ class FilePreparer:
             content = await document_reader_service.read_document(file_path)
             if content is None:
                 return None
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"Could not read {file_path}: {e}")
             return None
 

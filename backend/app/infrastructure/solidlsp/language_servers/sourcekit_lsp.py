@@ -37,7 +37,7 @@ class SourceKitLSP(SolidLanguageServer):
                 return result.stdout.strip()
             else:
                 raise Exception(f"`sourcekit-lsp -h` resulted in: {result}")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             raise RuntimeError(
                 "Could not find sourcekit-lsp, please install it as described in https://github.com/apple/sourcekit-lsp#installation"
                 "And make sure it is available on your PATH."

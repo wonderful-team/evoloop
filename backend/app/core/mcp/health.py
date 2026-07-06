@@ -53,7 +53,7 @@ class McpHealthChecker:
                 response_time_ms=response_time
             )
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             response_time = (time.time() - start_time) * 1000
             logger.warning(f"Health check failed for MCP server '{server_name}': {e}")
 

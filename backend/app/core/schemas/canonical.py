@@ -6,9 +6,10 @@ from __future__ import annotations
 
 from enum import Enum
 from typing import Any, List, Optional
-from pydantic import BaseModel, Field
-from datetime import datetime
 
+from pydantic import BaseModel
+
+from app.utils.id import gen_uuid
 
 # ============ Enums ============
 
@@ -28,6 +29,7 @@ class MessageType(str, Enum):
     AGENT_STATUS = "agent.status"
     SYSTEM_INIT = "system.init"
     SYSTEM_ERROR = "system.error"
+    MEMORY_SYNC = "memory.sync"
 
 
 class EndpointKind(str, Enum):
@@ -42,28 +44,53 @@ class EndpointKind(str, Enum):
 
 class Endpoint(BaseModel):
     kind: EndpointKind | str
-    device_key: Optional[str] = None
+    device_key: str | None = None
+
+
+class AttachmentType(str, Enum):
+    FILE = "file"
+    IMAGE = "image"
+    AUDIO = "audio"
+    VIDEO = "video"
+    MESSAGE = "message"
+    ARTIFACT = "artifact"
+    CHANGESET = "changeset"
+    SKILL = "skill"
+    DIRECTORY = "directory"
+
+
+class Attachment(BaseModel):
+    id: str
+    type: AttachmentType | str
+    target_id: str
+    target_name: str
+    meta_data: dict[str, Any] | None = None
 
 
 class Envelope(BaseModel):
     version: str = "2.0"
     type: MessageType | str
     message_id: str
-    timestamp: int  # unix ms
-    source: Optional[Endpoint] = None
-    target: Optional[Endpoint] = None
+    timestamp: int  # unix seconds
+    source: Endpoint | None = None
+    target: Endpoint | None = None
     body: dict[str, Any]
 
 
 # ============ command.relay ============
 
+class CommandRelayContent(BaseModel):
+    text: str | None = None
+    references: list[Attachment] | None = None
+
+
 class CommandRelayBody(BaseModel):
-    command_id: Optional[int] = None
+    command_id: int | None = None
     message_id: str
     thread_id: str
-    project_id: Optional[int] = None
+    project_id: int | None = None
     action: str
-    content: dict[str, Any]
+    content: str | CommandRelayContent
     references: Optional[List[dict[str, Any]]] = None
 
 
@@ -71,30 +98,30 @@ class CommandRelayBody(BaseModel):
 
 class CommandAckBody(BaseModel):
     command_id: int
-    thread_id: Optional[str] = None
+    thread_id: str | None = None
     status: str  # received | completed | failed | timed_out
-    error: Optional[str] = None
+    error: str | None = None
 
 
 # ============ command.stop / retry / rewind ============
 
 class CommandStopBody(BaseModel):
-    command_id: Optional[int] = None
+    command_id: int | None = None
     thread_id: str
 
 
 class CommandRetryBody(BaseModel):
-    command_id: Optional[int] = None
+    command_id: int | None = None
     thread_id: str
-    message_id: Optional[str] = None
-    revert_files: Optional[bool] = None
+    message_id: str | None = None
+    revert_files: bool | None = None
 
 
 class CommandRewindBody(BaseModel):
-    command_id: Optional[int] = None
+    command_id: int | None = None
     thread_id: str
-    message_id: Optional[str] = None
-    revert_files: Optional[bool] = None
+    message_id: str | None = None
+    revert_files: bool | None = None
 
 
 # ============ hitl ============
@@ -103,24 +130,24 @@ class HITLRequestBody(BaseModel):
     request_id: str
     request_type: str  # confirmation | choice | text | approval | project_switch | file_select
     prompt: str
-    options: Optional[List[str]] = None
-    context: Optional[str] = None
-    default_value: Optional[str] = None
-    tool_name: Optional[str] = None
-    metadata: Optional[dict[str, Any]] = None
+    options: List[str] | None = None
+    context: str | None = None
+    default_value: str | None = None
+    tool_name: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class HITLResponseBody(BaseModel):
-    command_id: Optional[int] = None
+    command_id: int | None = None
     request_id: str
     action: str  # confirm | choice | text
     value: str
 
 
 class HITLCancelBody(BaseModel):
-    command_id: Optional[int] = None
+    command_id: int | None = None
     request_id: str
-    thread_id: Optional[str] = None
+    thread_id: str | None = None
 
 
 # ============ message.sync ============
@@ -129,23 +156,24 @@ class SyncMessage(BaseModel):
     message_id: str
     thread_id: str
     role: str  # human | ai | tool | system
-    content_type: Optional[str] = None  # text | markdown | json | multipart
-    content: str
+    content_type: str | None = None  # text | markdown | json | multipart
+    content: str | dict[str, Any]
+    references: list[Attachment] | None = None
     created_at: int  # unix timestamp (seconds)
-    sequence_number: Optional[int] = None
-    status: Optional[str] = None
-    action_type: Optional[str] = None
-    parent_id: Optional[str] = None
-    tool_name: Optional[str] = None
-    tool_call_id: Optional[str] = None
-    thinking: Optional[str] = None
-    checkpoint_id: Optional[str] = None
+    sequence_number: int | None = None
+    status: str | None = None
+    action_type: str | None = None
+    parent_id: str | None = None
+    tool_name: str | None = None
+    tool_call_id: str | None = None
+    thinking: str | None = None
+    checkpoint_id: str | None = None
     tool_calls: Optional[list[dict[str, Any]]] = None
-    category: Optional[str] = None
-    node_source: Optional[str] = None
-    source: Optional[str] = None
-    is_visible: Optional[bool] = None
-    metadata: Optional[dict[str, Any]] = None
+    category: str | None = None
+    node_source: str | None = None
+    source: str | None = None
+    is_visible: bool | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class MessageSyncBody(BaseModel):
@@ -153,7 +181,7 @@ class MessageSyncBody(BaseModel):
     sync_mode: str  # full | incremental
     device_key: str
     messages: list[SyncMessage]
-    conversation: Optional[dict[str, Any]] = None
+    conversation: dict[str, Any] | None = None
 
 
 # ============ message.deleted ============
@@ -168,7 +196,7 @@ class MessageDeletedBody(BaseModel):
 class DeviceStatusBody(BaseModel):
     device_key: str
     online: bool
-    client_id: Optional[str] = None
+    client_id: str | None = None
 
 
 # ============ device.heartbeat ============
@@ -180,10 +208,10 @@ class DeviceHeartbeatBody(BaseModel):
 # ============ agent.status ============
 
 class AgentStatusBody(BaseModel):
-    command_id: Optional[int] = None
-    thread_id: Optional[str] = None
+    command_id: int | None = None
+    thread_id: str | None = None
     status: str
-    error: Optional[str] = None
+    error: str | None = None
 
 
 # ============ system ============
@@ -204,18 +232,18 @@ def create_envelope(
     type: MessageType | str,
     body: dict[str, Any],
     *,
-    message_id: Optional[str] = None,
-    source: Optional[Endpoint] = None,
-    target: Optional[Endpoint] = None,
+    message_id: str | None = None,
+    source: Endpoint | None = None,
+    target: Endpoint | None = None,
 ) -> Envelope:
     """Factory: build a canonical Envelope with auto-generated message_id.
     Timestamp is Unix seconds, matching Go's time.Now().Unix().
     """
-    import uuid, time
+    import time
     return Envelope(
         version="2.0",
         type=type,
-        message_id=message_id or str(uuid.uuid4()),
+        message_id=message_id or gen_uuid(),
         timestamp=int(time.time()),  # seconds (not ms)
         source=source,
         target=target,

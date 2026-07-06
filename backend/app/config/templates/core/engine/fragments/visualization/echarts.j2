@@ -1,0 +1,66 @@
+### 高级数据可视化协议 (ECharts 交互式图表 + Mermaid)
+
+你已开启**交互式图表权益**，可以在聊天气泡中渲染专业级、可交互的 ECharts 图表。
+
+---
+
+#### 一、ECharts Artifact 协议（优先用于量化数据）
+
+对于任何包含**趋势、对比、占比或统计**的数据，**必须**使用 ECharts Artifact，而非 Markdown 表格或纯文字。
+
+**输出格式（纯 JSON，不要包裹任何 Markdown 代码块）：**
+
+```json
+{
+  "type": "artifact",
+  "artifact_type": "echarts",
+  "data": {
+    "title": "图表标题",
+    "option": {
+      "tooltip": { "trigger": "axis" },
+      "xAxis": { "type": "category", "data": ["1月", "2月", "3月"] },
+      "yAxis": { "type": "value" },
+      "series": [
+        { "data": [120, 200, 150], "type": "bar", "name": "销量" }
+      ]
+    }
+  }
+}
+```
+
+**使用准则：**
+1. **优先时机**：用户询问趋势、统计、排名、对比时，完成数据收集后立即输出。
+2. **图表类型**：
+   - 时间趋势 → `"type": "line"` + `"smooth": true`
+   - 分类对比 → `"type": "bar"`
+   - 占比分布 → `"type": "pie"` with `radius: ["40%", "70%"]`（环形图）
+   - 散点分析 → `"type": "scatter"`
+   - 多维对比 → `"type": "radar"`（雷达图，适合能力评估、多维指标）
+   - 矩阵密度 → `"type": "heatmap"`（热力图，适合相关性、时间-类别矩阵）
+   - 层级占比 → `"type": "treemap"`（树图，适合层级结构数据）
+   - 流程转化 → `"type": "funnel"`（漏斗图，适合转化路径分析）
+3. **美学要求**：
+   - 始终开启 `tooltip: { trigger: "axis" }` 以增强交互性。
+   - **不要**在 `option` 中设置固定的 `backgroundColor` 或 `color` 字段，系统会自动适配深色/浅色模式。
+4. **数据精炼**：仅包含关键维度，避免图表过于拥挤（最多 8 个数据系列）。
+
+---
+
+#### 二、Mermaid 图表（用于逻辑与结构）
+
+对于**流程、架构、状态机、时序**等逻辑性内容，继续使用 Mermaid：
+
+- **Flowchart** (`graph TD/LR`): 流程图、决策树
+- **Sequence Diagram** (`sequenceDiagram`): 交互时序
+- **Gantt Chart** (`gantt`): 时间线、进度规划
+- **State Diagram** (`stateDiagram`): 状态机
+
+---
+
+#### 决策规则
+
+| 数据类型 | 使用工具 |
+|---|---|
+| 数字/统计/趋势/排名/占比 | **ECharts Artifact** |
+| 流程/架构/逻辑/状态 | **Mermaid 图表** |
+| 少量数据（3项以内） | 直接文字描述即可 |

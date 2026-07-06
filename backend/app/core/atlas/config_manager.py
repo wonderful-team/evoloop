@@ -40,7 +40,7 @@ class AtlasConfigManager:
             bundle_id = await cache.hget(REDIS_KEY_APP_NAME_MAP, app_name)
             if bundle_id:
                 return bundle_id
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug(f"[AtlasConfig] Cache lookup failed: {e}")
 
         # 2. Try auto-detection for macOS
@@ -62,7 +62,7 @@ class AtlasConfigManager:
                 # Cache in cache for future use
                 await AtlasConfigManager.set_app_name_mapping(app_name, bundle_id)
                 return bundle_id
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug(f"[AtlasConfig] Bundle ID detection failed for {app_name}: {e}")
         return None
 
@@ -89,7 +89,7 @@ class AtlasConfigManager:
                     session.commit()
 
             logger.info(f"[AtlasConfig] Mapped '{app_name}' -> '{bundle_id}'")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[AtlasConfig] Failed to set mapping: {e}")
 
     @staticmethod
@@ -108,7 +108,7 @@ class AtlasConfigManager:
                     session.commit()
 
             logger.info(f"[AtlasConfig] Removed mapping for '{app_name}'")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[AtlasConfig] Failed to remove mapping: {e}")
 
     @staticmethod
@@ -124,7 +124,7 @@ class AtlasConfigManager:
             key = AtlasConfigManager._get_dynamic_apps_key(platform)
             apps = await cache.smembers(key)
             return set(apps) if apps else set()
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[AtlasConfig] Failed to get dynamic apps: {e}")
             return set()
 
@@ -140,7 +140,7 @@ class AtlasConfigManager:
                 await cache.hset(f"system:app_categorization:{platform}", bundle_id, reason)
 
             logger.info(f"[AtlasConfig] Marked '{platform}:{bundle_id}' as DYNAMIC: {reason}")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[AtlasConfig] Failed to mark app dynamic: {e}")
 
     @staticmethod
@@ -153,7 +153,7 @@ class AtlasConfigManager:
             await cache.hdel(f"system:app_categorization:{platform}", bundle_id)
 
             logger.info(f"[AtlasConfig] Unmarked '{platform}:{bundle_id}' as dynamic")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[AtlasConfig] Failed to unmark app: {e}")
 
     @staticmethod
@@ -173,7 +173,7 @@ class AtlasConfigManager:
             strategy = await AtlasStrategyStore.get_strategy(bundle_id, platform)
             if strategy:
                 return strategy.model_dump()
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug(f"[AtlasConfig] Failed to get strategy: {e}")
         return None
 
@@ -185,7 +185,7 @@ class AtlasConfigManager:
             app_strategy = AppStrategy.model_validate(strategy)
             await AtlasStrategyStore.save_strategy(app_strategy)
             logger.info(f"[AtlasConfig] Set strategy for '{platform}:{bundle_id}'")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[AtlasConfig] Failed to set strategy: {e}")
 
     @staticmethod
@@ -227,7 +227,7 @@ class AtlasConfigManager:
             from app.core.atlas.strategy import AtlasStrategyStore
             await AtlasStrategyStore.init_default_strategies()
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[AtlasConfig] Failed to initialize defaults: {e}")
 
 

@@ -37,7 +37,7 @@ class DBExtractor(SemanticExtractorBase[DBTable]):
 
         try:
             return provider.extract_db(file_path, content)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"DB Extraction failed for {file_path}: {e}")
             return []
 

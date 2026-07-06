@@ -64,7 +64,7 @@ export const HtmlArtifact: React.FC<HtmlArtifactProps> = ({ data }) => {
         <div className="w-full h-full max-w-7xl max-h-[90vh] flex flex-col bg-background border border-[var(--doc-border)] rounded-2xl overflow-hidden shadow-2xl">
           <div className="py-4 px-6 border-b border-[var(--doc-border)] bg-muted/20 flex items-center justify-between">
             <h3 className="text-base font-bold tracking-tight">
-              {data.title || t("chat.artifact.htmlPreview", "HTML Preview")}
+              {data.title || t("chat.artifact.htmlPreview")}
             </h3>
             <div className="flex items-center gap-2">
               <Button
@@ -81,7 +81,7 @@ export const HtmlArtifact: React.FC<HtmlArtifactProps> = ({ data }) => {
                 size="icon"
                 className="h-8 w-8 rounded-full hover:bg-muted/50"
                 onClick={() => setIsFullscreen(false)}
-                title={t("common.close", "Close")}
+                title={t("common.close")}
               >
                 <Minimize2 className="w-4 h-4 text-muted-foreground" />
               </Button>
@@ -89,7 +89,7 @@ export const HtmlArtifact: React.FC<HtmlArtifactProps> = ({ data }) => {
           </div>
           <div className="flex-1 bg-white dark:bg-zinc-900 overflow-hidden relative">
             <iframe
-              title="HTML Preview Fullscreen"
+              title={t("chat.artifact.htmlPreviewFullscreen")}
               srcDoc={fullHtml}
               className="w-full h-full border-none"
               sandbox="allow-scripts allow-same-origin"
@@ -110,7 +110,7 @@ export const HtmlArtifact: React.FC<HtmlArtifactProps> = ({ data }) => {
         <div className="py-3 px-5 border-b border-[var(--doc-border)] bg-muted/10 flex flex-row items-center justify-between group/html">
           <div className="flex flex-col">
             <h3 className="text-sm font-bold tracking-tight">
-              {data.title || t("chat.artifact.htmlPreview", "HTML Preview")}
+              {data.title || t("chat.artifact.htmlPreview")}
             </h3>
           </div>
           <div className="flex items-center gap-2 opacity-0 group-hover/html:opacity-100 transition-opacity">
@@ -153,14 +153,14 @@ export const HtmlArtifact: React.FC<HtmlArtifactProps> = ({ data }) => {
         >
           {inView ? (
             <iframe
-              title="HTML Preview"
+              title={t("chat.artifact.htmlPreview")}
               srcDoc={fullHtml}
               className="w-full h-full border-none"
               sandbox="allow-scripts allow-same-origin"
             />
           ) : (
             <span className="text-xs text-muted-foreground/40">
-              {t("chat.artifact.scrollToPreview", "Scroll to preview")}
+              {t("chat.artifact.scrollToPreview")}
             </span>
           )}
         </div>

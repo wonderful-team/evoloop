@@ -69,7 +69,7 @@ class APIExtractor(SemanticExtractorBase[APIEndpoint]):
 
             return entities
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"API Extraction failed for {file_path}: {e}")
             return []
 

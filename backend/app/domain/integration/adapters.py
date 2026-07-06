@@ -1,13 +1,13 @@
 from typing import Any
 
-from langchain_core.messages import HumanMessage
+from app.core.engine.message.native_classes import HumanMessage
 
 
 class EventAdapter:
     @staticmethod
     def adapt(source: str, event_type: str, payload: dict[str, Any]) -> list[HumanMessage]:
         """
-        Convert external event payload into LangChain messages.
+        Convert external event payload into native messages.
         """
         if source == "niushop":
             return EventAdapter._adapt_niushop(event_type, payload)

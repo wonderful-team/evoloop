@@ -2,7 +2,9 @@ import logging
 import os
 from typing import Optional
 
-from app.infrastructure.solidlsp.language_servers.clangd_language_server import ClangdLanguageServer
+from app.infrastructure.solidlsp.language_servers.clangd_language_server import (
+    ClangdLanguageServer,
+)
 from app.infrastructure.solidlsp.language_servers.eclipse_jdtls import EclipseJDTLS
 from app.infrastructure.solidlsp.language_servers.gopls import Gopls
 from app.infrastructure.solidlsp.language_servers.intelephense import Intelephense
@@ -125,6 +127,6 @@ class LSPManager:
                 log.info(f"Shutting down LSP server {key}")
                 server.shutdown()  # Sends exit notification
                 server.stop()  # Kills process
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 log.error(f"Error shutting down LSP server {key}: {e}")
         self.servers.clear()

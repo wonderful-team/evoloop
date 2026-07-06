@@ -4,6 +4,7 @@ Handles creation of indexes and constraints across all domains.
 """
 
 import logging
+
 from app.core.config import settings
 from app.infrastructure.database.graph.driver import GraphManager, IGraphDriver
 

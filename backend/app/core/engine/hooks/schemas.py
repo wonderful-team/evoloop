@@ -2,9 +2,9 @@
 
 from typing import Any
 
-from langchain_core.messages import BaseMessage
 from pydantic import ConfigDict, Field
 
+from app.core.engine.message.native_classes import BaseMessage
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 

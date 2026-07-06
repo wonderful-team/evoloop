@@ -2,21 +2,22 @@ import json
 import logging
 from typing import Annotated
 
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import BaseTool, InjectedToolArg
 from sqlalchemy import delete, select
 
 from app.core.context.manager import ContextManager
+from app.core.engine.message.native_classes import RunnableConfig
 from app.core.tools import evoloop_tool
-from .schemas import Plan, Step
+from app.core.tools.base import EvoLoopTool as BaseTool, InjectedToolArg
+
 from ...constants import DEFAULT_PROJECT_ID
+from .schemas import Plan, Step
 
 logger = logging.getLogger(__name__)
 
 
 def _render_analysis_prompt(plan: str, context: str, tree: str, user_lang: str) -> str:
     """Render the feasibility analysis prompt from Jinja2 template."""
-    from app.utils import render_template
+    from app.utils.template import render_template
     return render_template(
         "domain/planning/feasibility_analysis.prompt.j2",
         plan=plan,
@@ -77,7 +78,7 @@ async def create_plan(
         steps: A list of step descriptions.
     """
     # Imports inside to avoid circular dependencies during initial load
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
     from app.models.planning import Plan as DBPlan
     from app.models.planning import PlanStep as DBPlanStep
     from app.utils.id import gen_uuid
@@ -164,12 +165,12 @@ async def create_plan(
             from app.core.engine.message.publisher import MessagePublisher
             publisher = MessagePublisher(thread_id=thread_id)
             await publisher.publish_custom_event("plan.updated", {"plan_id": plan_id})
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[create_plan] Failed to publish plan updated event: {e}")
         
         return return_text, meta
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to create plan in DB: {e}")
         return f"Error: {str(e)}", {"status": "error"}
 
@@ -195,7 +196,7 @@ async def update_step_status(
         execution_run_id: Optional ID of the current agent run executing this step.
     """
     # Removed invalid import from domain.planning.models
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
 
     # Use the shared models from infrastructure to match session definition
     from app.models import PlanStep
@@ -233,7 +234,7 @@ async def update_step_status(
                 thread_id = execution_run_id.replace("thread_", "", 1)
             if not thread_id:
                 # Fallback: look up thread_id from plan_id
-                from app.infrastructure.database.sql.database import session_scope
+                from app.infrastructure.database import session_scope
                 from app.models.planning import Plan as DBPlan
                 async with session_scope() as session:
                     db_plan = await session.get(DBPlan, plan_id)
@@ -242,11 +243,11 @@ async def update_step_status(
             if thread_id:
                 publisher = MessagePublisher(thread_id=thread_id)
                 await publisher.publish_custom_event("plan.updated", {"plan_id": plan_id, "step_id": step_id, "status": status})
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[update_step_status] Failed to publish plan updated event: {e}")
 
         return msg, meta
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return f"Error: {str(e)}", {"status": "error"}
 
 
@@ -304,6 +305,6 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
 
         return report
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Feasibility analysis failed: {e}")
         return f"Analysis Failed: {str(e)}"

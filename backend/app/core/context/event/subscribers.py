@@ -34,7 +34,7 @@ class ContextLifecycleSubscriber:
                     abs_path = os.path.abspath(new_value)
                     thread_context_store._default_root = abs_path
                     logger.info(f"[Context] Updated ThreadContextStore default root to: {abs_path}")
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"[Context] Failed to update ThreadContextStore on config change: {e}")
 
     @event_subscribe(ConversationEventType.CONVERSATION_DELETED)

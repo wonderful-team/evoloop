@@ -1,150 +1,97 @@
 """
-EvoLoop Message Converter Utility
-=================================
-
-Provides centralized logic for converting messages between different formats:
-- Raw API Dicts (Pydantic models)
-- LangChain BaseMessage objects
-- Database SQLModels
-
-Also owns the authoritative ``repair()`` implementation for structurally
-correcting LangChain message histories before sending them to strict LLM APIs
-(Anthropic, GLM, etc.).  ``ContextTrimmer`` delegates its repair stage to this
-method rather than maintaining a private copy.
+EvoLoop Message Converter Utility (Native Python / Lightweight)
 """
 
 import logging
 from typing import Any
 
-from langchain_core.messages import (
-    AIMessage,
-    BaseMessage,
-    ChatMessage,
-    HumanMessage,
-    SystemMessage,
-    ToolMessage,
-)
+from app.core.engine.message.utils import normalize_tool_calls
 
 logger = logging.getLogger(__name__)
 
 
 class EvoMessageConverter:
     """
-    Unified converter for system-wide message normalization.
+    Unified converter for system-wide message normalization (SDK-free).
     """
 
     @staticmethod
-    def to_langchain(messages: list[Any]) -> list[BaseMessage]:
+    def to_dict(msg: Any) -> dict:
         """
-        Convert raw dictionaries or existing message objects to LangChain BaseMessage.
+        Convert any message (native BaseMessage, DB object, dict) to standard native dict.
+        """
+        if isinstance(msg, dict):
+            return msg
 
-        Args:
-            messages: List of message objects (dicts or objects with role/content)
+        role = getattr(msg, "role", None)
+        if not role:
+            msg_type = getattr(msg, "type", "user")
+            if msg_type == "human":
+                role = "user"
+            elif msg_type == "ai":
+                role = "assistant"
+            else:
+                role = msg_type
 
-        Returns:
-            List of LangChain BaseMessage instances
+        content = getattr(msg, "content", "")
+        additional_kwargs = getattr(msg, "additional_kwargs", {}) or {}
+
+        metadata = getattr(msg, "metadata", {}) or {}
+        if metadata:
+            additional_kwargs = {**additional_kwargs, **metadata}
+
+        res = {
+            "role": role,
+            "content": content,
+            "additional_kwargs": additional_kwargs,
+        }
+
+        msg_id = getattr(msg, "id", None)
+        if msg_id:
+            res["id"] = msg_id
+
+        msg_name = getattr(msg, "name", None)
+        if msg_name:
+            res["name"] = msg_name
+
+        if hasattr(msg, "tool_calls") and msg.tool_calls:
+            res["tool_calls"] = normalize_tool_calls(msg.tool_calls)
+        if hasattr(msg, "tool_call_id"):
+            res["tool_call_id"] = getattr(msg, "tool_call_id")
+
+        return res
+
+    @staticmethod
+    def to_message_dicts(messages: list[Any]) -> list[dict]:
+        """
+        Normalize a list of messages to standard dicts.
         """
         deserialized = []
         for m in messages:
-            if isinstance(m, BaseMessage):
+            if isinstance(m, dict):
                 deserialized.append(m)
                 continue
-
-            if not isinstance(m, dict):
-                # Try to access attributes if it's an object (e.g. SQLModel)
-                try:
-                    role = getattr(m, "role", "human")
-                    content = getattr(m, "content", "")
-                    additional_kwargs = getattr(m, "additional_kwargs", {}) or {}
-                except AttributeError:
-                    logger.warning(
-                        f"[Converter] Skipping non-dict/non-object message: {type(m)}"
-                    )
-                    continue
-            else:
-                # Handle dictionary input
-                role = m.get("role") or m.get("type", "human")
-                content = m.get("content", "")
-                additional_kwargs = m.get("additional_kwargs", {}) or {}
-
-            # Preserve references in additional_kwargs for LangChain
-            references = (
-                m.get("references")
-                if isinstance(m, dict)
-                else getattr(m, "references", None)
-            )
-            if references:
-                additional_kwargs = additional_kwargs.copy()
-                additional_kwargs["references"] = [
-                    ref.model_dump() if hasattr(ref, "model_dump") else ref
-                    for ref in references
-                ]
-
-            # Mapping roles
-            if role in ["human", "user"]:
-                deserialized.append(
-                    HumanMessage(content=content, additional_kwargs=additional_kwargs)
-                )
-            elif role in ["ai", "assistant"]:
-                deserialized.append(
-                    AIMessage(content=content, additional_kwargs=additional_kwargs)
-                )
-            elif role == "system":
-                deserialized.append(
-                    SystemMessage(content=content, additional_kwargs=additional_kwargs)
-                )
-            elif role == "tool":
-                tool_call_id = (
-                    m.get("tool_call_id")
-                    if isinstance(m, dict)
-                    else getattr(m, "tool_call_id", None)
-                )
-                deserialized.append(
-                    ToolMessage(content=content, tool_call_id=tool_call_id or "unknown")
-                )
-            else:
-                deserialized.append(ChatMessage(role=role, content=content))
-
+            try:
+                role = getattr(m, "role", "user")
+                content = getattr(m, "content", "")
+                additional_kwargs = getattr(m, "additional_kwargs", {}) or {}
+                msg_dict = {"role": role, "content": content, "additional_kwargs": additional_kwargs}
+                if hasattr(m, "tool_call_id"):
+                    msg_dict["tool_call_id"] = getattr(m, "tool_call_id")
+                deserialized.append(msg_dict)
+            except AttributeError:
+                continue
         return deserialized
 
     @staticmethod
-    def from_langchain(messages: list[BaseMessage]) -> list[dict]:
-        """Convert LangChain messages to standard EvoLoop serializable dicts."""
-        role_map = {
-            "human": "human",
-            "user": "human",
-            "ai": "ai",
-            "assistant": "ai",
-            "tool": "tool",
-            "system": "system",
-        }
-        serialized = []
-        for m in messages:
-            msg_dict = {
-                "role": role_map.get(m.type, m.type),
-                "content": m.content,
-                "additional_kwargs": m.additional_kwargs,
-            }
-            if isinstance(m, ToolMessage):
-                msg_dict["tool_call_id"] = m.tool_call_id
-            serialized.append(msg_dict)
-        return serialized
+    def from_message_dicts(messages: list[dict]) -> list[dict]:
+        """Convert messages directly to standard dicts."""
+        return list(messages)
 
     @staticmethod
-    def repair(messages: list[BaseMessage]) -> list[BaseMessage]:
+    def repair(messages: list[dict]) -> list[dict]:
         """
-        Ensure the message history is structurally valid for strict LLM APIs
-        (Anthropic, GLM, etc.).
-
-        Rules enforced:
-        1. No orphaned ToolMessages — must have a preceding AIMessage with tool_calls.
-        2. No dangling ToolCalls — AIMessage.tool_calls must be followed by ToolMessages.
-        3. No consecutive same-role messages (Human→Human, AI→AI) — merged instead.
-        4. No empty-content messages (excluding ToolMessage / AIMessage with tool_calls).
-        5. History must not start with an AIMessage after any SystemMessages.
-
-        This is the **single authoritative** repair implementation for the entire system.
-        ``ContextTrimmer`` delegates to this method for its "repair" stage.
+        Ensure the message history is structurally valid for strict LLM APIs.
         """
         from app.i18n.service import i18n
 
@@ -158,125 +105,108 @@ class EvoMessageConverter:
             try:
                 result = i18n.get(f"core_utils.{key}", default=_DEFAULTS[key])
                 return result if isinstance(result, str) else _DEFAULTS[key]
-            except Exception:
+            except (KeyError, ValueError, AttributeError):
                 return _DEFAULTS[key]
 
-        # ------------------------------------------------------------------
-        # Phase 1: Basic cleanup & orphaned ToolMessage repair
-        # ------------------------------------------------------------------
-        stage1: list[BaseMessage] = []
+        # 1. Basic cleanup & orphaned tool repair
+        stage1: list[dict] = []
         for msg in messages:
-            # Drop contentless messages (AI/Tool may legitimately have no text content)
-            if not msg.content and not isinstance(msg, (ToolMessage, AIMessage)):
+            role = msg.get("role")
+            content = msg.get("content")
+            tool_calls = msg.get("tool_calls")
+
+            if not content and role not in ("tool", "assistant"):
                 continue
-            if isinstance(msg, AIMessage) and not msg.content and not msg.tool_calls:
+            if role == "assistant" and not content and not tool_calls:
                 continue
 
-            if isinstance(msg, ToolMessage):
+            if role == "tool":
                 is_orphaned = True
+                tool_call_id = msg.get("tool_call_id")
                 if stage1:
                     last = stage1[-1]
-                    if isinstance(last, AIMessage) and last.tool_calls:
-                        ids = [
-                            tc["id"] if isinstance(tc, dict) else tc.id
-                            for tc in last.tool_calls
-                        ]
-                        if msg.tool_call_id in ids:
+                    if last.get("role") == "assistant" and last.get("tool_calls"):
+                        ids = [tc.get("id") for tc in last["tool_calls"] if isinstance(tc, dict)]
+                        if tool_call_id in ids:
                             is_orphaned = False
                 if is_orphaned:
-                    stage1.append(
-                        AIMessage(
-                            content=_t("orphaned_tool"),
-                            tool_calls=[
-                                {
-                                    "id": str(msg.tool_call_id),
-                                    "name": str(msg.name)
-                                    if msg.name
-                                    else "unknown_tool",
-                                    "args": {},
-                                }
-                            ],
-                        )
-                    )
+                    stage1.append({
+                        "role": "assistant",
+                        "content": _t("orphaned_tool"),
+                        "tool_calls": [
+                            {
+                                "id": str(tool_call_id or "unknown_id"),
+                                "name": str(msg.get("name") or "unknown_tool"),
+                                "args": {},
+                            }
+                        ]
+                    })
                 stage1.append(msg)
                 continue
 
-            # Merge consecutive same-role messages
             if stage1:
                 last = stage1[-1]
-                if isinstance(last, type(msg)) and isinstance(
-                    msg, (HumanMessage, AIMessage)
-                ):
-                    if isinstance(last, AIMessage) and last.tool_calls:
+                if last.get("role") == role and role in ("user", "assistant"):
+                    if role == "assistant" and last.get("tool_calls"):
                         stage1.append(msg)
                         continue
-                    if last.name == "context_ticket" or msg.name == "context_ticket":
+                    if last.get("name") == "context_ticket" or msg.get("name") == "context_ticket":
                         stage1.append(msg)
                         continue
-                    # Model-copy to avoid mutating shared LangGraph state refs
-                    stage1[-1] = last.model_copy(
-                        update={"content": f"{last.content}\n\n{msg.content}"}
-                    )
+                    last["content"] = f"{last.get('content', '')}\n\n{msg.get('content', '')}"
                     continue
 
-            stage1.append(msg)
+            stage1.append(dict(msg))
 
-        # ------------------------------------------------------------------
-        # Phase 2: Dangling ToolCall repair
-        # ------------------------------------------------------------------
-        final_repaired: list[BaseMessage] = []
-        open_tool_calls: dict[str, str] = {}  # id -> name
+        # 2. Dangling ToolCall repair
+        final_repaired: list[dict] = []
+        open_tool_calls: dict[str, str] = {}
 
         for msg in stage1:
-            if isinstance(msg, (HumanMessage, AIMessage)) and open_tool_calls:
+            role = msg.get("role")
+            if role in ("user", "assistant") and open_tool_calls:
                 for tcid, tname in list(open_tool_calls.items()):
-                    final_repaired.append(
-                        ToolMessage(
-                            content=_t("interrupted_tool_response"),
-                            tool_call_id=tcid,
-                            name=tname,
-                        )
-                    )
+                    final_repaired.append({
+                        "role": "tool",
+                        "content": _t("interrupted_tool_response"),
+                        "tool_call_id": tcid,
+                        "name": tname,
+                    })
                 open_tool_calls = {}
 
-            if isinstance(msg, AIMessage) and msg.tool_calls:
-                for tc in msg.tool_calls:
-                    tcid = tc["id"] if isinstance(tc, dict) else tc.id
-                    tname = tc["name"] if isinstance(tc, dict) else tc.name
-                    open_tool_calls[tcid] = tname
+            if role == "assistant" and msg.get("tool_calls"):
+                for tc in msg["tool_calls"]:
+                    if isinstance(tc, dict):
+                        tcid = tc.get("id")
+                        tname = tc.get("name")
+                        if tcid:
+                            open_tool_calls[tcid] = tname or "unknown_tool"
 
-            if isinstance(msg, ToolMessage) and msg.tool_call_id in open_tool_calls:
-                del open_tool_calls[msg.tool_call_id]
+            if role == "tool" and msg.get("tool_call_id") in open_tool_calls:
+                del open_tool_calls[msg["tool_call_id"]]
 
             final_repaired.append(msg)
 
-        # Close trailing dangling tool calls
         if open_tool_calls and final_repaired:
-            logger.warning(
-                "🔧 [Repair] History ends with dangling tool calls. Injecting dummy responses."
-            )
             for tcid, tname in list(open_tool_calls.items()):
-                final_repaired.append(
-                    ToolMessage(
-                        content=_t("interrupted_tool_response"),
-                        tool_call_id=tcid,
-                        name=tname,
-                    )
-                )
+                final_repaired.append({
+                    "role": "tool",
+                    "content": _t("interrupted_tool_response"),
+                    "tool_call_id": tcid,
+                    "name": tname,
+                })
 
-        # ------------------------------------------------------------------
-        # Phase 3: Ensure history starts with HumanMessage (after SystemMessages)
-        # ------------------------------------------------------------------
+        # 3. Ensure starting message
         non_system = [
-            i for i, m in enumerate(final_repaired) if not isinstance(m, SystemMessage)
+            i for i, m in enumerate(final_repaired) if m.get("role") != "system"
         ]
         if non_system:
             first = non_system[0]
-            if isinstance(final_repaired[first], AIMessage):
+            if final_repaired[first].get("role") == "assistant":
                 final_repaired.insert(
-                    first, HumanMessage(content=_t("conversation_continuation"))
+                    first, {"role": "user", "content": _t("conversation_continuation")}
                 )
         elif not final_repaired:
-            final_repaired.append(HumanMessage(content=_t("conversation_continuation")))
+            final_repaired.append({"role": "user", "content": _t("conversation_continuation")})
 
         return final_repaired

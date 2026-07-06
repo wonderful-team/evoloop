@@ -80,7 +80,7 @@ class DynamicAppTriage(BaseExplorer):
                     )
                     if result:
                         all_results.update(result)
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     logger.error(f"[DynamicAppTriage] Batch task failed: {e}")
 
             if all_results:
@@ -117,6 +117,6 @@ class DynamicAppTriage(BaseExplorer):
             dynamic_key = f"{REDIS_KEY_DYNAMIC_APPS_PREFIX}:{platform}"
             app_ids = await cache.smembers(dynamic_key)
             return set(app_ids) if app_ids else set()
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[DynamicAppTriage] Cache fetch failed for {platform}: {e}")
             return set()

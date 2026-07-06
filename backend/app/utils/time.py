@@ -7,6 +7,26 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def ts_from_dt(dt: datetime | None, default: int = 0) -> int:
+    """Safely convert a naive-UTC or tz-aware datetime to Unix timestamp.
+
+    Handles naive datetimes (from SQLite) by treating them as UTC,
+    and passes tz-aware datetimes through correctly.
+
+    Args:
+        dt: Datetime value (naive UTC or tz-aware).
+        default: Fallback value if dt is None.
+
+    Returns:
+        Unix timestamp (int).
+    """
+    if dt is None:
+        return default
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return int(dt.timestamp())
+
+
 def now() -> datetime:
     """Alias for utcnow()."""
     return utcnow()

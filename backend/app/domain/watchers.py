@@ -53,7 +53,7 @@ class GlobalObserverManager:
                 try:
                     self._observer.start()
                     self._started = True
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     logger.error(f"Failed to start Global Observer: {e}")
 
     def stop_observer(self):
@@ -90,7 +90,7 @@ class GlobalObserverManager:
                     logger.warning(f"Watch already scheduled for {path}. Skipping/Ignoring.")
                 else:
                     raise re
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"Failed to schedule watch for {path}: {e}")
 
     def unschedule(self, path: str):
@@ -101,7 +101,7 @@ class GlobalObserverManager:
                 try:
                     self._observer.unschedule(watch)
                     del self._watches[path]
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     logger.error(f"Error unscheduling watch for {path}: {e}")
 
 

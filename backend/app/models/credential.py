@@ -1,5 +1,6 @@
 from sqlmodel import Field, SQLModel
 
+
 class SecureCredential(SQLModel, table=True):
     __tablename__ = "secure_credentials"
 

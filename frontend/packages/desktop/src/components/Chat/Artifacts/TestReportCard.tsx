@@ -71,12 +71,12 @@ export function TestReportCard({ data }: TestReportCardProps) {
 
         <div className="flex-1">
           <div className="text-[10px] font-bold uppercase tracking-widest opacity-40 mb-0.5">
-            {t("chat.artifacts.testReport", "Execution Report")}
+            {t("chat.artifacts.testReport")}
           </div>
           <div className="font-bold text-sm">
             {data.status === "PASS"
-              ? "Validation Successful"
-              : "Validation Failed"}
+              ? t("chat.artifact.validationSuccessful")
+              : t("chat.artifact.validationFailed")}
           </div>
         </div>
 
@@ -107,7 +107,7 @@ export function TestReportCard({ data }: TestReportCardProps) {
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     <Bug size={12} />
-                    {t("chat.artifacts.rootCause", "Root Cause Analysis")}
+                    {t("chat.artifacts.rootCause")}
                   </div>
                   <div className="text-foreground pl-5 border-l-2 border-primary/20">
                     {data.root_cause}
@@ -121,7 +121,7 @@ export function TestReportCard({ data }: TestReportCardProps) {
                   <div className="flex items-center justify-between px-3 py-2 bg-primary/10 border-b border-primary/10">
                     <div className="flex items-center gap-2 text-xs font-semibold text-primary">
                       <Wrench size={12} />
-                      {t("chat.artifacts.fixSuggestion", "Suggested Fix")}
+                      {t("chat.artifacts.fixSuggestion")}
                     </div>
                     <Button
                       variant="ghost"

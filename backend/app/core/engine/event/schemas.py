@@ -9,8 +9,8 @@ from typing import Any
 
 from pydantic import Field, model_validator
 
-from app.core.events.base import BaseEvent, EventData
 from app.constants import DEFAULT_PROJECT_ID
+from app.core.events.base import BaseEvent, EventData
 
 
 class AgentEvent(BaseEvent):

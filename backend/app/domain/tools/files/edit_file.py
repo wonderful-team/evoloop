@@ -1,20 +1,19 @@
 import logging
 from typing import Annotated
 
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import InjectedToolArg
-
+from app.core.engine.message.native_classes import RunnableConfig
+from app.core.engine.tasks import persist_file_operation_task
 from app.core.file.editor import (
-    FileEditorService,
-    FileEditOperation,
     EditFileRequest,
     EditPreviewResult,
-    MatchConfidence,
+    FileEditOperation,
+    FileEditorService,
 )
 from app.core.tools import evoloop_tool, get_working_directory
+from app.core.tools.base import InjectedToolArg
 from app.i18n.service import i18n
+
 from .utils import resolve_and_validate_path
-from app.core.engine.tasks import persist_file_operation_task
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +29,8 @@ async def handle_multi_edit(
     Perform multiple edits to a single file atomically.
     Delegates to FileEditorService.
     """
-    from app.utils import render_template
     from app.domain.codebase.exploration.engine import get_exploration_engine
+    from app.utils.template import render_template
 
     try:
         target_path = await resolve_and_validate_path(path, config)
@@ -72,7 +71,7 @@ async def handle_multi_edit(
             engine = get_exploration_engine()
             repo_path = get_working_directory(config)
             diagnostics = await engine.check_types(target_path, repo_path)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug(f"[Type Check] Failed: {e}")
         template_context["diagnostics"] = diagnostics
 
@@ -101,7 +100,7 @@ async def handle_multi_edit(
                 run_id=ctx.run_id,
                 tool_call_id=ctx.current_tool_call_id,
             )
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to persist file operation: {e}")
 
     return render_template("domain/tools/multi_edit_success.prompt.j2", **template_context), {"count": result["applied_edits"]}
@@ -112,8 +111,8 @@ async def handle_edit(request: EditFileRequest) -> str:
     Edit file with cascading fuzzy matching.
     Delegates to FileEditorService.
     """
-    from app.utils import render_template
     from app.domain.codebase.exploration.engine import get_exploration_engine
+    from app.utils.template import render_template
 
     try:
         target_path = await resolve_and_validate_path(request.path, request.config)
@@ -156,7 +155,7 @@ async def handle_edit(request: EditFileRequest) -> str:
             engine = get_exploration_engine()
             repo_path = get_working_directory(request.config)
             diagnostics = await engine.check_types(target_path, repo_path)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug(f"[Type Check] Failed: {e}")
         template_context["diagnostics"] = diagnostics
 
@@ -186,7 +185,7 @@ async def handle_edit(request: EditFileRequest) -> str:
                     run_id=ctx.run_id,
                     tool_call_id=ctx.current_tool_call_id,
                 )
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"Failed to persist file operation: {e}")
 
     return render_template("domain/tools/edit_result.prompt.j2", **template_context)
@@ -194,7 +193,7 @@ async def handle_edit(request: EditFileRequest) -> str:
 
 def format_preview_result(result: EditPreviewResult, path: str, target: str, replacement: str) -> str:
     """Format preview result for display."""
-    from app.utils import render_template
+    from app.utils.template import render_template
 
     if not result.success:
         return render_template(
@@ -302,7 +301,7 @@ async def edit_file(
                 absolute_path=target_path
             )
             return format_preview_result(result, path, target, replacement)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             return f"Preview error: {e}"
 
     return await handle_edit(

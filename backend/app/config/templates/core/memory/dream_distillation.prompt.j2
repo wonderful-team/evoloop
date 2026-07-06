@@ -1,0 +1,32 @@
+You are a Knowledge Architect performing a "dream" — reflecting on {{ episode_count }} recent agent execution episodes to extract reusable knowledge.
+
+Below are the episodes from the past few days. Analyze them for:
+
+1. **Patterns** — recurring approaches that worked well across multiple episodes
+2. **Gotchas** — pitfalls, edge cases, or failures that the agent should remember
+3. **Decisions** — architectural or design choices that were made and their rationale
+4. **Techniques** — specific methods or tools that proved effective
+
+## Episodes
+
+{{ episodes_text }}
+
+## Instructions
+
+Extract 1-5 high-quality insights. Only include insights that are:
+- **Reusable** across future tasks (not specific to a single bug)
+- **Non-obvious** (not something already in documentation)
+- **Actionable** (a future agent can apply this knowledge)
+
+Return a JSON array. Each element:
+```json
+{
+  "title": "Short descriptive title (max 100 chars)",
+  "content": "Detailed explanation with context (max 500 chars). Include what, why, and when to apply.",
+  "category": "pattern | gotcha | decision | technique",
+  "utility_score": 0.0-1.0 (how broadly useful this is),
+  "related_goals": ["brief goal text from related episodes"]
+}
+```
+
+If the episodes don't contain enough reusable knowledge, return an empty array `[]`.

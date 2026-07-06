@@ -19,15 +19,13 @@ Usage:
 import asyncio
 import functools
 import logging
-from typing import Optional
-
 from app.core.config import settings
 from app.infrastructure.queue.base import TaskScheduler
 
 logger = logging.getLogger(__name__)
 
 # Global scheduler instance
-_scheduler: Optional[TaskScheduler] = None
+_scheduler: TaskScheduler | None = None
 
 
 def create_task_scheduler() -> TaskScheduler:
@@ -119,13 +117,15 @@ def shared_task(
             @functools.wraps(f)
             def _celery_async_wrapper(*args, **kwargs):
                 try:
-                    loop = asyncio.get_event_loop()
+                    loop = asyncio.get_running_loop()
                 except RuntimeError:
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
                 
                 async def _execute():
-                    from app.infrastructure.database.resource_manager import db_resource_manager
+                    from app.infrastructure.database.resource_manager import (
+                        db_resource_manager,
+                    )
                     await db_resource_manager.initialize(create_tables=False, seed_data=False)
                     return await f(*args, **kwargs)
 
@@ -135,7 +135,7 @@ def shared_task(
                     try:
                         from app.utils.async_utils import flush_loop_bound_resources
                         loop.run_until_complete(flush_loop_bound_resources())
-                    except Exception as e:
+                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                         logger.warning(f"[Celery] Failed to flush resources in task {f.__name__}: {e}")
                         
             target_f = _celery_async_wrapper

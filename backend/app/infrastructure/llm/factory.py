@@ -26,8 +26,31 @@ logger = logging.getLogger(__name__)
 # Apply reasoning_content patch before any LLM creation
 try:
     import app.infrastructure.llm.reasoning_patch  # noqa: F401
-except Exception as e:
+except ImportError as e:
     logger.warning(f"[Reasoning] Failed to import patch in factory.py: {e}")
+
+
+# --- Thinking-config extra_body builder, shared by platform and direct modes ---
+_FAMILY_EXTRA_BUILDERS: dict[str, Any] = {
+    "openai_reasoning": build_openai_reasoning_extra,
+    "zhipu": build_zhipu_thinking_extra,
+    "minimax": build_minimax_thinking_extra,
+    "gemini": build_gemini_thinking_extra,
+}
+
+
+def _build_family_extra(family: str, cfg: ThinkingConfig, caller_extra: dict[str, Any] | None) -> dict[str, Any]:
+    """Merge provider-specific thinking params with caller-supplied extra_body.
+
+    For known reasoning families (openai_reasoning/zhipu/minimax/gemini) the
+    family-specific builder takes priority.  For all other families (kimi,
+    deepseek, openai_compat, …) we fall back to ``cfg.to_extra_body()`` which
+    injects ``enable_thinking`` / ``return_reasoning`` style flags.
+    """
+    builder = _FAMILY_EXTRA_BUILDERS.get(family)
+    if builder is not None:
+        return {**builder(cfg), **(caller_extra or {})}
+    return {**cfg.to_extra_body(), **(caller_extra or {})}
 
 
 # Global Shared HTTP Client for Connection Pooling (HTTP/2 enabled), per Event Loop
@@ -251,34 +274,15 @@ class LLMFactory:
         if not gateway_url:
             raise ValueError("EvoLoop Gateway URL not configured")
 
-        # Detect family
         family = detect_model_family(config.model_name)
         cfg = ThinkingConfig()
 
-        if family == "openai_reasoning":
-            reasoning_extra = build_openai_reasoning_extra(cfg)
-            extra_body = {**reasoning_extra, **config.extra_body}
-            effective_max_tokens = config.max_tokens
-        elif family == "zhipu":
-            zhipu_extra = build_zhipu_thinking_extra(cfg)
-            extra_body = {**zhipu_extra, **config.extra_body}
-            effective_max_tokens = config.max_tokens
-        elif family == "minimax":
-            minimax_extra = build_minimax_thinking_extra(cfg)
-            extra_body = {**minimax_extra, **config.extra_body}
-            effective_max_tokens = config.max_tokens
-        elif family == "gemini":
-            gemini_extra = build_gemini_thinking_extra(cfg)
-            extra_body = {**gemini_extra, **config.extra_body}
-            effective_max_tokens = config.max_tokens
-        else:
-            base_extra = cfg.to_extra_body()
-            extra_body = {**base_extra, **config.extra_body}
+        extra_body = _build_family_extra(family, cfg, config.extra_body)
 
-            effective_max_tokens = config.max_tokens
-            if family == "kimi":
-                kimi_min = get_kimi_min_max_tokens(cfg)
-                effective_max_tokens = max(config.max_tokens or 0, kimi_min)
+        effective_max_tokens = config.max_tokens
+        if family == "kimi":
+            kimi_min = get_kimi_min_max_tokens(cfg)
+            effective_max_tokens = max(config.max_tokens or 0, kimi_min)
 
         # Use the current token for initialization.
         # Note: EvoCloudPlatformAuth will automatically replace it with
@@ -386,6 +390,7 @@ class LLMFactory:
                 logger.info(f"[LLMFactory] Kimi endpoint requires temperature=1; clamping from {temperature}")
                 temperature = 1.0
 
+        # --- Anthropic branch: different SDK + URL normalization ---
         if provider_type == "anthropic" or family == "anthropic":
             from app.infrastructure.llm.anthropic_adapter import CompatibleChatAnthropic
 
@@ -397,7 +402,6 @@ class LLMFactory:
             if normalized.endswith("/v1"):
                 normalized = normalized[:-3]
 
-            # Construct Anthropic-native thinking params if enabled
             thinking_kwargs = build_anthropic_thinking_kwargs(cfg)
 
             return CompatibleChatAnthropic(
@@ -409,95 +413,33 @@ class LLMFactory:
                 model_kwargs=thinking_kwargs or {},
                 http_async_client=_HTTP_CLIENT_POOL.get(),
             )
-        else:
-            db_headers_str = SystemConfigService.get_value("LLM_HEADERS", "{}")
-            try:
-                final_headers = json.loads(db_headers_str) if db_headers_str else {}
-            except Exception:
-                final_headers = {}
 
-            if family == "openai_reasoning":
-                reasoning_extra = build_openai_reasoning_extra(cfg)
-                merged_extra = {**(extra_body or {}), **reasoning_extra}
+        # --- OpenAI-compatible branch: one path, thinking-extra dispatched by family ---
+        db_headers_str = SystemConfigService.get_value("LLM_HEADERS", "{}")
+        try:
+            final_headers = json.loads(db_headers_str) if db_headers_str else {}
+        except json.JSONDecodeError:
+            final_headers = {}
 
-                return AdaptiveChatOpenAI(
-                    api_key=api_key,
-                    base_url=base_url.rstrip("/"),
-                    model=model_name,
-                    temperature=temperature,
-                    streaming=streaming,
-                    max_tokens=max_tokens,
-                    http_async_client=_HTTP_CLIENT_POOL.get(),
-                    extra_body=merged_extra,
-                    default_headers=final_headers if final_headers else None,
-                )
-            elif family == "zhipu":
-                zhipu_extra = build_zhipu_thinking_extra(cfg)
-                merged_extra = {**(extra_body or {}), **zhipu_extra}
+        merged_extra = _build_family_extra(family, cfg, extra_body)
 
-                return AdaptiveChatOpenAI(
-                    api_key=api_key,
-                    base_url=base_url.rstrip("/"),
-                    model=model_name,
-                    temperature=temperature,
-                    streaming=streaming,
-                    max_tokens=max_tokens,
-                    http_async_client=_HTTP_CLIENT_POOL.get(),
-                    extra_body=merged_extra,
-                    default_headers=final_headers if final_headers else None,
-                )
-            elif family == "minimax":
-                minimax_extra = build_minimax_thinking_extra(cfg)
-                merged_extra = {**(extra_body or {}), **minimax_extra}
+        # Kimi 额外保证 max_tokens 足够大
+        effective_max_tokens = max_tokens
+        if family == "kimi":
+            kimi_min = get_kimi_min_max_tokens(cfg)
+            effective_max_tokens = max(max_tokens or 0, kimi_min)
 
-                return AdaptiveChatOpenAI(
-                    api_key=api_key,
-                    base_url=base_url.rstrip("/"),
-                    model=model_name,
-                    temperature=temperature,
-                    streaming=streaming,
-                    max_tokens=max_tokens,
-                    http_async_client=_HTTP_CLIENT_POOL.get(),
-                    extra_body=merged_extra,
-                    default_headers=final_headers if final_headers else None,
-                )
-            elif family == "gemini":
-                gemini_extra = build_gemini_thinking_extra(cfg)
-                merged_extra = {**(extra_body or {}), **gemini_extra}
-
-                return AdaptiveChatOpenAI(
-                    api_key=api_key,
-                    base_url=base_url.rstrip("/"),
-                    model=model_name,
-                    temperature=temperature,
-                    streaming=streaming,
-                    max_tokens=max_tokens,
-                    http_async_client=_HTTP_CLIENT_POOL.get(),
-                    extra_body=merged_extra,
-                    default_headers=final_headers if final_headers else None,
-                )
-            else:
-                # Kimi / DeepSeek / OpenAI compat: 注入 enable_thinking/return_reasoning
-                # Kimi 额外保证 max_tokens 足够大
-                base_extra = cfg.to_extra_body()
-                merged_extra = {**base_extra, **(extra_body or {})}
-
-                effective_max_tokens = max_tokens
-                if family == "kimi":
-                    kimi_min = get_kimi_min_max_tokens(cfg)
-                    effective_max_tokens = max(max_tokens or 0, kimi_min)
-
-                return AdaptiveChatOpenAI(
-                    api_key=api_key,
-                    base_url=base_url.rstrip("/"),
-                    model=model_name,
-                    temperature=temperature,
-                    streaming=streaming,
-                    max_tokens=effective_max_tokens,
-                    http_async_client=_HTTP_CLIENT_POOL.get(),
-                    extra_body=merged_extra,
-                    default_headers=final_headers if final_headers else None,
-                )
+        return AdaptiveChatOpenAI(
+            api_key=api_key,
+            base_url=base_url.rstrip("/"),
+            model=model_name,
+            temperature=temperature,
+            streaming=streaming,
+            max_tokens=effective_max_tokens,
+            http_async_client=_HTTP_CLIENT_POOL.get(),
+            extra_body=merged_extra,
+            default_headers=final_headers if final_headers else None,
+        )
 
     @staticmethod
     def get_cache_stats() -> LLMCacheStats:
@@ -527,13 +469,11 @@ class LLMFactory:
         Create a raw Completion client (Legacy/Text-Generation) for SSM/Flash Brain.
         Useful for endpoints that strictly use /v1/completions.
         """
-        from langchain_openai import OpenAI
-        return OpenAI(
-            openai_api_key=api_key,
-            openai_api_base=base_url,
-            model_name=model_name,
-            temperature=temperature,
-            max_tokens=8192
+        import openai
+
+        return openai.AsyncOpenAI(
+            api_key=api_key,
+            base_url=base_url.rstrip("/"),
         )
 
 
@@ -554,7 +494,7 @@ def get_default_llm(model_name: str | None = None, temperature: float = 0.3, **k
     config = LLMConfig(model_name=model_name, temperature=temperature, **kwargs)
 
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         if loop.is_running():
             return asyncio.create_task(LLMFactory.create_llm(config))
         else:
@@ -577,10 +517,7 @@ async def shutdown_http_pool():
     logger.info("[LLMFactory] Shutting down HTTP client pool...")
     count = 0
     for _loop, client in list(_HTTP_CLIENT_POOL._resources.items()):
-        try:
-            await client.aclose()
-            count += 1
-        except Exception:
-            pass
+        await client.aclose()
+        count += 1
     _HTTP_CLIENT_POOL._resources.clear()
     logger.info(f"[LLMFactory] HTTP client pool closed ({count} client(s))")

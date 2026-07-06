@@ -53,9 +53,15 @@ export const MessageReferences: React.FC<MessageReferencesProps> = ({
 
   const artifacts = references.filter((r) => r.type === "artifact")
   const resources = references.filter((r) =>
-    ["file", "image", "audio", "message", "skill", "changeset", "directory"].includes(
-      r.type,
-    ),
+    [
+      "file",
+      "image",
+      "audio",
+      "message",
+      "skill",
+      "changeset",
+      "directory",
+    ].includes(r.type),
   )
 
   return (
@@ -130,7 +136,7 @@ export const MessageReferences: React.FC<MessageReferencesProps> = ({
                     className="p-4 border border-dashed rounded-xl bg-muted/10 text-xs text-muted-foreground flex items-center gap-2"
                   >
                     <Code2 className="w-4 h-4" />
-                    Unknown Artifact Type: {artType}
+                    {t("chat.artifact.unknownType", { type: artType })}
                   </div>
                 )
             }
@@ -164,8 +170,6 @@ const ResourceChip = ({
   onClick: () => void
   isUser?: boolean
 }) => {
-  const { t } = useTranslation()
-
   const getIcon = () => {
     switch (reference.type) {
       case "file":

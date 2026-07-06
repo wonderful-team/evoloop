@@ -1,9 +1,10 @@
-import os
 import logging
-from typing import Iterator, List, Optional, Callable
+import os
 from dataclasses import dataclass
+from typing import Callable, Iterator, List, Optional
 
 from app.constants import DEFAULT_EXCLUDED_DIRS
+
 from .filter import is_ignored_path
 
 logger = logging.getLogger(__name__)
@@ -11,8 +12,8 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TraverseOptions:
     """Configuration for directory traversal."""
-    max_depth: Optional[int] = None
-    exclude_dirs: Optional[List[str]] = None
+    max_depth: int | None = None
+    exclude_dirs: List[str] | None = None
     filter_func: Optional[Callable[[str], bool]] = None
     dir_filter: Optional[Callable[[str], bool]] = None
     include_dirs: bool = False
@@ -28,7 +29,7 @@ class FileTraverser:
     @staticmethod
     def walk(
         root_path: str,
-        options: Optional[TraverseOptions] = None
+        options: TraverseOptions | None = None
     ) -> Iterator[str]:
         """
         Standardized directory walker.
@@ -82,7 +83,7 @@ class FileTraverser:
     @staticmethod
     def list_entries(
         path: str,
-        exclude_dirs: Optional[List[str]] = None,
+        exclude_dirs: List[str] | None = None,
         follow_ignore: bool = True
     ) -> Iterator[os.DirEntry]:
         """

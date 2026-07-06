@@ -163,7 +163,7 @@ export const MessageContent = memo(
                       >
                         <img
                           src={url}
-                          alt="User upload"
+                          alt={t("chat.messageList.userUpload")}
                           className="w-full h-full object-cover"
                         />
                       </button>
@@ -173,7 +173,8 @@ export const MessageContent = memo(
 
                 if (fileMatch) {
                   const url = fileMatch[1]
-                  const filename = url.split("/").pop() || "File"
+                  const filename =
+                    url.split("/").pop() || t("chat.messageList.fileFallback")
                   return (
                     <button
                       key={index}
@@ -215,10 +216,7 @@ export const MessageContent = memo(
                             className="h-8 w-[200px] sm:w-[250px] mt-1"
                             preload="metadata"
                           >
-                            {t(
-                              "chat.messageList.audioNotSupported",
-                              "Your browser does not support audio playback",
-                            )}
+                            {t("chat.messageList.audioNotSupported")}
                           </audio>
                         </div>
                       </div>
@@ -289,13 +287,12 @@ export const MessageContent = memo(
                               <div className="my-2 p-6 bg-muted/30 rounded-lg border border-dashed flex flex-col items-center justify-center text-sm text-muted-foreground">
                                 <Loader2 className="w-6 h-6 mb-2 animate-spin text-primary/50" />
                                 <span>
-                                  {t(
-                                    "chat.artifact.generatingChart",
-                                    "Generating Chart...",
-                                  )}
+                                  {t("chat.artifact.generatingChart")}
                                 </span>
                                 <span className="text-xs opacity-50 mt-1">
-                                  {codeString.length} bytes received
+                                  {t("chat.artifact.bytesReceived", {
+                                    count: codeString.length,
+                                  })}
                                 </span>
                               </div>
                             )
@@ -393,9 +390,7 @@ export const MessageContent = memo(
                         <p className="last:mb-0">{children}</p>
                       ),
                       ul: ({ children }) => (
-                        <ul className="list-disc pl-6 space-y-1">
-                          {children}
-                        </ul>
+                        <ul className="list-disc pl-6 space-y-1">{children}</ul>
                       ),
                       ol: ({ children }) => (
                         <ol className="list-decimal pl-6 space-y-1">
@@ -481,7 +476,7 @@ export const MessageContent = memo(
         <Dialog open={!!previewHtml} onOpenChange={() => setPreviewHtml(null)}>
           <DialogContent className="max-w-full sm:max-w-full h-full p-0 bg-black/90 border-none sm:rounded-none flex flex-col">
             <DialogTitle className="sr-only">
-              {t("chat.artifact.htmlPreview", "HTML Preview")}
+              {t("chat.artifact.htmlPreview")}
             </DialogTitle>
             <div className="relative w-full h-full flex-1">
               <iframe

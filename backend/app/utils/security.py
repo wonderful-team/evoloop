@@ -12,7 +12,7 @@ try:
     HAS_JWT = True
 except ImportError:
     HAS_JWT = False
-    jwt = None  # type: ignore
+    jwt = None  # type: ignore[assignment]
 
 # Try to import settings, fallback if not available
 try:
@@ -21,7 +21,7 @@ try:
 except (ImportError, Exception):
     # Exception covers Pydantic validation errors in test environment
     HAS_SETTINGS = False
-    settings = None  # type: ignore
+    settings = None  # type: ignore[assignment]
 
 if HAS_JWT:
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

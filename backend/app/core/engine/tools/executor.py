@@ -6,13 +6,12 @@ import logging
 import os
 from typing import Any
 
-from langchain_core.messages import ToolMessage
 from pydantic import BaseModel
 
 from app.core.config import settings
 from app.core.engine.hooks import HookContext, HookEvent, ToolResult, hook_system
 from app.core.engine.hooks.schemas import ToolInput
-from app.core.engine.signals.schemas import AgentSignal
+from app.core.engine.signals import AgentSignal, signal_manager
 from app.core.engine.state import AgentState, RunnableConfigMetadata
 from app.core.exceptions import AgentHumanInterruptException
 from app.core.tools import get_working_directory
@@ -22,26 +21,16 @@ from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 
-"""
-Shared tool execution logic for AgentEngine.
-
-Consolidates duplicate code from _execute_react_loop and _execute_single_shot.
-"""
-
 
 class ToolExecutionResult(BaseModel):
     """Result of a tool execution, including the message and raw output."""
-    message: ToolMessage
+    message: dict
     raw_result: Any | None = None
 
 
 class AgentToolExecutor:
     """
     Executes tools with hooks, diff tracking, and error handling.
-
-    Consolidates common logic from:
-    - _execute_react_loop._process_single_tool
-    - _execute_single_shot._execute_tool
     """
 
     def __init__(
@@ -60,7 +49,7 @@ class AgentToolExecutor:
         self.name = name
         self.enable_diff_tracking = enable_diff_tracking
         self._tool_executor = ToolExecutor()
-        self._history_lock = asyncio.Lock()  # Lock for thread-safe local_tool_history access
+        self._history_lock = asyncio.Lock()
 
     async def execute_tool(
         self,
@@ -69,27 +58,22 @@ class AgentToolExecutor:
         tool_id: str,
         local_tool_history: list[str],
     ) -> ToolExecutionResult:
-        """
-        Execute a single tool with full lifecycle management.
+        if isinstance(tool_args, str):
+            try:
+                tool_args = json.loads(tool_args) if tool_args.strip() else {}
+            except (json.JSONDecodeError, ValueError):
+                tool_args = {}
+        if not isinstance(tool_args, dict):
+            tool_args = {}
 
-        Args:
-            tool_name: Name of the tool to execute
-            tool_args: Tool arguments
-            tool_id: Unique tool call ID
-            local_tool_history: List to track tool signatures for repetition detection
-
-        Returns:
-            ToolMessage with execution result
-        """
         meta = RunnableConfigMetadata.from_config(self.config)
         thread_id = meta.thread_id
         member_id = meta.member_id
         project_id = meta.project_id
         run_id = meta.run_id
 
-        logger.info(f"[{self.name}] 🛠️ Call: {tool_name} | Args: {json.dumps(tool_args)}")
+        logger.info(f"[{self.name}] 🛠   Call: {tool_name} | Args: {json.dumps(tool_args)}")
 
-        # Inject run context into EvoContext if available
         from app.core.context.manager import ContextManager
         ctx = ContextManager.current()
         if run_id and ctx.run_id != run_id:
@@ -106,17 +90,17 @@ class AgentToolExecutor:
             )
             return ToolExecutionResult(message=msg)
 
+        pre_ctx = HookContext(
+            thread_id=thread_id,
+            member_id=member_id,
+            project_id=project_id,
+            tool_name=tool_name,
+            tool_input=ToolInput.model_validate(tool_args),
+            tool_use_id=tool_id,
+            state=self.state,
+        )
+
         try:
-            # === HOOK: PreToolUse ===
-            pre_ctx = HookContext(
-                thread_id=thread_id,
-                member_id=member_id,
-                project_id=project_id,
-                tool_name=tool_name,
-                tool_input=ToolInput.model_validate(tool_args),
-                tool_use_id=tool_id,
-                state=self.state,
-            )
             pre_result = await hook_system.trigger(HookEvent.PRE_TOOL_USE, pre_ctx, blocking=True)
 
             if pre_result.block:
@@ -129,28 +113,21 @@ class AgentToolExecutor:
                 )
                 return ToolExecutionResult(message=msg)
 
-            # Update context if modified
             if pre_result.modified_context and pre_result.modified_context.tool_input is not None:
                 tool_input = pre_result.modified_context.tool_input
                 if tool_input.args:
                     tool_args = tool_input.args
                 else:
-                    # Sync flat fields from ToolInput back to tool_args dictionary
                     for field in ["command", "path", "content", "query"]:
                         val = getattr(tool_input, field)
                         if val is not None and field in tool_args:
                             tool_args[field] = val
 
-            # Track tool execution history and detect repetitions (thread-safe)
             tool_sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
             async with self._history_lock:
                 local_tool_history.append(tool_sig)
 
-            # Capture snapshots BEFORE tool execution (for diff tracking)
-            # Only state-mutating tools can produce meaningful diffs
             is_mutating = tool.metadata.get("is_state_mutating", False)
-            logger.debug(f"[{self.name}] Diff tracking check: enabled={self.enable_diff_tracking}, is_mutating={is_mutating}")
-
             if self.enable_diff_tracking and is_mutating:
                 from app.core.tools.registry import get_tool_affected_paths
                 from app.utils.diff import diff_tracker
@@ -161,7 +138,6 @@ class AgentToolExecutor:
                     try:
                         abs_path = path
                         if not os.path.isabs(abs_path):
-                            # Resolve relative paths against the current working directory
                             wd = get_working_directory(self.config)
                             abs_path = os.path.abspath(os.path.join(wd, abs_path))
 
@@ -169,18 +145,32 @@ class AgentToolExecutor:
                         if not diff_tracker.has_snapshot(abs_path, thread_id):
                             diff_tracker.capture_snapshot(abs_path, thread_id)
                             logger.info(f"[{self.name}] Captured snapshot for: {abs_path}")
-                    except Exception as e:
+                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                         logger.warning(f"[ToolExecutor] Failed to resolve path for snapshot: {path} | Error: {e}")
 
-                # Store resolved paths in a local variable for post-execution diff tracking
                 self._current_resolved_paths = resolved_abs_paths
 
-            # Execute Tool
-            # Pass real tool_call_id via RunnableConfig metadata so callbacks can correlate
             config = {**(self.config or {})}
             existing_metadata = config.get("metadata") or {}
             config["metadata"] = {**existing_metadata, "_evoloop_tool_call_id": tool_id}
-            content = await self._tool_executor.execute(tool, tool_args, config=config)  # type: ignore[arg-type]
+
+            from uuid import uuid4 as _uuid4
+
+            from app.core.engine.callbacks.bridge import (
+                _get_callbacks,
+                emit_tool_end,
+                emit_tool_error,
+                emit_tool_start,
+            )
+            tool_callbacks = _get_callbacks(self.config)
+            tool_run_id = str(_uuid4())
+            if tool_callbacks:
+                await emit_tool_start(tool_callbacks, tool_name, tool_args, tool_run_id, tool_call_id=tool_id)
+
+            content = await self._tool_executor.execute(tool, tool_args, config=config)
+
+            if tool_callbacks:
+                await emit_tool_end(tool_callbacks, tool_name, str(content), tool_run_id)
 
             post_ctx = HookContext(
                 thread_id=thread_id,
@@ -197,15 +187,11 @@ class AgentToolExecutor:
                 post_result = await hook_system.trigger(HookEvent.POST_TOOL_USE, post_ctx, blocking=True)
                 if post_result and post_result.modified_context and post_result.modified_context.tool_result:
                     content = post_result.modified_context.tool_result.output
-            except Exception as hook_err:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as hook_err:
                 logger.warning(f"[ToolExecutor] POST_TOOL_USE hook failed: {hook_err}")
 
-            # Generate message ID for the ToolMessage ahead of time
-            # so that diff tracking can correctly link to it.
             tool_message_id = gen_uuid()
 
-            # Diff Tracking (if enabled)
-            # Only state-mutating tools can produce meaningful diffs
             if self.enable_diff_tracking and tool.metadata.get("is_state_mutating"):
                 await self._track_diffs(tool_name, tool_args, thread_id, tool_message_id, tool_id)
 
@@ -219,13 +205,13 @@ class AgentToolExecutor:
             return ToolExecutionResult(message=msg, raw_result=content)
 
         except AgentHumanInterruptException:
-            # HITL interrupts must propagate so LangGraph pauses execution and
-            # waits for user response. Do not wrap them as error ToolMessages.
             raise
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             content = f"Error executing {tool_name}: {e}"
 
-            # === HOOK: PostToolUseFailure ===
+            if tool_callbacks:
+                await emit_tool_error(tool_callbacks, tool_name, e, tool_run_id)
+
             fail_ctx = HookContext(
                 thread_id=thread_id,
                 member_id=member_id,
@@ -238,11 +224,10 @@ class AgentToolExecutor:
                 state=self.state,
                 extra=pre_result.modified_context.extra if ('pre_result' in locals() and pre_result and pre_result.modified_context) else pre_ctx.extra,
             )
-            # Fire-and-forget hook with error handling wrapper
             async def _fire_fail_hook():
                 try:
                     await hook_system.trigger(HookEvent.POST_TOOL_USE_FAILURE, fail_ctx)
-                except Exception as hook_err:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as hook_err:
                     logger.warning(f"[ToolExecutor] POST_TOOL_USE_FAILURE hook failed: {hook_err}")
 
             asyncio.create_task(_fire_fail_hook())
@@ -263,22 +248,18 @@ class AgentToolExecutor:
         message_id: str,
         tool_call_id: str,
     ) -> None:
-        """Track file diffs after tool execution."""
         from app.core.tools.registry import get_tool_map
 
-        # Guard: skip if tool is not state-mutating (e.g. read-only tools)
         tool_map = get_tool_map()
         tool_obj = tool_map.get(tool_name)
 
         if not tool_obj or not tool_obj.metadata.get("is_state_mutating"):
             return
 
-        # Use pre-resolved paths from the pre-execution phase
         snapshot_paths = getattr(self, "_current_resolved_paths", [])
         if not snapshot_paths:
             return
 
-        # Compute and persist diffs (snapshots were captured before tool execution)
         for path in snapshot_paths:
             try:
                 operation, diff, original_content = diff_tracker.compute_diff(path, thread_id)
@@ -287,11 +268,8 @@ class AgentToolExecutor:
                     try:
                         from app.core.engine.state.config import RunnableConfigMetadata
                         meta = RunnableConfigMetadata.from_config(self.config)
-                        # Use the provided message_id (ToolMessage ID)
                         msg_id = message_id
                         if settings.EMBEDDED_MODE:
-                            # In embedded mode, we don't have a background worker running.
-                            # We must persist the operation immediately to ensure changeset tracking works.
                             from app.core.engine.tasks import (
                                 _persist_file_operation_task,
                             )
@@ -319,7 +297,7 @@ class AgentToolExecutor:
                                     "tool_call_id": tool_call_id,
                                 }
                             )
-                    except Exception as e:
+                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                         logger.warning(f"Failed to dispatch FileOperation to Celery: {e}")
             except OSError as e:
                 logger.error(f"Failed to process diff for {path}: {e}")
@@ -329,19 +307,8 @@ class AgentToolExecutor:
         tool_calls: list[dict],
         local_tool_history: list[str],
         parallel: bool = False,
-    ) -> tuple[list[ToolMessage], AgentSignal | None]:
-        """
-        Execute a batch of tool calls.
-
-        Args:
-            tool_calls: List of tool call dicts with keys name, args, id
-            local_tool_history: Shared history list for repetition detection
-            parallel: Whether to execute in parallel
-
-        Returns:
-            List of ToolMessage results
-        """
-        async def _run_one(tc: dict) -> tuple[ToolMessage, Any]:
+    ) -> tuple[list[dict], AgentSignal | None]:
+        async def _run_one(tc: dict) -> tuple[dict, Any]:
             result = await self.execute_tool(
                 tool_name=tc["name"],
                 tool_args=tc["args"],
@@ -350,7 +317,6 @@ class AgentToolExecutor:
             )
             return result.message, result.raw_result
 
-        from app.core.engine.signals import signal_manager
         pending_signal = None
         results = []
 
@@ -358,9 +324,8 @@ class AgentToolExecutor:
             batch_results = await asyncio.gather(*[_run_one(tc) for tc in tool_calls])
             for msg, raw in batch_results:
                 results.append(msg)
-                # Detect signal from raw result
                 if not pending_signal:
-                    tool_name = next(tc["name"] for tc in tool_calls if tc["id"] == msg.tool_call_id)
+                    tool_name = next(tc["name"] for tc in tool_calls if tc["id"] == msg.get("tool_call_id"))
                     pending_signal = signal_manager.detect_post_execution_signal(tool_name, raw)
         else:
             for tc in tool_calls:
@@ -378,15 +343,16 @@ class AgentToolExecutor:
         tool_name: str,
         run_id: str | None,
         message_id: str | None = None,
-    ) -> ToolMessage:
-        """Create a ToolMessage with run_id metadata."""
+    ) -> dict:
+        """Create a native dictionary tool message with run_id metadata."""
         metadata = {"run_id": run_id} if run_id else {}
 
-        return ToolMessage(
-            content=str(content),
-            tool_call_id=tool_id,
-            name=tool_name,
-            id=message_id or gen_uuid(),
-            metadata=metadata,
-            additional_kwargs=metadata,
-        )
+        return {
+            "role": "tool",
+            "content": str(content),
+            "tool_call_id": tool_id,
+            "name": tool_name,
+            "id": message_id or gen_uuid(),
+            "metadata": metadata,
+            "additional_kwargs": metadata,
+        }

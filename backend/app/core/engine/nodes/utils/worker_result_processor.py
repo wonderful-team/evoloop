@@ -9,14 +9,15 @@ import asyncio
 import json
 import logging
 
-from langchain_core.messages import AIMessage, ToolMessage
-from langchain_core.runnables import RunnableConfig
-
+from app.core.engine.message.native_classes import (
+    AIMessage,
+    RunnableConfig,
+)
 from app.core.engine.message.utils import get_message_text
 from app.core.engine.schemas import EngineResult
 from app.core.engine.state import AgentState, StateUpdate
-from app.core.engine.state.sub_schemas import SubtaskResult, VerificationStatus
 from app.core.engine.state.config import ExecutionTicket
+from app.core.engine.state.sub_schemas import SubtaskResult, VerificationStatus
 from app.core.engine.state.workspace import WorkspaceContext
 from app.core.tools.registry import get_tool_metadata
 
@@ -42,7 +43,8 @@ async def process_worker_result(
         content = ""
     else:
         last_msg = engine_result.messages[-1]
-        content = get_message_text(last_msg) if isinstance(last_msg, AIMessage) else ""
+        last_role = last_msg.get("role") if isinstance(last_msg, dict) else getattr(last_msg, "type", "")
+        content = get_message_text(last_msg) if last_role in ("assistant", "ai") else ""
 
     tool_history = engine_result.tool_history or []
 
@@ -50,8 +52,9 @@ async def process_worker_result(
     # Fallback to the last ToolMessage content so aggregation has usable data.
     if not content and engine_result.messages:
         for msg in reversed(engine_result.messages):
-            if isinstance(msg, ToolMessage):
-                content = str(msg.content)
+            msg_role = msg.get("role") if isinstance(msg, dict) else getattr(msg, "type", "")
+            if msg_role == "tool":
+                content = get_message_text(msg)
                 break
 
     logger.info(f"[Worker][{role_name}] Loop finished. Content len: {len(content)}, Tools used: {len(tool_history)}")
@@ -103,7 +106,7 @@ async def process_worker_result(
             status="completed",
             result=content,
             tools_used=tool_history,
-            timestamp=asyncio.get_event_loop().time(),
+            timestamp=asyncio.get_running_loop().time(),
         )
 
         out_subtask_results = [subtask_result]
@@ -175,11 +178,16 @@ async def process_worker_result(
         touched_files = set()
         if engine_result.messages:
             for msg in engine_result.messages:
-                if getattr(msg, "tool_calls", None):
-                    for tc in msg.tool_calls:
-                        if tc.get("name") in ("edit_file", "write_file", "replace_file_content", "multi_replace_file_content", "write_to_file", "replace_content"):
-                            args = tc.get("args", {})
-                            path = args.get("path", "") or args.get("TargetFile", "")
+                msg_role = msg.get("role") if isinstance(msg, dict) else getattr(msg, "type", "")
+                if msg_role not in ("assistant", "ai"):
+                    continue
+                msg_tcs = msg.get("tool_calls") if isinstance(msg, dict) else getattr(msg, "tool_calls", None)
+                if msg_tcs:
+                    for tc in msg_tcs:
+                        tc_name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", "")
+                        if tc_name in ("edit_file", "write_file", "replace_file_content", "multi_replace_file_content", "write_to_file", "replace_content"):
+                            tc_args = tc.get("args", {}) if isinstance(tc, dict) else getattr(tc, "args", {})
+                            path = tc_args.get("path", "") or tc_args.get("TargetFile", "")
                             if path:
                                 touched_files.add(path)
 
@@ -199,16 +207,27 @@ async def process_worker_result(
     worker_content = worker_content + technical_trace
 
     preserved_messages = list(engine_result.messages or [])
-    if preserved_messages and isinstance(preserved_messages[-1], AIMessage):
-        original_msg = preserved_messages[-1]
-        preserved_messages[-1] = AIMessage(
-            content=worker_content,
-            id=original_msg.id,
-            additional_kwargs=original_msg.additional_kwargs,
-            tool_calls=original_msg.tool_calls,
-        )
+    if preserved_messages:
+        last_pm = preserved_messages[-1]
+        last_pm_role = last_pm.get("role") if isinstance(last_pm, dict) else getattr(last_pm, "type", "")
+        if last_pm_role in ("assistant", "ai"):
+            if isinstance(last_pm, dict):
+                preserved_messages[-1] = {
+                    **last_pm,
+                    "role": "assistant",
+                    "content": worker_content,
+                }
+            else:
+                preserved_messages[-1] = AIMessage(
+                    content=worker_content,
+                    id=last_pm.id,
+                    additional_kwargs=last_pm.additional_kwargs,
+                    tool_calls=last_pm.tool_calls,
+                )
+        else:
+            preserved_messages.append({"role": "assistant", "content": worker_content})
     else:
-        preserved_messages.append(AIMessage(content=worker_content))
+        preserved_messages.append({"role": "assistant", "content": worker_content})
 
     return StateUpdate(
         messages=preserved_messages,

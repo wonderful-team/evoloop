@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from app.api.responses import BaseAPIResponse
+from app.core.schemas import BaseAPIResponse
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 

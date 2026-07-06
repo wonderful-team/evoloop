@@ -1,6 +1,9 @@
 import { Card } from "@evoloop/shared/components/ui/card"
-import { ScrollArea, ScrollBar } from "@evoloop/shared/components/ui/scroll-area"
-import { Tabs, TabsList, TabsTrigger } from "@evoloop/shared/components/ui/tabs"
+import {
+  ScrollArea,
+  ScrollBar,
+} from "@evoloop/shared/components/ui/scroll-area"
+import { Tabs } from "@evoloop/shared/components/ui/tabs"
 import { cn } from "@evoloop/shared/lib/utils"
 import { File, Folder, Loader2, MessageSquare } from "lucide-react"
 import {
@@ -74,7 +77,7 @@ export const ReferencePicker = forwardRef<
             type: (f.is_dir ? "directory" : "file") as any,
             id: f.path,
             name: f.name,
-            detail: f.path || "Project root",
+            detail: f.path || t("chat.reference.projectRoot"),
           }))
           setItems(mapped.slice(0, 20))
         } else {
@@ -102,8 +105,12 @@ export const ReferencePicker = forwardRef<
           const mapped: ReferenceItem[] = res.map((c: any) => ({
             type: "message",
             id: String(c.id),
-            name: c.content ? `${c.content.slice(0, 50)}...` : "Message",
-            detail: `Thread: ${c.thread_id.slice(0, 8)}...`,
+            name: c.content
+              ? `${c.content.slice(0, 50)}...`
+              : t("chat.reference.messageFallback"),
+            detail: t("chat.reference.threadLabel", {
+              id: `${c.thread_id.slice(0, 8)}...`,
+            }),
           }))
           setItems(mapped)
         }
@@ -144,7 +151,7 @@ export const ReferencePicker = forwardRef<
     if (!highlight.trim()) return <span>{text}</span>
     try {
       const escapedHighlight = highlight.replace(
-        /[-\/\\^$*+?.()|[\]{}]/g,
+        /[-/\\^$*+?.()|[\]{}]/g,
         "\\$&",
       )
       const regex = new RegExp(`(${escapedHighlight})`, "gi")
@@ -153,7 +160,10 @@ export const ReferencePicker = forwardRef<
         <span>
           {parts.map((part, i) =>
             regex.test(part) ? (
-              <span key={i} className="font-extrabold text-amber-300 underline underline-offset-2">
+              <span
+                key={i}
+                className="font-extrabold text-amber-300 underline underline-offset-2"
+              >
                 {part}
               </span>
             ) : (
@@ -162,7 +172,7 @@ export const ReferencePicker = forwardRef<
           )}
         </span>
       )
-    } catch (e) {
+    } catch (_e) {
       return <span>{text}</span>
     }
   }
@@ -179,20 +189,20 @@ export const ReferencePicker = forwardRef<
         onValueChange={(v) => setActiveTab(v as any)}
         className="flex-1 flex flex-col"
       >
-        <TabsList className="w-full justify-start rounded-none border-b h-9 p-0 px-3 bg-muted/40">
+        {/* <TabsList className="w-full justify-start rounded-none border-b h-9 p-0 px-3 bg-muted/40">
           <TabsTrigger
             value="files"
             className="h-full px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs font-semibold"
           >
-            {t("chat.reference.files", "Files & Folders")}
+            {t("chat.reference.files")}
           </TabsTrigger>
           <TabsTrigger
             value="messages"
             className="h-full px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs font-semibold"
           >
-            {t("chat.reference.messages", "Messages")}
+            {t("chat.reference.messages")}
           </TabsTrigger>
-        </TabsList>
+        </TabsList> */}
 
         <div className="flex-1 overflow-hidden relative min-h-[160px] max-h-[300px]">
           {isLoading && (
@@ -205,8 +215,8 @@ export const ReferencePicker = forwardRef<
             {items.length === 0 && !isLoading && (
               <div className="p-8 text-center text-xs text-muted-foreground">
                 {searchQuery
-                  ? t("chat.reference.noResults", "No results found")
-                  : t("chat.reference.typeToSearch", "Type after @ to search...")}
+                  ? t("chat.reference.noResults")
+                  : t("chat.reference.typeToSearch")}
               </div>
             )}
 
@@ -232,21 +242,27 @@ export const ReferencePicker = forwardRef<
                       <File
                         className={cn(
                           "h-3.5 w-3.5 shrink-0",
-                          isHighlighted ? "text-primary-foreground" : "text-blue-500",
+                          isHighlighted
+                            ? "text-primary-foreground"
+                            : "text-blue-500",
                         )}
                       />
                     ) : item.type === "directory" ? (
                       <Folder
                         className={cn(
                           "h-3.5 w-3.5 shrink-0",
-                          isHighlighted ? "text-primary-foreground" : "text-amber-500",
+                          isHighlighted
+                            ? "text-primary-foreground"
+                            : "text-amber-500",
                         )}
                       />
                     ) : (
                       <MessageSquare
                         className={cn(
                           "h-3.5 w-3.5 shrink-0",
-                          isHighlighted ? "text-primary-foreground" : "text-green-500",
+                          isHighlighted
+                            ? "text-primary-foreground"
+                            : "text-green-500",
                         )}
                       />
                     )}

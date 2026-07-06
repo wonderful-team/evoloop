@@ -1,18 +1,18 @@
 import os
-from typing import Annotated, Optional
+from typing import Annotated
 
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import InjectedToolArg
-
-from app.core.tools import evoloop_tool
-from .utils import resolve_and_validate_path
+from app.core.engine.message.native_classes import RunnableConfig
 from app.core.file import FileSearcher
+from app.core.tools import evoloop_tool
+from app.core.tools.base import InjectedToolArg
+
+from .utils import resolve_and_validate_path
 
 
 async def grep_search_internal(
     pattern: str,
     path: str = ".",
-    scope: Optional[str] = None,
+    scope: str | None = None,
     case_insensitive: bool = False,
     config: RunnableConfig | None = None,
 ) -> str:
@@ -57,7 +57,7 @@ async def grep_search_internal(
 async def grep_search(
     pattern: str,
     path: str = ".",
-    scope: Optional[str] = None,
+    scope: str | None = None,
     case_insensitive: bool = False,
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:

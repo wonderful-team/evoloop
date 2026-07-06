@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """Agent runtime configuration and execution tickets."""
 from typing import Any
 
@@ -9,7 +10,7 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
 class RunnableConfigMetadata(DynamicBaseModel):
-    """Metadata extracted from LangGraph RunnableConfig."""
+    """Metadata extracted from the engine run context."""
     thread_id: str = "unknown"
     member_id: int | None = None
     project_id: int | None = None
@@ -17,12 +18,12 @@ class RunnableConfigMetadata(DynamicBaseModel):
     model: str | None = None
 
     @classmethod
-    def from_config(cls, config: dict | Any) -> "RunnableConfigMetadata":
-        """Hydrate metadata from a raw RunnableConfig dictionary."""
+    def from_config(cls, config: dict | Any) -> RunnableConfigMetadata:
+        """Hydrate metadata from a config dictionary."""
         if not config:
             return cls()
-        
-        # RunnableConfig is usually a dict, but let's be safe
+
+        # Config is usually a dict, but let's be safe
         configurable = config if isinstance(config, dict) else getattr(config, "configurable", {})
         if isinstance(config, dict):
             configurable = config.get("configurable", {}) or {}
@@ -50,6 +51,7 @@ class RunnableConfigMetadata(DynamicBaseModel):
 
 class TicketParameters(DynamicBaseModel):
     dependencies: list[str] | None = None
+    verbose_output: bool = True
 
 
 class WorkflowContext(DynamicBaseModel):

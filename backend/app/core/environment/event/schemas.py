@@ -5,27 +5,19 @@ Environment Event Schemas
 Pydantic data classes for environment/awakening events.
 """
 from typing import Any
+
 from pydantic import Field
 
 from app.core.events.base import BaseEvent, EventData
 from app.core.events.registry import SystemEventType
 
-# Note: We keep a local EventType for internal categorization if needed,
-# but it's better to use SystemEventType where possible.
-try:
-    from app.core.environment.event.types import EventType
-except ImportError:
-    # Fallback if types not yet moved
-    class EventType:
-        DEVICE_CONNECTED = "environment.device_connected"
-        DEVICE_DISCONNECTED = "environment.device_disconnected"
-        UI_TREE_OBSERVED = "environment.ui_tree_observed"
+from .types import EventType
 
 
 class AwakenEvent(BaseEvent):
     """Generic event for the awakening domain."""
     event_type: str = SystemEventType.AWAKENING_COMPLETE
-    
+
     # Enable automatic bridging to UI
     is_public: bool = True
     broadcast_channel: str = "system"

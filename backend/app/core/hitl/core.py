@@ -10,15 +10,15 @@ import asyncio
 import logging
 from datetime import datetime
 from typing import Any, Literal
-from uuid import uuid4
 
 from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 
 from app.core.exceptions import AgentHumanInterruptException
 from app.core.monitoring.activity import activity_monitor
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.models.conversation import HumanRequest
+from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ async def create_request(
     default_value: str | None = None,
 ) -> HumanInputRequest:
     """Create and store a human input request in the database."""
-    request_id = str(uuid4())
+    request_id = gen_uuid()
     async with session_scope() as session:
         db_request = HumanRequest(
             id=request_id,
@@ -266,7 +266,7 @@ async def push_hitl_notification(
                 metadata=metadata if metadata else None,
             )
         )
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.warning(f"Failed to push HITL request via MessageHandler: {e}")
 
 

@@ -7,7 +7,7 @@ from app.core.events.publishers import publish_skill_mutated
 from app.core.learning.skill_synthesizer import WorkflowSynthesizer
 from app.core.tools import evoloop_tool
 from app.i18n.service import i18n
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.models.learning import LearnedSkill
 
 
@@ -66,5 +66,5 @@ async def learn_from_trace(thread_id: str, session_id: str | None = None) -> str
             triggers=skill_data.trigger_patterns,
         )
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return i18n.get("domain_tools.learning.failed", error=str(e))

@@ -1,9 +1,8 @@
-import json
 import logging
 from datetime import datetime
 from typing import Any
 
-from app.core.atlas.models import AtlasApp, AtlasElement, AtlasState
+from app.core.atlas.models import AtlasApp
 from app.core.atlas.ports.store import (
     AtlasAppInfo,
     AtlasAppSummary,
@@ -81,7 +80,7 @@ class GraphAtlasStore(IAtlasStore):
                 )
 
             logger.info(f"Successfully saved Atlas for {atlas_app.bundle_id}")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to save Atlas for {atlas_app.bundle_id}: {e}")
             raise e
 

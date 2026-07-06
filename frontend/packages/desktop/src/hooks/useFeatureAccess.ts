@@ -8,7 +8,6 @@ export type FeatureCode =
   | "voice"
   | "skill_learning"
   | "wiki_generation"
-  | "knowledge_base"
   | "gantt"
   | "timesheet"
 
@@ -17,7 +16,6 @@ const FEATURE_PLAN_MAP: Record<FeatureCode, string> = {
   browser_control: "geek",
   voice: "geek",
   skill_learning: "geek",
-  knowledge_base: "geek",
   desktop_control: "expert",
   mobile_control: "expert",
   gantt: "enterprise",
@@ -32,7 +30,6 @@ const FEATURE_NAME_MAP: Record<FeatureCode, string> = {
   voice: "voice",
   skill_learning: "skillLearning",
   wiki_generation: "wikiGeneration",
-  knowledge_base: "knowledgeBase",
   gantt: "gantt",
   timesheet: "timesheet",
 }

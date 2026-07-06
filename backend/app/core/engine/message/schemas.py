@@ -18,14 +18,15 @@ from pydantic import Field
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class ReferenceBlock(DynamicBaseModel):
+class MessageReference(DynamicBaseModel):
     """
-    消息引用块 —— 挂载在消息上的非文本产出物（全平台统一标准）。
+    消息引用 —— 挂载在消息上的非文本产出物（全平台统一标准，与 mobile/ 及 DB 模型对齐）。
 
     支持的类型及其约定：
     - file       : 可下载文件（PDF、Excel、TXT 等）。target_id = 预览 URL
     - image      : 图片（截图、生成图）。target_id = 图片 URL 或物理路径
     - audio      : 音频（语音回复、上传音频）。target_id = 音频 URL 或路径
+    - video      : 视频（上传或生成的视频）。target_id = 视频 URL 或路径
     - message    : 引用历史消息（点击跳转）。target_id = message UUID
     - artifact   : 可交互组件（echarts/mermaid/map/html/react）。target_id = artifact UUID
     - changeset  : 代码变更集（文件修改列表）。target_id = run_id
@@ -38,6 +39,7 @@ class ReferenceBlock(DynamicBaseModel):
         "file",
         "image",
         "audio",
+        "video",
         "message",
         "artifact",
         "changeset",
@@ -117,8 +119,8 @@ class MessageBlock(DynamicBaseModel):
     input: Any | None = None
     tool_meta: dict[str, Any] | None = None
 
-    # === 附件与引用 (标准化 ReferenceBlock) ===
-    references: list[ReferenceBlock] | None = None
+    # === 附件与引用 (标准化 MessageReference) ===
+    references: list[MessageReference] | None = None
 
     # === 变更集预览 (由 Mapper 自动填充) ===
     has_file_operations: bool = False

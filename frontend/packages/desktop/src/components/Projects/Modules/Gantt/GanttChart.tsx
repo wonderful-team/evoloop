@@ -12,6 +12,7 @@ import {
   isSameDay,
   startOfWeek,
 } from "date-fns"
+import { enUS, zhCN } from "date-fns/locale"
 import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from "lucide-react"
 import type React from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
@@ -20,7 +21,7 @@ import { TasksService } from "@/client"
 import { type Task, TaskStatus } from "@/types/task"
 
 export const GanttChart: React.FC = () => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { projectId } = useParams({ from: "/_layout/projects/$projectId" })
   const [tasks, setTasks] = useState<Task[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -28,6 +29,10 @@ export const GanttChart: React.FC = () => {
     startOfWeek(new Date(), { weekStartsOn: 1 }),
   )
   const daysToShow = 14
+
+  const getDateLocale = () => {
+    return i18n.language === "zh" ? zhCN : enUS
+  }
 
   const fetchTasks = useCallback(async () => {
     if (!projectId) return
@@ -117,8 +122,10 @@ export const GanttChart: React.FC = () => {
               <ChevronLeft className="w-4 h-4" />
             </Button>
             <span className="flex items-center text-sm font-medium px-2">
-              {format(viewStartDate, "MMM d")} -{" "}
-              {format(addDays(viewStartDate, daysToShow - 1), "MMM d")}
+              {format(viewStartDate, "MMM d", { locale: getDateLocale() })} -{" "}
+              {format(addDays(viewStartDate, daysToShow - 1), "MMM d", {
+                locale: getDateLocale(),
+              })}
             </span>
             <Button variant="outline" size="sm" onClick={handleNext}>
               <ChevronRight className="w-4 h-4" />
@@ -149,8 +156,8 @@ export const GanttChart: React.FC = () => {
                     key={day.toISOString()}
                     className={`flex-1 text-center text-xs font-medium ${isSameDay(day, new Date()) ? "text-primary" : "text-muted-foreground"}`}
                   >
-                    <div>{format(day, "E")}</div>
-                    <div>{format(day, "d")}</div>
+                    <div>{format(day, "E", { locale: getDateLocale() })}</div>
+                    <div>{format(day, "d", { locale: getDateLocale() })}</div>
                   </div>
                 ))}
               </div>

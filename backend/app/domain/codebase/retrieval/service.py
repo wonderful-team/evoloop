@@ -1,13 +1,12 @@
 import logging
 from typing import Any
 
-from sqlalchemy import or_, select, text
+from sqlalchemy import or_, select
 
 from app.core.context.manager import ContextManager
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.models import (
-    CodeChunk,
     CodeEntity,
     CodeRelation,
     Repository,

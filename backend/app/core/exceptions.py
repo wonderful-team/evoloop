@@ -8,7 +8,7 @@ class AgentCancelledException(BaseException):
     """
     Raised when the agent execution is cancelled by user.
     Inherits from BaseException (not Exception) to ensure it is NOT caught
-    by generic `except Exception` handlers in LangChain/LangGraph.
+    by generic `except Exception` handlers in the engine.
     """
 
     pass

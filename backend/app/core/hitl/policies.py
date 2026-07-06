@@ -176,7 +176,7 @@ class PolicyLoader:
         try:
             with open(meta_path, encoding="utf-8") as f:
                 return json.load(f)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[PolicyLoader] Failed to read {meta_path}: {e}")
             return {}
 
@@ -190,7 +190,7 @@ class PolicyLoader:
             with open(meta_path, "w", encoding="utf-8") as f:
                 json.dump(meta, f, indent=2, ensure_ascii=False)
             return True
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[PolicyLoader] Failed to write {meta_path}: {e}")
             return False
 
@@ -212,7 +212,7 @@ class PolicyLoader:
         for item in raw:
             try:
                 permissions.append(GrantedPermission.from_dict(item))
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(f"[PolicyLoader] Invalid granted permission: {item} ({e})")
         return permissions
 
@@ -232,7 +232,7 @@ class PolicyLoader:
                 if item.get("path") == permission.path and item.get("action") == permission.action:
                     continue
                 cleaned.append(item)
-            except Exception:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                 continue
 
         cleaned.append(permission.to_dict())

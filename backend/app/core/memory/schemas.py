@@ -5,8 +5,8 @@ from typing import List
 
 from pydantic import Field
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.constants import DEFAULT_PROJECT_ID
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
 class SearchResult(DynamicBaseModel):

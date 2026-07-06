@@ -2,9 +2,9 @@
 
 import asyncio
 from datetime import datetime
-from typing import Any, Optional, Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
@@ -166,63 +166,3 @@ class ThinkingConfig(DynamicBaseModel):
             "enable_thinking": self.enable,
             "return_reasoning": self.return_reasoning,
         }
-
-
-class KnowledgeSearchResult(BaseModel):
-    """Single search result."""
-
-    doc_id: str
-    path: str
-    collection: str
-    title: str
-    content_snippet: str
-    highlights: str  # HTML with <mark> tags
-    rank: float
-    bm25_score: float
-
-
-class SearchResults(BaseModel):
-    """Collection of search results."""
-
-    query: str
-    total: int
-    results: list[KnowledgeSearchResult]
-    facets: dict = Field(default_factory=dict)
-
-
-class SearchSuggestion(BaseModel):
-    """Single search suggestion."""
-
-    text: str
-    path: Optional[str] = None
-    type: str  # "title", "tag"
-
-
-class SearchIndexStats(BaseModel):
-    """Search index statistics."""
-
-    total_documents: int
-    total_terms: int
-    collections: list[str]
-    recent_searches: list[dict]
-
-
-class ReindexResult(BaseModel):
-    """Result of reindexing all documents."""
-
-    indexed: int
-    failed: int
-    total: int
-
-
-class IndexDocumentRequest(BaseModel):
-    """Request to index a document."""
-
-    doc_id: str
-    path: str
-    title: str
-    content: str
-    collection: str = "default"
-    tags: Optional[list[str]] = None
-    file_size: Optional[int] = None
-    word_count: Optional[int] = None

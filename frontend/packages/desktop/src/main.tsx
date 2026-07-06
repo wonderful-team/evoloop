@@ -56,8 +56,8 @@ const handleApiError = (error: Error) => {
     localStorage.removeItem("access_token")
 
     // 显示提示
-    toast.error(i18n.t("auth.sessionExpired", "Session Expired"), {
-      description: i18n.t("auth.pleaseLoginAgain", "Please log in again to continue"),
+    toast.error(i18n.t("auth.sessionExpired"), {
+      description: i18n.t("auth.pleaseLoginAgain"),
       duration: 5000,
     })
 

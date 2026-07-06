@@ -65,16 +65,14 @@ export function UploadButton({
     const extension = `.${file.name.split(".").pop()?.toLowerCase()}`
     if (!ALLOWED_TYPES.includes(extension)) {
       alert(
-        t(
-          "requirements.upload.invalidType",
-          "不支持的文件类型。请上传: {{types}}",
-          { types: ALLOWED_TYPES.join(", ") },
-        ),
+        t("requirements.upload.invalidType", {
+          types: ALLOWED_TYPES.join(", "),
+        }),
       )
       return false
     }
     if (file.size > 50 * 1024 * 1024) {
-      alert(t("requirements.upload.tooLarge", "文件大小不能超过 50MB"))
+      alert(t("requirements.upload.tooLarge"))
       return false
     }
     return true
@@ -92,11 +90,16 @@ export function UploadButton({
   }
 
   const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 B"
+    if (bytes === 0) return t("common.fileSizeB", { size: 0 })
     const k = 1024
-    const sizes = ["B", "KB", "MB", "GB"]
+    const units = ["B", "KB", "MB", "GB"]
     const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return `${parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`
+    const unit = units[i] || "GB"
+    const value = parseFloat((bytes / k ** i).toFixed(2))
+    if (unit === "B") return t("common.fileSizeB", { size: value })
+    if (unit === "KB") return t("common.fileSizeKB", { size: value })
+    if (unit === "MB") return t("common.fileSizeMB", { size: value })
+    return `${value} ${unit}`
   }
 
   return (
@@ -120,17 +123,15 @@ export function UploadButton({
                 <Upload className="h-6 w-6 text-muted-foreground" />
               </div>
               <h3 className="text-sm font-medium mb-1">
-                {t("requirements.upload.title", "上传需求文档")}
+                {t("requirements.upload.title")}
               </h3>
               <p className="text-xs text-muted-foreground mb-4">
-                {t(
-                  "requirements.upload.dragDrop",
-                  "拖拽文件到这里，或点击选择",
-                )}
+                {t("requirements.upload.dragDrop")}
               </p>
               <p className="text-xs text-muted-foreground/70 mb-4">
-                {t("requirements.upload.supportedTypes", "支持")}: DOCX, PDF,
-                XLSX, MD, TXT
+                {t("requirements.upload.supportedTypes")}
+                {t("common.colon")}{" "}
+                {t("requirements.upload.supportedTypesList")}
               </p>
               <label>
                 <input
@@ -150,12 +151,12 @@ export function UploadButton({
                     {isUploading ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                        {t("common.uploading", "上传中...")}
+                        {t("common.uploading")}
                       </>
                     ) : (
                       <>
                         <FileText className="h-4 w-4 mr-1" />
-                        {t("common.selectFile", "选择文件")}
+                        {t("common.selectFile")}
                       </>
                     )}
                   </span>
@@ -193,7 +194,7 @@ export function UploadButton({
                   onClick={handleClear}
                   disabled={isUploading}
                 >
-                  {t("common.cancel", "取消")}
+                  {t("common.cancel")}
                 </Button>
                 <Button
                   size="sm"
@@ -204,12 +205,12 @@ export function UploadButton({
                   {isUploading ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                      {t("common.uploading", "上传中...")}
+                      {t("common.uploading")}
                     </>
                   ) : (
                     <>
                       <Upload className="h-4 w-4 mr-1" />
-                      {t("common.upload", "上传")}
+                      {t("common.upload")}
                     </>
                   )}
                 </Button>

@@ -138,7 +138,7 @@ class ALLanguageServer(SolidLanguageServer):
             log.info("AL extension extracted successfully")
             return True
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             log.error(f"Error downloading/extracting AL extension: {e}")
             return False
 
@@ -587,7 +587,7 @@ class ALLanguageServer(SolidLanguageServer):
                 },
             )
             log.debug("Sent workspace configuration")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             log.warning(f"Failed to send workspace config: {e}")
 
         # Check if app.json exists and open it
@@ -609,7 +609,7 @@ class ALLanguageServer(SolidLanguageServer):
                 )
 
                 log.debug(f"Opened app.json: {app_json_uri}")
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 log.warning(f"Failed to open app.json: {e}")
 
         # Try to set active workspace (AL-specific custom LSP request)
@@ -628,7 +628,7 @@ class ALLanguageServer(SolidLanguageServer):
                 },
             )
             log.debug(f"Set active workspace result: {result}")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             # This is a custom AL request, not critical if it fails
             log.debug(f"Failed to set active workspace (non-critical): {e}")
 
@@ -776,7 +776,7 @@ class ALLanguageServer(SolidLanguageServer):
                     all_file_symbols.append(file_symbol)
                     log.debug(f"AL: Added {len(all_syms)} symbols from {relative_path}")
 
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 log.warning(f"AL: Failed to get symbols for {relative_path}: {e}")
 
         if all_file_symbols:
@@ -849,7 +849,7 @@ class ALLanguageServer(SolidLanguageServer):
             response = self.server.send_request("al/gotodefinition", al_params)
             log.debug(f"AL gotodefinition response: {response}")
             return response  # type: ignore[return-value]
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             log.warning(f"Failed to use al/gotodefinition, falling back to standard: {e}")
             # Fallback to standard LSP method if custom command fails
             return super()._send_definition_request(definition_params)
@@ -890,7 +890,7 @@ class ALLanguageServer(SolidLanguageServer):
             else:
                 log.debug(f"Unexpected response type for project load check: {type(response)}")
                 return False
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             # Mark as unsupported to avoid repeated failed attempts
             self._project_load_check_supported = False
             log.debug(f"Project load check not supported by this AL server version: {e}")
@@ -952,6 +952,6 @@ class ALLanguageServer(SolidLanguageServer):
         try:
             self.server.send_request("al/setActiveWorkspace", params)
             log.info(f"Set active workspace to: {workspace_uri}")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             log.warning(f"Failed to set active workspace: {e}")
             # Non-critical error, continue operation

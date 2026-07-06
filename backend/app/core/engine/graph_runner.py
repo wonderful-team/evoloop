@@ -1,9 +1,4 @@
-"""
-Graph execution runner for background resumption.
-
-Wraps ``graph.astream()`` with activity-monitor lifecycle and
-standard exception handling.
-"""
+"""Graph execution runner for background resumption (native lightweight implementation)."""
 
 import logging
 
@@ -11,7 +6,6 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.engine.callbacks.database_logger import DatabaseCallbackHandler
 from app.core.engine.callbacks.transparent import TransparentCallbackHandler
 from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
-from app.core.globals import get_graph
 from app.core.monitoring.activity import activity_monitor
 
 logger = logging.getLogger(__name__)
@@ -25,25 +19,16 @@ async def resume_graph_background(
     run_label: str = "Resuming...",
     clear_human_request_flag: bool = False,
 ):
-    """
-    Unified background graph resumption loop.
+    """Unified background execution resumption loop."""
+    from app.core.context import ContextManager
+    from app.core.engine.state import AgentState
 
-    Used by ``/chat/resume`` and ``/hitl/cancel``.
-    """
-    if inputs and "messages" in inputs:
-        from app.core.engine.message.converter import EvoMessageConverter
-        inputs = inputs.copy()
-        inputs["messages"] = EvoMessageConverter.to_langchain(inputs["messages"])
+    await ContextManager.load(thread_id)
 
-    graph = get_graph()
-    if not graph:
-        logger.error(f"[Dispatch] Cannot resume {thread_id}: graph not initialized")
-        await activity_monitor.end_run(thread_id, "failed")
-        return
+    state = AgentState.model_validate(inputs)
+    state.next_node = "supervisor"
 
     callback = TransparentCallbackHandler(thread_id=thread_id)
-
-    # Extract project_id from config metadata (same pattern as run_agent_background)
     raw_project_id = config.get("metadata", {}).get("project_id") if config else None
     project_id = int(raw_project_id) if raw_project_id is not None else DEFAULT_PROJECT_ID
     run_id = config.get("configurable", {}).get("run_id", f"resume-{thread_id}") if config else f"resume-{thread_id}"
@@ -62,9 +47,11 @@ async def resume_graph_background(
 
         resume_config = {**config, "callbacks": [callback, db_callback]}
 
-        async for _event in graph.astream(inputs, config=resume_config):
-            await activity_monitor.check_cancellation(thread_id)
+        from app.core.engine.loop import run_node_loop
 
+        await run_node_loop(state, resume_config, thread_id, log_prefix="ResumeGraph")
+
+        await ContextManager.save(thread_id)
         await activity_monitor.end_run(thread_id, "done")
 
     except AgentCancelledException:
@@ -72,6 +59,6 @@ async def resume_graph_background(
     except AgentHumanInterruptException:
         logger.info(f"Resume interrupted for human input: {thread_id}")
         await activity_monitor.end_run(thread_id, "human_interrupt")
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Resume error for {thread_id}: {e}")
         await activity_monitor.end_run(thread_id, "failed")

@@ -164,7 +164,7 @@ export function AnalysisResultCard({
             <ClipboardList className="h-5 w-5 text-primary" />
           </div>
           <span className="uppercase tracking-[0.2em] text-[10px] font-bold text-primary/60">
-            {t("requirements.analysis.badge", "Requirement Analysis Report")}
+            {t("requirements.analysis.badge")}
           </span>
         </div>
 
@@ -179,8 +179,7 @@ export function AnalysisResultCard({
               className="w-full bg-background/50 px-3 py-1.5 border border-primary/20 rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30"
             />
           ) : (
-            data.title ||
-            t("requirements.analysis.untitled", "Untitled Requirement")
+            data.title || t("requirements.analysis.untitled")
           )}
         </h2>
 
@@ -208,10 +207,7 @@ export function AnalysisResultCard({
           data.functional_requirements.length > 0 && (
             <div className="space-y-3">
               <SectionHeader
-                title={t(
-                  "requirements.analysis.functionalRequirements",
-                  "Functional Requirements",
-                )}
+                title={t("requirements.analysis.functionalRequirements")}
                 icon={ListTodo}
                 section="functional"
                 count={data.functional_requirements.length}
@@ -264,7 +260,7 @@ export function AnalysisResultCard({
         {data.user_stories && data.user_stories.length > 0 && (
           <div className="space-y-3">
             <SectionHeader
-              title={t("requirements.analysis.userStories", "User Stories")}
+              title={t("requirements.analysis.userStories")}
               icon={Users}
               section="stories"
               count={data.user_stories.length}
@@ -281,18 +277,18 @@ export function AnalysisResultCard({
                     </div>
                     <div className="text-[15px] leading-relaxed">
                       <span className="text-muted-foreground font-medium italic">
-                        {t("requirements.analysis.asA", "As a")}
+                        {t("requirements.analysis.asA")}
                       </span>{" "}
                       <span className="font-bold underline decoration-primary/20">
                         {story.role}
                       </span>
                       ,{" "}
                       <span className="text-muted-foreground font-medium italic">
-                        {t("requirements.analysis.iWant", "I want to")}
+                        {t("requirements.analysis.iWant")}
                       </span>{" "}
                       <span className="font-bold">{story.action}</span>,{" "}
                       <span className="text-muted-foreground font-medium italic">
-                        {t("requirements.analysis.soThat", "so that")}
+                        {t("requirements.analysis.soThat")}
                       </span>{" "}
                       <span className="text-muted-foreground">
                         {story.benefit}
@@ -324,10 +320,7 @@ export function AnalysisResultCard({
             data.technical_suggestions.length > 0 && (
               <div className="space-y-3">
                 <SectionHeader
-                  title={t(
-                    "requirements.analysis.technicalSuggestions",
-                    "Technical Suggestions",
-                  )}
+                  title={t("requirements.analysis.technicalSuggestions")}
                   icon={Lightbulb}
                   section="technical"
                 />
@@ -357,7 +350,7 @@ export function AnalysisResultCard({
           {data.risks && data.risks.length > 0 && (
             <div className="space-y-3">
               <SectionHeader
-                title={t("requirements.analysis.risks", "Risks & Mitigations")}
+                title={t("requirements.analysis.risks")}
                 icon={ShieldAlert}
                 section="risks"
               />
@@ -376,7 +369,7 @@ export function AnalysisResultCard({
                             getImpactColor(risk.impact),
                           )}
                         >
-                          {risk.impact} Impact
+                          {risk.impact} {t("requirements.analysis.impact")}
                         </Badge>
                       </div>
                       <p className="text-sm font-bold mb-1">
@@ -384,7 +377,7 @@ export function AnalysisResultCard({
                       </p>
                       <div className="text-xs text-muted-foreground/80 mt-2 bg-background/50 p-2 rounded border border-red-500/10">
                         <span className="font-bold text-[9px] uppercase tracking-tighter mr-1">
-                          {t("requirements.analysis.mitigation", "Mitigation")}:
+                          {t("requirements.analysis.mitigation")}:
                         </span>{" "}
                         {risk.mitigation}
                       </div>
@@ -400,13 +393,10 @@ export function AnalysisResultCard({
         {onRequestChanges && (
           <div className="pt-8 border-t border-[var(--doc-border)]">
             <label className="text-[11px] font-bold uppercase tracking-[0.15em] text-muted-foreground/60 mb-3 block">
-              {t("requirements.analysis.feedback", "Revision Feedback")}
+              {t("requirements.analysis.feedback")}
             </label>
             <Textarea
-              placeholder={t(
-                "requirements.analysis.feedbackPlaceholder",
-                "Enter your feedback here if you need any adjustments...",
-              )}
+              placeholder={t("requirements.analysis.feedbackPlaceholder")}
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
               rows={3}
@@ -426,7 +416,7 @@ export function AnalysisResultCard({
               disabled={!feedback.trim()}
               className="rounded-full px-5 border-red-500/20 text-red-600 hover:bg-red-50 font-bold"
             >
-              {t("requirements.analysis.requestChanges", "Request Changes")}
+              {t("requirements.analysis.requestChanges")}
             </Button>
           )}
           <Button
@@ -435,9 +425,7 @@ export function AnalysisResultCard({
             onClick={() => setIsEditing(!isEditing)}
             className="text-muted-foreground hover:text-foreground font-bold"
           >
-            {isEditing
-              ? t("common.cancel", "Cancel Edit")
-              : t("common.edit", "Edit Content")}
+            {isEditing ? t("common.cancel") : t("common.edit")}
           </Button>
         </div>
         <Button
@@ -446,8 +434,8 @@ export function AnalysisResultCard({
         >
           <CheckCircle className="h-4 w-4" />
           {isEditing
-            ? t("requirements.analysis.saveAndConfirm", "Save & Confirm")
-            : t("requirements.analysis.confirm", "Confirm Analysis")}
+            ? t("requirements.analysis.saveAndConfirm")
+            : t("requirements.analysis.confirm")}
         </Button>
       </div>
     </div>

@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.domain.codebase.retrieval.rewriter import query_rewriter
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.infrastructure.database.vector import get_vector_store
 from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.models import CodeChunk, Repository, SourceFile

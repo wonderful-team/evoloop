@@ -9,17 +9,19 @@ import os
 import re
 from typing import Annotated
 
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import InjectedToolArg
-
+from app.core.engine.message.native_classes import RunnableConfig
 from app.core.file import (
-    read_file as core_read_file,
+    FileStatus,
     get_file_info,
     get_large_file_preview,
-    FileStatus,
+)
+from app.core.file import (
+    read_file as core_read_file,
 )
 from app.core.tools import evoloop_tool
+from app.core.tools.base import InjectedToolArg
 from app.i18n.service import i18n
+
 from .utils import resolve_and_validate_path
 
 
@@ -49,7 +51,7 @@ async def handle_read(
                 start_range=start_line,
                 end_range=end_line
             )
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             import logging
             logger = logging.getLogger(__name__)
             logger.error(f"Extraction failed for {path}: {e}")
@@ -79,8 +81,8 @@ async def handle_read(
                     path=path,
                     siblings=siblings_str,
                 )
-            except Exception:
-                pass
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.debug("Suppressed error: %s", e, exc_info=True)
         return i18n.get("domain_tools.files.read_not_found", path=path)
 
     # Guard against reading directories
@@ -155,7 +157,7 @@ Use `read_file(path='{path}', start_line=N, end_line=M)` to read specific line r
 
         return result.content, {"start_line": start_line or 1, "end_line": end_line or 1000}
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return i18n.get("domain_tools.files.read_error", error=str(e))
 
 

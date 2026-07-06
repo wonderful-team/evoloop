@@ -1,6 +1,4 @@
 from datetime import datetime
-from typing import Optional
-
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -127,7 +125,7 @@ class CodeRelation(Base):
         foreign_keys=[source_entity_id],
         back_populates="relations_from"
     )
-    target_entity: Mapped[Optional["CodeEntity"]] = relationship(
+    target_entity: Mapped["CodeEntity | None"] = relationship(
         "CodeEntity",
         foreign_keys=[target_entity_id],
         back_populates="relations_to"

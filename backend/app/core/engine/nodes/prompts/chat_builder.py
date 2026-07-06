@@ -1,6 +1,7 @@
 import logging
 
-from app.utils import render_template
+from app.utils.template import render_template
+
 from .base_builder import BasePromptBuilder
 
 logger = logging.getLogger(__name__)

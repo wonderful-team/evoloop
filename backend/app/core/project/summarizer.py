@@ -1,8 +1,7 @@
 import asyncio
+import json
 import logging
 import os
-
-from langchain_core.output_parsers import JsonOutputParser
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core import file as file_utils
@@ -10,8 +9,8 @@ from app.core.evocloud import evocloud_manager
 from app.core.monitoring.activity import activity_monitor
 from app.core.project.service import project_context_manager
 from app.infrastructure.queue.factory import get_scheduler, shared_task
-from app.utils import json as json_utils
 from app.utils.async_utils import flush_loop_bound_resources
+from app.utils.json import dumps
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +40,7 @@ async def _summarize_project_logic(name: str, path: str):
                     break
         if matched:
             project_id = matched.get("id")
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.warning(f"Early project ID resolution failed: {e}")
 
     # Start Activity
@@ -52,12 +51,14 @@ async def _summarize_project_logic(name: str, path: str):
     container = None
     try:
         arch_summary = "Not available yet."
-        from app.domain.codebase.indexing.directory_summarizer import DirectorySummarizer
+        from app.domain.codebase.indexing.directory_summarizer import (
+            DirectorySummarizer,
+        )
         try:
             summary_dir = await DirectorySummarizer.get_summary(path)
             if summary_dir:
                 arch_summary = summary_dir
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug(f"[ProjectSummarizer] Failed to fetch directory summary: {e}")
 
         # Update Status
@@ -70,7 +71,7 @@ async def _summarize_project_logic(name: str, path: str):
             for entry in FileTraverser.list_entries(path):
                 if entry.is_file():
                     files.append(entry.name)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug(f"[ProjectSummarizer] Directory scan failed for {path}: {e}")
 
         readme_content = project_context_manager.extract_description_from_readme(path)
@@ -79,7 +80,7 @@ async def _summarize_project_logic(name: str, path: str):
         await activity_monitor.update_agent_state(sys_tid, "Summarizing", "Project Analysis", "Generating Summary with LLM...")
 
         # 2. Call LLM
-        from app.utils import render_template
+        from app.utils.template import render_template
         prompt_text = render_template(
             "domain/project/project_summary.prompt.j2",
             project_name=name,
@@ -88,7 +89,7 @@ async def _summarize_project_logic(name: str, path: str):
             arch_summary=arch_summary
         )
 
-        from app.core.llm import InternalLLMService
+        from app.infrastructure.llm import InternalLLMService
         from app.infrastructure.config.service import SystemConfigService
         model_name = SystemConfigService.get_value("LLM_MODEL")
         response = await InternalLLMService.invoke(
@@ -98,8 +99,17 @@ async def _summarize_project_logic(name: str, path: str):
             model_name=model_name,
         )
 
-        parser = JsonOutputParser()
-        result = parser.parse(response.content)
+        def parse_json_markdown(text: str) -> dict:
+            text = text.strip()
+            if text.startswith("```"):
+                first_newline = text.find("\n")
+                if first_newline != -1:
+                    text = text[first_newline:]
+                if text.endswith("```"):
+                    text = text[:-3]
+            return json.loads(text.strip())
+
+        result = parse_json_markdown(response.content)
 
         # 3. Save Result
         meta_dir = os.path.join(path, ".evoloop")
@@ -113,7 +123,7 @@ async def _summarize_project_logic(name: str, path: str):
         from app.core.hitl.policies import DEFAULT_SENSITIVE_PATTERNS
         result.setdefault("sensitive_patterns", DEFAULT_SENSITIVE_PATTERNS)
         result.setdefault("authorized_paths", [])
-        file_utils.write_file(meta_file, json_utils.dumps(result, indent=2))
+        file_utils.write_file(meta_file, dumps(result, indent=2))
 
         logger.info(f"[ProjectSummarizer] Saved metadata for {name}: {result}")
 
@@ -135,7 +145,7 @@ async def _summarize_project_logic(name: str, path: str):
                     logger.info(f"[ProjectSummarizer] Uploaded summary for {name}")
                     # Invalidate cache to reflect updated description
                     evocloud_manager.invalidate_projects_cache()
-                except Exception as up_e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as up_e:
                     logger.error(f"Failed to upload summary: {up_e}")
         else:
             logger.warning(f"[ProjectSummarizer] Could not resolve Project ID for {name}, using default 1")
@@ -157,7 +167,7 @@ async def _summarize_project_logic(name: str, path: str):
         # Done
         await activity_monitor.end_run(sys_tid, "done")
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[ProjectSummarizer] Failed to summarize {name}: {e}")
         await activity_monitor.end_run(sys_tid, "failed")
         # Re-raise to let Celery know it failed (triggering retries if configured)

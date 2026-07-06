@@ -67,7 +67,7 @@ export const VoiceRecorderButton = forwardRef<
         // 检查麦克风权限
         const hasPermission = await ensureMicrophonePermission()
         if (!hasPermission) {
-          toast.error(t("chat.voice.permissionDenied", "麦克风权限被拒绝"))
+          toast.error(t("chat.voice.permissionDenied"))
           return
         }
 
@@ -84,7 +84,7 @@ export const VoiceRecorderButton = forwardRef<
         setShowCancel(false)
       } catch (err: any) {
         console.error("Failed to start recording:", err)
-        toast.error(t("chat.voice.recordingFailed", "录音启动失败"))
+        toast.error(t("chat.voice.recordingFailed"))
       }
     },
     [disabled, isProcessing, startRecording, t, isSpeaking, stopTTS],
@@ -100,14 +100,14 @@ export const VoiceRecorderButton = forwardRef<
       if (showCancel) {
         // 取消录音
         cancelRecording()
-        toast.info(t("chat.voice.cancelled", "已取消"))
+        toast.info(t("chat.voice.cancelled"))
       } else {
         // 停止并保存录音
         const result = await stopRecording()
 
         // 太短不发送
         if (result.duration < 1) {
-          toast.warning(t("chat.voice.tooShort", "录音时间太短"))
+          toast.warning(t("chat.voice.tooShort"))
           return
         }
 
@@ -124,7 +124,7 @@ export const VoiceRecorderButton = forwardRef<
       }
     } catch (err) {
       console.error("Recording error:", err)
-      toast.error(t("chat.voice.recordingError", "录音出错"))
+      toast.error(t("chat.voice.recordingError"))
     } finally {
       setIsProcessing(false)
       setIsPressing(false)
@@ -280,8 +280,8 @@ export const VoiceRecorderButton = forwardRef<
               )}
             >
               {showCancel
-                ? t("chat.voice.releaseToCancel", "松开取消发送")
-                : t("chat.voice.slideUpToCancel", "手指上滑取消")}
+                ? t("chat.voice.releaseToCancel")
+                : t("chat.voice.slideUpToCancel")}
             </span>
 
             {/* 取消图标（上滑时显示） */}

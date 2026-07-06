@@ -14,7 +14,7 @@ from datetime import datetime
 
 from pydantic import Field
 
-from app.core.atlas.schemas import AtlasStateMetadata, MenuTree, Rect, ElementMetadata
+from app.core.atlas.schemas import AtlasStateMetadata, ElementMetadata, MenuTree, Rect
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 

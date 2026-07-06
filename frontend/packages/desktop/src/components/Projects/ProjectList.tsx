@@ -105,9 +105,9 @@ export function ProjectList() {
     setIsScanning(true)
     try {
       await scanProjects()
-      toast.success(t("projects.import.scanComplete", "Scan complete"))
+      toast.success(t("projects.import.scanComplete"))
     } catch (_error) {
-      toast.error(t("projects.import.scanFailed", "Scan failed"))
+      toast.error(t("projects.import.scanFailed"))
     } finally {
       setIsScanning(false)
     }
@@ -149,7 +149,7 @@ export function ProjectList() {
             <FolderPlus
               className={`mr-2 h-4 w-4 ${isScanning ? "animate-spin" : ""}`}
             />
-            {t("projects.import.manualImport", "Import Local")}
+            {t("projects.import.manualImport")}
           </Button>
 
           <AddProject />
@@ -204,7 +204,7 @@ export function ProjectList() {
                     className="bg-green-100 text-green-700 hover:bg-green-200 border-green-200 gap-1"
                   >
                     <BookOpen className="h-3 w-3 animate-pulse" />{" "}
-                    {t("wiki.nav", "Wiki")}
+                    {t("wiki.nav")}
                   </Badge>
                 )}
                 <Badge variant="outline">

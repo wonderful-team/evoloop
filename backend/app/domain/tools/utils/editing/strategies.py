@@ -1,6 +1,6 @@
 from collections.abc import Generator
 
-from .algorithms import levenshtein
+from app.core.file.editor.algorithms import levenshtein
 
 # Similarity thresholds
 SINGLE_CANDIDATE_SIMILARITY_THRESHOLD = 0.0

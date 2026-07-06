@@ -13,7 +13,6 @@ from app.models.schemas.base import TimestampedEntity
 from app.models.schemas.requests import BaseFilter
 from app.models.todo import TodoPriority, TodoStatus
 
-
 # ============== Base Schemas ==============
 
 class TodoBase(BaseModel):

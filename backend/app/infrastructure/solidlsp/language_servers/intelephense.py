@@ -19,8 +19,9 @@ from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_types import (
 )
 from app.infrastructure.solidlsp.lsp_protocol_handler.server import ProcessLaunchInfo
 from app.infrastructure.solidlsp.settings import SolidLSPSettings
-from .common import RuntimeDependency, RuntimeDependencyCollection
+
 from ..lsp_protocol_handler import lsp_types
+from .common import RuntimeDependency, RuntimeDependencyCollection
 
 log = logging.getLogger(__name__)
 

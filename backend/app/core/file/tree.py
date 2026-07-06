@@ -1,7 +1,10 @@
+import logging
 import os
-from typing import List, Dict, Optional, Any
-from .traverser import FileTraverser, TraverseOptions
-from .filter import is_ignored_path
+from typing import Any, Dict, List
+
+from .traverser import FileTraverser
+
+logger = logging.getLogger(__name__)
 
 class TreeService:
     """
@@ -14,7 +17,7 @@ class TreeService:
         root_path: str,
         rel_path: str = "",
         max_depth: int = 1, # Default shallow for UI
-        exclude_dirs: Optional[List[str]] = None
+        exclude_dirs: List[str] | None = None
     ) -> List[Dict[str, Any]]:
         """
         Generate a JSON structure for UI file explorers.
@@ -43,8 +46,8 @@ class TreeService:
                     )
                 
                 nodes.append(node)
-        except Exception:
-            pass
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.debug("Suppressed error: %s", e, exc_info=True)
         return nodes
 
     @staticmethod
@@ -53,8 +56,8 @@ class TreeService:
         max_depth: int = 3,
         max_entries: int = 200,
         prefix: str = "",
-        exclude_dirs: Optional[List[str]] = None,
-        _state: Optional[Dict] = None,
+        exclude_dirs: List[str] | None = None,
+        _state: Dict | None = None,
         with_stats: bool = False,
     ) -> str:
         """
@@ -71,7 +74,7 @@ class TreeService:
             elif size < 1024 * 1024 * 1024: return f"{size / (1024 * 1024):.1f}M"
             else: return f"{size / (1024 * 1024 * 1024):.1f}G"
 
-        def _get_line_count(file_path: str, max_size: int = 1024 * 1024) -> Optional[int]:
+        def _get_line_count(file_path: str, max_size: int = 1024 * 1024) -> int | None:
             try:
                 size = os.path.getsize(file_path)
                 if size == 0 or size > max_size: return None
@@ -79,7 +82,8 @@ class TreeService:
                     if b"\x00" in f.read(4096): return None
                 with open(file_path, "rb") as f:
                     return sum(1 for _ in f)
-            except Exception:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.debug("Suppressed error: %s", e, exc_info=True)
                 return None
 
         if not os.path.isdir(path):
@@ -129,12 +133,12 @@ class TreeService:
                                 if lc is not None:
                                     lines_str = f" ({lc} lines)"
                             stat_str = f"{size_str}{lines_str}"
-                        except Exception:
-                            pass
+                        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                            logger.debug("Suppressed error: %s", e, exc_info=True)
                     result.append(f"{child_prefix}{entry.name}{stat_str}")
                     _state["count"] += 1
                     
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             result.append(f"{prefix}  [Error: {e}]")
 
         return "\n".join(result)

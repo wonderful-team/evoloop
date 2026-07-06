@@ -98,7 +98,7 @@ Based on your role "{{ role_name }}", prioritize these tools:
   - [GOOD]: `query="PostgreSQL Dockerfile"` (extract technical terms, space = OR)
 
 ### Documentation & Knowledge Capture Protocol
-During development, if you create, discover, or clarify anything worth documenting, **you MUST persist it to the project's knowledge base** using the appropriate tool:
+During development, if you create, discover, or clarify anything worth documenting, **you MUST persist it to the project's wiki and memory** using the appropriate tool:
 - **`write_wiki_page(title, content)`** — For structured documentation (API docs, architecture overviews, setup guides, design decisions). Use the page title as the address.
   - Example: After designing a new module → `write_wiki_page("Auth Module Architecture", "## Overview\n...")`
 - **`edit_wiki_page(title, old_string, new_string)`** — For incremental edits to an existing wiki page. Uses fuzzy matching to find and replace a section.

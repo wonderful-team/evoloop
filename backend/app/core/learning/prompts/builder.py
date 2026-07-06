@@ -3,7 +3,7 @@ from typing import Any
 
 from app.core.environment.capabilities.registry import ActionRegistry
 from app.core.learning.schemas.migrated import ActionRegistryItem
-from app.utils import render_template
+from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ class LearningPromptBuilder:
         template_name = self.TEMPLATES.get(template_key, template_key)
         try:
             return render_template(template_name, **vars)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Error rendering {template_name}: {e}")
             return f"{fallback_msg}: {e}"
 

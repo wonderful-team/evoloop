@@ -96,7 +96,7 @@ class AtlasStrategyStore:
             data = await cache.get(key)
             if data:
                 return AppStrategy.model_validate(json.loads(data))
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"Failed to load strategy for {bundle_id}: {e}")
         return None
 
@@ -107,7 +107,7 @@ class AtlasStrategyStore:
         try:
             await cache.set(key, json.dumps(strategy.model_dump()), ex=86400 * 7)  # 7 days
             return True
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to save strategy for {strategy.bundle_id}: {e}")
             return False
 
@@ -118,7 +118,7 @@ class AtlasStrategyStore:
         try:
             await cache.delete(key)
             return True
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to delete strategy for {bundle_id}: {e}")
             return False
 

@@ -216,7 +216,8 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                           {t("projects.tasks.columns.progress")}
                         </h3>
                         <span className="text-sm font-bold">
-                          {task.progress || 0}%
+                          {task.progress || 0}
+                          {t("common.percent")}
                         </span>
                       </div>
                       <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
@@ -248,7 +249,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                           <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
                             {task.match_score || 0}
                             <span className="text-sm text-indigo-400">
-                              /100
+                              {t("projects.tasks.scoreOutOf")}
                             </span>
                           </span>
                         </div>

@@ -1,3 +1,4 @@
+import logging
 import time
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -7,6 +8,8 @@ from app.core.context.manager import ContextManager, EvoContext
 from app.core.context.plugins import plugin_registry
 from app.core.identity import identity_service
 from app.utils.id import gen_uuid
+
+logger = logging.getLogger(__name__)
 
 
 class ContextMiddleware(BaseHTTPMiddleware):
@@ -35,8 +38,8 @@ class ContextMiddleware(BaseHTTPMiddleware):
                 # Store on request.state so route deps can reuse without re-resolving
                 request.state.resolved_member_id = member_id
                 request.state.resolved_token = token
-            except Exception:
-                pass
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.debug("Suppressed error: %s", e, exc_info=True)
 
         # 3. Create Context
         ctx = EvoContext(

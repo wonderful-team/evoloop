@@ -1,3 +1,4 @@
+import i18n from "@evoloop/shared/i18n"
 import { createFileRoute } from "@tanstack/react-router"
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event"
 import {
@@ -18,7 +19,7 @@ export const Route = createFileRoute("/marker-overlay")({
     if (!isTauri()) {
       return (
         <div className="flex items-center justify-center h-screen text-muted-foreground">
-          Marker overlay is only available in the desktop app.
+          {i18n.t("overlay.desktopOnly")}
         </div>
       )
     }
@@ -400,11 +401,11 @@ function MarkerOverlay() {
           >
             <Crosshair className="w-5 h-5 text-blue-400" />
             <span className="text-sm font-semibold tracking-wide">
-              {t("overlay.dragToSelect", "Drag to select region")}
+              {t("overlay.dragToSelect")}
             </span>
             <div className="h-4 w-[1px] bg-white/20 mx-1" />
             <span className="text-xs text-white/60 font-mono bg-white/10 px-2 py-0.5 rounded">
-              {t("overlay.escToCancel", "ESC Cancel")}
+              {t("overlay.escToCancel")}
             </span>
           </motion.div>
 
@@ -483,12 +484,11 @@ function MarkerOverlay() {
                 </div>
                 <div>
                   <div className="text-xs text-white/50 uppercase tracking-widest font-bold">
-                    {t("overlay.marked", "Marked")}
+                    {t("overlay.marked")}
                   </div>
                   <div className="text-xl font-bold">
                     {t("overlay.regionsCount", {
                       count: extractRegions.length,
-                      defaultValue: `${extractRegions.length} regions`,
                     })}
                   </div>
                 </div>
@@ -498,10 +498,7 @@ function MarkerOverlay() {
 
           {/* Help text at bottom */}
           <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white/60 text-sm font-medium bg-black/40 backdrop-blur-sm px-4 py-2 rounded-full">
-            {t(
-              "overlay.hint",
-              "Drag the mouse to select the area, release it to complete the marking",
-            )}
+            {t("overlay.hint")}
           </div>
         </motion.div>
       ) : (

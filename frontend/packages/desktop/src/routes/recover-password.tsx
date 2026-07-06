@@ -10,6 +10,7 @@ import {
 import { Input } from "@evoloop/shared/components/ui/input"
 import { LoadingButton } from "@evoloop/shared/components/ui/loading-button"
 import { PasswordInput } from "@evoloop/shared/components/ui/password-input"
+import i18n from "@evoloop/shared/i18n"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
   createFileRoute,
@@ -61,7 +62,7 @@ export const Route = createFileRoute("/recover-password")({
   head: () => ({
     meta: [
       {
-        title: "Reset Password - EvoLoop",
+        title: i18n.t("auth.resetPassword.pageTitle"),
       },
     ],
   }),

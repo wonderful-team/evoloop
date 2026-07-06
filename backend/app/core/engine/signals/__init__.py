@@ -1,15 +1,12 @@
-"""
-Signals Package - Registry-based control flow management for EvoLoop Agents.
-"""
+"""Agent signal system — schemas, interceptors, handlers, and registry."""
 
-from .dispatcher import SignalDispatcher
-from .manager import signal_manager
-from .schemas import (
+from app.core.engine.signals.signals import (
     AgentSignal,
     RouteToSignal,
     RoutingContext,
+    SignalManager,
     SpawnSubtasksSignal,
-    TerminateSignal,
+    signal_manager,
 )
 
 __all__ = [
@@ -17,7 +14,6 @@ __all__ = [
     "RouteToSignal",
     "RoutingContext",
     "SpawnSubtasksSignal",
-    "TerminateSignal",
-    "SignalDispatcher",
+    "SignalManager",
     "signal_manager",
 ]

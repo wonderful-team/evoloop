@@ -16,8 +16,8 @@ from functools import lru_cache
 from pathlib import Path
 
 import yaml
-from langchain_core.tools import BaseTool
 
+from app.core.tools.base import EvoLoopTool as BaseTool
 from app.core.tools.schemas import EvoLoopToolConfig
 
 logger = logging.getLogger(__name__)

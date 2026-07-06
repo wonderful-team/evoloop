@@ -3,12 +3,12 @@ Mobile Control Tool — Agent-facing thin wrapper over MobileController.
 
 This module exposes `mobile_control` as an @evoloop_tool so the Agent can
 call it via function calling. All actual logic lives in:
-  app.core.environment.controllers.mobile_controller.MobileController
+  app.core.environment.controllers.mobile.MobileController
 """
 import logging
 from typing import Literal
 
-from app.core.environment.controllers.mobile_controller import MobileController
+from app.core.environment.controllers.mobile import MobileController
 from app.core.tools import evoloop_tool
 
 logger = logging.getLogger(__name__)

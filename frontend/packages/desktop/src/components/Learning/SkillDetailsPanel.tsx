@@ -46,7 +46,7 @@ export function SkillDetailsPanel({
   onEdit,
   onDelete,
 }: SkillDetailsPanelProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
 
   const confirmMutation = useMutation({
@@ -153,8 +153,8 @@ export function SkillDetailsPanel({
                     }
                   >
                     {executionMode === "deterministic"
-                      ? `⚡ ${t("learning.deterministic")}`
-                      : `🧠 ${t("learning.agentic")}`}
+                      ? `${t("learning.deterministicIcon")} ${t("learning.deterministic")}`
+                      : `${t("learning.agenticIcon")} ${t("learning.agentic")}`}
                   </Badge>
                 </div>
               </div>
@@ -204,7 +204,8 @@ export function SkillDetailsPanel({
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">
-                          {t("learning.editor.paramType")}: {param.type}
+                          {t("learning.editor.paramType")}
+                          {t("common.colon")} {param.type}
                         </span>
                         <Badge
                           variant="outline"
@@ -270,7 +271,8 @@ export function SkillDetailsPanel({
                       variant="outline"
                       className="text-[9px] ml-2 bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
                     >
-                      ⚡ {t("learning.deterministic")}
+                      {t("learning.deterministicIcon")}{" "}
+                      {t("learning.deterministic")}
                     </Badge>
                   </div>
                   <div className="bg-emerald-50/30 dark:bg-emerald-950/10 p-4 rounded-2xl border border-emerald-500/20">
@@ -278,7 +280,7 @@ export function SkillDetailsPanel({
                       <thead>
                         <tr className="border-b border-emerald-500/20 text-emerald-700 dark:text-emerald-400">
                           <th className="text-left py-2 px-2 w-10 font-bold">
-                            #
+                            {t("common.hash")}
                           </th>
                           <th className="text-left py-2 px-2 w-16 font-bold">
                             {t("macroEditor.type")}
@@ -353,7 +355,6 @@ export function SkillDetailsPanel({
                       >
                         {t("learning.steps", {
                           count: flattenedMacro.length,
-                          defaultValue: `${flattenedMacro.length} STEPS`,
                         })}
                       </Badge>
                     </div>
@@ -408,7 +409,11 @@ export function SkillDetailsPanel({
                       {t("learning.created")}
                     </span>
                     <span>
-                      {new Date(skill.created_at).toLocaleDateString()}
+                      {new Intl.DateTimeFormat(i18n.language, {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      }).format(new Date(skill.created_at))}
                     </span>
                   </div>
                   <div className="flex justify-between">

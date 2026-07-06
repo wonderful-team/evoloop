@@ -1,6 +1,9 @@
 import json
+import logging
 
 from app.domain.planning.schemas import PlanDefinition
+
+logger = logging.getLogger(__name__)
 
 
 class PlanManager:
@@ -9,7 +12,8 @@ class PlanManager:
         try:
             data = json.loads(content)
             return PlanDefinition(**data)
-        except Exception:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.debug("Suppressed error: %s", e, exc_info=True)
             return None
 
     @staticmethod
@@ -24,7 +28,7 @@ class PlanManager:
 
             steps_text = "\n".join([f"- {s.title} ({s.status})" for s in plan.steps])
             return f"Plan: {plan.title}\n{steps_text}"
-        except Exception:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
             return "Error parsing plan."
 
     @staticmethod

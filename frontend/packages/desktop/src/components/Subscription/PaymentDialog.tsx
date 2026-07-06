@@ -202,7 +202,7 @@ export const PaymentDialog = ({
                 >
                   <img
                     src={orderData.qrcode}
-                    alt="Payment QR"
+                    alt={t("subscription.payment.qrAlt")}
                     className="h-40 w-40"
                   />
                   {isQrExpired && (
@@ -245,7 +245,7 @@ export const PaymentDialog = ({
                   {t("subscription.payment.wechatPay")}
                 </span>
                 <span className="text-xl font-bold">
-                  ¥
+                  {t("common.currencySymbol")}
                   {isUpgrade && upgradeInfo
                     ? upgradeInfo.net_amount || "0.00"
                     : orderData?.order?.order_money || "0.00"}
@@ -256,7 +256,7 @@ export const PaymentDialog = ({
                 {isUpgrade && upgradeInfo ? (
                   <>
                     <li className="flex gap-2">
-                      <span className="text-primary">•</span>
+                      <span className="text-primary">{t("common.bullet")}</span>
                       <span>
                         {t("subscription.payment.upgradeDiff", {
                           newPrice: upgradeInfo.pay_amount,
@@ -265,7 +265,7 @@ export const PaymentDialog = ({
                       </span>
                     </li>
                     <li className="flex gap-2">
-                      <span className="text-primary">•</span>
+                      <span className="text-primary">{t("common.bullet")}</span>
                       <span>
                         {t("subscription.payment.refundToBalance", {
                           amount: upgradeInfo.refund_amount,
@@ -273,14 +273,14 @@ export const PaymentDialog = ({
                       </span>
                     </li>
                     <li className="flex gap-2">
-                      <span className="text-primary">•</span>
+                      <span className="text-primary">{t("common.bullet")}</span>
                       <span>{t("subscription.payment.upgradeNote")}</span>
                     </li>
                   </>
                 ) : isRenewalMode ? (
                   <>
                     <li className="flex gap-2">
-                      <span className="text-primary">•</span>
+                      <span className="text-primary">{t("common.bullet")}</span>
                       <span>
                         {t("subscription.payment.renewPrice", {
                           price: orderData?.order?.order_money || "0",
@@ -288,18 +288,18 @@ export const PaymentDialog = ({
                       </span>
                     </li>
                     <li className="flex gap-2">
-                      <span className="text-primary">•</span>
+                      <span className="text-primary">{t("common.bullet")}</span>
                       <span>{t("subscription.payment.renewNote1")}</span>
                     </li>
                     <li className="flex gap-2">
-                      <span className="text-primary">•</span>
+                      <span className="text-primary">{t("common.bullet")}</span>
                       <span>{t("subscription.payment.renewNote2")}</span>
                     </li>
                   </>
                 ) : (
                   <>
                     <li className="flex gap-2">
-                      <span className="text-primary">•</span>
+                      <span className="text-primary">{t("common.bullet")}</span>
                       <span>
                         {t("subscription.payment.subscribePrice", {
                           price: orderData?.order?.order_money || "0",
@@ -307,13 +307,13 @@ export const PaymentDialog = ({
                       </span>
                     </li>
                     <li className="flex gap-2">
-                      <span className="text-primary">•</span>
+                      <span className="text-primary">{t("common.bullet")}</span>
                       <span>{t("subscription.payment.validityNote")}</span>
                     </li>
                   </>
                 )}
                 <li className="flex gap-2">
-                  <span className="text-primary">•</span>
+                  <span className="text-primary">{t("common.bullet")}</span>
                   <span>{t("subscription.payment.noRefund")}</span>
                 </li>
               </ul>

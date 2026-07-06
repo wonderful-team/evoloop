@@ -42,7 +42,7 @@ class EmbeddingConfigService:
                 raise ValueError("Empty embedding returned")
 
             return True, len(vec)  # Return success and dimension
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Embedding Validation Failed: {e}")
             raise e
 

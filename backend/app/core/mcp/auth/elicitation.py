@@ -3,7 +3,7 @@
 import asyncio
 import logging
 
-from app.core.mcp.schemas import ElicitationValues, ElicitationField, ElicitationRequest
+from app.core.mcp.schemas import ElicitationField, ElicitationRequest, ElicitationValues
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ class McpElicitationHandler:
             raise ValueError(f"No pending elicitation for {server_name}")
 
         # Create future
-        future = asyncio.get_event_loop().create_future()
+        future = asyncio.get_running_loop().create_future()
         self._futures[server_name] = future
 
         try:

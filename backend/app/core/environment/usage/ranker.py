@@ -78,7 +78,7 @@ class UsageRanker:
                 record = cls._probe_macos_path(path)
                 if record:
                     records.append(record)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug(f"[UsageRanker] Bulk macOS probe failed: {e}")
 
         # 2. Ensure all running apps and provided app_names are considered
@@ -125,7 +125,7 @@ class UsageRanker:
             output = macos_driver.run_applescript(script)
             if output:
                 return {name.strip() for name in output.split(",")}
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug(f"[UsageRanker] Failed to get running apps: {e}")
         return set()
 
@@ -141,8 +141,8 @@ class UsageRanker:
             try:
                 # mdls returns: "2026-02-19 13:11:06 +0000"
                 last_used_at = datetime.strptime(last_used_str.strip(), "%Y-%m-%d %H:%M:%S %z")
-            except Exception:
-                pass
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.debug("Suppressed error: %s", e, exc_info=True)
 
         return AppUsageRecord(
             app_name=app_name,
@@ -167,7 +167,8 @@ class UsageRanker:
                 find_cmd, capture_output=True, text=True, timeout=5
             )
             app_paths = [p.strip() for p in result.stdout.splitlines() if p.strip().endswith(".app")]
-        except Exception:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.debug("Suppressed error: %s", e, exc_info=True)
             return None
 
         if not app_paths:
@@ -208,7 +209,8 @@ class UsageRanker:
             )
             value = result.stdout.strip()
             return value if value and value != "(null)" else None
-        except Exception:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.debug("Suppressed error: %s", e, exc_info=True)
             return None
 
     # ---------------------------------------------------------------- Android
@@ -243,8 +245,8 @@ class UsageRanker:
             if last_used_ms:
                 try:
                     last_used_at = datetime.fromtimestamp(last_used_ms / 1000, tz=timezone.utc)
-                except Exception:
-                    pass
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                    logger.debug("Suppressed error: %s", e, exc_info=True)
 
             records.append(AppUsageRecord(
                 app_name=pkg.split(".")[-1],    # Friendly name from package
@@ -295,7 +297,7 @@ class UsageRanker:
                             pass
         except asyncio.TimeoutError:
             logger.warning(f"[UsageRanker] ADB usagestats timed out for device {device_id}")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[UsageRanker] ADB usagestats failed: {e}")
 
         return raw

@@ -53,7 +53,12 @@ from typing import Any
 from pydantic import Field
 
 from app.core.config import settings
-from app.core.memory.models import MemoryEntry, MemoryType, MemoryTier, MemorySearchResult
+from app.core.memory.models import (
+    MemoryEntry,
+    MemorySearchResult,
+    MemoryTier,
+    MemoryType,
+)
 from app.core.memory.retrieval import MemoryRetriever
 from app.core.memory.schemas import MemorySectionEntry
 from app.infrastructure.pydantic_base import DynamicBaseModel
@@ -550,9 +555,7 @@ class TwoTierMemoryManager:
 
     async def _write_memory_md(self, content: str) -> None:
         """Write to MEMORY.md."""
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(
-            None,
+        await asyncio.to_thread(
             self._write_sync,
             content,
         )
@@ -567,9 +570,7 @@ class TwoTierMemoryManager:
         if not self.memory_md_path.exists():
             return self._generate_default_content()
 
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None,
+        return await asyncio.to_thread(
             self._read_truncated_sync,
         )
 

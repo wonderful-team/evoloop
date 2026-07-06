@@ -34,14 +34,20 @@ export const AboutPage: React.FC = () => {
     useVersion()
 
   const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const [toastType, setToastType] = useState<"success" | "info" | "error">(
+    "info",
+  )
 
-  // 显示提示
   const showToast = (
     message: string,
-    _type: "success" | "info" | "error" = "info",
+    type: "success" | "info" | "error" = "info",
   ) => {
     setToastMessage(message)
-    setTimeout(() => setToastMessage(null), 3000)
+    setToastType(type)
+    setTimeout(() => {
+      setToastMessage(null)
+      setToastType("info")
+    }, 3000)
   }
 
   // 处理检查更新
@@ -127,10 +133,8 @@ export const AboutPage: React.FC = () => {
             zIndex: 9999,
             padding: "12px 20px",
             borderRadius: "8px",
-            backgroundColor: toastMessage.includes("失败")
-              ? "#fef2f2"
-              : "#f0fdf4",
-            color: toastMessage.includes("失败") ? "#dc2626" : "#16a34a",
+            backgroundColor: toastType === "error" ? "#fef2f2" : "#f0fdf4",
+            color: toastType === "error" ? "#dc2626" : "#16a34a",
             boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
             animation: "slideIn 0.3s ease-out",
           }}
@@ -513,8 +517,10 @@ export const AboutPage: React.FC = () => {
           color: "#9ca3af",
         }}
       >
-        <p>© 2024 EvoLoop. All rights reserved.</p>
-        <p style={{ marginTop: "4px" }}>版本 {version.fullVersion}</p>
+        <p>{t("about.copyright")}</p>
+        <p style={{ marginTop: "4px" }}>
+          {t("about.versionLabel", { version: version.fullVersion })}
+        </p>
       </div>
 
       {/* 版本详情对话框 */}

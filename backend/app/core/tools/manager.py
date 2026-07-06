@@ -1,9 +1,8 @@
 import logging
 
-from langchain_core.tools import BaseTool
-
 from app.core.engine.state import AgentState
 from app.core.mcp.features.base import parse_mcp_tool_name
+from app.core.tools.base import EvoLoopTool as BaseTool
 
 logger = logging.getLogger(__name__)
 

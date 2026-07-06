@@ -9,8 +9,8 @@ import logging
 from typing import Literal
 
 from app.core.tools import evoloop_tool
-from app.core.vision import VisionTask, vision_engine
-from app.core.vision.pipeline.manager import pipeline_manager
+from app.infrastructure.vision import VisionTask, vision_engine
+from app.infrastructure.vision.pipeline.manager import pipeline_manager
 from app.infrastructure.drivers.adb import ADBError, adb_driver
 from app.infrastructure.drivers.macos import macos_driver
 
@@ -74,8 +74,6 @@ async def find_element(
 
         # Fire UI_TREE_OBSERVED event for spatial mapping (Background)
         try:
-            from app.core.environment.event import UiTreeObservedEvent
-            from app.core.environment.bus import event_bus
 
             if platform == "android":
                 app_info = adb_driver.get_current_app(device_id=device_id)
@@ -94,7 +92,7 @@ async def find_element(
                 elements=[e.model_dump() for e in elements],
                 screenshot_hash=result.metadata.get("file_hash", ""),
             ))
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"Failed to publish UI_TREE_OBSERVED: {e}")
 
         if return_all or not target:
@@ -176,6 +174,6 @@ async def find_element(
 
         return result_msg, {"count": 1, "target": target}
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"find_element error: {e}")
         return f"Error: {str(e)}"

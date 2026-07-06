@@ -10,13 +10,11 @@ These tools allow Agent to:
 
 import json
 import logging
-from typing import Optional
-
 from app.core.context.manager import ContextManager
-from app.core.tools import evoloop_tool
 from app.core.project.subtask_service import subtask_service
+from app.core.tools import evoloop_tool
+from app.infrastructure.database import session_scope
 from app.models.project import ProjectTask
-from app.infrastructure.database.sql.database import session_scope
 from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
@@ -113,7 +111,7 @@ I've set this as your current active task.""", {"id": task.id, "count": subtask_
             
     except json.JSONDecodeError:
         return "Error: subtasks_json is not valid JSON. Format: [{\"title\": \"...\", \"estimated_hours\": n}]"
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[SubtaskTool] Failed to create task: {e}")
         return f"Error creating task: {str(e)}"
 
@@ -178,7 +176,7 @@ Status: {tree['status']}
         
         return summary
         
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[SubtaskTool] Failed to get task tree: {e}")
         return f"Error getting task tree: {str(e)}"
 
@@ -191,7 +189,7 @@ async def update_task_completion(
     task_id: str,
     status: str,
     result_summary: str = "",
-    progress: Optional[int] = None
+    progress: int | None = None
 ) -> str:
     """
     Update task status and progress.
@@ -267,7 +265,7 @@ async def update_task_completion(
         else:
             return f"Updated task to {status} ({progress}%)"
             
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[SubtaskTool] Failed to update task: {e}")
         return f"Error updating task: {str(e)}"
 
@@ -307,7 +305,7 @@ Description: {task['description'] or 'No description'}{parent_info}
 
 I've set this as your current task. You can use update_task_completion without an ID."""
         
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[SubtaskTool] Failed to get next task: {e}")
         return f"Error getting next task: {str(e)}"
 
@@ -359,6 +357,6 @@ async def list_project_tasks(
         
         return "\n".join(lines), {"count": len(tasks)}
             
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[SubtaskTool] Failed to list tasks: {e}")
         return f"Error listing tasks: {str(e)}"

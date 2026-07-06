@@ -9,7 +9,7 @@ import logging
 
 from sqlalchemy import text
 
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,7 @@ class SequenceService:
                 # Fallback for databases that don't support RETURNING
                 # (should not happen with SQLite/PostgreSQL)
                 from sqlalchemy import select
+
                 from app.models import ThreadSequence
 
                 row = await session.execute(

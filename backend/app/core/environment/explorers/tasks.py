@@ -29,7 +29,7 @@ async def triage_app_batch(app_ids: list[str]) -> dict[str, dict]:
         logger.debug("[Task] Skipping LLM triage: no LLM model configured")
         return {}
 
-    from app.utils import render_template
+    from app.utils.template import render_template
 
     prompt = render_template(
         "domain/planning/dynamic_app_triage.prompt.j2", app_ids=app_ids
@@ -38,7 +38,7 @@ async def triage_app_batch(app_ids: list[str]) -> dict[str, dict]:
         "domain/planning/expert_roles.prompt.j2", role="ui_dynamics"
     ).strip()
 
-    from app.core.llm import InternalLLMService
+    from app.infrastructure.llm import InternalLLMService
 
     response = await InternalLLMService.invoke(
         messages=[

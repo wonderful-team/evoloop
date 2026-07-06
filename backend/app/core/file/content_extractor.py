@@ -1,11 +1,9 @@
-import os
 import logging
-from typing import Optional
-
+import os
 from .document_reader import document_reader_service
-from .media_reader import media_reader_service
 from .image_reader import image_reader_service
 from .io import read_file
+from .media_reader import media_reader_service
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +16,8 @@ class FileContentExtractor:
     async def extract(
         self, 
         file_path: str, 
-        start_range: Optional[int] = None, 
-        end_range: Optional[int] = None
+        start_range: int | None = None, 
+        end_range: int | None = None
     ) -> str:
         """
         Extract text from file. Automatically routes to Document, Image, Media 

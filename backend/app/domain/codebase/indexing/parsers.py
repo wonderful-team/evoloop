@@ -158,7 +158,7 @@ class ParserRegistry:
                 # Also ensure the lang_name itself is in parsers for direct lookups
                 self.parsers[lang_name] = (parser, LANG)
                 return True
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"Failed to dynamic load {lang_name}: {e}")
         return False
 

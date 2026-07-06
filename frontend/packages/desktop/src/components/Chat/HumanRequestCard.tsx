@@ -118,10 +118,7 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
               <Textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder={t(
-                  "chat.request.placeholder",
-                  "Enter your response...",
-                )}
+                placeholder={t("chat.request.placeholder")}
                 className="min-h-[80px] bg-muted/20 border-none focus-visible:ring-1 focus-visible:ring-primary/20 resize-none text-sm"
               />
             )}
@@ -167,7 +164,7 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                     >
                       <FolderGit2 className="h-5 w-5 text-primary/60" />
                       <span className="font-semibold">
-                        {t("chat.interrupted.selectProject", "Select Project")}
+                        {t("chat.interrupted.selectProject")}
                       </span>
                     </Button>
                     <ProjectSwitcher
@@ -183,10 +180,7 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[10px] uppercase font-bold text-primary/60 tracking-wider mb-0.5">
-                        {t(
-                          "chat.interrupted.projectSelected",
-                          "Selected project",
-                        )}
+                        {t("chat.interrupted.selectedProject")}
                       </p>
                       <p className="font-bold text-sm truncate">
                         {selectedProject.name}
@@ -231,7 +225,7 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                 >
                   <FolderGit2 className="h-5 w-5 text-primary/60" />
                   <span className="font-semibold">
-                    {input || t("chat.request.selectFiles", "Select Files")}
+                    {input || t("chat.request.selectFiles")}
                   </span>
                 </Button>
               </div>
@@ -250,7 +244,7 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                   className="h-8 text-muted-foreground/60 hover:text-destructive hover:bg-destructive/5 font-bold uppercase tracking-wider text-[10px] px-3"
                 >
                   <Ban className="mr-1.5 h-3.5 w-3.5" />
-                  {t("common.cancel", "Cancel")}
+                  {t("common.cancel")}
                 </Button>
                 <div className="flex gap-2">
                   {/* Standard Submit for Text/Choice/File */}
@@ -264,7 +258,7 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                       className="h-8 px-5 rounded-full font-bold text-xs"
                     >
                       <Play className="mr-1.5 h-3.5 w-3.5" />
-                      {t("common.submit", "Submit")}
+                      {t("common.submit")}
                     </Button>
                   )}
 
@@ -281,8 +275,8 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                       >
                         <XCircle className="mr-1.5 h-3.5 w-3.5" />
                         {request.type === "approval"
-                          ? t("common.reject", "Reject")
-                          : t("common.no", "No")}
+                          ? t("common.reject")
+                          : t("common.no")}
                       </Button>
                       <Button
                         size="sm"
@@ -292,8 +286,8 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                       >
                         <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
                         {request.type === "approval"
-                          ? t("common.approve", "Approve")
-                          : t("common.yes", "Yes")}
+                          ? t("common.approve")
+                          : t("common.yes")}
                       </Button>
                     </>
                   )}
@@ -310,12 +304,12 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                 {request.status === "completed" ? (
                   <>
                     <CheckCircle2 className="h-3 w-3" />
-                    {t("chat.request.completed", "Completed")}
+                    {t("chat.request.completed")}
                   </>
                 ) : (
                   <>
                     <XCircle className="h-3 w-3" />
-                    {t("chat.request.cancelled", "Cancelled")}
+                    {t("chat.request.cancelled")}
                   </>
                 )}
               </div>

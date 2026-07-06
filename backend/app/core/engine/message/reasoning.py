@@ -1,15 +1,30 @@
 """
 reasoning.py — 推理内容提取工具函数
-
-职责：从 LangChain 消息对象中提取 reasoning/thinking 内容
-注意：monkey-patch 已迁移至 app.infrastructure.llm.reasoning_patch
 """
 from __future__ import annotations
+
 from typing import Any
-from langchain_core.messages import BaseMessage
+
+from app.core.engine.message.native_classes import BaseMessage
+
 
 def extract_reasoning_from_message(message: BaseMessage) -> str | None:
-    """从完整的 LangChain 消息中提取推理内容 (支持 Kimi/OpenAI/Anthropic 格式)"""
+    """从消息中提取推理内容 (支持 Kimi/OpenAI/Anthropic 格式)"""
+    # If message is a dictionary, extract additional_kwargs directly
+    if isinstance(message, dict):
+        reasoning = extract_reasoning_from_kwargs(message.get("additional_kwargs"))
+        if reasoning:
+            return reasoning
+        content = message.get("content")
+        if isinstance(content, list):
+            anthropic_thinking = []
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "thinking" and "thinking" in block:
+                    anthropic_thinking.append(block["thinking"])
+            if anthropic_thinking:
+                return "".join(anthropic_thinking)
+        return None
+
     # 1. Try additional_kwargs first
     reasoning = extract_reasoning_from_kwargs(message.additional_kwargs)
     if reasoning:
@@ -28,29 +43,26 @@ def extract_reasoning_from_message(message: BaseMessage) -> str | None:
 
 
 def extract_reasoning_from_kwargs(additional_kwargs: dict | None) -> str | None:
-    """Extract raw reasoning content string from additional_kwargs dict.
-
-    Priority:
-        1. ``additional_kwargs["thinking"]`` (unified string set by DB load or delta sync)
-        2. ``additional_kwargs["reasoning_content"]`` (raw string from monkey-patch)
-    """
+    """Extract raw reasoning content string from additional_kwargs dict."""
     if not additional_kwargs:
         return None
 
-    # 1. Prefer unified "thinking" key (set by DB load or delta sync)
+    # 1. Prefer unified "thinking" key
     thinking = additional_kwargs.get("thinking")
     if isinstance(thinking, str):
-        return thinking
+        return thinking if thinking.strip() else None
 
-    # 2. Fallback to raw reasoning_content (legacy / streaming chunks)
+    # 2. Fallback to raw reasoning_content
     reasoning = additional_kwargs.get("reasoning_content")
-    return str(reasoning) if reasoning else None
+    if reasoning:
+        res = str(reasoning)
+        return res if res.strip() else None
+    return None
 
 
 def extract_tool_calls(msg: Any) -> list[dict]:
     """
     归一化从消息中提取工具调用。
-    支持 LangChain BaseMessage 对象、AIMessageChunk 以及字典格式。
     """
     if hasattr(msg, "tool_calls"):
         return msg.tool_calls

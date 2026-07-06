@@ -7,7 +7,7 @@ common utilities from app.utils.
 from datetime import datetime
 
 from app.models.todo import TodoStatus
-from app.utils import is_past, parse_relative_time, utcnow
+from app.utils.time import is_past, parse_relative_time, utcnow
 
 # Re-export parse_relative_time for domain convenience
 parse_due_date = parse_relative_time

@@ -170,7 +170,10 @@ export function EmbeddingSettings() {
       toast.error(msg)
       return false
     } catch (error) {
-      const msg = `${t("settings.embedding.error_connection")}: ${(error as any).message}`
+      const msg = t("settings.embedding.connectionErrorWithMessage", {
+        message: t("settings.embedding.error_connection"),
+        detail: (error as any).message,
+      })
       setTestResult({ success: false, msg })
       toast.error(msg)
       return false
@@ -190,7 +193,7 @@ export function EmbeddingSettings() {
     if (configChanged) {
       const isOk = await handleTestConnection()
       if (!isOk) {
-        throw new Error("Embedding Connection test failed")
+        throw new Error(t("settings.embedding.connectionTestFailed"))
       }
     }
 
@@ -330,7 +333,7 @@ export function EmbeddingSettings() {
                           variant="secondary"
                           className="text-[10px] h-4 rounded-none"
                         >
-                          Platform
+                          {t("chat.modelSelector.platformBadge")}
                         </Badge>
                       </div>
                     </SelectItem>
@@ -349,7 +352,7 @@ export function EmbeddingSettings() {
                       variant="outline"
                       className="text-[10px] h-4 border-blue-500/30 text-blue-600 rounded-none"
                     >
-                      Custom
+                      {t("chat.modelSelector.customBadge")}
                     </Badge>
                   </div>
                 </SelectItem>
@@ -381,7 +384,7 @@ export function EmbeddingSettings() {
                 {t("settings.modelFields.provider")}
               </Label>
               <Input
-                placeholder="openai"
+                placeholder={t("settings.embedding.providerPlaceholder")}
                 value={provider || ""}
                 onChange={(e) => setProvider(e.target.value)}
                 className="h-10 transition-colors focus:border-primary"
@@ -393,7 +396,7 @@ export function EmbeddingSettings() {
               </Label>
               <Input
                 type="number"
-                placeholder="1536"
+                placeholder={t("settings.embedding.dimensionsPlaceholder")}
                 value={dimensions || ""}
                 onChange={(e) => setDimensions(e.target.value)}
                 className="h-10 transition-colors focus:border-primary"
@@ -404,7 +407,7 @@ export function EmbeddingSettings() {
                 {t("settings.modelFields.baseUrl")}
               </Label>
               <Input
-                placeholder="https://api.openai.com/v1"
+                placeholder={t("settings.embedding.baseUrlPlaceholder")}
                 value={baseUrl || ""}
                 onChange={(e) => setBaseUrl(e.target.value)}
                 className="h-10 transition-colors focus:border-primary"
@@ -415,7 +418,7 @@ export function EmbeddingSettings() {
                 {t("settings.modelFields.modelName")}
               </Label>
               <Input
-                placeholder="text-embedding-3-small"
+                placeholder={t("settings.embedding.modelPlaceholder")}
                 value={model || ""}
                 onChange={(e) => setModel(e.target.value)}
                 className="h-10 transition-colors focus:border-primary"
@@ -430,7 +433,7 @@ export function EmbeddingSettings() {
             <div className="relative">
               <Input
                 type={showApiKey ? "text" : "password"}
-                placeholder="sk-..."
+                placeholder={t("settings.embedding.apiKeyPlaceholder")}
                 value={apiKey || ""}
                 onChange={(e) => setApiKey(e.target.value)}
                 className="pr-10 h-10 transition-colors focus:border-primary"

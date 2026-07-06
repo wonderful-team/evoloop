@@ -12,13 +12,13 @@ from typing import Any
 import yaml
 from pydantic import Field
 
-from app.core.config import settings
 from app.constants import DEFAULT_PROJECT_ID
+from app.core.config import settings
+from app.core.file import ensure_dir
 from app.core.learning.schemas import MacroVerificationResult
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.extract import extract_section as _extract_section
 from app.utils.extract import extract_yaml_block as _extract_yaml_block
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.core.file import ensure_dir
 from app.utils.time import normalize_timestamp_ms_to_sec as _normalize_timestamp
 
 logger = logging.getLogger(__name__)
@@ -92,7 +92,7 @@ async def verify_macro_script(
             extracted_count=len(extracted_data),
             error=result.get("error")
         )
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[{thread_id}] Macro verification crashed: {e}")
         return MacroVerificationResult(
             status="error",
@@ -243,7 +243,7 @@ def export_skill_to_filesystem(skill_data: Any) -> str | None:
         logger.info(f"Exported physical skill {export.name} to {skill_md_path}")
         return skill_md_path
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to export physical skill file: {e}")
         return None
 

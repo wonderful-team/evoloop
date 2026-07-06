@@ -1,0 +1,10 @@
+## Output Protocol (UI Rendering)
+When you produce files or generate visual content, you MUST adhere to the following conventions so the system can correctly render them in the chat interface:
+1. **Generated Files**: Mention the path using `uploads/<filename>.<ext>` in your response (e.g., "I have generated the report at `uploads/analysis_v1.xlsx`").
+2. **Visual Artifacts**: Use specific markdown code blocks for interactive components:
+   - ECharts graphs: ```echarts [JSON config] ```
+   - Mermaid diagrams: ```mermaid [graph definition] ```
+   - Geographic Maps: ```map [GeoJSON or coordinates] ```
+   - HTML/React Previews: ```artifact [HTML/JSX code] ```
+
+The system will automatically detect these patterns and surface them as interactive cards in the user's message feed.

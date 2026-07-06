@@ -55,20 +55,18 @@ export function ChangesetInlineHint({
 
       <div className="flex flex-col">
         <span className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-50">
-          {isViewed ? t("chat.changeset.viewed") : "File Changeset"}
+          {isViewed
+            ? t("chat.changeset.viewed")
+            : t("chat.changeset.fileChangeset")}
         </span>
         <span className="text-xs font-semibold">
           {isViewed
-            ? t("chat.changeset.viewed", "已巡检 {{count}} 个文件", {
-                count: fileCount,
-              })
-            : t("chat.changeset.newChanges", "本次修改了 {{count}} 个文件", {
-                count: fileCount,
-              })}
+            ? t("chat.changeset.viewed", { count: fileCount })
+            : t("chat.changeset.newChanges", { count: fileCount })}
           {!isViewed && (
             <span className="ml-2 inline-flex items-center gap-0.5 opacity-60 group-hover/changeset:opacity-100 transition-opacity">
               <span className="hover:underline">
-                {t("chat.changeset.viewChanges", "点击审查")}
+                {t("chat.changeset.viewChanges")}
               </span>
               <ChevronRight className="h-3 w-3" />
             </span>

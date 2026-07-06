@@ -7,14 +7,11 @@ from .auth_proxy import *  # noqa: F401,F403
 from .conversations import *  # noqa: F401,F403
 from .devices import *  # noqa: F401,F403
 from .files import *  # noqa: F401,F403
-from .knowledge import *  # noqa: F401,F403
 from .mcp import *  # noqa: F401,F403
 from .member import *  # noqa: F401,F403
 from .memory import *  # noqa: F401,F403
 from .planning import *  # noqa: F401,F403
-from .project_modules import *  # noqa: F401,F403
-from .project_profiles import *  # noqa: F401,F403
-from .projects import *  # noqa: F401,F403
+from .projects import *  # noqa: F401,F403 — projects/__init__.py + _profiles.py + _modules.py
 from .resources import *  # noqa: F401,F403
 from .responses import *  # noqa: F401,F403
 from .subscription import *  # noqa: F401,F403

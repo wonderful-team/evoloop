@@ -1,12 +1,11 @@
 import logging
 from typing import Annotated
 
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import InjectedToolArg
-
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager
+from app.core.engine.message.native_classes import RunnableConfig
 from app.core.tools import evoloop_tool
+from app.core.tools.base import InjectedToolArg
 from app.domain.tools.schemas import ExtractedConcept
 
 logger = logging.getLogger(__name__)
@@ -52,6 +51,6 @@ async def save_concepts(
         names = [c.name for c in concepts]
         return f"Successfully dispatched harvesting task for {len(concepts)} concepts: {', '.join(names)}"
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Failed to harvest knowledge: {e}")
         return f"Error harvesting knowledge: {str(e)}"

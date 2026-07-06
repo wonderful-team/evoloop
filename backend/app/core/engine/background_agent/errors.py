@@ -2,24 +2,25 @@
 Background agent error handling utilities.
 """
 
-import json
 import logging
-import uuid
 
-from langgraph.errors import GraphInterrupt
-
-from app.core.events import system_bus
+from app.core.engine.error_handler import LLMErrorHandler
 from app.core.engine.message.category import MessageCategory
 from app.core.engine.message.classifier import MessageClassifier
+from app.core.engine.message.mobile_notifier import MobileErrorNotifier
 from app.core.engine.message.sequence import SequenceService
+from app.core.events import system_bus
+from app.core.exceptions import AgentHumanInterruptException
 from app.core.monitoring.activity import activity_monitor
 from app.i18n.service import i18n
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.models import Message
-from app.models.schemas.events import QuotaExhaustedEvent, AuthExpiredEvent, LLMAuthErrorEvent
-from app.core.engine.message.mobile_notifier import MobileErrorNotifier
-from app.core.exceptions import AgentHumanInterruptException
-from app.core.engine.error_handler import LLMErrorHandler
+from app.models.schemas.events import (
+    AuthExpiredEvent,
+    LLMAuthErrorEvent,
+    QuotaExhaustedEvent,
+)
+from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +31,8 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
     Args:
         handler: Optional MessageHandler instance for pushing errors to Mobile.
     """
-    # Check for human-interrupt or graph-interrupt using class checks
-    # NOTE: langgraph.errors.GraphInterrupt may not be imported at module level
-    # to avoid circular deps; we check by dotted name via getattr fallback.
-    if isinstance(e, (AgentHumanInterruptException, GraphInterrupt)):
+    # Check for human-interrupt using class checks
+    if isinstance(e, AgentHumanInterruptException):
         logger.info(f"Task {thread_id} interrupted for human input: {e}")
         return
 
@@ -137,9 +136,9 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
                 sequence_number=handler._stream_seq + 1,
                 metadata={"is_error": True, "error_type": action_type},
                 channels={"sse"},
-                message_id=str(uuid.uuid4())
+                message_id=gen_uuid()
             )
-        except Exception as sse_err:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as sse_err:
             logger.warning(f"[ErrorHandler] SSE push failed: {sse_err}")
 
 
@@ -173,7 +172,7 @@ async def persist_system_error(
             seq = await SequenceService.next_sequence(thread_id)
 
             error_msg = Message(
-                id=str(uuid.uuid4()),
+                id=gen_uuid(),
                 thread_id=thread_id,
                 project_id=project_id,
                 role="ai",

@@ -1,24 +1,27 @@
 """
-Rewind Module
-=============
-
-Core framework for conversation rewinding and retry operations.
-
-This module provides the orchestrator, event type constants, data models,
-and exceptions. Domain-specific cleanup event classes live in their
-respective modules' event/schemas.py (e.g. FilesCleanupEvent in app.core.file.event.schemas).
+Conversation rewind — perform_rewind() + event bus for cross-domain cleanup.
 """
-from app.core.engine.rewind.exceptions import PartialRewindError, RewindError
-from app.core.engine.rewind.orchestrator import RewindOrchestrator
-from app.core.engine.schemas import RewindOperation as RewindRequest, RewindResult
+
+from app.core.engine.rewind.rewind import (
+    MESSAGES_CLEANUP,
+    REWIND_REQUESTED,
+    MessageNotFoundError,
+    MessagesCleanupEvent,
+    NoHumanMessageError,
+    RewindError,
+    RewindRequestedEvent,
+    perform_rewind,
+    publish_messages_cleanup,
+)
 
 __all__ = [
-    # Main orchestrator
-    "RewindOrchestrator",
-    # Data models
-    "RewindRequest",
-    "RewindResult",
-    # Exceptions
+    "REWIND_REQUESTED",
+    "MESSAGES_CLEANUP",
+    "RewindRequestedEvent",
+    "MessagesCleanupEvent",
+    "perform_rewind",
+    "publish_messages_cleanup",
     "RewindError",
-    "PartialRewindError",
+    "MessageNotFoundError",
+    "NoHumanMessageError",
 ]

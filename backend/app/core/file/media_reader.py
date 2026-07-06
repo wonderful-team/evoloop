@@ -1,6 +1,7 @@
 import logging
 import os
-from app.core.voice import transcribe_file, list_stt_providers
+
+from app.infrastructure.voice import list_stt_providers, transcribe_file
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class MediaReaderService:
                 
             return f"### Multimedia Transcription ({os.path.basename(path)})\n\n{result.text}"
             
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Media transcription failed for {path}: {e}")
             return f"[Multimedia Asset: {os.path.basename(path)} - Transcription Error: {str(e)}]"
 

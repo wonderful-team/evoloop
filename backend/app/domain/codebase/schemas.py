@@ -1,6 +1,6 @@
 """Schemas for codebase module."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -15,7 +15,7 @@ class ExtractedEntity(DynamicBaseModel):
     full_name: str
     start_line: int
     end_line: int
-    content: Optional[str] = None
+    content: str | None = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -23,7 +23,7 @@ class ExtractedRelation(DynamicBaseModel):
     source_full_name: str
     target_full_name: str
     relation_type: str
-    start_line: Optional[int] = None
+    start_line: int | None = None
 
 
 class ExtractionResult(DynamicBaseModel):

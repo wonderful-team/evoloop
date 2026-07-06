@@ -16,7 +16,6 @@ truncated to 32 hex characters for compactness.
 
 import hashlib
 import logging
-import os
 import platform
 import subprocess
 
@@ -41,7 +40,7 @@ def get_hardware_fingerprint() -> str:
             raw = _get_linux_machine_id()
         else:
             raw = _fallback()
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.warning(f"Failed to get hardware fingerprint: {e}")
         raw = _fallback()
 
@@ -65,7 +64,7 @@ def _get_macos_uuid() -> str:
                 parts = line.split('"')
                 if len(parts) >= 4:
                     return parts[-2]
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.debug(f"ioreg failed: {e}")
 
     # Fallback: try system_profiler
@@ -81,7 +80,7 @@ def _get_macos_uuid() -> str:
         match = re.search(r"<key>platform_UUID</key>\s*<string>([^<]+)</string>", result.stdout)
         if match:
             return match.group(1)
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.debug(f"system_profiler failed: {e}")
 
     return _fallback()
@@ -98,7 +97,7 @@ def _get_windows_machine_guid() -> str:
         ) as key:
             value, _ = winreg.QueryValueEx(key, "MachineGuid")
             return str(value)
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.debug(f"Windows registry read failed: {e}")
 
     # Fallback: wmic
@@ -112,7 +111,7 @@ def _get_windows_machine_guid() -> str:
         lines = [l.strip() for l in result.stdout.split("\n") if l.strip()]
         if len(lines) >= 2 and lines[1].lower() != "ffffffff-ffff-ffff-ffff-ffffffffffff":
             return lines[1]
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.debug(f"wmic failed: {e}")
 
     return _fallback()
@@ -140,7 +139,7 @@ def _get_linux_machine_id() -> str:
         uuid = result.stdout.strip()
         if uuid and uuid.lower() != "not settable":
             return uuid
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.debug(f"dmidecode failed: {e}")
 
     return _fallback()

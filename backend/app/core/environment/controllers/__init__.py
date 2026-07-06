@@ -9,8 +9,8 @@ They are separated from the @evoloop_tool wrappers in domain/tools to allow:
      domain/tools exposes it to the Agent via @evoloop_tool.
 """
 
-from app.core.environment.controllers.browser_controller import BrowserController
-from app.core.environment.controllers.desktop_controller import DesktopController
+from app.core.environment.controllers.browser import BrowserController
+from app.core.environment.controllers.desktop import DesktopController
 from app.core.environment.controllers.device_watcher import (
     DeviceWatcher,
     device_watcher,
@@ -20,7 +20,7 @@ from app.core.environment.controllers.mirror_session import (
     MirrorSessionManager,
     mirror_manager,
 )
-from app.core.environment.controllers.mobile_controller import MobileController
+from app.core.environment.controllers.mobile import MobileController
 
 __all__ = [
     "BrowserController",

@@ -25,6 +25,6 @@ async def reconcile_skill(skill_id: int, thread_id: str) -> str:
         # Trigger the Celery task to perform the heavy lifting of synthesis and patching
         reconcile_skill_macro_task.delay(skill_id=skill_id, thread_id=thread_id)
         return f"Successfully triggered self-healing for Skill {skill_id} using trace from thread {thread_id}."
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Error triggering reconcile_skill: {e}")
         return f"Error: Failed to trigger self-healing. {str(e)}"

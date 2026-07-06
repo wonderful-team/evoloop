@@ -34,7 +34,7 @@ class McpPromptsFeature(McpFeature):
             result = await session.list_prompts()
             self._prompts = result.prompts
             logger.info(f"Loaded {len(self._prompts)} prompts from {server_name}")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug(f"Prompts not supported by {server_name}: {e}")
             self._prompts = []
 
@@ -111,7 +111,7 @@ class McpPromptsFeature(McpFeature):
                 messages=messages,
             )
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to get prompt '{name}': {e}")
             raise
 

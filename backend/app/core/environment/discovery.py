@@ -49,8 +49,8 @@ class EnvironmentProbe:
                     model_info = f.read().lower()
                     if "raspberry pi" in model_info or "orange pi" in model_info or "embedded" in model_info:
                         return "embedded"
-            except Exception:
-                pass
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.debug("Suppressed error: %s", e, exc_info=True)
         if os.path.exists("/sys/class/gpio"):
             return "embedded"
 
@@ -83,7 +83,8 @@ class EnvironmentProbe:
             # This ensures the Agent knows the target OS even on headless servers/sandboxes.
             try:
                 ram_gb = int(psutil.virtual_memory().total / (1024 ** 3))
-            except Exception:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.debug(f"Failed to get RAM info: {e}")
                 ram_gb = 0
 
             return HostEnvironment(
@@ -106,7 +107,8 @@ class EnvironmentProbe:
         """Standard host probe for Linux and Windows."""
         try:
             ram_gb = int(psutil.virtual_memory().total / (1024 ** 3))
-        except Exception:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.debug(f"Failed to get RAM info: {e}")
             ram_gb = 0
             
         host_env = HostEnvironment(
@@ -120,15 +122,15 @@ class EnvironmentProbe:
         )
 
         if os_name == "Linux":
-            import subprocess
             import shutil
+            import subprocess
 
             # 1. Distro Details
             distro = "Linux"
             try:
                 info = platform.freedesktop_os_release()
                 distro = f"{info.get('NAME', 'Linux')} {info.get('VERSION_ID', '')}"
-            except Exception:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                 try:
                     if os.path.exists("/etc/os-release"):
                         with open("/etc/os-release", "r") as f:
@@ -136,8 +138,8 @@ class EnvironmentProbe:
                                 if line.startswith("PRETTY_NAME="):
                                     distro = line.split("=", 1)[1].strip().strip('"')
                                     break
-                except Exception:
-                    pass
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                    logger.debug("Suppressed error: %s", e, exc_info=True)
             host_env.distro = distro
 
             # 2. Sudo availability (without password)
@@ -145,7 +147,7 @@ class EnvironmentProbe:
                 try:
                     res = subprocess.run(['sudo', '-n', 'true'], capture_output=True, timeout=1.0)
                     return res.returncode == 0
-                except Exception:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                     return False
             host_env.sudo_available = await asyncio.to_thread(_check_sudo)
 
@@ -158,7 +160,8 @@ class EnvironmentProbe:
                         "free_gb": round(free / (2**30), 1),
                         "percent_used": round((used / total) * 100, 1)
                     }
-                except Exception:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                    logger.debug("Suppressed error: %s", e, exc_info=True)
                     return None
             host_env.disk_space = await asyncio.to_thread(_get_disk_space)
 
@@ -181,7 +184,7 @@ class EnvironmentProbe:
                             if any(svc in name for svc in ('nginx', 'mysql', 'postgres', 'redis', 'docker', 'apache', 'mongodb', 'memcached')):
                                 services.append(name)
                     return services
-                except Exception:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                     return []
             host_env.systemd_services = await asyncio.to_thread(_get_systemd_services)
 
@@ -196,8 +199,8 @@ class EnvironmentProbe:
                     )
                     if res.returncode == 0:
                         return [line.strip() for line in res.stdout.strip().split('\n') if line.strip()]
-                except Exception:
-                    pass
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                    logger.debug("Suppressed error: %s", e, exc_info=True)
                 return []
             host_env.gpus = await asyncio.to_thread(_get_gpus)
 
@@ -227,7 +230,7 @@ class EnvironmentProbe:
                 logger.info(f"[EnvironmentProbe] UsageRanker: top app = "
                             f"{usage_stats[0].app_name!r} (score={usage_stats[0].priority_score})"
                             if usage_stats else "[EnvironmentProbe] UsageRanker: no usage data")
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(f"[EnvironmentProbe] UsageRanker failed (non-fatal): {e}")
 
             # Autonomous triage for discovered apps (run in background to avoid blocking startup)
@@ -239,7 +242,7 @@ class EnvironmentProbe:
                 if not _logged_macos_triage:
                     logger.info("[EnvironmentProbe] macOS dynamic app triage scheduled (first time)")
                     _logged_macos_triage = True
-            except Exception as triage_e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as triage_e:
                 logger.warning(f"[EnvironmentProbe] macOS dynamic app triage failed: {triage_e}")
 
             return HostEnvironment(
@@ -251,7 +254,7 @@ class EnvironmentProbe:
                 installed_apps=apps,
                 app_usage_stats=usage_stats,
             )
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"Failed to probe MacOS environment: {e}", exc_info=True)
             return None
 
@@ -307,10 +310,10 @@ class EnvironmentProbe:
                         if device_id not in _logged_device_ids:
                             logger.info(f"[EnvironmentProbe] Android triage scheduled for {device_id} (first time)")
                             _logged_device_ids.add(device_id)
-                    except Exception as triage_e:
+                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as triage_e:
                         logger.warning(f"[EnvironmentProbe] Android dynamic app triage failed: {triage_e}")
 
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     logger.warning(f"Failed to get info for device {device_id}: {e}")
                     devices.append(AndroidDevice(
                         device_id=device_id,
@@ -321,7 +324,7 @@ class EnvironmentProbe:
                         is_reachable=False,
                     ))
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"Failed to probe Android devices: {e}")
 
         return devices
@@ -343,8 +346,8 @@ class EnvironmentProbe:
                     return False
 
             internet_connected = await asyncio.to_thread(_check_internet)
-        except Exception:
-            pass
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.debug("Suppressed error: %s", e, exc_info=True)
 
         # Get local IPs
         try:
@@ -356,8 +359,8 @@ class EnvironmentProbe:
                     return []
 
             local_ips = await asyncio.to_thread(_get_ips)
-        except Exception:
-            pass
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.debug("Suppressed error: %s", e, exc_info=True)
 
         return NetworkStatus(
             internet_connected=internet_connected,
@@ -394,8 +397,8 @@ class EnvironmentProbe:
                                 "ports": parts[4]
                             })
                     return containers
-                except Exception:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                     return []
             return await asyncio.to_thread(_run_docker_ps)
-        except Exception:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
             return []

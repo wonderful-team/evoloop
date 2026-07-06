@@ -286,12 +286,7 @@ export function MultimodalSynthesizeDialog({
       return
     }
     if (!isTauri()) {
-      toast.info(
-        t(
-          "learning.webVideoHint",
-          "Video playback is only available in the desktop app.",
-        ),
-      )
+      toast.info(t("learning.webVideoHint"))
       return
     }
     try {
@@ -306,7 +301,7 @@ export function MultimodalSynthesizeDialog({
       const { openPath } = await import("@tauri-apps/plugin-opener")
       const fileExists = await exists(videoPath)
       if (!fileExists) {
-        toast.error(t("learning.videoNotFound") + videoPath)
+        toast.error(t("learning.videoNotFoundWithPath", { path: videoPath }))
         console.error(
           "[MultimodalSynthesizeDialog] File does not exist:",
           videoPath,
@@ -320,7 +315,9 @@ export function MultimodalSynthesizeDialog({
     } catch (error: any) {
       console.error("[MultimodalSynthesizeDialog] Failed to open video:", error)
       const errorMsg = error?.message || String(error)
-      toast.error(t("learning.openVideoFailed") + errorMsg)
+      toast.error(
+        t("learning.openVideoFailedWithMessage", { message: errorMsg }),
+      )
     }
   }, [videoPath, videoExists, t])
 
@@ -364,7 +361,8 @@ export function MultimodalSynthesizeDialog({
                     <Info className="h-3 w-3" /> {t("learning.skillYaml")}
                   </div>
                   <pre className="text-[10px] overflow-y-auto overflow-x-hidden max-h-32 whitespace-pre-wrap break-all">
-                    {result.skill_yaml.slice(0, 500)}...
+                    {result.skill_yaml.slice(0, 500)}
+                    {t("common.ellipsis")}
                   </pre>
                 </div>
               )}
@@ -388,7 +386,8 @@ export function MultimodalSynthesizeDialog({
                 </div>
                 <div className="bg-muted/20 p-2 rounded border text-center">
                   <div className="font-bold text-lg">
-                    {result.processing_time_seconds.toFixed(1)}s
+                    {result.processing_time_seconds.toFixed(1)}
+                    {t("common.second")}
                   </div>
                   <div className="text-muted-foreground text-[10px]">
                     {t("learning.processingTime")}
@@ -486,10 +485,7 @@ export function MultimodalSynthesizeDialog({
                     <Textarea
                       value={taskDescription}
                       onChange={(e) => setTaskDescription(e.target.value)}
-                      placeholder={t(
-                        "learning.taskDescriptionPlaceholder",
-                        "e.g., Send a message to Zhang San in WeChat, then attach a file from Desktop",
-                      )}
+                      placeholder={t("learning.taskDescriptionPlaceholder")}
                       className="min-h-[80px] text-sm"
                     />
                     <p className="text-[10px] text-muted-foreground">
@@ -514,7 +510,7 @@ export function MultimodalSynthesizeDialog({
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-medium flex items-center gap-1.5">
                       <ImageIcon className="h-3.5 w-3.5" />
-                      {t("learning.regionAnnotations", "Region Annotations")}
+                      {t("learning.regionAnnotations")}
                     </label>
                     {annotations.length > 0 && (
                       <Badge variant="secondary" className="text-[10px]">
@@ -532,13 +528,10 @@ export function MultimodalSynthesizeDialog({
                       <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4">
                         <Crosshair className="h-8 w-8 mb-2 opacity-30" />
                         <p className="text-xs text-center">
-                          {t("learning.noAnnotations", "No marked regions")}
+                          {t("learning.noAnnotations")}
                         </p>
                         <p className="text-[10px] text-center mt-1 opacity-60">
-                          {t(
-                            "learning.noAnnotationsDesc",
-                            "Use floating ball to mark key regions while recording",
-                          )}
+                          {t("learning.noAnnotationsDesc")}
                         </p>
                       </div>
                     ) : (
@@ -550,10 +543,12 @@ export function MultimodalSynthesizeDialog({
                           >
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] font-medium text-muted-foreground">
-                                #{index + 1}
+                                {t("common.hash")}
+                                {index + 1}
                               </span>
                               <span className="text-[10px] text-muted-foreground">
-                                {annotation.video_timestamp_ms}ms
+                                {annotation.video_timestamp_ms}
+                                {t("common.millisecond")}
                               </span>
                             </div>
 
@@ -574,11 +569,12 @@ export function MultimodalSynthesizeDialog({
                                     {Math.round(
                                       (annotation.region.width || 0) * 100,
                                     )}
-                                    % ×{" "}
+                                    {t("common.percent")}{" "}
+                                    {t("common.multiplicationSign")}{" "}
                                     {Math.round(
                                       (annotation.region.height || 0) * 100,
                                     )}
-                                    %
+                                    {t("common.percent")}
                                   </div>
                                 </div>
                               </div>

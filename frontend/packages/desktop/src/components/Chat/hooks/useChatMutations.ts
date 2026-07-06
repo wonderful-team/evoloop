@@ -26,9 +26,11 @@ export function useChatMutations({
     mutationFn: ({
       revertFiles,
       messageId,
+      content,
     }: {
       revertFiles: boolean
       messageId?: string
+      content?: string
     }) =>
       ConversationsService.rewindConversation({
         threadId: activeThreadId!,
@@ -40,7 +42,7 @@ export function useChatMutations({
     onMutate: ({ messageId }) => {
       const snapshot = useChatStore
         .getState()
-        .optimisticTruncate(messageId || "")
+        .optimisticTruncate(messageId || "", true)
       return { snapshot }
     },
     onSuccess: (data: any, _variables: any) => {
@@ -49,17 +51,23 @@ export function useChatMutations({
       }
       const filesMsg =
         data.files_reverted && data.files_reverted > 0
-          ? ` (${t("chat.interface.filesReverted", { count: data.files_reverted })})`
+          ? t("chat.interface.filesRevertedMessage", {
+              count: data.files_reverted,
+            })
           : ""
 
       toast.success(`${t("chat.interface.rewindSuccess")}${filesMsg}`)
       setIsRewindDialogOpen(false)
+
+      if (_variables.content && chatInputRef.current) {
+        chatInputRef.current.setInput(_variables.content)
+      }
     },
     onError: (_error, _variables, context: any) => {
       if (context?.snapshot) {
         useChatStore.getState().restoreSnapshot(context.snapshot)
       }
-      toast.error(t("chat.errors.rewindFailed", "回滚失败"))
+      toast.error(t("chat.errors.rewindFailed"))
     },
   })
 
@@ -95,7 +103,9 @@ export function useChatMutations({
     onSuccess: (data: any) => {
       const filesMsg =
         data.files_reverted && data.files_reverted > 0
-          ? ` (${t("chat.interface.filesReverted", { count: data.files_reverted })})`
+          ? t("chat.interface.filesRevertedMessage", {
+              count: data.files_reverted,
+            })
           : ""
       toast.success(`${t("chat.interface.retrying")}${filesMsg}`)
 

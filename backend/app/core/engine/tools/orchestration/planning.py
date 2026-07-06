@@ -28,14 +28,14 @@ async def decompose_task(
     
     Returns a SpawnPlan that triggers the parallel execution engine.
     """
-    from app.utils import render_template
+    from app.utils.template import render_template
     prompt = render_template(
         "core/engine/tools/orchestration_decompose.prompt.j2",
         task_description=task_description,
         context=f"Context: {context}\nMax Parallelism: {max_parallel}"
     )
 
-    from app.core.llm import InternalLLMService
+    from app.infrastructure.llm import InternalLLMService
     from app.infrastructure.config.service import SystemConfigService
     model_name = SystemConfigService.get_value("LLM_MODEL")
     response = await InternalLLMService.invoke(

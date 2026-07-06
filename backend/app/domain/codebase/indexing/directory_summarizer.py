@@ -4,7 +4,7 @@ import os
 
 from sqlalchemy import select
 
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.models.codebase import CodeChunk, Repository, SourceFile
 
 logger = logging.getLogger(__name__)
@@ -48,8 +48,8 @@ class DirectorySummarizer:
                 with open(sp) as f:
                     data = json.load(f)
                     return data.get("summary")
-            except Exception:
-                pass
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.debug("Suppressed error: %s", e, exc_info=True)
         return None
 
     async def _load_children(self, project_id: int, dir_path: str) -> list[dict]:
@@ -80,13 +80,13 @@ class DirectorySummarizer:
         return children
 
     async def generate_summary(self, dir_path: str, child_summaries: list[dict], model: str | None = None) -> str:
-        from app.utils import render_template
+        from app.utils.template import render_template
         prompt_text = render_template(
             "domain/codebase/directory_summary.prompt.j2",
             directory_path=dir_path,
             child_summaries=child_summaries,
         )
-        from app.core.llm import InternalLLMService
+        from app.infrastructure.llm import InternalLLMService
         from app.infrastructure.config.service import SystemConfigService
         model_name = SystemConfigService.get_value("LLM_MODEL")
         response = await InternalLLMService.invoke(

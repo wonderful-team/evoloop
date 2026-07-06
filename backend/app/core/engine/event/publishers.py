@@ -5,6 +5,7 @@ Agent Engine Event Publishers
 Helper functions for publishing agent-related events.
 """
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.events import system_bus
 
 from .schemas import (
@@ -13,7 +14,6 @@ from .schemas import (
     ConversationDeletedEvent,
     WebSocketMessageReceivedEvent,
 )
-from app.constants import DEFAULT_PROJECT_ID
 
 
 async def publish_agent_session_started(

@@ -6,13 +6,22 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.api.deps import CurrentUser, TokenDep, TokenDepOptional
 from app.api.responses import BaseAPIResponse
-from app.api.schemas.member import ChangePasswordRequest, UpdateUserRequest, BatchCheckRequest, BatchCheckResponse
+from app.api.schemas.member import (
+    BatchCheckRequest,
+    BatchCheckResponse,
+    ChangePasswordRequest,
+    UpdateUserRequest,
+)
 from app.core.evocloud import evocloud_manager
 from app.core.identity import identity_service
 from app.infrastructure.cache import cache
 from app.models import User, UserPublic
-from app.models.schemas.auth import CacheInvalidateResponse, EvoCloudProxyResponse, MemberBenefitsResponse
-from app.services.benefit_service import benefit_service
+from app.models.schemas.auth import (
+    CacheInvalidateResponse,
+    EvoCloudProxyResponse,
+    MemberBenefitsResponse,
+)
+from app.core.benefits import benefit_service
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +119,7 @@ async def read_user_me(current_user: CurrentUser, token: TokenDepOptional = None
             try:
                 data = json.loads(cached_profile_str)
                 return _map_mc_user_to_user(data)
-            except (json.JSONDecodeError, Exception):
+            except json.JSONDecodeError:
                 pass  # fall through to live call
 
     # Cold path: live call to Member Center (cache miss or no token)
@@ -132,7 +141,7 @@ async def read_user_me(current_user: CurrentUser, token: TokenDepOptional = None
             )
     except HTTPException:
         raise
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Error fetching user info from MC: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

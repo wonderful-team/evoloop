@@ -6,7 +6,6 @@ import pandas as pd
 from markdownify import markdownify as md
 from pypdf import PdfReader
 
-from app.core.vision import VisionTask, vision_engine
 from .io import read_file
 
 logger = logging.getLogger(__name__)
@@ -41,7 +40,7 @@ class DocumentReaderService:
                 if not result.success:
                     raise IOError(result.error_message or "Failed to read file")
                 return result.content
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to read document {file_path}: {e}")
             raise
 

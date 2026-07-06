@@ -1,3 +1,5 @@
+import logging
+
 """
 Directory listing and management tools - Thin wrapper over core.file operations.
 
@@ -8,16 +10,20 @@ import fnmatch
 import os
 from typing import Annotated
 
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import InjectedToolArg
-
+from app.core.engine.message.native_classes import RunnableConfig
 from app.core.file import (
-    list_directory as core_list_directory,
     generate_tree as core_generate_tree,
 )
+from app.core.file import (
+    list_directory as core_list_directory,
+)
 from app.core.tools import evoloop_tool
+from app.core.tools.base import InjectedToolArg
 from app.infrastructure.config import SystemConfigService
+
 from .utils import resolve_and_validate_path
+
+logger = logging.getLogger(__name__)
 
 
 def _format_size(size: int) -> str:
@@ -43,7 +49,8 @@ def _get_line_count(file_path: str, max_size: int = 1024 * 1024) -> int | None:
                 return None
         with open(file_path, "rb") as f:
             return sum(1 for _ in f)
-    except Exception:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        logger.debug("Suppressed error: %s", e, exc_info=True)
         return None
 
 
@@ -116,7 +123,7 @@ async def handle_list(
                 tree_output = await generator.generate()
                 tree_count = len([l for l in tree_output.splitlines() if l.strip()])
                 return tree_output, {"count": tree_count, "recursive": True}
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 return f"Error generating annotated tree: {e}"
         else:
             # Use core.file tree generation (compact format)
@@ -143,6 +150,7 @@ async def list_dir(
     with_symbols: bool = False,
     max_entries: int = 200,
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
+    mode: str | None = None,
 ) -> str:
     """
     Browse and explore directory contents with filtering, stats, and tree view.
@@ -190,6 +198,8 @@ async def list_dir(
         # Find test files anywhere in the project
         list_dir(path=".", tree=True, depth=2, filter="test_*.py")
     """
+    if mode == "tree":
+        tree = True
     return await handle_list(
         path=path,
         tree=tree,

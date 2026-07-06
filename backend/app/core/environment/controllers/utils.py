@@ -12,13 +12,10 @@ from collections.abc import Callable
 from typing import Any
 
 from app.core.environment.schemas import BatchStepResult
-from app.utils import (
-    normalize_coordinates,
-    normalize_text,
-    render_template,
-)
 from app.core.file import cleanup_file
-from app.utils.text import truncate_output
+from app.utils.geometry import normalize_coordinates
+from app.utils.template import render_template
+from app.utils.text import normalize_text, truncate_output
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +71,7 @@ class RecordingContext:
         if should_capture:
             try:
                 shot = await screenshot_fn() if asyncio.iscoroutinefunction(screenshot_fn) else screenshot_fn()
-            except Exception:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                 pass  # Screenshot is optional
 
         # Build context
@@ -149,7 +146,7 @@ class BatchExecutor:
                     result=result,
                     latency_ms=latency
                 ))
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 latency = int((time.time() - step_start) * 1000)
                 self.results.append(BatchStepResult(
                     step=i,

@@ -6,6 +6,7 @@ Pydantic data classes for project lifecycle events.
 """
 from datetime import datetime
 from typing import Any
+
 from pydantic import Field
 
 from app.constants import DEFAULT_PROJECT_ID

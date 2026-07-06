@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from app.core.atlas.models import AtlasApp
-from app.core.atlas.schemas import AtlasAppSummary, AtlasStateDetail, AtlasAppInfo
+from app.core.atlas.schemas import AtlasAppInfo, AtlasAppSummary, AtlasStateDetail
 
 
 class IAtlasStore(ABC):

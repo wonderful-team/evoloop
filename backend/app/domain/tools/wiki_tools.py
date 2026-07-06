@@ -6,19 +6,22 @@ import unicodedata
 from datetime import datetime
 from typing import Annotated
 
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import InjectedToolArg
 from sqlmodel import Session, select
 
 from app.core.context.manager import ContextManager
+from app.core.engine.message.native_classes import RunnableConfig
 from app.core.file import safe_read_with_hash, write_file_with_verification
 from app.core.file.editor.engine import EditEngine
-from app.core.monitoring.ui_actions import get_global_mode_message, require_project_for_tool
+from app.core.monitoring.ui_actions import (
+    get_global_mode_message,
+    require_project_for_tool,
+)
 from app.core.tools import evoloop_tool, get_working_directory
+from app.core.tools.base import InjectedToolArg
 from app.domain.wiki.service import wiki_service
 from app.infrastructure.database.resource_manager import db_resource_manager
 from app.models.wiki import WikiPage
-from app.utils import ControllerResponse, PerceptionsFormatter
+from app.utils.controller_response import ControllerResponse, PerceptionsFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +108,7 @@ def _read_page_content(project_path: str, slug: str) -> str | None:
     try:
         content, _, _ = safe_read_with_hash(file_path)
         return content
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.warning(f"[Wiki] Failed to read file {file_path}: {e}")
         return None
 
@@ -217,7 +220,7 @@ async def list_wiki_pages(config: Annotated[RunnableConfig, InjectedToolArg] = N
                                 updated_at=datetime.utcnow(),
                             )
                         )
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     logger.warning(f"[Wiki] Failed to sync file {file_path}: {e}")
             session.commit()
 

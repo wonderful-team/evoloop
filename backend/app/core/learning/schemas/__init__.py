@@ -13,9 +13,6 @@ from app.core.learning.schemas.migrated import (
     ActionRegistryItem,
     ActionSource,
     ActionTrace,
-    CompressedFrame,
-    CompressionConfig,
-    KeyframeCandidate,
     MacroVerificationResult,
     NormalizedEvent,
     RecordingSession,
@@ -34,7 +31,6 @@ from app.core.learning.schemas.migrated import (
     UIContext,
     ValidationMetadata,
     ValidationResult,
-    VideoInfo,
 )
 from app.core.learning.schemas.requests import (
     AndroidExtractPointRequest,

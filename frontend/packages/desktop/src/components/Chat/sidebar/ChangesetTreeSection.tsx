@@ -42,7 +42,7 @@ export function ChangesetTreeSection({
       const res = await fetch(
         `${OpenAPI.BASE}/api/v1/conversations/${activeThreadId}/changeset`,
       )
-      if (!res.ok) throw new Error("Failed to fetch changeset")
+      if (!res.ok) throw new Error(t("chat.changeset.fetchFailed"))
       return res.json()
     },
     enabled: !!activeThreadId,
@@ -180,17 +180,17 @@ export function ChangesetTreeSection({
             <div className="flex items-center gap-1.5 shrink-0">
               {file.operation === "ADD" && (
                 <span className="px-1.5 py-0.5 rounded-[4px] bg-emerald-500/10 text-emerald-600 text-[9px] font-black uppercase tracking-tighter border border-emerald-500/20">
-                  ADD
+                  {t("chat.changeset.opAdd")}
                 </span>
               )}
               {file.operation === "EDIT" && (
                 <span className="px-1.5 py-0.5 rounded-[4px] bg-amber-500/10 text-amber-600 text-[9px] font-black uppercase tracking-tighter border border-amber-500/20">
-                  MOD
+                  {t("chat.changeset.opMod")}
                 </span>
               )}
               {file.operation === "DELETE" && (
                 <span className="px-1.5 py-0.5 rounded-[4px] bg-red-500/10 text-red-600 text-[9px] font-black uppercase tracking-tighter border border-red-500/20">
-                  DEL
+                  {t("chat.changeset.opDel")}
                 </span>
               )}
             </div>

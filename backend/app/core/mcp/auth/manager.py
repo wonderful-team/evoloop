@@ -92,7 +92,7 @@ class McpAuthManager:
             token = await handler.authenticate()
             self._tokens[server_name] = token
             return token
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Authentication failed for {server_name}: {e}")
             raise
 

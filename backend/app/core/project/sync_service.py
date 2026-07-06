@@ -9,7 +9,7 @@ from app.core.file import is_ignored_path
 from app.core.project import cache as project_cache
 from app.core.project.utils import write_project_json
 from app.domain.codebase.indexing.service import IndexingService
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.models.codebase import Repository
 from app.utils.time import utcnow
 
@@ -72,9 +72,9 @@ class ProjectSyncService:
                         try:
                             await evocloud_manager.api.update_project(project_id=pid, source=device_key)
                             logger.info(f"[ProjectSync] Aligned project {pid} source to {device_key} in cloud")
-                        except Exception as ex:
+                        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as ex:
                             logger.warning(f"[ProjectSync] Failed to update project {pid} source to {device_key}: {ex}")
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(f"[ProjectSync] Failed to run local project source alignment: {e}")
 
             # Prefer the persisted active project (user's last explicit choice)
@@ -84,7 +84,7 @@ class ProjectSyncService:
                 selected_project_id = active_project_id
                 logger.info(
                     f"[ProjectSync] Using persisted active project: project_id={selected_project_id}, "
-                    f"path={local_index[selected_project_id]}"
+                    f"path={local_index[selected_project_id].path}"
                 )
 
             # Cloud hint: only advisory, never authoritative over local path
@@ -112,7 +112,7 @@ class ProjectSyncService:
                     selected_project_id = cloud_project_id
                     logger.info(
                         f"[ProjectSync] Cloud hint matched local project: "
-                        f"project_id={selected_project_id}, path={local_index[selected_project_id]}"
+                        f"project_id={selected_project_id}, path={local_index[selected_project_id].path}"
                     )
                 elif cloud_project_id is not None:
                     logger.warning(
@@ -127,8 +127,9 @@ class ProjectSyncService:
                 )
                 return
 
-            local_path = local_index[selected_project_id]
-            if not os.path.exists(local_path):
+            entry = local_index.get(selected_project_id)
+            local_path = entry.path if entry else None
+            if not local_path or not os.path.exists(local_path):
                 logger.warning(f"[ProjectSync] Selected local path does not exist: {local_path}")
                 return
 
@@ -156,7 +157,7 @@ class ProjectSyncService:
                 write_project_json(local_path, {"project_id": repo.project_id, "repo_id": repo.id})
             await indexing_manager.start_watching(local_path, repo.id)
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[ProjectSync] Error syncing cloud project: {e}", exc_info=True)
 
     async def handle_project_created(self, path: str):
@@ -245,7 +246,7 @@ class ProjectSyncService:
                                 f"[ProjectSync] Updated project {cloud_project_id} "
                                 f"source to device key {device_key}"
                             )
-                    except Exception as e:
+                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                         logger.warning(
                             f"[ProjectSync] Failed to update project "
                             f"{cloud_project_id} source: {e}"
@@ -284,7 +285,7 @@ class ProjectSyncService:
                         detected_at=repo.detected_at
                     )
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[ProjectSync] Failed to create repository record: {e}")
 
     async def _find_matching_cloud_project(self, repo_name: str, local_path: str) -> dict | None:
@@ -311,7 +312,7 @@ class ProjectSyncService:
 
             logger.info(f"[ProjectSync] No cloud project matched local path: {abs_local_path}")
             return None
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[ProjectSync] Failed to scan cloud projects: {e}. Treating as new project.")
             return None
 
@@ -336,7 +337,7 @@ class ProjectSyncService:
             from app.domain.codebase.indexing.manager import indexing_manager
             await indexing_manager.start_watching(path, repo.id)
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[ProjectSync] Failed to auto-trigger indexing for '{repo.name}': {e}")
 
     async def import_project(self, repo_id: int) -> Repository:
@@ -390,7 +391,7 @@ class ProjectSyncService:
                     logger.info(f"[ProjectSync] Project '{repo.name}' synced to cloud (ID: {new_pid})")
                 else:
                     logger.warning(f"[ProjectSync] Cloud create failed: {res.get('message')}")
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"[ProjectSync] Cloud sync failed: {e}")
 
         # Persist project_id and repo_id into local .evoloop/project.json
@@ -408,7 +409,7 @@ class ProjectSyncService:
                 project_name=repo.name
             )
             logger.info(f"[ProjectSync] Published ProjectCreatedEvent for {repo.name}")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[ProjectSync] Failed to publish ProjectCreatedEvent: {e}")
 
         return repo
@@ -529,7 +530,7 @@ class ProjectSyncService:
 
                 logger.info(f"[ProjectSync] Project {repo_name} marked as DISCONNECTED ({len(to_disconnect)} records updated).")
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[ProjectSync] Error updating disconnect status for {path}: {e}")
             return
 
@@ -543,7 +544,7 @@ class ProjectSyncService:
                 repo_id=repo_id or 0,
                 project_id=project_id
             )
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[ProjectSync] Failed to publish ProjectDeletedEvent for {path}: {e}")
 
     async def handle_project_moved(self, src_path: str, dest_path: str):
@@ -586,7 +587,7 @@ class ProjectSyncService:
                 logger.info("[ProjectSync] Cloud Project Updated.")
                 # Invalidate cache to reflect updated project info
                 evocloud_manager.invalidate_projects_cache()
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"[ProjectSync] Cloud Update Failed: {e}")
 
         # 5. Update Local Record
@@ -613,8 +614,8 @@ class ProjectSyncService:
             for p in projects:
                 if p.get("path") and os.path.abspath(p.get("path")) == abs_path:
                     return p.get("id")
-        except Exception:
-            pass
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.debug("Suppressed error: %s", e, exc_info=True)
         return None
 
     async def reconcile_projects(self, root_path: str, force: bool = False):
@@ -651,7 +652,7 @@ class ProjectSyncService:
                 if entry.is_dir():
                     # Use absolute path for consistency
                     fs_projects.add(os.path.abspath(entry.path))
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[ProjectSync] FS Scan failed: {e}")
             return
 
@@ -668,7 +669,7 @@ class ProjectSyncService:
                     if r.sync_status == "IGNORED":
                         ignored_paths.add(abs_p)
                         logger.debug(f"[ProjectSync] Tracked ignored project: {abs_p}")
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[ProjectSync] DB Scan failed: {e}")
             return
 
@@ -715,7 +716,7 @@ class ProjectSyncService:
                             session.add(r)
                             # Update map for subsequent steps
                             repo.sync_status = r.sync_status
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     logger.error(f"[ProjectSync] Failed to restore project {p}: {e}")
 
         # C. Retry Pending Cloud Sync for Imported Projects
@@ -730,7 +731,7 @@ class ProjectSyncService:
                             sync_project_to_cloud_task,
                         )
                         sync_project_to_cloud_task.delay(repo.id)
-                    except Exception as e:
+                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                         logger.error(f"[ProjectSync] Failed to queue retry: {e}")
 
         # C. Restart watching for imported projects (SYNCED or PENDING_CREATION)
@@ -758,7 +759,7 @@ class ProjectSyncService:
                     logger.info(f"[ProjectSync] Project {repo.name} indexing status is {repo.indexing_status}, triggering background indexing")
                     # Fire and forget - don't await background indexing
                     asyncio.create_task(indexing_manager.run_indexing_background(repo.id))
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"[ProjectSync] Failed to restart watcher for {p}: {e}")
 
         # D. Deleted Projects (In DB, Not in FS)
@@ -831,7 +832,7 @@ class ProjectSyncService:
                 result = await session.execute(stmt)
                 ignored_repo = result.scalar_one_or_none()
                 return ignored_repo is not None
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[ProjectSync] Error checking previously ignored status: {e}")
             return False
 
@@ -863,7 +864,7 @@ class ProjectSyncService:
             # Update cache
             await project_cache.add_ignored_path(abs_path)
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[ProjectSync] Failed to create ignored project record: {e}")
 
 

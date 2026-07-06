@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@evoloop/shared/components/ui/select"
+import { Textarea } from "@evoloop/shared/components/ui/textarea"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useQueryClient } from "@tanstack/react-query"
 import { Languages, Monitor, PlayCircle } from "lucide-react"
@@ -34,6 +35,7 @@ import { useSettings } from "./SettingsContext"
 const generalSettingsSchema = z.object({
   WORKSPACE_ROOT: z.string().min(1),
   EVOCLOUD_DEVICE_NAME: z.string().min(1),
+  EVOCLOUD_DEVICE_DESCRIPTION: z.string(),
   LANGUAGE: z.string().default("zh"),
   PROJECT_DISCOVERY_ENABLED: z.boolean().default(true),
 })
@@ -56,6 +58,7 @@ export default function GeneralSettings() {
     defaultValues: {
       WORKSPACE_ROOT: "",
       EVOCLOUD_DEVICE_NAME: "",
+      EVOCLOUD_DEVICE_DESCRIPTION: "",
       LANGUAGE: "zh",
       PROJECT_DISCOVERY_ENABLED: true,
     },
@@ -84,6 +87,8 @@ export default function GeneralSettings() {
       const values = {
         WORKSPACE_ROOT: configMap.WORKSPACE_ROOT || "",
         EVOCLOUD_DEVICE_NAME: configMap.EVOCLOUD_DEVICE_NAME || "",
+        EVOCLOUD_DEVICE_DESCRIPTION:
+          configMap.EVOCLOUD_DEVICE_DESCRIPTION || "",
         LANGUAGE: language,
         PROJECT_DISCOVERY_ENABLED: discoveryResponse.enabled ?? true,
       }
@@ -115,6 +120,12 @@ export default function GeneralSettings() {
           requestBody: {
             key: "EVOCLOUD_DEVICE_NAME",
             value: data.EVOCLOUD_DEVICE_NAME,
+          },
+        }),
+        SystemService.updateSystemConfig({
+          requestBody: {
+            key: "EVOCLOUD_DEVICE_DESCRIPTION",
+            value: data.EVOCLOUD_DEVICE_DESCRIPTION,
           },
         }),
         SystemService.updateSystemConfig({
@@ -242,6 +253,31 @@ export default function GeneralSettings() {
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="EVOCLOUD_DEVICE_DESCRIPTION"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    {t("settings.general.deviceDescription")}
+                  </FormLabel>
+                  <FormControl>
+                    <Textarea
+                      className="min-h-[80px] resize-y transition-colors focus:border-primary"
+                      placeholder={t(
+                        "settings.general.deviceDescriptionPlaceholder",
+                      )}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t("settings.general.deviceDescriptionDesc")}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

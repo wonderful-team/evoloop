@@ -190,7 +190,8 @@ export function TTSSettings() {
                 {t("settings.tts.speechRate")}
               </Label>
               <span className="text-sm font-bold text-primary px-2 py-0.5 bg-primary/10 rounded-md">
-                {tempSpeed.toFixed(1)}x
+                {tempSpeed.toFixed(1)}
+                {t("common.speedMultiplier")}
               </span>
             </div>
             <input

@@ -9,7 +9,7 @@ import functools
 import threading
 import time
 from collections import OrderedDict
-from typing import Any, Callable, Generic, Optional, TypeVar
+from typing import Any, Callable, Generic, TypeVar, cast
 
 T = TypeVar("T")
 K = TypeVar("K")
@@ -34,7 +34,7 @@ class TTLCache(Generic[K, V]):
         self._default_ttl = default_ttl
         self._lock = threading.RLock()
     
-    def get(self, key: K, default: Optional[V] = None) -> Optional[V]:
+    def get(self, key: K, default: V | None = None) -> V | None:
         """
         Get value from cache.
         
@@ -57,7 +57,7 @@ class TTLCache(Generic[K, V]):
             
             return value
     
-    def set(self, key: K, value: V, ttl: Optional[float] = None) -> None:
+    def set(self, key: K, value: V, ttl: float | None = None) -> None:
         """
         Set value in cache.
         
@@ -144,7 +144,7 @@ class LRUCache(Generic[K, V]):
         self._cache: OrderedDict[K, V] = OrderedDict()
         self._lock = threading.RLock()
     
-    def get(self, key: K, default: Optional[V] = None) -> Optional[V]:
+    def get(self, key: K, default: V | None = None) -> V | None:
         """
         Get value and mark as recently used.
         
@@ -248,8 +248,8 @@ def ttl_cache(ttl_seconds: float = 300.0):
             return result
         
         # Attach cache methods
-        wrapper.cache = cache  # type: ignore
-        wrapper.cache_clear = cache.clear  # type: ignore
+        wrapper.cache = cache  # type: ignore[attr-defined]
+        wrapper.cache_clear = cache.clear  # type: ignore[attr-defined]
         
         return wrapper
     
@@ -283,8 +283,8 @@ def lru_cache(maxsize: int = 128):
             cache.set(key, result)
             return result
         
-        wrapper.cache = cache  # type: ignore
-        wrapper.cache_clear = cache.clear  # type: ignore
+        wrapper.cache = cache  # type: ignore[attr-defined]
+        wrapper.cache_clear = cache.clear  # type: ignore[attr-defined]
         
         return wrapper
     
@@ -298,7 +298,7 @@ class CachedProperty:
     Similar to functools.cached_property but with optional TTL.
     """
     
-    def __init__(self, func: Callable[..., T], ttl: Optional[float] = None):
+    def __init__(self, func: Callable[..., T], ttl: float | None = None):
         self.func = func
         self.ttl = ttl
         self.name = func.__name__
@@ -306,7 +306,7 @@ class CachedProperty:
     
     def __get__(self, instance: Any, owner: type) -> T:
         if instance is None:
-            return self  # type: ignore
+            return cast(T, self)
         
         instance_id = id(instance)
         
@@ -325,7 +325,7 @@ class CachedProperty:
         self.name = name
 
 
-def cached_property(ttl: Optional[float] = None):
+def cached_property(ttl: float | None = None):
     """
     Decorator for cached properties.
     

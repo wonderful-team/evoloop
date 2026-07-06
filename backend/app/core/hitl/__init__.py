@@ -20,7 +20,6 @@ from app.core.hitl.policies import (
     GrantedPermission,
     PolicyLoader,
 )
-from app.core.hitl.resume import build_resume_command
 
 __all__ = [
     "HumanInputRequest",
@@ -34,7 +33,6 @@ __all__ = [
     "push_hitl_notification",
     "raise_hitl_interrupt",
     "HITLOrchestrator",
-    "build_resume_command",
     "AuthorizationPolicy",
     "GrantedPermission",
     "PolicyLoader",

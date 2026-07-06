@@ -35,16 +35,19 @@ Typical Usage:
 """
 
 import asyncio
-import json
 import logging
-import uuid
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 
-from app.core.tools.schemas import CreateBackgroundTaskRequest, BackgroundTaskManagerStats
-from .models import BackgroundTask, TaskStatus
-from ..event import BackgroundTaskEvent, BackgroundTaskOutputEvent
+from app.core.tools.schemas import (
+    BackgroundTaskManagerStats,
+    CreateBackgroundTaskRequest,
+)
+from app.utils.id import gen_uuid_hex
+
 from ...events import system_bus
+from ..event import BackgroundTaskEvent, BackgroundTaskOutputEvent
+from .models import BackgroundTask, TaskStatus
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +75,7 @@ class BackgroundTaskManager:
     - Internal data structures protected by asyncio.Lock
     """
 
-    _instance: Optional['BackgroundTaskManager'] = None
+    _instance: 'BackgroundTaskManager | None' = None
     _lock = asyncio.Lock()
 
     def __new__(cls):
@@ -157,7 +160,7 @@ class BackgroundTaskManager:
             RuntimeError: If thread has too many tasks (abuse prevention)
         """
         # Generate short readable ID
-        task_id = f"{request.task_type.value[:3]}-{uuid.uuid4().hex[:8]}"
+        task_id = f"{request.task_type.value[:3]}-{gen_uuid_hex()[:8]}"
 
         # Check thread limit (abuse prevention)
         async with self._data_lock:
@@ -486,7 +489,7 @@ class BackgroundTaskManager:
         try:
             from app.core.monitoring.activity import activity_monitor
             await activity_monitor.record_task_update(task)
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.debug(f"Failed to log to activity monitor: {e}")
 
     async def _publish_output_event(self, task: BackgroundTask, output: str) -> None:

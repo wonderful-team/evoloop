@@ -1,8 +1,9 @@
 import logging
-import os
-from typing import List, Optional, Dict, Any
-from .filter import get_grep_exclude_args, get_ripgrep_exclude_args
+from typing import Any, Dict, List
+
 from app.utils.process import run_async_command
+
+from .filter import get_grep_exclude_args, get_ripgrep_exclude_args
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ class FileSearcher:
     async def search_content(
         pattern: str,
         root_path: str,
-        scope: Optional[str] = None,
+        scope: str | None = None,
         case_insensitive: bool = True,
         limit: int = 100
     ) -> List[Dict[str, Any]]:
@@ -73,6 +74,6 @@ class FileSearcher:
                             "line": int(parts[1]),
                             "content": parts[2].strip()
                         })
-            except Exception:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                 continue
         return results

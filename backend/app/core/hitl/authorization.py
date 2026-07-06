@@ -121,7 +121,7 @@ class AuthorizationService:
         if action != "execute" and self.project_id:
             try:
                 project_path = await get_project_path(self.project_id)
-            except Exception:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                 project_path = None
             if project_path and os.path.isabs(resource_path):
                 rel_path = os.path.relpath(resource_path, project_path)

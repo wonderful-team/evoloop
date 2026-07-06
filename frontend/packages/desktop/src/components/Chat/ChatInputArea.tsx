@@ -43,8 +43,8 @@ import {
 import { useAutoSpeak, useTTS } from "@/hooks/useTTS"
 import { useWakeWord, useWakeWordSettings } from "@/hooks/useWakeWord"
 import { isTauri } from "@/lib/tauri"
-import { useChatStore } from "@/stores/chatStore"
 import type { ActiveTaskInfo } from "@/stores/chat/types"
+import { useChatStore } from "@/stores/chatStore"
 import { FilePreview, type PickedFile } from "./FilePreview"
 import { ModelSelector } from "./ModelSelector"
 import { RecordingButton } from "./RecordingButton"
@@ -65,15 +65,18 @@ function TaskPill({
   task: ActiveTaskInfo
   onClick: () => void
 }) {
+  const { t } = useTranslation()
   const isRunning = task.status === "running"
   const label =
-    task.title.length > 30 ? task.title.slice(0, 27) + "…" : task.title
+    task.title.length > 30
+      ? `${task.title.slice(0, 27)}${t("common.ellipsis")}`
+      : task.title
 
   return (
     <button
       onClick={onClick}
       className="group flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-mono transition-all bg-background/80 border border-border/80 text-foreground shadow-2xs hover:border-primary hover:bg-muted/60 focus:outline-none focus-visible:ring-1 focus-visible:ring-primary shrink-0 cursor-pointer"
-      title={`打开终端 – ${task.title}`}
+      title={t("chat.interface.openTerminal", { title: task.title })}
     >
       {isRunning ? (
         <Loader2 className="h-3 w-3 animate-spin text-green-500 flex-shrink-0" />
@@ -425,11 +428,21 @@ export const ChatInputArea = memo(
           if (lastAtIndex !== -1) {
             const before = text.substring(0, lastAtIndex)
             const after = text.substring(start)
-            setInputValue(before + after)
+
+            // 保留文本形式的指代对象，让 LLM 能够结合上下文理解
+            // 对于文件和目录，直接插入完整路径，避免同名文件带来的歧义
+            const isFileOrDir =
+              item.type === "directory" || item.type === "file"
+            const replacementText = isFileOrDir
+              ? `@${item.id} `
+              : `@${item.name} `
+            setInputValue(before + replacementText + after)
+
             setTimeout(() => {
               if (textarea) {
-                textarea.selectionStart = lastAtIndex
-                textarea.selectionEnd = lastAtIndex
+                const newCursor = lastAtIndex + replacementText.length
+                textarea.selectionStart = newCursor
+                textarea.selectionEnd = newCursor
               }
             }, 0)
           }
@@ -440,7 +453,12 @@ export const ChatInputArea = memo(
           id: Math.random().toString(36).substring(2, 15),
           url: item.id,
           name: item.name,
-          type: item.type === "directory" ? "directory" : (item.type === "file" ? "file" : "reference"),
+          type:
+            item.type === "directory"
+              ? "directory"
+              : item.type === "file"
+                ? "file"
+                : "reference",
         }
         if (item.type === "message") {
           newFile.type = "message"
@@ -468,9 +486,7 @@ export const ChatInputArea = memo(
         setShowWakeWordIndicator(true)
         // Auto-hide after 3 seconds
         setTimeout(() => setShowWakeWordIndicator(false), 3000)
-        toast.success(
-          t("chat.voice.wakeWordDetected", "检测到唤醒词，开始录音"),
-        )
+        toast.success(t("chat.voice.wakeWordDetected"))
       }, [inputMode, t])
 
       const { isListening: isWakeWordListening } = useWakeWord({
@@ -524,7 +540,7 @@ export const ChatInputArea = memo(
         waveform: number[]
       }) => {
         if (!currentProject && !isGlobalMode) {
-          toast.error(t("chat.voice.noProject", "请先选择项目"))
+          toast.error(t("chat.voice.noProject"))
           return
         }
 
@@ -554,7 +570,7 @@ export const ChatInputArea = memo(
               metadata: { duration, waveform },
             }
             setPickedFiles((prev) => [...prev, newFile!])
-            toast.success(t("chat.voice.sentSuccess", "语音已添加"))
+            toast.success(t("chat.voice.sentSuccess"))
           }
 
           // Auto transcribe if enabled
@@ -594,7 +610,7 @@ export const ChatInputArea = memo(
             }
           }
         } catch (error: any) {
-          toast.error(t("chat.voice.uploadFailed", "语音上传失败"))
+          toast.error(t("chat.voice.uploadFailed"))
           console.error(error)
         }
       }
@@ -619,9 +635,12 @@ export const ChatInputArea = memo(
         <div className="w-full px-4 py-2 relative">
           {/* Reference Picker Popover - Hidden in global mode */}
           {showPicker && currentProject && !isGlobalMode && (
-            <div className="absolute bottom-full left-0 right-0 mb-2 z-50 px-4">
+            <div className="absolute bottom-full left-0 right-0 z-50 px-4">
               {/* Click outside backdrop - Declared first to stay underneath */}
-              <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setShowPicker(false)} />
+              <div
+                className="fixed inset-0 z-40 bg-transparent"
+                onClick={() => setShowPicker(false)}
+              />
               {/* Picker card - Declared second with z-50 to overlay on top of the backdrop */}
               <ReferencePicker
                 ref={pickerRef}
@@ -649,21 +668,38 @@ export const ChatInputArea = memo(
           >
             {isDragging && (
               <div className="absolute inset-0 z-[60] bg-primary/10 flex flex-col items-center justify-center gap-2 pointer-events-none">
-                <Paperclip className="h-8 w-8 text-primary animate-bounce"/>
-                <span className="text-sm font-medium text-primary">{t("chat.interface.dropToUpload", "松开上传文件")}</span>
+                <Paperclip className="h-8 w-8 text-primary animate-bounce" />
+                <span className="text-sm font-medium text-primary">
+                  {t("chat.interface.dropToUpload")}
+                </span>
               </div>
             )}
             {/* Top: File Preview */}
             <FilePreview
               pickedFiles={pickedFiles}
-              onRemove={(id) => setPickedFiles((prev) => prev.filter((a) => a.id !== id))}
+              onRemove={(id) =>
+                setPickedFiles((prev) => prev.filter((a) => a.id !== id))
+              }
+              onClick={(file) => {
+                if (file.type === "directory" || file.type === "file") {
+                  window.dispatchEvent(
+                    new CustomEvent("locate-file", {
+                      detail: {
+                        path: typeof file.url === "string" ? file.url : file.id,
+                      },
+                    }),
+                  )
+                }
+              }}
             />
 
             {/* Wake Word Indicator */}
             {showWakeWordIndicator && (
               <div className="px-4 py-2 bg-green-500/10 border-b border-green-500/20 flex items-center gap-2">
-                <Ear className="h-4 w-4 text-green-600 animate-pulse"/>
-                <span className="text-sm text-green-700 dark:text-green-400">{t("chat.voice.wakeWordActive", "唤醒词已激活，请说话...")}</span>
+                <Ear className="h-4 w-4 text-green-600 animate-pulse" />
+                <span className="text-sm text-green-700 dark:text-green-400">
+                  {t("chat.voice.wakeWordActive")}
+                </span>
               </div>
             )}
 
@@ -671,7 +707,9 @@ export const ChatInputArea = memo(
             {inputMode === "text" ? (
               <div className="px-2 py-2 flex items-center gap-2">
                 {isTerminalMode && (
-                  <span className="text-[#7aa2f7] font-mono font-bold select-none self-start">$</span>
+                  <span className="text-[#7aa2f7] font-mono font-bold select-none self-start">
+                    {t("chat.terminal.promptSymbol")}
+                  </span>
                 )}
                 <textarea
                   ref={textareaRef}
@@ -681,21 +719,21 @@ export const ChatInputArea = memo(
                   onPaste={handlePaste}
                   placeholder={
                     isTerminalMode
-                      ? "输入终端命令并按 Enter 执行... (例如: ls -la, pwd)"
+                      ? t("chat.interface.terminalPlaceholder")
                       : disabled
-                        ? t("chat.interface.inputDisabled", "Please respond to the active request above...")
+                        ? t("chat.interface.inputDisabled")
                         : isGlobalMode
-                          ? t("chat.interface.askGlobal", "询问任何问题...")
+                          ? t("chat.interface.askGlobal")
                           : currentProject
                             ? t("chat.interface.askProject", {
-                              project: currentProject.name,
-                            })
+                                project: currentProject.name,
+                              })
                             : t("chat.interface.selectProject")
                   }
                   disabled={(!currentProject && !isGlobalMode) || disabled}
                   className="flex w-full bg-transparent border-none focus:ring-0 text-sm placeholder:text-muted-foreground resize-none focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 min-h-[36px] max-h-[300px]"
                   rows={1}
-                  style={{height: "auto", minHeight: "36px"}}
+                  style={{ height: "auto", minHeight: "36px" }}
                   onInput={(e) => {
                     // Auto-grow hack
                     const target = e.target as HTMLTextAreaElement
@@ -717,13 +755,13 @@ export const ChatInputArea = memo(
             {/* Transcribing indicator */}
             {isTranscribing && (
               <div className="px-4 py-1 flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin"/>
-                {t("chat.voice.transcribing", "转文字中...")}
+                <Loader2 className="h-3 w-3 animate-spin" />
+                {t("chat.voice.transcribing")}
               </div>
             )}
 
             {/* Bottom: Toolbar */}
-            <div className="flex items-center justify-between border-t border-border/40 bg-muted/20 p-2 gap-2 overflow-hidden">
+            <div className="flex items-center justify-between border-t border-border/40 bg-muted/20 px-2 py-1 gap-2 overflow-hidden">
               {/* Left Group: Tools */}
               <div className="flex items-center gap-1.5 shrink-0 overflow-x-auto hide-scrollbar max-w-[70%]">
                 {isTerminalMode ? (
@@ -731,10 +769,10 @@ export const ChatInputArea = memo(
                     <button
                       onClick={() => setTerminalMode(false)}
                       className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono text-[#7aa2f7] bg-[#7aa2f7]/15 hover:bg-[#7aa2f7]/25 border border-[#7aa2f7]/30 font-bold transition-all select-none shrink-0 shadow-xs cursor-pointer group"
-                      title="点击退出终端模式，切回对话视图"
+                      title={t("chat.interface.exitTerminal")}
                     >
                       <Terminal className="h-3.5 w-3.5" />
-                      <span>终端交互模式 (PTY)</span>
+                      <span>{t("chat.interface.terminalMode")}</span>
                       <X className="h-3.5 w-3.5 ml-0.5 opacity-60 group-hover:opacity-100 transition-opacity" />
                     </button>
                     {tasks.map((task) => (
@@ -746,71 +784,74 @@ export const ChatInputArea = memo(
                     ))}
                   </div>
                 ) : (
-                    <>
-                      <ModelSelectorWrapper isSending={isSending}/>
+                  <>
+                    <ModelSelectorWrapper isSending={isSending} />
 
-                      <div className="w-px h-6 bg-border mx-1"/>
+                    <div className="w-px h-6 bg-border mx-1" />
 
-                      <SkillLibraryDialog
-                          open={isSkillDialogOpen}
-                          onOpenChange={setIsSkillDialogOpen}
-                          threadId={activeThreadId ?? ""}
-                          projectId={currentProject?.id}
-                          onSelectSkill={(skill) => {
-                            // Attach skill as reference (allow multiple skills to be mounted)
-                            const newFile: PickedFile = {
-                              id: Math.random().toString(36).substring(2, 15),
-                              url: skill.id,
-                              name: skill.name,
-                              type: "skill",
-                              metadata: {
-                                skill_id: skill.id,
-                                skill_name: skill.name,
-                              },
-                            }
-                            setPickedFiles((prev) => [
-                              ...prev.filter((a) => a.url !== skill.id),
-                              newFile,
-                            ])
-                            setIsSkillDialogOpen(false)
-                            toast.success(t("chat.skillAttached", "技能已挂载"))
-                          }}
-                          trigger={
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                title={t("learning.skillLibrary")}
-                            >
-                              <BookOpen size={16}/>
-                            </Button>
-                          }
-                      />
+                    <SkillLibraryDialog
+                      open={isSkillDialogOpen}
+                      onOpenChange={setIsSkillDialogOpen}
+                      threadId={activeThreadId ?? ""}
+                      projectId={currentProject?.id}
+                      onSelectSkill={(skill) => {
+                        // Attach skill as reference (allow multiple skills to be mounted)
+                        const newFile: PickedFile = {
+                          id: Math.random().toString(36).substring(2, 15),
+                          url: skill.id,
+                          name: skill.name,
+                          type: "skill",
+                          metadata: {
+                            skill_id: skill.id,
+                            skill_name: skill.name,
+                          },
+                        }
+                        setPickedFiles((prev) => [
+                          ...prev.filter((a) => a.url !== skill.id),
+                          newFile,
+                        ])
+                        setIsSkillDialogOpen(false)
+                        toast.success(t("chat.skillAttached"))
+                      }}
+                      trigger={
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          title={t("learning.skillLibrary")}
+                        >
+                          <BookOpen size={16} />
+                        </Button>
+                      }
+                    />
                     {isTauri() && (
-                        <div className="h-8 flex items-center justify-center">
-                          <RecordingButton threadId={activeThreadId ?? ""} enabled={true}/>
-                        </div>
+                      <div className="h-8 flex items-center justify-center">
+                        <RecordingButton
+                          threadId={activeThreadId ?? ""}
+                          enabled={true}
+                        />
+                      </div>
                     )}
 
-                      <div className="flex items-center gap-1.5">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
-                            title="进入终端交互模式 (PTY)"
-                            onClick={() => setTerminalMode(true)}
-                        >
-                          <Terminal size={16}/>
-                        </Button>
-                        {tasks.map((task) => (
-                            <TaskPill
-                                key={task.task_id}
-                                task={task}
-                                onClick={() => setTerminalMode(true)}
-                            />
-                        ))}
-                      </div>
-                    </>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
+                        title={t("chat.interface.enterTerminal")}
+                        onClick={() => setTerminalMode(true)}
+                      >
+                        <Terminal size={16} />
+                      </Button>
+                      {tasks.map((task) => (
+                        <TaskPill
+                          key={task.task_id}
+                          task={task}
+                          onClick={() => setTerminalMode(true)}
+                        />
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
 
@@ -826,15 +867,29 @@ export const ChatInputArea = memo(
                   <TooltipProvider delayDuration={100}>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div className={cn("flex items-center gap-1.5 px-2 py-1 rounded-md text-xs", isWakeWordListening ? "bg-green-500/10 text-green-600" : "bg-muted text-muted-foreground")}>
-                          <Ear className={cn("h-3.5 w-3.5", isWakeWordListening && "animate-pulse")} />
+                        <div
+                          className={cn(
+                            "flex items-center gap-1.5 px-2 py-1 rounded-md text-xs",
+                            isWakeWordListening
+                              ? "bg-green-500/10 text-green-600"
+                              : "bg-muted text-muted-foreground",
+                          )}
+                        >
+                          <Ear
+                            className={cn(
+                              "h-3.5 w-3.5",
+                              isWakeWordListening && "animate-pulse",
+                            )}
+                          />
                           <span className="hidden sm:inline">
-                          {isWakeWordListening ? t("chat.voice.listening", "监听中") : t("chat.voice.standby", "待机")}
-                        </span>
+                            {isWakeWordListening
+                              ? t("chat.voice.listening")
+                              : t("chat.voice.standby")}
+                          </span>
                         </div>
                       </TooltipTrigger>
                       <TooltipContent side="top">
-                        {t("chat.voice.wakeWordStatus", '唤醒词: "{{word}}"', {word: wakeWord})}
+                        {t("chat.voice.wakeWordStatus", { word: wakeWord })}
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -854,38 +909,44 @@ export const ChatInputArea = memo(
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                      onClick={() => document.getElementById("chat-file-upload")?.click()}
+                      onClick={() =>
+                        document.getElementById("chat-file-upload")?.click()
+                      }
                       disabled={isUploading}
                       title={t("chat.interface.uploadFile")}
                     >
                       {isUploading ? (
-                        <Loader2 size={16} className="animate-spin"/>
+                        <Loader2 size={16} className="animate-spin" />
                       ) : (
-                        <Paperclip size={16}/>
+                        <Paperclip size={16} />
                       )}
                     </Button>
 
-                    <Separator orientation="vertical" className="h-4 mx-1"/>
+                    <Separator orientation="vertical" className="h-4 mx-1" />
 
                     <TooltipProvider delayDuration={100}>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
-                            variant={inputMode === "voice" ? "secondary" : "ghost"}
+                            variant={
+                              inputMode === "voice" ? "secondary" : "ghost"
+                            }
                             size="icon"
                             onClick={toggleInputMode}
                             disabled={isSending}
                             className="h-8 w-8"
                           >
                             {inputMode === "voice" ? (
-                              <Keyboard className="h-4 w-4"/>
+                              <Keyboard className="h-4 w-4" />
                             ) : (
-                              <Mic className="h-4 w-4"/>
+                              <Mic className="h-4 w-4" />
                             )}
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent side="top">
-                          {inputMode === "voice" ? t("chat.voice.switchToText") : t("chat.voice.switchToVoice")}
+                          {inputMode === "voice"
+                            ? t("chat.voice.switchToText")
+                            : t("chat.voice.switchToVoice")}
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -900,41 +961,55 @@ export const ChatInputArea = memo(
                             className="h-8 w-8"
                           >
                             {autoSpeak ? (
-                              <Volume2 className="h-4 w-4 text-primary"/>
+                              <Volume2 className="h-4 w-4 text-primary" />
                             ) : (
-                              <VolumeX className="h-4 w-4 text-muted-foreground"/>
+                              <VolumeX className="h-4 w-4 text-muted-foreground" />
                             )}
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent side="top">
-                          {autoSpeak ? t("chat.tts.autoSpeakOn") : t("chat.tts.autoSpeakOff")}
+                          {autoSpeak
+                            ? t("chat.tts.autoSpeakOn")
+                            : t("chat.tts.autoSpeakOff")}
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
 
-                    <div className="w-px h-6 bg-border mx-1"/>
+                    <div className="w-px h-6 bg-border mx-1" />
                   </>
                 )}
 
                 <Button
                   onClick={() => (isAgentWorking ? onStop() : handleSend())}
-                  disabled={inputMode === "voice" || (!inputValue.trim() && pickedFiles.length === 0 && !isAgentWorking) || isSending || (!currentProject && !isGlobalMode) || isUploading}
+                  disabled={
+                    inputMode === "voice" ||
+                    (!inputValue.trim() &&
+                      pickedFiles.length === 0 &&
+                      !isAgentWorking) ||
+                    isSending ||
+                    (!currentProject && !isGlobalMode) ||
+                    isUploading
+                  }
                   size="sm"
                   className={`h-8 px-3 transition-all ${isAgentWorking ? "bg-red-500 hover:bg-red-600 text-white shadow-red-500/20 animate-pulse" : "shadow-primary/20"}`}
                 >
                   {isAgentWorking || isStopPending ? (
                     <span className="flex items-center gap-2">
                       {isStopPending ? (
-                        <Loader2 size={14} className="animate-spin"/>
+                        <Loader2 size={14} className="animate-spin" />
                       ) : (
-                        <Square size={14} fill="currentColor"/>
+                        <Square size={14} fill="currentColor" />
                       )}
-                      <span className="text-xs font-medium">{t("common.stop", "Stop")}</span>
+                      <span className="text-xs font-medium">
+                        {t("common.stop")}
+                      </span>
                     </span>
                   ) : (
                     <span className="flex items-center gap-2">
-                      <Send size={14}/>
-                      <span className="text-xs font-bold">{t("common.send", "Send")}</span>
+                      <Send size={14} />
+                      <span className="text-xs font-bold">
+                        {t("common.send")}
+                      </span>
                     </span>
                   )}
                 </Button>
@@ -948,7 +1023,7 @@ export const ChatInputArea = memo(
 )
 
 // Wrapper component for ModelSelector that connects to chatStore
-function ModelSelectorWrapper({isSending}: { isSending: boolean }) {
+function ModelSelectorWrapper({ isSending }: { isSending: boolean }) {
   const selectedModel = useChatStore((state) => state.selectedModel)
   const setSelectedModel = useChatStore((state) => state.setSelectedModel)
 

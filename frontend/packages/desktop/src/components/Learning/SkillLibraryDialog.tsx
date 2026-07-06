@@ -368,7 +368,7 @@ export function SkillLibraryDialog({
                         }}
                       >
                         <Paperclip className="h-4 w-4 mr-2" />
-                        {t("chat.attachSkill", "Attach Skill")}
+                        {t("chat.attachSkill")}
                       </Button>
                     ) : (
                       // Run mode: execute skill immediately

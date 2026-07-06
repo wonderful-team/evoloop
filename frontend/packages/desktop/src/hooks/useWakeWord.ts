@@ -78,7 +78,12 @@ export function useWakeWord(
         // Ignore no-speech errors
         return
       }
-      setError(`${t("voice.recognitionError")}: ${event.error}`)
+      setError(
+        t("voice.recognitionErrorWithDetail", {
+          message: t("voice.recognitionError"),
+          detail: event.error,
+        }),
+      )
       setIsListening(false)
     }
 

@@ -1,3 +1,4 @@
+import i18n from "@evoloop/shared/i18n"
 import { useCallback, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { LearningService } from "@/client/sdk.gen"
@@ -174,7 +175,7 @@ export function useRecordingWithSynthesis() {
   const synthesizeFromRecording = useCallback(
     async (taskDescription: string, threadId?: string) => {
       if (!recordingState.videoPath || !recordingState.sessionId) {
-        throw new Error("No recording available")
+        throw new Error(i18n.t("learning.noRecordingAvailable"))
       }
 
       return synthesis.synthesize({

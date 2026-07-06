@@ -4,39 +4,36 @@ Engine Event Subscribers
 
 Event subscribers for the engine module, handling WebSocket commands
 and agent dispatch.
+
+Heavy command logic (memory, A2A) is delegated to dedicated handler modules
+in ``app.core.engine.event.handlers``.
 """
 
 import asyncio
-import json
 import logging
-import os
 from datetime import datetime, timezone
-from typing import Any
 
-import httpx
 from sqlalchemy import delete, select
 from sqlalchemy.orm import selectinload
 
 from app.constants import DEFAULT_PROJECT_ID
-from app.core.config import settings
 from app.core.context import thread_context_store
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
+from app.core.engine.event.handlers import A2ACommandHandler, MemoryCommandHandler
 from app.core.engine.event.schemas import (
     ConversationDeletedEvent,
     WebSocketMessageReceivedEvent,
 )
 from app.core.engine.event.types import ConversationEventType
-from app.core.events import system_bus
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.evocloud.bridge.conversation_sync import get_conversation_sync_manager
 from app.core.evocloud.manager import evocloud_manager
-from app.core.evocloud.schemas import AgentTask, AgentTaskResult, RemoteCommand
+from app.core.evocloud.schemas import RemoteCommand
 from app.core.identity import identity_service
 from app.core.schemas.canonical import MessageType, create_envelope
 from app.infrastructure.config import SystemConfigService
-from app.infrastructure.database.resource_manager import db_resource_manager
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.models import (
     AgentActivity,
     Conversation,
@@ -45,7 +42,6 @@ from app.models import (
     Message,
     ThreadSequence,
 )
-from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +70,12 @@ class EngineCommandSubscriber:
     1. 订阅通用 WebSocket 消息事件，过滤 command.relay
     2. 执行保障：semaphore、状态上报、超时控制
     3. 业务处理：HITL 响应、控制命令、普通消息调度
+    4. 委托 Memory / A2A 命令到专用 handler
     """
+
+    def __init__(self) -> None:
+        self._memory_handler = MemoryCommandHandler()
+        self._a2a_handler = A2ACommandHandler()
 
     @event_subscribe("websocket.message_received")
     async def on_ws_message(self, event: WebSocketMessageReceivedEvent) -> None:
@@ -126,7 +127,7 @@ class EngineCommandSubscriber:
                     evocloud_manager.api, evocloud_manager.link.device_key
                 )
                 await manager.incremental_sync()
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(f"[EngineCommand] Failed to trigger conversation sync: {e}")
 
         if action == "conversation_update":
@@ -176,7 +177,7 @@ class EngineCommandSubscriber:
                 logger.info(
                     f"[EngineCommand] conversation_delete synced to MC: thread_id={thread_id}"
                 )
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(
                     f"[EngineCommand] Failed to sync conversation_delete to MC: thread_id={thread_id}, error={e}"
                 )
@@ -217,7 +218,7 @@ class EngineCommandSubscriber:
                     await self._send_ack(
                         cmd_id, "completed", thread_id=command.thread_id
                     )
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     logger.error(
                         "[EngineCommand] Command execution FAILED: "
                         f"cmd_id={cmd_id}, error={e}"
@@ -244,10 +245,10 @@ class EngineCommandSubscriber:
         thread_id: str | None = None,
     ) -> None:
         """发送 command.ack 给 Gateway (received 已由 link-layer 发送，这里发 final 状态)。"""
-        from app.core.evocloud.manager import evocloud_manager
+        from app.core.channel import channel_registry
 
-        link = evocloud_manager.link
-        if link is None:
+        ch = channel_registry.get("mobile")
+        if ch is None:
             return
 
         body = {"command_id": cmd_id, "status": status}
@@ -255,13 +256,10 @@ class EngineCommandSubscriber:
             body["thread_id"] = thread_id
         if error:
             body["error"] = error
-        ack_env = create_envelope(
-            type=MessageType.COMMAND_ACK,
+        await ch.send_envelope(
+            env_type=MessageType.COMMAND_ACK,
             body=body,
-            source=None,
-            target=None,
         )
-        await link.send_message(ack_env.model_dump())
         logger.info(
             f"[EngineCommand] command.ack sent: cmd_id={cmd_id}, status={status}"
         )
@@ -277,12 +275,8 @@ class EngineCommandSubscriber:
         elif action == "rewind":
             await self._handle_rewind(command)
         # [Memory Commands]
-        elif action == "memory_add":
-            await self._handle_memory_add(command)
-        elif action == "memory_update":
-            await self._handle_memory_update(command)
-        elif action == "memory_delete":
-            await self._handle_memory_delete(command)
+        elif action in ("memory_add", "memory_update", "memory_delete"):
+            await self._memory_handler.handle(action, command)
         # [HITL Inbound Logic]
         elif action == "hitl_response":
             await self._handle_hitl_response(command)
@@ -292,10 +286,8 @@ class EngineCommandSubscriber:
         elif action == "chat":
             await self._handle_chat_message(command)
         # [A2A Task & Callback Logic]
-        elif action == "a2a_task":
-            await self._handle_a2a_task(command)
-        elif action == "a2a_callback":
-            await self._handle_a2a_callback(command)
+        elif action in ("a2a_task", "a2a_callback"):
+            await self._a2a_handler.handle(action, command)
         else:
             logger.debug(f"[EngineCommand] Skipping action {action} in engine domain")
 
@@ -373,8 +365,9 @@ class EngineCommandSubscriber:
         asyncio.create_task(run_agent_background(thread_id, inputs))
 
     async def _handle_chat_message(self, command: RemoteCommand) -> None:
-        # Mobile sends chat content inside the command.relay body's `content` field,
-        # typically as {"text": "..."}.  We read directly from that payload.
+        #         Mobile sends chat content inside the command.relay body's `content` field,
+        #  @schemas/types/command.relay.json: content = { text: "..." }
+        #  We read directly from that payload.
         payload = command.get_payload()
 
         if isinstance(payload, str):
@@ -455,204 +448,6 @@ class EngineCommandSubscriber:
         """Handle rewind command from Mobile (rewind only, no re-dispatch)."""
         await self._handle_retry_or_rewind(command, should_redispatch=False)
 
-    async def _handle_memory_add(self, command: RemoteCommand) -> None:
-        payload = command.get_payload()
-        name = payload.get("name", "从对话学习")
-        description = payload.get("description", "")
-        project_id = self._resolve_project_id(payload, command)
-        related_files = payload.get("related_files") or []
-        source_message_id = payload.get("source_message_id")
-        source_thread_id = payload.get("source_thread_id")
-        created_by_member_id = payload.get("created_by_member_id")
-
-        from app.core.memory.lifespan import MemoryLifespanManager
-
-        manager = MemoryLifespanManager.get_manager()
-
-        existing = None
-        if source_message_id and created_by_member_id is not None:
-            rows = await manager._storage._db_search({
-                "source_message_id": source_message_id,
-                "created_by_member_id": created_by_member_id,
-                "memory_kind": "concept",
-            })
-            if rows:
-                existing = await manager.get_memory(rows[0]["id"])
-
-        if existing:
-            await manager.delete_memory(existing.id)
-            if source_message_id:
-                await self._update_message_remember_state(
-                    source_message_id, is_remembered=False, memory_concept_id=None
-                )
-            await self._sync_memory_to_gateway(project_id, [], deleted_names=[existing.title])
-            logger.info(f"[EngineCommand] memory_add toggled off: name={existing.title}")
-            return
-
-        concept = await manager.store_concept(
-            concept=name,
-            description=description,
-            project_id=project_id,
-            related_files=related_files,
-            member_id=created_by_member_id or 0,
-            source_message_id=source_message_id,
-            source_thread_id=source_thread_id,
-            created_by_member_id=created_by_member_id,
-            memory_kind="concept",
-        )
-        if source_message_id:
-            await self._update_message_remember_state(
-                source_message_id, is_remembered=True, memory_concept_id=concept.id
-            )
-        await self._sync_memory_to_gateway(project_id, [concept])
-        logger.info(f"[EngineCommand] memory_add saved: name={name}")
-
-    async def _update_message_remember_state(
-        self,
-        message_id: str,
-        is_remembered: bool,
-        memory_concept_id: str | None = None,
-    ) -> None:
-        from app.utils.time import utcnow
-
-        async with session_scope() as session:
-            stmt = select(Message).where(Message.id == message_id)
-            res = await session.execute(stmt)
-            msg = res.scalar_one_or_none()
-            if not msg:
-                logger.warning(f"[EngineCommand] Message not found for remember update: {message_id}")
-                return
-            msg.is_remembered = is_remembered
-            msg.remembered_at = utcnow() if is_remembered else None
-            msg.memory_concept_id = memory_concept_id if is_remembered else None
-
-    async def _handle_memory_update(self, command: RemoteCommand) -> None:
-        payload = command.get_payload()
-        name = payload.get("name", "")
-        description = payload.get("description")
-        related_files = payload.get("related_files")
-        project_id = self._resolve_project_id(payload, command)
-
-        if not name:
-            logger.warning("[EngineCommand] memory_update missing name, skipping")
-            return
-
-        logger.info(f"[EngineCommand] Processing memory_update: name={name}")
-        from app.core.memory.lifespan import MemoryLifespanManager
-
-        manager = MemoryLifespanManager.get_manager()
-        memory_id = f"concept_{name.lower().replace(' ', '_')}"
-        existing = await manager.get_memory(memory_id)
-        if not existing:
-            logger.warning(f"[EngineCommand] memory_update concept not found: {name}")
-            return
-
-        if description is not None:
-            existing.content = description
-            existing.description = description[:200]
-        if related_files is not None:
-            existing.tags = ["concept"] + related_files
-        await manager.save_memory(existing)
-        await self._sync_memory_to_gateway(project_id, [existing])
-        logger.info(f"[EngineCommand] memory_update saved: name={name}")
-
-    async def _handle_memory_delete(self, command: RemoteCommand) -> None:
-        payload = command.get_payload()
-        name = payload.get("name", "")
-        source_message_id = payload.get("source_message_id")
-        project_id = self._resolve_project_id(payload, command)
-
-        if not name:
-            logger.warning("[EngineCommand] memory_delete missing name, skipping")
-            return
-
-        logger.info(f"[EngineCommand] Processing memory_delete: name={name}")
-        from app.core.memory.lifespan import MemoryLifespanManager
-
-        manager = MemoryLifespanManager.get_manager()
-        memory_id = f"concept_{name.lower().replace(' ', '_')}"
-        existing = await manager.get_memory(memory_id)
-        if existing:
-            await manager.delete_memory(memory_id)
-
-        if source_message_id:
-            await self._update_message_remember_state(
-                source_message_id, is_remembered=False, memory_concept_id=None
-            )
-
-        await self._sync_memory_to_gateway(project_id, [], deleted_names=[name])
-        logger.info(f"[EngineCommand] memory_delete processed: name={name}")
-
-    def _resolve_project_id(
-        self, payload: dict[str, Any], command: RemoteCommand
-    ) -> int:
-        project_id = payload.get("project_id")
-        if project_id is None:
-            project_id = command.get("project_id")
-        if project_id is None:
-            project_id = DEFAULT_PROJECT_ID
-        return project_id
-
-    async def _sync_memory_to_gateway(
-        self, project_id: int, memories: list, deleted_names: list[str] | None = None
-    ) -> None:
-        """Send memory.sync envelope to Gateway so Mobile can read from cloud."""
-        try:
-            from app.core.evocloud.manager import evocloud_manager
-
-            link = evocloud_manager.link
-            if not link or not link.is_connected():
-                logger.debug("[EngineCommand] Gateway link not connected, skipping memory.sync")
-                return
-
-            concepts = []
-            for m in memories:
-                concept = {
-                    "id": m.id,
-                    "name": getattr(m, "title", ""),
-                    "description": getattr(m, "description", ""),
-                    "related_files": [t for t in (getattr(m, "tags", []) or []) if t != "concept"],
-                    "project_id": project_id,
-                    "source_message_id": getattr(m, "source_message_id", None),
-                    "source_thread_id": getattr(m, "source_thread_id", None),
-                    "deleted": False,
-                    "created_at": int(m.created_at.timestamp()) if m.created_at else 0,
-                    "updated_at": int(m.updated_at.timestamp()) if m.updated_at else 0,
-                }
-                if not concept["name"]:
-                    concept["name"] = getattr(m, "content", "")[:20]
-                concepts.append(concept)
-
-            if deleted_names:
-                for name in deleted_names:
-                    concepts.append({
-                        "id": f"concept_{name.lower().replace(' ', '_')}",
-                        "name": name,
-                        "description": "",
-                        "related_files": [],
-                        "project_id": project_id,
-                        "deleted": True,
-                        "created_at": 0,
-                        "updated_at": int(__import__('time').time()),
-                    })
-
-            body = {
-                "device_key": link.device_key,
-                "project_id": project_id,
-                "concepts": concepts,
-            }
-            envelope = {
-                "version": "2.0",
-                "type": "memory.sync",
-                "message_id": __import__('uuid').uuid4().hex,
-                "timestamp": int(__import__('time').time()),
-                "body": body,
-            }
-            await link.send_message(envelope)
-            logger.info(f"[EngineCommand] memory.sync sent to Gateway: concepts={len(concepts)}")
-        except Exception as e:
-            logger.error(f"[EngineCommand] Failed to send memory.sync: {e}")
-
     async def _handle_retry_or_rewind(
         self, command: RemoteCommand, should_redispatch: bool
     ) -> None:
@@ -674,7 +469,7 @@ class EngineCommandSubscriber:
         )
 
         from app.core.context.manager import ContextManager
-        from app.core.engine.rewind import RewindOrchestrator
+        from app.core.engine.rewind import perform_rewind
 
         async with session_scope() as session:
             if message_id:
@@ -701,9 +496,7 @@ class EngineCommandSubscriber:
                 )
                 # Fallback: if message is missing locally, at least attempt to delete the target message from the cloud
                 if message_id and payload.get("include_target", not should_redispatch):
-                    from app.core.engine.rewind.event.publishers import (
-                        publish_messages_cleanup,
-                    )
+                    from app.core.engine.rewind import publish_messages_cleanup
 
                     await publish_messages_cleanup(
                         thread_id=thread_id,
@@ -734,8 +527,7 @@ class EngineCommandSubscriber:
                 else DEFAULT_PROJECT_ID
             )
 
-        orchestrator = RewindOrchestrator(event_bus=system_bus)
-        rewind_result = await orchestrator.perform_rewind(
+        rewind_result = await perform_rewind(
             thread_id=thread_id,
             target_message_id=str(target_msg.id),
             include_target=payload.get("include_target", not should_redispatch),
@@ -784,277 +576,6 @@ class EngineCommandSubscriber:
 
         asyncio.create_task(run_agent_background(thread_id, result.inputs))
 
-    async def _handle_a2a_task(self, command: RemoteCommand) -> None:
-        payload = command.get_payload()
-        logger.info(f"[A2A] Received A2A Task: {payload}")
-
-        try:
-            task = AgentTask.model_validate(payload)
-        except Exception as e:
-            logger.error(f"[A2A] Invalid AgentTask payload: {payload}, error={e}")
-            return
-
-        thread_id = task.task_id
-
-        # Loop prevention check
-        if task.hop_count > task.max_hops:
-            logger.error(
-                f"[A2A] Maximum hops exceeded: {task.hop_count} > {task.max_hops} for task {task.task_id}"
-            )
-            await self._send_a2a_error(task, "Maximum chain delegation depth exceeded")
-            return
-
-        # Download attachments
-        local_attachment_paths = []
-        if task.attachments:
-            download_dir = os.path.expanduser(
-                os.path.join(settings.EVOLOOP_APP_DATA_DIR, "attachments", task.task_id)
-            )
-            os.makedirs(download_dir, exist_ok=True)
-
-            async with httpx.AsyncClient() as client:
-                for att in task.attachments:
-                    dest_path = os.path.join(download_dir, att.filename)
-                    logger.info(
-                        f"[A2A] Downloading attachment {att.filename} from {att.download_url}..."
-                    )
-                    try:
-                        async with client.stream("GET", att.download_url) as response:
-                            response.raise_for_status()
-                            with open(dest_path, "wb") as f:
-                                async for chunk in response.aiter_bytes():
-                                    f.write(chunk)
-
-                        # Verify MD5
-                        import hashlib
-
-                        hash_md5 = hashlib.md5()
-                        with open(dest_path, "rb") as f:
-                            for chunk in iter(lambda: f.read(4096), b""):
-                                hash_md5.update(chunk)
-                        actual_md5 = hash_md5.hexdigest()
-
-                        if actual_md5 != att.md5:
-                            logger.error(
-                                f"[A2A] MD5 mismatch for {att.filename}. Expected: {att.md5}, Got: {actual_md5}"
-                            )
-                            await self._send_a2a_error(
-                                task, f"Attachment MD5 mismatch for {att.filename}"
-                            )
-                            return
-
-                        local_attachment_paths.append(dest_path)
-                    except Exception as ex:
-                        logger.error(
-                            f"[A2A] Failed to download/verify attachment {att.filename}: {ex}"
-                        )
-                        await self._send_a2a_error(
-                            task, f"Failed to download attachment {att.filename}: {ex}"
-                        )
-                        return
-
-        executor_device_key = (
-            evocloud_manager.link.device_key
-            if evocloud_manager.link
-            else "unknown-worker"
-        )
-        executor_device_name = settings.EVOCLOUD_DEVICE_NAME
-
-        project_id = command.get("project_id") or DEFAULT_PROJECT_ID
-        from app.infrastructure.database.sql.database import session_scope
-
-        async with session_scope() as session:
-            conv = await session.get(Conversation, thread_id)
-            if not conv:
-                conv = Conversation(
-                    id=thread_id,
-                    project_id=project_id,
-                    title=f"A2A: {task.instruction[:30]}",
-                    root_thread_id=task.root_thread_id,
-                    parent_thread_id=task.parent_thread_id,
-                    caller_device_key=task.caller_device_key,
-                    executor_device_key=executor_device_key,
-                    executor_device_name=executor_device_name,
-                    created_at=datetime.now(timezone.utc),
-                    updated_at=datetime.now(timezone.utc),
-                )
-                session.add(conv)
-
-        # Inject System Prompt Context
-        system_content = render_template(
-            "core/engine/a2a_system.prompt.j2",
-            caller_device_key=task.caller_device_key,
-            caller_role=task.caller_role,
-            global_goal=task.global_goal,
-            instruction=task.instruction,
-            local_attachment_paths=local_attachment_paths,
-        )
-
-        from app.core.engine.message.repository import MessageRepository
-
-        repo = MessageRepository(thread_id, project_id=project_id)
-        await repo.persist(
-            role="system",
-            content=system_content,
-            category="internal_system",
-            is_visible=True,
-        )
-
-        # Dispatch Agent Run
-        result = await dispatch_agent_run(
-            thread_id=thread_id,
-            message_content=task.instruction,
-            project_id=project_id,
-            command_id=command.get("command_id"),
-            model=None,
-            metadata={
-                "task_type": "a2a_task",
-                "task_id": task.task_id,
-                "caller_device_key": task.caller_device_key,
-                "root_thread_id": task.root_thread_id,
-                "parent_thread_id": task.parent_thread_id,
-            },
-        )
-
-        if result.status == "failed":
-            logger.error(f"[A2A] Dispatch failed for A2A task: {result.error}")
-            await self._send_a2a_error(task, f"Agent dispatch failed: {result.error}")
-            return
-
-        asyncio.create_task(run_agent_background(thread_id, result.inputs))
-
-    async def _send_a2a_error(self, task: Any, error_msg: str) -> None:
-        from app.core.evocloud.manager import evocloud_manager
-
-        callback_payload = AgentTaskResult(
-            task_id=task.task_id,
-            status="failed",
-            error=error_msg,
-            summary=f"Error: {error_msg}",
-        )
-
-        cmd_data = {
-            "action": "a2a_callback",
-            "content": callback_payload.model_dump(),
-            "thread_id": task.parent_thread_id,
-        }
-
-        try:
-            await evocloud_manager.api.send_command_to_device(
-                device_key=task.caller_device_key, cmd_data=cmd_data
-            )
-            logger.info(
-                f"[A2A] Error callback sent to caller {task.caller_device_key} for task {task.task_id}"
-            )
-        except Exception as e:
-            logger.error(
-                f"[A2A] Failed to send error callback to caller {task.caller_device_key}: {e}"
-            )
-
-    async def _handle_a2a_callback(self, command: RemoteCommand) -> None:
-        payload = command.get_payload()
-        logger.info(f"[A2A] Received A2A Callback: {payload}")
-
-        try:
-            result = AgentTaskResult.model_validate(payload)
-        except Exception as e:
-            logger.error(f"[A2A] Invalid AgentTaskResult: {payload}, error={e}")
-            return
-
-        task_id = result.task_id
-        caller_thread_id = command.get("thread_id")
-
-        if not caller_thread_id:
-            from app.infrastructure.database.sql.database import session_scope
-            from app.models import Conversation
-
-            async with session_scope() as session:
-                conv = await session.get(Conversation, task_id)
-                if conv:
-                    caller_thread_id = conv.parent_thread_id
-
-        if not caller_thread_id:
-            logger.error(f"[A2A] Caller thread_id not found for task_id: {task_id}")
-            return
-
-        # Clear human request on Caller thread
-        from app.core.monitoring.activity import activity_monitor
-
-        await activity_monitor.clear_human_request(caller_thread_id)
-
-        # Build response payload
-        result_content = json.dumps(result.model_dump(), ensure_ascii=False)
-
-        # Close the pending tool call message
-        tool_call_id = None
-        from app.infrastructure.database.sql.database import session_scope
-        from app.models import Message
-
-        async with session_scope() as session:
-            stmt = (
-                select(Message)
-                .where(Message.thread_id == caller_thread_id)
-                .where(Message.role == "ai")
-                .order_by(Message.sequence_number.desc())
-                .limit(5)
-            )
-            res = await session.execute(stmt)
-            messages = res.scalars().all()
-            for msg in messages:
-                if msg.tool_calls:
-                    for tc in msg.tool_calls:
-                        if tc.get("name") in ("SendAgentTaskTool", "send_agent_task"):
-                            tool_call_id = tc.get("id")
-                            break
-                if tool_call_id:
-                    break
-
-        if tool_call_id:
-            from app.core.hitl.orchestrator import close_hitl_interaction
-
-            await close_hitl_interaction(caller_thread_id, tool_call_id, "completed")
-        else:
-            logger.warning(
-                f"[A2A] Could not find matching pending tool call for task_id {task_id}"
-            )
-
-        # Resume Caller Agent
-        from app.core.context.manager import ContextManager
-        from app.core.engine.background_agent import BackgroundAgentInputs
-
-        loaded_ctx = await ContextManager.load(caller_thread_id)
-        model = loaded_ctx.active_model if loaded_ctx else None
-        if not model:
-            model = SystemConfigService.get_value("LLM_MODEL")
-        if not model:
-            # Fallback: 从 Gateway 拉取第一个可用的平台 LLM 模型
-            # 适用于进程重启后 ContextManager 丢失、且本地 DB 未配置 LLM_MODEL 的情况
-            try:
-                from app.infrastructure.llm.platform_service import llm_platform_service
-
-                platform_models = await llm_platform_service.fetch_platform_models()
-                llm_models = [m for m in platform_models if m.model_type == "llm"]
-                if llm_models:
-                    model = llm_models[0].model_id
-                    logger.info(f"[A2A] Model resolved from platform: {model}")
-            except Exception as e:
-                logger.warning(
-                    f"[A2A] Failed to fetch platform models for fallback: {e}"
-                )
-
-        if not model:
-            logger.error(
-                f"[A2A] Cannot resume Caller thread {caller_thread_id}: no model available"
-            )
-            return
-
-        inputs = BackgroundAgentInputs(
-            hitl_resume_response=result_content,
-            model=model,
-        )
-        logger.info(f"[A2A] Resuming Caller Agent on thread {caller_thread_id}")
-        asyncio.create_task(run_agent_background(caller_thread_id, inputs))
-
 
 @event_register()
 class EngineConversationCleanup:
@@ -1067,15 +588,7 @@ class EngineConversationCleanup:
         thread_id = event.thread_id
         logger.info(f"[EngineCleanup] Cleaning up engine data for thread {thread_id}")
 
-        # 1. Delete checkpoints
-        checkpointer = db_resource_manager.checkpointer
-        if checkpointer:
-            try:
-                await checkpointer.adelete_thread(thread_id)
-            except Exception as e:
-                logger.warning(f"[EngineCleanup] Checkpoint deletion failed: {e}")
-
-        # 2. Delete engine-owned DB records
+        # 1. Delete engine-owned DB records
         async with session_scope() as session:
             await session.execute(
                 delete(AgentActivity).where(AgentActivity.thread_id == thread_id)

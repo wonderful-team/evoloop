@@ -21,7 +21,7 @@ Usage:
     if not decision.allowed:
         logger.info(f"Self-healing disabled: {decision.reason}")
 """
-from typing import Any, Optional
+from typing import Any
 
 from app.core.config import settings
 from app.core.execution.macro.schemas import HealingDecision
@@ -39,7 +39,7 @@ class SelfHealingPolicy:
     @classmethod
     def check(
         cls,
-        skill: Optional["LearnedSkill"] = None,
+        skill: "LearnedSkill | None" = None,
         execution_params: dict[str, Any] | None = None
     ) -> HealingDecision:
         """
@@ -90,7 +90,7 @@ class SelfHealingPolicy:
     @classmethod
     def is_allowed(
         cls,
-        skill: Optional["LearnedSkill"] = None,
+        skill: "LearnedSkill | None" = None,
         execution_params: dict[str, Any] | None = None
     ) -> bool:
         """

@@ -1,29 +1,15 @@
 """
 AgentEngine - Instance-based execution engine for EvoLoop Agents.
-
-This module provides the main AgentEngine class as a thin facade that
-orchestrates:
-- ContextTrimmer (unified token-driven message trimming)
-- InferenceEngine (LLM ReAct / single-shot loops)
-- SignalRegistry (plugin-based signal interception)
-
-Blackboard updates are now performed exclusively through the `update_blackboard`
-tool (function calling). The legacy text-tag parser has been removed.
-
-Supports dependency injection for easier testing and extensibility.
 """
 
 import logging
 from typing import Any
 
-from langchain_core.messages import AIMessage
-from langchain_core.runnables import RunnableConfig
-
 from app.core.engine.callbacks.database_logger import current_node_source
 from app.core.engine.context_trimmer import ContextTrimmer
 from app.core.engine.inference_engine import InferenceEngine
 from app.core.engine.schemas import EngineResult, NodeOutcome
-from app.core.engine.signals.registry import get_default_registry
+from app.core.engine.signals import signal_manager
 from app.core.engine.state import AgentState
 from app.core.engine.tools.executor import AgentToolExecutor
 from app.core.memory.tool_output_memory import get_tool_memory_from_state
@@ -35,8 +21,6 @@ logger = logging.getLogger(__name__)
 class AgentEngine:
     """
     Instance-based execution engine for EvoLoop Agents.
-
-    Supports dependency injection for easier testing and extensibility.
     """
 
     def __init__(
@@ -49,18 +33,6 @@ class AgentEngine:
         context_trimmer: ContextTrimmer | None = None,
         signal_registry=None,
     ):
-        """
-        Initialize AgentEngine with optional dependency injection.
-
-        Args:
-            llm_factory: Optional LLM factory (defaults to LLMFactory)
-            config_service: Optional config service (defaults to SystemConfigService)
-            tool_executor_class: Tool executor class (defaults to AgentToolExecutor)
-            enable_diff_tracking: Whether to enable diff tracking for file operations
-            inference_engine: Optional custom InferenceEngine
-            context_trimmer: Optional custom ContextTrimmer
-            signal_registry: Optional custom SignalRegistry
-        """
         self._llm_factory = llm_factory or LLMFactory
         self._config_service = config_service
         self._tool_executor_class = tool_executor_class
@@ -70,12 +42,12 @@ class AgentEngine:
             llm_factory=self._llm_factory,
             context_trimmer=self._context_trimmer,
         )
-        self._signal_registry = signal_registry or get_default_registry()
+        self._signal_registry = signal_registry or signal_manager
 
     async def run_node(
         self,
         state: AgentState,
-        config: RunnableConfig,
+        config: dict,
         system_prompt: str,
         tools: list[Any],
         max_steps: int = 5,
@@ -87,32 +59,27 @@ class AgentEngine:
         model: str | None = None,
     ) -> EngineResult:
         """Executes the standard Agent ReAct loop."""
-        # 1. Resolve model (must be explicitly provided)
         if not model:
             raise ValueError(
-                f"[{name}] No model provided for node execution. "
-                "Please pass 'model' explicitly to engine.run_node()."
+                f"[{name}] No model provided for node execution."
             )
 
-        # 2. Initialize LLM
         llm, provider = await self._inference_engine.create_llm(
             model=model,
             temperature=temperature,
         )
         llm_with_tools, tool_map = self._inference_engine.bind_tools(llm, tools)
 
-        # 3. Message Preparation (forgotten, windowing, repair)
         tool_memory = get_tool_memory_from_state(state)
         trim_result = self._context_trimmer.trim(
             messages=state.messages,
             model=model,
-            node_source=node_source or name.lower(),  # type: ignore[arg-type]
+            node_source=node_source or name.lower(),
             tool_memory=tool_memory,
             is_retry=state.is_retry or False,
         )
         repaired_messages = trim_result.messages
 
-        # 4. Build tool executor wrapper for InferenceEngine
         tool_executor = _ToolExecutorAdapter(
             tool_executor_class=self._tool_executor_class,
             tool_map=tool_map,
@@ -123,13 +90,10 @@ class AgentEngine:
             parallel=parallel_tools,
         )
 
-        # 5. Build interceptors from SignalRegistry
         interceptors = self._signal_registry.build_interceptors()
 
-        # 6. Propagate node_source to DatabaseCallbackHandler via contextvar
         current_node_source.set(node_source or name.lower())
 
-        # 7. Run inference
         if is_subtask:
             inference_result = await self._inference_engine.run_single_shot(
                 llm_with_tools=llm_with_tools,
@@ -155,19 +119,17 @@ class AgentEngine:
                 iteration_count=state.iteration_count,
             )
 
-        # 8. Determine structured outcome
         outcome_status = "success"
         if inference_result.get("is_truncated"):
             outcome_status = "truncated"
         elif inference_result.get("signal"):
             outcome_status = "interrupted"
         last_msg = inference_result.get("messages", [])[-1] if inference_result.get("messages") else None
-        if last_msg and isinstance(last_msg, AIMessage) and getattr(last_msg, "metadata", {}).get("is_error"):
+        if last_msg and last_msg.get("role") == "assistant" and last_msg.get("additional_kwargs", {}).get("is_error"):
             outcome_status = "error"
 
         outcome = NodeOutcome(status=outcome_status)
 
-        # 9. Build EngineResult
         result = EngineResult(
             messages=inference_result.get("messages", []),
             tool_history=inference_result.get("tool_history", []),
@@ -177,12 +139,11 @@ class AgentEngine:
             queued_signals=inference_result.get("queued_signals", []),
         )
 
-        # Add node_source marker to AI messages
         if node_source:
             for msg in inference_result.get("messages", []):
-                if msg.additional_kwargs is None:
-                    msg.additional_kwargs = {}
-                msg.additional_kwargs["node_source"] = node_source
+                if msg.get("additional_kwargs") is None:
+                    msg["additional_kwargs"] = {}
+                msg["additional_kwargs"]["node_source"] = node_source
 
         return result
 
@@ -197,7 +158,7 @@ class _ToolExecutorAdapter:
         tool_executor_class: type,
         tool_map: dict,
         state: AgentState,
-        config: RunnableConfig,
+        config: dict,
         name: str,
         enable_diff_tracking: bool,
         parallel: bool,
@@ -215,12 +176,10 @@ class _ToolExecutorAdapter:
         return await self._executor.execute_batch(tool_calls, local_tool_history, parallel=self._parallel)
 
 
-# Global default instance for backward compatibility
 _default_engine: AgentEngine | None = None
 
 
 def get_default_engine() -> AgentEngine:
-    """Get or create the default global AgentEngine instance."""
     global _default_engine
     if _default_engine is None:
         _default_engine = AgentEngine()
@@ -228,6 +187,5 @@ def get_default_engine() -> AgentEngine:
 
 
 def set_default_engine(engine: AgentEngine) -> None:
-    """Set the default global AgentEngine instance (for testing)."""
     global _default_engine
     _default_engine = engine

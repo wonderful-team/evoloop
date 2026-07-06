@@ -32,13 +32,29 @@ async def lifespan(app: FastAPI):
 
     await db_resource_manager.initialize(create_tables=True, seed_data=True)
 
+    # Channel Registry - register built-in transports (SSE + Mobile)
+    try:
+        from app.core.channel import register_default_channels
+        register_default_channels()
+        logger.info("Channel registry initialized (SSE + Mobile).")
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        logger.warning(f"Failed to initialize Channel registry: {e}")
+
+    # Godcmd - register built-in admin commands
+    try:
+        from app.core.godcmd import register_builtin_commands
+        register_builtin_commands()
+        logger.info("Godcmd admin commands registered.")
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        logger.warning(f"Failed to initialize Godcmd: {e}")
+
     # Memory System Init
     try:
         from app.core.memory.lifespan import MemoryLifespanManager
         memory_container = await MemoryLifespanManager.ainitialize()
         _app.state.memory_container = memory_container
         logger.info("Memory Service initialized via MemoryLifespanManager.")
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.warning(f"Failed to initialize Memory Service: {e}")
 
     # Agent Awakening - Discovery & Lifecycle Handlers
@@ -46,7 +62,7 @@ async def lifespan(app: FastAPI):
         from app.core.events.discovery import auto_discover_handlers
         auto_discover_handlers()
         logger.info("Discovery and registration of all domain lifecycle handlers complete.")
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.warning(f"Agent Awakening/Discovery failed (non-critical): {e}")
 
     # Publish Application Started Event
@@ -65,7 +81,7 @@ async def lifespan(app: FastAPI):
         from app.core.events.publishers import publish_app_stopping
         await publish_app_stopping()
         logger.info("[Shutdown] APP_STOPPING event published")
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"[Shutdown] Failed to publish APP_STOPPING event: {e}")
 
     # 2. Cleanup Core Infrastructure (Infrastructure MUST be last)

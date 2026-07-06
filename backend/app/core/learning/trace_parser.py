@@ -10,13 +10,12 @@ Key Concepts:
 - Supports both agent-initiated and human-initiated actions
 """
 
-import json
 import logging
 
 from pydantic import Field
-from sqlalchemy import select, or_
+from sqlalchemy import or_, select
 
-from app.core.learning.constants import TOOL_CATEGORY_MAP, EVENT_CATEGORY_MAP
+from app.core.learning.constants import EVENT_CATEGORY_MAP, TOOL_CATEGORY_MAP
 from app.core.learning.schemas import (
     ActionCategory,
     ActionSource,
@@ -24,9 +23,9 @@ from app.core.learning.schemas import (
     TraceSummary,
     UIContext,
 )
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.models import TraceEvent, Message
+from app.models import Message, TraceEvent
 
 logger = logging.getLogger(__name__)
 
@@ -250,7 +249,7 @@ class TraceParser:
                 user_feedback=event.user_feedback,
             )
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to parse event {event.id}: {e}")
             return None
 
@@ -268,7 +267,7 @@ class TraceParser:
         Convert sequence to human-readable narrative for LLM synthesis.
         """
         try:
-            from app.utils import render_template
+            from app.utils.template import render_template
             return render_template(
                 "common/events/trace_narrative.prompt.j2",
                 thread_id=sequence.thread_id,
@@ -276,6 +275,6 @@ class TraceParser:
                 steps=sequence.steps,
                 has_human_intervention=sequence.has_human_intervention
             )
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to render Trace narrative: {e}")
             return f"Trace Narrative for {sequence.thread_id} (Error rendering template)"

@@ -27,11 +27,11 @@ class QueryRewriter:
             return query
 
         try:
-            from app.utils import render_template
+            from app.utils.template import render_template
             prompt_text = render_template("domain/planning/query_rewrite.prompt.j2", query=query)
 
             # Using InternalLLMService for query rewriting
-            from app.core.llm import InternalLLMService
+            from app.infrastructure.llm import InternalLLMService
             from app.infrastructure.config.service import SystemConfigService
             model_name = SystemConfigService.get_value("LLM_MODEL")
             response = await InternalLLMService.invoke(
@@ -48,7 +48,7 @@ class QueryRewriter:
             logger.info(f"QueryRewriter: '{query}' -> '{rewritten}'")
             return rewritten
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"Query rewriting failed: {e}. Using original query.")
             return query
 

@@ -1,6 +1,5 @@
 from enum import Enum
 from pydantic import BaseModel, Field
-from typing import Optional
 
 
 class MatchConfidence(Enum):
@@ -18,9 +17,9 @@ class EditPreviewResult(BaseModel):
     diff: str
     original_content: str
     new_content: str
-    matched_text: Optional[str] = None
-    strategy_used: Optional[str] = None
-    message: Optional[str] = None
+    matched_text: str | None = None
+    strategy_used: str | None = None
+    message: str | None = None
 
 
 class FileEditOperation(BaseModel):
@@ -29,19 +28,19 @@ class FileEditOperation(BaseModel):
     replacement: str = Field(..., description="The new text or content to append/prepend")
     allow_multiple: bool = Field(False, description="Replace all occurrences of target")
     mode: str = Field("replace", description="'replace' (default), 'append' (add to end of file), 'prepend' (add to beginning)")
-    start_line: Optional[int] = Field(None, description="Optional 1-indexed starting line number constraint")
-    end_line: Optional[int] = Field(None, description="Optional 1-indexed ending line number constraint (inclusive)")
+    start_line: int | None = Field(None, description="Optional 1-indexed starting line number constraint")
+    end_line: int | None = Field(None, description="Optional 1-indexed ending line number constraint (inclusive)")
 
 
 class EditFileRequest(BaseModel):
     """Request for file editing."""
     path: str
-    target: Optional[str] = None
-    content: Optional[str] = None
+    target: str | None = None
+    content: str | None = None
     allow_multiple: bool = False
     mode: str = "replace"
-    start_line: Optional[int] = None
-    end_line: Optional[int] = None
-    expected_hash: Optional[str] = None
+    start_line: int | None = None
+    end_line: int | None = None
+    expected_hash: str | None = None
     verify_types: bool = True
-    config: Optional[dict] = None
+    config: dict | None = None

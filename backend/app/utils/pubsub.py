@@ -1,7 +1,8 @@
 import threading
 from collections import defaultdict
-from queue import Queue, Full
+from queue import Full, Queue
 from typing import Any
+
 
 class SimplePubSubBus:
     """

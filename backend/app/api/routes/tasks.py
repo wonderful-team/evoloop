@@ -9,12 +9,17 @@ import time
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
 
 from app.api.deps import TokenDep, TokenDepOptional
-from app.api.schemas.tasks import TaskCreateRequest, TaskUpdateRequest, TaskStatusUpdate, TaskExecutionResponse
+from app.api.schemas.tasks import (
+    TaskCreateRequest,
+    TaskExecutionResponse,
+    TaskStatusUpdate,
+    TaskUpdateRequest,
+)
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.evocloud import evocloud_manager
-from app.utils import render_template
+from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
 

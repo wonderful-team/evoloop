@@ -11,7 +11,8 @@ import logging
 import os
 import re
 
-from app.core.file.schemas import FileStats, OutlineEntry, FilePreview
+from app.core.file.schemas import FilePreview, FileStats, OutlineEntry
+
 from .io import detect_encoding
 
 logger = logging.getLogger(__name__)
@@ -107,7 +108,7 @@ def get_file_outline(file_path: str, max_entries: int = 100) -> list[OutlineEntr
                         ))
                         break
 
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.debug(f"Failed to extract outline from {file_path}: {e}")
 
     return outline
@@ -189,7 +190,7 @@ def _get_python_outline_ast(file_path: str, max_entries: int = 100) -> list[dict
     except SyntaxError:
         # File has syntax errors
         pass
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.debug(f"Failed to parse Python AST for {file_path}: {e}")
 
     return outline

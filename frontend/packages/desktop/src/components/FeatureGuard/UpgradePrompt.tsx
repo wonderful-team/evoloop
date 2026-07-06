@@ -32,7 +32,6 @@ export function UpgradePrompt({
     voice: t("features.voice"),
     skill_learning: t("features.skillLearning"),
     wiki_generation: t("features.wikiGeneration"),
-    knowledge_base: t("features.knowledgeBase"),
     gantt: t("features.gantt"),
     timesheet: t("features.timesheet"),
   }

@@ -6,9 +6,9 @@ Event schemas for system-wide lifecycle and status events.
 """
 from typing import Any
 
-from langchain_core.messages import BaseMessage
 from pydantic import BaseModel, Field, model_validator
 
+from app.core.engine.message.native_classes import BaseMessage
 from app.core.events.base import BaseEvent
 from app.core.events.registry import SystemEventType
 

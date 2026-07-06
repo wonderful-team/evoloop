@@ -1,8 +1,6 @@
 import logging
 from typing import Any
 
-from langchain_core.runnables import RunnableConfig
-
 from app.core.engine.nodes.base import BaseAgentNode
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.schemas import EngineResult
@@ -20,10 +18,10 @@ class ChatNode(BaseAgentNode):
     def __init__(self):
         super().__init__(node_name="Chat", max_steps=3, temperature=0.5)
 
-    async def prepare_state(self, state: AgentState, config: RunnableConfig) -> StateUpdate | None:
+    async def prepare_state(self, state: AgentState, config: dict) -> StateUpdate | None:
         return None
 
-    async def build_prompt_pair(self, state: AgentState, config: RunnableConfig) -> tuple[str, str]:
+    async def build_prompt_pair(self, state: AgentState, config: dict) -> tuple[str, str]:
         from app.infrastructure.config.service import SystemConfigService
         agent_name = SystemConfigService.get_value("AGENT_NAME", "EvoLoop")
         agent_company = SystemConfigService.get_value("AGENT_COMPANY", "上海方天画戟信息技术有限公司")
@@ -35,7 +33,6 @@ class ChatNode(BaseAgentNode):
             f"- Developer: {agent_company}\n"
             f"- Official Website: {agent_website}\n"
         )
-        # No dynamic ticket needed for simple chat
         return static_prompt, ""
 
     async def get_tools(self, state: AgentState) -> list[Any]:
@@ -46,7 +43,7 @@ class ChatNode(BaseAgentNode):
         self,
         original_state: AgentState,
         engine_result: EngineResult,
-        config: RunnableConfig,
+        config: dict,
     ) -> StateUpdate:
         """Chat routes to FINISH so the audit & event lifecycle runs."""
         return StateUpdate(

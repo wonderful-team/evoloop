@@ -1,15 +1,17 @@
+import logging
 import os
 import shutil
 from typing import Annotated
 
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import InjectedToolArg
-
+from app.core.engine.message.native_classes import RunnableConfig
+from app.core.engine.tasks import persist_file_operation_task
 from app.core.file.verification import safe_read_with_hash
 from app.core.tools import evoloop_tool
-from app.i18n.service import i18n
+from app.core.tools.base import InjectedToolArg
+
 from .utils import resolve_and_validate_path
-from app.core.engine.tasks import persist_file_operation_task
+
+logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
@@ -59,15 +61,15 @@ async def move_file(
         if is_file:
             try:
                 content, _, _ = safe_read_with_hash(source_absolute)
-            except Exception:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                 pass # Binary files or unreadable files will just have empty diff
 
         dest_original = None
         if os.path.exists(dest_absolute) and os.path.isfile(dest_absolute) and overwrite:
             try:
                 dest_original, _, _ = safe_read_with_hash(dest_absolute)
-            except Exception:
-                pass
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.debug("Suppressed error: %s", e, exc_info=True)
 
         # Perform the move
         # Create parent directories for destination if they don't exist
@@ -102,10 +104,10 @@ async def move_file(
                         run_id=ctx.run_id,
                         tool_call_id=ctx.current_tool_call_id,
                     )
-                except Exception as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     import logging
                     logging.getLogger(__name__).error(f"Failed to persist file operation for move: {e}")
 
         return f"Successfully moved '{source}' to '{destination}'."
-    except Exception as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return f"Error moving file: {e}"

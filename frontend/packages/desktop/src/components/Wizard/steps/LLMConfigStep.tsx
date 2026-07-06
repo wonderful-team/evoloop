@@ -162,7 +162,10 @@ export function LLMConfigStep() {
     } catch (error) {
       setTestResult({
         success: false,
-        msg: `${t("wizard.llm.testError")}: ${(error as Error).message}`,
+        msg: t("wizard.llm.testErrorWithMessage", {
+          message: t("wizard.llm.testError"),
+          detail: (error as Error).message,
+        }),
       })
       setData({ llmTested: false })
     } finally {

@@ -14,6 +14,7 @@ export interface UIState {
   // --- Overlays ---
   previewDiff: PreviewDiffState | null
   previewFile: PreviewFileState | null
+  locateFilePath: string | null
 
   // Rewind Dialog
   isRewindDialogOpen: boolean
@@ -23,6 +24,7 @@ export interface UIState {
   // --- Actions ---
   setPreviewDiff: (preview: PreviewDiffState | null) => void
   setPreviewFile: (preview: PreviewFileState | null) => void
+  setLocateFilePath: (path: string | null) => void
 
   openRewindDialog: (
     messageId: string | undefined,
@@ -35,6 +37,7 @@ export const useUIStore = create<UIState>((set) => ({
   // Initial State
   previewDiff: null,
   previewFile: null,
+  locateFilePath: null,
 
   isRewindDialogOpen: false,
   rewindMode: "rewind",
@@ -43,6 +46,7 @@ export const useUIStore = create<UIState>((set) => ({
   // Actions
   setPreviewDiff: (preview) => set({ previewDiff: preview }),
   setPreviewFile: (preview) => set({ previewFile: preview }),
+  setLocateFilePath: (path) => set({ locateFilePath: path }),
 
   openRewindDialog: (messageId, mode) =>
     set({

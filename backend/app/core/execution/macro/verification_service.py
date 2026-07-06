@@ -10,19 +10,24 @@ High-level service for integrating agent-based verification with:
 import logging
 from typing import Any
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.execution.macro.agent_validator import AgentMacroValidator
 from app.core.execution.macro.models import (
     EnvironmentConfig,
+    ExecutionMode,
     VerificationRequest,
     VerificationResponse,
     VerificationStatus,
-    ExecutionMode,
 )
-from app.core.execution.macro.schemas import MacroEvolutionResult, MacroScript, MacroStep, ModeRecommendation
+from app.core.execution.macro.schemas import (
+    MacroEvolutionResult,
+    MacroScript,
+    MacroStep,
+    ModeRecommendation,
+)
 from app.core.execution.macro.service import MacroRunResult, MacroService
 from app.core.execution.macro.verification_reporter import VerificationReporter
 from app.utils.yaml import macro_from_yaml
-from app.constants import DEFAULT_PROJECT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +73,7 @@ class VerificationService:
             # Parse YAML string
             try:
                 steps = [MacroStep.model_validate(s) for s in macro_from_yaml(macro_script)]
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"Failed to parse macro YAML: {e}")
                 return VerificationResponse(
                     success=False,
@@ -92,7 +97,9 @@ class VerificationService:
             )
 
         # Build verification request with agent config
-        from app.core.execution.macro.models import VerificationAgentConfig as AgentConfig
+        from app.core.execution.macro.models import (
+            VerificationAgentConfig as AgentConfig,
+        )
         agent_config = AgentConfig(conservative_mode=stop_on_failure)
 
         request = VerificationRequest(
@@ -141,7 +148,7 @@ class VerificationService:
 
             return result
 
-        except Exception as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[VerificationService] Verification failed: {e}", exc_info=True)
             return VerificationResponse(
                 success=False,
@@ -258,7 +265,7 @@ class VerificationService:
             try:
                 steps = macro_from_yaml(macro_script)
                 original_count = len(steps)
-            except Exception:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                 original_count = 0
         else:
             original_count = 0
