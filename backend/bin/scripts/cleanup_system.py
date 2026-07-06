@@ -235,17 +235,15 @@ class CleanupManager:
             return False
 
     async def cleanup_neo4j_index(self, keep_apps: bool = False) -> bool:
-        """清理 Neo4j 文件索引节点（已弃用 - 图数据库已移除）"""
         print("\n🟣 NEO4J 文件索引清理")
         print("-" * 40)
-        print("  ℹ️  Graph database no longer used (removed)")
+        print("  ℹ️  Graph layer has been removed. Skipping.")
         return True
 
     async def cleanup_neo4j_memory(self) -> bool:
-        """清理 Neo4j 记忆节点（已弃用 - 图数据库已移除）"""
         print("\n🟣 NEO4J 记忆清理")
         print("-" * 40)
-        print("  ℹ️  Graph database no longer used (removed)")
+        print("  ℹ️  Graph layer has been removed. Skipping.")
         return True
 
     async def cleanup_skills(self) -> bool:
@@ -730,67 +728,6 @@ class CleanupManager:
             self.stats.errors.append(f"录制: {e}")
             return False
 
-    def cleanup_knowledge_base(self) -> bool:
-        """
-        清理文件系统知识库。
-
-        知识库存储架构（新系统）：
-        - 文档内容：存储在 ~/.evoloop/knowledge/raw/ 中
-        - 元数据：存储在 ~/.evoloop/knowledge/meta/ 中
-        - 搜索索引：~/.evoloop/knowledge/search.db
-        - 引用统计：~/.evoloop/knowledge/citations.db
-
-        注意：旧版 ~/.evoloop/library/ 已弃用，请手动删除。
-        """
-        print("\n📚 知识库清理")
-        print("-" * 40)
-
-        try:
-            kb_dir = self.settings.APP_DATA_DIR / "knowledge"
-
-            if not os.path.exists(kb_dir):
-                print("  ℹ️  知识库目录不存在")
-                return True
-
-            # 统计文件数量
-            file_count = 0
-            total_size = 0
-            for root, dirs, files in os.walk(kb_dir):
-                for file in files:
-                    file_count += 1
-                    filepath = os.path.join(root, file)
-                    try:
-                        total_size += os.path.getsize(filepath)
-                    except:
-                        pass
-
-            dir_count = sum(1 for _, dirs, _ in os.walk(kb_dir) for d in dirs)
-
-            if file_count == 0:
-                print("  ℹ️  没有知识库文件需要清理")
-                return True
-
-            if not self._confirm(f"删除 {file_count} 个知识库文件 ({total_size / (1024 * 1024):.2f} MB)?"):
-                print("  ⏭️  已跳过")
-                return True
-
-            if not self.dry_run:
-                shutil.rmtree(kb_dir, ignore_errors=True)
-                os.makedirs(kb_dir, exist_ok=True)
-
-            self.stats.files_deleted += file_count
-            self.stats.directories_removed += dir_count
-            self.stats.storage_freed_mb += total_size / (1024 * 1024)
-
-            action = "将删除" if self.dry_run else "已删除"
-            print(f"  ✅ {action} {file_count} 个知识库文件")
-            return True
-
-        except Exception as e:
-            logger.error(f"  ❌ 知识库清理失败：{e}")
-            self.stats.errors.append(f"知识库: {e}")
-            return False
-
     def cleanup_brain_memory(self) -> bool:
         """
         清理大脑记忆目录。
@@ -1249,9 +1186,6 @@ class CleanupManager:
         if args.all or args.recordings:
             self.cleanup_recordings(expired_only=args.expired_only)
 
-        if args.all or args.knowledge:
-            self.cleanup_knowledge_base()
-
         if args.all or args.brain:
             self.cleanup_brain_memory()
 
@@ -1288,9 +1222,6 @@ async def main():
 
   # 仅清理过期数据
   python cleanup_system.py --expired-only --screenshots --recordings
-
-  # 清理知识库文件（概念使用 --memory）
-  python cleanup_system.py --knowledge
 
   # 清理 Keychain 登录凭据（注销登录）
   python cleanup_system.py --keychain
@@ -1335,9 +1266,6 @@ async def main():
         "--recordings", action="store_true", help="清理屏幕录制存储"
     )
     parser.add_argument(
-        "--knowledge", action="store_true", help="清理文件系统知识库"
-    )
-    parser.add_argument(
         "--brain", action="store_true", help="清理大脑记忆文件"
     )
     parser.add_argument(
@@ -1373,7 +1301,7 @@ async def main():
     if not any([
         args.all, args.redis, args.cache, args.neo4j, args.memory, args.skills, args.index,
         args.messages, args.jobs, args.sqlite, args.screenshots, args.recordings,
-        args.knowledge, args.brain, args.keychain, args.todos, args.conversations
+        args.brain, args.keychain, args.todos, args.conversations
     ]):
         parser.print_help()
         return

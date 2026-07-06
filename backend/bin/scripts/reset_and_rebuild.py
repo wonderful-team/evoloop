@@ -40,10 +40,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def clean_knowledge_base():
+async def clean_codebase_index():
     """清除所有索引数据"""
     logger.info("=" * 70)
-    logger.info("🧹 开始清除知识库...")
+    logger.info("🧹 开始清除代码索引...")
     logger.info("=" * 70)
 
     # 1. Postgres Cleanup
@@ -95,7 +95,7 @@ async def clean_knowledge_base():
 
     logger.info("✅ Postgres 清理完成")
     logger.info("=" * 70)
-    logger.info("✨ 知识库清理完成！")
+    logger.info("✨ 代码索引清理完成！")
     logger.info("=" * 70)
 
 
@@ -148,7 +148,7 @@ async def main(args):
     """主函数"""
     try:
         if not args.rebuild_only:
-            await clean_knowledge_base()
+            await clean_codebase_index()
 
         if not args.clean_only:
             await rebuild_indexes()

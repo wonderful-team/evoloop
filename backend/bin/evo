@@ -656,10 +656,6 @@ case "${1:-help}" in
                 info "清理屏幕录制..."
                 .venv/bin/python bin/scripts/cleanup_system.py --recordings
                 ;;
-            knowledge|kb)
-                info "清理知识库文件..."
-                .venv/bin/python bin/scripts/cleanup_system.py --knowledge
-                ;;
             brain)
                 info "清理 Brain Memory..."
                 .venv/bin/python bin/scripts/cleanup_system.py --brain
@@ -710,7 +706,6 @@ case "${1:-help}" in
                 echo "║  【文件系统】                                                 ║"
                 echo "║    evo clean screenshots      清理截图(sc)                   ║"
                 echo "║    evo clean recordings       清理屏幕录制(rec)              ║"
-                echo "║    evo clean knowledge        清理知识库文件(kb)             ║"
                 echo "║    evo clean brain            清理 Brain Memory              ║"
                 echo "║    evo clean todos            清理待办事项                   ║"
                 echo "║    evo clean conversations    清理对话（10张关联表）           ║"
