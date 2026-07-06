@@ -12,10 +12,15 @@
 **/build
 /.hvigor
 .cxx
+**/.cxx
 /.clangd
 /.clang-format
 /.clang-tidy
 /oh_modules
+oh-package-lock.json5
 hvigorw
 hvigorw.bat
 hvigor/hvigor-wrapper.js
+
+# OS
+.DS_Store
