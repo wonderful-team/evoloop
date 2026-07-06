@@ -47,7 +47,7 @@ class TestRewindOrchestrator:
             yield session
         
         monkeypatch.setattr(
-            "app.infrastructure.database.sql.database.session_scope",
+            "app.infrastructure.database.session_scope",
             mock_session_scope,
         )
         return RewindOrchestrator(event_bus=mock_event_bus)

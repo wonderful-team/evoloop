@@ -84,7 +84,7 @@ async def test_handler_reads_from_tool_result():
 
     mock_meta.get_display_name = MagicMock(side_effect=capture_display_name)
 
-    with patch('app.core.engine.message.handler.get_tool_metadata', return_value=mock_meta):
+    with patch('app.core.engine.message.handler._tool_mixin.get_tool_metadata', return_value=mock_meta):
         # 构造 ToolResult（模拟装饰器已处理）
         tool_output = ToolResult(
             "file1.py\nfile2.py",
@@ -132,7 +132,7 @@ async def test_handler_fallback_without_tool_result():
 
     mock_meta.get_display_name = MagicMock(side_effect=capture_display_name)
 
-    with patch('app.core.engine.message.handler.get_tool_metadata', return_value=mock_meta):
+    with patch('app.core.engine.message.handler._tool_mixin.get_tool_metadata', return_value=mock_meta):
         # 普通字符串（未经过 ToolResult 封装）
         tool_output = "[File: main.py]\n\nimport os"
 

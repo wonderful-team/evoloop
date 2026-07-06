@@ -95,8 +95,14 @@ async def init_env():
     except Exception as e:
         logger.warning(f"⚠️ Memory 初始化失败: {e}")
 
-    logger.info("✅ 环境初始化完成")
     return True
+
+
+@pytest.fixture(autouse=True)
+async def setup_test_db():
+    from app.infrastructure.database.resource_manager import db_resource_manager
+    if not db_resource_manager._initialized:
+        await init_env()
 
 
 async def test_tool_layer():
@@ -218,26 +224,29 @@ async def test_engine_layer():
             def __init__(self):
                 self.values = {"messages": [mock_ai_msg]}
 
-        captured_inputs = []
+        from app.core.engine.state import StateUpdate
+        from app.core.engine.routers import RoutingTarget
+        from app.models import Message
+        from sqlalchemy import select
+        from app.infrastructure.database import session_scope
 
-        class MockGraph:
-            async def astream(self, inputs, config=None):
-                captured_inputs.append(inputs)
-                yield {"type": "done"}
+        with patch("app.core.engine.nodes.supervisor.SupervisorNode") as mock_node_cls, \
+             patch("app.core.engine.background_agent.runner.ContextManager") as mock_ctx, \
+             patch("app.core.memory.lifespan.MemoryLifespanManager.get_container") as mock_get_container, \
+             patch("app.core.hitl.orchestrator.HITLOrchestrator.get_pending_request", new_callable=AsyncMock) as mock_get_pending:
 
-            async def aget_state(self, config=None):
-                return MockState()
-
-        mock_graph = MockGraph()
-
-        with patch("app.core.engine.background_agent.get_graph", return_value=mock_graph), \
-             patch("app.core.engine.background_agent.ContextManager") as mock_ctx, \
-             patch("app.core.memory.lifespan.MemoryLifespanManager.get_container") as mock_get_container:
+            mock_get_pending.return_value = {
+                "id": "call_123",
+                "name": "ask_confirm",
+                "args": {},
+            }
+            mock_node = AsyncMock(return_value=StateUpdate(next_node=RoutingTarget.END))
+            mock_node_cls.return_value = mock_node
 
             mock_ctx.load = AsyncMock(return_value=None)
             mock_ctx.load_from_redis = AsyncMock(return_value=None)
             mock_ctx.current = MagicMock(return_value=MagicMock(
-                thread_id=thread_id, project_id=1, command_id=None, working_directory="/tmp"
+                thread_id=thread_id, project_id=1, command_id=None, working_directory="/tmp", member_id=1
             ))
             
             # Mock the container and its memory_manager
@@ -255,14 +264,15 @@ async def test_engine_layer():
                 "goal": "测试 Resume",
             })
 
-            if captured_inputs and isinstance(captured_inputs[0], Command):
-                if isinstance(captured_inputs[0].resume, ToolMessage):
+            async with session_scope() as session:
+                msgs = (await session.execute(
+                    select(Message).where(Message.thread_id == thread_id).where(Message.role == "tool")
+                )).scalars().all()
+                if msgs:
                     logger.info("   ✅ Resume 使用 ToolMessage")
                     results.append(("resume_tool_message", True, None))
                 else:
-                    results.append(("resume_tool_message", False, f"resume 类型错误: {type(captured_inputs[0].resume)}"))
-            else:
-                results.append(("resume_tool_message", False, "未捕获到 Command 输入"))
+                    results.append(("resume_tool_message", False, "未能在数据库中找到恢复写入的 ToolMessage"))
     except Exception as e:
         import traceback; traceback.print_exc(); logger.error(f"   ❌ 错误: {e}")
         results.append(("resume_tool_message", False, str(e)))
@@ -272,21 +282,17 @@ async def test_engine_layer():
     try:
         thread_id2 = f"hitl-interrupt-{datetime.now().strftime('%H%M%S')}"
 
-        class InterruptGraph:
-            async def astream(self, inputs, config=None):
-                raise AgentHumanInterruptException("req-test", "测试中断")
-
-            async def aget_state(self, config=None):
-                return MagicMock(values={})
-
-        with patch("app.core.engine.background_agent.get_graph", return_value=InterruptGraph()), \
-             patch("app.core.engine.background_agent.ContextManager") as mock_ctx, \
+        with patch("app.core.engine.nodes.supervisor.SupervisorNode") as mock_node_cls, \
+             patch("app.core.engine.background_agent.runner.ContextManager") as mock_ctx, \
              patch("app.core.memory.lifespan.MemoryLifespanManager.get_container") as mock_get_container:
+
+            mock_node = AsyncMock(side_effect=AgentHumanInterruptException("req-test", "测试中断"))
+            mock_node_cls.return_value = mock_node
 
             mock_ctx.load = AsyncMock(return_value=None)
             mock_ctx.load_from_redis = AsyncMock(return_value=None)
             mock_ctx.current = MagicMock(return_value=MagicMock(
-                thread_id=thread_id2, project_id=1, command_id=None, working_directory="/tmp"
+                thread_id=thread_id2, project_id=1, command_id=None, working_directory="/tmp", member_id=1
             ))
             
             # Mock the container and its memory_manager
@@ -324,7 +330,7 @@ async def _test_api_layer():
     from fastapi import BackgroundTasks
     from app.api.routes.agent import resume_chat, cancel_hitl_request
     from app.models import Conversation, Message
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
 
     results = []
     thread_id = f"hitl-api-{datetime.now().strftime('%H%M%S')}"
@@ -355,15 +361,14 @@ async def _test_api_layer():
             def __init__(self):
                 self.values = {"messages": [mock_ai_msg]}
 
-        class MockGraph:
-            async def astream(self, inputs, config=None):
-                yield {"type": "done"}
-            async def aget_state(self, config=None):
-                return MockState()
-
-        with patch("app.api.routes.agent.get_graph", return_value=MockGraph()), \
+        with patch("app.core.hitl.orchestrator.HITLOrchestrator.get_pending_request", new_callable=AsyncMock) as mock_get_pending, \
              patch("app.api.routes.agent.evocloud_manager") as mock_cloud:
 
+            mock_get_pending.return_value = {
+                "id": "call_api",
+                "name": "ask_confirm",
+                "args": {},
+            }
             mock_cloud.upload_log = AsyncMock()
             bg_tasks = BackgroundTasks()
 
@@ -389,13 +394,12 @@ async def _test_api_layer():
         from app.core.hitl import create_request
         req = await create_request(thread_id=thread_id, request_type="approval", prompt="确认？")
 
-        class MockGraph:
-            async def astream(self, inputs, config=None):
-                yield {"type": "cancelled"}
-            async def aget_state(self, config=None):
-                return MagicMock(values={})
-
-        with patch("app.api.routes.agent.get_graph", return_value=MockGraph()):
+        with patch("app.core.hitl.orchestrator.HITLOrchestrator.get_pending_request", new_callable=AsyncMock) as mock_get_pending:
+            mock_get_pending.return_value = {
+                "id": "call_api",
+                "name": "ask_confirm",
+                "args": {},
+            }
 
             bg_tasks = BackgroundTasks()
             result = await cancel_hitl_request(
@@ -426,7 +430,7 @@ async def test_rewind_cleanup():
     from app.core.engine.rewind.event.subscribers import HitlRewind
     from app.core.monitoring.activity import activity_monitor
     from app.core.hitl import create_request, get_pending_requests_for_thread
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
     from app.models import AgentActivity
 
     results = []

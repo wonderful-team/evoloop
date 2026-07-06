@@ -286,7 +286,7 @@ async def run_agent_turn(
     # Check if this turn had any execute_command
     from sqlalchemy import select
 
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
     from app.models import Message
 
     has_exec = False
@@ -335,7 +335,7 @@ async def run_vague_mission() -> ConversationTrace:
 async def get_skills():
     from sqlalchemy import select
 
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
     from app.models.learning import LearnedSkill
     async with session_scope() as session:
         stmt = select(LearnedSkill).where(LearnedSkill.is_active)

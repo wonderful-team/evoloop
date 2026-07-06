@@ -346,7 +346,7 @@ async def _clear_existing_wiki(project_id: int):
 
 async def _ensure_skill(force_reimport: bool = True):
     """Import the Wiki Generation skill. Re-imports by default to pick up edits."""
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
     from app.models.learning import LearnedSkill
     from sqlalchemy import select
     from app.core.config import settings

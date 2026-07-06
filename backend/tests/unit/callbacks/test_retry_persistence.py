@@ -16,7 +16,7 @@ with patch("app.infrastructure.database.sql.database.db_resource_manager"):
 
 @pytest.fixture
 def mock_all():
-    with patch("app.core.engine.message.publisher.get_event_bus") as bus_mock:
+    with patch("app.core.channel.web_channel.get_event_bus") as bus_mock:
         bus = MagicMock()
         bus.publish = AsyncMock()
         bus_mock.return_value = bus
@@ -33,7 +33,7 @@ def mock_all():
             
             with patch("app.infrastructure.config.service.SystemConfigService.get_value", return_value="kimi-k2-thinking-turbo"), \
                  patch("app.core.engine.dispatch.session_scope") as mock_session_scope, \
-                 patch("app.core.engine.dispatch.evocloud_manager") as mock_evocloud:
+                 patch("app.core.evocloud.evocloud_manager") as mock_evocloud:
                 
                 # Mock session_scope as an async context manager
                 mock_session = AsyncMock()

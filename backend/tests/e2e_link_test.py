@@ -172,7 +172,7 @@ class E2ETestRunner:
 
     async def test_link_mobile_to_agent(self) -> TestResult:
         """
-        Mobile 通过 HTTP POST /api/v1/command/send 发送消息，
+        Mobile 通过 HTTP POST /api/v1/message/send 发送规范 Envelope，
         Gateway 转发给 Agent，Agent 应收到规范 command.relay Envelope。
         """
         name = "Mobile -> Gateway -> Agent"
@@ -184,16 +184,28 @@ class E2ETestRunner:
             if not self._agent_ws:
                 self._agent_ws = await self._connect_agent()
 
-            # 2. Mobile HTTP 发送消息
+            # 2. Mobile HTTP 发送规范 Envelope
             thread_id = f"test-thread-{int(time.time())}"
+            message_id = str(uuid.uuid4())
+            envelope = {
+                "version": "2.0",
+                "type": "command.relay",
+                "message_id": message_id,
+                "timestamp": int(time.time()),
+                "body": {
+                    "command_id": 0,
+                    "message_id": message_id,
+                    "thread_id": thread_id,
+                    "action": "chat",
+                    "content": {"text": "Hello from E2E test"},
+                },
+            }
             payload = {
-                "device_key": self.device_key,
-                "command_type": "chat",
-                "thread_id": thread_id,
-                "content": {"text": "Hello from E2E test"},
+                "target_device_key": self.device_key,
+                "envelope": envelope,
             }
             http_resp = requests.post(
-                f"{self.gateway_http}/api/v1/command/send",
+                f"{self.gateway_http}/api/v1/message/send",
                 json=payload,
                 headers={"Authorization": f"Bearer {self.mobile_token}"},
                 timeout=10,
@@ -204,16 +216,11 @@ class E2ETestRunner:
             )
             resp_body = http_resp.json()
             self._assert(resp_body.get("code") == 0, f"Gateway error: {resp_body}")
-
-            # 验证 Gateway 返回了 thread_id 和 message_id
-            returned_thread_id = resp_body.get("data", {}).get("thread_id", "")
-            returned_message_id = resp_body.get("data", {}).get("message_id", "")
-            self._assert(returned_thread_id != "", "Gateway did not return thread_id")
-            self._assert(returned_message_id != "", "Gateway did not return message_id")
-            details["returned_thread_id"] = returned_thread_id
-            details["returned_message_id"] = returned_message_id
+            details["command_id"] = resp_body.get("data", {}).get("command_id", "")
+            details["thread_id"] = thread_id
+            details["message_id"] = message_id
             self._log(
-                f"Mobile HTTP sent, thread_id={returned_thread_id}, message_id={returned_message_id}"
+                f"Mobile HTTP sent, thread_id={thread_id}, message_id={message_id}"
             )
 
             # 3. Agent WebSocket 应收到 command.relay
@@ -227,19 +234,19 @@ class E2ETestRunner:
             )
             cmd_body = agent_msg.get("body", {})
             self._assert(
-                cmd_body.get("thread_id") == returned_thread_id,
-                f"thread_id mismatch: {cmd_body.get('thread_id')} != {returned_thread_id}",
+                cmd_body.get("thread_id") == thread_id,
+                f"thread_id mismatch: {cmd_body.get('thread_id')} != {thread_id}",
             )
             self._assert(
-                cmd_body.get("message_id") == returned_message_id,
-                f"message_id mismatch: {cmd_body.get('message_id')} != {returned_message_id}",
+                cmd_body.get("message_id") == message_id,
+                f"message_id mismatch: {cmd_body.get('message_id')} != {message_id}",
             )
             self._assert(
                 cmd_body.get("action") == "chat",
                 f"action mismatch: {cmd_body.get('action')} != chat",
             )
 
-            details["command_id"] = cmd_body.get("command_id")
+            details["agent_received_command_id"] = cmd_body.get("command_id")
             self._log("Agent received correct command.relay ✓")
 
             return TestResult(

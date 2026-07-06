@@ -58,7 +58,7 @@ class TestDialectAbstraction:
 
     def test_production_sqlalchemy_uri(self):
         """EMBEDDED_MODE=false → SQLALCHEMY_DATABASE_URI 以 postgresql 开头"""
-        with patch.object(settings, "EMBEDDED_MODE", False):
+        with patch.object(settings, "EMBEDDED_MODE", False), patch.object(settings, "POSTGRES_SERVER", "localhost"):
             assert settings.SQLALCHEMY_DATABASE_URI.startswith("postgresql")
 
     # ------------------------------------------------------------------

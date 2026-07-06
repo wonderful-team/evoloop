@@ -1,7 +1,7 @@
 import asyncio
+import logging
 import os
 import sys
-import logging
 import time
 
 backend_dir = os.path.dirname(os.path.abspath(__file__))
@@ -52,56 +52,19 @@ async def run_test():
     # Save member_id to identity store
     await identity_service.store.save_member_id(member_id)
 
-    # [COMMENTED OUT] Initialize Gateway Quota Memory via Webhook
-    # To test with zero quota, this auto-recharge is disabled.
-    # Uncomment below if you need to pre-charge quota for testing.
-    """
-    logger.info(f"Injecting webhook to initialize quota for Member ID: {member_id} in Gateway Memory...")
-    import hmac
-    import hashlib
-    import json
-    webhook_secret = 'webhook-secret-key-change-in-production'
-    recharge_payload = {
-        'event': 'recharge',
-        'timestamp': int(time.time()),
-        'data': {
-            'user_id': int(member_id),
-            'amount': 500000,
-            'source': 'test_script',
-            'order_id': 'test'
-        }
-    }
-    payload_bytes = json.dumps(recharge_payload, separators=(',', ':')).encode()
-    signature = hmac.new(webhook_secret.encode(), payload_bytes, hashlib.sha256).hexdigest()
-    
-    try:
-        import httpx
-        wh_res = httpx.post(
-            os.getenv("EVOCLOUD_API_URL", "http://127.0.0.1") + "/gateway/webhook/recharge", 
-            content=payload_bytes, 
-            headers={
-                "X-Webhook-Secret": signature, 
-                "X-Webhook-Timestamp": str(int(time.time())),
-                "Content-Type": "application/json"
-            }
-        )
-        logger.info(f"Webhook initialization result: {wh_res.status_code} - {wh_res.text}")
-    except Exception as e:
-        logger.warning(f"Webhook init failed, but continuing: {e}")
-    """
     logger.info("Skipping auto-recharge (testing with current quota)")
 
     # Step 1: Query Gateway for Current Quota
     # This automatically maps to /gateway/api/v1/quota/{member_id}
     quota_endpoint = f"/api/v1/quota/{member_id}"
     logger.info(f"\n[Step 1] Fetching current quota via EvoCloud Client: {quota_endpoint}")
-    
+
     try:
         r = await client.request("GET", quota_endpoint)
         if "quota" not in r:
             logger.error(f"Failed to fetch quota, raw response: {r}")
             return
-            
+
         logger.info(f"Before Test - Quota Info: {r}")
         before_quota = r.get('quota', 0)
         before_used = r.get('quota_used', 0)
@@ -112,12 +75,12 @@ async def run_test():
         return
 
     # Step 2: Call LLM through AdaptiveChatOpenAI which will route to EVoCloud Gateway
-    logger.info(f"\n[Step 2] Using LLMFactory platform mode to call LLM...")
+    logger.info("\n[Step 2] Using LLMFactory platform mode to call LLM...")
     try:
         # We need LLMFactory platform mode!
-        from app.infrastructure.llm.factory import LLMFactory
         # By default this will try to verify config. We must enforce platform mode.
         import app.infrastructure.config.service as config_svc
+        from app.infrastructure.llm.factory import LLMFactory
         # Monkey patch config for test
         original_get = config_svc.SystemConfigService.get_value
         def fake_get(key, default=None):
@@ -127,7 +90,7 @@ async def run_test():
         config_svc.SystemConfigService.get_value = fake_get
 
         llm = await LLMFactory.create_llm(model_name="kimi-k2-thinking-turbo", temperature=0.1) # Or whatever model is supported
-        
+
         logger.info("Sending non-streaming request to generate some tokens...")
         start_t = time.time()
         res = await llm.ainvoke("Please reply with: 'INTEGRATION_TEST_SUCCESS'")
@@ -140,17 +103,17 @@ async def run_test():
     # Step 3: Wait for asynchronous background batching (Gateway has a 30s usage flush + sync delay)
     # However, quotaManager deducts in memory INSTANTLY! We can query Gateway again immediately.
     logger.info("\n[Step 3] Fetching quota again to verify Gateway Memory Deduction...")
-    
+
     try:
         r3 = await client.request("GET", quota_endpoint)
-        
+
         after_quota = r3.get('quota', 0)
         after_used = r3.get('quota_used', 0)
         after_remains = after_quota
-        
+
         logger.info(f"After Test - Quota Info: {r3}")
         logger.info(f"After Test - Quota(remaining): {after_quota}, Used: {after_used}")
-        
+
         diff = before_remains - after_remains
         if diff > 0:
             logger.info(f"✅ SUCCESS: Quota correctly deducted by {diff} in Gateway Memory!")
@@ -160,7 +123,7 @@ async def run_test():
             logger.warning(f"⚠️ WARNING: Quota increased by {-diff}?")
     except Exception as e:
         logger.error(f"Failed to fetch post-test quota: {e}")
-        
+
     logger.info("\n[Step 4] (Manual Verification Required)")
     logger.info("The usage details will be batch uploaded to the PHP Backend in up to 30 seconds.")
     logger.info("Please login to your PHP Backend Database and check the following:")

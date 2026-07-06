@@ -13,7 +13,7 @@ from app.core.engine.message.handler import MessageHandler
 from app.core.engine.message.repository import MessageRepository
 from app.core.engine.message.mapper import BlockMapper
 from app.core.engine.message.schemas import MessageBlock
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.infrastructure.database.resource_manager import db_resource_manager
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")

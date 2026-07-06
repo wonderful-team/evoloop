@@ -1,5 +1,5 @@
 import asyncio
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from sqlalchemy import select
 from app.models import Message
 

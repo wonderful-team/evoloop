@@ -36,8 +36,8 @@ class TestExecuteCommandBackground:
     async def test_execute_command_background_creates_task(self):
         """Test that background=True creates a task."""
         # Mock the background execution to avoid actually running command
-        with patch('app.domain.tools.execution._run_command_background') as mock_run, \
-             patch('app.domain.tools.execution._get_thread_id', return_value="test-thread-1"):
+        with patch('app.domain.tools.execution.background.run_command_background') as mock_run, \
+             patch('app.domain.tools.execution.background.get_thread_id', return_value="test-thread-1"):
             mock_run.return_value = asyncio.Future()
             mock_run.return_value.set_result(None)
             
@@ -62,8 +62,8 @@ class TestExecuteCommandBackground:
     @pytest.mark.asyncio
     async def test_execute_command_sync_mode_unchanged(self):
         """Test that sync mode (background=False) still works."""
-        with patch('app.domain.tools.execution._execute_command_with_timeout') as mock_exec:
-            mock_exec.return_value = ("hello output", "", 0)
+        with patch('app.domain.tools.execution.execute.execute_smart') as mock_exec:
+            mock_exec.return_value = "Command Succeeded\nhello output"
             
             result = await execute_command.ainvoke({
                 "command": "echo hello",
@@ -219,7 +219,7 @@ class TestExecuteCommandBackground:
     @pytest.mark.asyncio
     async def test_get_thread_id_fallback(self):
         """Test thread_id fallback when not in config."""
-        with patch('app.domain.tools.execution.ContextManager') as mock_ctx:
+        with patch('app.domain.tools.execution._utils.ContextManager') as mock_ctx:
             mock_ctx.current.return_value.thread_id = "fallback-thread"
             
             thread_id = _get_thread_id(None)
@@ -246,7 +246,7 @@ class TestExecuteCommandIntegration:
     async def test_background_mode_task_lifecycle(self):
         """Test full lifecycle of background task."""
         # Start background task
-        with patch('app.domain.tools.execution._run_command_background') as mock_run:
+        with patch('app.domain.tools.execution.background.run_command_background') as mock_run:
             future = asyncio.Future()
             future.set_result(None)
             mock_run.return_value = future
@@ -273,8 +273,8 @@ class TestExecuteCommandIntegration:
     async def test_timeout_parameter_validation(self):
         """Test that timeout is clamped to valid range."""
         # Test minimum (should be 10)
-        with patch('app.domain.tools.execution._execute_command_with_timeout') as mock_exec:
-            mock_exec.return_value = ("", "", 0)
+        with patch('app.domain.tools.execution.execute.execute_smart') as mock_exec:
+            mock_exec.return_value = ""
             
             await execute_command.ainvoke({
                 "command": "echo test",
@@ -288,8 +288,8 @@ class TestExecuteCommandIntegration:
             assert call_args[0][1] >= 10  # positional arg: timeout
 
         # Test maximum (should be 3600)
-        with patch('app.domain.tools.execution._execute_command_with_timeout') as mock_exec:
-            mock_exec.return_value = ("", "", 0)
+        with patch('app.domain.tools.execution.execute.execute_smart') as mock_exec:
+            mock_exec.return_value = ""
             
             await execute_command.ainvoke({
                 "command": "echo test",

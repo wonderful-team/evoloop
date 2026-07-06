@@ -47,7 +47,8 @@ def mock_redis():
 async def redis_cache(mock_redis):
     """Create RedisCache instance with mock Redis."""
     cache = RedisCache.__new__(RedisCache)
-    cache._redis = mock_redis
+    cache._redis_pool = MagicMock()
+    cache._redis_pool.get = MagicMock(return_value=mock_redis)
     yield cache
 
 

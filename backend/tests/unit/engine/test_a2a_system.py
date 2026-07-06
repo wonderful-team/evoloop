@@ -15,6 +15,7 @@ from app.models import Conversation, Message
 # Import the tools to register them
 from app.core.engine.tools.a2a import list_agents, send_agent_task, complete_task
 from app.core.engine.event.subscribers import EngineCommandSubscriber
+from app.core.engine.event.handlers.a2a import A2ACommandHandler
 
 
 @pytest.fixture
@@ -37,10 +38,11 @@ def mock_session():
     async def _scope():
         yield session
 
-    with patch("app.infrastructure.database.sql.database.session_scope", _scope), \
+    with patch("app.infrastructure.database.session_scope", _scope), \
          patch("app.core.engine.dispatch.session_scope", _scope), \
          patch("app.core.engine.message.sequence.session_scope", _scope), \
-         patch("app.core.engine.message.repository.session_scope", _scope):
+         patch("app.core.engine.message.repository.session_scope", _scope), \
+         patch("app.core.engine.event.handlers.a2a.session_scope", _scope):
         yield session
 
 
@@ -186,14 +188,14 @@ async def test_handle_a2a_task_subscriber(mock_session):
         project_id=DEFAULT_PROJECT_ID
     )
 
-    subscriber = EngineCommandSubscriber()
+    subscriber = A2ACommandHandler()
 
     # Mock dispatch and background runner
     mock_dispatch = AsyncMock(return_value=MagicMock(status="queued", inputs={"messages": []}))
     mock_run = AsyncMock()
 
-    with patch("app.core.engine.event.subscribers.dispatch_agent_run", mock_dispatch), \
-         patch("app.core.engine.event.subscribers.run_agent_background", mock_run):
+    with patch("app.core.engine.event.handlers.a2a.dispatch_agent_run", mock_dispatch), \
+         patch("app.core.engine.event.handlers.a2a.run_agent_background", mock_run):
         
         await subscriber._handle_a2a_task(cmd)
 
@@ -326,7 +328,7 @@ async def test_handle_a2a_task_hop_count_limit():
         project_id=DEFAULT_PROJECT_ID
     )
 
-    subscriber = EngineCommandSubscriber()
+    subscriber = A2ACommandHandler()
     mock_send_error = AsyncMock()
 
     with patch.object(subscriber, "_send_a2a_error", mock_send_error):
@@ -391,7 +393,7 @@ async def test_handle_a2a_task_file_download_and_verify(mock_session, tmp_path):
         async def stream(self, method, url, **kwargs):
             yield mock_response
 
-    subscriber = EngineCommandSubscriber()
+    subscriber = A2ACommandHandler()
     mock_dispatch = AsyncMock(return_value=MagicMock(status="queued", inputs={"messages": []}))
     mock_run = AsyncMock()
     mock_send = AsyncMock()
@@ -399,8 +401,8 @@ async def test_handle_a2a_task_file_download_and_verify(mock_session, tmp_path):
     with patch.object(settings, "EVOLOOP_APP_DATA_DIR", str(tmp_path)), \
          patch("httpx.AsyncClient", return_value=MockAsyncClient()), \
          patch.object(evocloud_manager.api, "send_command_to_device", mock_send), \
-         patch("app.core.engine.event.subscribers.dispatch_agent_run", mock_dispatch), \
-         patch("app.core.engine.event.subscribers.run_agent_background", mock_run):
+         patch("app.core.engine.event.handlers.a2a.dispatch_agent_run", mock_dispatch), \
+         patch("app.core.engine.event.handlers.a2a.run_agent_background", mock_run):
         
         await subscriber._handle_a2a_task(cmd)
         
@@ -520,12 +522,12 @@ async def test_list_conversations_filters_sub_threads(mock_session):
     mock_execute_res.scalars.return_value.all.return_value = [c1, c2]
     mock_session.execute.return_value = mock_execute_res
 
-    # 2. Patch get_db_session to return our mock session
+    # 2. Patch session_scope to return our mock session
     @asynccontextmanager
-    async def mock_get_db_session():
+    async def mock_session_scope():
         yield mock_session
 
-    with patch("app.api.routes.conversations.get_db_session", mock_get_db_session), \
+    with patch("app.api.routes.conversations.session_scope", mock_session_scope), \
          patch("app.core.monitoring.activity.activity_monitor.get_statuses", AsyncMock(return_value={})):
         
         response = await list_conversations(project_id=1)

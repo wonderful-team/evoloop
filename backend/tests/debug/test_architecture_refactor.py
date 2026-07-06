@@ -9,7 +9,6 @@ Architecture Refactoring Integration Tests
 5. InternalLLMService 配置
 """
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
 
 
 class TestMessageCategory:
@@ -63,8 +62,7 @@ class TestMessageClassifier:
     def test_classify_with_tool_calls(self):
         """带工具调用的分类"""
         from app.core.messaging.classifier import MessageClassifier
-        from app.core.messaging.category import MessageCategory
-        
+
         # 模拟可见工具调用
         tool_calls = [{"name": "read_file"}]
         result = MessageClassifier.classify_ai_message("Using tool", tool_calls)
@@ -131,7 +129,7 @@ class TestInternalLLMService:
     
     def test_validate_purpose_warns_on_invalid(self):
         """验证无效 purpose 会记录警告但不抛出异常"""
-        from app.core.llm.internal_service import InternalLLMService
+        from app.infrastructure.llm.internal_service import InternalLLMService
         
         # 无效 purpose 只记录警告，不抛出异常
         # 这样设计是为了兼容新的 purpose 而不破坏现有代码
@@ -139,7 +137,7 @@ class TestInternalLLMService:
     
     def test_validate_purpose_passes_on_valid(self):
         """验证有效 purpose 通过验证"""
-        from app.core.llm.internal_service import InternalLLMService
+        from app.infrastructure.llm.internal_service import InternalLLMService
         
         # 不应抛出异常
         InternalLLMService.validate_purpose("memory_selection")

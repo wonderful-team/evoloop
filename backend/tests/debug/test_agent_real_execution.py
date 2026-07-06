@@ -4,10 +4,10 @@
 使用 MobileController 直接执行
 """
 
+import asyncio
+import json
 import os
 import sys
-import json
-import asyncio
 from pathlib import Path
 
 os.environ["ENVIRONMENT"] = "local"
@@ -92,10 +92,13 @@ async def run_agent_with_real_execution():
     print("\n🔧 初始化 AgentMacroValidator...")
 
     from app.core.execution.macro.verification_models import (
-        VerificationRequest, EnvironmentConfig, AgentConfig
+        AgentConfig,
+        AnomalyType,
+        EnvironmentConfig,
+        VerificationRequest,
     )
+
     from app.core.execution.macro.agent_validator import AgentMacroValidator
-    from app.core.execution.macro.verification_models import AnomalyType
 
     request = VerificationRequest(
         macro_script=skill['macro_script'],
@@ -119,7 +122,7 @@ async def run_agent_with_real_execution():
 
     # 3. 直接连接手机执行
     print("\n📱 连接 MobileController...")
-    from app.core.environment.controllers.mobile_controller import MobileController
+    from app.core.environment.controllers.mobile import MobileController
 
     # 4. 真实执行宏
     print("\n" + "=" * 70)
@@ -139,7 +142,7 @@ async def run_agent_with_real_execution():
 
         try:
             # 异常检测：Pre-execution
-            print(f"    🔍 [Agent] 执行前异常检测...")
+            print("    🔍 [Agent] 执行前异常检测...")
             pre_result = await validator.anomaly_detector.detect_pre_execution_anomaly(
                 step, {'platform': 'android', 'elements': []}
             )
@@ -156,7 +159,7 @@ async def run_agent_with_real_execution():
                     target=package,
                     device_id='HYC5T19B11003570'
                 )
-                print(f"    ✅ 应用启动命令已发送")
+                print("    ✅ 应用启动命令已发送")
 
                 # 等待 2 秒让应用启动
                 await asyncio.sleep(2)
@@ -167,7 +170,7 @@ async def run_agent_with_real_execution():
 
                 # 异常检测：Post-execution - 检查是否真的打开了目标 app
                 if current.get('package') != package:
-                    print(f"    ⚠️  [Agent] 检测到异常: 应用未正确启动!")
+                    print("    ⚠️  [Agent] 检测到异常: 应用未正确启动!")
                     print(f"        期望: {package}, 实际: {current.get('package')}")
                     # 尝试适配
                     adaptation = await validator.adaptation_library.adapt(
@@ -187,7 +190,7 @@ async def run_agent_with_real_execution():
                 seconds = payload.get('seconds', 1)
                 print(f"    ⏱️  等待 {seconds} 秒...")
                 await asyncio.sleep(seconds)
-                print(f"    ✅ 等待完成")
+                print("    ✅ 等待完成")
                 result['success'] = True
 
             # Step 3: tap
@@ -212,7 +215,7 @@ async def run_agent_with_real_execution():
                     y=abs_y,
                     device_id='HYC5T19B11003570'
                 )
-                print(f"    ✅ 点击完成")
+                print("    ✅ 点击完成")
 
                 # 等待 UI 响应
                 await asyncio.sleep(0.5)

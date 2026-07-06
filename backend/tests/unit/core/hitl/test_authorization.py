@@ -169,3 +169,53 @@ class TestAuthorizationHook:
         result = asyncio.run(authorization_gate(ctx))
         assert result.block is False
         assert result.success is True
+
+    def test_sensitive_path_triggers_hitl(self, monkeypatch):
+        from app.core.engine.hooks.authorization import authorization_gate
+
+        # Mock get_project_path
+        async def _mock_get_project_path(pid):
+            return "/safe/project/root"
+        monkeypatch.setattr(
+            "app.core.engine.hooks.authorization.get_project_path",
+            _mock_get_project_path,
+        )
+
+        # Mock settings.APP_DATA_DIR and ALLOWED_PATH_PREFIXES
+        from app.core.config import settings
+        monkeypatch.setattr(settings, "EVOLOOP_APP_DATA_DIR", "/safe/app_data")
+        monkeypatch.setattr(settings, "ALLOWED_PATH_PREFIXES", ["/safe/prefix"])
+
+        # Mock auth_service.request_authorization to verify it gets called
+        call_params = {}
+        async def _mock_request_authorization(*args, **kwargs):
+            call_params.update(kwargs)
+            raise Exception("HITL Triggered")
+        
+        monkeypatch.setattr(
+            "app.core.hitl.authorization.AuthorizationService.request_authorization",
+            _mock_request_authorization,
+        )
+
+        # 1. Test safe path (inside project path)
+        ctx = HookContext(
+            thread_id="test-thread",
+            project_id=57,
+            tool_name="read_file",
+            tool_input=ToolInput(path="/safe/project/root/src/main.py"),
+        )
+        result = asyncio.run(authorization_gate(ctx))
+        assert result.success is True
+        assert result.block is False
+
+        # 2. Test unsafe path (outside workspace/app_data/prefixes)
+        ctx_unsafe = HookContext(
+            thread_id="test-thread",
+            project_id=57,
+            tool_name="read_file",
+            tool_input=ToolInput(path="/unsafe/path/secret.txt"),
+        )
+        import pytest
+        with pytest.raises(Exception, match="HITL Triggered"):
+            asyncio.run(authorization_gate(ctx_unsafe))
+

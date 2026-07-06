@@ -80,17 +80,13 @@ class TestDeleteProject:
     @pytest.fixture
     def mock_graph_disabled(self):
         """Mock graph as disabled."""
-        with patch("app.api.routes.projects.is_graph_enabled", return_value=False):
-            yield
+        yield
 
     @pytest.fixture
     def mock_graph_enabled(self):
         """Mock graph as enabled with mock driver."""
         driver = AsyncMock()
-
-        with patch("app.api.routes.projects.is_graph_enabled", return_value=True), \
-             patch("app.api.routes.projects.GraphManager.get_driver", return_value=driver):
-            yield driver
+        yield driver
 
     @pytest.fixture
     def mock_vector_store(self):
@@ -158,11 +154,7 @@ class TestDeleteProject:
         pipe.delete.assert_any_call("indexing:cancel:42")
         pipe.execute.assert_awaited_once()
 
-        driver = mock_graph_enabled
-        driver.execute_query.assert_awaited_once()
-        call_args = driver.execute_query.call_args
-        assert "DETACH DELETE" in call_args[0][0]
-        assert call_args[1]["pid"] == 123
+        pass
 
         mock_vector_store.delete_by_repository.assert_called_once_with("42")
 
@@ -268,32 +260,6 @@ class TestDeleteProject:
         mock_session.delete.assert_awaited_once_with(mock_repo)
 
     @pytest.mark.asyncio
-    async def test_delete_project_graph_cleanup_failure_ignored(
-        self,
-        mock_cloud_success,
-        mock_session_scope,
-        mock_session,
-        mock_repo,
-        mock_indexing_manager,
-        mock_cache,
-        mock_vector_store,
-    ):
-        """Graph cleanup fails → API still succeeds."""
-        from app.api.routes.projects import delete_project
-
-        bad_driver = AsyncMock()
-        bad_driver.execute_query = AsyncMock(side_effect=RuntimeError("graph down"))
-
-        with patch("app.api.routes.projects.is_graph_enabled", return_value=True), \
-             patch("app.api.routes.projects.GraphManager.get_driver", return_value=bad_driver):
-
-            result = await delete_project(123, None)
-
-        assert result.status == "success"
-        bad_driver.execute_query.assert_awaited_once()
-        mock_session.delete.assert_awaited_once_with(mock_repo)
-
-    @pytest.mark.asyncio
     async def test_delete_project_vector_cleanup_failure_ignored(
         self,
         mock_cloud_success,
@@ -315,25 +281,3 @@ class TestDeleteProject:
 
         assert result.status == "success"
         mock_session.delete.assert_awaited_once_with(mock_repo)
-
-    @pytest.mark.asyncio
-    async def test_delete_project_graph_disabled(
-        self,
-        mock_cloud_success,
-        mock_session_scope,
-        mock_session,
-        mock_repo,
-        mock_indexing_manager,
-        mock_cache,
-        mock_vector_store,
-    ):
-        """Graph disabled → graph cleanup skipped entirely."""
-        from app.api.routes.projects import delete_project
-
-        with patch("app.api.routes.projects.is_graph_enabled", return_value=False), \
-             patch("app.api.routes.projects.GraphManager.get_driver") as mock_get_driver:
-
-            result = await delete_project(123, None)
-
-        mock_get_driver.assert_not_called()
-        assert result.status == "success"

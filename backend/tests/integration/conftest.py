@@ -31,8 +31,9 @@ def mock_database_session():
     db_resource_manager._session_factory = None
 
     session = MagicMock()
-    session.get = AsyncMock()
+    session.get = AsyncMock(return_value=None)
     session.execute = AsyncMock()
+    session.scalar = AsyncMock(return_value=0)
     session.add = MagicMock()
     session.flush = AsyncMock()
     session.commit = AsyncMock()
@@ -51,7 +52,8 @@ def mock_database_session():
         else:
             yield session
 
-    with patch("app.infrastructure.database.sql.database.session_scope", _scope), \
+    with patch("app.infrastructure.database.session_scope", _scope), \
+         patch("app.infrastructure.database.session_scope", _scope), \
          patch("app.core.engine.dispatch.session_scope", _scope), \
          patch("app.core.engine.message.sequence.session_scope", _scope), \
          patch("app.core.engine.message.repository.session_scope", _scope):

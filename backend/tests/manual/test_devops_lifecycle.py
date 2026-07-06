@@ -134,7 +134,7 @@ async def seed_vault_credentials(project_id: int):
 async def get_skills():
     from sqlalchemy import select
 
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
     from app.models.learning import LearnedSkill
 
     async with session_scope() as session:
@@ -278,7 +278,7 @@ async def verify_check_config(thread_id: str, project_id: int, model: str = DEFA
     from sqlalchemy import select
 
     from app.core.globals import get_graph
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
     from app.models import Message
 
     async with session_scope() as session:
@@ -339,7 +339,7 @@ async def verify_release(thread_id: str, target_version: str, model: str = DEFAU
     from sqlalchemy import select
 
     from app.core.globals import get_graph
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
     from app.models import Message
 
     async with session_scope() as session:
@@ -401,7 +401,7 @@ async def verify_build(thread_id: str, model: str = DEFAULT_MODEL) -> bool:
     from sqlalchemy import select
 
     from app.core.globals import get_graph
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
     from app.models import Message
 
     async with session_scope() as session:
@@ -550,7 +550,7 @@ async def run_scenario(scenario: str, project_id: int = DEFAULT_PROJECT_ID, **kw
 
     from sqlalchemy import func, select
 
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
     from app.models import Message
 
     async with session_scope() as session:

@@ -79,7 +79,7 @@ async def test_list_dir_end_to_end():
 
         mock_meta.get_display_name = MagicMock(side_effect=capture_display_name)
 
-        with patch('app.core.engine.message.handler.get_tool_metadata', return_value=mock_meta):
+        with patch('app.core.engine.message.handler._tool_mixin.get_tool_metadata', return_value=mock_meta):
             await handler.handle_tool_output(
                 tool_name="list_dir",
                 output=decorated_result,
@@ -109,7 +109,7 @@ async def test_list_dir_end_to_end():
 
 async def test_grep_search_end_to_end():
     """端到端：grep_search 工具返回值全流程验证"""
-    from app.domain.tools.files.grep_search import _search_by_name
+    from app.domain.tools.files.find_files import _search_by_name
 
     test_dir = os.path.join(os.getcwd(), "test_e2e_search")
     os.makedirs(test_dir, exist_ok=True)
@@ -161,8 +161,8 @@ async def test_multiedit_file_end_to_end():
         assert raw_result[1].get("count") == 2
 
         # 经过装饰器
-        from app.domain.tools.files.multiedit_file import multiedit_file
-        decorated_result = await multiedit_file.ainvoke({
+        from app.domain.tools.files.edit_file import edit_file
+        decorated_result = await edit_file.ainvoke({
             "path": test_file,
             "edits": [{"target": "old_line_1", "replacement": "new_line_1"}]
         })

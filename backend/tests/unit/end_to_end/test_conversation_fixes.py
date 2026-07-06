@@ -114,7 +114,11 @@ async def test_stream_token_publishes_token_event():
     """stream_token 发布的是 TokenEvent，格式匹配前端期望"""
     from app.core.engine.message.handler import MessageHandler
     from app.core.engine.message.event_bus import get_event_bus
-    from app.infrastructure.cache import cache
+    from app.infrastructure.cache import cache, get_cache
+    
+    # Reset cached singletons to prevent leaks from other tests
+    get_event_bus.__globals__["_event_bus"] = None
+    get_cache.__globals__["_cache_instance"] = None
 
     ps = cache.pubsub()
     await ps.subscribe("chat:test-stream-token:events")

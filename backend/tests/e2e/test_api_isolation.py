@@ -7,7 +7,7 @@ from app.models import User
 from app.infrastructure.database.resource_manager import db_resource_manager
 from sqlmodel import select, delete
 from app.models.conversation import Conversation
-from app.infrastructure.database.sql.database import get_db_session
+from app.infrastructure.database import session_scope
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("e2e_api_isolation")
@@ -18,7 +18,7 @@ def set_user(user_id: int):
     app.dependency_overrides[get_current_user_optional] = _override
 
 async def setup_test_data():
-    async with get_db_session() as db:
+    async with session_scope() as db:
         await db.execute(delete(Conversation))
         db.add(Conversation(id="thread_e2e_101", title="User 101 Conv", member_id=101, project_id=1))
         db.add(Conversation(id="thread_e2e_102", title="User 102 Conv", member_id=102, project_id=1))

@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from pydantic import BaseModel, Field, ValidationError
 
-from app.core.llm import InternalLLMService
+from app.infrastructure.llm import InternalLLMService
 
 class MockResponseSchema(BaseModel):
     summary: str

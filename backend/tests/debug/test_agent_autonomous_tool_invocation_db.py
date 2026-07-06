@@ -54,7 +54,7 @@ from app.core.engine.signals.schema import RouteToSignal, RoutingContext
 from app.core.engine.state import AgentState
 from app.core.globals import set_graph
 from app.infrastructure.database.resource_manager import db_resource_manager
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.infrastructure.queue.factory import get_scheduler, reset_scheduler
 
 

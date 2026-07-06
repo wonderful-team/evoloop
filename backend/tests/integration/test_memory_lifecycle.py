@@ -348,7 +348,7 @@ class TestPhase4AutoExtraction:
             }
         ])
 
-        with patch("app.core.llm.InternalLLMService.invoke", new_callable=AsyncMock, return_value=fake_llm_response):
+        with patch("app.infrastructure.llm.InternalLLMService.invoke", new_callable=AsyncMock, return_value=fake_llm_response):
             with patch.object(extractor, "_gather_multi_source_context", new_callable=AsyncMock, return_value="### Project Context\nTest project."):
                 result = await extractor.maybe_extract(
                     thread_id="extract_thread_01",
@@ -381,7 +381,7 @@ class TestPhase4AutoExtraction:
             }
         ])
 
-        with patch("app.core.llm.InternalLLMService.invoke", new_callable=AsyncMock, return_value=fake_llm_response):
+        with patch("app.infrastructure.llm.InternalLLMService.invoke", new_callable=AsyncMock, return_value=fake_llm_response):
             with patch.object(extractor, "_gather_multi_source_context", new_callable=AsyncMock, return_value=""):
                 extracted = await extractor.maybe_extract(
                     thread_id="e2e_extract_thread",

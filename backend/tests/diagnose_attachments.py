@@ -2,7 +2,7 @@ import asyncio
 import os
 import sys
 from sqlalchemy import select
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.models import Message, MessageReference, Conversation
 from app.core.config import settings
 

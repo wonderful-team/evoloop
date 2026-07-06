@@ -219,7 +219,7 @@ async def main():
     print("验证 Messages 表")
     print("=" * 70)
 
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
     from sqlalchemy import text
 
     async with session_scope() as session:

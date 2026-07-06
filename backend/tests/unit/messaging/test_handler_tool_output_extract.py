@@ -33,7 +33,7 @@ async def test_handle_tool_output_extracts_json_content():
     mock_meta.result_summary_template = "evoloop_logger.list_summary"
     mock_meta.get_display_name = MagicMock(return_value="已列出 src/ (3 项)")
 
-    with patch('app.core.engine.message.handler.get_tool_metadata', return_value=mock_meta):
+    with patch('app.core.engine.message.handler._tool_mixin.get_tool_metadata', return_value=mock_meta):
         # 模拟 list_dir 的 JSON 输出
         tool_output = json.dumps({
             "content": "file1.py\nfile2.py\nREADME.md",
@@ -83,7 +83,7 @@ async def test_handle_tool_output_plain_text_unchanged():
     mock_meta.result_summary_template = None
     mock_meta.get_display_name = MagicMock(return_value="读取文件 'main.py'")
 
-    with patch('app.core.engine.message.handler.get_tool_metadata', return_value=mock_meta):
+    with patch('app.core.engine.message.handler._tool_mixin.get_tool_metadata', return_value=mock_meta):
         tool_output = "[File: main.py | Lines 1-10]\n\nimport os\n"
 
         result = await handler.handle_tool_output(
@@ -125,7 +125,7 @@ async def test_display_name_still_gets_count():
 
     mock_meta.get_display_name = MagicMock(side_effect=capture_display_name)
 
-    with patch('app.core.engine.message.handler.get_tool_metadata', return_value=mock_meta):
+    with patch('app.core.engine.message.handler._tool_mixin.get_tool_metadata', return_value=mock_meta):
         from app.core.tools.base import ToolResult
         tool_output = ToolResult(
             text=json.dumps({"content": "a.py\nb.py", "count": 2}),

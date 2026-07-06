@@ -662,7 +662,7 @@ async def test_result_formatting():
     """TEST 14: 结果格式化验证 — 模板渲染正确性"""
     print_section("TEST 14: 结果格式化验证")
 
-    from app.utils import ContentFormatter, ControllerResponse
+    from app.utils.controller_response import ContentFormatter, ControllerResponse
 
     # 正常结果
     formatted = ContentFormatter.web_search_results("test query", MOCK_DDG_RESULTS)

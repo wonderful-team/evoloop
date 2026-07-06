@@ -124,7 +124,7 @@ async def test_handler_reads_meta_from_context():
 
         mock_meta.get_display_name = MagicMock(side_effect=capture_display_name)
 
-        with patch('app.core.engine.message.handler.get_tool_metadata', return_value=mock_meta):
+        with patch('app.core.engine.message.handler._tool_mixin.get_tool_metadata', return_value=mock_meta):
             # Agent 收到的是纯文本（装饰器已经转换过了）
             tool_output = "file1.py\nfile2.py\nfile3.py"
 
@@ -177,7 +177,7 @@ async def test_handler_fallback_parsing():
 
         mock_meta.get_display_name = MagicMock(side_effect=capture_display_name)
 
-        with patch('app.core.engine.message.handler.get_tool_metadata', return_value=mock_meta):
+        with patch('app.core.engine.message.handler._tool_mixin.get_tool_metadata', return_value=mock_meta):
             # 模拟经过装饰器转换的 ToolResult 输出
             from app.core.tools.base import ToolResult
             tool_output = ToolResult(

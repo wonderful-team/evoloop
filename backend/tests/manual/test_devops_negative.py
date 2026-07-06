@@ -97,7 +97,7 @@ async def init_backend(project_id: int = DEFAULT_PROJECT_ID):
 async def get_skills():
     from sqlalchemy import select
 
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
     from app.models.learning import LearnedSkill
 
     async with session_scope() as session:
@@ -184,7 +184,7 @@ async def verify_config_failure_blocks_build(thread_id: str, model: str = DEFAUL
     from sqlalchemy import select
 
     from app.core.globals import get_graph
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
     from app.models import Message
 
     async with session_scope() as session:
@@ -325,7 +325,7 @@ async def run_negative_case(project_id: int = DEFAULT_PROJECT_ID, model: str = D
 
     from sqlalchemy import func, select
 
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
     from app.models import Message
 
     async with session_scope() as session:

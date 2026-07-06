@@ -57,7 +57,7 @@ async def test_execute_command_global_mode_uses_workspace_root(project_workspace
     token = _set_ctx(None, project_id=DEFAULT_PROJECT_ID)
     try:
         with patch(
-            "app.domain.tools.execution.SystemConfigService.get_value",
+            "app.domain.tools.execution.execute.SystemConfigService.get_value",
             return_value=workspace,
         ), patch("app.core.execution.sandbox.factory.SandboxFactory.get_sandbox") as mock_get_sandbox:
             mock_sandbox = MagicMock()

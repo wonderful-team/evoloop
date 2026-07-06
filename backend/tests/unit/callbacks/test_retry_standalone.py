@@ -28,7 +28,7 @@ async def run_standalone_test(mock_cloud, mock_db):
     from app.core.engine.callbacks.database_logger import DatabaseCallbackHandler
     from app.core.engine.dispatch import dispatch_agent_run
     from app.core.engine.message.thinking import ThinkingProcessor
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
 
     # Initialize Database Schema
     async with engine.begin() as conn:

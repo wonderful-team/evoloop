@@ -424,13 +424,18 @@ def pytest_configure(config):
     if not config.getoption("--integration"):
         _apply_unit_test_mocks()
     else:
-        # Integration mode: reset factory singleton so real scheduler can be created
         try:
             import app.infrastructure.queue.factory as _factory_mod
-
             _factory_mod._scheduler = None
         except Exception:
             pass
+
+    # Register default channels (SSE + Mobile) for all test modes
+    try:
+        from app.core.channel import register_default_channels
+        register_default_channels()
+    except Exception:
+        pass
 
 
 @pytest.fixture(autouse=True)

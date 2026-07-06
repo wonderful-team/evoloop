@@ -12,7 +12,7 @@ backend_dir = script_dir.parent
 sys.path.insert(0, str(backend_dir))
 
 from sqlalchemy import inspect, text
-from app.infrastructure.database.sql.database import session_scope, engine
+from app.infrastructure.database import session_scope, engine
 
 
 async def verify_repository_schema():

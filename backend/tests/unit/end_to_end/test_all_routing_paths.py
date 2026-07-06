@@ -17,31 +17,6 @@ from unittest.mock import MagicMock, AsyncMock
 
 
 # =============================================================================
-# Graph 构建测试
-# =============================================================================
-def test_graph_builds_without_errors():
-    """agent_main.yaml 能正确编译成 LangGraph"""
-    from app.core.engine.graph_builder import GraphBuilder
-    import os
-
-    builder = GraphBuilder()
-    config_path = os.path.join(
-        os.path.dirname(__file__),
-        "../../../app/core/engine/config/agent_main.yaml"
-    )
-    config_path = os.path.abspath(config_path)
-
-    workflow = builder.build(config_path)
-    assert workflow is not None
-
-    # 验证所有节点都存在
-    nodes = workflow.get_graph().nodes
-    node_ids = {n for n in nodes.keys()}
-    expected = {"supervisor", "worker", "chat", "finish", "aggregator", "sequential_workflow"}
-    assert expected.issubset(node_ids), f"Missing nodes: {expected - node_ids}"
-
-
-# =============================================================================
 # 路由函数测试
 # =============================================================================
 def test_route_by_next_node_follows_state():
@@ -135,7 +110,7 @@ async def test_route_supervisor_worker_target_with_ticket():
     """Supervisor 路由到 worker（有 ticket）"""
     from app.core.engine.routers import route_supervisor
     from app.core.engine.state import AgentState
-    from app.core.engine.state.sub_schemas import ExecutionTicket
+    from app.core.engine.state.config import ExecutionTicket
 
     ticket = ExecutionTicket(topic="test", reason="test", ticket_type="task")
     state = AgentState(messages=[], next_node="worker", ticket=ticket)
@@ -260,7 +235,7 @@ async def test_worker_node_fallback():
     from app.core.engine.state import AgentState
     from langchain_core.runnables import RunnableConfig
 
-    from app.core.engine.state.sub_schemas import ExecutionTicket
+    from app.core.engine.state.config import ExecutionTicket
     node = WorkerNode()
     ticket = ExecutionTicket(topic="test", reason="test", ticket_type="task")
     state = AgentState(messages=[], ticket=ticket)
@@ -316,54 +291,7 @@ async def test_sequential_workflow_node_fallback():
     assert outcome.next_node == "finish"
 
 
-# =============================================================================
-# Graph 条件边映射完整性测试
-# =============================================================================
-def test_chat_node_edge_map_has_all_targets():
-    """chat 节点的条件边映射包含所有可能的目标"""
-    from app.core.engine.graph_builder import GraphBuilder
-    import os
 
-    builder = GraphBuilder()
-    config_path = os.path.join(
-        os.path.dirname(__file__),
-        "../../../app/core/engine/config/agent_main.yaml"
-    )
-    config_path = os.path.abspath(config_path)
-
-    workflow = builder.build(config_path)
-    graph = workflow.get_graph()
-
-    # 验证 chat 节点的出边
-    edges = graph.edges
-    chat_edges = [e for e in edges if e[0] == "chat"]
-    targets = {e[1] for e in chat_edges}
-
-    assert "finish" in targets, "chat -> finish 边缺失"
-    assert "__end__" in targets or "END" in targets, "chat -> END 边缺失"
-
-
-def test_worker_node_edge_map_has_all_targets():
-    """worker 节点的条件边映射包含所有可能的目标"""
-    from app.core.engine.graph_builder import GraphBuilder
-    import os
-
-    builder = GraphBuilder()
-    config_path = os.path.join(
-        os.path.dirname(__file__),
-        "../../../app/core/engine/config/agent_main.yaml"
-    )
-    config_path = os.path.abspath(config_path)
-
-    workflow = builder.build(config_path)
-    graph = workflow.get_graph()
-
-    edges = graph.edges
-    worker_edges = [e for e in edges if e[0] == "worker"]
-    targets = {e[1] for e in worker_edges}
-
-    assert "supervisor" in targets, "worker -> supervisor 边缺失"
-    assert "finish" in targets, "worker -> finish 边缺失"
 
 
 # =============================================================================

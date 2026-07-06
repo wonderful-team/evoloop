@@ -25,7 +25,7 @@ def test_signature_via_exec():
     namespace = {
         "shared_task": MockSharedTask(),
         "SyncMessage": object, # Mock
-        "get_db_session": object, # Mock
+        "session_scope": object, # Mock
         "ConversationModel": object, # Mock
         "MessageModel": object, # Mock
         "update": object, # Mock

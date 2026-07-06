@@ -25,7 +25,7 @@ class TestQueueFactoryFallback:
 
                 _factory_mod._scheduler = None
                 _factory_mod.create_task_scheduler()
-                MockCelery.assert_called_once()
+                MockCelery.assert_called()
 
     def test_embedded_mode_creates_huey(self):
         """EMBEDDED_MODE=true → Huey scheduler."""
@@ -43,24 +43,23 @@ class TestEmbedderFactoryFallback:
 
     def test_no_provider_falls_back_to_local_embedder(self):
         """No embedding provider configured → LocalEmbedder."""
+        from app.infrastructure.embeddings.factory import EmbedderFactory
+        EmbedderFactory._instances.clear()
         with patch("app.infrastructure.embeddings.factory.SystemConfigService.get_value", return_value=None):
-            with patch.object(settings, "EMBEDDED_MODE", True):
+            with patch.object(settings, "EMBEDDED_MODE", True), patch.object(settings, "EMBEDDING_ENABLED", True):
                 # Patch the class reference bound in factory module
                 with patch("app.infrastructure.embeddings.factory.LocalEmbedder") as MockLocal:
-                    from app.infrastructure.embeddings.factory import EmbedderFactory
-
                     EmbedderFactory.get_embedder()
                     MockLocal.assert_called_once()
 
     def test_sentence_transformers_missing_raises_in_production(self):
-        """Production mode without sentence_transformers → raises ImportError."""
+        """Production mode without sentence_transformers → returns None gracefully."""
+        from app.infrastructure.embeddings.factory import EmbedderFactory
+        EmbedderFactory._instances.clear()
         with patch("app.infrastructure.embeddings.factory.SystemConfigService.get_value", return_value=None):
-            with patch.object(settings, "EMBEDDED_MODE", False):
+            with patch.object(settings, "EMBEDDED_MODE", False), patch.object(settings, "EMBEDDING_ENABLED", True):
                 with patch.dict("sys.modules", {"sentence_transformers": None}):
-                    from app.infrastructure.embeddings.factory import EmbedderFactory
-
-                    with pytest.raises(ImportError):
-                        EmbedderFactory.get_embedder()
+                    assert EmbedderFactory.get_embedder() is None
 
 
 

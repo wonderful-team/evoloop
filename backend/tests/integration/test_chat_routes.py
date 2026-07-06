@@ -217,7 +217,7 @@ async def test_resume_endpoint_persists_message(mock_dispatch, bg_tasks):
     """/chat/resume should call persist_user_message when user_input is provided."""
     from app.api.routes.agent import resume_chat, ResumeRequest
 
-    with patch("app.api.routes.agent.get_graph", return_value=MagicMock()), \
+    with patch("app.core.hitl.orchestrator.HITLOrchestrator.get_pending_request", new_callable=AsyncMock, return_value=None), \
          patch("app.api.routes.agent.db_resource_manager") as mock_db_res, \
          patch("app.core.engine.dispatch.persist_user_message", new_callable=AsyncMock) as mock_persist:
 
@@ -232,7 +232,7 @@ async def test_resume_endpoint_persists_message(mock_dispatch, bg_tasks):
             thread_id="t-123",
             content="Continue please",
             project_id=None,
-            command_id=None,
+            member_id=0,
         )
 
 
@@ -241,7 +241,7 @@ async def test_resume_endpoint_with_temp_project(mock_dispatch, bg_tasks):
     """/chat/resume should parse temp_project JSON and set context."""
     from app.api.routes.agent import resume_chat, ResumeRequest
 
-    with patch("app.api.routes.agent.get_graph", return_value=MagicMock()), \
+    with patch("app.core.hitl.orchestrator.HITLOrchestrator.get_pending_request", new_callable=AsyncMock, return_value=None), \
          patch("app.api.routes.agent.db_resource_manager") as mock_db_res, \
          patch("app.api.routes.agent.thread_context_store") as mock_store, \
          patch("app.core.engine.dispatch.persist_user_message", new_callable=AsyncMock):
@@ -275,7 +275,7 @@ async def test_resume_endpoint_smart_tool_completion(bg_tasks):
     mock_graph = MagicMock()
     mock_graph.aget_state = AsyncMock(return_value=mock_state)
 
-    with patch("app.api.routes.agent.get_graph", return_value=mock_graph), \
+    with patch("app.core.hitl.orchestrator.HITLOrchestrator.get_pending_request", new_callable=AsyncMock, return_value=None), \
          patch("app.api.routes.agent.db_resource_manager") as mock_db_res, \
          patch("app.core.engine.dispatch.persist_user_message", new_callable=AsyncMock):
 

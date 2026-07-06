@@ -26,7 +26,7 @@ def _mock_session_scope():
     @asynccontextmanager
     async def _fake():
         yield session
-    return patch('app.infrastructure.database.sql.database.session_scope', side_effect=_fake)
+    return patch('app.infrastructure.database.session_scope', side_effect=_fake)
 
 
 class TestTodoWorkflow:

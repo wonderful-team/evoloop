@@ -59,7 +59,7 @@ from app.core.engine.graph_builder import GraphBuilder
 from app.core.globals import set_graph
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.engine.background_agent import run_agent_background
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.models import Message
 from app.core.evocloud.backends.http_client import EvoCloudHTTPClient
 from app.core.config import settings

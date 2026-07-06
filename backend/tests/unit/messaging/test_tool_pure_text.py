@@ -65,7 +65,7 @@ async def test_list_dir_tree_returns_plain_text():
 
 async def test_grep_search_returns_plain_text():
     """验证 grep_search 返回纯文本"""
-    from app.domain.tools.files.grep_search import _search_by_name
+    from app.domain.tools.files.find_files import _search_by_name
 
     import os
     test_dir = os.path.join(os.getcwd(), "test_tmp_dir_search")
@@ -112,7 +112,7 @@ async def test_display_name_without_count():
 
     mock_meta.get_display_name = MagicMock(side_effect=capture_display_name)
 
-    with patch('app.core.engine.message.handler.get_tool_metadata', return_value=mock_meta):
+    with patch('app.core.engine.message.handler._tool_mixin.get_tool_metadata', return_value=mock_meta):
         # 纯文本输出，没有 count
         tool_output = "file1.py\nfile2.py"
 

@@ -328,6 +328,26 @@ class TestMemoryMdParsing:
 
 class TestIntegrationWithMemoryManager:
     """Tests for integration with MemoryManager using MemoryContainer."""
+
+    @pytest.fixture(autouse=True)
+    def mock_db_session(self):
+        from unittest.mock import AsyncMock, MagicMock, patch
+        mock_session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalars = MagicMock(return_value=MagicMock(all=MagicMock(return_value=[])))
+        
+        mock_session.execute = AsyncMock(return_value=mock_result)
+        mock_session.scalar = AsyncMock(return_value=0)
+        mock_session.scalars = AsyncMock()
+        
+        mock_session_ctx = MagicMock()
+        mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session_ctx.__aexit__ = AsyncMock(return_value=None)
+        
+        self.patcher = patch("app.core.memory.file_engine.session_scope", return_value=mock_session_ctx)
+        self.patcher.start()
+        yield
+        self.patcher.stop()
     
     @pytest.mark.asyncio
     async def test_memory_manager_get_hot_memory(self):

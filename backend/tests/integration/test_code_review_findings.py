@@ -198,7 +198,7 @@ class TestAgentRoutesIssues:
         mock_graph = MagicMock()
         mock_graph.aget_state = AsyncMock(return_value=mock_state)
 
-        with patch("app.api.routes.agent.get_graph", return_value=mock_graph), \
+        with patch("app.core.hitl.orchestrator.HITLOrchestrator.get_pending_request", new_callable=AsyncMock, return_value=None), \
              patch("app.api.routes.agent.db_resource_manager") as mock_db_res, \
              patch("app.core.engine.dispatch.persist_user_message", new_callable=AsyncMock):
 
@@ -289,13 +289,14 @@ class TestDispatchIssues:
         from app.core.engine.graph_runner import resume_graph_background
         from app.core.exceptions import AgentHumanInterruptException
 
-        mock_graph = MagicMock()
-        mock_graph.astream = MagicMock(side_effect=AgentHumanInterruptException("HITL"))
-
-        with patch("app.core.engine.graph_runner.get_graph", return_value=mock_graph), \
+        with patch("app.core.engine.nodes.supervisor.SupervisorNode") as mock_node_cls, \
              patch("app.core.engine.callbacks.transparent.TransparentCallbackHandler"), \
              patch("app.core.monitoring.activity.activity_monitor.end_run", new_callable=AsyncMock) as mock_end, \
-             patch("app.core.monitoring.activity.activity_monitor.start_run", new_callable=AsyncMock):
+             patch("app.core.monitoring.activity.activity_monitor.start_run", new_callable=AsyncMock), \
+             patch("app.core.monitoring.activity.activity_monitor.check_cancellation", new_callable=AsyncMock):
+
+            mock_node = AsyncMock(side_effect=AgentHumanInterruptException("HITL"))
+            mock_node_cls.return_value = mock_node
 
             await resume_graph_background(
                 "t-1",
@@ -373,7 +374,7 @@ class TestDispatchIssues:
             result = await dispatch_agent_run(
                 thread_id="t-1",
                 message_content="",
-                attachments=[{"type": "image", "url": "http://example.com/img.png"}],
+                references=[{"type": "image", "url": "http://example.com/img.png"}],
             )
 
             # Empty message produces "[Image] None" with current goal prefix logic

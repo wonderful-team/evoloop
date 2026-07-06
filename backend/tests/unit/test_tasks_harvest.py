@@ -16,9 +16,9 @@ def test_git_harvest_task_logic():
     with patch("subprocess.run") as mock_run, \
          patch("os.path.exists", return_value=True), \
          patch("app.infrastructure.config.service.SystemConfigService") as mock_config, \
-         patch("app.utils.render_template") as mock_render, \
+         patch("app.utils.template.render_template") as mock_render, \
          patch("app.core.memory.lifespan.MemoryLifespanManager") as mock_memory_container, \
-         patch("app.core.llm.InternalLLMService.invoke_structured", new_callable=AsyncMock) as mock_llm:
+         patch("app.infrastructure.llm.InternalLLMService.invoke_structured", new_callable=AsyncMock) as mock_llm:
 
         # 1. Setup Mock for subprocess
         mock_process = MagicMock()

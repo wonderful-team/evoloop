@@ -215,7 +215,8 @@ async def clean_historical_burden():
     """
     import shutil
     from app.core.config import settings
-    from app.infrastructure.database.sql.database import engine, get_db_session
+    from app.infrastructure.database import session_scope
+from app.infrastructure.database.sql.database import engine
     
     logger.info("\n" + "="*60)
     logger.info("🧹 开始清理历史负担...")

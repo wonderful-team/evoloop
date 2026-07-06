@@ -37,7 +37,11 @@ async def test_local_embedder_asyncio_to_thread():
         model = await embedder._get_model()
         assert model == mock_st_instance
         mock_st_class.assert_called_once_with(
-            "mock-model", device="cpu", trust_remote_code=True, local_files_only=True
+            "mock-model",
+            device="cpu",
+            trust_remote_code=True,
+            cache_folder=os.path.join(settings.MODELS_DIR, "huggingface/hub"),
+            local_files_only=True,
         )
 
         # 验证 embed_query

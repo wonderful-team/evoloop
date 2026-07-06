@@ -16,7 +16,7 @@ from app.core.engine.signals.schema import RouteToSignal, RoutingContext
 from app.core.engine.state import AgentState
 from app.core.globals import set_graph
 from app.infrastructure.database.resource_manager import db_resource_manager
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 
 from app.core.engine.context_hydrator import EvoContextMiddleware
 _orig_hydrate = EvoContextMiddleware.hydrate
@@ -168,7 +168,7 @@ async def main():
     async def noop(t): pass
     pruner_module.auto_prune_on_completion = noop
 
-    from app.core.llm import InternalLLMService
+    from app.infrastructure.llm import InternalLLMService
     orig_llm = InternalLLMService.invoke
     @staticmethod
     async def mock_llm(*a, **k):

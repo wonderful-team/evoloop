@@ -8,7 +8,7 @@ from sqlalchemy import select
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from app.infrastructure.database.sql.database import session_scope, engine, Base
+from app.infrastructure.database import session_scope, engine, Base
 from app.models.todo import TodoItem
 
 # -------------------------------------------------------------

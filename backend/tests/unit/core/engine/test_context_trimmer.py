@@ -9,7 +9,7 @@ Tests account for this behavior.
 """
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from app.core.engine.message.native_classes import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
 from app.core.engine.message.utils import count_total_tokens, estimate_message_tokens

@@ -207,7 +207,7 @@ class TestFileRewind:
         test_file.write_text("to be deleted")
         
         # We need to mock the database query
-        with patch("app.infrastructure.database.sql.database.session_scope") as mock_session_scope:
+        with patch("app.infrastructure.database.session_scope") as mock_session_scope:
             mock_session = AsyncMock()
             # scalars() is sync on Result, so execute should return a regular MagicMock
             mock_result = MagicMock()

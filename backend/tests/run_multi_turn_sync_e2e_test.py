@@ -55,14 +55,14 @@ async def _seed_multi_turn_conversation(thread_id: str):
     """在 SQLite 中插入 3 轮对话，每轮 human + assistant。"""
     from datetime import datetime, timezone
     from sqlalchemy import insert
-    from app.infrastructure.database.sql.database import get_db_session
+    from app.infrastructure.database import session_scope
     from app.models import Conversation as ConversationModel
     from app.models import Message as MessageModel
 
     now = datetime.now(timezone.utc)
     base_ts = int(now.timestamp())
 
-    async with get_db_session() as db:
+    async with session_scope() as db:
         # 会话
         await db.execute(
             insert(ConversationModel).values(

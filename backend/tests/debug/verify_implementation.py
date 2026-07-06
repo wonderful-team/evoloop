@@ -2,9 +2,9 @@
 """
 验证 OCR 禁用标志和事件类型规范化的实现
 """
+import asyncio
 import os
 import sys
-import asyncio
 
 os.environ["ENVIRONMENT"] = "local"
 os.environ["SENTRY_DSN"] = "https://test@test.sentry.io/1"
@@ -32,8 +32,9 @@ async def verify_implementation():
 
     # 1. 验证 MacroEngine 的 disable_ocr 参数
     print("\n1️⃣ 验证 MacroEngine.disable_ocr 参数...")
-    from app.core.execution.macro.engine import MacroEngine
     import inspect
+
+    from app.core.execution.macro.engine import MacroEngine
 
     # 检查 execute 方法签名
     sig = inspect.signature(MacroEngine.execute)
@@ -51,7 +52,7 @@ async def verify_implementation():
 
     # 2. 验证 MobileController 的 disable_ocr 参数
     print("\n2️⃣ 验证 MobileController.disable_ocr 参数...")
-    from app.core.environment.controllers.mobile_controller import MobileController
+    from app.core.environment.controllers.mobile import MobileController
 
     sig = inspect.signature(MobileController.execute)
     params = list(sig.parameters.keys())

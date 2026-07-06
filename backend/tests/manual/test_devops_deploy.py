@@ -110,7 +110,7 @@ async def init_backend(project_id: int = DEFAULT_PROJECT_ID):
 async def get_skills():
     from sqlalchemy import select
 
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
     from app.models.learning import LearnedSkill
 
     async with session_scope() as session:
@@ -342,7 +342,7 @@ async def verify_deploy(
     from sqlalchemy import select
 
     from app.core.globals import get_graph
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
     from app.models import Message
 
     async with session_scope() as session:
@@ -504,7 +504,7 @@ async def run_case(case: str, project_id: int = DEFAULT_PROJECT_ID, **kwargs):
 
     from sqlalchemy import func, select
 
-    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database import session_scope
     from app.models import Message
 
     async with session_scope() as session:

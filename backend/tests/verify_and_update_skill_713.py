@@ -28,7 +28,7 @@ load_env_file()
 if "ENVIRONMENT" not in os.environ:
     os.environ["ENVIRONMENT"] = "local"
 
-from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database import session_scope
 from app.models.learning import LearnedSkill
 from app.core.execution.macro.verification_service import VerificationService
 from app.core.execution.macro.verification_models import EnvironmentConfig
