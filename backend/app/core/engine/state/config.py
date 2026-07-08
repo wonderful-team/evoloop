@@ -18,23 +18,16 @@ class RunnableConfigMetadata(DynamicBaseModel):
     model: str | None = None
 
     @classmethod
-    def from_config(cls, config: dict | Any) -> RunnableConfigMetadata:
+    def from_config(cls, config: dict) -> RunnableConfigMetadata:
         """Hydrate metadata from a config dictionary."""
         if not config:
             return cls()
 
-        # Config is usually a dict, but let's be safe
-        configurable = config if isinstance(config, dict) else getattr(config, "configurable", {})
-        if isinstance(config, dict):
-            configurable = config.get("configurable", {}) or {}
-            if not configurable: # Fallback for flat dicts if any
-                configurable = config
+        configurable = config.get("configurable", {}) or {}
+        if not configurable:
+            configurable = config
 
-        metadata = {}
-        if isinstance(config, dict):
-            metadata = config.get("metadata", {}) or {}
-        else:
-            metadata = getattr(config, "metadata", {}) or {}
+        metadata = config.get("metadata", {}) or {}
 
         project_id = configurable.get("project_id")
         if project_id is None:

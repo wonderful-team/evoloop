@@ -101,6 +101,13 @@ class HostEnvironment(DynamicBaseModel):
     installed_apps: list[str] = []
     # usage statistics keyed by app (populated by UsageRanker)
     app_usage_stats: list[AppUsageRecord] = Field(default_factory=list)
+    # Linux-specific fields (dynamically probed)
+    distro: str = "Linux"
+    sudo_available: bool = False
+    disk_space: str | None = None
+    systemd_services: list[str] = Field(default_factory=list)
+    gpus: list[str] = Field(default_factory=list)
+
 
 class AndroidDevice(DynamicBaseModel):
     """Connected Android device information."""

@@ -269,16 +269,10 @@ class BlockMapper:
         # Defensive: ensure tool_calls are pure dicts before serialization
         safe_msg = msg.model_copy(deep=True)
         if safe_msg.tool_calls:
-            safe_tool_calls: list[dict[str, Any]] = []
-            for tc in safe_msg.tool_calls:
-                if hasattr(tc, "model_dump"):
-                    safe_tool_calls.append(tc.model_dump())
-                elif isinstance(tc, dict):
-                    safe_tool_calls.append(tc)
-                else:
-                    safe_tool_calls.append(
-                        {"id": str(tc), "type": str(type(tc).__name__)}
-                    )
+            safe_tool_calls: list[dict[str, Any]] = [
+                dict(tc) if not isinstance(tc, dict) else tc
+                for tc in safe_msg.tool_calls
+            ]
             safe_msg.tool_calls = cast(Any, safe_tool_calls)
 
         data = safe_msg.model_dump(exclude_none=True)

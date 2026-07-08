@@ -20,14 +20,14 @@ class BenefitAuthHandler:
     async def on_user_logged_in(self, event):
         """Clear stale cache so next request fetches fresh entitlements."""
         logger.info("[BenefitService] User logged in, invalidating benefit cache...")
-        member_id = getattr(event, "member_id", None)
+        member_id = event.member_id
         await benefit_service.invalidate_cache(member_id)
 
     @event_subscribe(SystemEventType.USER_LOGGED_OUT)
     async def on_user_logged_out(self, event):
         """Clear all cached benefits on logout."""
         logger.info("[BenefitService] User logged out, clearing benefit cache...")
-        member_id = getattr(event, "member_id", None)
+        member_id = event.member_id
         await benefit_service.invalidate_cache(member_id)
 
 

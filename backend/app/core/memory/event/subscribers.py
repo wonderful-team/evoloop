@@ -108,7 +108,7 @@ class MemoryLifecycleSubscriber:
 
     @event_subscribe(SystemEventType.EXTRACTION_COMPLETED)
     async def on_extraction_completed(self, event: ExtractionCompletedEvent):
-        extracted_data = getattr(event, "extracted_data", {}) or {}
+        extracted_data = event.extracted_data or {}
         items = extracted_data.get("memory")
         if not items:
             return

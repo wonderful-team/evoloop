@@ -50,6 +50,7 @@ class Repository(Base):
 
     name: Mapped[str] = mapped_column(String(255))
     url: Mapped[str] = mapped_column(String(1024))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     local_path: Mapped[str | None] = mapped_column(String(1024))
     relative_path: Mapped[str | None] = mapped_column(String(1024))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

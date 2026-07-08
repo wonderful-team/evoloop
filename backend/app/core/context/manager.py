@@ -59,6 +59,7 @@ class EvoContext(DynamicBaseModel):
 
     # Extra Metadata (Plugins, etc.)
     metadata: ContextMetadata = Field(default_factory=ContextMetadata)
+    injected_secrets: set[str] | None = None
 
 
 # ==========================================

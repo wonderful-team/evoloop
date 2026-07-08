@@ -133,11 +133,11 @@ class LayeredContextCache:
                 break
 
         return DynamicContextLayer(
-            shared_context=getattr(state, "shared_context", {}) or {},
-            tool_memory=getattr(state, "tool_memory", None),
-            execution_ticket=getattr(state, "ticket", None),
+            shared_context=state.shared_context or {},
+            tool_memory=state.tool_memory,
+            execution_ticket=state.ticket,
             messages=messages,
-            iteration_count=getattr(state, "iteration_count", 0) or 0,
+            iteration_count=state.iteration_count,
         )
 
     @classmethod

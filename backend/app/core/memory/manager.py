@@ -285,7 +285,7 @@ class MemoryManager:
             content=f"Goal: {goal}\nOutcome: {outcome}",
             description=outcome[:200],
             project_id=project_id,
-            member_id=getattr(episode, "member_id", 0),
+            member_id=episode.member_id or 0,
             source_message_id=source_message_id,
             source="episode_recording",
             tags=["episode"],

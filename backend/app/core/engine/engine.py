@@ -125,7 +125,7 @@ class AgentEngine:
         elif inference_result.get("signal"):
             outcome_status = "interrupted"
         last_msg = inference_result.get("messages", [])[-1] if inference_result.get("messages") else None
-        if last_msg and last_msg.get("role") == "assistant" and last_msg.get("additional_kwargs", {}).get("is_error"):
+        if last_msg and last_msg.role == "assistant" and last_msg.additional_kwargs.get("is_error"):
             outcome_status = "error"
 
         outcome = NodeOutcome(status=outcome_status)
@@ -141,9 +141,9 @@ class AgentEngine:
 
         if node_source:
             for msg in inference_result.get("messages", []):
-                if msg.get("additional_kwargs") is None:
-                    msg["additional_kwargs"] = {}
-                msg["additional_kwargs"]["node_source"] = node_source
+                if msg.additional_kwargs is None:
+                    msg.additional_kwargs = {}
+                msg.additional_kwargs["node_source"] = node_source
 
         return result
 

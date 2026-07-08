@@ -128,6 +128,12 @@ class SynthesizedSopConfig(DynamicBaseModel):
     version: str = "1.0"
     nodes: list[dict] = Field(default_factory=list)
     edges: list[dict] = Field(default_factory=list)
+    description: str = ""
+    namespace: str = "misc"
+    trigger_patterns: list[str] = Field(default_factory=list)
+    instructions: str = ""
+    execution_mode: str = "agentic"
+    macro_script: str = ""
 
 class TraceAction(DynamicBaseModel):
     """A single action extracted from a trace."""

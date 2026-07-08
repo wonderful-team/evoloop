@@ -155,11 +155,11 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
                         host_info["top_apps"] = sorted(state.host.installed_apps)
             # Linux specific details
             if state.host.os_name == "Linux":
-                host_info["distro"] = getattr(state.host, "distro", "Linux")
-                host_info["sudo_available"] = getattr(state.host, "sudo_available", False)
-                host_info["disk_space"] = getattr(state.host, "disk_space", None)
-                host_info["systemd_services"] = getattr(state.host, "systemd_services", [])
-                host_info["gpus"] = getattr(state.host, "gpus", [])
+                host_info["distro"] = state.host.distro
+                host_info["sudo_available"] = state.host.sudo_available
+                host_info["disk_space"] = state.host.disk_space
+                host_info["systemd_services"] = state.host.systemd_services
+                host_info["gpus"] = state.host.gpus
 
             data["host"] = host_info
 
@@ -190,7 +190,7 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
         # 4. Background Services and Listening Ports
         data["running_services"] = _get_active_background_tasks()
         data["active_ports"] = _get_listening_local_ports()
-        data["docker_containers"] = getattr(state, "docker_containers", [])
+        data["docker_containers"] = state.docker_containers
 
         return data
 

@@ -103,21 +103,26 @@ class MessageRepository:
 
                 if references:
                     for ref_data in references:
-                        # Normalize to dict if it is a MessageReference or other Pydantic model
-                        if not isinstance(ref_data, dict) and hasattr(ref_data, "model_dump"):
-                            ref_dict = ref_data.model_dump()
-                        elif isinstance(ref_data, dict):
-                            ref_dict = ref_data
+                        if isinstance(ref_data, dict):
+                            ref_id = ref_data.get("id") or gen_uuid()
+                            ref_type = ref_data.get("type") or "file"
+                            ref_target_id = ref_data.get("target_id") or ""
+                            ref_target_name = ref_data.get("target_name") or "Unnamed Reference"
+                            ref_meta = ref_data.get("metadata") or ref_data.get("meta_data") or {}
                         else:
-                            ref_dict = {}
+                            ref_id = getattr(ref_data, "id", None) or gen_uuid()
+                            ref_type = getattr(ref_data, "type", None) or "file"
+                            ref_target_id = getattr(ref_data, "target_id", None) or ""
+                            ref_target_name = getattr(ref_data, "target_name", None) or "Unnamed Reference"
+                            ref_meta = getattr(ref_data, "metadata", None) or getattr(ref_data, "meta_data", None) or {}
 
                         ref = MessageReference(
-                            id=ref_dict.get("id") or gen_uuid(),
+                            id=ref_id,
                             message_id=log.id,
-                            type=ref_dict.get("type") or "file",
-                            target_id=ref_dict.get("target_id") or "",
-                            target_name=ref_dict.get("target_name") or "Unnamed Reference",
-                            meta_data=ref_dict.get("metadata") or ref_dict.get("meta_data") or {},
+                            type=ref_type,
+                            target_id=ref_target_id,
+                            target_name=ref_target_name,
+                            meta_data=ref_meta,
                         )
                         session.add(ref)
 

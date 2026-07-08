@@ -22,7 +22,7 @@ from .schemas import DreamRecord
 
 logger = logging.getLogger(__name__)
 
-_DREAM_DIR = Path(settings.BRAIN_MEMORY_ROOT) / ".dream" if hasattr(settings, "BRAIN_MEMORY_ROOT") else Path.home() / ".evoloop" / "memory" / ".dream"
+_DREAM_DIR = Path(settings.BRAIN_MEMORY_ROOT) / ".dream"
 
 
 class DreamScheduler:

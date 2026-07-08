@@ -45,10 +45,11 @@ def parse_tool_input(input_str: str | None) -> dict:
     return {}
 
 
+def _msg_field(msg, key, default=None):
+    return msg.get(key) if isinstance(msg, dict) else getattr(msg, key, default)
+
+
 def to_base_message(msg: Any) -> BaseMessage | None:
-    """
-    Convert database Message record or dict to a native BaseMessage.
-    """
     if not msg:
         return None
 
@@ -69,7 +70,7 @@ def to_base_message(msg: Any) -> BaseMessage | None:
         created_at = getattr(msg, "created_at", None)
         thinking_raw = getattr(msg, "thinking", None)
         status = getattr(msg, "status", None)
-        meta_data = getattr(msg, "meta_data", None)
+        meta_data = getattr(msg, "meta_data", None) or getattr(msg, "metadata", None)
         node_source = getattr(msg, "node_source", None)
         additional_kwargs = dict(getattr(msg, "additional_kwargs", {}) or {})
 
@@ -89,34 +90,24 @@ def to_base_message(msg: Any) -> BaseMessage | None:
         if role == "human" or role == "user":
             message = HumanMessage(content=content, id=msg_id, additional_kwargs=additional_kwargs)
         elif role == "ai" or role == "assistant":
-            tc_source = msg.get("tool_calls") if isinstance(msg, dict) else getattr(msg, "tool_calls", [])
+            tc_source = _msg_field(msg, "tool_calls", [])
             tool_calls = normalize_tool_calls(tc_source)
-            message = AIMessage(
-                content=content,
-                id=msg_id,
-                tool_calls=tool_calls,
-                additional_kwargs=additional_kwargs
-            )
+            message = AIMessage(content=content, id=msg_id, tool_calls=tool_calls, additional_kwargs=additional_kwargs)
         elif role == "tool":
-            t_call_id = msg.get("tool_call_id") if isinstance(msg, dict) else getattr(msg, "tool_call_id", "")
-            t_name = msg.get("name") if isinstance(msg, dict) else getattr(msg, "tool_name", None)
             message = ToolMessage(
                 content=content,
                 id=msg_id,
-                tool_call_id=t_call_id or "",
-                name=t_name,
-                additional_kwargs=additional_kwargs
+                tool_call_id=_msg_field(msg, "tool_call_id") or "",
+                name=_msg_field(msg, "name") or _msg_field(msg, "tool_name"),
+                additional_kwargs=additional_kwargs,
             )
         elif role == "system":
             message = SystemMessage(content=content, id=msg_id, additional_kwargs=additional_kwargs)
 
         if message:
             message.metadata = additional_kwargs
-            is_err_val = additional_kwargs.get("status") == "error" or additional_kwargs.get("is_error") or False
-            if not is_err_val:
-                if isinstance(msg, dict):
-                    is_err_val = msg.get("additional_kwargs", {}).get("is_error") or False
-            if is_err_val:
+            is_err = additional_kwargs.get("status") == "error" or additional_kwargs.get("is_error") or False
+            if is_err:
                 message.metadata["is_error"] = True
             return message
     except (ValueError, TypeError, AttributeError) as e:
@@ -131,15 +122,66 @@ def normalize_tool_call(tc: Any) -> dict[str, Any]:
     Standardize tool call structure to:
     {"id": "...", "name": "...", "args": {...}}
     """
-    if not isinstance(tc, dict):
-        if hasattr(tc, "model_dump"):
-            tc = tc.model_dump()
-        else:
-            return {}
-
-    res_id = tc.get("id") or tc.get("tool_call_id") or ""
-    res_name = tc.get("name") or tc.get("tool_name") or ""
-    res_args = tc.get("args") or {}
+    if isinstance(tc, dict):
+        res_id = tc.get("id") or tc.get("tool_call_id") or ""
+        res_name = tc.get("name") or tc.get("tool_name") or ""
+        res_args = tc.get("args") or {}
+        if not res_name or not res_args:
+            fn_info = tc.get("function")
+            if isinstance(fn_info, dict):
+                if not res_name:
+                    res_name = fn_info.get("name") or ""
+                if not res_args:
+                    args_raw = fn_info.get("arguments")
+                    if isinstance(args_raw, str):
+                        try:
+                            res_args = json.loads(args_raw)
+                        except (json.JSONDecodeError, ValueError):
+                            res_args = {}
+                    elif isinstance(args_raw, dict):
+                        res_args = args_raw
+            elif fn_info is not None:
+                if not res_name:
+                    res_name = getattr(fn_info, "name", "") or ""
+                if not res_args:
+                    args_raw = getattr(fn_info, "arguments", "")
+                    if isinstance(args_raw, str):
+                        try:
+                            res_args = json.loads(args_raw)
+                        except (json.JSONDecodeError, ValueError):
+                            res_args = {}
+                    elif isinstance(args_raw, dict):
+                        res_args = args_raw
+    else:
+        res_id = getattr(tc, "id", None) or getattr(tc, "tool_call_id", None) or ""
+        res_name = getattr(tc, "name", None) or getattr(tc, "tool_name", None) or ""
+        res_args = getattr(tc, "args", None) or {}
+        if not res_name or not res_args:
+            fn_info = getattr(tc, "function", None)
+            if isinstance(fn_info, dict):
+                if not res_name:
+                    res_name = fn_info.get("name") or ""
+                if not res_args:
+                    args_raw = fn_info.get("arguments")
+                    if isinstance(args_raw, str):
+                        try:
+                            res_args = json.loads(args_raw)
+                        except (json.JSONDecodeError, ValueError):
+                            res_args = {}
+                    elif isinstance(args_raw, dict):
+                        res_args = args_raw
+            elif fn_info is not None:
+                if not res_name:
+                    res_name = getattr(fn_info, "name", "") or ""
+                if not res_args:
+                    args_raw = getattr(fn_info, "arguments", "")
+                    if isinstance(args_raw, str):
+                        try:
+                            res_args = json.loads(args_raw)
+                        except (json.JSONDecodeError, ValueError):
+                            res_args = {}
+                    elif isinstance(args_raw, dict):
+                        res_args = args_raw
 
     if isinstance(res_args, str):
         try:
@@ -147,31 +189,18 @@ def normalize_tool_call(tc: Any) -> dict[str, Any]:
         except (json.JSONDecodeError, ValueError):
             res_args = {}
 
-    if not res_name or not res_args:
-        fn_info = tc.get("function")
-        if isinstance(fn_info, dict):
-            if not res_name:
-                res_name = fn_info.get("name") or ""
-            if not res_args:
-                args_raw = fn_info.get("arguments")
-                if isinstance(args_raw, str):
-                    try:
-                        res_args = json.loads(args_raw)
-                    except (json.JSONDecodeError, ValueError):
-                        res_args = {}
-                elif isinstance(args_raw, dict):
-                    res_args = args_raw
+    result = {"id": res_id, "name": res_name, "args": res_args}
 
-    result = {
-        "id": res_id,
-        "name": res_name,
-        "args": res_args,
-    }
-
-    if "type" in tc:
-        result["type"] = tc["type"]
-    if "index" in tc:
-        result["index"] = tc["index"]
+    if isinstance(tc, dict):
+        if "type" in tc:
+            result["type"] = tc["type"]
+        if "index" in tc:
+            result["index"] = tc["index"]
+    else:
+        if hasattr(tc, "type"):
+            result["type"] = tc.type
+        if hasattr(tc, "index"):
+            result["index"] = tc.index
 
     return result
 
@@ -238,14 +267,14 @@ def estimate_message_tokens(msg: Any) -> int:
     text = get_message_text(msg)
     base = estimate_tokens(text)
     overhead = 4
-    
+
     if isinstance(msg, dict):
         role = msg.get("role")
         tool_calls = msg.get("tool_calls")
     else:
         role = getattr(msg, "type", "user")
         tool_calls = getattr(msg, "tool_calls", None)
-        
+
     if role in ("assistant", "ai") and tool_calls:
         overhead += 8
     return base + overhead

@@ -554,11 +554,11 @@ class _FileEngine:
             db_index.source = entry.source
             db_index.source_message_id = entry.source_message_id
 
-            db_index.source_file_path = getattr(entry, "source_file_path", None)
-            db_index.source_thread_id = getattr(entry, "source_thread_id", None)
-            db_index.source_message_id = getattr(entry, "source_message_id", None) or entry.source_message_id
-            db_index.source_run_id = getattr(entry, "source_run_id", None) or entry.run_id
-            db_index.source_wiki_title = getattr(entry, "source_wiki_title", None)
+            db_index.source_file_path = entry.source_file_path
+            db_index.source_thread_id = entry.source_thread_id
+            db_index.source_message_id = entry.source_message_id or entry.source_message_id
+            db_index.source_run_id = entry.run_id or entry.run_id
+            db_index.source_wiki_title = entry.source_wiki_title
 
             db_index.content_hash = entry.content_hash
             db_index.confidence = entry.confidence

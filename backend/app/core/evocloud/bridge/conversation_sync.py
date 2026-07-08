@@ -213,7 +213,7 @@ class ConversationSyncManager:
     def _format_message(self, msg: MessageModel) -> SyncMessage | None:
         """格式化会话数据。Mobile 来源的 human 消息已由 Gateway 直接同步到 MC，
         Desktop Agent 侧不再重复同步，避免双写。"""
-        if msg.role == "human" and getattr(msg, "source", None) == "mobile":
+        if msg.role == "human" and msg.source == "mobile":
             return None
         return SyncMessage(
             id=msg.id,

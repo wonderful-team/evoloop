@@ -45,7 +45,7 @@ async def write_handover_notes(notes: str, key: str = "general") -> str:
         ctx = ContextManager.current()
         if ctx and ctx.metadata.blackboard:
             state = ctx.metadata.blackboard
-            shared = dict(getattr(state, "shared_context", None) or {})
+            shared = dict(state.shared_context or {})
             shared[key] = notes
             state.shared_context = shared
             ctx.metadata.shared_context = shared
@@ -348,7 +348,7 @@ async def forget_tool_outputs(
             ctx = ContextManager.current()
             if ctx and ctx.metadata.blackboard:
                 state = ctx.metadata.blackboard
-                existing_data = getattr(state, "tool_memory", None) or {}
+                existing_data = state.tool_memory or {}
                 memory = ToolOutputMemory.from_dict(existing_data)
                 for tc_id, record_data in forgotten_records.items():
                     try:
@@ -412,7 +412,7 @@ async def recall_tool_output(
                 ctx = ContextManager.current()
                 if ctx and ctx.metadata.blackboard:
                     state = ctx.metadata.blackboard
-                    existing_data = getattr(state, "tool_memory", None) or {}
+                    existing_data = state.tool_memory or {}
                     memory = ToolOutputMemory.from_dict(existing_data)
                     memory.remove_from_forgotten(tool_call_id)
                     state.tool_memory = memory.to_dict()
@@ -445,7 +445,7 @@ async def list_forgotten_outputs(
         return "Error: No ContextManager available."
 
     state = ctx.metadata.blackboard
-    tool_memory_data = getattr(state, "tool_memory", None) if state else None
+    tool_memory_data = state.tool_memory if state else None
 
     if not tool_memory_data:
         return "No forgotten tool outputs in current context.", {"count": 0}

@@ -1,11 +1,15 @@
 """Shared agent execution loop — the native graph runner core."""
 
 import logging
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.core.engine.state import AgentState, StateUpdate
 
 logger = logging.getLogger(__name__)
 
 
-def merge_state_update(state, update) -> None:
+def merge_state_update(state: "AgentState", update: "StateUpdate") -> None:
     """Merge a StateUpdate's explicitly-set fields back into the live AgentState.
 
     Uses ``update.model_fields_set`` so that fields defaulted by validators

@@ -63,6 +63,7 @@ class Episode(DynamicBaseModel):
     error_msg: str | None = Field(default=None, description="Error message if failed")
     project_id: int | None = Field(default=DEFAULT_PROJECT_ID)
     source_message_id: str | None = Field(default=None)
+    member_id: int | None = Field(default=None)
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 

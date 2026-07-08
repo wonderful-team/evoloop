@@ -56,7 +56,7 @@ def update_blackboard(updates: dict) -> str:
         coerced[key] = val
 
     # Persist into shared_context
-    shared = dict(getattr(state, "shared_context", None) or {})
+    shared = dict(state.shared_context or {})
     shared.update(coerced)
     state.shared_context = shared
     ctx.metadata.shared_context = shared

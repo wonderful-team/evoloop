@@ -236,7 +236,7 @@ async def sensitive_file_placeholder_replacement_gate(context: HookContext) -> H
 
         try:
             ctx = ContextManager.current()
-            if not hasattr(ctx, "injected_secrets") or ctx.injected_secrets is None:
+            if ctx.injected_secrets is None:
                 ctx.injected_secrets = set()
             ctx.injected_secrets.update(injected_secrets)
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
@@ -258,7 +258,7 @@ async def sensitive_file_censorship_gate(context: HookContext) -> HookResult:
             from app.core.context.manager import ContextManager
 
             ctx = ContextManager.current()
-            ctx_secrets = getattr(ctx, "injected_secrets", None)
+            ctx_secrets = ctx.injected_secrets
             if ctx_secrets:
                 injected_secrets = list(ctx_secrets)
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:

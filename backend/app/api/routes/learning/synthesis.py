@@ -327,13 +327,13 @@ async def _run_smart_synthesis(
             job.progress_percent = 100
             job.completed_at = datetime.now()
             skill_dict = skill if isinstance(skill, dict) else {
-                "name": getattr(skill, 'name', 'unnamed_skill'),
-                "description": getattr(skill, 'description', ''),
-                "namespace": getattr(skill, 'namespace', 'misc'),
-                "trigger_patterns": getattr(skill, 'trigger_patterns', []),
-                "instructions": getattr(skill, 'instructions', ''),
-                "execution_mode": getattr(skill, 'execution_mode', 'agentic'),
-                "macro_script": getattr(skill, 'macro_script', ''),
+                "name": skill.name or 'unnamed_skill',
+                "description": skill.description or '',
+                "namespace": skill.namespace or 'misc',
+                "trigger_patterns": skill.trigger_patterns or [],
+                "instructions": skill.instructions or '',
+                "execution_mode": skill.execution_mode or 'agentic',
+                "macro_script": skill.macro_script or '',
             }
             job.generated_skill = skill_dict
 

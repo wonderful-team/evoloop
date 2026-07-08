@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
+from app.core.engine.message.native_classes import BaseMessage
 from app.core.engine.nodes.base import BaseAgentNode
 from app.core.engine.nodes.prompts import SupervisorContext, SupervisorPromptBuilder
 from app.core.engine.routers import RoutingTarget
@@ -37,6 +38,7 @@ def _plan_has_pending_steps(plan: str | dict | None) -> bool:
         return False
 
 
+
 class SupervisorNode(BaseAgentNode):
     """
     Supervisor Node - Decision-making hub for the EvoLoop Agent.
@@ -46,32 +48,26 @@ class SupervisorNode(BaseAgentNode):
         super().__init__(node_name="Supervisor", max_steps=settings.SUPERVISOR_AGENT_MAX_STEPS, temperature=0.2)
 
     @staticmethod
-    def _filter_messages_for_supervisor(messages: list[dict]) -> list[dict]:
-        """
-        Supervisor only needs semantic messages:
-        - System messages
-        - User messages (except older context_tickets)
-        - Assistant messages without tool calls.
-        """
-        result: list[dict] = []
+    def _filter_messages_for_supervisor(messages: list[BaseMessage]) -> list[BaseMessage]:
+        result: list[BaseMessage] = []
         latest_ticket_idx = -1
 
         for i, msg in enumerate(messages):
-            if msg.get("role") == "user" and msg.get("name") == "context_ticket":
+            if msg.role == "user" and msg.name == "context_ticket":
                 latest_ticket_idx = i
 
         for i, msg in enumerate(messages):
-            role = msg.get("role")
+            role = msg.role
             if role == "system":
                 result.append(msg)
             elif role == "user":
-                if msg.get("name") == "context_ticket":
+                if msg.name == "context_ticket":
                     if i == latest_ticket_idx:
                         result.append(msg)
                 else:
                     result.append(msg)
             elif role == "assistant":
-                if not msg.get("tool_calls"):
+                if not msg.tool_calls:
                     result.append(msg)
 
         dropped = len(messages) - len(result)
@@ -134,7 +130,8 @@ class SupervisorNode(BaseAgentNode):
                     "If FAILED/ERROR/INCOMPLETE: Review the last tool errors and decide whether to retry or formulate a new plan.\n"
                     "DO NOT return an empty response. You must take explicit action."
                 )
-                state.messages.append({"role": "system", "content": warning_msg})
+                from app.core.engine.message.native_classes import SystemMessage
+                state.messages.append(SystemMessage(content=warning_msg))
 
         return None
 
@@ -177,10 +174,10 @@ class SupervisorNode(BaseAgentNode):
         new_iter_count = (original_state.iteration_count or 0) + 1
         new_messages = [
             m for m in (engine_result.messages or [])
-            if m.get("name") != "context_ticket"
+            if m.name != "context_ticket"
         ]
         has_error_msg = any(
-            msg.get("additional_kwargs", {}).get("is_error") for msg in new_messages
+            msg.additional_kwargs.get("is_error") for msg in new_messages
         )
         if has_error_msg:
             return StateUpdate(
@@ -191,12 +188,12 @@ class SupervisorNode(BaseAgentNode):
 
         ai_content = ""
         last_msg = new_messages[-1] if new_messages else None
-        if last_msg and last_msg.get("role") == "assistant":
-            ai_content = str(last_msg.get("content", "")).strip()
+        if last_msg and last_msg.role == "assistant":
+            ai_content = str(last_msg.content).strip()
 
         if ai_content:
             if (
-                last_msg.get("additional_kwargs", {}).get("is_truncated")
+                last_msg.additional_kwargs.get("is_truncated")
                 and original_state.worker_outcome == "truncated"
             ):
                 return StateUpdate(

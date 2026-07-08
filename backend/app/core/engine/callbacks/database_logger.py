@@ -28,7 +28,7 @@ def _censor_secrets(val: Any) -> Any:
     from app.core.context.manager import ContextManager
     try:
         ctx = ContextManager.current()
-        injected_secrets = getattr(ctx, "injected_secrets", None)
+        injected_secrets = ctx.injected_secrets
         if not injected_secrets:
             return val
 
@@ -116,8 +116,8 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             return
 
         generation = response.generations[0][0]
-        message = getattr(generation, "message", None)
-        if message is None:
+        message = generation.message
+        if not message:
             return
 
         # 提取内容
@@ -127,13 +127,13 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
         # 提取工具调用
         tool_calls = None
-        if hasattr(message, "tool_calls") and message.tool_calls:
+        if message.tool_calls:
             tool_calls = message.tool_calls
         elif message.additional_kwargs:
             tool_calls = message.additional_kwargs.get("tool_calls")
 
         # 提取元数据
-        metadata = getattr(message, "metadata", None) or {}
+        metadata = message.metadata or {}
 
         # 提取思考内容（native reasoning_content）
         additional_kwargs = message.additional_kwargs or {}

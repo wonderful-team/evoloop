@@ -130,17 +130,17 @@ class WorkerNode(BaseAgentNode):
         return tools
 
     @staticmethod
-    def _build_worker_view(messages: list[dict], is_resuming: bool = False) -> list[dict]:
-        result: list[dict] = []
+    def _build_worker_view(messages: list, is_resuming: bool = False) -> list:
+        result: list = []
         tail_messages = []
         if is_resuming:
             tail_messages = messages[-10:] if len(messages) >= 10 else messages
 
         for msg in messages:
-            role = msg.get("role")
+            role = msg.role
             if role == "system":
                 result.append(msg)
-            elif role == "user" and not msg.get("name"):
+            elif role == "user" and not msg.name:
                 result.append(msg)
             elif is_resuming and msg in tail_messages:
                 if msg not in result:
@@ -199,8 +199,8 @@ class WorkerNode(BaseAgentNode):
             active_skills=[
                 {
                     "id": sop.id,
-                    "name": getattr(sop, "name", ""),
-                    "description": getattr(sop, "description", ""),
+                    "name": sop.name,
+                    "description": sop.description,
                 }
                 for sop in relevant_sops
                 if hasattr(sop, "id")
@@ -209,8 +209,9 @@ class WorkerNode(BaseAgentNode):
 
         if is_multi_skill_workflow:
             logger.info("[Worker] 🔄 Delegating to sequential workflow...")
+            from app.core.engine.message.native_classes import AIMessage
             return StateUpdate(
-                messages=[{"role": "assistant", "content": f"Starting sequential workflow with {len(skill_ids)} skills."}],
+                messages=[AIMessage(content=f"Starting sequential workflow with {len(skill_ids)} skills.")],
                 next_node=RoutingTarget.SEQUENTIAL_WORKFLOW,
                 workflow_plan=relevant_sops,
                 workflow_step_index=0,

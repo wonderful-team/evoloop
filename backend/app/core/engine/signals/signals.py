@@ -53,6 +53,10 @@ class RoutingContext(DynamicBaseModel):
     skill_ids: list[int] | None = None
     workflow_mode: str = "single"
     macro_goal: str | None = None
+    historical_context: Any | None = None
+    referenced_tech: Any | None = None
+    dependencies: list[str] | None = None
+    verbose_output: bool = True
 
 
 class RouteToSignal(AgentSignal):
@@ -211,12 +215,10 @@ async def handle_route_to(
     if not agent_config.role_name:
         agent_config.role_name = str(target).replace("_", " ").title()
 
-    parameters_fields = set(TicketParameters.model_fields.keys())
-    parameters = {
-        k: getattr(routing_context, k)
-        for k in parameters_fields
-        if hasattr(routing_context, k)
-    }
+    parameters = routing_context.model_dump(
+        include={"dependencies", "verbose_output"},
+        exclude_none=True,
+    )
 
     execution_ticket = ExecutionTicket(
         ticket_type=routing_context.ticket_type or "task",
@@ -231,8 +233,8 @@ async def handle_route_to(
         workflow_mode=routing_context.workflow_mode or "single",
         macro_goal=routing_context.macro_goal,
         parameters=TicketParameters(**parameters) if parameters else None,
-        historical_context=getattr(routing_context, "historical_context", None),
-        referenced_tech=getattr(routing_context, "referenced_tech", None),
+        historical_context=routing_context.historical_context,
+        referenced_tech=routing_context.referenced_tech,
     )
 
     visited_nodes = state.visited_nodes or []

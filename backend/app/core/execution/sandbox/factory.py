@@ -18,8 +18,8 @@ class SandboxFactory:
         if cls._instance:
             return cls._instance
 
-        mode = getattr(settings, "EXECUTION_MODE", "local").lower()
-        image = getattr(settings, "SANDBOX_IMAGE", "python:3.11")
+        mode = settings.EXECUTION_MODE.lower()
+        image = settings.SANDBOX_IMAGE
 
         logger.info(f"Initializing Sandbox in mode: {mode}")
 

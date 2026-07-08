@@ -186,14 +186,14 @@ def export_skill_to_filesystem(skill_data: Any) -> str | None:
             else:
                 # Fallback for other objects
                 data = {
-                    "name": getattr(skill_data, "name", "unnamed_skill"),
-                    "namespace": getattr(skill_data, "namespace", "misc"),
-                    "description": getattr(skill_data, "description", ""),
-                    "trigger_patterns": getattr(skill_data, "trigger_patterns", []),
-                    "parameters": getattr(skill_data, "parameters", []),
-                    "preconditions": getattr(skill_data, "preconditions", []),
-                    "instructions": getattr(skill_data, "instructions", None),
-                    "macro_script": getattr(skill_data, "macro_script", None),
+                    "name": skill_data.name,
+                    "namespace": skill_data.namespace or "misc",
+                    "description": skill_data.description,
+                    "trigger_patterns": skill_data.trigger_patterns or [],
+                    "parameters": skill_data.parameters or [],
+                    "preconditions": skill_data.preconditions or [],
+                    "instructions": skill_data.instructions,
+                    "macro_script": None,
                 }
         else:
             data = skill_data

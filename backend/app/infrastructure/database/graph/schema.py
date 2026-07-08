@@ -56,7 +56,7 @@ class GraphSchemaManager:
             await self._create_index(session, "concept_project", "Concept", "project_id")
             
             # 5. Vector Indexes (Conditional)
-            if hasattr(settings, "EMBEDDING_DIMENSIONS"):
+            if settings.EMBEDDING_DIMENSIONS:
                 dimensions = int(settings.EMBEDDING_DIMENSIONS)
                 await self._create_vector_index(session, "concept_embeddings", "Concept", "embedding", dimensions)
 

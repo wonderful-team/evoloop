@@ -150,7 +150,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         is_tool_call = False
         if generation_chunk and hasattr(generation_chunk, "message"):
             msg_chunk = generation_chunk.message
-            is_tool_call = bool(getattr(msg_chunk, "tool_call_chunks", None))
+            is_tool_call = bool(msg_chunk.tool_calls)
 
             # Extract standard reasoning content
             delta_reasoning = extract_reasoning_from_kwargs(msg_chunk.additional_kwargs)

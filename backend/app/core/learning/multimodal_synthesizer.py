@@ -105,7 +105,7 @@ class MultimodalSkillSynthesizer:
         # [v3 Unified] Log event source distribution
         source_counts = {}
         for e in events:
-            src = getattr(e, 'source', 'unknown') or 'unknown'
+            src = e.source or 'unknown'
             source_counts[src] = source_counts.get(src, 0) + 1
         source_summary = ", ".join([f"{k}={v}" for k, v in source_counts.items()])
         logger.info(f"[Unified] Fetched {len(events)} events ({source_summary})")
@@ -428,17 +428,17 @@ class MultimodalSkillSynthesizer:
             if event.action_type in ("mouse_move", "cursor_move", "touch_up"):
                 continue
 
-            norm_pos = normalizer.normalize(getattr(event, 'mouse_x', None), getattr(event, 'mouse_y', None))
+            norm_pos = normalizer.normalize(event.mouse_x, event.mouse_y)
 
             event_data.append({
                 "action_name": "tap" if event.action_type == "touch_down" else event.action_type,
-                "timestamp": getattr(event, 'timestamp', 0.0),
+                "timestamp": event.timestamp or 0.0,
                 "norm_pos": norm_pos,
                 "position_desc": self._describe_position(norm_pos[0], norm_pos[1]) if norm_pos else None,
-                "target": getattr(event, 'target_text', None),
-                "window": getattr(event, 'window_title', None),
-                "app": getattr(event, 'app_name', None),
-                "key": getattr(event, 'key_name', None),
+                "target": event.target_text,
+                "window": event.window_title,
+                "app": event.app_name,
+                "key": event.key_name,
             })
 
         return render_template(
@@ -486,7 +486,7 @@ class MultimodalSkillSynthesizer:
         )
 
         for e in events:
-            pkg = getattr(e, "app_name", None) or getattr(e, "node_name", None)
+            pkg = e.app_name or e.node_name
             if not pkg or pkg in ("unknown", "error", ""):
                 p = e.payload if isinstance(e.payload, dict) else {}
                 pkg = p.get("package_name")

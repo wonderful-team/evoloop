@@ -10,7 +10,7 @@ import logging
 import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select
 
@@ -21,6 +21,9 @@ from app.core.monitoring.schemas import (
     HumanRequestData,
     SystemLogPayload,
 )
+
+if TYPE_CHECKING:
+    from app.core.tools.background.models import BackgroundTask
 from app.infrastructure.cache import cache
 from app.infrastructure.database import session_scope
 from app.models import AgentActivity
@@ -469,7 +472,7 @@ class ActivityMonitor:
 
         return activity_map
 
-    async def record_task_update(self, task: Any):
+    async def record_task_update(self, task: "BackgroundTask"):
         """Record a background task update in the agent activity state.
 
         Maps background task lifecycle changes into the agent_state so the
@@ -478,16 +481,16 @@ class ActivityMonitor:
         """
         from app.core.tools.schemas import TaskStatus
 
-        thread_id = getattr(task, "thread_id", "")
+        thread_id = task.thread_id
         if not thread_id:
             return
 
-        task_status = getattr(task, "status", None)
+        task_status = task.status
         if task_status is None:
             return
 
-        title = getattr(task, "title", "Unknown Task")
-        elapsed = getattr(task, "elapsed_seconds", 0)
+        title = task.title
+        elapsed = task.elapsed_seconds
 
         if task_status == TaskStatus.PENDING:
             await self.update_agent_state(
@@ -516,7 +519,7 @@ class ActivityMonitor:
                 mode="Background Task",
                 task_name=title,
                 task_status=f"Failed ({elapsed}s)",
-                details={"error": getattr(task, "error_message", "")},
+                details={"error": task.error_message or ""},
             )
         elif task_status == TaskStatus.CANCELLED:
             await self.update_agent_state(

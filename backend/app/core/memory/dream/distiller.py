@@ -269,10 +269,10 @@ class DeepDreamDistiller:
         title_to_entry: dict[str, Any] = {}
 
         for entry in all_entries:
-            pid = getattr(entry, "project_id", None)
+            pid = entry.project_id
             if pid is None or pid == DEFAULT_PROJECT_ID:
                 continue  # Skip global entries
-            title = getattr(entry, "title", None) or ""
+            title = entry.title or ""
             if not title:
                 continue
             if title not in title_to_projects:
@@ -299,11 +299,11 @@ class DeepDreamDistiller:
                 type=MemoryType.CONCEPT,
                 privacy=PrivacyLevel.TEAM,
                 title=title,
-                content=getattr(source_entry, "content", title),
-                description=getattr(source_entry, "description", ""),
+                content=source_entry.content or title,
+                description=source_entry.description or "",
                 project_id=DEFAULT_PROJECT_ID,
                 tier=MemoryTier.STRATEGIC,
-                utility_score=getattr(source_entry, "utility_score", 0.9),
+                utility_score=source_entry.utility_score or 0.9,
                 source="cross_project_promotion",
                 tags=["dream", "cross_project", "promoted"],
             )

@@ -80,9 +80,8 @@ class MemorySection(DynamicBaseModel):
         lines = [f"## {self.title}", ""]
 
         for entry in self.entries[:max_lines]:
-            # Support both dict and MemorySectionEntry objects
-            title = entry.get("title") if isinstance(entry, dict) else getattr(entry, "title", "")
-            description = entry.get("description") if isinstance(entry, dict) else getattr(entry, "description", "")
+            title = entry.title
+            description = entry.description
             lines.append(f"- **{title}**: {description}")
 
         # Overflow indicator

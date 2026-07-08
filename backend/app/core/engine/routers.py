@@ -36,7 +36,7 @@ def route_by_next_node(state: AgentState) -> str:
 
 def route_worker_by_outcome(state: AgentState) -> str:
     """Worker 的路由由执行结果决定，LLM 不参与。"""
-    outcome = getattr(state, "worker_outcome", None)
+    outcome = state.worker_outcome
     if outcome in ("truncated", "failed", "error"):
         return "supervisor"
     return "finish"

@@ -22,9 +22,12 @@ async def resume_graph_background(
     """Unified background execution resumption loop."""
     from app.core.context import ContextManager
     from app.core.engine.state import AgentState
+    from app.core.engine.message.converter import EvoMessageConverter
 
     await ContextManager.load(thread_id)
 
+    if isinstance(inputs, dict) and "messages" in inputs:
+        inputs["messages"] = EvoMessageConverter.repair(inputs["messages"])
     state = AgentState.model_validate(inputs)
     state.next_node = "supervisor"
 

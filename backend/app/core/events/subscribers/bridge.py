@@ -43,14 +43,14 @@ class UniversalBridgeSubscriber:
         if not isinstance(event, BaseEvent):
             return
 
-        if not getattr(event, "is_public", False):
+        if not event.is_public:
             return
 
-        event_type = getattr(event, "type_name", type(event).__name__)
+        event_type = event.type_name
 
         # Extract routing metadata
-        channel_type = getattr(event, "broadcast_channel", "system")
-        thread_id = getattr(event, "thread_id", None)
+        channel_type = event.broadcast_channel
+        thread_id = event.thread_id
 
         # Determine target channel name
         if channel_type == "chat" and thread_id:

@@ -44,7 +44,7 @@ class WhisperProvider(BaseSTTProvider):
         """获取或创建 OpenAI 客户端"""
         if not self._client:
             # Whisper provider requires STT_API_KEY to be configured explicitly.
-            api_key = getattr(settings, 'STT_API_KEY', None)
+            api_key = settings.STT_API_KEY
             if not api_key:
                 raise RuntimeError(
                     "Whisper API key not configured. "
@@ -57,7 +57,7 @@ class WhisperProvider(BaseSTTProvider):
         """检查 Whisper 是否可用"""
         if not OPENAI_AVAILABLE:
             return False
-        api_key = getattr(settings, 'STT_API_KEY', None)
+        api_key = settings.STT_API_KEY
         return api_key is not None
 
     def list_models(self, language: VoiceLocale | None = None) -> list[str]:

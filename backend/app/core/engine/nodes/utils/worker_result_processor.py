@@ -32,38 +32,25 @@ async def process_worker_result(
     role_name: str,
     config: RunnableConfig = None,
 ) -> StateUpdate:
-    """
-    Universal post-processing pipeline for Worker node execution.
-
-    Handles: result summary, cache invalidation, verification capture, MCP interception,
-    and subtask result collection.
-    """
-    # Guard against empty messages
     if not engine_result.messages:
         content = ""
     else:
         last_msg = engine_result.messages[-1]
-        last_role = last_msg.get("role") if isinstance(last_msg, dict) else getattr(last_msg, "type", "")
+        last_role = last_msg.role
         content = get_message_text(last_msg) if last_role in ("assistant", "ai") else ""
 
     tool_history = engine_result.tool_history or []
 
-    # Single-shot subtasks may have empty AIMessage content after tool calls.
-    # Fallback to the last ToolMessage content so aggregation has usable data.
     if not content and engine_result.messages:
         for msg in reversed(engine_result.messages):
-            msg_role = msg.get("role") if isinstance(msg, dict) else getattr(msg, "type", "")
-            if msg_role == "tool":
+            if msg.role == "tool":
                 content = get_message_text(msg)
                 break
 
     logger.info(f"[Worker][{role_name}] Loop finished. Content len: {len(content)}, Tools used: {len(tool_history)}")
 
-    # Determine structured outcome using EngineResult.outcome if available
     outcome = engine_result.outcome
     if outcome and outcome.status == "truncated":
-        # Preserve truncation signal so Supervisor can route back to Worker
-        # without running LLM re-planning (which often hits max_tokens).
         worker_outcome = "truncated"
         if execution_ticket:
             execution_ticket.is_resuming = True
@@ -90,13 +77,10 @@ async def process_worker_result(
 
     agent_config = execution_ticket.agent_config if execution_ticket else None
 
-    # Subtask workers do NOT set worker_outcome directly;
-    # the Aggregator determines the final outcome after merging all parallel results.
     out_outcome = None
     if not (agent_config and agent_config.is_subtask):
         out_outcome = worker_outcome
 
-    # --- Subtask Result Collection ---
     out_subtask_results = []
     if agent_config and agent_config.is_subtask:
         subtask_id = execution_ticket.subtask_id or "unknown"
@@ -117,7 +101,6 @@ async def process_worker_result(
             current_count = len(state.subtask_results) + 1
             logger.debug(f"[Worker] 📊 Subtask completion progress: {current_count}/{expected_count}")
 
-            # Emit incremental heartbeat to main thread
             if config:
                 from app.core.monitoring.activity import activity_monitor
                 main_thread_id = execution_ticket.parent_task_id or "unknown"
@@ -129,7 +112,6 @@ async def process_worker_result(
                         task_status=f"Subtask '{subtask_id}' completed."
                     )
 
-    # 5a. Cache Invalidation (Universal via Metadata)
     has_changes = False
     for t_sig in tool_history:
         tool_name = t_sig.split(":")[0] if ":" in t_sig else t_sig
@@ -143,7 +125,6 @@ async def process_worker_result(
     if has_changes:
         workspace_context = WorkspaceContext(structure=None, structure_updated_at=0.0)
 
-    # 5b. Verification Signal Capture
     verification_signals = []
     updated_execution_ticket = execution_ticket
     for t_sig in tool_history:
@@ -151,7 +132,6 @@ async def process_worker_result(
         if tool_name not in verification_signals:
             verification_signals.append(tool_name)
 
-        # 5c. MCP Server Interception
         if tool_name == "use_mcp_server":
             try:
                 args_json = t_sig.split(":", 1)[1]
@@ -167,7 +147,6 @@ async def process_worker_result(
 
     verification_summary = VerificationStatus(status="unverified", signals=verification_signals)
 
-    # 5d. Compile Technical Execution Trace (Handoff Report)
     trace_lines = []
     if tool_history:
         tool_counts = {}
@@ -178,15 +157,14 @@ async def process_worker_result(
         touched_files = set()
         if engine_result.messages:
             for msg in engine_result.messages:
-                msg_role = msg.get("role") if isinstance(msg, dict) else getattr(msg, "type", "")
-                if msg_role not in ("assistant", "ai"):
+                if msg.role not in ("assistant", "ai"):
                     continue
-                msg_tcs = msg.get("tool_calls") if isinstance(msg, dict) else getattr(msg, "tool_calls", None)
+                msg_tcs = msg.tool_calls
                 if msg_tcs:
                     for tc in msg_tcs:
-                        tc_name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", "")
+                        tc_name = tc.get("name")
                         if tc_name in ("edit_file", "write_file", "replace_file_content", "multi_replace_file_content", "write_to_file", "replace_content"):
-                            tc_args = tc.get("args", {}) if isinstance(tc, dict) else getattr(tc, "args", {})
+                            tc_args = tc.get("args", {})
                             path = tc_args.get("path", "") or tc_args.get("TargetFile", "")
                             if path:
                                 touched_files.add(path)
@@ -209,25 +187,18 @@ async def process_worker_result(
     preserved_messages = list(engine_result.messages or [])
     if preserved_messages:
         last_pm = preserved_messages[-1]
-        last_pm_role = last_pm.get("role") if isinstance(last_pm, dict) else getattr(last_pm, "type", "")
+        last_pm_role = last_pm.role
         if last_pm_role in ("assistant", "ai"):
-            if isinstance(last_pm, dict):
-                preserved_messages[-1] = {
-                    **last_pm,
-                    "role": "assistant",
-                    "content": worker_content,
-                }
-            else:
-                preserved_messages[-1] = AIMessage(
-                    content=worker_content,
-                    id=last_pm.id,
-                    additional_kwargs=last_pm.additional_kwargs,
-                    tool_calls=last_pm.tool_calls,
-                )
+            preserved_messages[-1] = AIMessage(
+                content=worker_content,
+                id=last_pm.id,
+                additional_kwargs=last_pm.additional_kwargs,
+                tool_calls=last_pm.tool_calls,
+            )
         else:
-            preserved_messages.append({"role": "assistant", "content": worker_content})
+            preserved_messages.append(AIMessage(content=worker_content))
     else:
-        preserved_messages.append({"role": "assistant", "content": worker_content})
+        preserved_messages.append(AIMessage(content=worker_content))
 
     return StateUpdate(
         messages=preserved_messages,

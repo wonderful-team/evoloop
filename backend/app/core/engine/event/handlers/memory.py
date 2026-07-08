@@ -192,18 +192,18 @@ class MemoryCommandHandler:
             for m in memories:
                 concept = {
                     "id": m.id,
-                    "name": getattr(m, "title", ""),
-                    "description": getattr(m, "description", ""),
-                    "related_files": [t for t in (getattr(m, "tags", []) or []) if t != "concept"],
+                    "name": m.title,
+                    "description": m.description,
+                    "related_files": [t for t in (m.tags or []) if t != "concept"],
                     "project_id": project_id,
-                    "source_message_id": getattr(m, "source_message_id", None),
-                    "source_thread_id": getattr(m, "source_thread_id", None),
+                    "source_message_id": m.source_message_id,
+                    "source_thread_id": m.source_thread_id,
                     "deleted": False,
                     "created_at": ts_from_dt(m.created_at),
                     "updated_at": ts_from_dt(m.updated_at),
                 }
                 if not concept["name"]:
-                    concept["name"] = getattr(m, "content", "")[:20]
+                    concept["name"] = m.content[:20]
                 concepts.append(concept)
 
             if deleted_names:

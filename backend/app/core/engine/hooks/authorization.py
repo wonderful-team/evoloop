@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 
 from app.core.config import settings
 from app.core.engine.hooks.core import HookContext, HookEvent, HookResult, hook_system
+from app.core.engine.hooks.schemas import ToolInput
 from app.core.engine.state.sub_schemas import PendingApproval
 from app.core.hitl.authorization import AuthorizationDecision, AuthorizationService
 from app.core.hitl.policies import AuthorizationPolicy
@@ -19,7 +20,7 @@ from app.core.project.utils import get_project_path
 logger = logging.getLogger(__name__)
 
 
-def _path_contains_evoloop(tool_input) -> bool:
+def _path_contains_evoloop(tool_input: ToolInput | None) -> bool:
     """Check if any path argument touches the project metadata directory."""
     if tool_input is None:
         return False
@@ -34,10 +35,10 @@ def _path_contains_evoloop(tool_input) -> bool:
     return any(".evoloop" in p.lower() for p in paths)
 
 
-def _extract_path_from_input(tool_name: str, tool_input) -> tuple[str, str] | None:
+def _extract_path_from_input(tool_name: str, tool_input: ToolInput | None) -> tuple[str, str] | None:
     if tool_input is None:
         return None
-    path = getattr(tool_input, "path", None)
+    path = tool_input.path
     if path:
         action = "write" if "write" in tool_name or "replace" in tool_name else "read"
         return str(path), action
@@ -74,7 +75,7 @@ def _is_path_safe(path_str: str, project_path: str | None) -> bool:
         return True
 
     # Boundary 3: ALLOWED_PATH_PREFIXES
-    for prefix in getattr(settings, "ALLOWED_PATH_PREFIXES", []):
+    for prefix in settings.ALLOWED_PATH_PREFIXES:
         try:
             resolved_prefix = os.path.realpath(os.path.expanduser(prefix))
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
@@ -170,10 +171,15 @@ async def authorization_gate(context: HookContext) -> HookResult:
             tool_args = {}
             if context.tool_input is not None:
                 tool_args = context.tool_input.args or {}
-                for field in ("command", "path", "content", "query"):
-                    val = getattr(context.tool_input, field)
-                    if val is not None:
-                        tool_args[field] = val
+                inp = context.tool_input
+                if inp.command is not None:
+                    tool_args["command"] = inp.command
+                if inp.path is not None:
+                    tool_args["path"] = inp.path
+                if inp.content is not None:
+                    tool_args["content"] = inp.content
+                if inp.query is not None:
+                    tool_args["query"] = inp.query
             context.state.pending_approvals.append(
                 PendingApproval(
                     tool_name=context.tool_name or "",
@@ -189,10 +195,15 @@ async def authorization_gate(context: HookContext) -> HookResult:
         tool_args = {}
         if context.tool_input is not None:
             tool_args = context.tool_input.args or {}
-            for field in ("command", "path", "content", "query"):
-                val = getattr(context.tool_input, field)
-                if val is not None:
-                    tool_args[field] = val
+            inp = context.tool_input
+            if inp.command is not None:
+                tool_args["command"] = inp.command
+            if inp.path is not None:
+                tool_args["path"] = inp.path
+            if inp.content is not None:
+                tool_args["content"] = inp.content
+            if inp.query is not None:
+                tool_args["query"] = inp.query
 
         await auth_service.request_authorization(
             thread_id=context.thread_id,

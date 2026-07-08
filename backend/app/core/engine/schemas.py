@@ -4,6 +4,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.core.engine.message.native_classes import BaseMessage
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 # ---------------------------------------------------------------------------
@@ -117,7 +118,7 @@ class NodeOutcome(DynamicBaseModel):
 
 class EngineResult(DynamicBaseModel):
     """Structured result from AgentEngine.run_node() and internal execution methods."""
-    messages: list[Any] = Field(default_factory=list)
+    messages: list[BaseMessage] = Field(default_factory=list)
     tool_history: list[str] = Field(default_factory=list)
     is_truncated: bool = False
     signal: Any | None = None

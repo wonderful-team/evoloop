@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from app.core.engine import get_default_engine
+from app.core.engine.message.native_classes import HumanMessage
 from app.core.engine.nodes.utils import resolve_is_subtask
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.schemas import EngineResult
@@ -88,10 +89,10 @@ class BaseAgentNode(BaseNode, ABC):
 
             # Insert Context Ticket just before the LAST human message (role="user")
             if dynamic_ticket_text:
-                ticket_msg = {"role": "user", "content": dynamic_ticket_text, "name": "context_ticket"}
+                ticket_msg = HumanMessage(content=dynamic_ticket_text, name="context_ticket")
                 last_human_idx = -1
                 for idx in range(len(state.messages) - 1, -1, -1):
-                    if state.messages[idx].get("role") == "user":
+                    if state.messages[idx].role == "user":
                         last_human_idx = idx
                         break
                 if last_human_idx >= 0:
@@ -190,7 +191,7 @@ class BaseAgentNode(BaseNode, ABC):
     ) -> StateUpdate:
         new_messages = [
             m for m in (engine_result.messages or [])
-            if m.get("name") != "context_ticket"
+            if m.name != "context_ticket"
         ]
         return StateUpdate(
             messages=new_messages,

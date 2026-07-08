@@ -171,7 +171,7 @@ class MaintenanceScheduler:
 # Daily scheduled task: 2:00 AM
 # DISABLED by default — set MEMORY_MAINTENANCE_ENABLED=True in settings to enable.
 # Reason: run_maintenance() triggers irreversible semantic pruning of the memory store.
-_MAINTENANCE_ENABLED = getattr(settings, 'MEMORY_MAINTENANCE_ENABLED', False)
+_MAINTENANCE_ENABLED = settings.MEMORY_MAINTENANCE_ENABLED
 
 if _MAINTENANCE_ENABLED:
     @periodic_task(cron="0 2 * * *", name="memory_maintenance")

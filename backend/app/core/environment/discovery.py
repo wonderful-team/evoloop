@@ -34,7 +34,7 @@ class EnvironmentProbe:
         优先读取用户显式配置覆盖，其次根据操作系统与硬件特征动态判定。
         """
         # 1. 允许通过显式配置手动覆盖（支持任意自定义类型如 "embedded", "raspberry_pi"）
-        if getattr(settings, "EVOCLOUD_DEVICE_TYPE", None):
+        if settings.EVOCLOUD_DEVICE_TYPE:
             val = settings.EVOCLOUD_DEVICE_TYPE
             return val[:20] if len(val) > 20 else val
 

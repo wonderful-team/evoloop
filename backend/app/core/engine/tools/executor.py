@@ -50,6 +50,7 @@ class AgentToolExecutor:
         self.enable_diff_tracking = enable_diff_tracking
         self._tool_executor = ToolExecutor()
         self._history_lock = asyncio.Lock()
+        self._current_resolved_paths: list[str] = []
 
     async def execute_tool(
         self,
@@ -118,8 +119,12 @@ class AgentToolExecutor:
                 if tool_input.args:
                     tool_args = tool_input.args
                 else:
-                    for field in ["command", "path", "content", "query"]:
-                        val = getattr(tool_input, field)
+                    for field, val in [
+                        ("command", tool_input.command),
+                        ("path", tool_input.path),
+                        ("content", tool_input.content),
+                        ("query", tool_input.query),
+                    ]:
                         if val is not None and field in tool_args:
                             tool_args[field] = val
 
@@ -256,7 +261,7 @@ class AgentToolExecutor:
         if not tool_obj or not tool_obj.metadata.get("is_state_mutating"):
             return
 
-        snapshot_paths = getattr(self, "_current_resolved_paths", [])
+        snapshot_paths = self._current_resolved_paths
         if not snapshot_paths:
             return
 

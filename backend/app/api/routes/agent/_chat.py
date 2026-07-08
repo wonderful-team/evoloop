@@ -349,7 +349,7 @@ async def resume_chat(
             inputs = {"messages": [HumanMessage(content=req.user_input)]}
 
         ctx = ContextManager.current()
-        if not getattr(ctx, "token", None):
+        if not ctx.token:
             ctx.token = token
             ContextManager.set(ctx)
 

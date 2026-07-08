@@ -87,7 +87,7 @@ class TodoLifecycleSubscriber:
         Triggered when background extraction finishes.
         Extracts future tasks and coordination items.
         """
-        extracted_data = getattr(event, "extracted_data", {}) or {}
+        extracted_data = event.extracted_data or {}
         items = extracted_data.get("todo")
         if not items:
             return

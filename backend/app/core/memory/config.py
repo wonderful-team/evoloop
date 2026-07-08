@@ -113,20 +113,20 @@ class MemoryConfig(DynamicBaseModel):
         from app.core.config import settings
 
         return cls(
-            user_memory_root=Path(getattr(settings, 'BRAIN_MEMORY_ROOT', _default_user_memory_root())),
-            extraction_interval=getattr(settings, 'AUTO_MEMORY_EXTRACTION_INTERVAL', 1),
-            min_messages_for_extraction=getattr(settings, 'MIN_MESSAGES_FOR_EXTRACTION', 4),
-            max_extraction_turns=getattr(settings, 'MAX_EXTRACTION_TURNS', 5),
-            default_search_limit=getattr(settings, 'MEMORY_SEARCH_LIMIT', 10),
-            max_selections=getattr(settings, 'MAX_MEMORY_SELECTIONS', 5),
-            min_relevance_score=getattr(settings, 'MEMORY_MIN_RELEVANCE', 0.7),
-            quality_check_enabled=getattr(settings, 'MEMORY_QUALITY_CHECK', True),
-            auto_cleanup_enabled=getattr(settings, 'MEMORY_AUTO_CLEANUP', False),
-            hot_memory_max_chars=getattr(settings, 'HOT_MEMORY_MAX_CHARS', 8000),
-            cold_memory_results=getattr(settings, 'COLD_MEMORY_RESULTS', 5),
-            pruning_threshold=getattr(settings, 'MEMORY_PRUNE_THRESHOLD', 100),
-            context_window_size=getattr(settings, 'CONTEXT_WINDOW_SIZE', 20),
-            log_level=getattr(settings, 'MEMORY_LOG_LEVEL', 'INFO'),
+            user_memory_root=Path(settings.BRAIN_MEMORY_ROOT),
+            extraction_interval=settings.AUTO_MEMORY_EXTRACTION_INTERVAL,
+            min_messages_for_extraction=settings.MIN_MESSAGES_FOR_EXTRACTION,
+            max_extraction_turns=settings.MAX_EXTRACTION_TURNS,
+            default_search_limit=settings.MEMORY_SEARCH_LIMIT,
+            max_selections=settings.MAX_MEMORY_SELECTIONS,
+            min_relevance_score=settings.MEMORY_MIN_RELEVANCE,
+            quality_check_enabled=settings.MEMORY_QUALITY_CHECK,
+            auto_cleanup_enabled=settings.MEMORY_AUTO_CLEANUP,
+            hot_memory_max_chars=settings.HOT_MEMORY_MAX_CHARS,
+            cold_memory_results=settings.COLD_MEMORY_RESULTS,
+            pruning_threshold=settings.MEMORY_PRUNE_THRESHOLD,
+            context_window_size=settings.CONTEXT_WINDOW_SIZE,
+            log_level=settings.MEMORY_LOG_LEVEL,
         )
 
     @staticmethod

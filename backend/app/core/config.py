@@ -238,6 +238,8 @@ class Settings(BaseSettings):
     # Voice/STT Configuration (FunASR - local, Chinese optimized)
     FUNASR_MODEL: str = "paraformer-zh"  # paraformer-zh | paraformer-zh-plus | paraformer-zh-streaming
     FUNASR_DEVICE: str = "cpu"  # cpu | cuda
+    STT_API_KEY: str | None = None  # OpenAI-compatible STT API key (Whisper)
+    TAURI_RESOURCE_DIR: str | None = None  # Tauri bundled resource directory for FunASR models
 
     # AI Models Storage Configuration
     MODELS_DIR: Annotated[str | None, BeforeValidator(expand_path)] = None  # Directory for storing AI models (FunASR, embeddings, etc.)
@@ -345,6 +347,7 @@ class Settings(BaseSettings):
     USE_CLIENT_FOR_TOOLS: bool = False  # @deprecated: Will be replaced by dynamic transport selection
     CLOUD_ONLY_MODE: bool = False       # @deprecated: Will be replaced by hybrid execution mode
     CLIENT_CALLBACK_URL: str | None = None  # @deprecated: Managed by WebSocket handshake
+    CLIENT_TOOL_TIMEOUT: float = 300.0  # Default timeout for client tool execution
 
     # Project Management
     # 启用/禁用项目自动发现（默认禁用）—— 已迁移到 SystemConfigService (DB)，不再通过 .env 配置
@@ -481,7 +484,7 @@ class Settings(BaseSettings):
         return self
 
     # Logic Limits
-    MEMORY_SEARCH_LIMIT: int = 5
+    MEMORY_SEARCH_LIMIT: int = 10
     RESEARCH_MAX_ITERATIONS: int = 5
     TREE_VIEW_MAX_LINES: int = 1500
     RECURSION_LIMIT: int = 100  # Default engine recursion limit
@@ -500,6 +503,18 @@ class Settings(BaseSettings):
     MAX_SESSION_HISTORY: int = 20
     MEMORY_RELEVANCE_THRESHOLD: float = 0.75
     MAX_MEMORY_ITEMS: int = 1000
+    MIN_MESSAGES_FOR_EXTRACTION: int = 4
+    MAX_EXTRACTION_TURNS: int = 5
+    MAX_MEMORY_SELECTIONS: int = 5
+    MEMORY_MIN_RELEVANCE: float = 0.7
+    MEMORY_QUALITY_CHECK: bool = True
+    MEMORY_AUTO_CLEANUP: bool = False
+    HOT_MEMORY_MAX_CHARS: int = 8000
+    COLD_MEMORY_RESULTS: int = 5
+    MEMORY_PRUNE_THRESHOLD: int = 100
+    CONTEXT_WINDOW_SIZE: int = 20
+    MEMORY_LOG_LEVEL: str = "INFO"
+    MEMORY_MAINTENANCE_ENABLED: bool = False
 
     # Dynamic Agents
     SUPERVISOR_AGENT_MAX_STEPS: int = 20

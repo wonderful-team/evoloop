@@ -10,28 +10,13 @@ from app.utils.template import render_template
 
 
 def apply_forgotten_status(messages: list[BaseMessage], tool_memory: ToolOutputMemory) -> list[BaseMessage]:
-    """
-    Apply forgotten status to messages based on ToolOutputMemory.
-
-    Replaces content of forgotten tool outputs with their summaries.
-    This implements "soft forgetting" - we keep the message structure
-    but replace the heavy content with a lightweight summary.
-
-    Args:
-        messages: Original message list
-        tool_memory: ToolOutputMemory with forgotten records
-
-    Returns:
-        Messages with forgotten ones replaced by summaries
-    """
     if not tool_memory or not tool_memory.forgotten:
         return messages
 
     result: list = []
     for msg in messages:
-        msg_role = msg.get("role") if isinstance(msg, dict) else getattr(msg, "type", "")
-        if msg_role == "tool":
-            tool_call_id = msg.get("tool_call_id") if isinstance(msg, dict) else getattr(msg, "tool_call_id", None)
+        if msg.role == "tool":
+            tool_call_id = msg.tool_call_id
             if tool_call_id and tool_memory.is_forgotten(tool_call_id):
                 record = tool_memory.get_forgotten_info(tool_call_id)
                 if record:
@@ -44,17 +29,13 @@ def apply_forgotten_status(messages: list[BaseMessage], tool_memory: ToolOutputM
                         tool_call_id=tool_call_id,
                     )
 
-                    msg_name = msg.get("name") if isinstance(msg, dict) else getattr(msg, "name", None)
-                    msg_id = msg.get("id") if isinstance(msg, dict) else getattr(msg, "id", None)
-                    msg_ak = msg.get("additional_kwargs") if isinstance(msg, dict) else getattr(msg, "additional_kwargs", {})
-
                     summary_msg = ToolMessage(
                         content=summary_content,
                         tool_call_id=tool_call_id,
-                        name=msg_name,
-                        id=msg_id,
+                        name=msg.name,
+                        id=msg.id,
                         additional_kwargs={
-                            **(msg_ak or {}),
+                            **(msg.additional_kwargs or {}),
                             "forgotten": True,
                             "original_length": record.original_length,
                             "forgotten_reason": record.reason,

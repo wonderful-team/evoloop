@@ -43,15 +43,14 @@ class EnvironmentContextPlugin(ContextPlugin):
                 # 3. Hydrate Memory Replay
                 ctx.memory_replay = {}
 
-                if getattr(state, "recent_episodes", None):
+                if state.recent_episodes:
                     ctx.memory_replay["episodes"] = [
                         {"date": ep.date, "goal": ep.goal, "result": ep.result}
                         for ep in state.recent_episodes[:3]
                     ]
 
-                if getattr(state, "relevant_concepts", None):
+                if state.relevant_concepts:
                     unique_names = []
-                    # package_id -> display_name
                     layout_map = {}
                     seen_others = set()
 
@@ -86,11 +85,11 @@ class EnvironmentContextPlugin(ContextPlugin):
 
                     ctx.memory_replay["concepts"] = (formatted_layouts + unique_names[:5])[:5]
 
-                if getattr(state, "journal_highlights", None):
+                if state.journal_highlights:
                     ctx.memory_replay["highlights"] = state.journal_highlights
 
                 # Pass raw user preferences to templates for rendering
-                if getattr(state, "user_preferences", None):
+                if state.user_preferences:
                     ctx.metadata.user_preferences = state.user_preferences
 
             # Compute the final Environment Block (Autonomous Sensing Output)

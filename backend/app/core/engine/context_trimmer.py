@@ -1,5 +1,5 @@
 """
-ContextTrimmer - Unified message trimming for EvoLoop (Native Dict version).
+ContextTrimmer - Unified message trimming for EvoLoop (native BaseMessage version).
 """
 
 import logging
@@ -10,11 +10,16 @@ from typing import Any, Literal
 from app.constants import DEFAULT_MAX_CONTEXT_TOKENS
 from app.core.engine.message.converter import EvoMessageConverter
 from app.core.engine.message.forgetting import apply_forgotten_status
+from app.core.engine.message.native_classes import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    ToolMessage,
+)
 from app.core.engine.message.utils import (
     count_total_tokens,
     estimate_message_tokens,
     get_message_text,
-    to_base_message,
 )
 from app.core.memory.tool_output_memory import ToolOutputMemory
 from app.infrastructure.llm.platform_service import llm_platform_service
@@ -48,7 +53,7 @@ class TrimTrigger(Enum):
 
 @dataclass(frozen=True)
 class TrimResult:
-    messages: list[Any]
+    messages: list[BaseMessage]
     trigger: TrimTrigger
     before_tokens: int
     after_tokens: int
@@ -69,22 +74,19 @@ def _compute_budget(model: str, node_source: str) -> tuple[int, int]:
 
 class ContextTrimmer:
     """
-    Unified message trimming entry point using native dicts.
+    Unified message trimming entry point using native BaseMessage objects.
     """
 
     def truncate_tool_output(self, content: str, model: str) -> str:
-        """
-        Truncate tool output if it exceeds model-specific limit.
-        """
         if not content:
             return ""
         profile = llm_platform_service.get_profile(model)
-        token_limit = getattr(profile, "truncate_limit_tokens", None) or 5000
+        token_limit = profile.truncate_limit_tokens
         char_limit = token_limit * 4
-        
+
         if len(content) <= char_limit:
             return content
-            
+
         truncated_msg = f"\n\n[TRIMMED: Tool output of {len(content)} characters truncated to {char_limit} characters to fit context limits.]"
         return content[:char_limit] + truncated_msg
 
@@ -101,11 +103,7 @@ class ContextTrimmer:
         if stages is None:
             stages = {"forget", "window", "repair"}
 
-        # Preserve type style (message objects vs standard dicts)
-        is_lc = any(not isinstance(m, dict) for m in messages)
-
-        # Normalize to dictionaries
-        working = [EvoMessageConverter.to_dict(m) for m in messages]
+        working = list(messages)
         before_count = len(working)
         before_tokens = count_total_tokens(working)
         stage_log: list[dict] = []
@@ -113,9 +111,9 @@ class ContextTrimmer:
 
         # --- Stage 0: Prune trailing errors ---
         pruned_errors = 0
-        while working and working[-1].get("role") == "assistant":
-            metadata = working[-1].get("additional_kwargs", {})
-            if isinstance(metadata, dict) and metadata.get("is_error") is True:
+        while working and working[-1].role == "assistant":
+            metadata = working[-1].additional_kwargs or {}
+            if metadata.get("is_error") is True:
                 working.pop()
                 pruned_errors += 1
             else:
@@ -130,10 +128,8 @@ class ContextTrimmer:
                 working = EvoMessageConverter.repair(working)
             after_tokens = count_total_tokens(working)
             after_count = len(working)
-            
-            out_messages = [to_base_message(m) for m in working] if is_lc else working
             return TrimResult(
-                messages=out_messages,
+                messages=working,
                 trigger=TrimTrigger.NONE,
                 before_tokens=before_tokens,
                 after_tokens=after_tokens,
@@ -203,10 +199,8 @@ class ContextTrimmer:
             f"tokens={before_tokens} -> {after_tokens} | messages={before_count} -> {after_count}"
         )
 
-        out_messages = [to_base_message(m) for m in working] if is_lc else working
-
         return TrimResult(
-            messages=out_messages,
+            messages=working,
             trigger=trigger,
             before_tokens=before_tokens,
             after_tokens=after_tokens,
@@ -216,23 +210,19 @@ class ContextTrimmer:
             stage_log=stage_log,
         )
 
-    def _retry_cleanup(self, messages: list[dict]) -> list[dict]:
+    def _retry_cleanup(self, messages: list[BaseMessage]) -> list[BaseMessage]:
         if not messages:
             return messages
 
-        error_messages: list[dict] = []
-        non_error_messages: list[dict] = []
+        error_messages: list[BaseMessage] = []
+        non_error_messages: list[BaseMessage] = []
 
         for msg in messages:
             is_error = False
-            role = msg.get("role")
-            content = msg.get("content", "")
-            additional_kwargs = msg.get("additional_kwargs", {}) or {}
-
-            if role == "assistant":
-                if additional_kwargs.get("is_error"):
+            if msg.role == "assistant":
+                if msg.additional_kwargs.get("is_error"):
                     is_error = True
-                elif isinstance(content, str) and content.startswith("Error:"):
+                elif isinstance(msg.content, str) and msg.content.startswith("Error:"):
                     is_error = True
 
             if is_error:
@@ -245,19 +235,19 @@ class ContextTrimmer:
 
         last_human_idx = -1
         for idx, msg in enumerate(non_error_messages):
-            if msg.get("role") == "user" and msg.get("name") != "context_ticket":
+            if msg.role == "user" and msg.name != "context_ticket":
                 last_human_idx = idx
 
         if last_human_idx >= 0:
             segment = non_error_messages[: last_human_idx + 1]
-            deduped: list[dict] = []
+            deduped: list[BaseMessage] = []
             for msg in segment:
-                if msg.get("role") == "user" and msg.get("name") == "context_ticket":
+                if msg.role == "user" and msg.name == "context_ticket":
                     deduped.append(msg)
                     continue
-                if msg.get("role") == "user" and deduped:
+                if msg.role == "user" and deduped:
                     prev = deduped[-1]
-                    if prev.get("role") == "user" and prev.get("name") != "context_ticket":
+                    if prev.role == "user" and prev.name != "context_ticket":
                         prev_text = get_message_text(prev)
                         curr_text = get_message_text(msg)
                         if prev_text and curr_text and (prev_text in curr_text or curr_text in prev_text):
@@ -270,10 +260,10 @@ class ContextTrimmer:
 
     def _token_driven_window(
         self,
-        messages: list[dict],
+        messages: list[BaseMessage],
         model: str,
         node_source: str,
-    ) -> list[dict]:
+    ) -> list[BaseMessage]:
         if not messages:
             return messages
 
@@ -282,7 +272,7 @@ class ContextTrimmer:
         if current_tokens <= effective_budget:
             return messages
 
-        result: list[dict] = []
+        result: list[BaseMessage] = []
 
         # Layer 1: Recent (full retention)
         recent_budget = int(effective_budget * LAYER_RECENT_RATIO)
@@ -305,14 +295,14 @@ class ContextTrimmer:
         recent_idx = len(messages) - recent_count
         middle_idx = recent_idx
 
-        middle_messages: list[dict] = []
+        middle_messages: list[BaseMessage] = []
 
         for i in range(recent_idx - 1, -1, -1):
             msg = messages[i]
             msg_tokens = estimate_message_tokens(msg)
-            role = msg.get("role")
-            content = msg.get("content", "")
-            is_ticket = msg.get("name") == "context_ticket"
+            role = msg.role
+            content = msg.content
+            is_ticket = msg.name == "context_ticket"
 
             if role == "user":
                 if is_ticket or middle_tokens + msg_tokens <= middle_budget:
@@ -321,7 +311,7 @@ class ContextTrimmer:
                     middle_idx = i
                 if not is_ticket and middle_tokens + msg_tokens > middle_budget:
                     break
-            elif role == "assistant" and msg.get("tool_calls"):
+            elif role == "assistant" and msg.tool_calls:
                 if middle_tokens + msg_tokens <= middle_budget:
                     middle_messages.insert(0, msg)
                     middle_tokens += msg_tokens
@@ -330,14 +320,13 @@ class ContextTrimmer:
                     break
             elif role == "assistant":
                 if len(content) > 500:
-                    summarized = {
-                        "role": "assistant",
-                        "content": content[:200] + "... [Earlier response]",
-                        "additional_kwargs": {
-                            **(msg.get("additional_kwargs") or {}),
+                    summarized = AIMessage(
+                        content=content[:200] + "... [Earlier response]",
+                        additional_kwargs={
+                            **(msg.additional_kwargs or {}),
                             "is_summarized": True,
-                        }
-                    }
+                        },
+                    )
                     sum_tokens = estimate_message_tokens(summarized)
                     if middle_tokens + sum_tokens <= middle_budget:
                         middle_messages.insert(0, summarized)
@@ -349,20 +338,19 @@ class ContextTrimmer:
                         middle_tokens += msg_tokens
                         middle_idx = i
             elif role == "tool":
-                add_kw = msg.get("additional_kwargs") or {}
+                add_kw = msg.additional_kwargs or {}
                 if add_kw.get("forgotten"):
                     if middle_tokens + msg_tokens <= middle_budget:
                         middle_messages.insert(0, msg)
                         middle_tokens += msg_tokens
                         middle_idx = i
                 else:
-                    placeholder = {
-                        "role": "tool",
-                        "content": "[TRIMMED: Tool output removed due to context window limits.]",
-                        "tool_call_id": msg.get("tool_call_id", "unknown_id"),
-                        "name": msg.get("name", "unknown_tool"),
-                        "additional_kwargs": {"is_summarized": True}
-                    }
+                    placeholder = ToolMessage(
+                        content="[TRIMMED: Tool output removed due to context window limits.]",
+                        tool_call_id=msg.tool_call_id or "unknown_id",
+                        name=msg.name or "unknown_tool",
+                        additional_kwargs={"is_summarized": True},
+                    )
                     ph_tokens = estimate_message_tokens(placeholder)
                     if middle_tokens + ph_tokens <= middle_budget:
                         middle_messages.insert(0, placeholder)
@@ -381,53 +369,51 @@ class ContextTrimmer:
         # Layer 3: Topic marker
         if middle_idx > 0:
             first_human = next(
-                (m for m in messages[:middle_idx] if m.get("role") == "user"),
+                (m for m in messages[:middle_idx] if m.role == "user"),
                 None,
             )
             if first_human:
                 content = get_message_text(first_human)
                 topic_text = content[:100] + ("..." if len(content) > 100 else "")
-                topic_marker = {
-                    "role": "user",
-                    "content": f"[对话开始] {topic_text}",
-                    "additional_kwargs": {
-                        **(first_human.get("additional_kwargs") or {}),
+                topic_marker = HumanMessage(
+                    content=f"[对话开始] {topic_text}",
+                    additional_kwargs={
+                        **(first_human.additional_kwargs or {}),
                         "is_topic_marker": True,
-                    }
-                }
+                    },
+                )
                 result.insert(0, topic_marker)
 
         # Enforce hard limit
         total_tokens = count_total_tokens(result)
         if total_tokens > hard_limit:
-            pruned = []
+            pruned: list[BaseMessage] = []
             for m in result:
-                if m.get("role") == "tool" and not (m.get("additional_kwargs") or {}).get("forgotten"):
-                    pruned.append({
-                        "role": "tool",
-                        "content": "[TRIMMED: Tool output removed due to context limit.]",
-                        "tool_call_id": m.get("tool_call_id", "unknown_id"),
-                        "name": m.get("name", "unknown_tool"),
-                        "additional_kwargs": {"is_summarized": True}
-                    })
+                if m.role == "tool" and not (m.additional_kwargs or {}).get("forgotten"):
+                    pruned.append(ToolMessage(
+                        content="[TRIMMED: Tool output removed due to context limit.]",
+                        tool_call_id=m.tool_call_id or "unknown_id",
+                        name=m.name or "unknown_tool",
+                        additional_kwargs={"is_summarized": True},
+                    ))
                 else:
                     pruned.append(m)
             if count_total_tokens(pruned) <= hard_limit:
                 result = pruned
             else:
-                preserved: list[dict] = []
-                ticket_to_preserve: list[dict] = []
-                recent_to_keep: list[dict] = []
+                preserved: list[BaseMessage] = []
+                ticket_to_preserve: list[BaseMessage] = []
+                recent_to_keep: list[BaseMessage] = []
                 for m in result:
-                    add_kw = m.get("additional_kwargs") or {}
+                    add_kw = m.additional_kwargs or {}
                     if add_kw.get("is_topic_marker"):
                         preserved.append(m)
-                    if m.get("name") == "context_ticket":
+                    if m.name == "context_ticket":
                         ticket_to_preserve.append(m)
 
                 for m in reversed(result):
-                    add_kw = m.get("additional_kwargs") or {}
-                    if add_kw.get("is_topic_marker") or m.get("name") == "context_ticket":
+                    add_kw = m.additional_kwargs or {}
+                    if add_kw.get("is_topic_marker") or m.name == "context_ticket":
                         continue
                     test = preserved + ticket_to_preserve + recent_to_keep + [m]
                     if count_total_tokens(test) <= int(hard_limit * 0.95):

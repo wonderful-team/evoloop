@@ -2,46 +2,30 @@
 EvoLoop Message System - 统一消息处理系统
 
 提供消息分类、持久化和推送的完整解决方案。
-
-使用示例：
-    from app.core.engine.message import (
-        MessageCategory,
-        MessageClassifier,
-        MessagePersistencePolicy,
-        MessageStreamPolicy,
-        MessageHandler,
-        MessagePublisher,
-    )
-    
-    # 处理 AI 消息
-    handler = MessageHandler(thread_id="xxx", project_id=DEFAULT_PROJECT_ID)
-    result = await handler.handle_ai_message(
-        content="我来帮您处理",
-        tool_calls=[{"name": "read_file", ...}],
-    )
-    
-    # 分类结果
-    category = result["category"]  # "assistant_response" 等
-    persisted = result["persisted"]  # True/False
-    streamed = result["streamed"]  # True/False
 """
-from app.core.engine.message.category import MessageCategory
-from app.core.engine.message.classifier import MessageClassifier
-from app.core.engine.message.handler import MessageHandler
-from app.core.engine.message.mapper import BlockMapper
-from app.core.engine.message.persistence import MessagePersistencePolicy
-from app.core.engine.message.publisher import MessagePublisher
-from app.core.engine.message.schemas import MessageBlock, ToolBlock
-from app.core.engine.message.stream import MessageStreamPolicy
 
-__all__ = [
-    "MessageCategory",
-    "MessageClassifier",
-    "MessagePersistencePolicy",
-    "MessageStreamPolicy",
-    "MessageHandler",
-    "MessagePublisher",
-    "MessageBlock",
-    "ToolBlock",
-    "BlockMapper",
-]
+import importlib
+
+_module_lazy = {
+    "MessageCategory": "app.core.engine.message.category",
+    "MessageClassifier": "app.core.engine.message.classifier",
+    "MessageHandler": "app.core.engine.message.handler",
+    "BlockMapper": "app.core.engine.message.mapper",
+    "MessagePersistencePolicy": "app.core.engine.message.persistence",
+    "MessagePublisher": "app.core.engine.message.publisher",
+    "MessageBlock": "app.core.engine.message.schemas",
+    "ToolBlock": "app.core.engine.message.schemas",
+    "MessageStreamPolicy": "app.core.engine.message.stream",
+}
+
+__all__ = list(_module_lazy.keys())
+
+
+def __getattr__(name):
+    module_path = _module_lazy.get(name)
+    if module_path is not None:
+        mod = importlib.import_module(module_path)
+        attr = getattr(mod, name)
+        globals()[name] = attr
+        return attr
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

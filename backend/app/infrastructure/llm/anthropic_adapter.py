@@ -84,23 +84,26 @@ class CompatibleChatAnthropic:
             if role in ("user", "human"):
                 api_messages.append({"role": "user", "content": content})
             elif role in ("assistant", "ai"):
-                tool_calls = m.get("tool_calls") if isinstance(m, dict) else getattr(m, "tool_calls", None)
+                tool_calls = m.get("tool_calls") if isinstance(m, dict) else m.tool_calls
                 if tool_calls:
                     content_blocks = []
                     if content:
                         content_blocks.append({"type": "text", "text": content})
                     for tc in tool_calls:
+                        tc_id = tc.get("id") or tc.get("tool_call_id")
+                        tc_name = tc.get("name")
+                        tc_args = tc.get("args")
                         content_blocks.append({
                             "type": "tool_use",
-                            "id": tc.get("id") or tc.get("tool_call_id"),
-                            "name": tc.get("name"),
-                            "input": tc.get("args") or {}
+                            "id": tc_id or "",
+                            "name": tc_name or "",
+                            "input": tc_args or {},
                         })
                     api_messages.append({"role": "assistant", "content": content_blocks})
                 else:
                     api_messages.append({"role": "assistant", "content": content})
             elif role == "tool":
-                tool_call_id = m.get("tool_call_id") if isinstance(m, dict) else getattr(m, "tool_call_id", None)
+                tool_call_id = m.get("tool_call_id") if isinstance(m, dict) else m.tool_call_id
                 api_messages.append({
                     "role": "user",
                     "content": [

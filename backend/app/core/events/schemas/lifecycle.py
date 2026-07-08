@@ -121,6 +121,7 @@ class UserLoggedInEvent(BaseEvent):
     event_type: str = SystemEventType.USER_LOGGED_IN
     is_public: bool = True
     broadcast_channel: str = "system"
+    member_id: int | None = None
 
 
 class UserLoggedOutEvent(BaseEvent):
@@ -128,6 +129,7 @@ class UserLoggedOutEvent(BaseEvent):
     event_type: str = SystemEventType.USER_LOGGED_OUT
     is_public: bool = True
     broadcast_channel: str = "system"
+    member_id: int | None = None
 
 
 class SubscriptionChangedEvent(BaseEvent):

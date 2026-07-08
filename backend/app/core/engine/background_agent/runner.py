@@ -92,9 +92,12 @@ async def run_agent_background(
                 )
                 config["configurable"]["message_handler"] = db_callback._handler
 
+                from app.core.engine.message.converter import EvoMessageConverter
                 from app.core.engine.state import AgentState
 
-                agent_state = AgentState.model_validate(inputs.model_dump(exclude={"blackboard"}))
+                raw_data = inputs.model_dump(exclude={"blackboard"})
+                raw_data["messages"] = EvoMessageConverter.repair(raw_data.get("messages", []))
+                agent_state = AgentState.model_validate(raw_data)
                 last_human_msg = inputs.session_goal or ""
 
                 from app.core.engine.context_hydrator import AgentContextHydrator

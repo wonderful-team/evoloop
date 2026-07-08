@@ -275,14 +275,14 @@ class VerificationService:
         report = result.verification_report
         summary = report.summary if report else None
 
-        if summary and getattr(summary, "adaptations_applied", 0) > 0:
-            improvements.append(f"Added {summary.adaptations_applied} error handling mechanisms")
+        if summary and summary.total_adaptations_applied > 0:
+            improvements.append(f"Added {summary.total_adaptations_applied} error handling mechanisms")
 
         if evolved_count > original_count:
             improvements.append(f"Expanded {original_count} -> {evolved_count} steps for robustness")
 
-        if summary and getattr(summary, "anomalies_detected", 0) > 0:
-            improvements.append(f"Handled {summary.anomalies_detected} environment anomalies")
+        if summary and summary.total_anomalies_detected > 0:
+            improvements.append(f"Handled {summary.total_anomalies_detected} environment anomalies")
 
         return MacroEvolutionResult(
             success=True,

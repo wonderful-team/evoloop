@@ -103,7 +103,7 @@ async def execute_via_client(
             thread_id=thread_id,
             tool=tool_name,
             params=params,
-            timeout=getattr(settings, 'CLIENT_TOOL_TIMEOUT', 300.0)
+            timeout=settings.CLIENT_TOOL_TIMEOUT
         )
         return result
     except ToolExecutionError as e:

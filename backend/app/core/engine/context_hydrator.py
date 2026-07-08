@@ -111,7 +111,7 @@ class AgentContextHydrator:
                 current_thread_id = ctx.thread_id
                 sorted_concepts = sorted(
                     concepts,
-                    key=lambda c: (getattr(c, "source_thread_id", None) != current_thread_id,),
+                    key=lambda c: (c.source_thread_id != current_thread_id,),
                 )
                 memory_data['project_concepts'] = "\n".join([f"- **{c.name}**: {c.description}" for c in sorted_concepts[:5]])
             if episodes:
@@ -170,9 +170,9 @@ class AgentContextHydrator:
 
         # 6. Dynamic Layer & Plugins
         # Populate context metadata from flat state fields
-        ctx.metadata.shared_context = getattr(state, "shared_context", {})
-        ctx.metadata.tool_memory = getattr(state, "tool_memory", None)
-        ctx.metadata.execution_ticket = getattr(state, "ticket", None)
+        ctx.metadata.shared_context = state.shared_context
+        ctx.metadata.tool_memory = state.tool_memory
+        ctx.metadata.execution_ticket = state.ticket
         ctx.metadata.iteration_count = iteration_count
 
         # Backward-compatible duck-typing wrapper for plugins or tools that read ctx.metadata.blackboard
@@ -183,7 +183,7 @@ class AgentContextHydrator:
 
         # 7. Domain Expert Polishing (Event-Driven)
         from app.core.events.publishers import publish_context_polishing
-        topic = getattr(state, "ticket", None).topic if getattr(state, "ticket", None) else ""
+        topic = state.ticket.topic if state.ticket else ""
         await publish_context_polishing(
             thread_id=ctx.thread_id,
             project_id=ctx.project_id,

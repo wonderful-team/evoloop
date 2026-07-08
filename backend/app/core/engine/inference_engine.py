@@ -9,73 +9,23 @@ from collections.abc import Callable
 from typing import Any
 
 from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
-from app.core.engine.error_handler import LLM_EXCEPTIONS, LLMErrorHandler, with_llm_retry
-from app.core.exceptions import InferenceError
-from app.core.engine.message.converter import EvoMessageConverter
+from app.core.engine.error_handler import (
+    LLM_EXCEPTIONS,
+    LLMErrorHandler,
+    with_llm_retry,
+)
 from app.core.engine.message.native_classes import (
     AIMessage,
     AIMessageChunk,
     BaseMessage,
     HumanMessage,
     SystemMessage,
-    ToolMessage,
 )
 from app.core.engine.message.reasoning import extract_reasoning_from_message
+from app.core.exceptions import InferenceError
 from app.infrastructure.llm.factory import LLMFactory
 
 logger = logging.getLogger(__name__)
-
-
-def _dicts_to_messages(messages: list[dict]) -> list[BaseMessage]:
-    """Helper to convert standard dict messages to native BaseMessage for LLM compatibility."""
-    lc_messages = []
-    for m in messages:
-        role = m.get("role")
-        content = m.get("content", "")
-        additional_kwargs = m.get("additional_kwargs") or {}
-        
-        if role == "system":
-            lc_messages.append(SystemMessage(content=content, additional_kwargs=additional_kwargs))
-        elif role == "user":
-            lc_messages.append(HumanMessage(content=content, name=m.get("name"), additional_kwargs=additional_kwargs))
-        elif role == "assistant":
-            tool_calls = m.get("tool_calls") or []
-            # Normalize tool calls to standard structure: [{'name': '...', 'args': {...}, 'id': '...'}]
-            lc_tool_calls = []
-            for tc in tool_calls:
-                lc_tool_calls.append({
-                    "name": tc.get("name") or "",
-                    "args": tc.get("args") or {},
-                    "id": tc.get("id") or tc.get("tool_call_id") or "",
-                })
-            lc_messages.append(AIMessage(content=content, tool_calls=lc_tool_calls, additional_kwargs=additional_kwargs))
-        elif role == "tool":
-            lc_messages.append(ToolMessage(
-                content=content,
-                tool_call_id=m.get("tool_call_id") or "",
-                name=m.get("name"),
-                additional_kwargs=additional_kwargs
-            ))
-        else:
-            lc_messages.append(HumanMessage(content=content, additional_kwargs=additional_kwargs))
-    return lc_messages
-
-
-def _message_to_dict(msg: BaseMessage) -> dict:
-    """Helper to convert native BaseMessage back to standard dict."""
-    from app.core.engine.message.utils import normalize_tool_calls
-
-    res = {
-        "role": "assistant" if isinstance(msg, AIMessage) else ("user" if isinstance(msg, HumanMessage) else ("system" if isinstance(msg, SystemMessage) else "tool")),
-        "content": msg.content,
-        "additional_kwargs": dict(msg.additional_kwargs or {}),
-    }
-    if isinstance(msg, AIMessage):
-        res["tool_calls"] = normalize_tool_calls(msg.tool_calls)
-    elif isinstance(msg, ToolMessage):
-        res["tool_call_id"] = msg.tool_call_id
-        res["name"] = msg.name
-    return res
 
 
 class InferenceEngine:
@@ -109,7 +59,6 @@ class InferenceEngine:
     @with_llm_retry(max_attempts=3)
     async def _stream_llm_response(llm_with_tools, loop_messages, config):
         response = None
-        # Construct config with callbacks mapped properly
         lc_config = {
             "callbacks": config.get("callbacks"),
             "configurable": config.get("configurable"),
@@ -140,32 +89,24 @@ class InferenceEngine:
 
     def build_system_messages(
         self, system_prompt: str, provider: str
-    ) -> list[dict]:
-        """Build provider-optimized system messages."""
+    ) -> list[BaseMessage]:
         if provider == "anthropic":
             return [
-                {
-                    "role": "system",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": system_prompt,
-                            "cache_control": {"type": "ephemeral"},
-                        }
-                    ]
-                }
+                SystemMessage(
+                    content=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}]
+                )
             ]
-        return [{"role": "system", "content": system_prompt}]
+        return [SystemMessage(content=system_prompt)]
 
     async def _prepare_turn_context(
         self,
-        loop_messages: list[dict],
+        loop_messages: list[BaseMessage],
         model: str | None,
         name: str,
         thread_id: str | None,
         run_id: str | None,
         config: dict,
-    ) -> tuple[list[dict], dict[str, Any] | None]:
+    ) -> tuple[list[BaseMessage], dict[str, Any] | None]:
         if model:
             trim_result = self._context_trimmer.trim(
                 messages=loop_messages,
@@ -176,13 +117,12 @@ class InferenceEngine:
             if trim_result.trigger != TrimTrigger.NONE:
                 from app.core.engine.hooks import HookContext, HookEvent, hook_system
 
-                # Map messages to native BaseMessage list for hook
                 await hook_system.trigger(
                     HookEvent.PRE_COMPACT,
                     HookContext(
                         thread_id=thread_id,
                         run_id=run_id,
-                        messages=_dicts_to_messages(loop_messages),
+                        messages=trim_result.messages,
                         project_id=config.get("configurable", {}).get("project_id"),
                         member_id=config.get("configurable", {}).get("member_id"),
                         compact_trigger=trim_result.trigger.name.lower(),
@@ -195,20 +135,13 @@ class InferenceEngine:
                 )
 
             if loop_messages:
-                # Find last user message
                 for i in range(len(loop_messages) - 1, -1, -1):
-                    if loop_messages[i].get("role") == "user":
+                    if loop_messages[i].role == "user":
                         from app.core.engine.context_monitor import ContextMonitor
 
-                        # Compute stats via ContextMonitor (expects list of dicts)
-                        dashboard = (
-                            "\n\n"
-                            + ContextMonitor.calculate(
-                                _dicts_to_messages(loop_messages), model=model
-                            ).to_prompt()
-                        )
+                        dashboard = "\n\n" + ContextMonitor.calculate(loop_messages, model=model).to_prompt()
 
-                        original_content = loop_messages[i].get("content", "")
+                        original_content = loop_messages[i].content
                         if isinstance(original_content, str):
                             new_content = original_content + dashboard
                         elif isinstance(original_content, list):
@@ -218,17 +151,17 @@ class InferenceEngine:
                         else:
                             break
 
-                        # Copy message dict to avoid mutating history directly
-                        loop_messages[i] = {
-                            **loop_messages[i],
-                            "content": new_content,
-                        }
+                        loop_messages[i] = HumanMessage(
+                            content=new_content,
+                            name=loop_messages[i].name,
+                            additional_kwargs=loop_messages[i].additional_kwargs,
+                        )
                         break
 
         msg_count = len(loop_messages)
         if model:
             from app.core.engine.context_monitor import ContextMonitor
-            stats = ContextMonitor.calculate(_dicts_to_messages(loop_messages), model=model)
+            stats = ContextMonitor.calculate(loop_messages, model=model)
             logger.info(
                 f"--- {name} Context: {msg_count} msgs, ~{stats.total_tokens} tokens ({stats.usage_ratio * 100:.1f}%) ---"
             )
@@ -239,40 +172,28 @@ class InferenceEngine:
 
     @staticmethod
     def _format_llm_endpoint(llm) -> str:
-        raw = getattr(llm, "bound", llm)
-        base_url = getattr(raw, "openai_api_base", None)
-        model = getattr(raw, "model", None) or getattr(raw, "model_name", None) or "?"
-        if base_url:
-            return f"POST {base_url}/chat/completions  model={model}"
-        client_params = getattr(raw, "_client_params", None) or {}
-        base_url = client_params.get("base_url") or getattr(raw, "base_url", "")
-        if base_url:
-            return f"POST {base_url}/v1/messages  model={model}"
-        return f"model={model}"
+        return f"model={llm.model or '?'}"
 
     async def _execute_llm_call(
         self,
         llm_with_tools,
-        loop_messages: list[dict],
+        loop_messages: list[BaseMessage],
         config: dict,
         name: str,
         system_prompt: str,
-        history_messages: list[dict],
+        history_messages: list[BaseMessage],
         turn_id: int,
         on_thinking: Callable | None = None,
         max_steps: int | None = None,
         is_single_shot: bool = False,
         sys_hash: str | None = None,
-    ) -> dict:
+    ) -> BaseMessage:
         endpoint = self._format_llm_endpoint(llm_with_tools)
         logger.info(f"[{name}] ▶️ LLM call (turn={turn_id}) {endpoint}")
-        
-        # Convert loop messages to native BaseMessage format for LLM invocation
-        lc_loop_messages = _dicts_to_messages(loop_messages)
-        
+
         try:
             start_perf = time.perf_counter()
-            response = await self._stream_llm_response(llm_with_tools, lc_loop_messages, config)
+            response = await self._stream_llm_response(llm_with_tools, loop_messages, config)
             latency = time.perf_counter() - start_perf
             logger.info(f"[{name}] LLM Latency: {latency:.2f}s")
         except LLM_EXCEPTIONS as e:
@@ -285,9 +206,7 @@ class InferenceEngine:
         handler = config.get("configurable", {}).get("message_handler")
         if handler and handler.last_persisted_message_id:
             response.id = handler.last_persisted_message_id
-            response.additional_kwargs["sequence_number"] = (
-                handler.last_persisted_sequence
-            )
+            response.additional_kwargs["sequence_number"] = handler.last_persisted_sequence
 
         thinking_content = extract_reasoning_from_message(response)
         if thinking_content:
@@ -295,27 +214,24 @@ class InferenceEngine:
             if on_thinking:
                 await on_thinking(thinking_content)
 
-        return _message_to_dict(response)
+        return response
 
     async def _process_tool_executions(
         self,
-        response: dict,
+        response: BaseMessage,
         name: str,
         config: dict,
         interceptors: dict[str, Callable] | None,
         tool_executor: Any | None,
         local_tool_history: list,
-    ) -> tuple[list[dict], Any | None, list[Any]]:
+    ) -> tuple[list[BaseMessage], Any | None, list[Any]]:
         pending_signal = None
         queued_signals: list[Any] = []
         remaining_tool_calls = []
 
-        if isinstance(response, dict):
-            tool_calls = response.get("tool_calls") or []
-        else:
-            tool_calls = getattr(response, "tool_calls", None) or []
+        tool_calls = response.tool_calls or []
         for tc in tool_calls:
-            interceptor = (interceptors or {}).get(tc["name"])
+            interceptor = (interceptors or {}).get(tc.get("name", ""))
             if interceptor:
                 sig = await interceptor(tc, config)
                 if sig is not None:
@@ -328,35 +244,29 @@ class InferenceEngine:
 
             remaining_tool_calls.append(tc)
 
-        tool_results = []
+        tool_results: list[BaseMessage] = []
         if remaining_tool_calls and tool_executor is not None:
-            logger.info(
-                f"[{name}] 🛠   Executing {len(remaining_tool_calls)} tool calls"
-            )
+            logger.info(f"[{name}] 🛠   Executing {len(remaining_tool_calls)} tool calls")
             res, batch_signal = await tool_executor.execute_batch(
                 remaining_tool_calls, local_tool_history
             )
             tool_results = res
 
             if batch_signal and pending_signal is None:
-                logger.info(
-                    f"[{name}] Post-execution signal detected: {type(batch_signal).__name__}"
-                )
+                logger.info(f"[{name}] Post-execution signal detected: {type(batch_signal).__name__}")
                 pending_signal = batch_signal
 
             logger.info(f"[{name}] tool_results returned: {len(tool_results)} items")
         else:
             if remaining_tool_calls:
-                logger.warning(
-                    f"[{name}] tool_executor is None! Cannot execute tool calls."
-                )
+                logger.warning(f"[{name}] tool_executor is None! Cannot execute tool calls.")
 
         return tool_results, pending_signal, queued_signals
 
     async def run_react_loop(
         self,
         llm_with_tools,
-        messages: list[dict],
+        messages: list[BaseMessage],
         system_prompt: str,
         provider: str,
         config: dict,
@@ -370,10 +280,9 @@ class InferenceEngine:
     ) -> dict:
         from app.core.monitoring.activity import activity_monitor
 
-        messages = [EvoMessageConverter.to_dict(m) for m in messages]
         system_messages = self.build_system_messages(system_prompt, provider)
-        history_messages = [m for m in messages if m.get("role") != "system"]
-        loop_messages: list[dict] = system_messages + history_messages
+        history_messages = [m for m in messages if m.role != "system"]
+        loop_messages: list[BaseMessage] = system_messages + history_messages
 
         if not history_messages:
             logger.error(f"[{name}] No history messages! Returning empty.")
@@ -385,13 +294,11 @@ class InferenceEngine:
                 "signal": None,
             }
 
-        new_messages: list[dict] = []
+        new_messages: list[BaseMessage] = []
         local_tool_history = []
         last_response = None
 
-        logger.info(
-            f"[{name}] ▶️ run_react_loop START | iteration={iteration_count} | max_steps={max_steps}"
-        )
+        logger.info(f"[{name}] ▶️ run_react_loop START | iteration={iteration_count} | max_steps={max_steps}")
 
         for i in range(max_steps):
             logger.info(f"[{name}] 🔄 Step {i + 1}/{max_steps}")
@@ -425,19 +332,13 @@ class InferenceEngine:
             loop_messages.append(response)
             new_messages.append(response)
 
-            if not response.get("tool_calls"):
+            if not response.tool_calls:
                 logger.info(f"[{name}] Finished with text response (no tool calls).")
                 break
 
-            logger.info(
-                f"[{name}] tool_calls detected: {len(response['tool_calls'])} calls"
-            )
+            logger.info(f"[{name}] tool_calls detected: {len(response.tool_calls)} calls")
 
-            (
-                tool_results,
-                pending_signal,
-                queued_signals,
-            ) = await self._process_tool_executions(
+            tool_results, pending_signal, queued_signals = await self._process_tool_executions(
                 response=response,
                 name=name,
                 config=config,
@@ -461,21 +362,20 @@ class InferenceEngine:
                 }
 
         is_truncated = False
-        if last_response and last_response.get("tool_calls"):
+        if last_response and last_response.tool_calls:
             logger.error(f"[{name}] Hit max_steps ({max_steps}) with open tool calls.")
             tools_summary = ", ".join(local_tool_history) if local_tool_history else "None"
-            truncation_msg = {
-                "role": "assistant",
-                "content": (
+            truncation_msg = AIMessage(
+                content=(
                     f"[TRUNCATION] Agent reached maximum step limit ({max_steps}) "
                     f"with pending tool calls. Tools executed: {tools_summary}."
                 ),
-                "additional_kwargs": {
+                additional_kwargs={
                     "is_truncated": True,
                     "max_steps": max_steps,
                     "requires_replan": True,
-                }
-            }
+                },
+            )
             new_messages.append(truncation_msg)
             is_truncated = True
 
@@ -490,7 +390,7 @@ class InferenceEngine:
     async def run_single_shot(
         self,
         llm_with_tools,
-        messages: list[dict],
+        messages: list[BaseMessage],
         system_prompt: str,
         provider: str,
         config: dict,
@@ -498,9 +398,8 @@ class InferenceEngine:
         tool_executor: Any | None = None,
         interceptors: dict[str, Callable] | None = None,
     ) -> dict:
-        messages = [EvoMessageConverter.to_dict(m) for m in messages]
         system_messages = self.build_system_messages(system_prompt, provider)
-        history_messages = [m for m in messages if m.get("role") != "system"]
+        history_messages = [m for m in messages if m.role != "system"]
         loop_messages = system_messages + history_messages
 
         if not history_messages:
@@ -512,8 +411,6 @@ class InferenceEngine:
                 "is_truncated": False,
             }
 
-        sys_hash = hashlib.md5(system_prompt.encode()).hexdigest()
-
         response = await self._execute_llm_call(
             llm_with_tools=llm_with_tools,
             loop_messages=loop_messages,
@@ -523,13 +420,13 @@ class InferenceEngine:
             history_messages=history_messages,
             turn_id=0,
             is_single_shot=True,
-            sys_hash=sys_hash,
+            sys_hash=hashlib.md5(system_prompt.encode()).hexdigest(),
         )
 
-        new_messages = [response]
+        new_messages: list[BaseMessage] = [response]
         local_tool_history = []
 
-        if response.get("tool_calls"):
+        if response.tool_calls:
             tool_results, batch_signal, _ = await self._process_tool_executions(
                 response=response,
                 name=name,
@@ -538,7 +435,6 @@ class InferenceEngine:
                 tool_executor=tool_executor,
                 local_tool_history=local_tool_history,
             )
-
             for tool_msg in tool_results:
                 new_messages.append(tool_msg)
         else:

@@ -84,11 +84,11 @@ class FinishNode(BaseNode):
         state.audit_anomalies = anomalies
 
     async def handle_error(self, state: "AgentState", error: Exception, config: dict = None) -> "StateUpdate":
-        error_msg = {
-            "role": "assistant",
-            "content": f"Session finalization failed: {error}",
-            "additional_kwargs": {"is_error": True, "error_type": "finish_failure"},
-        }
+        from app.core.engine.message.native_classes import AIMessage
+        error_msg = AIMessage(
+            content=f"Session finalization failed: {error}",
+            additional_kwargs={"is_error": True, "error_type": "finish_failure"},
+        )
         return StateUpdate(
             messages=state.messages + [error_msg],
             next_node=RoutingTarget.END,
@@ -196,10 +196,10 @@ class FinishNode(BaseNode):
             stop_result = await hook_system.trigger(HookEvent.STOP, stop_ctx, blocking=True)
             if stop_result.block:
                 logger.warning(f"[Finish] STOP hook blocked completion: {stop_result.message}")
-                block_msg = {
-                    "role": "assistant",
-                    "content": f"\n\n[Quality Gate Blocked] {stop_result.message}\nPlease address the issues before completing.",
-                }
+                from app.core.engine.message.native_classes import AIMessage
+                block_msg = AIMessage(
+                    content=f"\n\n[Quality Gate Blocked] {stop_result.message}\nPlease address the issues before completing.",
+                )
                 state.blocked_by_hook = True
                 return StateUpdate(
                     messages=messages + [block_msg],
@@ -226,10 +226,14 @@ class FinishNode(BaseNode):
         }
 
         # Clean session audit messages from message history
-        messages_to_return = [
-            msg for msg in messages
-            if not (msg.get("role") == "assistant" and msg.get("content") and "<evoloop_session_audit>" in str(msg.get("content")) and "<evoloop_final_report>" in str(msg.get("content")))
-        ]
+        messages_to_return = []
+        for msg in messages:
+            role = msg.type
+            content = msg.content or ""
+            if not (role == "assistant" and content
+                    and "<evoloop_session_audit>" in str(content)
+                    and "<evoloop_final_report>" in str(content)):
+                messages_to_return.append(msg)
 
         # Convert native dict messages back to native list of dicts for event schema if needed,
         # but since SessionCompletedData expects standard messages list, we can just pass dict list.

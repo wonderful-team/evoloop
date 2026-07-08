@@ -233,7 +233,7 @@ async def incremental_sync_task(device_key: str, thread_ids: list[str]) -> dict:
                             for m in unsynced_msgs:
                                 # Skip mobile-originated human messages to avoid double-write
                                 # (Gateway already synced them to MC directly).
-                                if m.role == "human" and getattr(m, "source", None) == "mobile":
+                                if m.role == "human" and m.source == "mobile":
                                     continue
                                 sm = SyncMessage(
                                     id=m.id, thread_id=m.thread_id, project_id=m.project_id if m.project_id is not None else DEFAULT_PROJECT_ID,

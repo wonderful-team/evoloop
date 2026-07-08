@@ -140,23 +140,23 @@ class FileEditorService:
             logs = []
 
             for i, edit in enumerate(edits):
-                if getattr(edit, "mode", "replace") == "append":
+                if edit.mode == "append":
                     new_content = current_content + edit.replacement
                     success = True
                     log = "Appended to end of file"
-                elif getattr(edit, "mode", "replace") == "prepend":
+                elif edit.mode == "prepend":
                     new_content = edit.replacement + current_content
                     success = True
                     log = "Prepended to beginning of file"
                 else:
-                    if getattr(edit, "start_line", None) and edit.mode == "replace":
+                    if edit.start_line and edit.mode == "replace":
                         from app.core.file.io import _read_lines_range
                         # 1. Extract target line range substring (0-indexed)
                         sub = _read_lines_range(
                             file_path=absolute_path,
                             encoding="utf-8",
                             start_idx=edit.start_line - 1,
-                            end_idx=edit.end_line - 1 if getattr(edit, "end_line", None) else None
+                            end_idx=edit.end_line - 1 if edit.end_line else None
                         )
                         # 2. Match in the substring
                         success, new_sub, log = EditEngine.apply_replacement(sub, edit.target, edit.replacement)
@@ -166,7 +166,7 @@ class FileEditorService:
                         else:
                             # Fallback: search in the full text
                             success, new_content, log = EditEngine.apply_replacement(current_content, edit.target, edit.replacement, replace_all=edit.allow_multiple)
-                            log = f"[Line hint {edit.start_line}-{getattr(edit, 'end_line', '')} missed, fell back to full-file search] " + log
+                            log = f"[Line hint {edit.start_line}-{edit.end_line or ''} missed, fell back to full-file search] " + log
                     else:
                         # Try to apply this edit to current content
                         success, new_content, log = EditEngine.apply_replacement(

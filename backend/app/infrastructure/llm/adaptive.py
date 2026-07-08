@@ -150,9 +150,9 @@ class AdaptiveChatOpenAI:
             else:
                 role = "assistant" if m.type == "ai" else (m.type if m.type in ("system", "tool") else "user")
                 msg_dict = {"role": role, "content": m.content}
-                if role == "tool" and getattr(m, "tool_call_id", None):
+                if role == "tool" and m.tool_call_id:
                     msg_dict["tool_call_id"] = m.tool_call_id
-                elif role == "assistant" and getattr(m, "tool_calls", None):
+                elif role == "assistant" and m.tool_calls:
                     msg_dict["tool_calls"] = m.tool_calls
                 api_messages.append(msg_dict)
 
@@ -343,15 +343,15 @@ class _StructuredOutputWrapper:
         finally:
             self._llm._tools = original_tools
 
-        tool_calls = getattr(response, "tool_calls", None) or []
+        tool_calls = response.tool_calls or []
         if not tool_calls:
             raise ValueError(
                 f"Structured output: LLM returned no tool calls. "
-                f"content={getattr(response, 'content', '')[:200]}"
+                f"content={response.content[:200]}"
             )
 
         tc = tool_calls[0]
-        raw_args = tc.get("args") if isinstance(tc, dict) else getattr(tc, "args", None)
+        raw_args = tc.get("args")
         if isinstance(raw_args, str):
             parsed_args = json.loads(raw_args) if raw_args.strip() else {}
         elif isinstance(raw_args, dict):

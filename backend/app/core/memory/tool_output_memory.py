@@ -283,7 +283,7 @@ def get_tool_memory_from_state(state: "AgentState") -> ToolOutputMemory:
     Returns:
         ToolOutputMemory instance
     """
-    tool_memory_data = getattr(state, "tool_memory", None)
+    tool_memory_data = state.tool_memory
 
     if tool_memory_data:
         try:

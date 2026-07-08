@@ -26,6 +26,10 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 logger = logging.getLogger(__name__)
 
 
+def _role(msg):
+    return msg.type
+
+
 class AuditResult(DynamicBaseModel):
     """Result of an audit execution."""
     summary: str
@@ -51,7 +55,7 @@ def _extract_final_summary(messages: list) -> str:
     from app.core.engine.message.utils import get_message_text
 
     for msg in reversed(messages):
-        role = msg.get("role") if isinstance(msg, dict) else getattr(msg, "type", "")
+        role = _role(msg)
         if role in ("assistant", "ai"):
             content = get_message_text(msg)
             if content:
@@ -234,7 +238,7 @@ class AuditService:
         full_text = "".join(
             get_message_text(m)
             for m in audit_messages
-            if (m.get("role") if isinstance(m, dict) else getattr(m, "type", "")) in ("assistant", "ai")
+            if _role(m) in ("assistant", "ai")
         )
         outcome_match = re.search(
             r"<evoloop_audit_outcome>(.*?)</evoloop_audit_outcome>",
@@ -299,12 +303,7 @@ class AuditService:
         member_id_val = config.get("configurable", {}).get("member_id")
         member_id = int(member_id_val) if member_id_val is not None else None
 
-        msg_dicts = []
-        for m in messages:
-            if hasattr(m, "dict"):
-                msg_dicts.append(m.dict())
-            else:
-                msg_dicts.append({"type": m.type, "content": str(m.content)})
+        msg_dicts = [m.model_dump() for m in messages]
 
         schema_dicts = [req.model_dump() for req in req_event.requests]
 

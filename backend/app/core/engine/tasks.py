@@ -506,12 +506,7 @@ async def run_engine_audit_structured_extraction(
 
     from app.core.engine.extraction.schema import build_dynamic_schema
     from app.core.engine.message.converter import EvoMessageConverter
-    from app.core.engine.message.native_classes import (
-        AIMessage,
-        HumanMessage,
-        SystemMessage,
-        ToolMessage,
-    )
+    from app.core.engine.message.native_classes import SystemMessage
     from app.core.events.base import system_bus
     from app.core.events.schemas.lifecycle import (
         ExtractionCompletedEvent,
@@ -529,21 +524,8 @@ async def run_engine_audit_structured_extraction(
     if not DynamicVerdict:
         return
 
-    # Reconstruct messages fully, including ToolMessages
-    messages = []
-    for m in messages_dicts:
-        m_type = m.get("type")
-        if m_type == "human":
-            messages.append(HumanMessage(**m))
-        elif m_type == "ai":
-            messages.append(AIMessage(**m))
-        elif m_type == "system":
-            messages.append(SystemMessage(**m))
-        elif m_type == "tool":
-            messages.append(ToolMessage(**m))
-
     # Authoritatively repair the message history to ensure structural validity for strict LLM APIs
-    messages = EvoMessageConverter.repair(messages)
+    messages = EvoMessageConverter.repair(messages_dicts)
 
     model_name = SystemConfigService.get_value("LLM_MODEL")
     schema_json = json.dumps(DynamicVerdict.model_json_schema(), ensure_ascii=False, indent=2)

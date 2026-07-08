@@ -294,7 +294,7 @@ class ElixirTools(SolidLanguageServer):
                     self._building_project = True
             elif kind == "end":
                 # Project build completion is the main readiness signal
-                if getattr(self, "_building_project", False):
+                if self._building_project:
                     log.debug("Expert project build completed - server is ready")
                     self._building_project = False
                     self.server_ready.set()

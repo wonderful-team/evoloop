@@ -62,10 +62,11 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         # Rate-limit backoff: suppress non-critical outbound traffic after
         # receiving user_rate_limited from the gateway.
         self._rate_limit_backoff_until = 0.0
+        self._device_key: str = ""
 
     @property
     def device_key(self) -> str:
-        return getattr(self, "_device_key", "") or ""
+        return self._device_key or ""
 
     @property
     def device_name(self) -> str:
@@ -92,7 +93,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
     async def ensure_device_key(self) -> str:
         """Async initialization of device_key. Must be called before using device_key in async context."""
-        if not getattr(self, "_device_key", ""):
+        if not self._device_key:
             self._device_key = await self._get_or_create_device_key()
         return self._device_key
 

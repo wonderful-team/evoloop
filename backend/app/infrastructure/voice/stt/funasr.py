@@ -43,7 +43,7 @@ FUNASR_MODELS = {
 
 def _get_bundled_models_path() -> Path | None:
     """获取应用 bundle 中的模型路径"""
-    if getattr(settings, 'TAURI_RESOURCE_DIR', None):
+    if settings.TAURI_RESOURCE_DIR:
         bundle_models = Path(settings.TAURI_RESOURCE_DIR) / "models"
         if bundle_models.exists():
             return bundle_models

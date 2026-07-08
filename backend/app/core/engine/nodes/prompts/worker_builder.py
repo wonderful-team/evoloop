@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from jinja2 import TemplateError
 
@@ -9,6 +9,9 @@ from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.utils.template import render_template
 
 from .base_builder import BasePromptBuilder
+
+if TYPE_CHECKING:
+    from app.core.engine.state.base import AgentState
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +28,7 @@ class WorkerPromptBuilder(BasePromptBuilder):
     def __init__(
         self,
         agent_config: AgentRuntimeConfig | None,
-        blackboard: Any,
+        blackboard: "AgentState",
         skills: list = None,
         ticket: ExecutionTicket | None = None,
         focus_paths: list = None,
@@ -37,7 +40,7 @@ class WorkerPromptBuilder(BasePromptBuilder):
         if isinstance(blackboard, dict):
             self.clipboard = blackboard.get("clipboard", [])
         else:
-            self.clipboard = getattr(blackboard, "clipboard", []) or []
+            self.clipboard = blackboard.clipboard or []
         self.ticket = ticket
         self.focus_paths = focus_paths or []
         self.plan = plan
@@ -136,9 +139,9 @@ class WorkerPromptBuilder(BasePromptBuilder):
             subtask_results = self.blackboard.get("subtask_results", [])
             metadata = self.blackboard.get("metadata", {})
         else:
-            shared_context = getattr(self.blackboard, "shared_context", {}) or {}
-            subtask_results = getattr(self.blackboard, "subtask_results", []) or []
-            metadata = getattr(self.blackboard, "metadata", {}) or {}
+            shared_context = self.blackboard.shared_context or {}
+            subtask_results = self.blackboard.subtask_results or []
+            metadata = self.blackboard.metadata or {}
 
         template_vars = {
             "topic": topic,
