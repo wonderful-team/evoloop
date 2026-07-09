@@ -3,7 +3,7 @@ SQLPersister: Handles SQL database persistence for indexed content.
 """
 import logging
 
-from sqlalchemy import delete
+from sqlalchemy import delete, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.codebase.indexing.components.content_indexer import IndexedContent
@@ -97,17 +97,6 @@ class SQLPersister:
         staged: list[tuple[IndexedContent, list[CodeEntity]]] = []
 
         for indexed, source_file in items:
-            for doc in indexed.documents:
-                chunk = CodeChunk(
-                    source_file_id=source_file.id,
-                    chunk_type=doc.metadata.get("type", "unknown"),
-                    identifier=doc.metadata.get("name", "unknown"),
-                    start_line=doc.metadata.get("start_line", 0),
-                    end_line=doc.metadata.get("end_line", 0),
-                    content=doc.content,
-                )
-                session.add(chunk)
-
             records: list[CodeEntity] = []
             for ent in indexed.entities:
                 record = CodeEntity(
@@ -126,7 +115,23 @@ class SQLPersister:
         # Single flush for all entity IDs.
         await session.flush()
 
-        # Build name_to_id maps and insert relations.
+        # Bulk insert chunks (no RETURNING needed).
+        chunk_dicts = []
+        for indexed, source_file in items:
+            for doc in indexed.documents:
+                chunk_dicts.append({
+                    "source_file_id": source_file.id,
+                    "chunk_type": doc.metadata.get("type", "unknown"),
+                    "identifier": doc.metadata.get("name", "unknown"),
+                    "start_line": doc.metadata.get("start_line", 0),
+                    "end_line": doc.metadata.get("end_line", 0),
+                    "content": doc.content,
+                })
+        if chunk_dicts:
+            await session.execute(insert(CodeChunk), chunk_dicts)
+
+        # Build name_to_id maps and bulk insert relations.
+        rel_dicts = []
         all_name_to_ids: list[dict[str, int]] = []
         for indexed, records in staged:
             name_to_id = {}
@@ -137,15 +142,16 @@ class SQLPersister:
                 source_id = name_to_id.get(rel.source_full_name)
                 if not source_id:
                     continue
-                target_id = name_to_id.get(rel.target_full_name)
-                rel_record = CodeRelation(
-                    source_entity_id=source_id,
-                    target_entity_id=target_id,
-                    target_name=rel.target_full_name,
-                    relation_type=rel.relation_type,
-                )
-                session.add(rel_record)
+                rel_dicts.append({
+                    "source_entity_id": source_id,
+                    "target_entity_id": name_to_id.get(rel.target_full_name),
+                    "target_name": rel.target_full_name,
+                    "relation_type": rel.relation_type,
+                })
 
             all_name_to_ids.append(name_to_id)
+
+        if rel_dicts:
+            await session.execute(insert(CodeRelation), rel_dicts)
 
         return all_name_to_ids

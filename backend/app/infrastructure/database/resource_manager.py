@@ -111,13 +111,19 @@ class DatabaseResourceManager:
                     echo=settings.DB_ECHO,
                     future=True,
                     poolclass=NullPool,
-                    connect_args={"check_same_thread": False},
+                    connect_args={
+                        "check_same_thread": False,
+                        "timeout": 5,
+                    },
                 )
                 if self._sync_engine is None:
                     self._sync_engine = create_sync_engine(
                         sync_db_uri,
                         poolclass=NullPool,
-                        connect_args={"check_same_thread": False},
+                        connect_args={
+                            "check_same_thread": False,
+                            "timeout": 5,
+                        },
                     )
             else:
                 engine = create_async_engine(

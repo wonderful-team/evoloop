@@ -96,14 +96,15 @@ class DebouncedIndexHandler:
     # Per-repo batch debounce
     # ------------------------------------------------------------------
 
-    def _schedule_batch(self, repo_id: int) -> None:
+    def _schedule_batch(self, repo_id: int, debounce: float | None = None) -> None:
         timer = self._batch_timers.get(repo_id)
         if timer is not None:
             timer.cancel()
 
+        delay = debounce if debounce is not None else self.BATCH_DEBOUNCE
         loop = asyncio.get_running_loop()
         self._batch_timers[repo_id] = loop.call_later(
-            self.BATCH_DEBOUNCE,
+            delay,
             lambda rid=repo_id: asyncio.create_task(self._process_batch(rid)),
         )
 
@@ -147,7 +148,25 @@ class DebouncedIndexHandler:
             for src, dest in moved:
                 move_file_task.delay(src, dest, repo_id)
 
-            for file_path in modified:
-                index_file_task.delay(file_path, repo_id)
+            # Chunked dispatch: 10 files per batch, 1s between batches,
+            # at most 20 files per cycle.  Leftovers are retried after 5s.
+            modified_list = sorted(modified)
+            MAX_PER_CYCLE = 20
+            BATCH_SIZE = 10
+            BATCH_INTERVAL = 1.0
+
+            to_dispatch = modified_list[:MAX_PER_CYCLE]
+            leftover = modified_list[MAX_PER_CYCLE:]
+
+            for i in range(0, len(to_dispatch), BATCH_SIZE):
+                chunk = to_dispatch[i:i + BATCH_SIZE]
+                for file_path in chunk:
+                    index_file_task.delay(file_path, repo_id)
+                if i + BATCH_SIZE < len(to_dispatch):
+                    await asyncio.sleep(BATCH_INTERVAL)
+
+            if leftover:
+                self._pending_modified.setdefault(repo_id, set()).update(leftover)
+                self._schedule_batch(repo_id, debounce=5.0)
         finally:
             self._processing = False
