@@ -1,7 +1,7 @@
 """Top-level AgentState and StateUpdate models: SDK-free, no external framework dependencies."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from pydantic import Field, model_validator
 
@@ -21,9 +21,7 @@ from app.core.engine.state.sub_schemas import (
 )
 from app.core.engine.state.workspace import ClipboardItem, WorkspaceContext
 from app.infrastructure.pydantic_base import DynamicBaseModel
-
-if TYPE_CHECKING:
-    from app.models.learning import LearnedSkill
+from app.models.learning import LearnedSkill
 
 
 def merge_dicts(old: dict | None, new: dict | None) -> dict:

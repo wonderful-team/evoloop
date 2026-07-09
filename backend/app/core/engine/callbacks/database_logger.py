@@ -10,7 +10,7 @@ DatabaseCallbackHandler - 数据库日志回调处理器（重构版）
 """
 import contextvars
 import logging
-from typing import Any, Dict, List
+from typing import Any
 from uuid import UUID
 
 from app.core.engine.callbacks.base import AsyncCallbackHandler, LLMResult
@@ -50,12 +50,12 @@ def _censor_secrets(val: Any) -> Any:
 class DatabaseCallbackHandler(AsyncCallbackHandler):
     """
     数据库日志回调处理器
-    
+
     职责：
     1. 接收回调事件
     2. 提取消息数据
     3. 委托给 MessageHandler 处理
-    
+
     注意：此处理器不再包含复杂的过滤逻辑！
     所有分类和策略决策都委托给 message 模块。
     """
@@ -106,7 +106,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> Any:
         """
         LLM 响应结束时调用
-        
+
         处理 AI 消息：
         1. 提取内容和元数据
         2. 委托给 MessageHandler
@@ -243,13 +243,13 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
     async def on_tool_start(
         self,
-        serialized: Dict[str, Any],
+        serialized: dict[str, Any],
         input_str: str,
         *,
         run_id: UUID,
         parent_run_id: UUID | None = None,
-        tags: List[str] | None = None,
-        metadata: Dict[str, Any] | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -257,8 +257,8 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         """
         # 提取工具名称（兼容不同版本的序列化格式）
         tool_name = str(
-            serialized.get("name") or 
-            serialized.get("kwargs", {}).get("name") or 
+            serialized.get("name") or
+            serialized.get("kwargs", {}).get("name") or
             "unknown_tool"
         )
         run_id_str = str(run_id)
