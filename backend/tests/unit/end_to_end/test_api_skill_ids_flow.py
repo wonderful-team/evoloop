@@ -45,14 +45,17 @@ async def test_api_chat_endpoint_skill_ids_flow():
     mock_activity._state_service.start_run = AsyncMock()
 
     # 4. 执行调用与断言验证
-    with patch("app.api.routes.agent.session_scope") as mock_scope, \
-         patch("app.api.routes.agent._check_thread_not_running", AsyncMock()), \
-         patch("app.api.routes.agent.activity_monitor", mock_activity):
+    # NOTE: patches target app.api.routes.agent._chat.* because _chat.py imports
+    # these names at module level. Patching app.api.routes.agent.* would only
+    # affect the re-export in __init__.py, not the local references in _chat.py.
+    with patch("app.api.routes.agent._chat.session_scope") as mock_scope, \
+         patch("app.api.routes.agent._chat._check_thread_not_running", AsyncMock()), \
+         patch("app.api.routes.agent._chat.activity_monitor", mock_activity):
         mock_session = AsyncMock()
         mock_session.execute.return_value = mock_db_result
         mock_scope.return_value.__aenter__.return_value = mock_session
 
-        with patch("app.api.routes.agent.dispatch_agent_run", new_callable=AsyncMock) as mock_dispatch:
+        with patch("app.api.routes.agent._chat.dispatch_agent_run", new_callable=AsyncMock) as mock_dispatch:
             mock_dispatch.return_value = mock_dispatch_res
 
             res = await chat_endpoint(req, mock_bg_tasks, MagicMock())

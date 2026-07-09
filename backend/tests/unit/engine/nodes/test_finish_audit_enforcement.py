@@ -8,8 +8,7 @@ outcome is INCOMPLETE, preventing premature mission termination.
 import pytest
 from unittest.mock import MagicMock, AsyncMock
 
-from langchain_core.messages import AIMessage
-from langchain_core.runnables import RunnableConfig
+from app.core.engine.message.native_classes import AIMessage, RunnableConfig
 
 from app.core.engine.nodes.finish import FinishNode
 from app.core.engine.routers import RoutingTarget

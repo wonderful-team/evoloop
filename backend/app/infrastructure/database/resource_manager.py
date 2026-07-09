@@ -256,6 +256,14 @@ class DatabaseResourceManager:
         await self.close()
 
     @property
+    def writes_table(self) -> str:
+        return "writes" if settings.EMBEDDED_MODE else "checkpoint_writes"
+
+    @property
+    def placeholder(self) -> str:
+        return "?" if settings.EMBEDDED_MODE else "%s"
+
+    @property
     def task_queue_path(self) -> Path:
         """Get the path for the asynchronous task queue database."""
         if not self._task_queue_path:

@@ -149,7 +149,16 @@ def _apply_unit_test_mocks():
     _rm_mod.db_resource_manager.get_raw_connection = _mock_raw_connection
     _rm_mod.db_resource_manager._initialized = True
 
-    # 4. Mock SystemConfigService to avoid DB lookups
+    # 4. Mock Database Resource Manager session_factory
+    # session_scope() calls db_resource_manager.session_factory() which returns None
+    # by default because initialize() is mocked away. Override _current_loop_id and
+    # _session_factories so that session_factory returns a callable mock that works
+    # with "async with ... as session:". This prevents "NoneType is not callable"
+    # errors in tests that exercise code paths using activity_monitor / session_scope.
+    _rm_mod.db_resource_manager._current_loop_id = lambda: 0
+    _rm_mod.db_resource_manager._session_factories[0] = lambda: AsyncMock()
+
+    # 5. Mock SystemConfigService to avoid DB lookups
     import app.infrastructure.config.service as _config_service_mod
 
     _config_service_mod.SystemConfigService.get_value = MagicMock(return_value=None)

@@ -19,6 +19,7 @@ class TestQueueFactoryFallback:
 
     def test_production_mode_creates_celery(self):
         """EMBEDDED_MODE=false → Celery scheduler."""
+        pytest.importorskip("celery")
         with patch.object(settings, "EMBEDDED_MODE", False):
             with patch("celery.Celery") as MockCelery:
                 import app.infrastructure.queue.factory as _factory_mod

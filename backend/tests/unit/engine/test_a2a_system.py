@@ -104,7 +104,7 @@ async def test_list_agents_tool():
         agents = json.loads(res)
         assert len(agents) == 3
         assert agents[0]["device_key"] == "dev-1"
-        assert agents[0]["capabilities"] == ["code_build"]
+        assert agents[0]["description"] == ""
         assert agents[1]["device_key"] == "dev-3"
         assert agents[1]["device_type"] == "embedded"
         assert agents[2]["device_key"] == "dev-4"
@@ -510,7 +510,7 @@ async def test_handle_stop_command():
 @pytest.mark.asyncio
 async def test_list_conversations_filters_sub_threads(mock_session):
     """Verify list_conversations API filters out sub-conversations (where parent_thread_id is not null)."""
-    from app.api.routes.conversations import list_conversations
+    from app.api.routes.conversations._conversations import list_conversations
     
     # 1. Mock Conversation database records
     c1 = Conversation(id="conv-1", title="Root thread 1", project_id=1, parent_thread_id=None, is_pinned=False)
@@ -527,7 +527,7 @@ async def test_list_conversations_filters_sub_threads(mock_session):
     async def mock_session_scope():
         yield mock_session
 
-    with patch("app.api.routes.conversations.session_scope", mock_session_scope), \
+    with patch("app.api.routes.conversations._conversations.session_scope", mock_session_scope), \
          patch("app.core.monitoring.activity.activity_monitor.get_statuses", AsyncMock(return_value={})):
         
         response = await list_conversations(project_id=1)

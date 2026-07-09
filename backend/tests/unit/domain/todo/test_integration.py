@@ -128,11 +128,12 @@ class TestTodoToolsErrorHandling:
         """Test completing non-existent todo."""
         with _mock_session_scope(), patch('app.domain.todo.service.TodoService') as MockService:
             mock_service = MockService.return_value
-            mock_service.mark_completed = AsyncMock(side_effect=Exception("Not found"))
+            from app.domain.todo import TodoNotFoundError
+            mock_service.mark_completed = AsyncMock(side_effect=TodoNotFoundError("Not found"))
             
             result = await complete_todo.ainvoke({"todo_id": "non-existent"})
             # Should handle error gracefully
-            assert "non-existent" in result or "error" in result.lower() or "未找到" in result
+            assert "non-existent" in result or "not found" in result.lower() or "未找到" in result
     
     @pytest.mark.asyncio
     async def test_cancel_nonexistent_todo(self):
@@ -192,11 +193,11 @@ class TestTodoDomainImports:
             complete_todo,
             cancel_todo,
         )
-        from langchain_core.tools import StructuredTool
-        assert isinstance(create_todo, StructuredTool)
-        assert isinstance(list_todos, StructuredTool)
-        assert isinstance(complete_todo, StructuredTool)
-        assert isinstance(cancel_todo, StructuredTool)
+        from app.core.tools.base import EvoLoopTool
+        assert isinstance(create_todo, EvoLoopTool)
+        assert isinstance(list_todos, EvoLoopTool)
+        assert isinstance(complete_todo, EvoLoopTool)
+        assert isinstance(cancel_todo, EvoLoopTool)
     
     def test_all_services_exported(self):
         """Test all services are exported."""

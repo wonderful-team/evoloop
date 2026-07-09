@@ -4,7 +4,7 @@ End-to-end tests for thinking storage → extraction → fold → API pipeline.
 Validates the simplified string-based thinking flow after removing list wrapping.
 """
 import pytest
-from langchain_core.messages import AIMessage
+from app.core.engine.message.native_classes import AIMessage
 
 from app.core.engine.message.mapper import BlockMapper
 from app.core.engine.message.utils import to_base_message
