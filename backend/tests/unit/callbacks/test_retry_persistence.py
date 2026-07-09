@@ -5,11 +5,22 @@ import json
 from unittest.mock import MagicMock, AsyncMock, patch
 from dataclasses import dataclass
 
+
+@dataclass
+class _ChatGeneration:
+    text: str
+    message: object
+
+
+@dataclass
+class _LLMResult:
+    generations: list[list[_ChatGeneration]]
+
+
 # Mock standard infrastructure
 with patch("app.infrastructure.database.sql.database.db_resource_manager"):
     with patch("app.core.evocloud.evocloud_manager"):
-        from langchain_core.messages import AIMessage
-        from langchain_core.outputs import LLMResult, ChatGeneration
+        from app.core.engine.message.native_classes import AIMessage
         from app.core.engine.callbacks.transparent import TransparentCallbackHandler
         from app.core.engine.callbacks.database_logger import DatabaseCallbackHandler
         from app.core.engine.dispatch import dispatch_agent_run
@@ -92,7 +103,7 @@ async def test_full_retry_thinking_lifecycle(mock_all):
     # Crucially, LangChain often DROPS the 'thought' field from additional_kwargs
     # so we rely on the injection from trans_callback.on_llm_end
     final_msg = AIMessage(content="Here is the new answer.")
-    result = LLMResult(generations=[[ChatGeneration(text=final_msg.content, message=final_msg)]])
+    result = _LLMResult(generations=[[_ChatGeneration(text=final_msg.content, message=final_msg)]])
     
     # 1. First, TransparentCallback flushes buffer (no longer injects thinking into msg)
     await trans_callback.on_llm_end(result, run_id="retry-run")

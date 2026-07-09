@@ -3,14 +3,28 @@ import pytest
 import asyncio
 import json
 from unittest.mock import MagicMock, AsyncMock, patch
+from dataclasses import dataclass
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+
+
+@dataclass
+class _ChatGeneration:
+    text: str
+    message: object
+
+
+@dataclass
+class _LLMResult:
+    generations: list[list[_ChatGeneration]]
+
 
 # --- Standalone Database Setup for Testing ---
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 engine = create_async_engine(TEST_DATABASE_URL)
 TestingSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
 
 # Mock Infrastructure
 @patch("app.infrastructure.database.sql.database.db_resource_manager")
@@ -22,8 +36,7 @@ async def run_standalone_test(mock_cloud, mock_db):
     # Import inside because of the mocks
     from app.infrastructure.database.sql.database import Base
     from app.models import Conversation, Message
-    from langchain_core.messages import AIMessage
-    from langchain_core.outputs import LLMResult, ChatGeneration
+    from app.core.engine.message.native_classes import AIMessage
     from app.core.engine.callbacks.transparent import TransparentCallbackHandler
     from app.core.engine.callbacks.database_logger import DatabaseCallbackHandler
     from app.core.engine.dispatch import dispatch_agent_run
@@ -81,7 +94,7 @@ async def run_standalone_test(mock_cloud, mock_db):
 
     # --- 3. PERSISTENCE PHASE ---
     final_msg = AIMessage(content="Answer from retry.")
-    result = LLMResult(generations=[[ChatGeneration(text=final_msg.content, message=final_msg)]])
+    result = _LLMResult(generations=[[_ChatGeneration(text=final_msg.content, message=final_msg)]])
     
     await trans_callback.on_llm_end(result, run_id="retry-run")
     assert final_msg.additional_kwargs.get("thinking") == "Processing retry..."
