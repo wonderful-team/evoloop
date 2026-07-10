@@ -1,0 +1,42 @@
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+xcuserdata/
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+*.hmap
+*.ipa
+*.app.dSYM.zip
+*.app.dSYM
+
+# Xcode local environment
+.xcode.env.local
+
+# CocoaPods
+Pods/
+Podfile.lock
+
+# Swift Package Manager
+.build/
+*.swiftpm/
+
+# IDE
+.idea/
+*.iml
+
+# OS
+.DS_Store
+
+# Playground
+timeline.xctimeline
+playground.xcworkspace

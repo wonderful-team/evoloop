@@ -1,0 +1,39 @@
+# Gradle
+.gradle/
+build/
+app/build/
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+
+# Local configuration
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+.kotlin/
+
+# NDK / CMake
+.cxx/
+.externalNativeBuild/
+
+# Build outputs
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+bin/
+gen/
+out/
+
+# Captures / profiling
+captures/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Miscellaneous
+*.log
+.navigation/
