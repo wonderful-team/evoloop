@@ -1,8 +1,5 @@
 import {
-  AnyJSBundleProvider,
-  MetroJSBundleProvider,
   RNApp,
-  RNOHErrorDialog,
   ResourceJSBundleProvider,
   RNOHCoreContext
 } from '@rnoh/react-native-openharmony';
@@ -21,9 +18,6 @@ struct Index {
   build() {
     Column() {
       if (this.rnohCoreContext) {
-        if (this.rnohCoreContext?.isDebugModeEnabled) {
-          RNOHErrorDialog({ ctx: this.rnohCoreContext })
-        }
         RNApp({
           rnInstanceConfig: {
             name: "EvoLoopMobile",
@@ -34,17 +28,14 @@ struct Index {
               'Material Design Icons': $rawfile('fonts/MaterialCommunityIcons.ttf'),
               'MaterialCommunityIcons': $rawfile('fonts/MaterialCommunityIcons.ttf')
             },
-            enableDebugger: this.rnohCoreContext?.isDebugModeEnabled,
+            enableDebugger: false,
           },
           appKey: "EvoLoopMobile",
-          jsBundleProvider: this.rnohCoreContext?.isDebugModeEnabled ?
-            new AnyJSBundleProvider([
-              new MetroJSBundleProvider(),
-              new ResourceJSBundleProvider(this.rnohCoreContext.uiAbilityContext.resourceManager, 'hermes_bundle.hbc'),
-            ]) :
-            /**
-             * NOTE: The HBC format is recommended for Hermes in a production environment. HBC provides better performance and loading times.
-             */
+          /**
+           * NOTE: The HBC format is recommended for Hermes in a production environment.
+           * HBC provides better performance and loading times.
+           */
+          jsBundleProvider:
             new ResourceJSBundleProvider(this.rnohCoreContext.uiAbilityContext.resourceManager, 'hermes_bundle.hbc'),
         })
       }
