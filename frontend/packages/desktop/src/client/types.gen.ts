@@ -1385,28 +1385,6 @@ export type SkillParameter = {
 };
 
 /**
- * 智能合成请求
- */
-export type SmartSynthesisRequest = {
-    project_id?: (number | null);
-    thread_id?: (string | null);
-    session_id: string;
-    task_goal: string;
-    annotation_ids?: (Array<(number)> | null);
-};
-
-/**
- * 智能合成响应
- */
-export type SmartSynthesisResponse = {
-    success?: boolean;
-    message?: string;
-    job_id: number;
-    status: string;
-    [key: string]: unknown | boolean | string | number;
-};
-
-/**
  * [NEW] Request to start event recording for an active mirror session.
  */
 export type StartMirrorRecordingRequest = {
@@ -1499,30 +1477,6 @@ export type SymbolResponse = {
     file_path: string;
     start_line: number;
     end_line: number;
-    [key: string]: unknown | boolean | string | number;
-};
-
-/**
- * 合成任务状态响应
- */
-export type SynthesisJobResponse = {
-    success?: boolean;
-    message?: string;
-    id: number;
-    session_id: string;
-    status: string;
-    progress_percent: number;
-    current_phase: (string | null);
-    task_goal: string;
-    created_at: string;
-    started_at: (string | null);
-    completed_at: (string | null);
-    result: ({
-    [key: string]: unknown;
-} | null);
-    error: ({
-    [key: string]: unknown;
-} | null);
     [key: string]: unknown | boolean | string | number;
 };
 
@@ -2650,25 +2604,6 @@ export type LearningListAnnotationsData = {
 };
 
 export type LearningListAnnotationsResponse = (Array<AnnotationResponse>);
-
-export type LearningStartSmartSynthesisData = {
-    requestBody: SmartSynthesisRequest;
-    sessionId: string;
-};
-
-export type LearningStartSmartSynthesisResponse = (SmartSynthesisResponse);
-
-export type LearningGetSynthesisJobData = {
-    jobId: number;
-};
-
-export type LearningGetSynthesisJobResponse = (SynthesisJobResponse);
-
-export type LearningListSessionSynthesisJobsData = {
-    sessionId: string;
-};
-
-export type LearningListSessionSynthesisJobsResponse = (Array<SynthesisJobResponse>);
 
 export type LearningCleanupRecordingSessionData = {
     sessionId: string;

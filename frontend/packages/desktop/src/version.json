@@ -1,8 +1,8 @@
 {
-  "version": "0.1.0",
+  "version": "0.7.0",
   "buildNumber": 1,
-  "buildTime": "",
-  "gitCommit": "unknown",
-  "stage": "alpha",
-  "fullVersion": "0.1.0+1 (unknown)"
+  "buildTime": "20260622181312",
+  "gitCommit": "8fe17ce4",
+  "stage": "production",
+  "fullVersion": "0.7.0+1 (8fe17ce)"
 }
