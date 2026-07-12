@@ -274,7 +274,7 @@ RCT_EXPORT_METHOD(start:(RCTPromiseResolveBlock)resolve
                                                                channels:1
                                                             interleaved:NO];
 
-    __weak typeof(self) weakSelf = self;
+    __weak RNVoiceEngine *weakSelf = self;
     [inputNode installTapOnBus:0 bufferSize:1600 format:format block:^(AVAudioPCMBuffer *buffer, AVAudioTime *when) {
       [weakSelf processAudioBuffer:buffer];
     }];
@@ -408,7 +408,6 @@ RCT_EXPORT_METHOD(release:(RCTPromiseResolveBlock)resolve
   [_partialBuffer removeAllObjects];
   SherpaOnnxVoiceActivityDetectorReset(_vad);
   _pitchFilter.reset();
-}
 }
 
 #pragma mark - TTS Audio Player
