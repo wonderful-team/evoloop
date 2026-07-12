@@ -9,6 +9,7 @@ export interface SubscriptionPlan {
   benefits?: Record<string, number | boolean | string>
   definitions?: Record<string, { name: string; desc: string; category: string }>
   sort?: number
+  purchasable?: number
 }
 
 export interface SubscriptionDetail {

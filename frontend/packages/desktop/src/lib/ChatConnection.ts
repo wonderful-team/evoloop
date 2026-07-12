@@ -4,6 +4,8 @@ export interface ChatConnectionCallbacks {
   onConnectionChange: (connected: boolean, status: string) => void
   onToken: (token: string, messageId?: string) => void
   onActivity: (activity: any) => void // Lightweight run metadata only (no steps)
+  /** Raw system_log event (e.g. macro_thought step feed from MacroEngine) */
+  onSystemLog?: (event: { event?: string; data?: unknown }) => void
   onArtifact: (artifact: any) => void // Incremental artifact update
   onStatus: (status: any) => void // Incremental status update
   onHumanRequest: (request: any) => void
@@ -205,6 +207,16 @@ export class ChatConnection {
         this.callbacks?.onActivity(data)
       } catch (err) {
         console.error("[ChatConnection] Failed to parse activity", err)
+      }
+    })
+
+    // System logs (macro_thought step feed, etc.)
+    sse.addEventListener("system_log", (e) => {
+      try {
+        const data = JSON.parse(e.data)
+        this.callbacks?.onSystemLog?.(data)
+      } catch (err) {
+        console.error("[ChatConnection] Failed to parse system_log", err)
       }
     })
 

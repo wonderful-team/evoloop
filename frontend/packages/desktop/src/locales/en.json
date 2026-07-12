@@ -920,10 +920,7 @@
     "startRecording": "Record",
     "status": "Status",
     "statusBadge": {
-      "active": "Active",
       "candidate": "Candidate",
-      "draft": "Draft",
-      "inactive": "Inactive",
       "pending_review": "Pending Review",
       "verified": "Verified"
     },
@@ -966,7 +963,16 @@
     "videoNotFoundWithPath": "Video file not found: {{path}}",
     "webVideoHint": "Video playback is only available in the desktop app.",
     "executionStartedWithMode": "{{message}} ({{mode}})",
-    "noRecordingAvailable": "No recording available"
+    "noRecordingAvailable": "No recording available",
+    "runNeedsConfirm": "Confirm this skill before running it",
+    "macroRun": {
+      "title": "Macro execution",
+      "openChatFirst": "Open a chat first to see execution progress"
+    },
+    "selfHeal": {
+      "toggle": "Self-heal",
+      "toggleHint": "When enabled, a failed macro run falls back to the agent to recover. This toggle affects debug runs only."
+    }
   },
   "macroEditor": {
     "actions": "{{count}} actions",

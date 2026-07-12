@@ -31,11 +31,13 @@ function SubscriptionDashboard() {
   const handleSelectPlan = async (levelId: number) => {
     const isRenewing = levelId === detail?.level_id
     setIsRenewalMode(isRenewing)
-    setShowPayment(true)
     try {
       await createOrderMutation.mutateAsync(levelId)
+      // 下单成功后才打开支付弹窗（免费等级等非法目标会被后端拒绝）
+      setShowPayment(true)
     } catch (e) {
       console.error("Order creation failed", e)
+      setShowPayment(false)
     }
   }
 

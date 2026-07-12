@@ -38,6 +38,7 @@ import type { LearnedSkill } from "@/types/skill"
 import { ImportSkillsDialog } from "./ImportSkillsDialog"
 import { SkillDetailsPanel } from "./SkillDetailsPanel"
 import { SkillExecutionDialog } from "./SkillExecutionDialog"
+import { isSkillRoutable } from "./skillLifecycle"
 
 interface SkillLibraryViewProps {
   threadId: string
@@ -229,7 +230,7 @@ export function SkillLibraryView({
                               className="text-[10px] px-1.5 py-0 font-medium bg-muted/50"
                             >
                               {t(
-                                `learning.statusBadge.${skill.status || "active"}`,
+                                `learning.statusBadge.${skill.status || "pending_review"}`,
                               )}
                             </Badge>
                             <span className="text-[10px] text-muted-foreground flex items-center gap-1">
@@ -319,6 +320,12 @@ export function SkillLibraryView({
                       size="sm"
                       variant="secondary"
                       className="h-8 gap-1.5 text-xs font-medium px-3"
+                      disabled={!isSkillRoutable(skill)}
+                      title={
+                        isSkillRoutable(skill)
+                          ? undefined
+                          : t("learning.runNeedsConfirm")
+                      }
                       onClick={(e) => {
                         e.stopPropagation()
                         handleRunClick(skill)

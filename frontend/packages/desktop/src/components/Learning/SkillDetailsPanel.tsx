@@ -28,6 +28,7 @@ import { toast } from "sonner"
 import { LearningService } from "@/client/sdk.gen"
 import { MarkdownRenderer } from "@/components/Common/MarkdownRenderer"
 import type { LearnedSkill } from "@/types/skill"
+import { isSkillRoutable } from "./skillLifecycle"
 
 interface SkillDetailsPanelProps {
   skill: LearnedSkill | null
@@ -142,7 +143,7 @@ export function SkillDetailsPanel({
                     variant="outline"
                     className="bg-primary/5 text-primary border-primary/20"
                   >
-                    {t(`learning.statusBadge.${skill.status || "draft"}`)}
+                    {t(`learning.statusBadge.${skill.status || "pending_review"}`)}
                   </Badge>
                   <Badge
                     variant="outline"
@@ -447,6 +448,12 @@ export function SkillDetailsPanel({
             <Button
               variant="default"
               className="flex-1 h-10 font-medium shadow-sm transition-all hover:shadow-md"
+              disabled={!isSkillRoutable(skill)}
+              title={
+                isSkillRoutable(skill)
+                  ? undefined
+                  : t("learning.runNeedsConfirm")
+              }
               onClick={() => {
                 onRun?.(skill)
                 onOpenChange(false)

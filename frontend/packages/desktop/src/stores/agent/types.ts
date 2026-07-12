@@ -1,3 +1,5 @@
+import type { MacroStepEntry } from "@/components/Learning/macroRun"
+
 export interface AgentState {
   // Activity State
   status:
@@ -46,6 +48,9 @@ export interface AgentState {
   _flushTimeout: ReturnType<typeof setTimeout> | null
   streamingSteps: any[]
 
+  // --- Macro step feed (macro_thought from MacroEngine, current thread) ---
+  macroSteps: MacroStepEntry[]
+
   isConnected: boolean
   connectionStatus: string
 
@@ -53,6 +58,7 @@ export interface AgentState {
   _setConnectionStatus: (connected: boolean, status: string) => void
   _appendThinking: (text: string) => void
   _setActivitySnapshot: (snapshot: any) => void
+  _appendMacroStep: (payload: unknown) => void
   _addArtifact: (artifact: any) => void
   _updateStatus: (status: any) => void
   _setHumanRequest: (request: any) => void

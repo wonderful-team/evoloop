@@ -103,7 +103,7 @@ export const SubscriptionStatus = ({
                 </p>
               </div>
               <Button
-                onClick={onRenew}
+                onClick={onUpgrade ?? onRenew}
                 size="sm"
                 className="h-9 px-6 font-bold shadow-sm shadow-primary/10 transition-all hover:scale-[1.02] active:scale-95"
               >

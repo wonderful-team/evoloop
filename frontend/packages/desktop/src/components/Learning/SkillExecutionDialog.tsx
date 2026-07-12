@@ -12,6 +12,7 @@ import {
 import { Input } from "@evoloop/shared/components/ui/input"
 import { Label } from "@evoloop/shared/components/ui/label"
 import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
+import { Switch } from "@evoloop/shared/components/ui/switch"
 import { Textarea } from "@evoloop/shared/components/ui/textarea"
 import { AlertCircle, Loader2, Play } from "lucide-react"
 import React, { useState } from "react"
@@ -19,6 +20,7 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { LearningService } from "@/client/sdk.gen"
 import type { LearnedSkill } from "@/types/skill"
+import { executeSkillErrorMessage } from "./skillLifecycle"
 
 interface SkillExecutionDialogProps {
   open: boolean
@@ -40,6 +42,8 @@ export function SkillExecutionDialog({
   const { t } = useTranslation()
   const [params, setParams] = useState<Record<string, any>>({})
   const [executing, setExecuting] = useState(false)
+  // Per-run self-heal toggle (defaults to the skill's declared setting)
+  const [selfHealEnabled, setSelfHealEnabled] = useState(true)
 
   // Initialize defaults
   React.useEffect(() => {
@@ -67,6 +71,7 @@ export function SkillExecutionDialog({
         }
       })
       setParams(defaults)
+      setSelfHealEnabled(skill.allow_self_healing !== false)
     }
   }, [open, skill])
 
@@ -79,6 +84,7 @@ export function SkillExecutionDialog({
           thread_id: threadId,
           params,
           project_id: projectId,
+          allow_self_healing: selfHealEnabled,
         },
       })
       toast.success(t("learning.executionStarted"))
@@ -86,7 +92,7 @@ export function SkillExecutionDialog({
       onSuccess?.()
     } catch (error) {
       console.error("Execution failed", error)
-      toast.error(t("learning.executionFailed"))
+      toast.error(executeSkillErrorMessage(error) ?? t("learning.executionFailed"))
     } finally {
       setExecuting(false)
     }
@@ -242,6 +248,17 @@ export function SkillExecutionDialog({
         </ScrollArea>
 
         <DialogFooter className="p-6 pt-2 border-t border-border mt-auto bg-muted/5">
+          <label
+            className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none mr-auto"
+            title={t("learning.selfHeal.toggleHint")}
+          >
+            <Switch
+              checked={selfHealEnabled}
+              onCheckedChange={setSelfHealEnabled}
+              className="scale-90"
+            />
+            {t("learning.selfHeal.toggle")}
+          </label>
           <Button
             variant="ghost"
             onClick={() => onOpenChange(false)}

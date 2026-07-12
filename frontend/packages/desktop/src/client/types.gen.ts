@@ -573,6 +573,7 @@ export type ExecuteSkillRequest = {
     thread_id: string;
     params: SkillExecutionParams;
     execution_mode?: (string | null);
+    allow_self_healing?: (boolean | null);
 };
 
 export type ExecuteSkillResponse = {
@@ -1326,6 +1327,7 @@ export type SkillDetailResponse = {
     is_active: boolean;
     status: string;
     execution_mode?: string;
+    allow_self_healing?: boolean;
     macro_script?: (string | null);
     validation_report?: ({
     [key: string]: unknown;
@@ -1354,6 +1356,7 @@ export type SkillDTO = {
     is_active: boolean;
     status: string;
     execution_mode?: string;
+    allow_self_healing?: boolean;
     macro_script?: (string | null);
     validation_report?: ({
     [key: string]: unknown;
@@ -3037,6 +3040,15 @@ export type ResourcesDeleteResourceData = {
 };
 
 export type ResourcesDeleteResourceResponse = (OperationResponse);
+
+export type RouteRouteInitData = {
+    platform?: string;
+    version?: string;
+};
+
+export type RouteRouteInitResponse = (unknown);
+
+export type RouteRouteIndexResponse = (unknown);
 
 export type StreamStreamChatData = {
     guestId?: (string | null);

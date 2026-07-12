@@ -9,6 +9,7 @@ export interface LearnedSkill {
   created_at: string
   updated_at: string
   is_active: boolean
+  allow_self_healing?: boolean
   status?: string
   failure_count?: number
   avg_duration?: string

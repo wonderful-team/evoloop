@@ -2,7 +2,7 @@ import { cn } from "@evoloop/shared/lib/utils"
 import { AlertTriangle } from "lucide-react"
 import { memo } from "react"
 import { useTranslation } from "react-i18next"
-import { useChatStore } from "@/stores/chatStore"
+import { useAgentStore } from "@/stores/agentStore"
 
 /**
  * QuotaExhaustedBanner - Global banner when LLM quota is exhausted
@@ -11,8 +11,8 @@ import { useChatStore } from "@/stores/chatStore"
  */
 export const QuotaExhaustedBanner = memo(() => {
   const { t } = useTranslation()
-  const status = useChatStore((s) => s.status)
-  const quotaInfo = useChatStore((s) => s.quotaExhaustedInfo)
+  const status = useAgentStore((s) => s.status)
+  const quotaInfo = useAgentStore((s) => s.quotaExhaustedInfo)
 
   // Only show when quota is exhausted
   const isVisible = status === "quota_exhausted"

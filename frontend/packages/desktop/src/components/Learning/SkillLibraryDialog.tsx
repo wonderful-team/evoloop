@@ -31,6 +31,7 @@ import { LearningService } from "@/client/sdk.gen"
 import type { PaginatedSkillsResponse } from "@/client/types.gen"
 import type { LearnedSkill } from "@/types/skill"
 import { SkillExecutionDialog } from "./SkillExecutionDialog"
+import { isSkillRoutable } from "./skillLifecycle"
 
 interface SkillLibraryDialogProps {
   open?: boolean
@@ -252,7 +253,7 @@ export function SkillLibraryDialog({
                               className="bg-primary/5 text-primary border-primary/20 text-[10px]"
                             >
                               {t(
-                                `learning.statusBadge.${selectedSkill.status || "active"}`,
+                                `learning.statusBadge.${selectedSkill.status || "pending_review"}`,
                               )}
                             </Badge>
                           </div>
@@ -375,6 +376,12 @@ export function SkillLibraryDialog({
                       <Button
                         variant="default"
                         className="flex-1 h-9 font-medium shadow-sm"
+                        disabled={!isSkillRoutable(selectedSkill)}
+                        title={
+                          isSkillRoutable(selectedSkill)
+                            ? undefined
+                            : t("learning.runNeedsConfirm")
+                        }
                         onClick={(e) => handleRunClick(selectedSkill, e)}
                       >
                         <Play className="h-4 w-4 mr-2 fill-current" />

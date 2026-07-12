@@ -53,7 +53,16 @@ pub async fn start_screen_recording(
     // -tune zerolatency: for streaming-like capture
     println!("[ScreenRecorder] Launching ffmpeg recording...");
 
-    let mut child = Command::new("/usr/local/bin/ffmpeg")
+    // Resolve ffmpeg: Homebrew on Apple Silicon installs to /opt/homebrew/bin,
+    // Intel Macs to /usr/local/bin; fall back to PATH lookup last.
+    let ffmpeg_path = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"]
+        .iter()
+        .find(|p| std::path::Path::new(p).exists())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "ffmpeg".to_string());
+    println!("[ScreenRecorder] Using ffmpeg at: {}", ffmpeg_path);
+
+    let mut child = Command::new(&ffmpeg_path)
         .args([
             "-y",
             "-f", "avfoundation",
@@ -70,7 +79,7 @@ pub async fn start_screen_recording(
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("Failed to spawn /usr/local/bin/ffmpeg: {}", e))?;
+        .map_err(|e| format!("Failed to spawn ffmpeg ({}): {}", ffmpeg_path, e))?;
 
     let pid = child.id();
     println!("[ScreenRecorder] ffmpeg process spawned with PID: {}", pid);

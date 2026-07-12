@@ -2,6 +2,10 @@ import i18n from "@evoloop/shared/i18n"
 import { toast } from "sonner"
 import { create } from "zustand"
 import { AgentService } from "@/client"
+import {
+  appendMacroStep,
+  macroThoughtText,
+} from "@/components/Learning/macroRun"
 import type { AgentState } from "./agent/types"
 import { useChatStore } from "./chatStore"
 
@@ -20,6 +24,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   _thinkingBuffer: "",
   _flushTimeout: null,
   streamingSteps: [],
+  macroSteps: [],
 
   isConnected: false,
   connectionStatus: "disconnected",
@@ -65,6 +70,14 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     }, 50)
 
     set({ _thinkingBuffer: newBuffer, _flushTimeout: timeout })
+  },
+
+  _appendMacroStep: (payload) => {
+    const text = macroThoughtText(payload)
+    if (!text) return
+    set((state) => ({
+      macroSteps: appendMacroStep(state.macroSteps, text, Date.now()),
+    }))
   },
 
   _setActivitySnapshot: (data) => {
@@ -223,6 +236,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       streamingThinking: "",
       _thinkingBuffer: "",
       finalOutcome: null,
+      macroSteps: [],
     })
     useChatStore.getState()._handleRunStart(ev)
     console.log(`[AgentStore] Run started: ${ev.run_id}`)

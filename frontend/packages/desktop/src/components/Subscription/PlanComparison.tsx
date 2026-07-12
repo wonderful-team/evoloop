@@ -127,6 +127,9 @@ export const PlanComparison = ({
       {plans.map((plan) => {
         const isCurrent = plan.level_id === currentLevelId
         const isFree = parseFloat(plan.price) === 0
+        // 后端标记不可购买（免费/默认等级）：兼容旧接口，未返回时按价格判断
+        const canPurchase =
+          plan.purchasable !== undefined ? plan.purchasable === 1 : !isFree
 
         const targetPrice = parseFloat(plan.price)
         const targetSort = (plan.benefits?.sort as number) || 0
@@ -260,14 +263,16 @@ export const PlanComparison = ({
                         ? "border-primary/20 text-primary hover:bg-primary/5"
                         : "bg-primary hover:bg-primary/90 shadow-md shadow-primary/10"
                     }`}
-                    disabled={isCurrent || isLoading}
-                    onClick={() => !isCurrent && onSelect(plan.level_id)}
+                    disabled={isCurrent || isLoading || !canPurchase}
+                    onClick={() => !isCurrent && canPurchase && onSelect(plan.level_id)}
                   >
                     {isCurrent
                       ? t("subscription.plan.active")
-                      : isFree
-                        ? t("subscription.plan.startFree")
-                        : t("subscription.plan.subscribe")}
+                      : !canPurchase
+                        ? t("subscription.plan.free")
+                        : isFree
+                          ? t("subscription.plan.startFree")
+                          : t("subscription.plan.subscribe")}
                   </Button>
                   {!isFree && !isCurrent && hasActiveSubscription && (
                     <p className="text-[11px] text-muted-foreground text-center">

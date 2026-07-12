@@ -920,10 +920,7 @@
     "startRecording": "录制",
     "status": "状态",
     "statusBadge": {
-      "active": "已激活",
       "candidate": "候选",
-      "draft": "草稿",
-      "inactive": "已停用",
       "pending_review": "待审核",
       "verified": "已验证"
     },
@@ -966,7 +963,16 @@
     "videoNotFoundWithPath": "未找到视频文件：{{path}}",
     "webVideoHint": "视频播放仅在桌面应用中可用。",
     "executionStartedWithMode": "{{message}}（{{mode}}）",
-    "noRecordingAvailable": "没有可用录制"
+    "noRecordingAvailable": "没有可用录制",
+    "runNeedsConfirm": "请先确认该技能再执行",
+    "macroRun": {
+      "title": "宏执行进度",
+      "openChatFirst": "请先打开一个会话以查看执行进度"
+    },
+    "selfHeal": {
+      "toggle": "自愈",
+      "toggleHint": "开启后，宏执行失败会回落给 Agent 尝试恢复。此开关仅影响调试运行。"
+    }
   },
   "macroEditor": {
     "actions": "{{count}} 个操作",

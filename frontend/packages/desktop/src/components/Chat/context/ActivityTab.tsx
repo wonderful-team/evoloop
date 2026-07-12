@@ -17,11 +17,14 @@ import {
 } from "lucide-react"
 import { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
 import { PlanningService } from "@/client"
 import { LearningService } from "@/client/sdk.gen"
 import { SkillDetailsPanel } from "@/components/Learning/SkillDetailsPanel"
+import { executeSkillErrorMessage } from "@/components/Learning/skillLifecycle"
 import { useAgentStore } from "@/stores/agentStore"
 import { useChatStore } from "@/stores/chatStore"
+import type { LearnedSkill } from "@/types/skill"
 import { MessageContent } from "../MessageContent"
 
 interface PlanStep {
@@ -124,6 +127,27 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
     queryFn: () => LearningService.getSkill({ skillId: selectedSkillId! }),
     enabled: !!selectedSkillId && isSkillPanelOpen,
   })
+
+  const handleRunSkill = async (skill: LearnedSkill) => {
+    if (!activeThreadId) {
+      toast.error(t("learning.macroRun.openChatFirst"))
+      return
+    }
+    try {
+      await LearningService.executeSkill({
+        skillId: skill.id,
+        requestBody: {
+          thread_id: activeThreadId,
+          params: {},
+          allow_self_healing: skill.allow_self_healing !== false,
+        },
+      })
+      toast.success(t("learning.executionStarted"))
+    } catch (error) {
+      console.error("Execution failed", error)
+      toast.error(executeSkillErrorMessage(error) ?? t("learning.executionFailed"))
+    }
+  }
 
   return (
     <div className="h-full w-full min-w-0 flex flex-col bg-muted/5 overflow-hidden">
@@ -340,6 +364,7 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
           setIsSkillPanelOpen(open)
           if (!open) setTimeout(() => setSelectedSkillId(null), 200)
         }}
+        onRun={handleRunSkill}
       />
     </div>
   )

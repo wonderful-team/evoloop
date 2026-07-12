@@ -9,6 +9,7 @@ import {
 import { useNavigate } from "@tanstack/react-router"
 import { AlertTriangle, ExternalLink, RefreshCw } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import { useAgentStore } from "@/stores/agentStore"
 import { useChatStore } from "@/stores/chatStore"
 
 /**
@@ -19,8 +20,8 @@ import { useChatStore } from "@/stores/chatStore"
 export function QuotaExhaustedCard() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const quotaInfo = useChatStore((s) => s.quotaExhaustedInfo)
-  const status = useChatStore((s) => s.status)
+  const quotaInfo = useAgentStore((s) => s.quotaExhaustedInfo)
+  const status = useAgentStore((s) => s.status)
   const sendMessage = useChatStore((s) => s.sendMessage)
 
   // Only show when quota is exhausted

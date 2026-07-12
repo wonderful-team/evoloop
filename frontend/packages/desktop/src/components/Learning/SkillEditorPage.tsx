@@ -4,6 +4,7 @@
 
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Separator } from "@evoloop/shared/components/ui/separator"
+import { Switch } from "@evoloop/shared/components/ui/switch"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { dump as yamlDump, load as yamlLoad } from "js-yaml"
 import {
@@ -25,6 +26,8 @@ import { useChatStore } from "@/stores/chatStore"
 import type { LearnedSkill } from "@/types/skill"
 import type { ParamDef } from "./EditorSidebar"
 import { EditorSidebar } from "./EditorSidebar"
+import { MacroRunFeed } from "./MacroRunFeed"
+import { executeSkillErrorMessage } from "./skillLifecycle"
 import { MacroEditor, type MacroStep, MacroYamlEditor } from "./SmartReplay"
 
 interface SkillEditorPageProps {
@@ -53,6 +56,9 @@ export function SkillEditorPage({
   >("agentic")
   const [macroScript, setMacroScript] = useState("[]")
   const [editorMode, setEditorMode] = useState<"visual" | "yaml">("visual")
+  // Per-run self-heal toggle for debug runs (defaults to the skill's
+  // declared setting; the run-level flag can only disable healing).
+  const [selfHealEnabled, setSelfHealEnabled] = useState(true)
   const [hasChanges, setHasChanges] = useState(false)
 
   // Fetch skill data
@@ -129,6 +135,7 @@ export function SkillEditorPage({
           ? "deterministic"
           : "agentic",
       )
+      setSelfHealEnabled(skill.allow_self_healing !== false)
 
       // Handle macro_script: API now returns YAML string directly
       const rawMacro = (skill as any).macro_script
@@ -298,7 +305,13 @@ export function SkillEditorPage({
 
   const handleRun = async () => {
     try {
-      const threadId = useChatStore.getState().threadId || `debug-${Date.now()}`
+      // Progress (macro_thought steps) streams to the active chat thread's
+      // SSE; without one the run would be invisible, so require it.
+      const threadId = useChatStore.getState().threadId
+      if (!threadId) {
+        toast.error(t("learning.macroRun.openChatFirst"))
+        return
+      }
       const response = await LearningService.executeSkill({
         skillId,
         requestBody: {
@@ -306,6 +319,8 @@ export function SkillEditorPage({
           params: {},
           // Use current page execution mode (allows testing before saving)
           execution_mode: executionMode,
+          // Per-run self-heal override from the debug-run toggle
+          allow_self_healing: selfHealEnabled,
         },
       })
       // Show execution mode in toast for clarity
@@ -319,8 +334,8 @@ export function SkillEditorPage({
           mode: modeLabel,
         }),
       )
-    } catch (_e) {
-      toast.error(t("learning.executionFailed"))
+    } catch (e) {
+      toast.error(executeSkillErrorMessage(e) ?? t("learning.executionFailed"))
     }
   }
 
@@ -377,6 +392,18 @@ export function SkillEditorPage({
         </div>
 
         <div className="flex items-center gap-3">
+          <label
+            className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none"
+            title={t("learning.selfHeal.toggleHint")}
+          >
+            <Switch
+              checked={selfHealEnabled}
+              onCheckedChange={setSelfHealEnabled}
+              className="scale-90"
+            />
+            {t("learning.selfHeal.toggle")}
+          </label>
+
           <Button
             variant="outline"
             size="sm"
@@ -415,6 +442,8 @@ export function SkillEditorPage({
           </Button>
         </div>
       </header>
+
+      <MacroRunFeed />
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">

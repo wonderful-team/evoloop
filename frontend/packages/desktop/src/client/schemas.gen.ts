@@ -2355,6 +2355,17 @@ export const ExecuteSkillRequestSchema = {
                 }
             ],
             title: 'Execution Mode'
+        },
+        allow_self_healing: {
+            anyOf: [
+                {
+                    type: 'boolean'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Allow Self Healing'
         }
     },
     type: 'object',
@@ -5210,6 +5221,11 @@ export const SkillDTOSchema = {
             title: 'Execution Mode',
             default: 'agentic'
         },
+        allow_self_healing: {
+            type: 'boolean',
+            title: 'Allow Self Healing',
+            default: true
+        },
         macro_script: {
             anyOf: [
                 {
@@ -5326,6 +5342,11 @@ export const SkillDetailResponseSchema = {
             type: 'string',
             title: 'Execution Mode',
             default: 'agentic'
+        },
+        allow_self_healing: {
+            type: 'boolean',
+            title: 'Allow Self Healing',
+            default: true
         },
         macro_script: {
             anyOf: [

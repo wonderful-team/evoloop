@@ -161,6 +161,9 @@ export const useChatStore = create<ChatState>((set, get) => {
           onConnectionChange: agentStore._setConnectionStatus,
           onToken: (token, messageId) => store._appendToken(token, messageId),
           onActivity: agentStore._setActivitySnapshot,
+          onSystemLog: (ev) => {
+            if (ev?.event === "macro_thought") agentStore._appendMacroStep(ev)
+          },
           onArtifact: agentStore._addArtifact,
           onStatus: agentStore._updateStatus,
           onHumanRequest: agentStore._setHumanRequest,
