@@ -4,10 +4,11 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
-APP_VERSION=$(cat "$PROJECT_ROOT/VERSION" 2>/dev/null | tr -d '[:space:]' || grep ^APP_VERSION= "$PROJECT_ROOT/.env" 2>/dev/null | cut -d= -f2 || echo "0.1.0")
+APP_VERSION=$(cat "$PROJECT_ROOT/VERSION" 2>/dev/null | tr -d '[:space:]' || grep -hs ^APP_VERSION= "$PROJECT_ROOT/mobile/.env" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d= -f2 | head -1 || echo "0.1.0")
 
 BUILD_ANDROID=false
 BUILD_IOS=false
+BUILD_HARMONY=false
 DOWNLOAD_MODELS=false
 GENERATE_ICONS=false
 RELEASE=false
@@ -20,6 +21,7 @@ while [[ $# -gt 0 ]]; do
   case $1 in
     --android|-a) BUILD_ANDROID=true; shift ;;
     --ios|-i) BUILD_IOS=true; shift ;;
+    --harmony) BUILD_HARMONY=true; shift ;;
     --all) BUILD_ANDROID=true; BUILD_IOS=true; shift ;;
     --download-models|-m) DOWNLOAD_MODELS=true; shift ;;
     --generate-icons|-g) GENERATE_ICONS=true; shift ;;
@@ -34,7 +36,8 @@ while [[ $# -gt 0 ]]; do
       echo "Usage: $0 [options]"
       echo "  --android, -a         Build Android"
       echo "  --ios, -i             Build iOS"
-      echo "  --all                 Build both Android and iOS"
+      echo "  --harmony             Build HarmonyOS"
+      echo "  --all                 Build Android + iOS"
       echo "  --download-models, -m Download Sherpa-ONNX ASR model"
       echo "  --generate-icons, -g  Generate app icons"
       echo "  --release, -r         Release build (signed)"
@@ -49,7 +52,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [ "$BUILD_ANDROID" = false ] && [ "$BUILD_IOS" = false ]; then
+if [ "$BUILD_ANDROID" = false ] && [ "$BUILD_IOS" = false ] && [ "$BUILD_HARMONY" = false ]; then
   BUILD_ANDROID=true
   BUILD_IOS=true
 fi
@@ -58,22 +61,39 @@ load_env
 header "Building EvoLoop Mobile"
 MOBILE_DIR="$PROJECT_ROOT/mobile"
 
-echo "  Android:    ${BUILD_ANDROID}"
-echo "  iOS:        ${BUILD_IOS}"
-echo "  Release:    ${RELEASE}"
+echo "  Android:   ${BUILD_ANDROID}"
+echo "  iOS:       ${BUILD_IOS}"
+echo "  HarmonyOS: ${BUILD_HARMONY}"
+echo "  Release:   ${RELEASE}"
 echo ""
 
 cd "$MOBILE_DIR"
 
-# 如果指定了 --env-file，先复制到根目录 .env
+# 移动端通过 react-native-dotenv 读取 mobile/.env，这是配置的唯一来源。
+# 注意：不要传 --env-file=.env.prod.desktop（桌面 sidecar，会指向 127.0.0.1）。
 if [ -n "$ENV_FILE" ]; then
   env_file_path="$PROJECT_ROOT/$ENV_FILE"
   if [ ! -f "$env_file_path" ]; then
     err "Env file not found: $env_file_path"
     exit 1
   fi
-  cp "$env_file_path" "$PROJECT_ROOT/.env"
-  ok "Copied env file: $ENV_FILE → .env"
+  if [[ "$ENV_FILE" == *"desktop"* ]]; then
+    err "Refusing to use desktop env ($ENV_FILE) for mobile build."
+    err "Mobile reads mobile/.env; provide a mobile config instead."
+    exit 1
+  fi
+  cp "$env_file_path" "$MOBILE_DIR/.env"
+  ok "Copied env file: $ENV_FILE → mobile/.env"
+fi
+
+if [ ! -f "$MOBILE_DIR/.env" ]; then
+  err "mobile/.env not found. Create it from your mobile config before building."
+  exit 1
+fi
+
+if grep -qE "EVOCLOUD_API_URL=http://(127\.0\.0\.1|localhost)" "$MOBILE_DIR/.env"; then
+  warn "mobile/.env points EVOCLOUD_API_URL at localhost — this looks like a desktop config."
+  warn "The packaged app will not be able to reach a backend on a real device."
 fi
 
 if [ "$CLEAN" = true ]; then
@@ -84,6 +104,7 @@ if [ "$CLEAN" = true ]; then
   ok "Clean complete"
 fi
 
+header "Phase 1: Dependencies"
 step "Installing dependencies"
 if [ ! -d "node_modules" ]; then
   yarn install --frozen-lockfile
@@ -91,6 +112,7 @@ else
   ok "node_modules exists"
 fi
 
+header "Phase 2: Assets (download / generate before build)"
 if [ "$DOWNLOAD_MODELS" = true ]; then
   step "Downloading Sherpa-ONNX ASR model"
   bash "$PROJECT_ROOT/deploy/mobile-download-sherpa-asr-model.sh"
@@ -101,90 +123,33 @@ if [ "$GENERATE_ICONS" = true ]; then
   bash "$PROJECT_ROOT/deploy/mobile-generate-icons.sh"
 fi
 
+ANDROID_ARGS=()
+if [ "$RELEASE" = true ]; then
+  ANDROID_ARGS+=("--release")
+  [ "$BUILD_AAB" = true ] && ANDROID_ARGS+=("--aab") || ANDROID_ARGS+=("--apk")
+fi
+[ "$CLEAN" = true ] && ANDROID_ARGS+=("--clean")
+
+IOS_ARGS=()
+[ "$RELEASE" = true ] && IOS_ARGS+=("--release")
+[ "$CLEAN" = true ] && IOS_ARGS+=("--clean")
+
 if [ "$BUILD_ANDROID" = true ]; then
-  step "Building Android"
-  cd android
-  if [ "$CLEAN" = true ]; then
-    ./gradlew clean
-  fi
-  aab_path=""
-  if [ "$RELEASE" = true ]; then
-    if [ "$BUILD_AAB" = true ]; then
-      info "Building release AAB..."
-      ./gradlew bundleRelease
-      artifact_path=$(find app/build/outputs/bundle/release -name "*.aab" 2>/dev/null | head -1)
-      artifact_type="AAB"
-    else
-      info "Building release APK..."
-      ./gradlew assembleRelease
-      artifact_path=$(find app/build/outputs/apk/release -name "*.apk" 2>/dev/null | head -1)
-      artifact_type="APK"
-    fi
-    if [ -n "$artifact_path" ]; then
-      mkdir -p "$PROJECT_ROOT/deploy/dist"
-      local dest_name
-      if [ "$BUILD_AAB" = true ]; then
-        dest_name="Evoloop_mobile_${APP_VERSION}.aab"
-      else
-        dest_name="Evoloop_mobile_${APP_VERSION}.apk"
-      fi
-      mv "$artifact_path" "$PROJECT_ROOT/deploy/dist/$dest_name"
-      ok "$artifact_type: $PROJECT_ROOT/deploy/dist/$dest_name"
-    fi
-  else
-    info "Building debug APK..."
-    ./gradlew assembleDebug
-    apk_path=$(find app/build/outputs/apk/debug -name "*.apk" 2>/dev/null | head -1)
-    if [ -n "$apk_path" ]; then
-      ok "APK: $apk_path"
-      mkdir -p "$PROJECT_ROOT/deploy/dist"
-      local debug_dest_name="Evoloop_mobile_${APP_VERSION}-debug.apk"
-      mv "$apk_path" "$PROJECT_ROOT/deploy/dist/$debug_dest_name"
-      ok "APK moved to $PROJECT_ROOT/deploy/dist/$debug_dest_name"
-    fi
-  fi
-  cd "$MOBILE_DIR"
+  header "Phase 3: Building Android"
+  bash "$SCRIPT_DIR/android.sh" "${ANDROID_ARGS[@]}"
   ok "Android build complete"
 fi
 
 if [ "$BUILD_IOS" = true ]; then
-  step "Building iOS"
-  cd ios
-  if [ ! -d "Pods" ]; then
-    info "Installing CocoaPods..."
-    pod install --repo-update
-  fi
-
-  if [ "$RELEASE" = true ]; then
-    info "Building release IPA..."
-    xcodebuild -workspace EvoLoopMobile.xcworkspace \
-      -scheme EvoLoopMobile \
-      -configuration Release \
-      -archivePath "$PROJECT_ROOT/deploy/dist/EvoLoopMobile_${APP_VERSION}.xcarchive" \
-      archive | xcpretty
-    xcodebuild -exportArchive \
-      -archivePath "$PROJECT_ROOT/deploy/dist/EvoLoopMobile_${APP_VERSION}.xcarchive" \
-      -exportPath "$PROJECT_ROOT/deploy/dist" \
-      -exportOptionsPlist "$MOBILE_DIR/ios/ExportOptions.plist" 2>/dev/null || \
-    xcodebuild -exportArchive \
-      -archivePath "$PROJECT_ROOT/deploy/dist/EvoLoopMobile_${APP_VERSION}.xcarchive" \
-      -exportPath "$PROJECT_ROOT/deploy/dist" \
-      -exportOptionsPlist "$MOBILE_DIR/ios/ExportOptions.plist" 2>/dev/null
-  else
-    info "Building debug app..."
-    xcodebuild -workspace EvoLoopMobile.xcworkspace \
-      -scheme EvoLoopMobile \
-      -configuration Debug \
-      -sdk iphonesimulator \
-      -derivedDataPath build | xcpretty 2>/dev/null || \
-    xcodebuild -workspace EvoLoopMobile.xcworkspace \
-      -scheme EvoLoopMobile \
-      -configuration Debug \
-      -sdk iphonesimulator \
-      -derivedDataPath build
-  fi
-  cd "$MOBILE_DIR"
+  header "Phase 4: Building iOS"
+  bash "$SCRIPT_DIR/ios.sh" "${IOS_ARGS[@]}"
   ok "iOS build complete"
+fi
+
+if [ "$BUILD_HARMONY" = true ]; then
+  header "Phase 5: Building HarmonyOS"
+  bash "$SCRIPT_DIR/harmony.sh" --env "$ENVIRONMENT"
+  ok "HarmonyOS build complete"
 fi
 
 ok "Mobile build complete!"

@@ -93,16 +93,29 @@ check_numpy() {
     major=$(echo "$numpy_version" | cut -d. -f1)
     if [ "$major" = "2" ]; then
       warn "NumPy 2.x detected ($numpy_version), downgrading to 1.26.4..."
+      local downgraded=false
+
       if command -v uv &>/dev/null; then
         if [ -n "$VIRTUAL_ENV" ]; then
-          uv pip install "numpy==1.26.4" --force-reinstall
+          uv pip install "numpy==1.26.4" --force-reinstall && downgraded=true
         else
-          uv pip install "numpy==1.26.4" --force-reinstall --system
+          uv pip install "numpy==1.26.4" --force-reinstall --system && downgraded=true
         fi
-      else
-        $python_cmd -m pip install "numpy==1.26.4" --force-reinstall
       fi
-      ok "NumPy downgraded to 1.26.4"
+
+      if [ "$downgraded" = false ]; then
+        $python_cmd -m pip install "numpy==1.26.4" --force-reinstall && downgraded=true
+      fi
+
+      if [ "$downgraded" = false ]; then
+        $python_cmd -m pip install "numpy==1.26.4" --force-reinstall --user && downgraded=true
+      fi
+
+      if [ "$downgraded" = true ]; then
+        ok "NumPy downgraded to 1.26.4"
+      else
+        warn "Could not downgrade NumPy. Attempting to proceed anyway..."
+      fi
     else
       ok "NumPy 1.x already installed ($numpy_version)"
     fi
@@ -160,16 +173,32 @@ restore_tauri_config() {
 
 install_frontend_deps() {
   cd "$PROJECT_ROOT/frontend"
-  if [ ! -d "node_modules" ]; then
-    info "Installing npm dependencies..."
-    npm install
-  else
+  if [ -d "node_modules" ]; then
     ok "node_modules already exists"
+    return
+  fi
+
+  if command -v corepack >/dev/null 2>&1; then
+    corepack enable pnpm >/dev/null 2>&1 || true
+  fi
+
+  if command -v pnpm >/dev/null 2>&1; then
+    info "Installing npm dependencies with pnpm..."
+    if ! pnpm install --frozen-lockfile; then
+      warn "pnpm frozen-lockfile failed (lockfile may be out of sync), retrying without --frozen-lockfile"
+      pnpm install
+    fi
+  else
+    warn "pnpm not found, falling back to npm"
+    npm install
   fi
 }
 
 clean_artifacts() {
   header "Cleaning Build Artifacts"
+
+  restore_tauri_config
+
   info "Stopping running processes..."
   pkill -9 -f "evoloop-backend" 2>/dev/null || true
   pkill -9 -f "EvoLoop" 2>/dev/null || true

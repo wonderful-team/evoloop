@@ -27,18 +27,24 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# 如果指定了 --env-file，先复制到根目录 .env
+# 如果指定了 --env-file，同步到所有需要的 .env 位置
 if [ -n "$ENV_FILE" ]; then
   env_file_path="$PROJECT_ROOT/$ENV_FILE"
   if [ ! -f "$env_file_path" ]; then
     err "Env file not found: $env_file_path"
     exit 1
   fi
+  if [[ "$ENV_FILE" == *"desktop"* ]]; then
+    err "Refusing to use desktop env ($ENV_FILE) for HarmonyOS build."
+    err "HarmonyOS reads mobile/.env; provide a mobile config instead."
+    exit 1
+  fi
   cp "$env_file_path" "$PROJECT_ROOT/.env"
-  ok "Copied env file: $ENV_FILE → .env"
+  cp "$env_file_path" "$PROJECT_ROOT/mobile/.env"
+  ok "Copied env file: $ENV_FILE → .env (root + mobile)"
 fi
 
-APP_VERSION=$(cat "$PROJECT_ROOT/VERSION" 2>/dev/null | tr -d '[:space:]' || grep ^APP_VERSION= "$PROJECT_ROOT/.env" 2>/dev/null | cut -d= -f2 || echo "0.1.0")
+APP_VERSION=$(cat "$PROJECT_ROOT/VERSION" 2>/dev/null | tr -d '[:space:]' || grep -hs ^APP_VERSION= "$PROJECT_ROOT/mobile/.env" "$PROJECT_ROOT/.env" 2>/dev/null | cut -d= -f2 | head -1 || echo "0.1.0")
 
 # =============================================================================
 # Detect DevEco Studio (provides HOS SDK + hvigor toolchain)
@@ -98,12 +104,12 @@ HARMONY_DIR="$PROJECT_ROOT/mobile/harmony"
 # ---------------------------------------------------------------------------
 step "Bundling JavaScript (Hermes)"
 if [ "$ENVIRONMENT" = "development" ]; then
-  ENVFILE=../.env npx react-native bundle-harmony \
+  npx react-native bundle-harmony \
     --js-engine hermes \
     --bundle-output "$HARMONY_DIR/entry/src/main/resources/rawfile/hermes_bundle.hbc" \
     --dev true
 else
-  ENVFILE=../.env npx react-native bundle-harmony \
+  npx react-native bundle-harmony \
     --js-engine hermes \
     --bundle-output "$HARMONY_DIR/entry/src/main/resources/rawfile/hermes_bundle.hbc" \
     --dev false
@@ -145,11 +151,11 @@ mkdir -p "$PROJECT_ROOT/deploy/dist"
 cp "$HAP_FILE" "$PROJECT_ROOT/deploy/dist/$DEST_NAME"
 ok "HAP copied → $PROJECT_ROOT/deploy/dist/$DEST_NAME"
 
-# 同时同步到 member-center bundle 目录（如果存在）
-MEMBER_CENTER_BUNDLE="$PROJECT_ROOT/../member-center/website/bundle"
-if [ -d "$MEMBER_CENTER_BUNDLE" ]; then
-  cp "$HAP_FILE" "$MEMBER_CENTER_BUNDLE/$DEST_NAME"
-  ok "HAP synced → $MEMBER_CENTER_BUNDLE/$DEST_NAME"
+# 同步到 member-center bundle 目录（可选，通过 MEMBER_CENTER_BUNDLE_DIR 环境变量指定）
+if [ -n "$MEMBER_CENTER_BUNDLE_DIR" ]; then
+  mkdir -p "$MEMBER_CENTER_BUNDLE_DIR"
+  cp "$HAP_FILE" "$MEMBER_CENTER_BUNDLE_DIR/$DEST_NAME"
+  ok "HAP synced → $MEMBER_CENTER_BUNDLE_DIR/$DEST_NAME"
 fi
 
 cd "$PROJECT_ROOT"

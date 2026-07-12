@@ -45,7 +45,6 @@ done
 
 load_env
 
-# 如果指定了 --env-file，先复制到根目录 .env
 if [ -n "$ENV_FILE" ]; then
   env_file_path="$PROJECT_ROOT/$ENV_FILE"
   if [ ! -f "$env_file_path" ]; then
@@ -71,62 +70,8 @@ if [ "$DOWNLOAD_MODELS" = true ]; then
   download_speech_models "$MODELS_LIST"
 fi
 
-step "Pre-build: Checking Python environment"
-check_numpy "python3"
-
 step "Step 1: Building Backend Sidecar"
-PYTHON=""
-for cmd in python3 python; do
-  if command -v "$cmd" &>/dev/null; then
-    PYTHON="$cmd"
-    break
-  fi
-done
-if [ -z "$PYTHON" ]; then
-  err "No Python interpreter found (tried: python3, python)"
-  exit 1
-fi
-if [ -d "$PROJECT_ROOT/backend/.venv" ]; then
-  for venv_py in ".venv/bin/python" ".venv/Scripts/python.exe"; do
-    if [ -f "$PROJECT_ROOT/backend/$venv_py" ]; then
-      PYTHON="$PROJECT_ROOT/backend/$venv_py"
-      break
-    fi
-  done
-fi
-
-cd "$PROJECT_ROOT/backend"
-rm -rf dist build __pycache__
-
-if ! $PYTHON -c "import PyInstaller" 2>/dev/null; then
-  $PYTHON -m pip install pyinstaller
-fi
-
-check_numpy "$PYTHON"
-
-if [ ! -f "evoloop-backend.spec" ]; then
-  err "PyInstaller spec file not found"
-  exit 1
-fi
-
-TAURI_BIN_DIR="$PROJECT_ROOT/frontend/src-tauri/binaries"
-BINARY_NAME="evoloop-backend"
-TARGET_BINARY="${BINARY_NAME}-${ARCH}"
-
-$PYTHON -m PyInstaller evoloop-backend.spec --clean --noconfirm
-
-mkdir -p "$TAURI_BIN_DIR"
-
-if [ -f "dist/${BINARY_NAME}.exe" ]; then
-  mv "dist/${BINARY_NAME}.exe" "${TAURI_BIN_DIR}/${TARGET_BINARY}.exe"
-  ok "Sidecar built: ${TAURI_BIN_DIR}/${TARGET_BINARY}.exe"
-elif [ -f "dist/${BINARY_NAME}" ]; then
-  mv "dist/${BINARY_NAME}" "${TAURI_BIN_DIR}/${TARGET_BINARY}.exe"
-  ok "Sidecar built: ${TAURI_BIN_DIR}/${TARGET_BINARY}.exe"
-else
-  err "Binary not found"
-  exit 1
-fi
+bash "$SCRIPT_DIR/sidecar.sh" "x86_64" "$ARCH"
 
 step "Step 2: Installing Frontend Dependencies"
 install_frontend_deps

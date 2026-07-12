@@ -24,8 +24,15 @@ if [ -z "$TRIPLE" ]; then
   esac
 fi
 
+IS_WINDOWS=false
+case "$TRIPLE" in
+  *windows*) IS_WINDOWS=true ;;
+esac
+
 BINARY_NAME="evoloop-backend"
-TARGET_BINARY="${BINARY_NAME}-${TRIPLE}"
+EXE_SUFFIX=""
+[ "$IS_WINDOWS" = true ] && EXE_SUFFIX=".exe"
+TARGET_BINARY="${BINARY_NAME}-${TRIPLE}${EXE_SUFFIX}"
 TAURI_BIN_DIR="$PROJECT_ROOT/frontend/src-tauri/binaries"
 
 header "Building Backend Sidecar for ${TRIPLE}"
@@ -36,23 +43,38 @@ info "Cleaning previous build..."
 rm -rf dist build __pycache__
 
 PYTHON="python3"
-if [ -n "$ARCH_PREFIX" ]; then
-  if command -v arch &>/dev/null; then
+VENV_PYTHON="$PROJECT_ROOT/backend/.venv/bin/python"
+[ "$IS_WINDOWS" = true ] && VENV_PYTHON="$PROJECT_ROOT/backend/.venv/Scripts/python.exe"
+
+detect_arch() {
+  "$1" -c "import platform; print(platform.machine())" 2>/dev/null || echo "unknown"
+}
+
+if [ -d ".venv" ] && [ -x "$VENV_PYTHON" ]; then
+  VENV_ARCH=$(detect_arch "$VENV_PYTHON")
+  if [ -n "$ARCH_PREFIX" ] && [ "$VENV_ARCH" != "$ARCH_PREFIX" ]; then
+    err "Backend venv is ${VENV_ARCH}, but target sidecar is ${ARCH_PREFIX}."
+    err "Refusing to build a mislabeled sidecar."
+    err "Build on a ${ARCH_PREFIX} machine, or recreate backend/.venv for ${ARCH_PREFIX}."
+    exit 1
+  fi
+  PYTHON="$VENV_PYTHON"
+  if [ -n "$ARCH_PREFIX" ] && command -v arch &>/dev/null; then
+    PYTHON="arch -${ARCH_PREFIX} $VENV_PYTHON"
+  fi
+  ok "Using virtual environment (${VENV_ARCH})"
+else
+  if [ "$IS_WINDOWS" = true ]; then
+    for cmd in python3 python; do
+      if command -v "$cmd" &>/dev/null; then
+        PYTHON="$cmd"
+        break
+      fi
+    done
+  elif [ -n "$ARCH_PREFIX" ] && command -v arch &>/dev/null; then
     PYTHON="arch -${ARCH_PREFIX} python3"
   fi
-fi
-
-if [ -d ".venv" ]; then
-  PYTHON=".venv/bin/python"
-  if [ -n "$ARCH_PREFIX" ] && command -v arch &>/dev/null; then
-    PYTHON_ARCH=$($PYTHON -c "import platform; print(platform.machine())" 2>/dev/null || echo "unknown")
-    if [ "$PYTHON_ARCH" != "$ARCH_PREFIX" ]; then
-      warn "Python is ${PYTHON_ARCH}, cannot force ${ARCH_PREFIX} — using native arch"
-    else
-      PYTHON="arch -${ARCH_PREFIX} .venv/bin/python"
-    fi
-  fi
-  ok "Using virtual environment (${ARCH_PREFIX:-native})"
+  ok "Using system Python (${ARCH_PREFIX:-native})"
 fi
 
 if ! $PYTHON -c "import PyInstaller" 2>/dev/null; then
@@ -72,12 +94,15 @@ $PYTHON -m PyInstaller evoloop-backend.spec --clean --noconfirm
 
 mkdir -p "$TAURI_BIN_DIR"
 
-if [ -f "dist/${BINARY_NAME}" ]; then
-  mv "dist/${BINARY_NAME}" "${TAURI_BIN_DIR}/${TARGET_BINARY}"
-  chmod +x "${TAURI_BIN_DIR}/${TARGET_BINARY}"
+SOURCE_FILE="dist/${BINARY_NAME}${EXE_SUFFIX}"
+if [ -f "$SOURCE_FILE" ]; then
+  mv "$SOURCE_FILE" "${TAURI_BIN_DIR}/${TARGET_BINARY}"
+  if [ "$IS_WINDOWS" = false ]; then
+    chmod +x "${TAURI_BIN_DIR}/${TARGET_BINARY}"
+  fi
   ok "Sidecar built: ${TAURI_BIN_DIR}/${TARGET_BINARY}"
 
-  if command -v codesign &>/dev/null; then
+  if [ "$IS_WINDOWS" = false ] && command -v codesign &>/dev/null; then
     codesign --force --sign - "${TAURI_BIN_DIR}/${TARGET_BINARY}" 2>/dev/null || \
       warn "Could not sign binary"
   fi
@@ -85,15 +110,21 @@ if [ -f "dist/${BINARY_NAME}" ]; then
   FILE_SIZE=$(du -h "${TAURI_BIN_DIR}/${TARGET_BINARY}" | cut -f1)
   info "Binary size: ${FILE_SIZE}"
 else
-  err "Binary not found at dist/${BINARY_NAME}"
-  exit 1
+  # Fallback: try without .exe
+  if [ "$IS_WINDOWS" = true ] && [ -f "dist/${BINARY_NAME}" ]; then
+    mv "dist/${BINARY_NAME}" "${TAURI_BIN_DIR}/${TARGET_BINARY}"
+    ok "Sidecar built (no .exe): ${TAURI_BIN_DIR}/${TARGET_BINARY}"
+  else
+    err "Binary not found at ${SOURCE_FILE}"
+    err "Contents of dist/:"; ls -la dist/ 2>/dev/null || true
+    exit 1
+  fi
 fi
 
-# Copy macOS App Bundle to resources if it exists
-if [ -d "dist/EvoLoop Backend.app" ]; then
+# Copy macOS App Bundle to resources if it exists (macOS only)
+if [ "$IS_WINDOWS" = false ] && [ -d "dist/EvoLoop Backend.app" ]; then
   TAURI_RESOURCES_DIR="$PROJECT_ROOT/frontend/src-tauri/resources"
   mkdir -p "$TAURI_RESOURCES_DIR"
-  # Remove old bundle if exists
   rm -rf "$TAURI_RESOURCES_DIR/EvoLoop Backend.app"
   cp -R "dist/EvoLoop Backend.app" "$TAURI_RESOURCES_DIR/"
   ok "Sidecar App Bundle copied to $TAURI_RESOURCES_DIR"

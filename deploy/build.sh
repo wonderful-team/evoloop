@@ -13,7 +13,8 @@ show_usage() {
   echo "If no platform is specified, an interactive menu will be shown."
   echo ""
   echo "Platforms:"
-  echo "  all                  Build for all supported platforms"
+  echo "  all                  Build all platforms supported on this host"
+  echo "  macos                macOS (Apple Silicon or Intel, auto-detected)"
   echo "  macos-arm64          macOS Apple Silicon (M1/M2/M3)"
   echo "  macos-x86_64         macOS Intel"
   echo "  windows              Windows x86_64"
@@ -128,7 +129,7 @@ if [ "$INTERACTIVE" = "true" ]; then
 
   NEEDS_MODEL_PROMPT="false"
   for t in "${TARGETS[@]}"; do
-    if [[ "$t" == "macos-arm64" || "$t" == "macos-x86_64" || "$t" == "windows" || "$t" == "all" ]]; then
+    if [[ "$t" == "macos" || "$t" == "macos-arm64" || "$t" == "macos-x86_64" || "$t" == "windows" || "$t" == "all" ]]; then
       NEEDS_MODEL_PROMPT="true"
       break
     fi
@@ -223,15 +224,53 @@ copy_env_file
 
 detect_current_platform() {
   case "$(uname -s)" in
-    Darwin)
-      case "$(uname -m)" in
-        arm64) echo "macos-arm64" ;;
-        x86_64) echo "macos-x86_64" ;;
-      esac
-      ;;
-    MINGW*|MSYS*) echo "windows-x86_64" ;;
+    Darwin) echo "macos" ;;
+    MINGW*|MSYS*) echo "windows" ;;
     *) err "Unknown platform: $(uname -s)"; exit 1 ;;
   esac
+}
+
+# 过滤移动端不支持的通用参数：
+# --with-models 为桌面端专属；--download-models 的模型列表仅桌面端有效
+# （移动端下载固定的 Sherpa-ONNX 模型）；--dev 通过 ENVIRONMENT 决定是否 --release。
+filter_args_for_mobile() {
+  FILTERED_ARGS=()
+  local args=("$@") i
+  for ((i = 0; i < ${#args[@]}; i++)); do
+    case "${args[i]}" in
+      --with-models)
+        warn "Ignoring '--with-models' for mobile target" ;;
+      --dev)
+        ;;  # 移动端 debug/release 由是否 --release 区分
+      --download-models)
+        FILTERED_ARGS+=("${args[i]}")
+        if (( i + 1 < ${#args[@]} )) && [[ "${args[i+1]}" != --* ]]; then
+          warn "Ignoring model list '${args[i+1]}' for mobile (fixed Sherpa-ONNX model)"
+          i=$((i + 1))
+        fi ;;
+      *)
+        FILTERED_ARGS+=("${args[i]}") ;;
+    esac
+  done
+}
+
+# 过滤 Web 构建不支持的通用参数（模型与清理选项对纯前端构建无意义）。
+filter_args_for_web() {
+  FILTERED_ARGS=()
+  local args=("$@") i
+  for ((i = 0; i < ${#args[@]}; i++)); do
+    case "${args[i]}" in
+      --with-models|--clean)
+        warn "Ignoring '${args[i]}' for web target" ;;
+      --download-models)
+        warn "Ignoring '--download-models' for web target"
+        if (( i + 1 < ${#args[@]} )) && [[ "${args[i+1]}" != --* ]]; then
+          i=$((i + 1))
+        fi ;;
+      *)
+        FILTERED_ARGS+=("${args[i]}") ;;
+    esac
+  done
 }
 
 build_platform() {
@@ -242,33 +281,88 @@ build_platform() {
   echo ""
 
   local platform_script
+  local platform_args=("${BUILD_ARGS[@]}")
+
   case "$target" in
-    macos-arm64) platform_script="$SCRIPT_DIR/build/macos-arm64.sh" ;;
-    macos-x86_64) platform_script="$SCRIPT_DIR/build/macos-x86_64.sh" ;;
+    macos)
+      platform_script="$SCRIPT_DIR/build/macos.sh"
+      case "$(uname -m)" in
+        arm64|aarch64) platform_args+=("--arch" "arm64") ;;
+        x86_64) platform_args+=("--arch" "x86_64") ;;
+        *) err "Unsupported host architecture: $(uname -m)"; exit 1 ;;
+      esac
+      ;;
+    macos-arm64)
+      platform_script="$SCRIPT_DIR/build/macos.sh"
+      platform_args+=("--arch" "arm64")
+      ;;
+    macos-x86_64)
+      platform_script="$SCRIPT_DIR/build/macos.sh"
+      platform_args+=("--arch" "x86_64")
+      ;;
     windows) platform_script="$SCRIPT_DIR/build/windows-x86_64.sh" ;;
-    mobile)
-      build_platform "android"
-      build_platform "ios"
-      build_platform "harmony"
-      return
-      ;;
-    android)
+    mobile|android|ios|harmony)
+      # 统一经 mobile.sh 编排（依赖安装、env 守卫、模型下载在此完成），
+      # android.sh / ios.sh / harmony.sh 作为其下层执行脚本。
       platform_script="$SCRIPT_DIR/build/mobile.sh"
-      BUILD_ARGS+=("--android" "--release")
-      if [ -n "$ANDROID_FORMAT" ]; then
-        BUILD_ARGS+=("$ANDROID_FORMAT")
+      case "$target" in
+        mobile)  platform_args+=("--android" "--ios" "--harmony") ;;
+        android) platform_args+=("--android") ;;
+        ios)     platform_args+=("--ios") ;;
+        harmony) platform_args+=("--harmony") ;;
+      esac
+      # 生产环境默认 --release；--dev 时走各平台 debug 构建（harmony 由 --env 决定）
+      if [ "$ENVIRONMENT" != "development" ] && [ "$target" != "harmony" ]; then
+        platform_args+=("--release")
+        case "$target" in
+          android|mobile) platform_args+=("${ANDROID_FORMAT:---apk}") ;;
+        esac
       fi
+      # mobile.sh 不接受 --dev，显式传 --env 以正确驱动 harmony 的 debug/release
+      platform_args+=("--env" "$ENVIRONMENT")
+      filter_args_for_mobile "${platform_args[@]}"
+      platform_args=("${FILTERED_ARGS[@]}")
       ;;
-    ios) platform_script="$SCRIPT_DIR/build/mobile.sh"; BUILD_ARGS+=("--ios" "--release") ;;
-    harmony) platform_script="$SCRIPT_DIR/build/harmony.sh" ;;
-    web) platform_script="$SCRIPT_DIR/build/web.sh" ;;
-    current) platform_script="$SCRIPT_DIR/build/$(detect_current_platform).sh" ;;
+    web)
+      platform_script="$SCRIPT_DIR/build/web.sh"
+      filter_args_for_web "${platform_args[@]}"
+      platform_args=("${FILTERED_ARGS[@]}")
+      ;;
+    current)
+      local detected
+      detected=$(detect_current_platform)
+      case "$detected" in
+        macos)
+          platform_script="$SCRIPT_DIR/build/macos.sh"
+          case "$(uname -m)" in
+            arm64|aarch64) platform_args+=("--arch" "arm64") ;;
+            x86_64) platform_args+=("--arch" "x86_64") ;;
+          esac
+          ;;
+        windows) platform_script="$SCRIPT_DIR/build/windows-x86_64.sh" ;;
+      esac
+      ;;
     all)
-      build_platform "macos-arm64"
-      build_platform "macos-x86_64"
-      build_platform "windows"
-      build_platform "harmony"
-      build_platform "web"
+      # 只构建当前主机支持的目标；跨架构/跨系统目标需在对应主机上单独构建
+      case "$(uname -s)" in
+        Darwin)
+          build_platform "macos"
+          build_platform "android"
+          build_platform "ios"
+          build_platform "harmony"
+          build_platform "web"
+          warn "已跳过 windows 及非本机架构的 macOS 目标，请在对应主机上单独构建"
+          ;;
+        MINGW*|MSYS*)
+          build_platform "windows"
+          build_platform "web"
+          warn "已跳过 macOS/iOS/HarmonyOS 目标，请在 macOS 主机上构建"
+          ;;
+        *)
+          err "Unknown platform: $(uname -s)"
+          exit 1
+          ;;
+      esac
       return
       ;;
     *)
@@ -282,7 +376,7 @@ build_platform() {
     exit 1
   fi
 
-  bash "$platform_script" "${BUILD_ARGS[@]}"
+  bash "$platform_script" "${platform_args[@]}"
   ok "Platform build complete: $target"
 }
 

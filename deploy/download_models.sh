@@ -84,6 +84,8 @@ if [ -f "$PROJECT_ROOT/.env" ]; then
 fi
 APP_DATA_DIR="${EVOLOOP_APP_DATA_DIR:-$HOME/.evoloop}"
 
+export HF_ENDPOINT="${HF_ENDPOINT:-https://hf-mirror.com}"
+
 # Show configuration
 echo -e "${CYAN}Configuration:${NC}"
 echo -e "  Models: ${GREEN}$MODELS_TO_DOWNLOAD${NC}"
@@ -255,7 +257,7 @@ for model_name in $MODELS_TO_DOWNLOAD; do
         nomic-embed)
             echo -e "${YELLOW}📦 Installing sentence-transformers if needed...${NC}"
             pip_install sentence-transformers 2>/dev/null || true
-            $PYTHON_CMD backend/bin/deploy/download_models.py
+            $PYTHON_CMD backend/scripts/download_models.py
             if [ $? -eq 0 ]; then
                 echo -e "${GREEN}✅ $model_name downloaded successfully${NC}"
             else
