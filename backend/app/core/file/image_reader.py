@@ -5,6 +5,7 @@ from app.infrastructure.vision import VisionTask, vision_engine
 
 logger = logging.getLogger(__name__)
 
+
 class ImageReaderService:
     """
     Specialized service for extracting content from images
@@ -26,8 +27,9 @@ class ImageReaderService:
                 return f"[Image Asset: {os.path.basename(path)} - No text found via OCR]"
                 
             return f"### OCR Results ({os.path.basename(path)})\n\n" + "\n".join(texts)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(f"OCR failed for {path}: {e}")
             return f"[OCR Error: {str(e)}]"
+
 
 image_reader_service = ImageReaderService()

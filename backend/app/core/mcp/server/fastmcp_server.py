@@ -38,7 +38,7 @@ async def read_file_ops(path: str, start_line: int = None, end_line: int = None)
             "start_line": start_line,
             "end_line": end_line
         }))
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         return f"Error: {e}"
 
 
@@ -51,7 +51,7 @@ async def write_file_ops(path: str, content: str, overwrite: bool = False) -> st
             "content": content,
             "overwrite": overwrite
         })
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         return f"Error: {e}"
 
 
@@ -65,7 +65,7 @@ async def edit_file_ops(path: str, target: str, replacement: str, allow_multiple
             "replacement": replacement,
             "allow_multiple": allow_multiple
         })
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         return f"Error: {e}"
 
 
@@ -78,7 +78,7 @@ async def list_dir_ops(path: str, depth: int = 3, tree: bool = True) -> str:
             "depth": depth,
             "tree": tree
         }))
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         return f"Error: {e}"
 
 
@@ -90,7 +90,7 @@ async def find_symbol_ops(name: str, file_pattern: str = None) -> str:
             "name": name,
             "file_pattern": file_pattern
         }))
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         return f"Error: {e}"
 
 
@@ -102,7 +102,7 @@ async def search_code_ops(pattern: str, path: str = None) -> str:
             "pattern": pattern,
             "path": path
         }))
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         return f"Error: {e}"
 
 
@@ -111,7 +111,7 @@ async def ask_codebase_ops(question: str) -> str:
     """Ask a natural language question about the codebase."""
     try:
         return _truncate(await ask_codebase.ainvoke({"question": question}))
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         return f"Error: {e}"
 
 
@@ -120,7 +120,7 @@ async def execute_command_ops(command: str) -> str:
     """Execute shell command including Git operations."""
     try:
         return _truncate(await execute_command.ainvoke({"command": command}))
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         return f"Error: {e}"
 
 
@@ -131,7 +131,7 @@ async def read_document(path: str) -> str:
         from app.domain.tools.document_reader import read_document as read_doc_tool
 
         return _truncate(await read_doc_tool.ainvoke({"file_path": path}))
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         return f"Error reading document: {e}"
 
 
@@ -140,7 +140,7 @@ async def search_semantic(query: str) -> str:
     """Semantic search in the codebase."""
     try:
         return await search_codebase.ainvoke({"query": query})
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         return f"Error: {e}"
 
 
@@ -155,7 +155,7 @@ async def analyze_code_file(path: str) -> str:
 
         result = code_analyzer.analyze_file(path)
         return dumps(result, indent=2)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         return f"Error analyzing file: {e}"
 
 

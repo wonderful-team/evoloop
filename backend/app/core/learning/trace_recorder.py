@@ -161,7 +161,7 @@ class TraceCallbackHandler(AsyncCallbackHandler):
                     output_str = json.dumps(output, default=str)
                 except (TypeError, ValueError):
                     output_str = str(output)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError):
             output_str = str(output)
 
         # Truncate long outputs
@@ -218,8 +218,8 @@ class TraceCallbackHandler(AsyncCallbackHandler):
                     is_human_action=False,
                 )
                 session.add(event)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-            logger.debug(f"[TraceCallbackHandler] Failed to save event: {e}")
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            logger.warning(f"[TraceCallbackHandler] Failed to save event: {e}")
 
     def _sanitize_snapshot(self, state: Any) -> dict:
         """Safely convert arbitrary state into a JSON-serializable dict."""
@@ -291,5 +291,5 @@ async def sync_thread_to_graph(
 
         logger.info(f"Episode recorded for thread '{thread_id}' (id={episode_id})")
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Failed to sync thread '{thread_id}': {e}")

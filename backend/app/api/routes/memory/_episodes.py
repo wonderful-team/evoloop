@@ -36,6 +36,6 @@ async def get_episodes_by_concept(
             )
             for r in results
         ]
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Failed to find episodes by concept: {e}")
         return []

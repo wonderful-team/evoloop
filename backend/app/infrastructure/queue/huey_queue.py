@@ -264,7 +264,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
                 return loop.run_until_complete(_execute())
             else:
                 return loop.run_until_complete(_execute())
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             # Log the full exception for debugging
             error_msg = f"[Huey] Task execution failed: {func.__name__}: {type(e).__name__}: {e}"
             logger.error(error_msg)
@@ -276,7 +276,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
             try:
                 from app.utils.async_utils import flush_loop_bound_resources
                 loop.run_until_complete(flush_loop_bound_resources())
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                 logger.warning(f"[Huey] Failed to flush resources in task {func.__name__}: {e}")
 
     def _create_result(self, huey_task: Task) -> HueyTaskResult:
@@ -328,7 +328,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
             logger.debug(f"[Huey] Task {name} dispatched via stored wrapper")
             return self._create_result(huey_task)
             
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             # If execution fails, log and re-raise
             logger.error(f"[Huey] Task {name} execution failed: {e}")
             raise
@@ -340,7 +340,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
         for module_path in discover_task_modules():
             try:
                 __import__(module_path)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError):
                 continue
             # Check if the task name is now registered
             if task_name in self._tasks:
@@ -399,7 +399,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
                 __import__(module_path)
                 loaded_count += 1
                 logger.debug(f"[Huey] Loaded module: {module_path}")
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                 logger.warning(f"[Huey] Failed to load {module_path}: {e}")
         
         logger.info(f"[Huey] Pre-loaded {loaded_count} task modules")
@@ -421,17 +421,17 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
         
         def decorator(f: Callable):
             task_name = name or f"{f.__module__}.{f.__name__}"
-            
+
             @self._huey.periodic_task(crontab(cron), name=task_name, **kwargs)
             def periodic_wrapper():
                 if asyncio.iscoroutinefunction(f):
                     return self._run_async_task(f, False)
                 return f()
-            
+
             periodic_wrapper.__name__ = f.__name__
             periodic_wrapper.__doc__ = f.__doc__
             return periodic_wrapper
-        
+
         return decorator
 
 

@@ -106,7 +106,7 @@ async def get_device_resolution(device_id: str, current_user: CurrentUserOptiona
         if not size:
             return DeviceResolutionResponse(width=1080, height=1920)
         return DeviceResolutionResponse(width=size[0], height=size[1])
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Failed to get device resolution: {e}")
         return DeviceResolutionResponse(width=1080, height=1920)
 
@@ -160,7 +160,7 @@ async def persist_mirror_events(body: PersistMirrorEventsRequest, current_user: 
                     logger.info(f"[persist_mirror_events] Event {i}: {event_data['event_type']} at {relative_ms}ms")
 
         return MirrorPersistResponse(success=True, message="Events persisted", count=len(events))
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.exception(f"Failed to persist mirror events: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to persist events: {str(e)}")
 
@@ -223,7 +223,7 @@ async def persist_global_events(body: GlobalEventsRequest, current_user: Current
                     logger.info(f"[persist_global_events] Event {i}: {event.event_type} at {int(event.timestamp)}ms, app={event.app_name}")
 
         return MirrorPersistResponse(success=True, message="Global events persisted", count=len(body.events))
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.exception(f"Failed to persist global events: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to persist events: {str(e)}")
 
@@ -274,7 +274,7 @@ async def persist_dom_events(body: DomEventsRequest, current_user: CurrentUserOp
                     logger.info(f"[persist_dom_events] Event {i}: {event.event_type} at {int(event.timestamp)}ms, selector={event.selector}")
 
         return MirrorPersistResponse(success=True, message="DOM events persisted", count=len(body.events))
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.exception(f"Failed to persist DOM events: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to persist events: {str(e)}")
 
@@ -289,7 +289,7 @@ async def upload_screenshot(file: UploadFile = File(...), current_user: CurrentU
             image_data=content, purpose="dataset", platform="macos", suffix=f"upload_{file.filename}"
         )
         return UploadScreenshotResponse(success=True, path=file_path, message="Screenshot uploaded successfully")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Failed to upload screenshot: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to upload screenshot: {str(e)}")
 

@@ -47,7 +47,7 @@ async def list_voices():
     try:
         voices = list_tts_voices()
         return VoiceListResponse(voices=voices)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Failed to list voices: {e}")
         raise HTTPException(500, f"Failed to list voices: {str(e)}")
 
@@ -111,7 +111,7 @@ async def text_to_speech(request: TTSRequest):
         
     except HTTPException:
         raise
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"TTS failed: {e}")
         raise HTTPException(500, f"TTS failed: {str(e)}")
 
@@ -182,7 +182,7 @@ async def text_to_speech_stream(
         
     except HTTPException:
         raise
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"TTS stream failed: {e}")
         raise HTTPException(500, f"TTS failed: {str(e)}")
 
@@ -231,7 +231,7 @@ async def list_stt_providers():
     try:
         providers = list_stt_providers()
         return STTProvidersResponse(providers=providers)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Failed to list STT providers: {e}")
         raise HTTPException(500, f"Failed to list providers: {str(e)}")
 
@@ -318,7 +318,7 @@ async def transcribe_audio(
         
     except HTTPException:
         raise
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Transcription failed: {e}")
         raise HTTPException(500, f"Transcription failed: {str(e)}")
 

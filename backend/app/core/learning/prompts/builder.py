@@ -64,7 +64,7 @@ class LearningPromptBuilder:
         template_name = self.TEMPLATES.get(template_key, template_key)
         try:
             return render_template(template_name, **vars)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(f"Error rendering {template_name}: {e}")
             return f"{fallback_msg}: {e}"
 

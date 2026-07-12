@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from app.utils.id import gen_uuid
 
+
 # ============ Enums ============
 
 class MessageType(str, Enum):

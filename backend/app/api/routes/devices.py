@@ -67,7 +67,7 @@ async def get_devices(token: TokenDep):
                     "connection_type": "adb",
                     "battery_percent": ld.battery_percent
                 })
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.warning(f"Failed to merge local devices: {e}")
 
     return devices

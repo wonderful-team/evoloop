@@ -72,7 +72,7 @@ async def create_task_with_subtasks(
             task=tree
         )
         
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"[SubtasksAPI] Failed to create task: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 

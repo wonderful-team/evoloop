@@ -80,7 +80,7 @@ class SkillSyncService:
                         db_skill.resource_path = skill_dir
 
             return path
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(f"[Sync] Failed to export skill {skill_id} to file: {e}")
             return None
         finally:
@@ -133,7 +133,7 @@ class SkillSyncService:
                             return True
 
             return False
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(f"[Sync] Failed to delete skill file for {skill_id}: {e}")
             return False
         finally:
@@ -170,7 +170,7 @@ class SkillSyncService:
                 await skill_discovery.reload()
 
             return success
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(f"[Sync] Failed to import skill from {skill_md_path}: {e}")
             return False
         finally:

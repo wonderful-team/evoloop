@@ -46,7 +46,7 @@ class AdaptiveRetryState(BaseModel):
     max_retries: int = 3
     current_max_tokens: int
     current_temperature: float
-    
+
     def next_state(self) -> "AdaptiveRetryState":
         """Calculates the next state with decayed parameters."""
         decay = 0.8 if self.attempt == 0 else (0.6 if self.attempt == 1 else 0.5)
@@ -56,7 +56,7 @@ class AdaptiveRetryState(BaseModel):
             current_max_tokens=int(self.current_max_tokens * decay),
             current_temperature=max(self.current_temperature - 0.2, 0.0)
         )
-    
+
     @property
     def can_retry(self) -> bool:
         return self.attempt < self.max_retries
@@ -285,7 +285,7 @@ class AdaptiveChatOpenAI:
         """
         prompt_template = i18n.get("adaptive_llm.summarize_prompt")
         prompt = prompt_template.format(input=text)
-        
+
         messages = [{"role": "user", "content": prompt}]
         response = ""
         async for chunk in self.astream(messages):

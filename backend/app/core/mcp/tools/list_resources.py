@@ -46,6 +46,6 @@ async def list_mcp_resources(server_name: str) -> str:
 
         return output
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Error listing MCP resources: {e}")
         return f"Error listing resources from '{server_name}': {str(e)}"

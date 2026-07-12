@@ -137,7 +137,7 @@ class AgentContextHydrator:
                         try:
                             from app.infrastructure.drivers.macos import macos_driver
                             active_win = macos_driver.get_current_app()
-                        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                             logger.debug("Suppressed error: %s", e, exc_info=True)
 
                     telemetry_data = {
@@ -148,7 +148,7 @@ class AgentContextHydrator:
                         "active_window": active_win,
                         "network": env_state.network.internet_connected if env_state.network else False
                     }
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError):
                     telemetry_data = {}
                 data['telemetry'] = telemetry_data
             return data

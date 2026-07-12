@@ -40,7 +40,7 @@ class SkillHydrator:
                 )
                 result = await session.execute(stmt)
                 return result.scalar_one_or_none()
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(f"[Hydrator] Failed to fetch skill {skill_id}: {e}")
             return None
 

@@ -124,7 +124,7 @@ def _is_binary_file(file_path: str) -> bool:
                 return False
             except UnicodeDecodeError:
                 return True
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError):
         return True
 
 

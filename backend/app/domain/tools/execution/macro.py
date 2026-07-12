@@ -48,7 +48,7 @@ async def run_macro(
                 )
                 result = await db.execute(stmt)
                 skill = result.scalar_one_or_none()
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         return ControllerResponse.error(
             f"Failed to look up skill '{skill_name or skill_id}'",
             details=str(e),
@@ -63,7 +63,7 @@ async def run_macro(
         from app.utils.yaml import macro_from_yaml
         try:
             macro_script = macro_from_yaml(skill.macro_script)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             return ControllerResponse.error(
                 f"Failed to parse macro YAML for skill '{skill.name}'",
                 details=str(e),

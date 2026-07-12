@@ -200,6 +200,6 @@ class SkillValidator:
             # Both attempts failed
             return None, instructions
             
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(f"[SkillValidator] Failed to parse {file_path}: {e}")
             return None, ""

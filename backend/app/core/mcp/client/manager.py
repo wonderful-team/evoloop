@@ -126,7 +126,7 @@ class McpClientManager:
                 self._stacks[server_name] = stack
                 self._sessions[server_name] = session
                 self._configs[server_name] = config
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError):
                 await stack.aclose()
                 raise
 
@@ -158,7 +158,7 @@ class McpClientManager:
                 tools_count=tools_count
             )
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(f"Error connecting to {server_name}: {e}")
             if 'stack' in locals():
                 await stack.aclose()
@@ -236,7 +236,7 @@ class McpClientManager:
                 try:
                     result = await self.connect_from_db(server.name)
                     results.append(result)
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                     logger.error(f"Failed to connect to MCP server '{server.name}': {e}")
                     results.append(ConnectionResult(
                         success=False,
@@ -255,7 +255,7 @@ class McpClientManager:
         if server_name in self._stacks:
             try:
                 await self._stacks[server_name].aclose()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                 logger.debug(f"Error closing stack for '{server_name}': {e}")
             del self._stacks[server_name]
 
@@ -609,7 +609,7 @@ class McpClientManager:
                         )
                         session.add(new_server)
                 logger.info("Legacy MCP config migrated successfully.")
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                 logger.error(f"Failed to migrate legacy config: {e}")
 
     @staticmethod

@@ -157,7 +157,7 @@ async def run_agent_background(
                 return
             except AgentHumanInterruptException:
                 raise
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, InferenceError) as e:
                 handler = db_callback._handler if db_callback else None
                 await handle_task_exception(thread_id, project_id, e, handler=handler)
                 return

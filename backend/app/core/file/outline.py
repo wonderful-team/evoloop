@@ -108,7 +108,7 @@ def get_file_outline(file_path: str, max_entries: int = 100) -> list[OutlineEntr
                         ))
                         break
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.debug(f"Failed to extract outline from {file_path}: {e}")
 
     return outline

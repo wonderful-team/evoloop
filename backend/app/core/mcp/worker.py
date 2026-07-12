@@ -88,7 +88,7 @@ class WorkerMcpSession:
                 self._stacks[server_name] = stack
                 self._sessions[server_name] = session
                 self._configs[server_name] = config
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError):
                 await stack.aclose()
                 raise
 
@@ -113,7 +113,7 @@ class WorkerMcpSession:
 
             return True
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(f"[WorkerMcp] {self.worker_name} failed to connect to {server_name}: {e}")
             if 'stack' in locals():
                 await stack.aclose()
@@ -140,7 +140,7 @@ class WorkerMcpSession:
         if server_name in self._stacks:
             try:
                 await self._stacks[server_name].aclose()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                 logger.debug(f"[WorkerMcp] Error closing stack for '{server_name}': {e}")
             del self._stacks[server_name]
 

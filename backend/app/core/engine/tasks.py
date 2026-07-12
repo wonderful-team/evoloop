@@ -281,7 +281,7 @@ def cleanup_artifacts_task(max_age_days: int = 3):
                         os.remove(entry.path)
                     elif entry.is_dir():
                         shutil.rmtree(entry.path)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                 logger.warning(f"Failed to delete artifact {entry.path}: {e}")
 
 
@@ -566,7 +566,7 @@ async def run_engine_audit_structured_extraction(
             )
             logger.info(f"[Celery] 🚀 Publishing ExtractionCompletedEvent for thread {thread_id}")
             await system_bus.publish(event)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"[Celery] engine_audit_structured_extraction failed for thread {thread_id}: {e!r}")
         raise
 

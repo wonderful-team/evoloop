@@ -141,7 +141,7 @@ async def read_user_me(current_user: CurrentUser, token: TokenDepOptional = None
             )
     except HTTPException:
         raise
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Error fetching user info from MC: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

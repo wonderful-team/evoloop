@@ -25,8 +25,10 @@ class ActionCategory(str, Enum):
     SYSTEM_INTERACTION = "system_interaction"  # Global system interaction
     OTHER = "other"
 
+
 class SkillParams(DynamicBaseModel):
     """Dynamic parameters extracted during skill matching."""
+
 
 class SkillListItem(DynamicBaseModel):
     """Lightweight item for active skills list."""
@@ -34,6 +36,7 @@ class SkillListItem(DynamicBaseModel):
     name: str
     namespace: str = "general"
     description: str = ""
+
 
 class SkillMatch(DynamicBaseModel):
     """Result of skill matching (intentional execution)."""
@@ -105,6 +108,7 @@ class ActionRegistryItem(DynamicBaseModel):
     params: list[str] = Field(default_factory=list)
     platforms: list[str] = Field(default_factory=list)
 
+
 class SkillImportResult(DynamicBaseModel):
     """Result of a bulk skill import operation."""
     total_found: int = 0
@@ -112,8 +116,10 @@ class SkillImportResult(DynamicBaseModel):
     skipped: int = 0
     errors: list[str] = Field(default_factory=list)
 
+
 class ValidationMetadata(DynamicBaseModel):
     """Dynamic metadata from skill validation."""
+
 
 class ValidationResult(BaseModel):
     is_valid: bool
@@ -148,6 +154,7 @@ class MacroVerificationResult(DynamicBaseModel):
     extracted_count: int = 0
     error: str | None = None
 
+
 class UIContext(DynamicBaseModel):
     """Visual/UI context at the time of action."""
     screenshot_path: str | None = None
@@ -162,6 +169,7 @@ class TraceStateContext(DynamicBaseModel):
     app_name: str | None = None
     is_mirrored: bool | None = None
     window_title: str | None = None
+
 
 class TraceSummary(DynamicBaseModel):
     """Summary of a trace sequence."""
@@ -200,11 +208,14 @@ class TraceStep(DynamicBaseModel):
     timestamp: float | None = None
     user_feedback: str | None = None
 
+
 class TraceParameters(DynamicBaseModel):
     """Dynamic parameters for a recorded action."""
 
+
 class TraceContext(DynamicBaseModel):
     """Dynamic context (view hierarchy, URL, etc.) for a recorded action."""
+
 
 class ActionTrace(DynamicBaseModel):
     """Represents a single user action captured during demonstration."""

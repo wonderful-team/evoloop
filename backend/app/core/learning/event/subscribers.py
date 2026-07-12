@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 class LearningLifecycleSubscriber:
     """
     Handles application-level lifecycle events for the Learning domain.
-    
+
     Includes:
     - Skill synchronization and warming on app start
     - Episode recording and skill reconciliation on session completion
@@ -52,7 +52,7 @@ class LearningLifecycleSubscriber:
             logger.info("[Learning] 📚 Synchronizing system skills...")
             await skill_discovery._sync_system_skills()
             logger.info("[Learning] ✓ System skills synchronized")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.warning(f"[Learning] Skill synchronization failed: {e}")
 
         # 2. Start skills file watcher
@@ -60,14 +60,14 @@ class LearningLifecycleSubscriber:
             from app.core.learning.skill_file_watcher import skills_file_watcher
             skills_file_watcher.start()
             logger.info("[Learning] ✓ Skills file watcher started")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.warning(f"[Learning] Failed to start skills file watcher: {e}")
 
         # 3. Warm up caches
         try:
             skills = await skill_discovery.get_active_skills_list()
             logger.info(f"[Learning] ✓ Skills cache warmed: {len(skills)} skills")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.warning(f"[Learning] Skills cache warming failed: {e}")
 
         # 3. User preferences
@@ -75,7 +75,7 @@ class LearningLifecycleSubscriber:
             from app.infrastructure.config.service import SystemConfigService
             lang_pref = SystemConfigService.get_language_preference()
             logger.info(f"[Learning] ✓ User preferences cached: language={lang_pref}")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.warning(f"[Learning] User preferences caching failed: {e}")
 
     @event_subscribe(SystemEventType.APP_STOPPING)
@@ -139,7 +139,7 @@ class LearningLifecycleSubscriber:
                     thread_id=data.thread_id,
                     model=data.model,
                 )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(f"[Learning] Failed to trigger learning tasks: {e}")
 
 

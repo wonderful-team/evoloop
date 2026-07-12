@@ -68,7 +68,7 @@ class SkillDiscovery:
                 "Indicates that the system skills have been successfully synchronized on first launch"
             )
             self._system_skills_synced = True
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(f"[Discovery] Failed to sync system SOPs: {e}")
 
     def _copy_builtin_skills(self, builtin_path: str, user_path: str) -> None:

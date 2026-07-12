@@ -46,7 +46,7 @@ def list_directory(
                 is_dir=entry.is_dir(),
                 size=stat.st_size if entry.is_file() else 0
             )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.warning(f"Cannot list directory {path}: {e}")
 
 

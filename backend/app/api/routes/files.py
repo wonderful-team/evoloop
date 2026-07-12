@@ -107,7 +107,7 @@ async def get_file_content(
     try:
         result = read_file(full_path)
         return FileContent(content=result.content, language=ext.lstrip("."))
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Error reading file {full_path}: {e}")
         raise HTTPException(status_code=500, detail="Error reading file")
 
@@ -208,7 +208,7 @@ async def open_file(
         else:
             subprocess.run(["xdg-open", target_file], check=True)
         return OpenFileResponse(status="success", message="File opened")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Failed to open file {target_file}: {e}")
         raise HTTPException(500, f"Failed to open file: {str(e)}")
 
@@ -237,7 +237,7 @@ async def create_file(
         write_file(target_file, req.content)
 
         return FileNode(name=os.path.basename(target_file), path=req.path, type="file")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Failed to write file {target_file}: {e}")
         raise HTTPException(500, f"Failed to write file: {str(e)}")
 
@@ -286,7 +286,7 @@ async def upload_file(
 
         return FileUploadResponse(url=url, filename=filename, path=rel_path)
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Failed to upload file {target_path}: {e}")
         raise HTTPException(500, f"Failed to upload file: {str(e)}")
 
@@ -327,7 +327,7 @@ async def workspace_upload(
         # Return relative path for frontend FileNode
         rel_path = os.path.relpath(target_file, root_path)
         return FileNode(name=filename, path=rel_path, type="file")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Failed to upload to workspace {target_file}: {e}")
         raise HTTPException(500, f"Failed to upload to workspace: {str(e)}")
 
@@ -422,7 +422,7 @@ async def create_directory(
     try:
         os.makedirs(target_dir, exist_ok=True)
         return FileNode(name=os.path.basename(target_dir), path=req.path, type="directory")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Failed to create directory {target_dir}: {e}")
         raise HTTPException(500, f"Failed to create directory: {str(e)}")
 
@@ -459,7 +459,7 @@ async def move_file(
 
         is_dir = os.path.isdir(target_file)
         return FileNode(name=os.path.basename(target_file), path=req.target_path, type="directory" if is_dir else "file")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Failed to move {source_file} to {target_file}: {e}")
         raise HTTPException(500, f"Failed to move: {str(e)}")
 
@@ -491,7 +491,7 @@ async def delete_file(
         else:
             os.remove(target_file)
         return BaseAPIResponse(status="success", message="File deleted")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Failed to delete {target_file}: {e}")
         raise HTTPException(500, f"Failed to delete: {str(e)}")
 
@@ -519,7 +519,7 @@ async def read_any_file(req: ReadFileRequest):
     try:
         result = read_file(target_path)
         return ReadFileResponse(content=result.content)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Error reading file {target_path}: {e}")
         raise HTTPException(500, "Error reading file")
 

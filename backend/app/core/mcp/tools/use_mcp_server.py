@@ -60,6 +60,6 @@ async def use_mcp_server(server_name: str) -> str:
             "Simply reply with: 'I have requested the MCP server. I am now waiting for the system to reload with the new tools.' "
             "Do NOT attempt to use the new tools in this exact message."
         )
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Error in use_mcp_server: {e}")
         return f"Error activating MCP server: {str(e)}"

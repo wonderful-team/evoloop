@@ -66,5 +66,6 @@ async def learn_from_trace(thread_id: str, session_id: str | None = None) -> str
             triggers=skill_data.trigger_patterns,
         )
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        logger.error(f"[learn_from_trace] Failed to learn from thread {thread_id}: {e}")
         return i18n.get("domain_tools.learning.failed", error=str(e))

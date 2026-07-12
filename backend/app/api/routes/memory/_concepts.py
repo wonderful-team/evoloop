@@ -43,7 +43,7 @@ async def list_concepts(
             )
             for m in results
         ]
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.warning(f"Failed to list concepts: {e}")
         return []
 
@@ -98,7 +98,7 @@ async def list_concepts_with_counts(
             )
             for m in results
         ]
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.warning(f"Failed to list concepts: {e}")
         return []
 
@@ -129,7 +129,7 @@ async def get_concept(
         )
     except HTTPException:
         raise
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Failed to get concept {concept_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -154,7 +154,7 @@ async def add_concept(
             memory_kind=req.memory_kind,
         )
         return ConceptOperationResponse(status="success", name=req.name)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Failed to add concept: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -174,7 +174,7 @@ async def delete_concept(
         return ConceptOperationResponse(status="success", name=concept_name)
     except HTTPException:
         raise
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Failed to delete concept {concept_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -208,6 +208,6 @@ async def update_concept(
         return ConceptOperationResponse(status="success", name=concept_name)
     except HTTPException:
         raise
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Failed to update concept {concept_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -159,7 +159,7 @@ async def dispatch_agent_run(
                 logger.info(
                     f"[Dispatch] Upload session {upload_session_id} promoted to thread {thread_id}"
                 )
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                 logger.warning(f"[Dispatch] Failed to promote upload session: {e}")
 
     # ------------------------------------------------------------------
@@ -184,7 +184,7 @@ async def dispatch_agent_run(
             )
         content_blocks = ref_context.content_blocks
         references_list = ref_context.references
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.warning(f"[Dispatch] Reference service failed: {e}, falling back to raw message_content")
         content_blocks = message_content
 

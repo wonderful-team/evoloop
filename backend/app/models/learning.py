@@ -49,7 +49,7 @@ class TraceEvent(Base):
     screenshot_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     target_selector: Mapped[str | None] = mapped_column(Text, nullable=True)
     target_text: Mapped[str | None] = mapped_column(Text, nullable=True)
-    
+
     # Feedback & Reward
     reward: Mapped[float | None] = mapped_column(Float, nullable=True)
     user_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)

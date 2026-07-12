@@ -155,7 +155,7 @@ class ContextTrimmer:
             count_before = len(working)
             try:
                 working = apply_forgotten_status(working, tool_memory)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                 logger.warning(f"[ContextTrimmer] apply_forgotten_status failed: {e}")
             stage_log.append({
                 "stage": "forgetting",

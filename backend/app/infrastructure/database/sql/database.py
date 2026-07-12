@@ -71,7 +71,7 @@ async def get_db():
     async with db_resource_manager.session_factory() as session:
         try:
             yield session
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(f"Database session error: {e}")
             await session.rollback()
             raise
@@ -88,7 +88,7 @@ async def session_scope():
         try:
             yield session
             await session.commit()
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError):
             await session.rollback()
             raise
         finally:
@@ -108,7 +108,7 @@ def sync_session_scope():
         try:
             yield session
             session.commit()
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError):
             session.rollback()
             raise
         finally:

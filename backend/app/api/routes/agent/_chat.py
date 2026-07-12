@@ -111,7 +111,7 @@ async def chat_endpoint(
                                 },
                             }
                         )
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                 logger.warning(f"Failed to fetch skills {req.skill_ids}: {e}")
 
         logger.debug(f"[ChatEndpoint] Run initialized for thread {req.thread_id}")
@@ -157,7 +157,7 @@ async def mock_chat(req: ChatRequest):
     async def mock_publish():
         try:
             await scenario_fn(req.thread_id)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(f"Error in mock publishing: {e}", exc_info=True)
 
     asyncio.create_task(mock_publish())
@@ -268,7 +268,7 @@ async def retry_chat(
     except RewindError as e:
         logger.error(f"[Retry] Rewind failed: {e}")
         raise HTTPException(500, f"Rewind failed: {e}")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"[Retry] Unexpected error during rewind: {e}")
         raise HTTPException(500, f"Retry failed: {e}")
 
