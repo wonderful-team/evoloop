@@ -112,6 +112,7 @@ export interface UseDeviceControlReturn {
   respondToHITL: (value: string) => void;
   cancelHITL: (reason?: string) => void;
   clearQuotaExhausted: () => void;
+  setQuotaExhaustedInfo: (info: QuotaExhaustedInfo | null) => void;
 }
 
 /**
@@ -212,10 +213,12 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
       throw new Error(friendlyMsg);
     }
 
+    // 发送成功说明配额已恢复，清除过期的配额耗尽状态
+    setQuotaExhaustedInfo(null);
     onMessageSent?.({
-      commandId: 0,
-      threadId: options?.conversationId || '',
-      messageId: bodyPayload.message_id,
+      commandId: data?.data?.command_id || 0,
+      threadId: data?.data?.thread_id || options?.conversationId || '',
+      messageId: data?.data?.message_id || bodyPayload.message_id,
       mode: 'desktop',
     });
   }, [token, onMessageSent]);
@@ -262,31 +265,46 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
     contextMessages.push({ role: 'user', content: userContent });
 
     // 非流式 Direct-LLM 路径：直接走 api.post 读取 metadata.message_id
-    if (!options?.stream) {
+    // 仅当 options.stream === false 时走非流式；undefined / true 都走 SSE 流式
+    if (options?.stream === false) {
       const threadId = options?.conversationId || generateUUID();
-      const data = await api.post('/gateway/v1/chat/completions', {
-        model: '',
-        messages: contextMessages,
-        stream: false,
-        temperature: 1,
-      }, {
-        headers: {
-          'X-Thread-ID': threadId,
-          'X-Device-Key': options?.deviceKey || '0',
-        },
-      });
+      try {
+        const data = await api.post('/gateway/v1/chat/completions', {
+          model: '',
+          messages: contextMessages,
+          stream: false,
+          temperature: 1,
+        }, {
+          headers: {
+            'X-Thread-ID': threadId,
+            'X-Device-Key': options?.deviceKey || '0',
+          },
+        });
 
-      const aiMessage = data?.choices?.[0]?.message?.content || '';
-      const messageId = data?.metadata?.message_id;
-      const responseThreadId = data?.metadata?.thread_id || threadId;
+        const aiMessage = data?.choices?.[0]?.message?.content || '';
+        const messageId = data?.metadata?.message_id;
+        const responseThreadId = data?.metadata?.thread_id || threadId;
 
-      onMessageSent?.({
-        commandId: 0,
-        threadId: responseThreadId,
-        messageId,
-        aiMessage,
-        mode: 'direct_llm',
-      });
+        // 发送成功说明配额已恢复，清除过期的配额耗尽状态
+        setQuotaExhaustedInfo(null);
+        onMessageSent?.({
+          commandId: 0,
+          threadId: responseThreadId,
+          messageId,
+          aiMessage,
+          mode: 'direct_llm',
+        });
+      } catch (error: any) {
+        const rawMsg = error?.message || error?.response?.data?.error?.message || '';
+        if (error?.statusCode === 429 || /quota_exhausted|配额|insufficient quota/i.test(rawMsg)) {
+          setQuotaExhaustedInfo({
+            title: i18n.t('deviceControl.quotaExhaustedTitle'),
+            message: rawMsg || i18n.t('deviceControl.quotaExhaustedMessage'),
+            hint: i18n.t('deviceControl.quotaExhaustedHint'),
+          });
+        }
+        throw error;
+      }
       return;
     }
 
@@ -315,6 +333,8 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
         options?.onStreamDone?.(fullText);
         // SSE 流式：消息已在流式过程中实时更新，不再重复添加
         // 只传递 threadId（用于新会话时设置 currentConversationId）
+        // 发送成功说明配额已恢复，清除过期的配额耗尽状态
+        setQuotaExhaustedInfo(null);
         onMessageSent?.({
           commandId: 0,
           threadId: options?.conversationId || threadId,
@@ -516,6 +536,7 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
     pendingCommand,
     quotaExhaustedInfo,
     isQuotaExhausted: !!quotaExhaustedInfo,
+    setQuotaExhaustedInfo,
     sendMessage,
     confirmCommand,
     respondToHITL,

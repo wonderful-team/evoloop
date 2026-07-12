@@ -344,7 +344,9 @@ async function fetchSSE(url: string, body: any, options: SSEOptions): Promise<vo
           } catch {
             // 非 JSON 错误响应
           }
-          reject(new Error(errMsg));
+          const error = new Error(errMsg);
+          try { options.onError?.(error); } catch {}
+          reject(error);
           return;
         }
 
@@ -371,7 +373,9 @@ async function fetchSSE(url: string, body: any, options: SSEOptions): Promise<vo
     };
 
     xhr.onerror = () => {
-      reject(new Error(i18n.t('api.errors.requestFailed')));
+      const error = new Error(i18n.t('api.errors.requestFailed'));
+      try { options.onError?.(error); } catch {}
+      reject(error);
     };
 
     xhr.ontimeout = () => {

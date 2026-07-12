@@ -139,7 +139,6 @@
       "sending": "Sending",
       "duration": "Execution Time",
       "executionSteps": "Thinking & Execution",
-
       "sendFailedRetry": "Send failed, tap to retry",
       "sendTimeoutRetry": "Timed out, tap to retry",
       "aiThinking": "AI is thinking..."
@@ -907,7 +906,12 @@
     "reload": "Reload",
     "listSeparator": ", ",
     "fileSize": {
-      "units": ["B", "KB", "MB", "GB"]
+      "units": [
+        "B",
+        "KB",
+        "MB",
+        "GB"
+      ]
     }
   },
   "artifactCard": {
@@ -993,7 +997,8 @@
     "paymentCancelledDesc": "You have cancelled the payment. You can restart it.",
     "paymentFailed": "Payment Failed",
     "retryLater": "Please try again later",
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "freePlanNotPurchasable": "The free plan cannot be purchased. Please select a paid plan"
   },
   "errorBoundary": {
     "title": "Something went wrong",

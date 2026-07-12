@@ -64,6 +64,9 @@ export async function getSubscriptionPlans(): Promise<Array<{
   market_price: string;
   subscription_quota: number;
   description?: string;
+  purchasable?: number;
+  period?: number;
+  duration?: number;
   benefits: {
     ai_quota: number;
     ai_advanced: boolean;

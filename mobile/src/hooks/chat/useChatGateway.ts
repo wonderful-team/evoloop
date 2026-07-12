@@ -18,9 +18,11 @@ interface UseChatGatewayOptions {
   onReconnected?: () => void;
   // 当收到 message.sync 且该 thread 不在本地 conversations 列表时，触发刷新
   onNewThreadDetected?: (threadId: string) => void;
+  // 当收到配额耗尽的错误消息时触发，附带错误内容
+  onQuotaExhausted?: (message: string) => void;
 }
 
-export function useChatGateway({ isLoggedIn, syncMessages, onAgentRunCompleted, onCommandStatusUpdate, onReconnected, onNewThreadDetected }: UseChatGatewayOptions) {
+export function useChatGateway({ isLoggedIn, syncMessages, onAgentRunCompleted, onCommandStatusUpdate, onReconnected, onNewThreadDetected, onQuotaExhausted }: UseChatGatewayOptions) {
   const [gatewayConnectionState, setGatewayConnectionState] = useState<ConnectionState>(ConnectionState.DISCONNECTED);
   const currentConversationIdRef = useRef<string | null>(null);
   const prevConnectionStateRef = useRef<ConnectionState>(ConnectionState.DISCONNECTED);
@@ -41,6 +43,7 @@ export function useChatGateway({ isLoggedIn, syncMessages, onAgentRunCompleted, 
   const incrementUnreadRef = useRef(incrementUnread);
 
   const onNewThreadDetectedRef = useRef(onNewThreadDetected);
+  const onQuotaExhaustedRef = useRef(onQuotaExhausted);
   const conversationsRef = useRef<Conversation[]>([]);
 
   // 每次渲染时更新最新的引用
@@ -52,6 +55,7 @@ export function useChatGateway({ isLoggedIn, syncMessages, onAgentRunCompleted, 
     setHitlRequestRef.current = setHitlRequest;
     incrementUnreadRef.current = incrementUnread;
     onNewThreadDetectedRef.current = onNewThreadDetected;
+    onQuotaExhaustedRef.current = onQuotaExhausted;
   });
 
   const setCurrentConversationId = useCallback((id: string | null) => {
@@ -91,6 +95,12 @@ export function useChatGateway({ isLoggedIn, syncMessages, onAgentRunCompleted, 
         .filter((m: AgentSyncMessage) => m.is_visible !== 0);
 
       if (agentMessages.length === 0) return;
+
+      // 检测配额耗尽错误消息，触发充值引导 UI
+      const quotaMsg = agentMessages.find(m => m.category === 'quota_exhausted');
+      if (quotaMsg) {
+        onQuotaExhaustedRef.current?.(quotaMsg.content);
+      }
 
       const firstMsg = agentMessages[0];
       const messageId = firstMsg?.id;

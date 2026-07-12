@@ -159,7 +159,6 @@ class NativeVoiceEngineWrapper {
   }
 
   async setMode(mode: VoiceEngineMode): Promise<void> {
-    if (this.currentMode === mode) {return;}
     this.currentMode = mode;
     await NativeVoiceEngine.setMode(mode);
   }
@@ -170,6 +169,7 @@ class NativeVoiceEngineWrapper {
 
   async endSession(): Promise<void> {
     await NativeVoiceEngine.stop();
+    this.currentMode = 'idle';
   }
 
   async release(): Promise<void> {

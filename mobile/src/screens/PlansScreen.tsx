@@ -40,6 +40,9 @@ interface PlanCardProps {
     subscription_quota: number;
     description?: string;
     benefits: Record<string, any>;
+    purchasable?: number;
+    period?: number;
+    duration?: number;
   };
   isCurrentPlan: boolean;
   isDowngrade: boolean;
@@ -51,6 +54,11 @@ interface PlanCardProps {
 
 function PlanCard({ plan, isCurrentPlan, isDowngrade, currentSort, targetSort, onSubscribe, isDark }: PlanCardProps) {
   const { t } = useTranslation();
+
+  // 是否可购买：后端 purchasable 标记优先，兼容旧接口按价格判断
+  const canPurchase = plan.purchasable !== undefined
+    ? plan.purchasable === 1
+    : parseFloat(plan.price) > 0;
 
   // 降级卡片样式
   const cardStyle = useMemo(() => {
@@ -135,7 +143,17 @@ function PlanCard({ plan, isCurrentPlan, isDowngrade, currentSort, targetSort, o
         </View>
       );
     }
-    
+
+    // 不可购买（免费/默认等级）：静态展示，不提供订阅按钮
+    if (!canPurchase) {
+      return (
+        <View style={styles.currentPlanBadge}>
+          <MaterialIcons name="lock-open" size={20} color="#9CA3AF" />
+          <Text style={[styles.currentPlanText, { color: '#6B7280' }]}>{t('plans.free')}</Text>
+        </View>
+      );
+    }
+
     return (
       <Button 
         mode="contained" 
@@ -176,7 +194,7 @@ function PlanCard({ plan, isCurrentPlan, isDowngrade, currentSort, targetSort, o
           )}
         </View>
         <Text variant="bodyMedium" style={[styles.period, isDowngrade && styles.downgradeText]}>
-          {t('plans.period', { days: plan.subscription_quota || 30 })}
+          {t('plans.period', { days: plan.period || plan.duration || 30 })}
         </Text>
         
         <Divider style={styles.divider} />
@@ -273,8 +291,12 @@ export default function PlansScreen() {
           </View>
         ) : (
           sortedPlans.map((plan) => {
-            // 判断是否为当前套餐
-            const isCurrentPlan = hasActiveSubscription && currentLevelId === plan.level_id;
+            // 判断是否为当前套餐：付费用户按有效订阅判断；免费用户（无有效订阅）的免费等级即为当前方案
+            const planPurchasable = plan.purchasable !== undefined
+              ? plan.purchasable === 1
+              : parseFloat(plan.price) > 0;
+            const isCurrentPlan = currentLevelId === plan.level_id &&
+              (hasActiveSubscription || !planPurchasable);
             
             // 判断是否为降级
             const targetSort = plan.benefits?.sort ?? plan.level_id;

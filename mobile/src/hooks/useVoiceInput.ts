@@ -50,6 +50,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
   const isRunningRef = useRef(false);
   const pendingFinalRef = useRef(false);
   const isContinuousRef = useRef(false);
+  const pendingPeriodRef = useRef(false);
 
   // 连续对话模式设置函数定义前置以在 useEffect 中安全引用
   const setContinuous = useCallback((enabled: boolean) => {
@@ -115,6 +116,8 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
     onVadEnd: () => {
       setState('recognizing');
       pendingFinalRef.current = true;
+      // VAD 静音超时，标记下一句前加句号
+      pendingPeriodRef.current = true;
       // 用户停止说话瞬间，提前预热云端 TTS 的 TCP/SSL 连接（省去 ~200ms 握手延迟）
       onVadEndPrewarm?.();
     },
@@ -133,15 +136,18 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
         return;
       }
 
-      // ② 非本地指令：正常累积并发送给云端 LLM
-      sessionTextRef.current += (sessionTextRef.current ? ' ' : '') + text;
+      // ② 非本地指令：累积到 sessionText，但不自动发送
+      // VAD 断句后如果有下一句，句首加句号
+      let prefix = '';
+      if (pendingPeriodRef.current && sessionTextRef.current) {
+        prefix = '，';
+      }
+      pendingPeriodRef.current = false;
+      sessionTextRef.current += prefix + text;
       appendFinalText(text);
       pendingFinalRef.current = false;
 
-      // VAD 断句后自动发送
-      if (!isContinuousRef.current) {
-        flushFinal();
-      }
+      // 手动触发结束（pressOut/toggle）时才发送；VAD 仅做断句积累
     },
     onWake: (text) => {
       onWake?.(text);
@@ -175,6 +181,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
 
     isRunningRef.current = true;
     sessionTextRef.current = '';
+    pendingPeriodRef.current = false;
     clearFinalText();
     setPartialText('');
     setError(null);

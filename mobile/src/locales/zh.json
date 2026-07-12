@@ -150,7 +150,6 @@
       "sending": "发送中",
       "duration": "执行用时",
       "executionSteps": "思考与执行过程",
-
       "sendFailedRetry": "发送失败，点击重试",
       "sendTimeoutRetry": "超时，点击重试",
       "aiThinking": "AI 思考中..."
@@ -955,7 +954,12 @@
     "reload": "重新加载",
     "listSeparator": "、",
     "fileSize": {
-      "units": ["B", "KB", "MB", "GB"]
+      "units": [
+        "B",
+        "KB",
+        "MB",
+        "GB"
+      ]
     },
     "tip": "提示",
     "unknown": "未知",
@@ -993,7 +997,8 @@
     "paymentCancelledDesc": "您已取消支付，可重新发起支付",
     "paymentFailed": "支付失败",
     "retryLater": "请稍后重试",
-    "loading": "加载中..."
+    "loading": "加载中...",
+    "freePlanNotPurchasable": "免费方案不可购买，请选择付费套餐"
   },
   "errorBoundary": {
     "title": "出错了",

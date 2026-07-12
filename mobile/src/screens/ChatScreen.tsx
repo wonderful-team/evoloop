@@ -354,6 +354,7 @@ export default function ChatScreen() {
     pendingCommand,
     quotaExhaustedInfo,
     isQuotaExhausted,
+    setQuotaExhaustedInfo,
     sendMessage: sendMessageToDevice,
     confirmCommand,
     respondToHITL,
@@ -411,6 +412,13 @@ export default function ChatScreen() {
       // 新会话的首次 message.sync 到达时，PHP MC 已消费队列的概率很高，刷新列表以获取 conversation 元数据
       loadConversations(true);
     }, [loadConversations]),
+    onQuotaExhausted: useCallback((errorMessage: string) => {
+      setQuotaExhaustedInfo({
+        title: t('deviceControl.quotaExhaustedTitle'),
+        message: errorMessage,
+        hint: t('deviceControl.quotaExhaustedHint'),
+      });
+    }, [t]),
   });
   // 同步 currentConversationId 到 Gateway hook（避免 WebSocket 因 id 变化而重连）
   useEffect(() => {
@@ -418,12 +426,14 @@ export default function ChatScreen() {
     // 进入会话或切换会话时，打断之前的 TTS 音频播放并清空队列
     stopTTS();
     clearTTSQueue();
+    // 配额耗尽状态归属发起它的会话；切换/新建会话时清除，避免卡片/横幅泄漏到无关会话
+    clearQuotaExhausted();
     if (currentConversationId) {
       clearUnread(currentConversationId);
       // 进入会话时同步标记后端已读
       conversationApi.markAsRead(currentConversationId).catch(() => {});
     }
-  }, [currentConversationId, setCurrentConversationId, clearUnread, stopTTS, clearTTSQueue]);
+  }, [currentConversationId, setCurrentConversationId, clearUnread, stopTTS, clearTTSQueue, clearQuotaExhausted]);
 
   const clearAgentProcessing = useCallback(() => {
     setIsAgentProcessing(false);

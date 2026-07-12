@@ -39,6 +39,13 @@ export default function PayConfirmScreen() {
   const selectedPlan = useMemo(() => {
     return plans.find(p => p.level_id === levelId);
   }, [plans, levelId]);
+
+  // 是否可购买：后端 purchasable 标记优先，兼容旧接口按价格判断
+  const canPurchase = useMemo(() => {
+    if (!selectedPlan) return false;
+    const p = (selectedPlan as any).purchasable;
+    return p !== undefined ? p === 1 : parseFloat(selectedPlan.price) > 0;
+  }, [selectedPlan]);
   
   // 计算实际支付金额
   const payAmount = useMemo(() => {
@@ -70,6 +77,11 @@ export default function PayConfirmScreen() {
     
     if (isDowngrade) {
       Alert.alert(t('payConfirm.cannotPurchase'), t('payConfirm.cannotPurchaseDesc'));
+      return;
+    }
+
+    if (!canPurchase) {
+      Alert.alert(t('payConfirm.cannotPurchase'), t('payConfirm.freePlanNotPurchasable'));
       return;
     }
     
@@ -131,7 +143,7 @@ export default function PayConfirmScreen() {
       
       Alert.alert(t('payConfirm.orderFailed'), error?.message || t('payConfirm.retryLater'));
     }
-  }, [levelId, isDowngrade, createOrder, t, selectedPlan, payAmount]);
+  }, [levelId, isDowngrade, canPurchase, createOrder, t, selectedPlan, payAmount]);
   
   // 加载中
   if (isLoadingPlans || !selectedPlan) {
@@ -156,7 +168,7 @@ export default function PayConfirmScreen() {
               {formatMoney.cny(payAmount)}
             </Text>
             <Text variant="bodyMedium" style={styles.planName}>
-              {t('payConfirm.planName', { name: selectedPlan.level_name, days: selectedPlan.subscription_quota || 30 })}
+              {t('payConfirm.planName', { name: selectedPlan.level_name, days: (selectedPlan as any).period || (selectedPlan as any).duration || 30 })}
             </Text>
             
             {/* 升级信息 */}
@@ -268,10 +280,10 @@ export default function PayConfirmScreen() {
             mode="contained"
             onPress={handlePay}
             loading={isCreatingOrder}
-            disabled={isCreatingOrder || isDowngrade || isLoadingPrice}
-            style={[styles.payButton, isDowngrade && styles.payButtonDisabled]}
+            disabled={isCreatingOrder || isDowngrade || isLoadingPrice || !canPurchase}
+            style={[styles.payButton, (isDowngrade || !canPurchase) && styles.payButtonDisabled]}
             contentStyle={styles.payButtonContent}
-            buttonColor={isDowngrade ? '#9CA3AF' : '#109C8F'}
+            buttonColor={(isDowngrade || !canPurchase) ? '#9CA3AF' : '#109C8F'}
           >
             {isDowngrade ? t('payConfirm.cannotPurchase') : isUpgrade ? t('payConfirm.confirmUpgrade') : t('payConfirm.payNow')}
           </Button>
