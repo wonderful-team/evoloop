@@ -61,14 +61,15 @@ class TestModeSwitchingBoundary:
             store = get_vector_store()
             assert store is not None
 
-    def test_event_bus_singleton_resettable(self):
-        """Event bus singleton 可以重置。"""
-        from app.core.engine.message.event_bus import get_event_bus, _event_bus
+    def test_message_broker_singleton_resettable(self):
+        """Message broker singleton 可以重置。"""
+        from app.core.engine.message.broker import get_message_broker, _message_broker
 
         # Reset
-        get_event_bus.__globals__["_event_bus"] = None
+        get_message_broker.__globals__["_message_broker"] = None
 
         with patch.object(settings, "EMBEDDED_MODE", True):
-            with patch("app.core.engine.message.event_bus.LocalEventBus") as MockLocal:
-                get_event_bus()
+            with patch("app.core.engine.message.broker.LocalMessageBroker") as MockLocal:
+                get_message_broker()
                 MockLocal.assert_called_once()
+

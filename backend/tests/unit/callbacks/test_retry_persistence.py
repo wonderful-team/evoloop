@@ -27,10 +27,12 @@ with patch("app.infrastructure.database.sql.database.db_resource_manager"):
 
 @pytest.fixture
 def mock_all():
-    with patch("app.core.channel.web_channel.get_event_bus") as bus_mock:
+    with patch("app.core.channel.web_channel.get_message_broker") as broker_mock:
         bus = MagicMock()
         bus.publish = AsyncMock()
-        bus_mock.return_value = bus
+        broker_mock.return_value = bus
+
+
         
         with patch("app.core.engine.callbacks.database_logger.MessageHandler") as handler_mock:
             handler = MagicMock()

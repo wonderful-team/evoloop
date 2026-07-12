@@ -76,11 +76,12 @@ async def run_standalone_test(mock_cloud, mock_db):
     trans_callback.active_llm_run_id = "retry-run"
     trans_callback.llm_task_id = "task-1"
     
-    # Mock Event Bus for streaming
-    with patch("app.core.engine.message.event_bus.get_event_bus") as mock_bus:
-        bus = MagicMock()
-        bus.publish = AsyncMock()
-        mock_bus.return_value = bus
+    # Mock MessageBroker for streaming
+    with patch("app.core.channel.web_channel.get_message_broker") as mock_broker:
+        broker = MagicMock()
+        broker.publish = AsyncMock()
+        mock_broker.return_value = broker
+
         
         # Simulate LLM sending thinking tokens (Kimi style)
         await trans_callback.on_llm_new_token(

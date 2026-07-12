@@ -177,7 +177,7 @@ async def main():
             "model": "kimi-k2-thinking-turbo"
         })
         from app.core.events.base import system_bus
-        from app.core.events.schemas.lifecycle import ExtractionCompletedEvent
+        from app.core.engine.event import ExtractionCompletedEvent
         from app.core.events.registry import SystemEventType
         from app.core.engine.tasks import engine_audit_structured_extraction
         

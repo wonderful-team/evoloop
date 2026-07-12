@@ -127,7 +127,7 @@ async def run_scenario_evaluation(scenario_key: str, scenario_data: dict, manage
     
     # 1. 模拟触发 Extraction Requested 事件以收集 schema
     from app.core.events.base import system_bus
-    from app.core.events.schemas.lifecycle import ExtractionRequestedEvent
+    from app.core.engine.event import ExtractionRequestedEvent
     from app.core.engine.tasks import run_engine_audit_structured_extraction
     
     req_event = ExtractionRequestedEvent(

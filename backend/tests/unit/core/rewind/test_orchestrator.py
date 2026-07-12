@@ -30,7 +30,7 @@ class TestRewindOrchestrator:
     def orchestrator(self, mock_event_bus, monkeypatch):
         """Create a RewindOrchestrator with mock bus."""
         monkeypatch.setattr(
-            "app.core.engine.rewind.event.publishers.system_bus",
+            "app.core.engine.rewind.rewind.system_bus",
             mock_event_bus,
         )
         # Mock session_scope to avoid database dependencies
@@ -47,10 +47,11 @@ class TestRewindOrchestrator:
             yield session
         
         monkeypatch.setattr(
-            "app.infrastructure.database.session_scope",
+            "app.core.engine.rewind.rewind.session_scope",
             mock_session_scope,
         )
         return RewindOrchestrator(event_bus=mock_event_bus)
+
 
     @pytest.mark.asyncio
     async def test_perform_rewind_publishes_requested_event(self, orchestrator, mock_event_bus):
@@ -106,7 +107,7 @@ class TestRewindOrchestrator:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                raise Exception("Test error")
+                raise RuntimeError("Test error")
         
         mock_event_bus.publish.side_effect = side_effect
 
@@ -142,33 +143,22 @@ class TestRewindModels:
         from app.core.engine.rewind import RewindRequest
 
         req = RewindRequest(
-            thread_id="thread-123",
-            target_message_id="msg-456",
-            include_target=True,
+            message_id="msg-456",
             revert_files=True,
-            reset_state=False,
-            reason="test"
         )
 
-        assert req.thread_id == "thread-123"
-        assert req.target_message_id == "msg-456"
-        assert req.include_target is True
+        assert req.message_id == "msg-456"
         assert req.revert_files is True
-        assert req.reset_state is False
-        assert req.reason == "test"
 
     def test_rewind_request_defaults(self):
         """Test RewindRequest default values."""
         from app.core.engine.rewind import RewindRequest
 
-        req = RewindRequest(thread_id="thread-123")
+        req = RewindRequest()
 
-        assert req.thread_id == "thread-123"
-        assert req.target_message_id is None
-        assert req.include_target is False
+        assert req.message_id is None
         assert req.revert_files is True
-        assert req.reset_state is True
-        assert req.reason == "user_request"
+
 
     def test_rewind_result_creation(self):
         """Test RewindResult creation."""

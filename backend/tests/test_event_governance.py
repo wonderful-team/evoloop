@@ -27,11 +27,8 @@ async def test_scenario_1_session_lifecycle():
     bridge = UniversalBridgeSubscriber()
     
     # Manually inject mock transport to avoid real Redis
-    from app.core.engine.message.event_bus import get_event_bus
-    with MagicMock() as mock_get_bus:
-        import app.core.events.subscribers.bridge as bridge_mod
-        bridge_mod.get_event_bus = lambda: mock_transport
-        
+    from unittest.mock import patch
+    with patch("app.core.channel.web_channel.get_message_broker", return_value=mock_transport):
         # Create Event
         event = SessionCompletedEvent(
             data=SessionCompletedData(
@@ -62,25 +59,24 @@ async def test_scenario_2_background_tasks():
     mock_transport = MockEventBus()
     bridge = UniversalBridgeSubscriber()
     
-    import app.core.events.subscribers.bridge as bridge_mod
-    bridge_mod.get_event_bus = lambda: mock_transport
-    
-    # Test Task Update
-    task_event = BackgroundTaskEvent(
-        thread_id="thread_task",
-        task_id="cmd-123",
-        action="started",
-        task_data={"id": "cmd-123", "title": "test task"}
-    )
-    await bridge.handle_event(task_event)
-    
-    # Test Task Output
-    output_event = BackgroundTaskOutputEvent(
-        thread_id="thread_task",
-        task_id="cmd-123",
-        output="Hello World"
-    )
-    await bridge.handle_event(output_event)
+    from unittest.mock import patch
+    with patch("app.core.channel.web_channel.get_message_broker", return_value=mock_transport):
+        # Test Task Update
+        task_event = BackgroundTaskEvent(
+            thread_id="thread_task",
+            task_id="cmd-123",
+            action="started",
+            task_data={"id": "cmd-123", "title": "test task"}
+        )
+        await bridge.handle_event(task_event)
+        
+        # Test Task Output
+        output_event = BackgroundTaskOutputEvent(
+            thread_id="thread_task",
+            task_id="cmd-123",
+            output="Hello World"
+        )
+        await bridge.handle_event(output_event)
     
     # Verify
     updates = [m for m in mock_transport.published_messages if m["message"].get("type") == "task_started"]
@@ -99,16 +95,15 @@ async def test_scenario_3_hitl_interaction():
     mock_transport = MockEventBus()
     bridge = UniversalBridgeSubscriber()
     
-    import app.core.events.subscribers.bridge as bridge_mod
-    bridge_mod.get_event_bus = lambda: mock_transport
-    
-    event = HumanRequestEvent(
-        thread_id="thread_hitl",
-        action="create",
-        prompt="Please confirm",
-        request_type="confirm"
-    )
-    await bridge.handle_event(event)
+    from unittest.mock import patch
+    with patch("app.core.channel.web_channel.get_message_broker", return_value=mock_transport):
+        event = HumanRequestEvent(
+            thread_id="thread_hitl",
+            action="create",
+            prompt="Please confirm",
+            request_type="confirm"
+        )
+        await bridge.handle_event(event)
     
     found = any(m["message"].get("type") == "human_request" for m in mock_transport.published_messages)
     assert found
@@ -123,15 +118,14 @@ async def test_scenario_4_error_handling():
     mock_transport = MockEventBus()
     bridge = UniversalBridgeSubscriber()
     
-    import app.core.events.subscribers.bridge as bridge_mod
-    bridge_mod.get_event_bus = lambda: mock_transport
-    
-    event = QuotaExhaustedEvent(
-        thread_id="thread_error",
-        title="No Money",
-        message="Please top up"
-    )
-    await bridge.handle_event(event)
+    from unittest.mock import patch
+    with patch("app.core.channel.web_channel.get_message_broker", return_value=mock_transport):
+        event = QuotaExhaustedEvent(
+            thread_id="thread_error",
+            title="No Money",
+            message="Please top up"
+        )
+        await bridge.handle_event(event)
     
     found = any(m["message"].get("type") == "quota_exhausted" for m in mock_transport.published_messages)
     assert found

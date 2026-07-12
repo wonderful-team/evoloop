@@ -20,8 +20,8 @@ from app.core.engine.background_agent import run_agent_background
 from app.infrastructure.database import session_scope
 from sqlalchemy import select
 from app.models import Message, MessageReference, FileOperation, HumanRequest
-from app.core.engine.message.event_bus import get_event_bus
-from app.api.routes.conversations import get_conversation_messages
+from app.core.engine.message.broker import get_message_broker
+from app.api.routes.conversations._messages import get_conversation_messages
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("comprehensive_audit")
@@ -68,7 +68,7 @@ async def run_comprehensive_audit():
     mock_lancedb.open_table = MagicMock(return_value=mock_table)
     mock_lancedb.create_table = MagicMock(return_value=mock_table)
     
-    with patch("app.core.engine.message.publisher.get_event_bus", return_value=mock_bus), \
+    with patch("app.core.engine.message.publisher.get_message_broker", return_value=mock_bus), \
          patch("lancedb.connect", return_value=mock_lancedb):
         # Turn 1: Generate artifacts and files
         prompt = (

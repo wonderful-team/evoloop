@@ -113,14 +113,15 @@ async def test_chat_node_fallback_returns_finish():
 async def test_stream_token_publishes_token_event():
     """stream_token 发布的是 TokenEvent，格式匹配前端期望"""
     from app.core.engine.message.handler import MessageHandler
-    from app.core.engine.message.event_bus import get_event_bus
-    from app.infrastructure.cache import cache, get_cache
+    from app.core.engine.message.broker import get_message_broker
+    from app.infrastructure.cache import get_cache
     
     # Reset cached singletons to prevent leaks from other tests
-    get_event_bus.__globals__["_event_bus"] = None
+    get_message_broker.__globals__["_message_broker"] = None
     get_cache.__globals__["_cache_instance"] = None
 
-    ps = cache.pubsub()
+    broker = get_message_broker()
+    ps = broker.pubsub()
     await ps.subscribe("chat:test-stream-token:events")
 
     # thread_id 不要带 "chat:" 前缀，stream_token 会自动拼接
@@ -128,6 +129,7 @@ async def test_stream_token_publishes_token_event():
 
     msg = await ps.get_message(ignore_subscribe_messages=True, timeout=2.0)
     await ps.close()
+
 
     assert msg is not None, "No message received from pubsub"
     import json

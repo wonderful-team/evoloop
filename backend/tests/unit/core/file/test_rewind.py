@@ -27,10 +27,11 @@ class TestFileRewind:
         """Create a FileRewind instance."""
         return FileRewind()
 
-    def test_register_subscribes_to_events(self, mock_event_bus):
+    def test_register_subscribes_to_events(self, mock_event_bus, file_rewind):
         """Test that register subscribes to correct events."""
         # Act
-        FileRewind.register(mock_event_bus)
+        from app.core.events.decorators import register_instance_handlers
+        register_instance_handlers(file_rewind, mock_event_bus)
 
         # Assert
         assert mock_event_bus.subscribe.call_count == 2
@@ -42,6 +43,7 @@ class TestFileRewind:
         # Check second subscription (REWIND_REQUESTED)
         second_call = mock_event_bus.subscribe.call_args_list[1]
         assert second_call[0][0] == RewindEventType.REWIND_REQUESTED
+
 
     @pytest.mark.asyncio
     async def test_handle_files_cleanup_add_operation(self, file_rewind, tmp_path):

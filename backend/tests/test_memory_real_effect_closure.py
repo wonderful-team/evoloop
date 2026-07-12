@@ -121,7 +121,7 @@ async def run_effect_test():
         logger.info(f" - 处理器: {h.__module__}.{h.__name__} (绑定的 self: {getattr(h, '__self__', None)})")
 
     # 构造请求事件并收集 schema
-    from app.core.events.schemas.lifecycle import ExtractionRequestedEvent
+    from app.core.engine.event import ExtractionRequestedEvent
     req_event = ExtractionRequestedEvent(
         thread_id="thread_cors_nginx_debug",
         project_id=1,

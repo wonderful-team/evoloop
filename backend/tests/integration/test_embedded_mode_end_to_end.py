@@ -258,21 +258,21 @@ class TestLanceVectorStoreLifecycle:
         assert len(store.search_code(vec, repository_id="repo_del", top_k=5)) == 0
 
 
-class TestLocalEventBusLifecycle:
-    """End-to-end validation of LocalEventBus (embedded-mode event bus)."""
+class TestLocalMessageBrokerLifecycle:
+    """End-to-end validation of LocalMessageBroker (embedded-mode broker)."""
 
     @pytest.fixture
-    def event_bus(self, embedded_settings):
-        from app.core.engine.message.event_bus import LocalEventBus
+    def message_broker(self, embedded_settings):
+        from app.core.engine.message.broker import LocalMessageBroker
 
-        return LocalEventBus()
+        return LocalMessageBroker()
 
     @pytest.mark.asyncio
-    async def test_publish_and_subscribe(self, event_bus):
+    async def test_publish_and_subscribe(self, message_broker):
         from app.utils.pubsub import in_memory_bus
 
         q = in_memory_bus.subscribe("test_channel")
-        await event_bus.publish("test_channel", {"event": "test"})
+        await message_broker.publish("test_channel", {"event": "test"})
 
         # Give event loop a chance to process
         await asyncio.sleep(0.05)
@@ -283,9 +283,10 @@ class TestLocalEventBusLifecycle:
         in_memory_bus.unsubscribe("test_channel", q)
 
     @pytest.mark.asyncio
-    async def test_publish_without_subscribers(self, event_bus):
-        count = await event_bus.publish("empty_channel", {"event": "lonely"})
-        assert count == 1  # LocalEventBus returns 1 even if no subscribers
+    async def test_publish_without_subscribers(self, message_broker):
+        count = await message_broker.publish("empty_channel", {"event": "lonely"})
+        assert count == 1  # LocalMessageBroker returns 1 even if no subscribers
+
 
 
 class TestEmbeddedComponentsInterop:

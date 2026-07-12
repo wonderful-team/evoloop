@@ -7,15 +7,15 @@ from datetime import datetime
 # 确保能找到 app 模块
 sys.path.append(os.path.join(os.getcwd(), "evoloop/backend"))
 
-from app.core.engine.message.event_bus import get_event_bus
+from app.core.engine.message.broker import get_message_broker
 
 async def observe_real_stream(thread_id_prefix="stress-test"):
-    bus = get_event_bus()
+    broker = get_message_broker()
     # 订阅所有压力测试线程的消息（通过通配符或动态获取）
     # 注意：Redis 订阅需要具体频道名，我们会通过监听所有事件频道来获取
     print(f"[{datetime.now()}] Observer started. Waiting for tool events...")
     
-    pubsub = bus.client.pubsub()
+    pubsub = broker.pubsub()
     await pubsub.psubscribe("chat:stress-test-*:events")
     
     try:

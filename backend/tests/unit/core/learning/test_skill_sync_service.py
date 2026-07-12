@@ -270,7 +270,9 @@ class TestDeleteSkillByPath:
     async def test_delete_matching_skill(
         self, patch_session_scope, mock_session, mock_learned_skill, tmp_path,
     ):
-        """Skill found by inferred path → deletes from DB."""
+        """Skill found by inferred path → deletes from DB, then refreshes the
+        discovery cache and publishes the delete event (convergence fix: the
+        reload used to be dead code after an early return)."""
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         mock_learned_skill.name = "my_skill"
@@ -278,7 +280,11 @@ class TestDeleteSkillByPath:
 
         with patch("app.core.learning.skill_sync_service.settings") as mock_settings:
             mock_settings.SKILLS_DIR = str(skills_dir)
-            with patch_session_scope(mock_session):
+            with patch_session_scope(mock_session), patch(
+                "app.core.learning.discovery.skill_discovery.reload", new=AsyncMock()
+            ) as mock_reload, patch(
+                "app.core.events.publishers.publish_skill_mutated", new=AsyncMock()
+            ) as mock_publish:
                 service = SkillSyncService()
                 result = await service.delete_skill_by_path(
                     str(skills_dir / "roles" / "my_skill" / "SKILL.md")
@@ -286,6 +292,9 @@ class TestDeleteSkillByPath:
 
                 assert result is True
                 mock_session.delete.assert_called_once_with(mock_learned_skill)
+                mock_reload.assert_awaited_once()
+                mock_publish.assert_awaited_once()
+                assert mock_publish.await_args.kwargs["action"] == "delete"
 
     @pytest.mark.asyncio
     async def test_delete_no_matching_skill(

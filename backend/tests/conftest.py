@@ -12,6 +12,7 @@ MOCK ARCHITECTURE:
   SystemConfigService. These are skipped when `--integration` is passed so that
   integration tests can exercise real backend implementations.
 """
+
 import sys
 from unittest.mock import MagicMock, AsyncMock
 from contextlib import asynccontextmanager
@@ -40,6 +41,7 @@ sys.modules["app.core.vision.engine"] = _mock_vision_engine
 # These mocks are deferred to pytest_configure so that integration tests can
 # opt out via the --integration flag and exercise real backend implementations.
 
+
 class _NoOpTaskScheduler:
     """No-op scheduler for tests. Prevents Huey SQLite initialization."""
 
@@ -50,7 +52,9 @@ class _NoOpTaskScheduler:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def task(self, func=None, *, name=None, bind=False, retries=0, retry_delay=0, **options):
+    def task(
+        self, func=None, *, name=None, bind=False, retries=0, retry_delay=0, **options
+    ):
         def decorator(f):
             import asyncio
 
@@ -125,7 +129,12 @@ def _apply_unit_test_mocks():
         func=None, *, name=None, bind=False, retries=0, retry_delay=0, **options
     ):
         return _mock_scheduler.task(
-            func, name=name, bind=bind, retries=retries, retry_delay=retry_delay, **options
+            func,
+            name=name,
+            bind=bind,
+            retries=retries,
+            retry_delay=retry_delay,
+            **options,
         )
 
     _factory_mod.shared_task = _noop_shared_task
@@ -200,6 +209,7 @@ if hasattr(_hooks_core_mod, "hook_system"):
 # =============================================================================
 # 7. Legacy: mock optional heavy dependencies if not installed
 # =============================================================================
+
 
 def _create_mock_modules():
     """Create mock modules for dependencies that may not be installed."""
@@ -368,20 +378,28 @@ def _create_mock_modules():
     sys.modules["langchain_core.messages"] = mock_langchain_core.messages
     sys.modules["langchain_core.runnables"] = mock_langchain_core.runnables
     sys.modules["langchain_core.callbacks"] = mock_langchain_core.callbacks
-    sys.modules["langchain_core.callbacks.manager"] = mock_langchain_core.callbacks.manager
+    sys.modules["langchain_core.callbacks.manager"] = (
+        mock_langchain_core.callbacks.manager
+    )
     sys.modules["langchain_core.outputs"] = mock_langchain_core.outputs
     sys.modules["langchain_core.language_models"] = mock_langchain_core.language_models
     sys.modules["langchain_core.tools"] = mock_langchain_core.tools
-    sys.modules["langchain_core.tools.structured_tool"] = mock_langchain_core.tools.structured_tool
+    sys.modules["langchain_core.tools.structured_tool"] = (
+        mock_langchain_core.tools.structured_tool
+    )
     sys.modules["langgraph"] = mock_langgraph
     sys.modules["langgraph.graph"] = mock_langgraph.graph
-    sys.modules[
-        "langgraph.graph.message"
-    ] = mock_langchain_core.graph.message if hasattr(mock_langchain_core, "graph") else mock_graph_message
+    sys.modules["langgraph.graph.message"] = (
+        mock_langchain_core.graph.message
+        if hasattr(mock_langchain_core, "graph")
+        else mock_graph_message
+    )
     sys.modules["langchain_anthropic"] = mock_langchain_anthropic
     sys.modules["langchain_openai"] = mock_langchain_openai
     sys.modules["langchain_community"] = mock_langchain_community
-    sys.modules["langchain_community.chat_models"] = mock_langchain_community.chat_models
+    sys.modules["langchain_community.chat_models"] = (
+        mock_langchain_community.chat_models
+    )
     sys.modules["langchain_community.embeddings"] = mock_langchain_community.embeddings
     sys.modules["pgvector"] = mock_pgvector
     sys.modules["pgvector.sqlalchemy"] = mock_pgvector_sqlalchemy
@@ -435,6 +453,7 @@ def pytest_configure(config):
     else:
         try:
             import app.infrastructure.queue.factory as _factory_mod
+
             _factory_mod._scheduler = None
         except Exception:
             pass
@@ -442,6 +461,7 @@ def pytest_configure(config):
     # Register default channels (SSE + Mobile) for all test modes
     try:
         from app.core.channel import register_default_channels
+
         register_default_channels()
     except Exception:
         pass
@@ -468,3 +488,63 @@ def preserve_logging_handlers():
 def pytest_unconfigure(config):
     """Clean up after test collection."""
     pass
+
+
+@pytest.fixture
+async def _real_db(tmp_path):
+    """Real SQLite DB via the real DatabaseResourceManager.
+
+    pytest_configure (unit mode) replaces db_resource_manager methods with
+    AsyncMocks; this fixture rebinds the class methods, initializes a real temp
+    SQLite database (all tables created), and restores the mocked state
+    afterwards so other unit tests are unaffected.
+
+    Use for tests that must exercise real SQL persistence instead of mocked
+    session_scope.
+    """
+    from app.core.config import settings
+    from app.infrastructure.database.resource_manager import (
+        DatabaseResourceManager,
+        db_resource_manager,
+    )
+
+    orig_embedded = settings.EMBEDDED_MODE
+    orig_sqlite_path = settings.SQLITE_PATH
+    saved = {
+        "initialize": db_resource_manager.initialize,
+        "shutdown": db_resource_manager.shutdown,
+        "close": db_resource_manager.close,
+        "reset": db_resource_manager.reset,
+        "get_raw_connection": db_resource_manager.get_raw_connection,
+        "factories": dict(db_resource_manager._session_factories),
+    }
+    manager = db_resource_manager
+    manager.initialize = DatabaseResourceManager.initialize.__get__(
+        manager, DatabaseResourceManager
+    )
+    manager.shutdown = DatabaseResourceManager.shutdown.__get__(
+        manager, DatabaseResourceManager
+    )
+    manager.close = DatabaseResourceManager.close.__get__(
+        manager, DatabaseResourceManager
+    )
+    manager.reset = DatabaseResourceManager.reset.__get__(
+        manager, DatabaseResourceManager
+    )
+
+    settings.EMBEDDED_MODE = True
+    settings.SQLITE_PATH = str(tmp_path / "real.db")
+    await manager.initialize(seed_data=False)
+    try:
+        yield
+    finally:
+        await manager.close()
+        settings.EMBEDDED_MODE = orig_embedded
+        settings.SQLITE_PATH = orig_sqlite_path
+        manager.initialize = saved["initialize"]
+        manager.shutdown = saved["shutdown"]
+        manager.close = saved["close"]
+        manager.reset = saved["reset"]
+        manager.get_raw_connection = saved["get_raw_connection"]
+        for loop_id, factory in saved["factories"].items():
+            manager._session_factories[loop_id] = factory
