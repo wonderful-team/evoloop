@@ -53,6 +53,7 @@ public:
   const SherpaOnnxOnlineStream *_stream;
   const SherpaOnnxVoiceActivityDetector *_vad;
   AVAudioEngine *_audioEngine;
+  AVAudioConverter *_audioConverter;
   BOOL _isRunning;
   BOOL _isRecognizing;
   NSString *_wakeWord;
@@ -194,18 +195,23 @@ RCT_EXPORT_METHOD(initialize:(NSDictionary *)config
     _vadThreshold = vadThreshold;
     _silenceTimeoutMs = silenceTimeoutMs;
 
-    SherpaOnnxVadModelConfig vadModelConfig = {};
-    vadModelConfig.silero_vad.model = "";
-    vadModelConfig.silero_vad.threshold = vadThreshold;
-    vadModelConfig.silero_vad.min_silence_duration = (float)silenceTimeoutMs / 1000.0f;
-    vadModelConfig.silero_vad.min_speech_duration = 0.25f;
-    vadModelConfig.sample_rate = 16000;
-    vadModelConfig.num_threads = 1;
+    NSString *vadModelPath = [bundle pathForResource:@"silero_vad" ofType:@"onnx" inDirectory:@"sherpa-vad"];
+    if (!vadModelPath) vadModelPath = [bundle pathForResource:@"silero_vad" ofType:@"onnx"];
 
-    _vad = SherpaOnnxCreateVoiceActivityDetector(&vadModelConfig, vadWindowSize);
+    if (vadModelPath) {
+      SherpaOnnxVadModelConfig vadModelConfig = {};
+      vadModelConfig.silero_vad.model = hold(vadModelPath);
+      vadModelConfig.silero_vad.threshold = vadThreshold;
+      vadModelConfig.silero_vad.min_silence_duration = (float)silenceTimeoutMs / 1000.0f;
+      vadModelConfig.silero_vad.min_speech_duration = 0.25f;
+      vadModelConfig.sample_rate = 16000;
+      vadModelConfig.num_threads = 1;
+
+      _vad = SherpaOnnxCreateVoiceActivityDetector(&vadModelConfig, vadWindowSize);
+    }
+
     if (!_vad) {
-      reject(@"INIT_ERROR", @"Failed to create VAD", nil);
-      return;
+      NSLog(@"[RNVoiceEngine] VAD not available (model not found), continuing without VAD");
     }
 
     NSLog(@"[RNVoiceEngine] Initialized");
@@ -234,7 +240,7 @@ RCT_EXPORT_METHOD(start:(RCTPromiseResolveBlock)resolve
     return;
   }
 
-  if (!_recognizer || !_vad) {
+  if (!_recognizer) {
     reject(@"NOT_INITIALIZED", @"Call initialize() first", nil);
     return;
   }
@@ -269,14 +275,17 @@ RCT_EXPORT_METHOD(start:(RCTPromiseResolveBlock)resolve
     _audioEngine = [[AVAudioEngine alloc] init];
     AVAudioInputNode *inputNode = [_audioEngine inputNode];
 
-    AVAudioFormat *format = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32
-                                                             sampleRate:16000
-                                                               channels:1
-                                                            interleaved:NO];
+    // 使用硬件原生格式安装 tap，避免格式不匹配
+    AVAudioFormat *hwFormat = [inputNode outputFormatForBus:0];
+    AVAudioFormat *targetFormat = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32
+                                                                   sampleRate:16000
+                                                                     channels:1
+                                                                  interleaved:NO];
+    _audioConverter = [[AVAudioConverter alloc] initFromFormat:hwFormat toFormat:targetFormat];
 
     __weak RNVoiceEngine *weakSelf = self;
-    [inputNode installTapOnBus:0 bufferSize:1600 format:format block:^(AVAudioPCMBuffer *buffer, AVAudioTime *when) {
-      [weakSelf processAudioBuffer:buffer];
+    [inputNode installTapOnBus:0 bufferSize:4096 format:hwFormat block:^(AVAudioPCMBuffer *buffer, AVAudioTime *when) {
+      [weakSelf processAudioBuffer:buffer targetFormat:targetFormat];
     }];
 
     [_audioEngine prepare];
@@ -308,17 +317,42 @@ RCT_EXPORT_METHOD(release:(RCTPromiseResolveBlock)resolve
 
 #pragma mark - Audio Processing
 
-- (void)processAudioBuffer:(AVAudioPCMBuffer *)buffer {
-  if (!_isRunning || !_stream || !_recognizer || !_vad) return;
+- (void)processAudioBuffer:(AVAudioPCMBuffer *)buffer targetFormat:(AVAudioFormat *)targetFormat {
+  if (!_isRunning || !_stream || !_recognizer) return;
 
-  float *data = buffer.floatChannelData[0];
-  int frameLength = (int)buffer.frameLength;
+  // 重采样到 16kHz
+  AVAudioPCMBuffer *convertedBuffer = buffer;
+  if (_audioConverter && buffer.format.sampleRate != 16000) {
+    AVAudioFrameCount outCapacity = (AVAudioFrameCount)(buffer.frameLength * 16000.0 / buffer.format.sampleRate) + 1;
+    convertedBuffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:targetFormat frameCapacity:outCapacity];
+    NSError *convError = nil;
+    __block BOOL haveData = YES;
+    AVAudioConverterInputBlock inputBlock = ^AVAudioBuffer *(AVAudioPacketCount inNumberOfPackets, AVAudioConverterInputStatus *outStatus) {
+      if (haveData) {
+        haveData = NO;
+        *outStatus = AVAudioConverterInputStatus_HaveData;
+        return buffer;
+      }
+      *outStatus = AVAudioConverterInputStatus_NoDataNow;
+      return nil;
+    };
+    [_audioConverter convertToBuffer:convertedBuffer error:&convError withInputFromBlock:inputBlock];
+    if (convError) {
+      NSLog(@"[RNVoiceEngine] Audio conversion error: %@", convError);
+      return;
+    }
+  }
+
+  float *data = convertedBuffer.floatChannelData[0];
+  int frameLength = (int)convertedBuffer.frameLength;
   if (frameLength <= 0) return;
 
-  // === VAD ===
-  SherpaOnnxVoiceActivityDetectorAcceptWaveform(_vad, data, frameLength);
-
-  BOOL isSpeech = SherpaOnnxVoiceActivityDetectorDetected(_vad) == 1;
+  // === VAD (optional) ===
+  BOOL isSpeech = YES;
+  if (_vad) {
+    SherpaOnnxVoiceActivityDetectorAcceptWaveform(_vad, data, frameLength);
+    isSpeech = SherpaOnnxVoiceActivityDetectorDetected(_vad) == 1;
+  }
 
   // Calculate volume RMS and pitch band (80Hz~260Hz) filtered RMS
   float rms = 0;
@@ -406,7 +440,7 @@ RCT_EXPORT_METHOD(release:(RCTPromiseResolveBlock)resolve
   }
   _lastText = "";
   [_partialBuffer removeAllObjects];
-  SherpaOnnxVoiceActivityDetectorReset(_vad);
+  if (_vad) SherpaOnnxVoiceActivityDetectorReset(_vad);
   _pitchFilter.reset();
 }
 
@@ -482,6 +516,7 @@ RCT_EXPORT_METHOD(stopAudio:(RCTPromiseResolveBlock)resolve
     [_audioEngine stop];
     [[_audioEngine inputNode] removeTapOnBus:0];
     _audioEngine = nil;
+    _audioConverter = nil;
   }
 
   [_vadEndTimer invalidate];
@@ -589,28 +624,8 @@ RCT_EXPORT_METHOD(setVadThreshold:(double)threshold
                   resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject) {
   @synchronized(self) {
-    if (!_recognizer) {
-      resolve(nil);
-      return;
-    }
-    if (_vad) {
-      SherpaOnnxDestroyVoiceActivityDetector(_vad);
-      _vad = NULL;
-    }
-    
-    int32_t vadWindowSize = 512;
     _vadThreshold = (float)threshold;
-    
-    SherpaOnnxVadModelConfig vadModelConfig = {};
-    vadModelConfig.silero_vad.model = "";
-    vadModelConfig.silero_vad.threshold = _vadThreshold;
-    vadModelConfig.silero_vad.min_silence_duration = (float)_silenceTimeoutMs / 1000.0f;
-    vadModelConfig.silero_vad.min_speech_duration = 0.25f;
-    vadModelConfig.sample_rate = 16000;
-    vadModelConfig.num_threads = 1;
-    
-    _vad = SherpaOnnxCreateVoiceActivityDetector(&vadModelConfig, vadWindowSize);
-    NSLog(@"[RNVoiceEngine] Dynamically updated VAD threshold to %f", threshold);
+    NSLog(@"[RNVoiceEngine] Updated VAD threshold to %f", threshold);
   }
   resolve(nil);
 }

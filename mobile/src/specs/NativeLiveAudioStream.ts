@@ -1,5 +1,5 @@
 import type { TurboModule } from 'react-native';
-import { TurboModuleRegistry } from 'react-native';
+import { TurboModuleRegistry, NativeModules, Platform } from 'react-native';
 
 export interface Spec extends TurboModule {
   init(options: {
@@ -13,4 +13,8 @@ export interface Spec extends TurboModule {
   stop(): void;
 }
 
-export default TurboModuleRegistry.getEnforcing<Spec>('RNLiveAudioStream');
+const isTurboModule = !!(global as any).__turboModuleProxy;
+
+export default (Platform.OS !== 'harmony' && isTurboModule
+  ? TurboModuleRegistry.getEnforcing<Spec>('RNLiveAudioStream')
+  : NativeModules.RNLiveAudioStream) as Spec;

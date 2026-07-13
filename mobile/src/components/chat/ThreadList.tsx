@@ -286,8 +286,8 @@ export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }
         style={[
           styles.header,
           { borderBottomColor: colors.outline + '30' },
-          Platform.OS === 'harmony' && {
-            paddingTop: insets.top + 8,
+          Platform.OS !== 'android' && {
+            paddingTop: Platform.OS === 'ios' ? insets.top : insets.top + 8,
             paddingBottom: 12,
           },
         ]}

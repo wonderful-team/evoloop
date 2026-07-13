@@ -880,8 +880,8 @@ export default function ChatScreen() {
         <View
           style={[
             styles.header,
-            Platform.OS === 'harmony' && {
-              paddingTop: insets.top + 8,
+            Platform.OS !== 'android' && {
+              paddingTop: Platform.OS === 'ios' ? insets.top : insets.top + 8,
               paddingBottom: 12,
             },
           ]}

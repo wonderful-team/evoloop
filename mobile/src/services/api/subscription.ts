@@ -227,10 +227,11 @@ export async function cancelSubscription(
 /**
  * 获取 AI 配额
  * GET /member/subscription/api/aiQuota
+ * 返回 getQuotaInfo 口径：total = 总额，used = 本周期已用，remaining = 剩余
  */
 export async function getAIQuota(): Promise<{
-  quota: number;
-  quota_used: number;
+  total: number;
+  used: number;
   remaining: number;
   is_unlimited: boolean;
 }> {
@@ -249,8 +250,8 @@ export async function getQuota(): Promise<{
 }> {
   const result = await getAIQuota();
   return {
-    total: result.quota,
-    used: result.quota_used,
+    total: result.total,
+    used: result.used,
     remaining: result.remaining,
   };
 }

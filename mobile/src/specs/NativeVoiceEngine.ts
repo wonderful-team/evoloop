@@ -1,5 +1,5 @@
 import type { TurboModule } from 'react-native';
-import { TurboModuleRegistry } from 'react-native';
+import { TurboModuleRegistry, NativeModules, Platform } from 'react-native';
 
 export type VoiceEngineMode = 'idle' | 'wake' | 'asr';
 
@@ -51,4 +51,8 @@ export interface Spec extends TurboModule {
   // audio:error { message }
 }
 
-export default TurboModuleRegistry.getEnforcing<Spec>('RNVoiceEngine');
+const isTurboModule = !!(global as any).__turboModuleProxy;
+
+export default (Platform.OS !== 'harmony' && isTurboModule
+  ? TurboModuleRegistry.getEnforcing<Spec>('RNVoiceEngine')
+  : NativeModules.RNVoiceEngine) as Spec;

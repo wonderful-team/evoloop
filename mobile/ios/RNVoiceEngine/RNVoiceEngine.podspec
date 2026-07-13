@@ -23,10 +23,10 @@ Pod::Spec.new do |s|
     '../Frameworks/libarchive.xcframework',
   ]
 
-  # ASR + Kokoro TTS 模型资源
+  # ASR + Kokoro TTS 模型资源（直接拷贝到 app bundle）
   s.resources = [
-    '../EvoLoopMobile/Resources/sherpa-asr/**/*',
-    '../EvoLoopMobile/Resources/sherpa-kokoro/**/*',
+    '../EvoLoopMobile/Resources/sherpa-asr',
+    '../EvoLoopMobile/Resources/sherpa-kokoro',
   ]
 
   s.dependency 'React-Core'

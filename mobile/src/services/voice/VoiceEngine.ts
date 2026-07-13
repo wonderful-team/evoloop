@@ -125,7 +125,7 @@ class NativeVoiceEngineWrapper {
   start(callbacks: VoiceEngineEventCallbacks): void {
     this.removeListeners();
 
-    const emitter = new NativeEventEmitter();
+    const emitter = new NativeEventEmitter(NativeVoiceEngine as any);
     this.subscriptions = [
       emitter.addListener('voiceEngine:vadStart', () => callbacks.onVadStart?.()),
       emitter.addListener('voiceEngine:vadEnd', () => callbacks.onVadEnd?.()),
@@ -149,7 +149,7 @@ class NativeVoiceEngineWrapper {
 
   subscribeAudio(callbacks: AudioEventCallbacks): void {
     this.removeAudioListeners();
-    const emitter = new NativeEventEmitter();
+    const emitter = new NativeEventEmitter(NativeVoiceEngine as any);
     this.audioSubscriptions = [
       emitter.addListener('audio:ended', () => callbacks.onEnded?.()),
       emitter.addListener('audio:error', (event: { message: string }) =>
