@@ -60,8 +60,15 @@ pub async fn check_screen_recording_permission() -> bool {
         }
     }
 
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
-    let temp_file = temp_dir.join(format!("evoloop_perm_check_{}.png", now));
+    // Uniqueness matters: multiple frontend hook instances probe concurrently,
+    // and a millisecond-only name collides — one check deletes the file while
+    // the other is still verifying it, producing a false "no permission".
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+    let temp_file = temp_dir.join(format!(
+        "evoloop_perm_check_{}_{}.png",
+        std::process::id(),
+        now
+    ));
     let temp_file_str = temp_file.to_str().unwrap_or("/tmp/evoloop_perm_check.png");
 
     if cfg!(debug_assertions) {

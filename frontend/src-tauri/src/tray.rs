@@ -25,6 +25,7 @@ pub fn sync_tray_recording_state(
     start_text: String,
     stop_text: String,
 ) {
+    eprintln!("[Tray Debug] sync_tray_recording_state called: is_recording={}, ts={:?}", is_recording, std::time::SystemTime::now());
     let item_lock = state.record_item.lock().unwrap();
     if let Some(record_item) = item_lock.as_ref() {
         let text = if is_recording { stop_text } else { start_text };
@@ -93,6 +94,7 @@ pub fn sync_tray_countdown(
     is_preparing: bool,
     countdown: i32,
 ) {
+    eprintln!("[Tray Debug] sync_tray_countdown called: is_preparing={}, countdown={}, ts={:?}", is_preparing, countdown, std::time::SystemTime::now());
     state.is_preparing.store(is_preparing, Ordering::Relaxed);
     state.countdown.store(countdown, Ordering::Relaxed);
 }
@@ -185,6 +187,7 @@ pub fn setup_tray(
                 }
             }
             "record" => {
+                eprintln!("[Tray Debug] Menu item 'record' clicked, ts={:?}", std::time::SystemTime::now());
                 let state = app.state::<AppServiceState>();
                 if state.is_blinking.load(Ordering::Relaxed) {
                     if let Some(window) = app.get_webview_window("main") {

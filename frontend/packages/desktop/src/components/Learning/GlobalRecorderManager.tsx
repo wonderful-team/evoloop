@@ -64,9 +64,10 @@ export function GlobalRecorderManager() {
   // Listen for tray events
   useEffect(() => {
     console.log("[GlobalRecorderManager] Setting up tray listener")
+    let active = true
     let unlistenFn: (() => void) | undefined
     const setup = async () => {
-      unlistenFn = await safeListen("tray-record-toggle", () => {
+      const fn = await safeListen("tray-record-toggle", () => {
         console.log("[GlobalRecorderManager] Tray toggle received")
         const state = useRecordingStore.getState()
         if (state.isRecording) {
@@ -84,18 +85,25 @@ export function GlobalRecorderManager() {
           state.initiateRecording("global")
         }
       })
+      if (!active) {
+        fn()
+      } else {
+        unlistenFn = fn
+      }
     }
     setup()
     return () => {
+      active = false
       if (unlistenFn) unlistenFn()
     }
   }, [])
 
   // Listen for watchdog auto-stop (timeout / size limit)
   useEffect(() => {
+    let active = true
     let unlistenFn: (() => void) | undefined
     const setup = async () => {
-      unlistenFn = await safeListen<string>(
+      const fn = await safeListen<string>(
         "recording-auto-stopped",
         (event) => {
           const reason = event.payload
@@ -121,9 +129,15 @@ export function GlobalRecorderManager() {
           state.stopRecording()
         },
       )
+      if (!active) {
+        fn()
+      } else {
+        unlistenFn = fn
+      }
     }
     setup()
     return () => {
+      active = false
       if (unlistenFn) unlistenFn()
     }
   }, [t])
@@ -158,18 +172,27 @@ export function GlobalRecorderManager() {
   const isMarkingRef = useRef(false)
 
   useEffect(() => {
+    let active = true
     let unlistenStartedFn: (() => void) | undefined
     let unlistenStoppedFn: (() => void) | undefined
     const setup = async () => {
-      unlistenStartedFn = await safeListen("marking-started", () => {
+      const fnStarted = await safeListen("marking-started", () => {
         isMarkingRef.current = true
       })
-      unlistenStoppedFn = await safeListen("marking-stopped", () => {
+      const fnStopped = await safeListen("marking-stopped", () => {
         isMarkingRef.current = false
       })
+      if (!active) {
+        fnStarted()
+        fnStopped()
+      } else {
+        unlistenStartedFn = fnStarted
+        unlistenStoppedFn = fnStopped
+      }
     }
     setup()
     return () => {
+      active = false
       if (unlistenStartedFn) unlistenStartedFn()
       if (unlistenStoppedFn) unlistenStoppedFn()
     }
@@ -239,6 +262,7 @@ export function GlobalRecorderManager() {
   })
 
   const recordingStartedRef = useRef(false)
+  const pendingStopRef = useRef(false)
 
   // Sync event count to store and tray
   useEffect(() => {
@@ -277,17 +301,21 @@ export function GlobalRecorderManager() {
   // Effect to Start/Stop based on store state
   useEffect(() => {
     const manageRecording = async () => {
-      console.log("[GlobalRecorderManager] manageRecording triggered", {
+      const now = performance.now()
+      console.log(`[GlobalRecorderManager] manageRecording triggered at ${now}ms`, {
         isRecording,
         isDesktopRecording,
         activeThreadId,
         domRecIsRec: domRecorder.isRecording,
         isDesktopSource,
+        busy: busyRef.current,
+        pendingStop: pendingStopRef.current,
       })
       // START
       if (isRecording) {
         if (!domRecorder.isRecording && !busyRef.current) {
           busyRef.current = true
+          pendingStopRef.current = false
           try {
             // Permission is now handled at the Button level OR as a final safeguard here
             if (hasVideoPermission === false) {
@@ -401,16 +429,24 @@ export function GlobalRecorderManager() {
             stopRecording()
           } finally {
             busyRef.current = false
+            console.log(`[GlobalRecorderManager] Start finished. pendingStop: ${pendingStopRef.current}`)
+            if (pendingStopRef.current) {
+              pendingStopRef.current = false
+              console.log("[GlobalRecorderManager] Executing queued stop action")
+              stopRecording()
+            }
           }
         }
       }
       // STOP
       else {
         // [FIX] Enter stop logic if either domRecorder is active OR we previously started a recording (incl mobile)
-        if (
-          (domRecorder.isRecording || recordingStartedRef.current) &&
-          !busyRef.current
-        ) {
+        if (domRecorder.isRecording || recordingStartedRef.current) {
+          if (busyRef.current) {
+            console.warn(`[GlobalRecorderManager] Stop requested during busy state at ${now}ms. Queuing stop.`)
+            pendingStopRef.current = true
+            return
+          }
           busyRef.current = true
           recordingStartedRef.current = false
           console.log("[GlobalRecorderManager] Stopping recorders...")

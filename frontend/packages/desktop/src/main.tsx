@@ -84,6 +84,17 @@ const queryClient = new QueryClient({
   }),
 })
 
+// Redirect Tauri WebviewUrl paths to Hash History routes to prevent multi-window routing mismatch
+if (window.location.pathname.includes("/android-marker-overlay")) {
+  if (!window.location.hash.includes("/android-marker-overlay")) {
+    window.location.hash = "#/android-marker-overlay"
+  }
+} else if (window.location.pathname.includes("/marker-overlay")) {
+  if (!window.location.hash.includes("/marker-overlay")) {
+    window.location.hash = "#/marker-overlay"
+  }
+}
+
 // Use hash history for Tauri WebView compatibility
 const hashHistory = createHashHistory()
 const router = createRouter({

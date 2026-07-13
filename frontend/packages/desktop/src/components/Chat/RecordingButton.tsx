@@ -40,13 +40,15 @@ export function RecordingButton({
   const {
     hasPermission: hasAxPermission,
     requestPermission: requestAxPermission,
+    checkPermission: checkAxPermission,
   } = useAccessibilityPermission()
   const {
     hasPermission: hasVideoPermission,
     requestPermission: requestVideoPermission,
+    checkPermission: checkVideoPermission,
   } = useScreenRecordingPermission()
 
-  const handleStart = useCallback(() => {
+  const handleStart = useCallback(async () => {
     console.log("[RecordingButton] handleStart clicked", {
       isDesktopRecording,
       hasAxPermission,
@@ -54,8 +56,12 @@ export function RecordingButton({
       threadId,
     })
 
-    // 1. Check Video Permission (Always needed)
-    if (hasVideoPermission !== true) {
+    // 1. Check Video Permission (Always needed).
+    // Cached state can be null before the first focus-event check — force a
+    // fresh check instead of treating "unknown" as "denied".
+    const videoOk =
+      hasVideoPermission === true || (await checkVideoPermission(true))
+    if (!videoOk) {
       toast.error(t("learning.screenRecordingPermissionTitle"))
       requestVideoPermission()
       return
@@ -63,10 +69,13 @@ export function RecordingButton({
 
     // 2. Check AX Permission (Only if desktop recording)
     if (isDesktopRecording && hasAxPermission !== true) {
-      console.log("[RecordingButton] Requesting AX permission...")
-      toast.error(t("learning.permissionRequired"))
-      requestAxPermission()
-      return
+      const axOk = await checkAxPermission(true)
+      if (!axOk) {
+        console.log("[RecordingButton] Requesting AX permission...")
+        toast.error(t("learning.permissionRequired"))
+        requestAxPermission()
+        return
+      }
     }
 
     // 3. Start countdown (countdown logic is now in store)
@@ -77,7 +86,9 @@ export function RecordingButton({
     isDesktopRecording,
     threadId,
     t,
+    checkVideoPermission,
     requestVideoPermission,
+    checkAxPermission,
     requestAxPermission,
     initiateRecording,
   ])

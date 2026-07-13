@@ -33,7 +33,10 @@ export const SubscriptionStatus = ({
 
   const renderQuota = () => {
     if (!quota) return null
-    const rawPercent = quota.is_unlimited ? 0 : (quota.used / quota.total) * 100
+    // total<=0（等级未配置固定配额）时按 0% 处理，避免 0/0=NaN
+    const safeTotal = quota.total > 0 ? quota.total : 0
+    const rawPercent =
+      quota.is_unlimited || safeTotal === 0 ? 0 : (quota.used / safeTotal) * 100
     const usagePercent = Math.min(100, rawPercent)
 
     return (
@@ -51,7 +54,7 @@ export const SubscriptionStatus = ({
             ) : (
               <div className="flex items-baseline gap-1">
                 <span className="text-base font-black text-foreground">
-                  {quota.remaining}
+                  {quota.used}
                 </span>
                 <span className="text-muted-foreground font-normal text-[10px]">
                   / {quota.total}

@@ -732,7 +732,7 @@ export const ChatWelcome: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
       >
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-3xl mx-auto">
           {[
             {
               to: "/projects",

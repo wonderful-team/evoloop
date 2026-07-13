@@ -1910,7 +1910,7 @@
       "title": "计划"
     },
     "quota": {
-      "aiQuota": "剩余额度",
+      "aiQuota": "已用额度",
       "lowBalance": "余额不足",
       "unlimited": "无限",
       "usedPercent": "{{percent}}% 已使用"

@@ -18,6 +18,20 @@ export const Route = createRootRoute({
 function RootComponent() {
   const [isBackendReady, setIsBackendReady] = useState(false)
 
+  const isOverlay = typeof window !== "undefined" && (
+    window.location.pathname.includes("marker-overlay") ||
+    window.location.hash.includes("marker-overlay")
+  )
+
+  if (isOverlay) {
+    return (
+      <>
+        <HeadContent />
+        <Outlet />
+      </>
+    )
+  }
+
   if (!isBackendReady) {
     return (
       <>

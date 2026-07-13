@@ -92,6 +92,13 @@ export function useScreenRecordingPermission() {
   }, [checkPermission])
 
   useEffect(() => {
+    // Probe once on mount — otherwise state stays null until a window focus
+    // event fires, and callers treat null as "denied".
+    checkPermission(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
     const onFocus = () => {
       // Debounce focus events
       if (focusTimeoutRef.current) {

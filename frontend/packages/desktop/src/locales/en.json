@@ -1910,7 +1910,7 @@
       "title": "Plans"
     },
     "quota": {
-      "aiQuota": "Remaining Quota",
+      "aiQuota": "Used Quota",
       "lowBalance": "Low Balance",
       "unlimited": "Unlimited",
       "usedPercent": "{{percent}}% used"

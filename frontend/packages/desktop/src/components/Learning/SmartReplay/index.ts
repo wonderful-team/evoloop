@@ -1,7 +1,7 @@
 /**
  * SmartReplay Components
  *
- * [DEPRECATED] SmartReplay feature has been replaced by MultimodalSynthesizeDialog.
+ * [DEPRECATED] The smart-synthesis (chain D) feature has been removed.
  * Only MacroEditor is kept for skill macro script editing in SkillEditorPage.
  */
 
