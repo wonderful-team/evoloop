@@ -27,6 +27,7 @@ class SystemEventType(str, Enum):
     SESSION_COMPLETED = "system.session_completed"
     EXTRACTION_REQUESTED = "system.extraction_requested"
     EXTRACTION_COMPLETED = "system.extraction_completed"
+    WEBSOCKET_MESSAGE_RECEIVED = "websocket.message_received"
 
     # Configuration Handlers
     CONFIG_CHANGED = "system.config_changed"
@@ -34,6 +35,7 @@ class SystemEventType(str, Enum):
     # Awakening / Environment Events
     AWAKENING_COMPLETE = "system.awakening_complete"
     STATE_REFRESHED = "system.state_refreshed"
+    ACTIVITY_STATE_REFRESHED = "system.activity_state_refreshed"
     BOUNDARY_LEARNED = "system.boundary_learned"
 
     # Authentication Events
@@ -48,6 +50,12 @@ class SystemEventType(str, Enum):
     SKILL_UPDATED = "learning.skill_updated"
     SKILL_DELETED = "learning.skill_deleted"
 
+    # Subscriptions & Logs
+    SUBSCRIPTION_CHANGED = "subscription.changed"
+    SYSTEM_LOG_ENTRY = "system.log_entry"
+    PLAN_UPDATED = "plan.updated"
+    CHANGESET_UPDATED = "changeset.updated"
+
 
 # Note: Module-specific event types are defined in their respective modules:
 # - AgentEventType -> app.core.engine.event.types
@@ -57,7 +65,6 @@ class SystemEventType(str, Enum):
 # - ProjectEventType -> app.core.project.event.types
 # - IndexingEventType -> app.domain.codebase.event.types
 # - FileSystemEventType -> app.core.file.event.types
-# - LearningEventType -> app.core.learning.event.types
 # - ToolEventType -> app.core.tools.event.types
 # - TodoEventType -> app.domain.todo.event.types
 # - VisionEventType -> app.infrastructure.vision.event.types

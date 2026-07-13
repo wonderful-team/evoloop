@@ -6,6 +6,7 @@ from typing import Annotated, Any
 from sqlalchemy import func, select
 
 from app.core.engine.message.native_classes import RunnableConfig
+from app.core.learning.skill_visibility import visible_filter
 from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
 from app.infrastructure.database import session_scope
@@ -44,7 +45,7 @@ async def run_macro(
             elif skill_name:
                 stmt = select(LearnedSkill).where(
                     func.lower(LearnedSkill.name) == skill_name.lower(),
-                    LearnedSkill.is_active == True,
+                    visible_filter(),
                 )
                 result = await db.execute(stmt)
                 skill = result.scalar_one_or_none()
@@ -57,6 +58,14 @@ async def run_macro(
     if not skill:
         identifier = f"id={skill_id}" if skill_id else f"name='{skill_name}'"
         return ControllerResponse.not_found(identifier, item_type="skill")
+
+    from app.core.learning.skill_visibility import is_routable
+
+    if not is_routable(skill):
+        return ControllerResponse.error(
+            f"Skill '{skill.name}' is not confirmed yet (status: {skill.status}).",
+            note="Confirm the skill in the Skill Library before executing it.",
+        )
 
     macro_script = None
     if skill.macro_script:

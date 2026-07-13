@@ -27,6 +27,7 @@ class ExecuteSkillRequest(ScopedRequest):
     params: SkillExecutionParams
     project_id: int | None = DEFAULT_PROJECT_ID
     execution_mode: str | None = None  # Optional: override skill's execution mode
+    allow_self_healing: bool | None = None  # Optional: per-run override of the self-heal fallback (editor debug-run)
 
 
 class RespondRequest(BaseModel):
@@ -79,7 +80,6 @@ class StartRecordingRequest(ScopedRequest):
 class SynthesizeRequest(ScopedRequest):
     thread_id: str
     session_id: str | None = None
-    auto_optimize: bool = True
 
 
 class UpdateSkillRequest(BaseModel):
@@ -117,14 +117,6 @@ class AndroidExtractPointRequest(ScopedRequest):
     height: float | None = None  # 区域高度（相对坐标 0-1），null 表示单点标记
     timestamp_ms: int | None = None  # 可选：录制时间戳
     note: str | None = None  # 可选：用户备注
-
-
-class SmartSynthesisRequest(ScopedRequest):
-    """智能合成请求"""
-    session_id: str
-    thread_id: str | None = None
-    task_goal: str
-    annotation_ids: list[int] | None = None  # 指定使用哪些标注，null表示使用全部
 
 
 class CreateSkillFromYamlRequest(BaseModel):

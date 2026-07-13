@@ -11,7 +11,7 @@ from app.core.engine.background_agent.errors import handle_task_exception
 from app.core.engine.background_agent.models import BackgroundAgentInputs
 from app.core.engine.callbacks.database_logger import DatabaseCallbackHandler
 from app.core.engine.callbacks.transparent import TransparentCallbackHandler
-from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
+from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException, InferenceError
 from app.core.monitoring.activity import activity_monitor
 
 logger = logging.getLogger(__name__)
@@ -140,6 +140,13 @@ async def run_agent_background(
                 callbacks = [callback]
                 if db_callback:
                     callbacks.append(db_callback)
+
+                # Imitation-learning trace capture (chain A): persist agent
+                # tool calls / results into trace_events so record_episode_task
+                # and skill synthesis have raw material.
+                from app.core.learning.trace_recorder import TraceCallbackHandler
+
+                callbacks.append(TraceCallbackHandler(thread_id=thread_id, run_id=run_id))
                 config["callbacks"] = callbacks
 
                 agent_state.next_node = "supervisor"
@@ -159,7 +166,15 @@ async def run_agent_background(
                 raise
             except (ValueError, OSError, RuntimeError, TypeError, KeyError, InferenceError) as e:
                 handler = db_callback._handler if db_callback else None
-                await handle_task_exception(thread_id, project_id, e, handler=handler)
+                terminal = await handle_task_exception(thread_id, project_id, e, handler=handler)
+                if not terminal:
+                    from app.core.engine.event.publishers import publish_agent_run_completed
+                    await publish_agent_run_completed(
+                        thread_id=thread_id,
+                        project_id=project_id,
+                        status="failed",
+                        payload={"summary": str(e)[:300]},
+                    )
                 return
     except AgentHumanInterruptException:
         return

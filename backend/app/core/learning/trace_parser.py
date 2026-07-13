@@ -144,13 +144,9 @@ class TraceParser:
             "window_change": "window_change"
         }
 
-        # Check for Mirror (scrcpy) interactions
-        is_mirror = event.window_title and ("EvoLoop Mirror" in event.window_title or "scrcpy" in event.window_title.lower())
-
         # Construct meaningful action name
         app_prefix = f"[{event.app_name}] " if event.app_name else ""
         action_name = f"{app_prefix}{action_mapping.get(event.event_type, event.event_type)}"
-
         # Build args
         action_args = {}
         if event.key_name:
@@ -159,35 +155,6 @@ class TraceParser:
             action_args["button"] = event.mouse_button
         if event.mouse_x is not None:
             action_args["position"] = (event.mouse_x, event.mouse_y)
-
-        # Mirror Normalization Logic
-        if is_mirror:
-            window_bounds = None
-            if event.payload:
-                window_bounds = event.payload.get("window_bounds")
-
-            if window_bounds and len(window_bounds) == 4 and event.event_type in ("mouse_click", "click"):
-                wx, wy, ww, wh = window_bounds
-                if ww > 0 and wh > 0:
-                    nx = (event.mouse_x - wx) / ww
-                    ny = (event.mouse_y - wy) / wh
-
-                    # Ensure it's within bounds
-                    if 0 <= nx <= 1 and 0 <= ny <= 1:
-                        return TraceStep(
-                            step_number=event.step_number,
-                            source=ActionSource.HUMAN,
-                            category=ActionCategory.SYSTEM_INTERACTION,
-                            action_type="tool_call",
-                            action_name="mobile_control",
-                            action_args={"action": "tap", "x": round(nx, 3), "y": round(ny, 3)},
-                            node_name="mobile_interaction",
-                            state_context={
-                                "window_title": event.window_title,
-                                "is_mirrored": True
-                            },
-                            timestamp=event.timestamp or 0.0
-                        )
 
         mapped_event_type = action_mapping.get(event.event_type, event.event_type)
         return TraceStep(
@@ -217,12 +184,22 @@ class TraceParser:
             # Determine action name and args
             action_name = event.event_type
             action_args = {}
+            action_type = event.event_type
 
             if event.event_type == "tool_call":
                 action_name = payload.get("name", "unknown_tool")
                 action_args = payload.get("args", {})
             elif event.event_type in ["click", "input"]:
                 action_args = payload
+            elif event.source == "mobile":
+                # Android mirror raw events: normalize into macro-executable
+                # actions. touch_down/touch_up are gesture boundaries already
+                # represented by the paired swipe/tap event — skip them.
+                normalized = self._normalize_mobile_event(event.event_type, payload)
+                if normalized is None:
+                    return None
+                action_name, action_args = normalized
+                action_type = action_name
 
             # Determine category
             category = self._categorize_action(event.event_type, action_name)
@@ -236,15 +213,21 @@ class TraceParser:
                     element_text=event.target_text,
                 )
 
+            state_context = dict(event.state_snapshot or {})
+            if event.app_name:
+                state_context.setdefault("app_name", event.app_name)
+            if event.source:
+                state_context.setdefault("source", event.source)
+
             return TraceStep(
                 step_number=event.step_number,
                 source=source,
                 category=category,
-                action_type=event.event_type,
+                action_type=action_type,
                 action_name=action_name,
                 action_args=action_args,
                 node_name=event.node_name,
-                state_context=event.state_snapshot or {},
+                state_context=state_context,
                 ui_context=ui_context,
                 user_feedback=event.user_feedback,
             )
@@ -252,6 +235,46 @@ class TraceParser:
         except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(f"Failed to parse event {event.id}: {e}")
             return None
+
+    @staticmethod
+    def _normalize_mobile_event(event_type: str, payload: dict) -> tuple[str, dict] | None:
+        """Normalize raw Android mirror events into macro actions.
+
+        Returns (action_name, action_args) or None to drop the event.
+        The recorder emits touch_down/touch_up boundaries plus a composed
+        swipe event per gesture; a near-zero-distance swipe is a tap.
+        Mirror-window clicks arrive as mouse_click with device-pixel
+        coordinates (transformed client-side in GlobalRecorderManager).
+        """
+        if event_type in ("touch_down", "touch_up"):
+            return None
+        if event_type == "mouse_click":
+            # Mirror-window click: position already holds device pixels
+            pos = payload.get("position") or {}
+            if isinstance(pos, (list, tuple)) and len(pos) == 2:
+                return ("tap", {"x": pos[0], "y": pos[1]})
+            args = {k: v for k, v in {"x": payload.get("x"), "y": payload.get("y")}.items() if v is not None}
+            return ("tap", args)
+        if event_type == "swipe":
+            x, y = payload.get("x"), payload.get("y")
+            end_x = payload.get("swipe_end_x")
+            end_y = payload.get("swipe_end_y")
+            args = {k: v for k, v in {"x": x, "y": y}.items() if v is not None}
+            if end_x is None or end_y is None or x is None or y is None:
+                return ("tap", args)
+            distance = ((end_x - x) ** 2 + (end_y - y) ** 2) ** 0.5
+            if distance < 30:
+                return ("tap", args)
+            args["end_x"] = end_x
+            args["end_y"] = end_y
+            if payload.get("swipe_duration_ms") is not None:
+                args["duration_ms"] = payload["swipe_duration_ms"]
+            return ("swipe", args)
+        if event_type == "key":
+            # Mobile key executor reads payload["key"] / ["keycode"]
+            return ("key_press", {"key": payload.get("key_code")})
+        # region_extract and other annotated events pass through as-is
+        return (event_type, payload)
 
     def _categorize_action(self, event_type: str, action_name: str) -> ActionCategory:
         """Determine the category of an action."""

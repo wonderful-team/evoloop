@@ -31,14 +31,6 @@ class BackgroundTaskEvent(BaseEvent):
             "task": self.task_data
         })
 
-    def to_frontend_payload(self) -> dict:
-        """Map to frontend task event format."""
-        return {
-            "type": f"task_{self.action}",
-            "task": self.task_data,
-            "timestamp": self.timestamp.isoformat()
-        }
-
 
 class BackgroundTaskOutputEvent(BaseEvent):
     """Event published for real-time task output streaming."""
@@ -49,12 +41,3 @@ class BackgroundTaskOutputEvent(BaseEvent):
     # Enable automatic bridging to UI
     is_public: bool = True
     broadcast_channel: str = "chat"
-
-    def to_frontend_payload(self) -> dict:
-        """Map to frontend output format."""
-        return {
-            "type": "task_output",
-            "task_id": self.task_id,
-            "output": self.output,
-            "timestamp": self.timestamp.isoformat()
-        }

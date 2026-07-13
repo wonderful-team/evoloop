@@ -251,9 +251,11 @@ class SupervisorNode(BaseAgentNode):
                     step.status = "in_progress"
                     break
 
-            from app.core.engine.message.publisher import MessagePublisher
-            publisher = MessagePublisher(thread_id=thread_id)
-            await publisher.publish_custom_event("plan.updated", {"thread_id": thread_id})
+            from app.core.events import system_bus
+            from app.domain.planning.event import PlanUpdatedEvent
+            await system_bus.publish(
+                PlanUpdatedEvent(thread_id=thread_id)
+            )
 
     async def _emit_status(self, config: dict, status: str):
         from app.core.monitoring.activity import activity_monitor
@@ -269,11 +271,18 @@ class SupervisorNode(BaseAgentNode):
         self, state: AgentState, config: dict, messages: list, project_id: int
     ) -> "SupervisorContext":
         core_tools = await self.get_tools(state)
-        # Convert list of dicts to extract last human message string
         last_human = ""
         for m in reversed(messages):
-            if m.get("role") == "user" and m.get("name") != "context_ticket":
-                last_human = m.get("content", "")
+            if isinstance(m, dict):
+                role = m.get("role")
+                name = m.get("name")
+                content = m.get("content", "")
+            else:
+                role = getattr(m, "type", None)
+                name = getattr(m, "name", None)
+                content = getattr(m, "content", "") or ""
+            if role in ("user", "human") and name != "context_ticket":
+                last_human = content if isinstance(content, str) else ""
                 break
 
         return SupervisorContext(

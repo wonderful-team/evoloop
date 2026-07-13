@@ -11,21 +11,18 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
 from app.api.deps import verify_guest_access
-from app.core.engine.message.folder import MessageNormalizer
 from app.core.monitoring.activity import activity_monitor
-from app.infrastructure.cache import cache
+from app.core.engine.message.broker import get_message_broker
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/stream", tags=["stream"])
 
 
-# Pre-compute set of all stream event type values for fast membership testing
-
 @router.get("/chat/{thread_id}", dependencies=[Depends(verify_guest_access)])
 async def stream_chat(thread_id: str):
     """
     SSE endpoint to stream chat updates for a thread.
-    Uses cache Pub/Sub for real-time event streaming.
+    Uses MessageBroker Pub/Sub for real-time event streaming.
 
     Event Types:
     - activity: Initial lightweight state snapshot (sent once on connect)
@@ -41,11 +38,12 @@ async def stream_chat(thread_id: str):
         pubsub = None
 
         try:
-            # 1. Subscribe to cache channel FIRST to prevent missing events
-            pubsub = cache.pubsub()
+            # 1. Subscribe to broker channel FIRST to prevent missing events
+            broker = get_message_broker()
+            pubsub = broker.pubsub()
             channel = f"chat:{thread_id}:events"
             await pubsub.subscribe(channel)
-            logger.info(f"[SSE] Subscribed to Pub/Sub channel: {channel}")
+            logger.info(f"[SSE] Subscribed to Pub/Sub channel via MessageBroker: {channel}")
 
             # 2. Bootstrap: Send Initial Full State (once)
             try:
@@ -118,16 +116,8 @@ async def stream_chat(thread_id: str):
                         event_data = json.loads(raw_data)
                         event_type = event_data.get("type", "unknown")
 
-                        # 1. 核心消息同步 (需通过 Normalizer 保证跨端一致性)
-                        if event_type == "message":
-                            msg_data = event_data.get('data', {})
-                            msg_data = MessageNormalizer.normalize_dict(msg_data)
-                            yield f"event: message\ndata: {json.dumps(msg_data)}\n\n"
-
-                        # 2. 标准化流式事件 (Token, Thinking, Progress, Status, etc.)
-                        # 所有继承自 BaseStreamEvent 的事件直接透传，其 type 即为 SSE event 名
-                        else:
-                            yield f"event: {event_type}\ndata: {raw_data}\n\n"
+                        # 直接透传，WebChannel 保证了输出格式一致性，不进行二次归一化
+                        yield f"event: {event_type}\ndata: {raw_data}\n\n"
 
                     except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                         yield f"event: error\ndata: {json.dumps({'error': 'Failed to process server event', 'details': str(e)})}\n\n"
@@ -176,10 +166,11 @@ async def stream_system():
         pubsub = None
 
         try:
-            pubsub = cache.pubsub()
+            broker = get_message_broker()
+            pubsub = broker.pubsub()
             channel = "system:events"
             await pubsub.subscribe(channel)
-            logger.info(f"[SSE] Subscribed to system Pub/Sub channel: {channel}")
+            logger.info(f"[SSE] Subscribed to system Pub/Sub channel via MessageBroker: {channel}")
 
             reconnect_attempts = 0
             MAX_RECONNECT_ATTEMPTS = 10
@@ -226,6 +217,7 @@ async def stream_system():
                     raw_data = message["data"]
 
                     try:
+                        event_data = json.loads(raw_data)
                         yield f"data: {raw_data}\n\n"
                     except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                         yield f"event: error\ndata: {json.dumps({'error': 'Failed to process system event', 'details': str(e)})}\n\n"

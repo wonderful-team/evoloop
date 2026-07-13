@@ -46,46 +46,6 @@ class SkillMatch(DynamicBaseModel):
     reasoning: str
     extracted_params: SkillParams = Field(default_factory=SkillParams)
 
-class CompressionConfig(DynamicBaseModel):
-    """压缩配置"""
-    max_width: int
-    quality: int                  # JPEG 质量 0-100
-    detail_level: str             # "low" or "high" (for LLM)
-    format: str = "JPEG"
-
-class CompressedFrame(DynamicBaseModel):
-    """压缩后的帧数据"""
-    data: bytes                   # JPEG 数据
-    width: int
-    height: int
-    original_size: tuple[int, int]  # 原始分辨率
-    compression_ratio: float      # 压缩比
-    detail_level: str             # "low" or "high"
-
-    # 动态注入的语义信息
-    timestamp: float | None = None
-    description: str | None = None
-    norm_events: list[dict[str, Any]] = Field(default_factory=list)
-
-class NormalizedEvent(DynamicBaseModel):
-    """归一化后的事件"""
-    action: str
-    norm_x: float | None = Field(None, ge=0.0, le=1.0)       # 0.0-1.0
-    norm_y: float | None = Field(None, ge=0.0, le=1.0)
-    target_text: str | None = None
-    timestamp: float
-    description: str              # 人类可读描述
-
-class KeyframeCandidate(DynamicBaseModel):
-    """关键帧候选"""
-    timestamp: float
-    context: str           # "pre_action", "post_action", "transition"
-    description: str
-    related_event: Any
-    priority: int          # 3=high, 2=medium, 1=low
-
-    def __repr__(self):
-        return f"Keyframe({self.timestamp:.2f}s, {self.context}, P{self.priority})"
 
 class RecordingSession(DynamicBaseModel):
     """录制会话数据"""
@@ -94,12 +54,6 @@ class RecordingSession(DynamicBaseModel):
     task_description: str
     thread_id: str | None = None
 
-class VideoInfo(DynamicBaseModel):
-    """视频元信息"""
-    duration: float
-    width: int
-    height: int
-    fps: float
 
 class ActionRegistryItem(DynamicBaseModel):
     """Action metadata injected into prompt templates."""
@@ -128,24 +82,6 @@ class ValidationResult(BaseModel):
     warnings: list[str] = []
     metadata: ValidationMetadata | None = None
 
-class SynthesizedSopConfig(DynamicBaseModel):
-    """Result of smart synthesis: a Phase 4 graph configuration."""
-    name: str = "synthesized_sop"
-    version: str = "1.0"
-    nodes: list[dict] = Field(default_factory=list)
-    edges: list[dict] = Field(default_factory=list)
-    description: str = ""
-    namespace: str = "misc"
-    trigger_patterns: list[str] = Field(default_factory=list)
-    instructions: str = ""
-    execution_mode: str = "agentic"
-    macro_script: str = ""
-
-class TraceAction(DynamicBaseModel):
-    """A single action extracted from a trace."""
-    action: str
-    target: str | None = None
-    params: dict = Field(default_factory=dict)
 
 class MacroVerificationResult(DynamicBaseModel):
     status: str
@@ -161,8 +97,6 @@ class UIContext(DynamicBaseModel):
     element_selector: str | None = None
     element_text: str | None = None
 
-class TraceActionArgs(DynamicBaseModel):
-    """Dynamic arguments for a trace action."""
 
 class TraceStateContext(DynamicBaseModel):
     """Dynamic state context for a trace step."""
@@ -180,6 +114,11 @@ class TraceSummary(DynamicBaseModel):
     agent_steps: int
     tools_used: list[str] = Field(default_factory=list)
     success: bool = True
+
+
+class TraceActionArgs(DynamicBaseModel):
+    """Dynamic arguments for a trace action."""
+
 
 class TraceStep(DynamicBaseModel):
     """

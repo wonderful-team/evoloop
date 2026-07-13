@@ -1,6 +1,5 @@
-"""
-Event Package
-=============
+from .schemas import ContextPolishingEvent
 
-Public exports for event subscribers.
-"""
+__all__ = [
+    "ContextPolishingEvent",
+]

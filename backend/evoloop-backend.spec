@@ -2,9 +2,26 @@
 import sys
 from pathlib import Path
 from PyInstaller.utils.hooks import copy_metadata, collect_data_files, collect_submodules
+from importlib.metadata import PackageNotFoundError
 import os
 
 SPEC_DIR = Path(SPECPATH)
+
+
+def _copy_metadata_safe(pkg):
+    try:
+        return copy_metadata(pkg)
+    except PackageNotFoundError:
+        return []
+
+
+def _collect_submodules_safe(pkg):
+    try:
+        return collect_submodules(pkg)
+    except PackageNotFoundError:
+        return []
+    except ImportError:
+        return []
 
 hiddenimports = [
     'uvicorn.logging',
@@ -89,20 +106,15 @@ hiddenimports = [
 hiddenimports += collect_submodules('app.core.engine.nodes')
 hiddenimports += collect_submodules('app.domain.tools')
 
-hiddenimports += collect_submodules('celery.worker')
-hiddenimports += collect_submodules('celery.app')
-hiddenimports += collect_submodules('celery.loaders')
-hiddenimports += collect_submodules('celery.concurrency')
-hiddenimports += collect_submodules('celery.events')
+hiddenimports += _collect_submodules_safe('celery.worker')
+hiddenimports += _collect_submodules_safe('celery.app')
+hiddenimports += _collect_submodules_safe('celery.loaders')
+hiddenimports += _collect_submodules_safe('celery.concurrency')
+hiddenimports += _collect_submodules_safe('celery.events')
 
 datas = []
-datas += copy_metadata('celery')
-datas += copy_metadata('uvicorn')
-datas += copy_metadata('langchain')
-datas += copy_metadata('langchain_community')
-datas += copy_metadata('langchain_core')
-datas += copy_metadata('langchain_postgres')
-datas += copy_metadata('langgraph')
+for _pkg in ('celery', 'uvicorn', 'langchain', 'langchain_community', 'langchain_core', 'langchain_postgres', 'langgraph'):
+    datas += _copy_metadata_safe(_pkg)
 
 datas += [
     (str(SPEC_DIR / 'app' / 'core' / 'engine' / 'config'), 'app/core/engine/config'),

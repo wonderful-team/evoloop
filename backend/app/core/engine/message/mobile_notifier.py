@@ -39,7 +39,7 @@ class MobileErrorNotifier:
             await self._handler._dispatch_block(
                 role="ai",
                 content=f"请求失败: {error_plain}",
-                category="error_business",
+                category=classification.error_type,
                 status="failed",
                 sequence_number=seq,
                 channels={"mobile"},

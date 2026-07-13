@@ -25,7 +25,8 @@ from app.core.engine.event.schemas import (
     ConversationDeletedEvent,
     WebSocketMessageReceivedEvent,
 )
-from app.core.engine.event.types import ConversationEventType
+from app.core.engine.event import ConversationEventType
+from app.core.events import SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.evocloud.bridge.conversation_sync import get_conversation_sync_manager
 from app.core.evocloud.manager import evocloud_manager
@@ -77,7 +78,7 @@ class EngineCommandSubscriber:
         self._memory_handler = MemoryCommandHandler()
         self._a2a_handler = A2ACommandHandler()
 
-    @event_subscribe("websocket.message_received")
+    @event_subscribe(SystemEventType.WEBSOCKET_MESSAGE_RECEIVED)
     async def on_ws_message(self, event: WebSocketMessageReceivedEvent) -> None:
         if event.msg_type not in ("command.relay", "command.retry", "command.rewind"):
             return

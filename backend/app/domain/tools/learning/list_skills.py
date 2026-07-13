@@ -15,7 +15,7 @@ async def list_skills(namespace: str | None = None, query: str | None = None) ->
     Use this to browse available skills to accomplish your task.
 
     Args:
-        namespace: Optional ecosystem filter (e.g., 'android', 'macos', 'web').
+        namespace: Optional namespace prefix filter (e.g., 'domain/browser', 'os/android').
         query: Optional search term to filter the list by keyword.
     """
     from app.core.learning.discovery import skill_discovery

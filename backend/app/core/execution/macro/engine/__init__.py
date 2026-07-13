@@ -30,7 +30,7 @@ class MacroEngine(
         script: Any,
         params: dict[str, Any] | None = None,
         extracted_data: dict[str, Any] | None = None,
-        disable_ocr: bool = True
+        disable_ocr: bool = True,
     ) -> tuple[bool, str, dict[str, Any] | None]:
         return await cls.execute_steps(
             thread_id=thread_id,
@@ -38,7 +38,7 @@ class MacroEngine(
             params=params,
             extracted_data=extracted_data,
             disable_ocr=disable_ocr,
-            active_bundle_id=params.get("package_name") or params.get("bundle_id") if params else None
+            active_bundle_id=params.get("package_name") or params.get("bundle_id") if params else None,
         )
 
     @classmethod
@@ -49,7 +49,7 @@ class MacroEngine(
         params: dict[str, Any] | None = None,
         extracted_data: dict[str, Any] | None = None,
         disable_ocr: bool = True,
-        active_bundle_id: str | None = None
+        active_bundle_id: str | None = None,
     ) -> tuple[bool, str, dict[str, Any] | None]:
         if extracted_data is None:
             extracted_data = {}
@@ -83,9 +83,19 @@ class MacroEngine(
             await activity_monitor.log_event("macro_thought", {"text": desc}, thread_id)
             logger.info(f"[{thread_id}] {desc}")
 
-            if step.type in (MacroStepType.CONTROL, MacroStepType.IF, MacroStepType.LOOP):
+            if step.type in (
+                MacroStepType.CONTROL,
+                MacroStepType.IF,
+                MacroStepType.LOOP,
+            ):
                 success, msg, fallback = await cls._handle_control_flow(
-                    thread_id, step, payload, params, extracted_data, disable_ocr, active_bundle_id
+                    thread_id,
+                    step,
+                    payload,
+                    params,
+                    extracted_data,
+                    disable_ocr,
+                    active_bundle_id,
                 )
                 if not success:
                     return False, msg, fallback
@@ -108,7 +118,12 @@ class MacroEngine(
                 source = step.source
 
                 if event_type == "open_app":
-                    new_pkg = payload.get("package_name") or payload.get("package") or payload.get("text") or payload.get("app_name")
+                    new_pkg = (
+                        payload.get("package_name")
+                        or payload.get("package")
+                        or payload.get("text")
+                        or payload.get("app_name")
+                    )
                     if new_pkg:
                         active_bundle_id = new_pkg
                         logger.info(f"[{thread_id}] Active package updated to: {active_bundle_id}")
@@ -117,25 +132,29 @@ class MacroEngine(
                     if source == MacroSource.DOM:
                         await cls._execute_browser_step(event_type, target_selector, payload)
                     elif source == MacroSource.MOBILE:
-                        await cls._execute_mobile_step(event_type, target_selector, payload, disable_ocr, expected_pkg=active_bundle_id)
+                        await cls._execute_mobile_step(
+                            event_type,
+                            target_selector,
+                            payload,
+                            disable_ocr,
+                            expected_pkg=active_bundle_id,
+                        )
                     elif source == MacroSource.DESKTOP:
                         await cls._execute_desktop_step(event_type, target_selector, payload)
                     else:
                         logger.warning(f"Unknown macro source: {source}")
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                     error_msg = str(e)
 
                     screenshot_path = None
                     try:
                         if source == MacroSource.DOM:
-                            from app.core.environment.controllers.browser import (
-                                BrowserController,
-                            )
+                            from app.core.environment.controllers.browser import BrowserController
                             res = await BrowserController.execute(action="screenshot", purpose="debug")
                             match = re.search(r"(/.*\.png)", str(res))
                             if match:
                                 screenshot_path = match.group(1)
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+                    except (ValueError, OSError, RuntimeError, TypeError, KeyError):
                         pass
 
                     await cls._handle_action_error(thread_id, step_num, event_type, error_msg, screenshot_path)
@@ -149,7 +168,7 @@ class MacroEngine(
         await activity_monitor.log_event(
             "macro_thought",
             {"text": f"Step {step_num} failed: {error_msg[:200]}"},
-            thread_id
+            thread_id,
         )
         if screenshot_path:
             logger.info(f"[{thread_id}] Screenshot saved: {screenshot_path}")
@@ -160,7 +179,7 @@ class MacroEngine(
             return value
 
         def _get_nested(data: dict, path: str):
-            parts = path.split('.')
+            parts = path.split(".")
             curr = data
             for p in parts:
                 if isinstance(curr, dict) and p in curr:
@@ -186,7 +205,14 @@ class MacroEngine(
             return payload
         if isinstance(payload, str):
             return cls._inject_params(payload, params)
-        elif isinstance(payload, dict):
+        # Pydantic payloads (MacroPayload union, e.g. NavigationPayload) are not
+        # dicts: without this branch `{{ param }}` inside any structured payload
+        # was silently never injected.
+        from pydantic import BaseModel
+
+        if isinstance(payload, BaseModel):
+            payload = payload.model_dump()
+        if isinstance(payload, dict):
             return {k: cls._inject_payload_params(v, params) for k, v in payload.items()}
         elif isinstance(payload, list):
             return [cls._inject_payload_params(item, params) for item in payload]

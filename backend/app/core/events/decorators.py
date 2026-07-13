@@ -101,25 +101,17 @@ def event_register(arg: Any = None) -> Any:
 
 def event_register_with_bus(bus: Any) -> Callable[[type], type]:
     """
-    Class decorator to automatically register all @event_subscribe decorated methods
-    to a specific event bus.
-    
-    This is useful when you have multiple event buses in the system
-    (e.g., system_bus for global events, event_bus for domain-specific events).
-    
+    Class decorator to automatically register all @event_subscribe decorated
+    methods to a specific event bus.
+
+    This is the underlying mechanism used by @event_register (which defaults to
+    system_bus). Use it directly only when targeting a non-default bus.
+
     Args:
         bus: The specific event bus to subscribe to
-        
+
     Returns:
         The decorated class
-        
-    Example:
-        from app.core.environment.bus import event_bus
-        
-        @event_register_with_bus(event_bus)
-        class DeviceEventHandler:
-            @event_subscribe(EventType.DEVICE_CONNECTED)
-            async def on_device_connected(self, event): ...
     """
     def decorator(cls: type) -> type:
         # Mark the class for discovery

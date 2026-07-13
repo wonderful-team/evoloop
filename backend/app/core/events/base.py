@@ -15,7 +15,6 @@ from typing import Generic, TypeVar
 from pydantic import Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.utils.async_utils import LoopBoundResource
 
 logger = logging.getLogger(__name__)
 
@@ -49,24 +48,6 @@ class BaseEvent(DynamicBaseModel):
         """Human-readable event type name."""
         return self.event_type or self.__class__.__name__
 
-    def to_frontend_payload(self) -> dict:
-        """
-        Convert internal event to a standardized frontend-ready dictionary.
-        This provides a unified format for SSE/WebSocket delivery.
-        """
-        # Extract the core event string
-        event_str = self.event_type.value if hasattr(self.event_type, "value") else str(self.event_type)
-
-        return {
-            "type": "system_event",
-            "event": event_str,
-            "thread_id": self.thread_id,
-            "timestamp": self.timestamp.isoformat(),
-            "source": self.source,
-            "data": self.data.model_dump() if hasattr(self.data, "model_dump") else self.data
-        }
-
-
 
 # Type alias for event handlers
 EventHandler = Callable[[BaseEvent], Awaitable[None]]
@@ -86,9 +67,9 @@ class AsyncEventBus(Generic[E]):
     - Global handlers for cross-cutting concerns (logging, auditing)
     
     Usage:
-        bus = AsyncEventBus()
-        bus.subscribe("user.created", my_handler)
-        await bus.publish(UserCreatedEvent(...))
+    - bus = AsyncEventBus()
+    - bus.subscribe("user.created", my_handler)
+    - await bus.publish(UserCreatedEvent(...))
     """
 
     def __init__(self, name: str = "default"):
@@ -96,7 +77,6 @@ class AsyncEventBus(Generic[E]):
         self._handlers: dict[str, list[EventHandler]] = {}
         self._global_handlers: list[EventHandler] = []
         self._initialized = False
-        self._lock_pool = LoopBoundResource(asyncio.Lock)
 
     @property
     def name(self) -> str:

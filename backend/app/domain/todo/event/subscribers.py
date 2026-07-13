@@ -17,15 +17,12 @@ from app.core.events.decorators import (
     event_subscribe,
     register_instance_handlers,
 )
-from app.core.events.schemas.lifecycle import (
+from app.core.engine.event import (
     ExtractionCompletedEvent,
     ExtractionRequest,
     ExtractionRequestedEvent,
 )
-from app.core.memory.event import (
-    MEMORY_CONTEXT_GATHER_EVENT_TYPE,
-    MemoryContextGatherEvent,
-)
+
 from app.domain.todo.schemas import TodoCreate
 from app.domain.todo.service import TodoService
 from app.infrastructure.database import session_scope
@@ -141,64 +138,11 @@ async def persist_todo_extractions(
 
 
 @event_register()
-class TodoMemoryContextProvider:
-    """
-    Provides pending todo context for memory extraction.
-
-    Automatically registered via @event_register and discovered at startup.
-    Renders its own markdown fragment via Jinja2 template — memory layer
-    only sees the final formatted string.
-    """
-
-    @event_subscribe(MEMORY_CONTEXT_GATHER_EVENT_TYPE)
-    async def on_context_gather(self, event: MemoryContextGatherEvent) -> None:
-        """Render todo context fragment and append to event data."""
-        project_id = event.data.project_id
-        if project_id is None:
-            return
-
-        try:
-            from app.domain.todo.service import TodoService
-            from app.infrastructure.database import session_scope
-
-            async with session_scope() as session:
-                todo_service = TodoService(session)
-                todos = await todo_service.list_pending_by_project(project_id)
-                if todos:
-                    fragment = render_template(
-                        "domain/todo/memory_context.j2",
-                        todos=[
-                            {"title": t.title, "priority": t.priority}
-                            for t in todos[:20]
-                        ],
-                    )
-                    if fragment.strip():
-                        event.data.context_fragments.append(fragment.strip())
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-            logger.warning(f"[TodoContextProvider] Failed to render TODO context: {e}")
-
-
-@event_register()
 class TodoRewind:
     """Event-driven todo cleanup handler for rewind operations."""
 
     def __init__(self):
         self._deleted_count = 0
-
-    @classmethod
-    def register(cls, bus: AsyncEventBus) -> "TodoRewind":
-        """
-        Register this handler to the event bus.
-
-        Args:
-            bus: The event bus to subscribe to
-
-        Returns:
-            The handler instance
-        """
-        instance = cls()
-        register_instance_handlers(instance, bus)
-        return instance
 
     @event_subscribe(REWIND_REQUESTED)
     async def _handle_rewind_requested(self, event: RewindRequestedEvent) -> None:

@@ -22,7 +22,7 @@ from app.core.events.decorators import (
     event_subscribe,
     register_instance_handlers,
 )
-from app.core.events.schemas.lifecycle import (
+from app.core.engine.event import (
     ExtractionCompletedEvent,
     ExtractionRequest,
     ExtractionRequestedEvent,
@@ -151,21 +151,6 @@ class MemoryRewind:
 
     def __init__(self):
         self._deleted_count = 0
-
-    @classmethod
-    def register(cls, bus: AsyncEventBus) -> "MemoryRewind":
-        """
-        Register this handler to the event bus.
-
-        Args:
-            bus: The event bus to subscribe to
-
-        Returns:
-            The handler instance
-        """
-        instance = cls()
-        register_instance_handlers(instance, bus)
-        return instance
 
     @event_subscribe(REWIND_REQUESTED)
     async def _handle_rewind_requested(self, event: RewindRequestedEvent) -> None:

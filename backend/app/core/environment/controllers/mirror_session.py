@@ -140,7 +140,7 @@ class MirrorSession:
                         mouse_y=payload.get("y"),
                         source="mobile",
                         app_name=payload.get("package_name"),
-                        state_snapshot=json.dumps({"context": "android_mirror"}),
+                        state_snapshot={"context": "android_mirror"},
                         action_payload=json.dumps(payload)
                     )
                     db.add(trace_event)

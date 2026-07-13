@@ -8,6 +8,7 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.learning.schemas import SkillListItem, SkillMatch
 from app.core.learning.skill_importer import SkillImporter
+from app.core.learning.skill_visibility import visible_filter
 from app.infrastructure.config import SystemConfigService
 from app.infrastructure.database import session_scope
 from app.models.learning import LearnedSkill
@@ -29,13 +30,16 @@ class SkillDiscovery:
         self._skills_list_cache: list[SkillListItem] | None = None
         self._system_skills_synced = False
 
-    async def _sync_system_skills(self):
+    async def ensure_system_skills_synced(self):
         """
-        Sync system skills to the DB.
+        One-time bootstrap of built-in skills into the DB (public, idempotent).
 
         Workflow:
         1. Copy built-in skills from app/config/skills to ~/.evoloop/skills
         2. Scan ~/.evoloop/skills directory and import/update skills in DB
+
+        No-op after the first successful sync (in-memory flag + the
+        SYSTEM_SKILLS_SYNCED config value), so read paths may call it freely.
         """
         if self._system_skills_synced:
             return
@@ -103,10 +107,10 @@ class SkillDiscovery:
         if not force_reload and self._skills_cache is not None:
             return self._skills_cache
 
-        await self._sync_system_skills()
+        await self.ensure_system_skills_synced()
 
         async with session_scope() as db:
-            stmt = select(LearnedSkill).where(LearnedSkill.is_active == True)
+            stmt = select(LearnedSkill).where(visible_filter())
             result = await db.execute(stmt)
             items = list(result.scalars().all())
 
@@ -272,29 +276,6 @@ class SkillDiscovery:
         ]
         return self._skills_list_cache
 
-    async def discover(
-        self,
-        user_input: str,
-        history: list[dict] | None = None,
-        thread_id: str = None,
-        top_k: int = 3
-    ) -> tuple[SkillMatch | None, list[LearnedSkill], str]:
-        """
-        Internal dispatcher. Uses exact search by default.
-        """
-        return await self.exact_search(user_input, history=history)
-
-    async def match(self, user_input: str, history: list[dict] | None = None, threshold: float = 0.5, thread_id: str = None) -> SkillMatch | None:
-        """Backward compatible wrapper for intent matching."""
-        match, _, _ = await self.exact_search(user_input)
-        if match and match.confidence >= threshold:
-            return match
-        return None
-
-    async def retrieve(self, topic: str, history: list[dict] | None = None, top_k: int = 3) -> list[LearnedSkill]:
-        """Backward compatible wrapper for knowledge retrieval."""
-        _, relevant, _ = await self.exact_search(topic)
-        return relevant
 
 # Singleton
 skill_discovery = SkillDiscovery()

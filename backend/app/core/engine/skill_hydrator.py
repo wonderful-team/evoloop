@@ -27,6 +27,7 @@ class SkillHydrator:
         Fetch a single skill by its ID.
         Used for direct skill lookup without search overhead.
         """
+        from app.core.learning.skill_visibility import visible_filter
         from app.models.learning import LearnedSkill
 
         if not skill_id:
@@ -35,8 +36,7 @@ class SkillHydrator:
         try:
             async with session_scope() as session:
                 stmt = select(LearnedSkill).where(
-                    LearnedSkill.id == skill_id,
-                    LearnedSkill.is_active == True
+                    LearnedSkill.id == skill_id, visible_filter()
                 )
                 result = await session.execute(stmt)
                 return result.scalar_one_or_none()

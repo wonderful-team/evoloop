@@ -13,11 +13,9 @@ from app.core.engine.event.schemas import ConversationDeletedEvent
 from app.core.engine.event.types import ConversationEventType
 from app.core.engine.rewind import REWIND_REQUESTED, RewindRequestedEvent
 from app.core.events import SystemEventType
-from app.core.events.base import AsyncEventBus
 from app.core.events.decorators import (
     event_register,
     event_subscribe,
-    register_instance_handlers,
 )
 from app.core.events.schemas import SessionCompletedEvent
 from app.core.learning.skill_sync_service import skill_sync_service
@@ -50,7 +48,7 @@ class LearningLifecycleSubscriber:
         # 1. Sync system skills
         try:
             logger.info("[Learning] 📚 Synchronizing system skills...")
-            await skill_discovery._sync_system_skills()
+            await skill_discovery.ensure_system_skills_synced()
             logger.info("[Learning] ✓ System skills synchronized")
         except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.warning(f"[Learning] Skill synchronization failed: {e}")
@@ -86,19 +84,35 @@ class LearningLifecycleSubscriber:
 
     @event_subscribe(SystemEventType.SKILL_CREATED)
     async def on_skill_created(self, event):
-        """Handle SKILL_CREATED: export skill to filesystem."""
-        data = event.data
-        await skill_sync_service.export_skill_to_file(data["skill_id"])
+        """Handle SKILL_CREATED: no direct route-index write.
+
+        NOTE: SKILL.md auto-export is intentionally disabled — the DB is the
+        single source of truth and skills are not mirrored to the filesystem
+        automatically. File export will become an explicit user action.
+
+        The route index is written EXCLUSIVELY by the Huey worker
+        (InitSpecRefreshSubscriber → debounced rebuild_route_index). When the
+        API process also upserted here, the two writers raced inside lancedb
+        (no cross-process delete-then-add atomicity): commit-conflict retries
+        (~17 versions per confirm, ~8s API latency) and duplicate rows.
+        """
 
     @event_subscribe(SystemEventType.SKILL_UPDATED)
     async def on_skill_updated(self, event):
-        """Handle SKILL_UPDATED: export updated skill to filesystem."""
-        data = event.data
-        await skill_sync_service.export_skill_to_file(data["skill_id"])
+        """Handle SKILL_UPDATED: no direct route-index write.
+
+        See on_skill_created — the debounced worker rebuild is the sole
+        writer; it picks up status changes (e.g. pending_review → verified)
+        because it only re-adds routable rows.
+        """
 
     @event_subscribe(SystemEventType.SKILL_DELETED)
     async def on_skill_deleted(self, event):
-        """Handle SKILL_DELETED: remove skill file from filesystem."""
+        """Handle SKILL_DELETED: remove skill file from filesystem.
+
+        Route-index removal is implicit in the debounced worker rebuild (see
+        on_skill_created): deleted skills are simply not re-added.
+        """
         data = event.data
         await skill_sync_service.delete_skill_file(
             skill_id=data["skill_id"],
@@ -120,7 +134,8 @@ class LearningLifecycleSubscriber:
                 record_episode_task,
             )
 
-            # Record Episode (experience)
+            # Record Episode (experience) and auto-synthesize a candidate
+            # skill from the trace (lands as pending_review for the user).
             record_episode_task.delay(
                 thread_id=data.thread_id,
                 project_id=data.project_id,
@@ -129,6 +144,7 @@ class LearningLifecycleSubscriber:
                 concept_names=[],
                 source_message_id=data.run_id or data.thread_id,
                 model=data.model,
+                auto_synthesize=True,
             )
 
             # Reconcile Skill
@@ -149,21 +165,6 @@ class TraceRewind:
 
     def __init__(self):
         self._deleted_count = 0
-
-    @classmethod
-    def register(cls, bus: AsyncEventBus) -> "TraceRewind":
-        """
-        Register this handler to the event bus.
-        
-        Args:
-            bus: The event bus to subscribe to
-            
-        Returns:
-            The handler instance
-        """
-        instance = cls()
-        register_instance_handlers(instance, bus)
-        return instance
 
     @event_subscribe(REWIND_REQUESTED)
     async def _handle_rewind_requested(self, event: RewindRequestedEvent) -> None:
@@ -266,10 +267,9 @@ class LearningConversationCleanup:
 
         from sqlalchemy import delete
 
-        from app.models.learning import SynthesisJob, TraceEvent
+        from app.models.learning import TraceEvent
 
         async with session_scope() as session:
             await session.execute(delete(TraceEvent).where(TraceEvent.thread_id == thread_id))
-            await session.execute(delete(SynthesisJob).where(SynthesisJob.thread_id == thread_id))
 
         logger.info(f"[LearningCleanup] Learning cleanup done for thread {thread_id}")

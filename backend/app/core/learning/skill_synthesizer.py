@@ -8,23 +8,19 @@ It produces structured skill configurations that can be registered and executed.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import yaml
 from pydantic import Field
 
 from app.constants import DEFAULT_PROJECT_ID
-from app.core.config import settings
 
 if TYPE_CHECKING:
     from app.core.execution.macro.schemas import MacroScript
 from app.core.execution.macro.schemas import VerificationResponse
 from app.core.learning.prompts import prompt_builder
 from app.core.learning.schemas import SkillParameter
-from app.core.learning.synthesizer_utils import (
-    cleanup_macro_steps,
-    export_skill_to_filesystem,
-)
+from app.core.learning.synthesizer_utils import cleanup_macro_steps
 from app.core.learning.trace_parser import TraceParser, TraceSequence
 from app.i18n.service import i18n
 from app.infrastructure.pydantic_base import DynamicBaseModel
@@ -45,6 +41,15 @@ ALLOWED_UI_ACTIONS = {
     "screenshot", "dump", "dump_ui"
 }
 
+# Trace action names that pass ALLOWED_UI_ACTIONS but are not MacroActionType
+# members — remap before constructing MacroStep (enum-validated).
+_EVENT_TYPE_REMAP = {
+    "goto": "navigate",
+    "input_text": "input",
+    "evaluate": "run_js",
+    "dump": "dump_ui",
+}
+
 
 class SynthesizedSkill(DynamicBaseModel):
     """
@@ -61,7 +66,9 @@ class SynthesizedSkill(DynamicBaseModel):
 
     # Deterministic Execution
     execution_mode: str = "agentic" # "agentic" or "deterministic"
-    macro_script: str = ""  # YAML format for storage and execution
+    # YAML string for storage/execution; synthesizers may transiently hold a
+    # step list (LLM-returned object) before it is serialized downstream.
+    macro_script: Any = ""
 
     # Metadata
     source_thread_id: str | None = None
@@ -83,7 +90,7 @@ class WorkflowSynthesizer:
         self.session_id = session_id
         self.parser = TraceParser(thread_id, session_id)
 
-    async def synthesize(self, auto_optimize: bool = True) -> SynthesizedSkill:
+    async def synthesize(self) -> SynthesizedSkill:
         """
         Main entry point: Parse trace -> Analyze with LLM -> Return SynthesizedSkill.
         """
@@ -151,9 +158,8 @@ class WorkflowSynthesizer:
             skill.execution_mode = "agentic"
             logger.warning(f"[{self.thread_id}] Using 'agentic' mode due to verification failure")
 
-        # Step 5: Physical File Export (Phase 5)
-        self._export_physical_skill(skill)
-
+        # File export happens after DB commit via the SKILL_CREATED/UPDATED
+        # event subscribers — synthesis itself must not touch the filesystem.
         return skill
 
     async def verify_macro(self, macro_script: str, project_id: int = DEFAULT_PROJECT_ID) -> VerificationResponse:
@@ -173,8 +179,20 @@ class WorkflowSynthesizer:
         logger.info(f"[{self.thread_id}] Phase 5: Running agent-based macro verification")
 
         from app.core.execution.macro.verification_service import SynthesisIntegration
+
+        # verify_for_synthesis consumes a step list / MacroScript; a YAML string
+        # would iterate char-by-char and always fail with "No valid steps".
+        steps_input: object = macro_script
+        if isinstance(macro_script, str):
+            from app.utils.yaml import macro_from_yaml
+
+            try:
+                steps_input = macro_from_yaml(macro_script)
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+                logger.warning(f"[{self.thread_id}] Failed to parse macro YAML for verification: {e}")
+
         return await SynthesisIntegration.verify_for_synthesis(
-            macro_script=macro_script,
+            macro_script=steps_input,
             thread_id=self.thread_id,
             project_id=project_id
         )
@@ -250,18 +268,23 @@ class WorkflowSynthesizer:
                 source_type = MacroSource.MOBILE
             elif step.action_name == "desktop_control":
                 source_type = MacroSource.DESKTOP
+            elif step.state_context.get("source") == "mobile":
+                # Android mirror recordings (tap/swipe/key_press normalized
+                # by TraceParser) execute through the mobile controller.
+                source_type = MacroSource.MOBILE
             elif step.node_name in ("global_observation", "mobile_interaction"):
                 source_type = MacroSource.MOBILE if step.state_context.get("is_mirrored") else MacroSource.DESKTOP
 
-            # Detect App Transition
-            if source_type in (MacroSource.MOBILE, MacroSource.DESKTOP) and current_package not in ("global_observation", "mobile_interaction", "unknown"):
+            # Detect App Transition (mobile only: the desktop controller has no
+            # package-based launch, and MacroActionType has no LAUNCH_APP member)
+            if source_type == MacroSource.MOBILE and current_package not in ("global_observation", "mobile_interaction", "unknown"):
                 if last_package and current_package != last_package:
-                    system_apps = (settings.SERVICE_NAME, "com.android.launcher", "com.android.systemui", "android", "scrcpy")
+                    system_apps = ("com.android.launcher", "com.android.systemui", "android", "scrcpy")
                     if not any(current_package.startswith(sys) for sys in system_apps):
                         logger.info(f"[Synthesizer] App transition detected: {last_package} -> {current_package}")
                         steps.append(MacroStep(
                             type=MacroStepType.ACTION,
-                            event_type=MacroActionType.OPEN_APP if source_type == MacroSource.MOBILE else MacroActionType.LAUNCH_APP,
+                            event_type=MacroActionType.OPEN_APP,
                             source=source_type,
                             payload={"package_name": current_package}
                         ))
@@ -303,6 +326,10 @@ class WorkflowSynthesizer:
 
             if event_type not in ALLOWED_UI_ACTIONS:
                 continue
+
+            # MacroStep.event_type is a MacroActionType enum; a few legacy trace
+            # names are valid trace actions but not enum members.
+            event_type = _EVENT_TYPE_REMAP.get(event_type, event_type)
 
             target_selector = step.ui_context.element_selector if step.ui_context else None
 
@@ -346,12 +373,9 @@ class WorkflowSynthesizer:
             data = yaml.safe_load(yaml_str)
         except yaml.YAMLError as e:
             logger.error(f"Failed to parse skill YAML: {e}")
-            return SynthesizedSkill(
-                name="unparsed_skill",
-                description="Failed to parse generated skill",
-                source_thread_id=self.thread_id,
-                source_session_id=self.session_id,
-            )
+            raise ValueError(f"Failed to parse generated skill YAML: {e}") from e
+        if not isinstance(data, dict):
+            raise ValueError("Generated skill YAML is not a mapping")
 
         # Extract parameters
         parameters = []
@@ -372,7 +396,18 @@ class WorkflowSynthesizer:
         if raw_macro:
             from app.core.execution.macro.schemas import MacroScript
             if isinstance(raw_macro, list):
-                macro_script = MacroScript(steps=raw_macro).to_yaml()
+                try:
+                    macro_script = MacroScript(steps=raw_macro).to_yaml()
+                except (ValueError, TypeError, KeyError) as e:
+                    logger.warning(f"LLM macro_script steps invalid, falling back to compiled macro: {e}")
+                    macro_script = ""
+            elif isinstance(raw_macro, dict):
+                # LLM emitted the full {version, metadata, steps} object
+                try:
+                    macro_script = MacroScript(**raw_macro).to_yaml()
+                except (ValueError, TypeError, KeyError) as e:
+                    logger.warning(f"LLM macro_script object invalid, falling back to compiled macro: {e}")
+                    macro_script = ""
             else:
                 macro_script = str(raw_macro)
 
@@ -389,12 +424,3 @@ class WorkflowSynthesizer:
             tools_used=list(set(sequence.tools_used)),
             macro_script=macro_script,
         )
-
-    def _export_physical_skill(self, skill: SynthesizedSkill) -> None:
-        """
-        Phase 5: Export the synthesized instructions into a physical workspace
-        folder structure based on its namespace.
-        """
-        path = export_skill_to_filesystem(skill)
-        if path:
-            skill.resource_path = path

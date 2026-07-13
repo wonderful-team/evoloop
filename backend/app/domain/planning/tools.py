@@ -156,18 +156,18 @@ async def create_plan(
             lines.append("| :--- | :--- | :--- |")
             for s in db_steps:
                 lines.append(f"| `{s.id}` | {s.title} | {s.status} |")
-            
+
             lines.append("\n*Tip: Use `update_step_status` with the Step ID to track progress.*")
             return_text = "\n".join(lines)
-        
+
         # Notify frontend plan panel to refresh
         try:
-            from app.core.engine.message.publisher import MessagePublisher
-            publisher = MessagePublisher(thread_id=thread_id)
-            await publisher.publish_custom_event("plan.updated", {"plan_id": plan_id})
+            from app.core.events import system_bus
+            from app.domain.planning.event import PlanUpdatedEvent
+            await system_bus.publish(PlanUpdatedEvent(thread_id=thread_id, plan_id=plan_id))
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[create_plan] Failed to publish plan updated event: {e}")
-        
+
         return return_text, meta
 
     except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
@@ -227,8 +227,6 @@ async def update_step_status(
 
         # Notify frontend plan panel to refresh
         try:
-            from app.core.engine.message.publisher import MessagePublisher
-            # Extract thread_id from execution_run_id or use plan lookup as fallback
             thread_id = None
             if execution_run_id and execution_run_id.startswith("thread_"):
                 thread_id = execution_run_id.replace("thread_", "", 1)
@@ -240,9 +238,18 @@ async def update_step_status(
                     db_plan = await session.get(DBPlan, plan_id)
                     if db_plan:
                         thread_id = db_plan.thread_id
+
             if thread_id:
-                publisher = MessagePublisher(thread_id=thread_id)
-                await publisher.publish_custom_event("plan.updated", {"plan_id": plan_id, "step_id": step_id, "status": status})
+                from app.core.events import system_bus
+                from app.domain.planning.event import PlanUpdatedEvent
+                await system_bus.publish(
+                    PlanUpdatedEvent(
+                        thread_id=thread_id,
+                        plan_id=plan_id,
+                        step_id=step_id,
+                        status=status,
+                    )
+                )
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[update_step_status] Failed to publish plan updated event: {e}")
 
@@ -298,7 +305,7 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
             tree=tree,
             user_lang=user_lang
         )
-        
+
         # Use simple invoke with prepared text
         response = await llm.ainvoke(prompt_text, config=config)
         report = response.content

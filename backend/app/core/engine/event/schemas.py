@@ -7,10 +7,11 @@ Pydantic data classes for agent-related events.
 
 from typing import Any
 
-from pydantic import Field, model_validator
+from pydantic import Field, model_validator, BaseModel
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.events.base import BaseEvent, EventData
+from app.core.events.registry import SystemEventType
 
 
 class AgentEvent(BaseEvent):
@@ -34,15 +35,6 @@ class AgentSessionStartedEvent(AgentEvent):
         self.data = EventData.model_validate(
             {"thread_id": self.thread_id, "project_id": self.project_id}
         )
-
-    def to_frontend_payload(self) -> dict:
-        """Map to legacy RunStartEvent format."""
-        return {
-            "type": "run_start",
-            "thread_id": self.thread_id,
-            "run_id": None,  # Session start doesn't have a run_id yet
-            "goal": "",
-        }
 
 
 class AgentRunCompletedEvent(AgentEvent):
@@ -71,16 +63,6 @@ class AgentRunCompletedEvent(AgentEvent):
         )
         return self
 
-    def to_frontend_payload(self) -> dict:
-        """Map to legacy RunEndEvent format."""
-        return {
-            "type": "run_end",
-            "thread_id": self.thread_id,
-            "run_id": self.payload.get("run_id"),
-            "status": self.status,
-            "final_outcome": self.payload.get("outcome") or self.payload.get("summary"),
-        }
-
 
 class WebSocketMessageReceivedEvent(AgentEvent):
     """
@@ -97,7 +79,7 @@ class WebSocketMessageReceivedEvent(AgentEvent):
         raw:      The complete raw envelope as a dict.
     """
 
-    event_type: str = "websocket.message_received"
+    event_type: str = SystemEventType.WEBSOCKET_MESSAGE_RECEIVED
     msg_type: str = ""
     payload: dict[str, Any] = Field(default_factory=dict)
     raw: dict[str, Any] = Field(default_factory=dict)
@@ -122,3 +104,28 @@ class ConversationDeletedEvent(AgentEvent):
                 "thread_id": self.thread_id,
             }
         )
+
+
+class ExtractionRequest(BaseModel):
+    name: str
+    description: str
+    schema_dict: dict = Field(..., description="The pydantic output_schema as a dict, or raw json schema dict")
+
+
+class ExtractionRequestedEvent(BaseEvent):
+    """Event published to gather schemas from domains before running extraction LLM."""
+    event_type: str = SystemEventType.EXTRACTION_REQUESTED
+    requests: list[ExtractionRequest] = Field(default_factory=list)
+    thread_id: str
+    is_public: bool = False
+
+
+class ExtractionCompletedEvent(BaseEvent):
+    """Event published by background worker after LLM structured extraction finishes."""
+    event_type: str = SystemEventType.EXTRACTION_COMPLETED
+    thread_id: str
+    run_id: str | None = None
+    project_id: int | None = None
+    member_id: int | None = None
+    extracted_data: dict = Field(default_factory=dict, description="The raw structured output from LLM")
+    is_public: bool = False

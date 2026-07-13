@@ -7,13 +7,9 @@ Event subscribers for the Awakening/Environment domain.
 
 import logging
 
-_background_tasks = set()
-
-from app.core.environment.bus import event_bus
 from app.core.environment.event.types import EventType
 from app.core.events.decorators import (
     event_register,
-    event_register_with_bus,
     event_subscribe,
 )
 from app.core.events.registry import SystemEventType
@@ -25,6 +21,8 @@ from .schemas import (
 )
 
 logger = logging.getLogger(__name__)
+
+_background_tasks = set()
 
 
 @event_register()
@@ -82,7 +80,7 @@ class EnvironmentLifecycleSubscriber:
             logger.warning(f"[Environment] Cleanup errors during shutdown: {e}")
 
 
-@event_register_with_bus(event_bus)
+@event_register()
 class DeviceEventSubscriber:
     """Handles device connection/disconnection events"""
 
@@ -132,7 +130,7 @@ class DeviceEventSubscriber:
         await _refresh_state()
 
 
-@event_register_with_bus(event_bus)
+@event_register()
 class SkillEventSubscriber:
     """Handles skill execution events for skill evolution"""
 
@@ -172,7 +170,7 @@ class SkillEventSubscriber:
         logger.info(f"🗑️ Skill deprecated: {skill_name} - {reason}")
 
 
-@event_register_with_bus(event_bus)
+@event_register()
 class SystemEventSubscriber:
     """Handles system-level awakening events"""
 

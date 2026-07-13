@@ -1,6 +1,6 @@
 """Skills sub-router — skill CRUD, validation, YAML import/export, execution."""
-import json
 import logging
+import math
 from pathlib import Path
 
 from fastapi import (
@@ -43,81 +43,87 @@ from app.core.learning.schemas import (
 from app.core.learning.skill_importer import SkillImporter
 from app.core.learning.skill_synthesizer import WorkflowSynthesizer
 from app.core.learning.skill_validator import SkillValidator
+from app.core.learning.skill_visibility import visible_filter
 from app.infrastructure.database import session_scope
 from app.models import LearnedSkill
+from app.services.learning.skill_execution import (
+    WEB_POLICY,
+    ExecutionPolicy,
+    SkillGateError,
+    load_skill,
+    preflight,
+    run_deterministic,
+)
+from app.services.learning.skill_lifecycle import (
+    create_from_synthesis,
+    deduplicate_name,
+)
 from app.utils.template import render_template
 from app.utils.yaml import YAMLError, macro_from_yaml, validate_macro_yaml
 
-from ._shared import _normalize_skill_params, execute_macro_with_fallback
+from ._shared import _normalize_json_list, _normalize_skill_params
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.post("/skills/synthesize", response_model=SynthesizeSkillResponse, dependencies=[Depends(require_benefit("skill_learning"))])
-async def synthesize_skill(body: SynthesizeRequest, current_user: CurrentUserOptional = None):
+@router.post(
+    "/skills/synthesize",
+    response_model=SynthesizeSkillResponse,
+    dependencies=[Depends(require_benefit("skill_learning"))],
+)
+async def synthesize_skill(
+    body: SynthesizeRequest, current_user: CurrentUserOptional = None
+):
     """Synthesize a new skill from a trace sequence."""
     try:
         synthesizer = WorkflowSynthesizer(body.thread_id, body.session_id)
-        skill = await synthesizer.synthesize(auto_optimize=body.auto_optimize)
+        skill = await synthesizer.synthesize()
 
         async with session_scope() as db:
-            base_name = skill.name
-            unique_name = base_name
-            counter = 1
-
-            while True:
-                stmt = select(LearnedSkill).where(or_(LearnedSkill.member_id == 0, LearnedSkill.member_id == (current_user.id if current_user else 0))).where(LearnedSkill.name == unique_name)
-                existing = (await db.execute(stmt)).scalar_one_or_none()
-                if not existing:
-                    break
-                unique_name = f"{base_name}_{counter}"
-                counter += 1
-
-            if unique_name != base_name:
-                logger.info(f"Skill name collision: {base_name} -> {unique_name}")
-
-            db_skill = LearnedSkill(member_id=current_user.id if current_user else 0,
-                name=unique_name,
+            db_skill = await create_from_synthesis(
+                db,
+                member_id=current_user.id if current_user else 0,
+                name=skill.name,
                 description=skill.description,
-                trigger_patterns=json.dumps(skill.trigger_patterns),
-                parameters=json.dumps([p.__dict__ for p in skill.parameters]),
-                preconditions=json.dumps(skill.preconditions),
-                tools_used=json.dumps(skill.tools_used),
+                trigger_patterns=skill.trigger_patterns,
+                parameters=skill.parameters,
+                preconditions=skill.preconditions,
+                tools_used=skill.tools_used,
                 source_thread_id=skill.source_thread_id,
                 source_session_id=skill.source_session_id,
-                is_active=False,
-                status="pending_review",
                 instructions=skill.instructions,
                 execution_mode=skill.execution_mode,
                 macro_script=skill.macro_script,
             )
-            db.add(db_skill)
-            await db.flush()
 
         await publish_skill_mutated(skill_id=db_skill.id, action="create")
 
         return SynthesizeSkillResponse(
             success=True,
             skill_id=db_skill.id,
-            skill_name=unique_name,
+            skill_name=db_skill.name,
             skill_yaml=skill.to_yaml(),
         )
 
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.exception(f"Skill synthesis failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Synthesis failed: {str(e)}")
     finally:
         await skill_discovery.reload()
 
 
-@router.post("/skills/import", response_model=ImportSkillsResponse, dependencies=[Depends(require_benefit("skill_learning"))])
+@router.post(
+    "/skills/import",
+    response_model=ImportSkillsResponse,
+    dependencies=[Depends(require_benefit("skill_learning"))],
+)
 async def import_skills(body: ImportSkillsRequest):
     """Bulk import skills from a local directory."""
     try:
         results = await SkillImporter.import_from_directory(body.directory)
         return ImportSkillsResponse(success=True, results=results.model_dump())
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.exception(f"Skill import failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
     finally:
@@ -129,17 +135,23 @@ async def list_skills(
     active_only: bool = True,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
-    current_user: CurrentUserOptional = None):
+    current_user: CurrentUserOptional = None,
+):
     """List all learned skills with pagination."""
     try:
-        await skill_discovery._sync_system_skills()
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        await skill_discovery.ensure_system_skills_synced()
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.warning(f"Background skill sync failed during list: {e}")
 
     async with session_scope() as db:
-        stmt = select(LearnedSkill).where(or_(LearnedSkill.member_id == 0, LearnedSkill.member_id == (current_user.id if current_user else 0)))
+        stmt = select(LearnedSkill).where(
+            or_(
+                LearnedSkill.member_id == 0,
+                LearnedSkill.member_id == (current_user.id if current_user else 0),
+            )
+        )
         if active_only:
-            stmt = stmt.where(LearnedSkill.is_active == True)
+            stmt = stmt.where(visible_filter())
 
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total = (await db.execute(count_stmt)).scalar() or 0
@@ -159,14 +171,15 @@ async def list_skills(
                     name=s.name,
                     description=s.description,
                     namespace=s.namespace,
-                    trigger_patterns=json.loads(s.trigger_patterns) if s.trigger_patterns else [],
+                    trigger_patterns=_normalize_json_list(s.trigger_patterns),
                     parameters=_normalize_skill_params(s.parameters),
-                    tools_used=json.loads(s.tools_used) if s.tools_used else [],
+                    tools_used=_normalize_json_list(s.tools_used),
                     success_count=s.success_count,
                     failure_count=s.failure_count,
                     is_active=s.is_active,
                     status=s.status,
                     execution_mode=s.execution_mode,
+                    allow_self_healing=s.allow_self_healing,
                     macro_script=s.macro_script or "",
                     validation_report=s.validation_report,
                     instructions=s.instructions,
@@ -186,7 +199,16 @@ async def list_skills(
 async def get_skill(skill_id: int, current_user: CurrentUserOptional = None):
     """Get full details of a specific skill."""
     async with session_scope() as db:
-        stmt = select(LearnedSkill).where(or_(LearnedSkill.member_id == 0, LearnedSkill.member_id == (current_user.id if current_user else 0))).where(LearnedSkill.id == skill_id)
+        stmt = (
+            select(LearnedSkill)
+            .where(
+                or_(
+                    LearnedSkill.member_id == 0,
+                    LearnedSkill.member_id == (current_user.id if current_user else 0),
+                )
+            )
+            .where(LearnedSkill.id == skill_id)
+        )
         result = await db.execute(stmt)
         skill = result.scalar_one_or_none()
 
@@ -198,10 +220,10 @@ async def get_skill(skill_id: int, current_user: CurrentUserOptional = None):
             name=skill.name,
             description=skill.description,
             namespace=skill.namespace,
-            trigger_patterns=json.loads(skill.trigger_patterns) if skill.trigger_patterns else [],
+            trigger_patterns=_normalize_json_list(skill.trigger_patterns),
             parameters=_normalize_skill_params(skill.parameters),
-            preconditions=json.loads(skill.preconditions) if skill.preconditions else [],
-            tools_used=json.loads(skill.tools_used) if skill.tools_used else [],
+            preconditions=_normalize_json_list(skill.preconditions),
+            tools_used=_normalize_json_list(skill.tools_used),
             source_thread_id=skill.source_thread_id,
             source_session_id=skill.source_session_id,
             success_count=skill.success_count,
@@ -209,6 +231,7 @@ async def get_skill(skill_id: int, current_user: CurrentUserOptional = None):
             is_active=skill.is_active,
             status=skill.status,
             execution_mode=skill.execution_mode,
+            allow_self_healing=skill.allow_self_healing,
             macro_script=skill.macro_script or "",
             validation_report=skill.validation_report,
             instructions=skill.instructions,
@@ -222,9 +245,16 @@ async def get_skill(skill_id: int, current_user: CurrentUserOptional = None):
 async def delete_skill(skill_id: int, current_user: CurrentUserOptional = None):
     """Physically delete a skill and its resources."""
     import shutil
+
     try:
         async with session_scope() as db:
-            stmt = select(LearnedSkill).where(LearnedSkill.member_id == (current_user.id if current_user else 0)).where(LearnedSkill.id == skill_id)
+            stmt = (
+                select(LearnedSkill)
+                .where(
+                    LearnedSkill.member_id == (current_user.id if current_user else 0)
+                )
+                .where(LearnedSkill.id == skill_id)
+            )
             result = await db.execute(stmt)
             skill = result.scalar_one_or_none()
 
@@ -237,8 +267,10 @@ async def delete_skill(skill_id: int, current_user: CurrentUserOptional = None):
                     if path.exists() and path.is_dir():
                         shutil.rmtree(path)
                         logger.info(f"Deleted skill resources at: {path}")
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-                    logger.error(f"Failed to delete skill resources at {skill.resource_path}: {e}")
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+                    logger.error(
+                        f"Failed to delete skill resources at {skill.resource_path}: {e}"
+                    )
 
             await db.delete(skill)
             await db.flush()
@@ -247,21 +279,33 @@ async def delete_skill(skill_id: int, current_user: CurrentUserOptional = None):
             _deleted_name = skill.name
 
         await publish_skill_mutated(
-            skill_id=skill_id, action="delete",
-            namespace=_deleted_namespace, name=_deleted_name,
+            skill_id=skill_id,
+            action="delete",
+            namespace=_deleted_namespace,
+            name=_deleted_name,
         )
 
-        return BaseAPIResponse(success=True, message=f"Skill {skill_id} physically deleted")
+        return BaseAPIResponse(
+            success=True, message=f"Skill {skill_id} physically deleted"
+        )
     finally:
         await skill_discovery.reload()
 
 
 @router.put("/skills/{skill_id}", response_model=UpdateSkillResponse)
-async def update_skill(skill_id: int, body: UpdateSkillRequest, current_user: CurrentUserOptional = None):
+async def update_skill(
+    skill_id: int, body: UpdateSkillRequest, current_user: CurrentUserOptional = None
+):
     """Update a learned skill."""
     try:
         async with session_scope() as db:
-            stmt = select(LearnedSkill).where(LearnedSkill.member_id == (current_user.id if current_user else 0)).where(LearnedSkill.id == skill_id)
+            stmt = (
+                select(LearnedSkill)
+                .where(
+                    LearnedSkill.member_id == (current_user.id if current_user else 0)
+                )
+                .where(LearnedSkill.id == skill_id)
+            )
             result = await db.execute(stmt)
             skill = result.scalar_one_or_none()
 
@@ -270,10 +314,23 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest, current_user: Cu
 
             if body.name:
                 if body.name != skill.name:
-                    stmt_check = select(LearnedSkill).where(or_(LearnedSkill.member_id == 0, LearnedSkill.member_id == (current_user.id if current_user else 0))).where(LearnedSkill.name == body.name)
+                    stmt_check = (
+                        select(LearnedSkill)
+                        .where(
+                            or_(
+                                LearnedSkill.member_id == 0,
+                                LearnedSkill.member_id
+                                == (current_user.id if current_user else 0),
+                            )
+                        )
+                        .where(LearnedSkill.name == body.name)
+                    )
                     existing = (await db.execute(stmt_check)).scalar_one_or_none()
                     if existing:
-                        raise HTTPException(status_code=400, detail=f"Skill name '{body.name}' already exists")
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Skill name '{body.name}' already exists",
+                        )
                 skill.name = body.name
 
             if body.description:
@@ -283,11 +340,11 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest, current_user: Cu
             if body.instructions is not None:
                 skill.instructions = body.instructions
             if body.trigger_patterns is not None:
-                skill.trigger_patterns = json.dumps(body.trigger_patterns)
+                skill.trigger_patterns = body.trigger_patterns
             if body.parameters is not None:
-                skill.parameters = json.dumps(body.parameters)
+                skill.parameters = body.parameters
             if body.preconditions is not None:
-                skill.preconditions = json.dumps(body.preconditions)
+                skill.preconditions = body.preconditions
             if body.execution_mode is not None:
                 skill.execution_mode = body.execution_mode
             if body.macro_script is not None:
@@ -309,10 +366,10 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest, current_user: Cu
                 name=skill.name,
                 description=skill.description,
                 namespace=skill.namespace,
-                trigger_patterns=json.loads(skill.trigger_patterns) if skill.trigger_patterns else [],
-                parameters=json.loads(skill.parameters) if skill.parameters else [],
-                preconditions=json.loads(skill.preconditions) if skill.preconditions else [],
-                tools_used=json.loads(skill.tools_used) if skill.tools_used else [],
+                trigger_patterns=_normalize_json_list(skill.trigger_patterns),
+                parameters=_normalize_skill_params(skill.parameters),
+                preconditions=_normalize_json_list(skill.preconditions),
+                tools_used=_normalize_json_list(skill.tools_used),
                 source_thread_id=skill.source_thread_id,
                 source_session_id=skill.source_session_id,
                 success_count=skill.success_count,
@@ -320,6 +377,7 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest, current_user: Cu
                 is_active=skill.is_active,
                 status=skill.status,
                 execution_mode=skill.execution_mode,
+                allow_self_healing=skill.allow_self_healing,
                 macro_script=skill.macro_script or "",
                 validation_report=skill.validation_report,
                 instructions=skill.instructions,
@@ -334,54 +392,81 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest, current_user: Cu
 
 @router.post("/skills/{skill_id}/execute", response_model=ExecuteSkillResponse)
 async def execute_skill(
-    skill_id: int, body: ExecuteSkillRequest, bg_tasks: BackgroundTasks, current_user: CurrentUserOptional = None):
+    skill_id: int,
+    body: ExecuteSkillRequest,
+    bg_tasks: BackgroundTasks,
+    current_user: CurrentUserOptional = None,
+):
     """Execute a skill by injecting a directive into the agent's conversation."""
-    async with session_scope() as db:
-        skill = await db.get(LearnedSkill, skill_id)
-        if not skill:
-            raise HTTPException(status_code=404, detail="Skill not found")
+    skill = await load_skill(skill_id)
+    if not skill:
+        raise HTTPException(status_code=404, detail="Skill not found")
 
-        skill_name = skill.name
-        params_str = json.dumps(body.params.model_dump(), indent=2)
-        directive = render_template(
-            "core/learning/skill_directive.prompt.j2",
-            skill_name=skill_name,
-            parameters=body.params.model_dump(),
-        )
-
+    params = body.params.model_dump()
     execution_mode = body.execution_mode or skill.execution_mode
+    try:
+        script = preflight(skill, params, execution_mode)
+    except SkillGateError as e:
+        status = {"not_routable": 403, "missing_params": 400, "bad_macro": 500}.get(
+            e.code, 400
+        )
+        raise HTTPException(status_code=status, detail=e.message) from e
 
-    if execution_mode == "deterministic" and skill.macro_script:
-        import copy
-        try:
-            macro_steps = macro_from_yaml(skill.macro_script)
-        except YAMLError as e:
-            raise HTTPException(status_code=500, detail=f"Failed to parse macro YAML: {e}")
+    skill_name = skill.name
 
-        macro_payload = copy.deepcopy(macro_steps)
+    if script is not None:
+        # Per-run self-heal override (editor debug-run). AND semantics with
+        # the skill-level allow_self_healing column: the run-level flag can
+        # only disable healing, never force-enable it.
+        policy = WEB_POLICY
+        if body.allow_self_healing is not None:
+            params["_allow_self_healing"] = body.allow_self_healing
+            if not body.allow_self_healing:
+                policy = ExecutionPolicy(
+                    allow_self_heal=False,
+                    allowed_sources=WEB_POLICY.allowed_sources,
+                )
         bg_tasks.add_task(
-            execute_macro_with_fallback,
-            thread_id=body.thread_id,
-            project_id=body.project_id if body.project_id is not None else DEFAULT_PROJECT_ID,
+            run_deterministic,
             skill=skill,
-            macro_payload=macro_payload,
-            params=body.params
-        )
-        return ExecuteSkillResponse(success=True, message=f"Deterministic Macro execution queued for '{skill_name}'", execution_mode=execution_mode)
-    else:
-        result = await dispatch_agent_run(
             thread_id=body.thread_id,
-            message_content=directive,
-            project_id=body.project_id if body.project_id is not None else DEFAULT_PROJECT_ID,
-            metadata={"goal_prefix": f"[Skill: {skill_name}] "},
+            params=params,
+            project_id=body.project_id
+            if body.project_id is not None
+            else DEFAULT_PROJECT_ID,
+            script=script,
+            policy=policy,
+        )
+        return ExecuteSkillResponse(
+            success=True,
+            message=f"Deterministic Macro execution queued for '{skill_name}'",
+            execution_mode=execution_mode,
         )
 
-        if result.status == "failed":
-            raise HTTPException(status_code=500, detail=result.error)
+    directive = render_template(
+        "core/learning/skill_directive.prompt.j2",
+        skill_name=skill_name,
+        parameters=params,
+    )
+    result = await dispatch_agent_run(
+        thread_id=body.thread_id,
+        message_content=directive,
+        project_id=body.project_id
+        if body.project_id is not None
+        else DEFAULT_PROJECT_ID,
+        metadata={"goal_prefix": f"[Skill: {skill_name}] "},
+    )
 
-        bg_tasks.add_task(run_agent_background, body.thread_id, result.inputs)
+    if result.status == "failed":
+        raise HTTPException(status_code=500, detail=result.error)
 
-        return ExecuteSkillResponse(success=True, message=f"Agentic execution queued for '{skill_name}'", execution_mode=execution_mode)
+    bg_tasks.add_task(run_agent_background, body.thread_id, result.inputs)
+
+    return ExecuteSkillResponse(
+        success=True,
+        message=f"Agentic execution queued for '{skill_name}'",
+        execution_mode=execution_mode,
+    )
 
 
 @router.get("/skills/{skill_id}/validate", response_model=ValidateSkillResponse)
@@ -393,20 +478,32 @@ async def validate_skill(skill_id: int, current_user: CurrentUserOptional = None
             raise HTTPException(status_code=404, detail="Skill not found")
 
         if not skill.resource_path:
-            return ValidateSkillResponse(success=False, error="Skill has no resource path (cannot validate)")
+            return ValidateSkillResponse(
+                success=False, error="Skill has no resource path (cannot validate)"
+            )
 
         validation = SkillValidator.validate_folder(Path(skill.resource_path))
         skill.validation_report = validation.model_dump()
         skill.status = "verified" if validation.status == "healthy" else "candidate"
+        # Both reachable statuses require is_active=True; without this a
+        # pending_review skill validated healthy lands on the illegal
+        # (verified, False) pair: invisible, unroutable, unconfirmable.
+        skill.is_active = True
 
         return ValidateSkillResponse(success=True, validation=validation.model_dump())
 
 
 @router.post("/skills/{skill_id}/confirm", response_model=BaseAPIResponse)
-async def confirm_learned_skill(skill_id: int, current_user: CurrentUserOptional = None):
+async def confirm_learned_skill(
+    skill_id: int, current_user: CurrentUserOptional = None
+):
     """User confirms a synthesized skill. Updates status from pending_review to verified."""
     async with session_scope() as db:
-        stmt = select(LearnedSkill).where(LearnedSkill.member_id == (current_user.id if current_user else 0)).where(LearnedSkill.id == skill_id)
+        stmt = (
+            select(LearnedSkill)
+            .where(LearnedSkill.member_id == (current_user.id if current_user else 0))
+            .where(LearnedSkill.id == skill_id)
+        )
         skill = (await db.execute(stmt)).scalar_one_or_none()
 
         if not skill:
@@ -415,7 +512,7 @@ async def confirm_learned_skill(skill_id: int, current_user: CurrentUserOptional
         if skill.status != "pending_review":
             raise HTTPException(
                 status_code=400,
-                detail=f"Skill is not in pending_review status (current: {skill.status})"
+                detail=f"Skill is not in pending_review status (current: {skill.status})",
             )
 
         skill.status = "verified"
@@ -426,70 +523,67 @@ async def confirm_learned_skill(skill_id: int, current_user: CurrentUserOptional
     await publish_skill_mutated(skill_id=skill_id, action="update")
 
     return BaseAPIResponse(
-        success=True,
-        message=f"Skill '{skill.name}' confirmed and activated."
+        success=True, message=f"Skill '{skill.name}' confirmed and activated."
     )
 
 
 # ============ YAML Macro Support ============
 
+
 @router.post("/skills/from-yaml", response_model=CreateSkillFromYamlResponse)
 async def create_skill_from_yaml(
     body: CreateSkillFromYamlRequest,
-    bg_tasks: BackgroundTasks, current_user: CurrentUserOptional = None):
+    bg_tasks: BackgroundTasks,
+    current_user: CurrentUserOptional = None,
+):
     """Create a new skill from YAML macro definition."""
     try:
         is_valid, errors = validate_macro_yaml(body.yaml_content)
         if not is_valid:
-            raise HTTPException(status_code=400, detail=f"Invalid YAML format: {'; '.join(errors)}")
+            raise HTTPException(
+                status_code=400, detail=f"Invalid YAML format: {'; '.join(errors)}"
+            )
 
-        macro_script = macro_from_yaml(body.yaml_content)
+        macro_steps = macro_from_yaml(body.yaml_content)
 
         async with session_scope() as db:
-            base_name = body.name
-            unique_name = base_name
-            counter = 1
-
-            while True:
-                stmt = select(LearnedSkill).where(or_(LearnedSkill.member_id == 0, LearnedSkill.member_id == (current_user.id if current_user else 0))).where(LearnedSkill.name == unique_name)
-                existing = (await db.execute(stmt)).scalar_one_or_none()
-                if not existing:
-                    break
-                unique_name = f"{base_name}_{counter}"
-                counter += 1
-
-            skill = LearnedSkill(member_id=current_user.id if current_user else 0,
-                name=unique_name,
-                description=body.description or f"Created from YAML ({len(macro_script)} steps)",
-                namespace=body.namespace,
-                macro_script=macro_script,
-                execution_mode="deterministic",
-                is_active=False,
-                status="pending_review",
-                trigger_patterns=json.dumps([unique_name.lower().replace(" ", "_")]),
-                parameters=json.dumps([]),
-                tools_used=json.dumps([]),
+            # Pre-dedup: trigger patterns embed the final unique name
+            unique_name = await deduplicate_name(
+                db, body.name, current_user.id if current_user else 0
             )
-            db.add(skill)
-            await db.flush()
+            skill = await create_from_synthesis(
+                db,
+                member_id=current_user.id if current_user else 0,
+                name=body.name,
+                description=body.description
+                or f"Created from YAML ({len(macro_steps)} steps)",
+                namespace=body.namespace,
+                macro_script=body.yaml_content,
+                execution_mode="deterministic",
+                trigger_patterns=[unique_name.lower().replace(" ", "_")],
+                derive_parameters=True,
+                tools_used=[],
+            )
 
         await publish_skill_mutated(skill_id=skill.id, action="create")
 
         return CreateSkillFromYamlResponse(
             success=True,
             skill_id=skill.id,
-            skill_name=unique_name,
-            step_count=len(macro_script),
+            skill_name=skill.name,
+            step_count=len(macro_steps),
         )
     except YAMLError as e:
         raise HTTPException(status_code=400, detail=f"YAML error: {str(e)}")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.exception(f"Failed to create skill from YAML: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create skill: {str(e)}")
 
 
 @router.post("/skills/validate-yaml", response_model=ValidateYamlResponse)
-async def validate_skill_yaml(body: ValidateYamlRequest, current_user: CurrentUserOptional = None):
+async def validate_skill_yaml(
+    body: ValidateYamlRequest, current_user: CurrentUserOptional = None
+):
     """Validate YAML macro format without creating a skill."""
     try:
         is_valid, errors = validate_macro_yaml(body.yaml_content)
@@ -498,8 +592,10 @@ async def validate_skill_yaml(body: ValidateYamlRequest, current_user: CurrentUs
             steps = macro_from_yaml(body.yaml_content)
             step_count = len(steps)
 
-        return ValidateYamlResponse(valid=is_valid, errors=errors, step_count=step_count)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        return ValidateYamlResponse(
+            valid=is_valid, errors=errors, step_count=step_count
+        )
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         return ValidateYamlResponse(valid=False, errors=[str(e)], step_count=0)
 
 
@@ -512,7 +608,10 @@ async def get_skill_yaml(skill_id: int, current_user: CurrentUserOptional = None
             raise HTTPException(status_code=404, detail="Skill not found")
 
         if not skill.macro_script:
-            return Response(content="# No macro script defined for this skill\n", media_type="text/yaml")
+            return Response(
+                content="# No macro script defined for this skill\n",
+                media_type="text/yaml",
+            )
 
         return Response(content=skill.macro_script, media_type="text/yaml")
 
@@ -521,12 +620,15 @@ async def get_skill_yaml(skill_id: int, current_user: CurrentUserOptional = None
 async def update_skill_yaml(
     skill_id: int,
     yaml_content: str = Body(..., media_type="text/yaml"),
-    current_user: CurrentUserOptional = None):
+    current_user: CurrentUserOptional = None,
+):
     """Update skill macro from YAML content."""
     try:
         is_valid, errors = validate_macro_yaml(yaml_content)
         if not is_valid:
-            raise HTTPException(status_code=400, detail=f"Invalid YAML: {'; '.join(errors)}")
+            raise HTTPException(
+                status_code=400, detail=f"Invalid YAML: {'; '.join(errors)}"
+            )
 
         async with session_scope() as db:
             skill = await db.get(LearnedSkill, skill_id)
@@ -546,12 +648,8 @@ async def update_skill_yaml(
         )
     except YAMLError as e:
         raise HTTPException(status_code=400, detail=f"YAML parse error: {str(e)}")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.exception(f"Failed to update skill from YAML: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to update: {str(e)}")
     finally:
         await skill_discovery.reload()
-
-
-# Need math import for list_skills
-import math  # noqa: E402

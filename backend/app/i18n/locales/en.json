@@ -181,7 +181,6 @@
       "search_native_tools": "Searching native tools '{query}'",
       "learn_from_trace": "Learning from trace (Thread: {thread_id})",
       "reconcile_skill": "Reconciling skill {skill_id}",
-      "search_skills": "Searching skills '{query}'",
       "list_skills": "Listing skills",
       "create_task_with_subtasks": "Creating hierarchical task '{title}'",
       "get_task_tree_summary": "Getting task tree (ID: {task_id})",
@@ -330,7 +329,7 @@
   },
   "domain_tools": {
     "learning": {
-      "success": "Successfully learned skill '{name}' from thread {thread}.\nDescription: {desc}\nTriggers: {triggers}",
+      "success": "Successfully learned skill '{name}' from thread {thread}.\nDescription: {desc}\nTriggers: {triggers}\nNote: the skill is pending review and becomes executable only after confirmation in the Skill Library.",
       "failed": "Failed to learn skill: {error}",
       "synthesis": {
         "instruction": "Analyze this trace and generate the Agent YAML:\n\n{trace_text}"

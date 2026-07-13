@@ -1,20 +1,19 @@
-import json
-import time
-
-from sqlalchemy import select
+import logging
 
 from app.core.events.publishers import publish_skill_mutated
 from app.core.learning.skill_synthesizer import WorkflowSynthesizer
 from app.core.tools import evoloop_tool
 from app.i18n.service import i18n
 from app.infrastructure.database import session_scope
-from app.models.learning import LearnedSkill
+from app.services.learning.skill_lifecycle import create_from_synthesis
+
+logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
     is_state_mutating=True,
     required_benefit="skill_learning",
-    summary_template="evoloop.tool_summary.learn_from_trace"
+    summary_template="evoloop.tool_summary.learn_from_trace",
 )
 async def learn_from_trace(thread_id: str, session_id: str | None = None) -> str:
     """
@@ -31,36 +30,27 @@ async def learn_from_trace(thread_id: str, session_id: str | None = None) -> str
 
         # Save to Database
         async with session_scope() as db:
-            # Check for name collision
-            stmt = select(LearnedSkill).where(LearnedSkill.name == skill_data.name)
-            existing = (await db.execute(stmt)).scalar_one_or_none()
-
-            if existing:
-                # Update existing? Or error?
-                # For now, let's append a suffix if needed or just update
-                skill_data.name = f"{skill_data.name}_{int(time.time())}"
-
-            new_skill = LearnedSkill(
+            new_skill = await create_from_synthesis(
+                db,
                 name=skill_data.name,
                 description=skill_data.description,
-                trigger_patterns=json.dumps(skill_data.trigger_patterns),
-                parameters=json.dumps([p.__dict__ for p in skill_data.parameters]),
-                preconditions=json.dumps(skill_data.preconditions),
+                trigger_patterns=skill_data.trigger_patterns,
+                parameters=skill_data.parameters,
+                preconditions=skill_data.preconditions,
                 instructions=skill_data.instructions,
-                tools_used=json.dumps(skill_data.tools_used),
+                tools_used=skill_data.tools_used,
                 source_thread_id=skill_data.source_thread_id,
                 source_session_id=skill_data.source_session_id,
                 execution_mode=skill_data.execution_mode,
                 macro_script=skill_data.macro_script,
             )
-            db.add(new_skill)
             # Commit happens automatically on exit of session_scope
 
         await publish_skill_mutated(skill_id=new_skill.id, action="create")
 
         return i18n.get(
             "domain_tools.learning.success",
-            name=skill_data.name,
+            name=new_skill.name,
             thread=thread_id,
             desc=skill_data.description,
             triggers=skill_data.trigger_patterns,

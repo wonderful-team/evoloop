@@ -1,18 +1,18 @@
 """
-MessagePublisher — unified message dispatcher.
+MessagePublisher — unified outbound dispatcher.
 
-Delegates to registered Channel implementations via ChannelRegistry.
-New transports (WeChat, Feishu, DingTalk, Telegram, Slack, ...) are
-added by implementing Channel and registering with channel_registry —
-no changes to MessagePublisher needed.
+Two payload families, two routing strategies:
+
+1. System Events (BaseEvent): routed through ``system_bus`` — the canonical process-wide event bus in ``app.core.events``. It delivers to in-process Python subscribers, and ``UniversalBridgeSubscriber`` forwards public events to the Redis SSE stream for frontends.
+
+2. Stream Events (BaseStreamEvent) and MessageBlocks (persisted chat messages): dispatched directly through ``ChannelRegistry`` to registered output channels (WebChannel → Redis SSE, MobileChannel → device push, ...).
 
 Usage:
-    from app.core.engine.message.schemas import MessageBlock
     from app.core.engine.message.publisher import MessagePublisher
 
-    block = BlockMapper.from_db(db_msg)
     publisher = MessagePublisher(thread_id="xxx")
-    await publisher.publish(block)
+    await publisher.publish(block)          # MessageBlock → channels (WebChannel & MobileChannel)
+    await publisher.publish(stream_event)   # BaseStreamEvent → WebChannel (SSE)
 """
 
 import logging
@@ -21,7 +21,6 @@ from typing import Any
 
 from app.core.channel import ChannelContext, channel_registry
 from app.core.engine.message.schemas import MessageBlock
-from app.infrastructure.pydantic_base import EventBase
 from app.models.schemas.events import BaseStreamEvent
 from app.utils.id import gen_uuid
 
@@ -29,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 class MessagePublisher:
-    """Unified message dispatcher: MessageBlock / BaseStreamEvent -> registered channels."""
+    """Unified outbound dispatcher: message blocks and streaming events -> channels."""
 
     def __init__(self, thread_id: str, project_id: int | None = None):
         self.thread_id = thread_id
@@ -37,20 +36,21 @@ class MessagePublisher:
 
     async def publish(
         self,
-        payload: MessageBlock | BaseStreamEvent | EventBase,
+        payload: MessageBlock | BaseStreamEvent,
         channels: set[str] | None = None,
         action: str = "create",
     ) -> None:
         """
-        Unified dispatch entry: deliver payload to registered channels.
+        Unified dispatch entry for outbound transport.
 
-        Args:
-            payload: MessageBlock (persisted message) or BaseStreamEvent (transient stream event)
-            channels: Requested channel names. None = auto-select by payload type.
-            action: SSE action for MessageBlock (create/update/append)
+        Payloads (MessageBlock, BaseStreamEvent) are dispatched through 
+        ChannelRegistry to registered output channels (WebChannel SSE, Mobile Push, etc).
         """
         if channels is None:
-            channels = {"sse", "mobile"} if isinstance(payload, MessageBlock) else {"sse"}
+            if isinstance(payload, BaseStreamEvent):
+                channels = {"sse"}
+            else:
+                channels = {"sse", "mobile"}
 
         ctx = ChannelContext(
             thread_id=self.thread_id,
@@ -58,49 +58,14 @@ class MessagePublisher:
             action=action,
         )
 
-        is_block = isinstance(payload, MessageBlock)
-        selected = channel_registry.select(channels, payload_is_block=is_block)
+        payload_is_block = isinstance(payload, MessageBlock)
+        selected = channel_registry.select(channels, payload_is_block=payload_is_block)
 
         for ch in selected:
             try:
                 await ch.send(payload, ctx)
             except (ConnectionError, TimeoutError, OSError) as e:
                 logger.warning("[Publisher] Channel '%s' send failed: %s", ch.name, e)
-
-    async def publish_custom_event(self, event_type: str, data: dict[str, Any]) -> None:
-        """Publish a custom structured event to all channels that support it."""
-        ctx = ChannelContext(thread_id=self.thread_id, project_id=self.project_id)
-        for ch in channel_registry:
-            try:
-                await ch.send_custom_event(event_type, data, ctx)
-            except (ConnectionError, TimeoutError, OSError) as e:
-                logger.warning("[Publisher] Channel '%s' custom event failed: %s", ch.name, e)
-
-    async def publish_error(
-        self,
-        title: str,
-        message: str,
-        error_type: str = "system",
-        metadata: dict[str, Any] | None = None,
-    ) -> None:
-        """Push a system error message block."""
-        block = MessageBlock(
-            id=gen_uuid(),
-            thread_id=self.thread_id,
-            role="system",
-            category="error_system",
-            content=message,
-            content_type="text",
-            status="failed",
-            is_visible=True,
-            created_at=datetime.now().isoformat(),
-            meta_data={
-                "title": title,
-                "error_type": error_type,
-                **(metadata or {}),
-            },
-        )
-        await self.publish(block)
 
     async def publish_hitl_request(
         self,

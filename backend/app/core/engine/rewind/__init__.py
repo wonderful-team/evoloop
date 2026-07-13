@@ -2,6 +2,8 @@
 Conversation rewind — perform_rewind() + event bus for cross-domain cleanup.
 """
 
+from app.api.schemas.conversations import RewindRequest
+from app.core.engine.schemas import RewindResult
 from app.core.engine.rewind.rewind import (
     MESSAGES_CLEANUP,
     REWIND_REQUESTED,
@@ -24,4 +26,6 @@ __all__ = [
     "RewindError",
     "MessageNotFoundError",
     "NoHumanMessageError",
+    "RewindRequest",
+    "RewindResult",
 ]

@@ -42,13 +42,18 @@ async def resume_graph_background(
         run_id=run_id,
     )
 
+    # Imitation-learning trace capture (chain A), same as the chat runner.
+    from app.core.learning.trace_recorder import TraceCallbackHandler
+
+    trace_callback = TraceCallbackHandler(thread_id=thread_id, run_id=run_id)
+
     try:
         if clear_human_request_flag:
             await activity_monitor.clear_human_request(thread_id)
 
         await activity_monitor.start_run(thread_id, run_label)
 
-        resume_config = {**config, "callbacks": [callback, db_callback]}
+        resume_config = {**config, "callbacks": [callback, db_callback, trace_callback]}
 
         from app.core.engine.loop import run_node_loop
 

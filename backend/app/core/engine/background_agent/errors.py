@@ -25,16 +25,20 @@ from app.utils.id import gen_uuid
 logger = logging.getLogger(__name__)
 
 
-async def handle_task_exception(thread_id: str, project_id: int, e: Exception, handler=None):
+async def handle_task_exception(thread_id: str, project_id: int, e: Exception, handler=None) -> bool:
     """Handle exceptions during graph execution using unified LLMErrorHandler.
 
     Args:
         handler: Optional MessageHandler instance for pushing errors to Mobile.
+
+    Returns:
+        True if the error was an already-terminated terminal error (caller should
+        skip redundant publish_agent_run_completed), False otherwise.
     """
     # Check for human-interrupt using class checks
     if isinstance(e, AgentHumanInterruptException):
         logger.info(f"Task {thread_id} interrupted for human input: {e}")
-        return
+        return False
 
     logger.error(f"Error running thread {thread_id}: {e}", exc_info=True)
 
@@ -63,7 +67,7 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
             )
         )
         await _push_to_mobile_if_handler(classification)
-        return
+        return True
 
     if error_type == "llm_auth":
         logger.warning(f"[LLMAuthError] Thread {thread_id} hit LLM API authentication error")
@@ -77,7 +81,7 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
             )
         )
         await _push_to_mobile_if_handler(classification)
-        return
+        return True
 
     if error_type == "quota_exhausted":
         logger.warning(f"[QuotaExhausted] Thread {thread_id} hit quota limit")
@@ -91,7 +95,7 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
             )
         )
         await _push_to_mobile_if_handler(classification)
-        return
+        return True
 
     # 3. Handle Retryable or Fatal errors
     await activity_monitor.end_run(thread_id, "failed")
@@ -140,6 +144,8 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
             )
         except (ValueError, OSError, RuntimeError, TypeError, KeyError) as sse_err:
             logger.warning(f"[ErrorHandler] SSE push failed: {sse_err}")
+
+    return False
 
 
 async def persist_system_error(

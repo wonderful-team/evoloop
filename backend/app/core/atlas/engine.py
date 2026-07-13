@@ -231,8 +231,16 @@ class AtlasEngine:
             try:
                 summary = await self.store.get_app_summary(bundle_id, platform=platform)
                 if summary and summary.states:
-                    # summary.states is a list of state IDs in AtlasAppSummary
-                    for state_id in summary.states:
+                    # summary.states entries are {"id": ..., "title": ...} dicts
+                    # (SQLAtlasStore); tolerate plain strings from other stores.
+                    for state_entry in summary.states:
+                        state_id = (
+                            state_entry.get("id")
+                            if isinstance(state_entry, dict)
+                            else state_entry
+                        )
+                        if not state_id:
+                            continue
                         detail = await self.store.get_state_detail(bundle_id, state_id, platform=platform)
                         if detail:
                             for el in detail.elements:

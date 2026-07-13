@@ -37,6 +37,58 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _build_trace_event(
+    *,
+    member_id: int,
+    session_id: str,
+    thread_id: str | None,
+    step_number: int,
+    node_name: str,
+    action_type: str,
+    timestamp: int,
+    event_type: str,
+    source: str,
+    app_name: str | None,
+    payload: dict,
+    state_context: dict,
+    target_selector: str | None = None,
+    target_text: str | None = None,
+    mouse_x: float | None = None,
+    mouse_y: float | None = None,
+    window_title: str | None = None,
+    action_payload: dict | None = None,
+) -> TraceEvent:
+    """Single construction site for recorder TraceEvent rows.
+
+    All four recorder endpoints persist the same shape; only the payload
+    contents and context tag differ. ``action_payload`` defaults to the
+    event payload itself.
+    """
+    return TraceEvent(
+        member_id=member_id,
+        session_id=session_id,
+        recording_session_id=session_id,
+        thread_id=thread_id,
+        step_number=step_number,
+        node_name=node_name,
+        action_type=action_type,
+        timestamp=timestamp,
+        event_type=event_type,
+        target_selector=target_selector,
+        target_text=target_text,
+        payload=payload,
+        mouse_x=mouse_x,
+        mouse_y=mouse_y,
+        source=source,
+        app_name=app_name,
+        window_title=window_title,
+        state_snapshot=state_context,
+        action_payload=json.dumps(action_payload if action_payload is not None else payload),
+        # Recorder endpoints persist USER-recorded events — human by definition.
+        is_human_action=True,
+    )
+
+
 @router.get("/mirror/devices", response_model=MirrorDevicesResponse)
 async def list_mirror_devices(current_user: CurrentUserOptional = None):
     """List connected Android devices for mirroring."""
@@ -62,7 +114,6 @@ async def start_mirror_session(body: StartMirrorRequest):
         "thread_id": "global",
         "task_name": f"Android Mirror ({body.device_id})",
         "started_at": datetime.utcnow(),
-        "event_count": 0,
     }
 
     return MirrorSessionResponse(success=True, session_id=session.session_id, device_id=session.device_id)
@@ -83,6 +134,8 @@ async def stop_mirror_session(body: StopMirrorRequest, current_user: CurrentUser
     result = mirror_manager.stop_session(body.session_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Session not found")
+
+    _active_sessions.pop(body.session_id, None)
 
     async with session_scope() as db:
         stmt = select(func.count(TraceEvent.id)).where(TraceEvent.recording_session_id == body.session_id)
@@ -135,9 +188,9 @@ async def persist_mirror_events(body: PersistMirrorEventsRequest, current_user: 
                 source = event_data.get("source") or "mobile"
                 thread_id = body.thread_id or "global"
 
-                trace_event = TraceEvent(member_id=current_user.id if current_user else 0,
+                trace_event = _build_trace_event(
+                    member_id=current_user.id if current_user else 0,
                     session_id=body.session_id,
-                    recording_session_id=body.session_id,
                     thread_id=thread_id,
                     step_number=i,
                     node_name=node_name,
@@ -151,8 +204,7 @@ async def persist_mirror_events(body: PersistMirrorEventsRequest, current_user: 
                     mouse_y=payload_data.get("y"),
                     source=source,
                     app_name=payload_data.get("package_name"),
-                    state_snapshot=json.dumps({"context": "android_mirror"}),
-                    action_payload=json.dumps(payload_data)
+                    state_context={"context": "android_mirror"},
                 )
                 db.add(trace_event)
 
@@ -197,9 +249,9 @@ async def persist_global_events(body: GlobalEventsRequest, current_user: Current
                 if app_name:
                     payload["package_name"] = app_name
 
-                trace_event = TraceEvent(member_id=current_user.id if current_user else 0,
+                trace_event = _build_trace_event(
+                    member_id=current_user.id if current_user else 0,
                     session_id=body.session_id,
-                    recording_session_id=body.session_id,
                     thread_id=body.thread_id,
                     step_number=i,
                     node_name=app_name or "global_recorder",
@@ -214,8 +266,7 @@ async def persist_global_events(body: GlobalEventsRequest, current_user: Current
                     source=source,
                     app_name=app_name,
                     window_title=event.window_title,
-                    state_snapshot=json.dumps({"context": "global_recorder"}),
-                    action_payload=json.dumps(payload)
+                    state_context={"context": "global_recorder"},
                 )
                 db.add(trace_event)
 
@@ -251,9 +302,9 @@ async def persist_dom_events(body: DomEventsRequest, current_user: CurrentUserOp
                 action_type = "region_extract" if is_region_extract else "user_interaction"
                 node_name = "region_marker" if is_region_extract else "dom_recorder"
 
-                trace_event = TraceEvent(member_id=current_user.id if current_user else 0,
+                trace_event = _build_trace_event(
+                    member_id=current_user.id if current_user else 0,
                     session_id=body.session_id,
-                    recording_session_id=body.session_id,
                     thread_id=body.thread_id,
                     step_number=i,
                     node_name=node_name,
@@ -265,8 +316,7 @@ async def persist_dom_events(body: DomEventsRequest, current_user: CurrentUserOp
                     payload=payload,
                     source="dom",
                     app_name=event.url if not is_region_extract else "screen_region",
-                    state_snapshot=json.dumps({"context": node_name, "url": event.url}),
-                    action_payload=json.dumps(payload)
+                    state_context={"context": node_name, "url": event.url},
                 )
                 db.add(trace_event)
 
@@ -303,10 +353,10 @@ async def create_android_extract_point(body: AndroidExtractPointRequest, current
         region_width = body.width if body.width is not None else 0.02
         region_height = body.height if body.height is not None else 0.02
 
-        trace_event = TraceEvent(member_id=current_user.id if current_user else 0,
+        trace_event = _build_trace_event(
+            member_id=current_user.id if current_user else 0,
             session_id=body.session_id,
-            recording_session_id=body.session_id,
-            thread_id=body.thread_id,
+            thread_id=body.thread_id or "global",
             step_number=0,
             node_name="android_region_marker",
             action_type="region_extract",
@@ -321,8 +371,8 @@ async def create_android_extract_point(body: AndroidExtractPointRequest, current
             },
             source="android",
             app_name="android_mirror",
-            state_snapshot=json.dumps({"context": "android_region_marker"}),
-            action_payload=json.dumps({"x": body.x, "y": body.y, "width": region_width, "height": region_height}),
+            state_context={"context": "android_region_marker"},
+            action_payload={"x": body.x, "y": body.y, "width": region_width, "height": region_height},
         )
         db.add(trace_event)
         await db.flush()

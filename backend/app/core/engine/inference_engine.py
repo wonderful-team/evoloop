@@ -3,6 +3,7 @@ InferenceEngine - Pure LLM execution logic.
 """
 
 import hashlib
+import json
 import logging
 import time
 from collections.abc import Callable
@@ -231,6 +232,12 @@ class InferenceEngine:
 
         tool_calls = response.tool_calls or []
         for tc in tool_calls:
+            raw_args = tc.get("args") if isinstance(tc, dict) else None
+            if isinstance(raw_args, str):
+                try:
+                    tc["args"] = json.loads(raw_args)
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    tc["args"] = {}
             interceptor = (interceptors or {}).get(tc.get("name", ""))
             if interceptor:
                 sig = await interceptor(tc, config)

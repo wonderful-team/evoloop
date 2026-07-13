@@ -60,20 +60,23 @@ async def verify_macro_script(
         if params:
             default_params.update(params)
 
-        result = await MacroService.run(
-            thread_id=thread_id,
-            script_input=macro_script,
-            params=default_params
-        )
-
-        success = result.get("success", False)
-        extracted_data = result.get("extracted_data", {})
-
-        # Handle both YAML string and list input
+        # Parse YAML string input first — MacroService.run accepts a
+        # MacroScript object or a list of step dicts, never a raw string.
         steps = macro_script
         if isinstance(macro_script, str):
             from app.utils.yaml import macro_from_yaml
             steps = macro_from_yaml(macro_script)
+
+        result = await MacroService.run(
+            thread_id=thread_id,
+            script_input=steps,
+            params=default_params
+        )
+
+        success = result.get("success", False)
+        # MacroService.run leaves extracted_data=None on failure paths; `.get`
+        # with a default only covers a missing key, not a None value.
+        extracted_data = result.get("extracted_data") or {}
 
         expected_keys = [s["key"] for s in steps if s.get("type") == "extract"]
         missing_keys = [k for k in expected_keys if k not in extracted_data]

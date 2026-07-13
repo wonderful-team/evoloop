@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import select
 
 from app.core.events import system_bus
-from app.core.events.schemas import SystemLogEvent, SystemStatusEvent
+from app.core.monitoring.event import SystemLogEvent, SystemStatusEvent
 from app.core.monitoring.schemas import (
     AgentActivityState,
     HumanRequestData,
@@ -24,6 +24,7 @@ from app.core.monitoring.schemas import (
 
 if TYPE_CHECKING:
     from app.core.tools.background.models import BackgroundTask
+from app.core.monitoring.activity_state import ActivityStateService
 from app.infrastructure.cache import cache
 from app.infrastructure.database import session_scope
 from app.models import AgentActivity
@@ -32,7 +33,6 @@ from app.models.schemas.events import (
     ArtifactEvent,
     HumanRequestEvent,
 )
-from app.core.monitoring.activity_state import ActivityStateService
 
 logger = logging.getLogger(__name__)
 
@@ -171,7 +171,7 @@ class ActivityMonitor:
             },
         )
 
-        # 2. Publish internal SystemStatusEvent (automated bridge handles UI StatusEvent)
+        # 2. Publish SystemStatusEvent (system_bus: Python subscribers + bridge → SSE)
         await system_bus.publish(
             SystemStatusEvent(thread_id=thread_id, status=result.status)
         )
@@ -208,7 +208,7 @@ class ActivityMonitor:
         success = await self._state_service.set_human_request(thread_id, request_dict)
 
         if success:
-            # Publish internal Event (automated bridge will handle UI)
+            # Publish HITL request + status change
             await system_bus.publish(
                 HumanRequestEvent(
                     thread_id=thread_id,
@@ -223,8 +223,6 @@ class ActivityMonitor:
                     payload=request_dict.get("payload", {}),
                 )
             )
-
-            # [HITL FIX] Also publish internal SystemStatusEvent
             await system_bus.publish(
                 SystemStatusEvent(thread_id=thread_id, status="interrupted")
             )
@@ -234,7 +232,6 @@ class ActivityMonitor:
         success = await self._state_service.clear_human_request(thread_id)
 
         if success:
-            # Publish internal Events
             await system_bus.publish(
                 HumanRequestEvent(thread_id=thread_id, action="clear")
             )
@@ -283,7 +280,6 @@ class ActivityMonitor:
         )
 
         if success:
-            # Publish internal Events (automated bridge will handle UI)
             await system_bus.publish(
                 HumanRequestEvent(
                     thread_id=thread_id,
@@ -294,8 +290,6 @@ class ActivityMonitor:
                     payload=request_data.payload,
                 )
             )
-
-            # [HITL FIX] Also publish internal SystemStatusEvent
             await system_bus.publish(
                 SystemStatusEvent(thread_id=thread_id, status="interrupted")
             )
@@ -350,7 +344,7 @@ class ActivityMonitor:
 
         await self._state_service.update_agent_state(thread_id, state.model_dump())
 
-        # Publish internal Event
+        # Publish agent state event
         await system_bus.publish(
             AgentStateEvent(
                 thread_id=thread_id,
@@ -429,22 +423,22 @@ class ActivityMonitor:
         # 1. Update SQLite/database state
         await self._state_service.update_field(thread_id, "main_goal", new_goal)
 
-        # 2. Publish to the event bus so the frontend updates in real time
-        from app.core.engine.message.event_bus import get_event_bus
-
-        bus = get_event_bus()
-        channel = f"chat:{thread_id}:events"
-
+        # 2. Publish the full activity state via the system event bus
         activity = await self.get_activity(thread_id)
         if activity:
             snapshot = (
                 activity.model_dump() if hasattr(activity, "model_dump") else activity
             )
-            snapshot["type"] = "activity"
+            from app.core.monitoring.event import ActivityStateRefreshedEvent
+
+            event = ActivityStateRefreshedEvent(
+                thread_id=thread_id,
+                activity_state=snapshot
+            )
             try:
-                await bus.publish(channel, json.dumps(snapshot, ensure_ascii=False))
+                await system_bus.publish(event)
                 logger.info(
-                    f"[ActivityMonitor] Session goal updated for thread {thread_id}: {new_goal}"
+                    f"[ActivityMonitor] Session goal updated and state refreshed for thread {thread_id}: {new_goal}"
                 )
             except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(

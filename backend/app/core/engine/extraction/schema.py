@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Type, Union
 
 from pydantic import BaseModel, Field, create_model
 
-from app.core.events.schemas.lifecycle import ExtractionRequest
+from app.core.engine.event import ExtractionRequest
 
 logger = logging.getLogger(__name__)
 

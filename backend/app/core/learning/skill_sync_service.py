@@ -208,6 +208,7 @@ class SkillSyncService:
                 inferred_namespace = "misc"
                 inferred_name = os.path.basename(folder)
 
+            deleted_skill_id = None
             async with session_scope() as db:
                 from sqlalchemy import select
                 stmt = select(LearnedSkill).where(
@@ -217,16 +218,23 @@ class SkillSyncService:
                 skill = (await db.execute(stmt)).scalar_one_or_none()
 
                 if skill:
+                    deleted_skill_id = skill.id
                     await db.delete(skill)
                     logger.info(f"[Sync] Deleted skill from DB: {inferred_name} ({inferred_namespace})")
-                    return True
                 else:
                     logger.warning(f"[Sync] No DB skill found for deleted file: {inferred_name} ({inferred_namespace})")
-                    return False
 
+            if deleted_skill_id is None:
+                return False
+
+            # Refresh in-memory discovery cache and route index so the deleted
+            # skill stops being routable immediately (not only after restart).
+            from app.core.events.publishers import publish_skill_mutated
             from app.core.learning.discovery import skill_discovery
             await skill_discovery.reload()
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            await publish_skill_mutated(skill_id=deleted_skill_id, action="delete")
+            return True
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(f"[Sync] Failed to delete skill by path {skill_md_path}: {e}")
             return False
         finally:

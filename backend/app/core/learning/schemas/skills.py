@@ -5,7 +5,6 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from app.core.schemas import BaseAPIResponse
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
@@ -36,6 +35,7 @@ class SkillDTO(BaseModel):
     is_active: bool
     status: str
     execution_mode: str = "agentic"
+    allow_self_healing: bool = True
     macro_script: str | None = None  # YAML format
     validation_report: dict[str, Any] | None = None
     instructions: str | None = None
@@ -48,14 +48,3 @@ class SkillDetailResponse(SkillDTO):
     source_thread_id: str | None = None
     source_session_id: str | None = None
     resource_path: str | None = None
-
-
-class SkillResponse(BaseAPIResponse):
-    id: int
-    name: str
-    description: str
-    trigger_patterns: list[str]
-    tools_used: list[str]
-    success_count: int
-    failure_count: int
-    is_active: bool

@@ -11,10 +11,10 @@ from .lifecycle import (
     AppStoppingEvent,
     SessionCompletedData,
     SessionCompletedEvent,
-    SystemLogEvent,
-    SystemStatusEvent,
+    SubscriptionChangedEvent,
     UserLoggedInEvent,
     UserLoggedOutEvent,
+    ConfigChangedEvent,
 )
 
 __all__ = [
@@ -23,8 +23,8 @@ __all__ = [
     "AppStoppingEvent",
     "SessionCompletedData",
     "SessionCompletedEvent",
-    "SystemLogEvent",
-    "SystemStatusEvent",
+    "SubscriptionChangedEvent",
     "UserLoggedInEvent",
     "UserLoggedOutEvent",
+    "ConfigChangedEvent",
 ]

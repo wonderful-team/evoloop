@@ -473,8 +473,9 @@ class BackgroundTaskManager:
     async def _publish_event(self, task: BackgroundTask, event_type: str) -> None:
         """
         Publish task event to notification systems.
-        
-        Governance: Uses internal system_bus with automated bridging to UI.
+
+        system_bus delivers to both in-process Python subscribers (e.g. EvoCloudSync)
+        and, via UniversalBridgeSubscriber, to Redis SSE for frontend consumption.
         """
         await system_bus.publish(
             BackgroundTaskEvent(

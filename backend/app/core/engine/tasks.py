@@ -145,9 +145,17 @@ async def persist_file_operation_task(
 
     # Notify sidebar changeset panel to refresh
     try:
-        publisher = MessagePublisher(thread_id=thread_id)
-        await publisher.publish_custom_event("changeset.updated", {"message_id": message_id, "file_path": file_path, "operation": operation})
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        from app.core.events import system_bus
+        from app.core.file.event import ChangesetUpdatedEvent
+        await system_bus.publish(
+            ChangesetUpdatedEvent(
+                thread_id=thread_id,
+                message_id=message_id,
+                file_path=file_path,
+                operation=operation,
+            )
+        )
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.warning(f"[Celery] Failed to publish changeset updated event: {e}")
 
 
@@ -251,7 +259,30 @@ async def record_episode_task(
                 synthesizer = WorkflowSynthesizer(thread_id=thread_id)
                 result = await synthesizer.synthesize()
                 if result:
-                    logger.info(f"[Celery] ✅ Skill synthesis complete: {result.name}")
+                    # Persist through the single creation service so the skill
+                    # lands as pending_review (user confirmation required),
+                    # exactly like the REST /skills/synthesize path.
+                    from app.core.events.publishers import publish_skill_mutated
+                    from app.services.learning.skill_lifecycle import create_from_synthesis
+
+                    async with session_scope() as db:
+                        db_skill = await create_from_synthesis(
+                            db,
+                            member_id=0,
+                            name=result.name,
+                            description=result.description,
+                            trigger_patterns=result.trigger_patterns,
+                            parameters=result.parameters,
+                            preconditions=result.preconditions,
+                            tools_used=result.tools_used,
+                            source_thread_id=result.source_thread_id,
+                            source_session_id=result.source_session_id,
+                            instructions=result.instructions,
+                            execution_mode=result.execution_mode,
+                            macro_script=result.macro_script,
+                        )
+                    await publish_skill_mutated(skill_id=db_skill.id, action="create")
+                    logger.info(f"[Celery] ✅ Skill synthesis complete: {result.name} (pending_review)")
                 else:
                     logger.info("[Celery] ⏩ Skill synthesis skipped (no unique pattern found)")
     finally:
@@ -391,6 +422,7 @@ async def reconcile_skill_macro_task(skill_id: int, thread_id: str, model: str |
             logger.warning(f"[Celery] No valid macro synthesized from recovery thread {thread_id}. Aborting patch.")
             return
 
+        healed = False
         async with session_scope() as session:
             stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
             result = await session.execute(stmt)
@@ -400,8 +432,13 @@ async def reconcile_skill_macro_task(skill_id: int, thread_id: str, model: str |
                 original_skill.macro_script = repaired_skill.macro_script
                 if repaired_skill.instructions:
                     original_skill.instructions = repaired_skill.instructions
-                logger.info(f"[Celery] ✅ Skill {skill_id} has been self-healed.")
-                await publish_skill_mutated(skill_id=skill_id, action="update")
+                healed = True
+
+        # Publish AFTER commit: subscribers re-query the row in a new session
+        # (file export + route-index upsert) and must see the patched macro.
+        if healed:
+            logger.info(f"[Celery] ✅ Skill {skill_id} has been self-healed.")
+            await publish_skill_mutated(skill_id=skill_id, action="update")
     finally:
         ContextManager.reset(token)
 
@@ -508,7 +545,7 @@ async def run_engine_audit_structured_extraction(
     from app.core.engine.message.converter import EvoMessageConverter
     from app.core.engine.message.native_classes import SystemMessage
     from app.core.events.base import system_bus
-    from app.core.events.schemas.lifecycle import (
+    from app.core.engine.event import (
         ExtractionCompletedEvent,
         ExtractionRequest,
     )

@@ -148,27 +148,6 @@ class AndroidExtractPointResponse(BaseAPIResponse):
     created_at: datetime
 
 
-class SmartSynthesisResponse(BaseAPIResponse):
-    """智能合成响应"""
-    job_id: int
-    status: str
-
-
-class SynthesisJobResponse(BaseAPIResponse):
-    """合成任务状态响应"""
-    id: int
-    session_id: str
-    status: str
-    progress_percent: int
-    current_phase: str | None
-    task_goal: str
-    created_at: datetime
-    started_at: datetime | None
-    completed_at: datetime | None
-    result: dict | None  # 完成后包含 generated_skill
-    error: dict | None  # 失败时包含错误信息
-
-
 class ValidateYamlResponse(BaseAPIResponse):
     """Response from YAML validation."""
     valid: bool

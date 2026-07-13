@@ -1,5 +1,7 @@
 import logging
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from app.core.config import settings
 from app.infrastructure.config import SystemConfigService
 from app.infrastructure.database.resource_manager import db_resource_manager
@@ -47,6 +49,30 @@ def init() -> None:
 
     # 5. LLM & Vision Configuration
     _seed_llm_config(SystemConfigService)
+
+    # 6. Skill lifecycle data migration (idempotent; repairs pre-convergence rows)
+    try:
+        from app.services.learning.skill_lifecycle import migrate_legacy_status_rows
+
+        migrate_legacy_status_rows()
+    except (SQLAlchemyError, ConnectionError, ValueError, RuntimeError, TypeError) as e:
+        logger.warning(f"Skill lifecycle migration skipped: {e}")
+
+    # 7. Trace state_snapshot encoding repair (idempotent; safe in any mode)
+    try:
+        from app.services.learning.skill_lifecycle import repair_state_snapshot_encoding
+
+        repair_state_snapshot_encoding()
+    except (SQLAlchemyError, ConnectionError, ValueError, RuntimeError, TypeError) as e:
+        logger.warning(f"state_snapshot repair skipped: {e}")
+
+    # 8. Drop legacy learning tables (one-time; no-op after first drop)
+    try:
+        from app.services.learning.skill_lifecycle import drop_legacy_learning_tables
+
+        drop_legacy_learning_tables()
+    except (SQLAlchemyError, ConnectionError, ValueError, RuntimeError, TypeError) as e:
+        logger.warning(f"Legacy learning table cleanup skipped: {e}")
 
 
 def _seed_llm_config(SystemConfigService):

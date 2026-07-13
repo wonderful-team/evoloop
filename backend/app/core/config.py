@@ -1,6 +1,7 @@
 import os
 import platform
 import secrets
+import sys
 import warnings
 from typing import Annotated, Any, Literal
 
@@ -21,9 +22,8 @@ from typing_extensions import Self
 # PyInstaller support: Detect bundled environment
 def _get_env_file_path():
     """Get .env file path for dev or PyInstaller environment."""
-    import sys
-    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-        return os.path.join(sys._MEIPASS, '.env')
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return os.path.join(sys._MEIPASS, ".env")
 
     # Resolve relative to this file to prevent CWD dependency issues
     # This file is at: backend/app/core/config.py
@@ -47,7 +47,6 @@ def expand_path(v: Any) -> str:
 
 
 def _default_chrome_executable() -> str:
-    import sys
     if sys.platform == "darwin":
         return "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
     elif sys.platform == "win32":
@@ -56,7 +55,6 @@ def _default_chrome_executable() -> str:
 
 
 def _default_chrome_user_data() -> str:
-    import sys
     if sys.platform == "darwin":
         return os.path.expanduser("~/Library/Application Support/Google/Chrome")
     elif sys.platform == "win32":
@@ -65,7 +63,6 @@ def _default_chrome_user_data() -> str:
 
 
 def _default_chrome_automation_data() -> str:
-    import sys
     if sys.platform == "darwin":
         return os.path.expanduser("~/Library/Application Support/Google/Chrome-Automation")
     elif sys.platform == "win32":
@@ -169,14 +166,16 @@ class Settings(BaseSettings):
         if self.EMBEDDED_MODE or not self.POSTGRES_SERVER:
             return f"sqlite+aiosqlite:///{self.SQLITE_PATH}"
 
-        return str(PostgresDsn.build(
-            scheme="postgresql+psycopg",
-            username=self.POSTGRES_USER or "",
-            password=self.POSTGRES_PASSWORD,
-            host=self.POSTGRES_SERVER,
-            port=self.POSTGRES_PORT,
-            path=self.POSTGRES_DB,
-        ))
+        return str(
+            PostgresDsn.build(
+                scheme="postgresql+psycopg",
+                username=self.POSTGRES_USER or "",
+                password=self.POSTGRES_PASSWORD,
+                host=self.POSTGRES_SERVER,
+                port=self.POSTGRES_PORT,
+                path=self.POSTGRES_DB,
+            )
+        )
 
     SMTP_TLS: bool = True
     SMTP_SSL: bool = False
@@ -257,6 +256,8 @@ class Settings(BaseSettings):
 
     ENABLE_VISION_OCR: bool = True
     ENABLE_MACRO_SELF_HEALING: bool = True
+    SKILL_SEDIMENTATION_ENABLED: bool = False
+    ROUTE_INDEX_REQUIRE_VERIFIED: bool = True
 
     # 是否启用本地环境控制工具（浏览器、桌面、手机）。可以根据实际需要开启或关闭。
     # 纯服务端部署推荐关闭 (False)，需要 AI 控制真实设备时开启 (True)。
@@ -528,21 +529,19 @@ class Settings(BaseSettings):
     # --- Protocol Dynamic Loading (Phase 1 Optimization) ---
     # Feature flag for dynamic protocol loading - reduces Worker System Prompt size
     DYNAMIC_PROTOCOL_LOADING: bool = Field(
-        default=False,
-        validation_alias="DYNAMIC_PROTOCOL_LOADING"
+        default=False, validation_alias="DYNAMIC_PROTOCOL_LOADING"
     )  # Set to True to enable dynamic protocol injection based on user intent
 
     # Protocol matcher confidence threshold (0.0 - 1.0)
     # Higher = more conservative, only inject protocols when strongly matched
     PROTOCOL_MATCHER_THRESHOLD: float = Field(
-        default=0.7,
-        validation_alias="PROTOCOL_MATCHER_THRESHOLD"
+        default=0.7, validation_alias="PROTOCOL_MATCHER_THRESHOLD"
     )
 
     # Protocol loader cache TTL in seconds
     PROTOCOL_LOADER_CACHE_TTL: int = Field(
         default=300,  # 5 minutes
-        validation_alias="PROTOCOL_LOADER_CACHE_TTL"
+        validation_alias="PROTOCOL_LOADER_CACHE_TTL",
     )
 
     @computed_field  # type: ignore[prop-decorator]
@@ -554,14 +553,16 @@ class Settings(BaseSettings):
         server = self.VECTOR_POSTGRES_SERVER or self.POSTGRES_SERVER
         if not server:
             return None
-        return str(PostgresDsn.build(
-            scheme="postgresql+psycopg",
-            username=self.VECTOR_POSTGRES_USER or self.POSTGRES_USER or "",
-            password=self.VECTOR_POSTGRES_PASSWORD or self.POSTGRES_PASSWORD,
-            host=server,
-            port=self.VECTOR_POSTGRES_PORT or self.POSTGRES_PORT,
-            path=self.VECTOR_POSTGRES_DB or self.POSTGRES_DB,
-        ))
+        return str(
+            PostgresDsn.build(
+                scheme="postgresql+psycopg",
+                username=self.VECTOR_POSTGRES_USER or self.POSTGRES_USER or "",
+                password=self.VECTOR_POSTGRES_PASSWORD or self.POSTGRES_PASSWORD,
+                host=server,
+                port=self.VECTOR_POSTGRES_PORT or self.POSTGRES_PORT,
+                path=self.VECTOR_POSTGRES_DB or self.POSTGRES_DB,
+            )
+        )
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
         if value == "changethis":

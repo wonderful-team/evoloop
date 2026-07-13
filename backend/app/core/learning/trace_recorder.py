@@ -117,8 +117,8 @@ class TraceCallbackHandler(AsyncCallbackHandler):
     Callback that records every tool call and LLM output into
     the `TraceEvent` database table for imitation learning.
 
-    Attached automatically by AgentEngine._setup_callbacks() for every
-    agent node execution.
+    Wired into the engine callback list wherever TransparentCallbackHandler
+    is attached (chat runner, resume runner, background agent).
     """
 
     def __init__(self, thread_id: str, run_id: str | None = None):
@@ -134,10 +134,26 @@ class TraceCallbackHandler(AsyncCallbackHandler):
     async def on_tool_start(self, serialized: dict, input_str: str, **kwargs) -> None:
         """Called when a tool starts execution."""
         tool_name = serialized.get("name", "unknown_tool")
-        try:
-            args = json.loads(input_str)
-        except (json.JSONDecodeError, TypeError):
-            args = {"raw": input_str}
+        # Bridge passes str(dict) (Python repr), so JSON parsing usually fails
+        # on single quotes — fall back to literal_eval before giving up.
+        args: dict = {"raw": input_str}
+        for loader in (json.loads,):
+            try:
+                parsed = loader(input_str)
+                if isinstance(parsed, dict):
+                    args = parsed
+                break
+            except (json.JSONDecodeError, TypeError, ValueError):
+                continue
+        else:
+            import ast
+
+            try:
+                parsed = ast.literal_eval(input_str)
+                if isinstance(parsed, dict):
+                    args = parsed
+            except (ValueError, SyntaxError):
+                pass
 
         await self._save_event(
             action_type="tool_call",
@@ -150,8 +166,6 @@ class TraceCallbackHandler(AsyncCallbackHandler):
         try:
             if isinstance(output, str):
                 output_str = output
-            elif output is None:
-                output_str = "null"
             elif output is None:
                 output_str = "null"
             elif isinstance(output, (dict, list)):
@@ -183,7 +197,7 @@ class TraceCallbackHandler(AsyncCallbackHandler):
                 action_type="llm_output",
                 payload={"content": text},
             )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.debug("Suppressed error: %s", e, exc_info=True)
 
     # ------------------------------------------------------------------
@@ -193,7 +207,6 @@ class TraceCallbackHandler(AsyncCallbackHandler):
     async def _save_event(self, action_type: str, payload: dict) -> None:
         """Persist a single trace event into the TraceEvent table."""
         try:
-            from app.infrastructure.database import session_scope
             from app.models.learning import (
                 TraceEvent,  # avoid circular import at module load
             )
@@ -201,11 +214,13 @@ class TraceCallbackHandler(AsyncCallbackHandler):
             self._step += 1
             ctx = ContextManager.current()
             state_snapshot = self._sanitize_snapshot(payload)
+            member_id = (ctx.member_id or 0) if ctx else 0
 
             async with session_scope() as session:
                 event = TraceEvent(
                     thread_id=self.thread_id,
                     run_id=self.run_id,
+                    member_id=member_id,
                     step_number=self._step,
                     event_type=action_type,
                     payload=payload,
@@ -213,7 +228,7 @@ class TraceCallbackHandler(AsyncCallbackHandler):
                     action_type=action_type,
                     action_payload=json.dumps(payload),
                     state_snapshot=state_snapshot,
-                    node_name=ctx.request_id if ctx else "unknown",
+                    node_name="agent",
                     source="agent",
                     is_human_action=False,
                 )
@@ -226,7 +241,7 @@ class TraceCallbackHandler(AsyncCallbackHandler):
         if isinstance(state, dict):
             # Strip heavy/sensitive fields
             return {k: v for k, v in state.items() if k not in ("environment_block",)}
-        if hasattr(state, "dict"):
+        if hasattr(state, "model_dump"):
             return state.model_dump()
         return {"raw_state_type": type(state).__name__, "raw_state_value": str(state)}
 

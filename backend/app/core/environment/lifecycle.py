@@ -39,7 +39,23 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
         probe_docker_task,
         memory_task,
         pref_task,
+        return_exceptions=True,
     )
+
+    # No single subsystem failure may abort awakening (e.g. a slow Spotlight
+    # query killing the host probe). Degraded probes fall back to defaults.
+    from app.core.environment.schemas.models import (
+        MemoryContext,
+        NetworkStatus,
+        PreferenceContext,
+    )
+
+    defaults = [None, [], NetworkStatus(), [], MemoryContext(), PreferenceContext()]
+    names = ["host", "android", "network", "docker", "memory", "preferences"]
+    for i, result in enumerate(results):
+        if isinstance(result, BaseException):
+            logger.warning(f"🌅 Awakening: {names[i]} probe failed (degraded): {result}")
+            results[i] = defaults[i]
 
     host, android_devices, network, docker_containers, memory_context, pref_context = results
 
@@ -78,10 +94,24 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
 async def _refresh_state(project_id: int | None = None) -> AwakenedState:
     logger.debug("Refreshing environment state...")
 
-    host = await EnvironmentProbe.probe_host()
-    android_devices = await EnvironmentProbe.probe_android_devices()
-    network = await EnvironmentProbe.probe_network()
-    docker_containers = await EnvironmentProbe.probe_docker_containers()
+    results = await asyncio.gather(
+        EnvironmentProbe.probe_host(),
+        EnvironmentProbe.probe_android_devices(),
+        EnvironmentProbe.probe_network(),
+        EnvironmentProbe.probe_docker_containers(),
+        return_exceptions=True,
+    )
+
+    from app.core.environment.schemas.models import NetworkStatus
+
+    defaults = [None, [], NetworkStatus(), []]
+    names = ["host", "android", "network", "docker"]
+    for i, result in enumerate(results):
+        if isinstance(result, BaseException):
+            logger.warning(f"[Environment] Refresh: {names[i]} probe failed (degraded): {result}")
+            results[i] = defaults[i]
+
+    host, android_devices, network, docker_containers = results
 
     boundaries = _compute_capability_boundaries(host, android_devices, network)
     boundary_manager.set_static_boundaries(boundaries)

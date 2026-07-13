@@ -2,6 +2,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func, select
 
 from app.api.deps import CurrentUserOptional, require_benefit
 from app.core.learning.schemas import (
@@ -10,6 +11,8 @@ from app.core.learning.schemas import (
     StartRecordingResponse,
     StopRecordingResponse,
 )
+from app.infrastructure.database import session_scope
+from app.models import TraceEvent
 from app.utils.id import gen_uuid
 
 from ._shared import _active_sessions
@@ -25,7 +28,6 @@ async def start_recording(body: StartRecordingRequest):
         "thread_id": body.thread_id,
         "task_name": body.task_name,
         "started_at": datetime.utcnow(),
-        "event_count": 0,
     }
 
     return StartRecordingResponse(
@@ -34,17 +36,31 @@ async def start_recording(body: StartRecordingRequest):
     )
 
 
+async def _count_persisted_events(session_ids: list[str]) -> dict[str, int]:
+    """Real persisted event counts per recording session (TraceEvent rows)."""
+    if not session_ids:
+        return {}
+    async with session_scope() as db:
+        rows = await db.execute(
+            select(TraceEvent.recording_session_id, func.count(TraceEvent.id))
+            .where(TraceEvent.recording_session_id.in_(session_ids))
+            .group_by(TraceEvent.recording_session_id)
+        )
+        return {sid: cnt for sid, cnt in rows.all() if sid is not None}
+
+
 @router.post("/traces/stop", response_model=StopRecordingResponse)
 async def stop_recording(session_id: str, current_user: CurrentUserOptional = None):
     """Stop a recording session."""
     if session_id not in _active_sessions:
         raise HTTPException(status_code=404, detail="Recording session not found")
 
-    session = _active_sessions.pop(session_id)
+    _active_sessions.pop(session_id)
+    counts = await _count_persisted_events([session_id])
 
     return StopRecordingResponse(
         session_id=session_id,
-        event_count=session["event_count"],
+        event_count=counts.get(session_id, 0),
         message="Recording session stopped",
     )
 
@@ -52,6 +68,7 @@ async def stop_recording(session_id: str, current_user: CurrentUserOptional = No
 @router.get("/traces/sessions", response_model=RecordingSessionsResponse)
 async def list_recording_sessions(thread_id: str | None = None, current_user: CurrentUserOptional = None):
     """List active recording sessions."""
+    counts = await _count_persisted_events(list(_active_sessions))
     sessions = []
     for sid, info in _active_sessions.items():
         if thread_id is None or info["thread_id"] == thread_id:
@@ -60,6 +77,6 @@ async def list_recording_sessions(thread_id: str | None = None, current_user: Cu
                 "thread_id": info["thread_id"],
                 "task_name": info.get("task_name"),
                 "started_at": info["started_at"].isoformat(),
-                "event_count": info["event_count"],
+                "event_count": counts.get(sid, 0),
             })
     return RecordingSessionsResponse(sessions=sessions)

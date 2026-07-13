@@ -19,35 +19,34 @@ logger = logging.getLogger(__name__)
 )
 async def mobile_sync_http_task(mobile_data: dict) -> None:
     """通过 HTTP 将消息推送到 MC（Mobile 兜底通道，Worker 进程执行）。"""
-    import httpx
-
-    from app.core.config import settings
+    from app.core.evocloud import evocloud_manager
     from app.core.identity import identity_service
 
-    token = await identity_service.get_access_token()
-    if not token:
-        logger.warning("[MobileSyncTask] No token, skipping HTTP fallback")
+    device_key = await identity_service.store.get_device_key() or ""
+    thread_id = mobile_data.get("thread_id") or ""
+
+    if not device_key:
+        logger.warning("[MobileSyncTask] No device_key, skipping HTTP fallback")
         return
 
     try:
-        url = f"{settings.EVOCLOUD_API_URL}/member/evolooplink/api/sync/messages"
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(
-                url,
-                json=mobile_data,
-                headers={"Authorization": f"Bearer {token}"},
+        resp = await evocloud_manager.api.sync_messages(
+            device_key=device_key,
+            thread_id=thread_id,
+            messages=[mobile_data],
+        )
+        code = resp.get("code", -1) if isinstance(resp, dict) else -1
+        if code == 0:
+            logger.debug(
+                "[MobileSyncTask] HTTP fallback success: seq=%s",
+                mobile_data.get("sequence_number"),
             )
-            if resp.is_success:
-                logger.debug(
-                    "[MobileSyncTask] HTTP fallback success: seq=%s",
-                    mobile_data.get("sequence_number"),
-                )
-            else:
-                logger.warning(
-                    "[MobileSyncTask] HTTP fallback failed: %s %s",
-                    resp.status_code,
-                    resp.text[:200],
-                )
-    except httpx.HTTPError as e:
+        else:
+            logger.warning(
+                "[MobileSyncTask] HTTP fallback failed: code=%s, resp=%s",
+                code,
+                str(resp)[:200],
+            )
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.warning("[MobileSyncTask] HTTP fallback error: %s", e)
         raise  # 触发 Huey 重试

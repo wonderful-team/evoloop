@@ -13,9 +13,7 @@ async def search_native_tools(query: str = "") -> str:
     Returns tools grouped by ecosystem for better strategic planning.
     """
     from app.core.tools.manager import tool_manager
-    from app.core.tools.registry import clear_registry_cache
 
-    clear_registry_cache()
     all_tools = await tool_manager.get_all_capabilities()
 
     query_lower = query.lower() if query else ""

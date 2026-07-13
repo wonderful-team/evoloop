@@ -102,7 +102,12 @@ async def _emit_tool_event(
 async def intercept_route_to(tool_call: dict, config: dict) -> RouteToSignal | None:
     """Intercept route_to tool calls → RouteToSignal (tool is NOT executed)."""
     tc_id = tool_call["id"]
-    args = tool_call.get("args", {})
+    args = tool_call.get("args", {}) or {}
+    if isinstance(args, str):
+        try:
+            args = json.loads(args)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            args = {}
 
     await _emit_tool_event("start", "route_to", args, tc_id, config)
 

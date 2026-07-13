@@ -180,10 +180,9 @@
       "sql_query": "查询数据库 [[ (SQL: {sql}) ]]",
       "wait_for": "等待 {seconds} 秒",
       "auto_harvest_from_git": "自动从 Git 收获知识",
-      "search_native_tools": "搜索原生工具 '{query}'[[ (限制: {limit}) ]]",
+      "search_native_tools": "搜索原生工具 '{query}'",
       "learn_from_trace": "从轨迹学习技能 (Thread: {thread_id})",
       "reconcile_skill": "调和技能 {skill_id}",
-      "search_skills": "搜索技能 '{query}'[[ (限制: {limit}) ]]",
       "list_skills": "列出技能",
       "create_task_with_subtasks": "创建层级任务 '{title}'",
       "get_task_tree_summary": "获取任务树 (ID: {task_id})",
@@ -332,7 +331,7 @@
   },
   "domain_tools": {
     "learning": {
-      "success": "成功从线程 {thread} 学习到技能 '{name}'。\n描述：{desc}\n触发器：{triggers}",
+      "success": "成功从线程 {thread} 学习到技能 '{name}'。\n描述：{desc}\n触发器：{triggers}\n注意：该技能处于待审核状态，需在技能库中确认后才能执行。",
       "failed": "学习技能失败：{error}",
       "synthesis": {
         "instruction": "分析此追踪记录并生成 Agent YAML：\n\n{trace_text}"

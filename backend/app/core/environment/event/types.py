@@ -18,8 +18,8 @@ class EventType(str, Enum):
         in ``app.core.events.registry`` to maintain single source of truth.
     """
     # Device Events
-    DEVICE_CONNECTED = "device.connected"
-    DEVICE_DISCONNECTED = "device.disconnected"
+    DEVICE_CONNECTED = "environment.device_connected"
+    DEVICE_DISCONNECTED = "environment.device_disconnected"
 
     # Capability & Skill Evolution
     SKILL_EXECUTED = "skill.executed"

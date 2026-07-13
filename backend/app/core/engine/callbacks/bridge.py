@@ -122,6 +122,7 @@ async def emit_tool_end(
         try:
             await cb.on_tool_end(
                 output=output,
+                name=tool_name,
                 run_id=run_id,
                 parent_run_id=parent_run_id,
             )

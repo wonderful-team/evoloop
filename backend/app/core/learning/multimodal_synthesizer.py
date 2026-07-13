@@ -45,7 +45,6 @@ from app.core.learning.synthesizer_utils import (
     MacroVerificationResult,
     cleanup_macro_steps,
     describe_normalized_position,
-    export_skill_to_filesystem,
     extract_instructions_section,
     extract_yaml_block,
     normalize_timestamp_to_seconds,
@@ -68,7 +67,6 @@ class MultimodalSkillSynthesizer:
     """
 
     # 配置（从 settings 读取，见 __init__）
-    MAX_PROCESSING_TIME = 300     # 60秒超时
     DEFAULT_VIDEO_FPS = 15       # 默认帧率
 
     def __init__(self):
@@ -214,8 +212,8 @@ class MultimodalSkillSynthesizer:
         processing_time = time.time() - start_time
         logger.info(f"Synthesis completed in {processing_time:.1f}s.")
 
-        # Export to filesystem
-        export_skill_to_filesystem(skill_data)
+        # File export happens after DB commit via the SKILL_CREATED event
+        # subscriber — synthesis itself must not touch the filesystem.
 
         return {
             "skill": skill_data,
@@ -244,18 +242,21 @@ class MultimodalSkillSynthesizer:
         sequence = parser._convert_to_sequence(events)
 
         synth = WorkflowSynthesizer(thread_id=thread_id)
-        macro_yaml = synth._compile_macro_script(sequence)
-        # Parse YAML string to list
-        if isinstance(macro_yaml, str):
+        macro_script = synth._compile_macro_script(sequence)
+        # _compile_macro_script returns a MacroScript object
+        if hasattr(macro_script, "steps"):
+            return [s if isinstance(s, dict) else s.model_dump(exclude_none=True) for s in macro_script.steps]
+        # Defensive: older implementations returned a YAML string
+        if isinstance(macro_script, str):
             try:
                 import yaml
-                data = yaml.safe_load(macro_yaml)
+                data = yaml.safe_load(macro_script)
                 if isinstance(data, dict) and "steps" in data:
                     return data["steps"]
                 return data if isinstance(data, list) else []
             except (ValueError, TypeError, KeyError):
                 return []
-        return macro_yaml if isinstance(macro_yaml, list) else []
+        return macro_script if isinstance(macro_script, list) else []
 
     async def verify_macro(self, macro_script: str, project_id: int = DEFAULT_PROJECT_ID) -> MacroVerificationResult:
         """Dry-run 验证宏脚本的有效性"""
@@ -567,7 +568,10 @@ class MultimodalSkillSynthesizer:
             logger.error(f"Failed to render Multimodal Frames template: {e}")
             content.append({"type": "text", "text": "## Keyframes Analysis\n(Error rendering frames detail)"})
 
-            # 插入 Base64 图片
+        # 插入 Base64 图片 (每个关键帧一张)
+        for frame in frames:
+            if not frame.data:
+                continue
             base64_img = base64.b64encode(frame.data).decode('utf-8')
             content.append({
                 "type": "image_url",
@@ -597,6 +601,18 @@ class MultimodalSkillSynthesizer:
             logger.error(f"Failed to parse LLM YAML metadata: {e}")
             metadata = {}
 
+        # The prompt asks for macro_script as a YAML object ({version, metadata,
+        # steps}); downstream (synthesize step 9-10) consumes either a step list
+        # or a JSON/YAML string. Normalize here so a spec-compliant LLM response
+        # never hits a pydantic str-field ValidationError.
+        raw_macro = metadata.get("macro_script")
+        if isinstance(raw_macro, dict):
+            macro_value: object = raw_macro.get("steps", [])
+        elif raw_macro is None:
+            macro_value = ""
+        else:
+            macro_value = raw_macro
+
         return SynthesizedSkill(
             name=metadata.get("name", "unnamed_skill"),
             namespace=metadata.get("namespace", "misc"),
@@ -606,8 +622,8 @@ class MultimodalSkillSynthesizer:
             instructions=instructions or response,
             source_session_id=recording.session_id,
             source_thread_id=recording.thread_id,
-            macro_script=metadata.get("macro_script") or "",
-            execution_mode="deterministic" if metadata.get("macro_script") else "agentic",
+            macro_script=macro_value,
+            execution_mode="deterministic" if macro_value else "agentic",
         )
 
     def _extract_yaml(self, text: str) -> str | None:

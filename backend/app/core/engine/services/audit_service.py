@@ -280,7 +280,7 @@ class AuditService:
     ) -> None:
         from app.core.engine.tasks import engine_audit_structured_extraction
         from app.core.events.base import system_bus
-        from app.core.events.schemas.lifecycle import ExtractionRequestedEvent
+        from app.core.engine.event import ExtractionRequestedEvent
 
         thread_id = state.thread_id or config.get("configurable", {}).get("thread_id")
         if not thread_id:

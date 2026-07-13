@@ -1,5 +1,5 @@
-"""
-Planning Event Package
+from .schemas import PlanUpdatedEvent
 
-Event subscribers for planning lifecycle management.
-"""
+__all__ = [
+    "PlanUpdatedEvent",
+]

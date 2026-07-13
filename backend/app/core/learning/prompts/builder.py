@@ -1,8 +1,6 @@
 import logging
 from typing import Any
 
-from app.core.environment.capabilities.registry import ActionRegistry
-from app.core.learning.schemas.migrated import ActionRegistryItem
 from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
@@ -19,30 +17,10 @@ class LearningPromptBuilder:
     # Template name mapping for cleaner code
     TEMPLATES = {
         "synthesis": "core/learning/skill_synthesis.prompt.j2",
-        "macro": "core/learning/smart_replay_macro.prompt.j2",
-        "phases": "core/learning/smart_replay_phases.prompt.j2",
-        "metadata": "core/learning/smart_replay_metadata.prompt.j2",
         "multimodal_synthesis": "core/learning/multimodal_synthesis.prompt.j2",
-        "discovery": "core/learning/skill_discovery.prompt.j2",
         "multimodal_context": "core/learning/multimodal_task_context.j2",
         "synthesis_human": "core/learning/synthesis_human.prompt.j2",
-        "task_complexity": "core/learning/task_complexity_analysis.prompt.j2",
     }
-
-    def _get_actions(self) -> list[ActionRegistryItem]:
-        """
-        Get raw action registry data for template rendering.
-        Returns structured data for Jinja2 template to format.
-        """
-        return [
-            ActionRegistryItem(
-                id=action.id,
-                description=action.description,
-                params=list(action.params.keys()) if action.params else [],
-                platforms=action.platforms,
-            )
-            for action in ActionRegistry.list_actions()
-        ]
 
     def _render_with_fallback(
         self,
@@ -76,46 +54,12 @@ class LearningPromptBuilder:
             "Error loading skill synthesis template"
         )
 
-    def build_macro_prompt(self, vars: dict[str, Any]) -> str:
-        """Renders the smart replay macro generation prompt."""
-        # Inject raw action data for template to format
-        vars["actions"] = self._get_actions()
-        return self._render_with_fallback(
-            "macro",
-            vars,
-            "Error loading macro generation template"
-        )
-
-    def build_phases_prompt(self, vars: dict[str, Any]) -> str:
-        """Renders the phase understanding prompt."""
-        return self._render_with_fallback(
-            "phases",
-            vars,
-            "Error loading phases template"
-        )
-
-    def build_metadata_prompt(self, vars: dict[str, Any]) -> str:
-        """Renders the skill metadata generation prompt."""
-        return self._render_with_fallback(
-            "metadata",
-            vars,
-            "Error loading metadata template"
-        )
-
     def build_multimodal_synthesis_prompt(self, vars: dict[str, Any]) -> str:
         """Renders the multimodal skill synthesis prompt."""
         return self._render_with_fallback(
             "multimodal_synthesis",
             vars,
             "Error loading multimodal synthesis template"
-        )
-
-    def build_discovery_prompt(self, vars: dict[str, Any]) -> str:
-        """Renders the skill discovery (intent matching) prompt."""
-        return self._render_with_fallback(
-            "discovery",
-            vars,
-            "Error loading skill discovery template"
         )
 
     def build_multimodal_context_prompt(self, vars: dict[str, Any]) -> str:
@@ -137,19 +81,3 @@ class LearningPromptBuilder:
         if result.startswith("Error loading"):
             return "Please analyze the trace and generate the skill YAML."
         return result
-
-    def build_task_complexity_prompt(self, query: str) -> str:
-        """
-        Renders the task complexity analysis prompt.
-        
-        Args:
-            query: The task description to analyze
-            
-        Returns:
-            Rendered prompt string for task complexity analysis
-        """
-        return self._render_with_fallback(
-            "task_complexity",
-            {"query": query},
-            "Error loading task complexity analysis template"
-        )

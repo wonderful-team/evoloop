@@ -78,7 +78,7 @@ class UsageRanker:
                 record = cls._probe_macos_path(path)
                 if record:
                     records.append(record)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, subprocess.TimeoutExpired) as e:
             logger.debug(f"[UsageRanker] Bulk macOS probe failed: {e}")
 
         # 2. Ensure all running apps and provided app_names are considered

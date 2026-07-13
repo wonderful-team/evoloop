@@ -10,6 +10,9 @@ from .schemas import (
     AgentRunCompletedEvent,
     ConversationDeletedEvent,
     WebSocketMessageReceivedEvent,
+    ExtractionRequest,
+    ExtractionRequestedEvent,
+    ExtractionCompletedEvent,
 )
 from .types import AgentEventType, ConversationEventType
 
@@ -20,4 +23,7 @@ __all__ = [
     "ConversationDeletedEvent",
     "ConversationEventType",
     "WebSocketMessageReceivedEvent",
+    "ExtractionRequest",
+    "ExtractionRequestedEvent",
+    "ExtractionCompletedEvent",
 ]

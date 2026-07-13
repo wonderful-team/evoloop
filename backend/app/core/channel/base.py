@@ -37,7 +37,7 @@ class Channel(ABC):
     Abstract transport channel.
 
     Subclasses implement send() for the main payload path.
-    Optional methods (send_hitl_request, send_custom_event) default to no-op
+    Optional methods (send_hitl_request) default to no-op
     for transports that don't support them.
     """
 
@@ -62,15 +62,6 @@ class Channel(ABC):
         member_id: int = 0,
     ) -> None:
         """Deliver an arbitrary canonical envelope. Override for transports that support it."""
-        return
-
-    async def send_custom_event(
-        self,
-        event_type: str,
-        data: dict[str, Any],
-        ctx: ChannelContext,
-    ) -> None:
-        """Deliver a custom structured event. Override for transports that support it."""
         return
 
     async def send_hitl_request(

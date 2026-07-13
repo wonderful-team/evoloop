@@ -17,7 +17,6 @@ from .conversation import ThreadSequence as ThreadSequence
 from .credential import SecureCredential as SecureCredential
 from .file_operation import FileOperation as FileOperation
 from .learning import LearnedSkill as LearnedSkill
-from .learning import SynthesisJob as SynthesisJob
 from .learning import TraceEvent as TraceEvent
 from .maintenance import MaintenanceReport as MaintenanceReport
 from .memory import MemoryConcept as MemoryConcept
@@ -56,7 +55,6 @@ __all__ = [
     "FileOperation",
     "LearnedSkill",
     "SecureCredential",
-    "SynthesisJob",
     "TraceEvent",
     "MemoryConcept",
     "Plan",

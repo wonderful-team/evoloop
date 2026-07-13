@@ -1,8 +1,6 @@
-import json
 import logging
 from pathlib import Path
 
-import yaml
 from sqlalchemy import select
 
 from app.core.learning.schemas import SkillImportResult
@@ -87,14 +85,25 @@ class SkillImporter:
             existing = (await db.execute(stmt)).scalar_one_or_none()
 
             if existing:
+                if existing.status == "pending_review":
+                    # Synthesized skills awaiting user confirmation are owned by
+                    # the synthesis route: a file-watcher re-import round trip
+                    # (the route's own SKILL.md export echoing back) must not
+                    # touch status, activation, or the verification report.
+                    logger.info(
+                        f"[Importer] Skill '{existing.name}' is pending_review; "
+                        "skipping file-watcher update"
+                    )
+                    return True
                 # Update existing skill
                 existing.description = metadata.get("description", "")
                 existing.namespace = metadata.get("namespace", namespace)
                 existing.instructions = instructions
                 existing.resource_path = str(skill_folder.absolute())
-                existing.trigger_patterns = json.dumps([metadata["name"]] + (metadata.get("trigger_patterns", [])))
-                existing.parameters = json.dumps(metadata.get("parameters", []))
+                existing.trigger_patterns = [metadata["name"]] + (metadata.get("trigger_patterns", []))
+                existing.parameters = metadata.get("parameters", [])
                 existing.status = "verified" if validation.status == "healthy" else "candidate"
+                existing.is_active = True
                 existing.validation_report = validation.model_dump()
             else:
                 # Create new skill
@@ -104,33 +113,14 @@ class SkillImporter:
                     namespace=metadata.get("namespace", namespace),
                     instructions=instructions,
                     resource_path=str(skill_folder.absolute()),
-                    trigger_patterns=json.dumps([metadata["name"]] + (metadata.get("trigger_patterns", []))),
-                    parameters=json.dumps(metadata.get("parameters", [])),
+                    trigger_patterns=[metadata["name"]] + (metadata.get("trigger_patterns", [])),
+                    parameters=metadata.get("parameters", []),
                     status="verified" if validation.status == "healthy" else "candidate",
                     is_active=True,
+                    skill_source="imported",
                     validation_report=validation.model_dump()
                 )
                 db.add(new_skill)
 
             await db.flush()
             return True
-
-    @staticmethod
-    def _parse_skill_md(content: str) -> tuple[dict | None, str]:
-        """
-        Parse SKILL.md into metadata (dict) and instructions (markdown string).
-        """
-        if not content.startswith("---"):
-            return None, content
-
-        parts = content.split("---", 2)
-        if len(parts) < 3:
-            return None, content
-
-        try:
-            metadata = yaml.safe_load(parts[1])
-            instructions = parts[2].strip()
-            return metadata, instructions
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-            logger.error(f"Failed to parse YAML frontmatter: {e}")
-            return None, content

@@ -14,8 +14,6 @@ from app.core.context import thread_context_store
 from app.core.engine.event.schemas import WebSocketMessageReceivedEvent
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.events.registry import SystemEventType
-from app.core.memory.event import MemoryContextGatherEvent
-from app.core.memory.event.types import MEMORY_CONTEXT_GATHER_EVENT_TYPE
 from app.core.project.sync_service import ProjectSyncService
 from app.core.project.utils import get_project_path
 from app.infrastructure.config import SystemConfigService
@@ -41,7 +39,7 @@ class ProjectSwitchWebSocketSubscriber:
     to the domain-specific ``ProjectSwitchedEvent``.
     """
 
-    @event_subscribe("websocket.message_received")
+    @event_subscribe(SystemEventType.WEBSOCKET_MESSAGE_RECEIVED)
     async def on_ws_message(self, event: WebSocketMessageReceivedEvent) -> None:
         # 1. 使用标准化模型解析 (兼容 payload/content 各种嵌套)
         try:
@@ -279,98 +277,6 @@ class ProjectLifecycleSubscriber:
 
             except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"[Project] Failed to handle WORKSPACE_ROOT change: {e}")
-
-
-@event_register()
-class ProjectMemoryContextSubscriber:
-    """
-    Provides project context (README, structure, norms) for memory extraction.
-
-    Automatically registered via @event_register and discovered at startup.
-    Renders its own markdown fragment via Jinja2 template — memory layer
-    only sees the final formatted string.
-    """
-
-    @event_subscribe(MEMORY_CONTEXT_GATHER_EVENT_TYPE)
-    async def on_context_gather(self, event: MemoryContextGatherEvent) -> None:
-        """Render project context fragment and append to event data."""
-        project_id = event.data.project_id
-        if project_id is None:
-            return
-
-        project_path = await get_project_path(project_id)
-        if not project_path:
-            logger.debug("[ProjectContextProvider] WORKSPACE_ROOT not set, skipping.")
-            return
-
-        try:
-            context = await self._build_template_context(project_path)
-            if context:
-                fragment = render_template(
-                    "domain/project/memory_context.j2",
-                    **context,
-                )
-                if fragment.strip():
-                    event.data.context_fragments.append(fragment.strip())
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-            logger.warning(f"[ProjectContextProvider] Failed to render context: {e}")
-
-    async def _build_template_context(self, project_path: str) -> dict | None:
-        """Gather raw data and return a dict for the Jinja2 template."""
-        from app.core.project.service import project_context_manager
-
-        readme = ""
-        structure = ""
-
-        try:
-            readme = await asyncio.to_thread(
-                project_context_manager.extract_description_from_readme,
-                project_path,
-            )
-            readme = readme[:1000] if readme else ""
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-            logger.debug(f"[ProjectContextProvider] README extraction failed: {e}")
-
-        try:
-            structure = await project_context_manager.get_project_structure(project_path)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-            logger.debug(f"[ProjectContextProvider] Structure extraction failed: {e}")
-
-        norms = []
-        try:
-            norms = await asyncio.to_thread(self._scan_norm_files_sync, project_path)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-            logger.debug(f"[ProjectContextProvider] Norms scan failed: {e}")
-
-        if not readme and not structure and not norms:
-            return None
-
-        return {
-            "readme_summary": readme,
-            "project_structure": structure,
-            "norms": [{"file": n[0], "content": n[1]} for n in norms] if norms else [],
-        }
-
-    def _scan_norm_files_sync(self, project_path: str) -> list[tuple[str, str]]:
-        """Synchronous norm file scanner (runs in thread pool).
-
-        Returns list of (filename, content_preview) tuples.
-        PROJECT.md receives a larger quota because it is the primary project
-        identity document used for domain-term extraction.
-        """
-        norms = []
-        for norm_file in PROJECT_NORM_FILES:
-            path = os.path.join(project_path, norm_file)
-            if os.path.exists(path) and os.path.isfile(path):
-                try:
-                    with open(path, encoding="utf-8") as f:
-                        # PROJECT.md is the canonical project profile; give it more space
-                        quota = 5000 if norm_file == "PROJECT.md" else 1000
-                        content = f.read(quota)
-                        norms.append((norm_file, content))
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
-                    continue
-        return norms
 
 
 @event_register()

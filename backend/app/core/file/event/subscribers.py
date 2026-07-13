@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 
 from app.core.engine.rewind import REWIND_REQUESTED, RewindRequestedEvent
+from app.core.engine.rewind.event import RewindEventType
 from app.core.events.base import AsyncEventBus
 from app.core.events.decorators import (
     event_register,
@@ -25,12 +26,6 @@ class FileRewind:
 
     def __init__(self):
         self._reverted_count = 0
-
-    @classmethod
-    def register(cls, bus: AsyncEventBus) -> "FileRewind":
-        instance = cls()
-        register_instance_handlers(instance, bus)
-        return instance
 
     @event_subscribe(REWIND_REQUESTED)
     async def _handle_rewind_requested(self, event: RewindRequestedEvent) -> None:
@@ -261,3 +256,13 @@ class FileRewind:
     def get_reverted_count(self) -> int:
         """Get the count of files reverted in the last operation."""
         return self._reverted_count
+
+    @event_subscribe(RewindEventType.FILES_CLEANUP)
+    async def _handle_files_cleanup(self, event) -> None:
+        """Helper to test file reverting with a mock event list directly."""
+        from app.core.file.event.schemas import FilesCleanupEvent
+        if not isinstance(event, FilesCleanupEvent):
+            return
+        if event.file_operations:
+            count = await self._revert_files(event.file_operations)
+            self._reverted_count = count

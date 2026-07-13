@@ -101,7 +101,8 @@ class TestSkillSubscribers:
 
     @pytest.mark.asyncio
     async def test_on_skill_created_calls_export(self, mock_event):
-        """SKILL_CREATED subscriber → calls export_skill_to_file."""
+        """SKILL_CREATED subscriber → route-index upsert only; SKILL.md
+        auto-export is disabled (file export becomes an explicit user action)."""
         from app.core.learning.event.subscribers import LearningLifecycleSubscriber
 
         subscriber = LearningLifecycleSubscriber()
@@ -113,11 +114,12 @@ class TestSkillSubscribers:
             return_value="/path/to/SKILL.md",
         ) as mock_export:
             await subscriber.on_skill_created(event)
-            mock_export.assert_called_once_with(42)
+            mock_export.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_on_skill_updated_calls_export(self, mock_event):
-        """SKILL_UPDATED subscriber → calls export_skill_to_file."""
+        """SKILL_UPDATED subscriber → route-index upsert only; SKILL.md
+        auto-export is disabled."""
         from app.core.learning.event.subscribers import LearningLifecycleSubscriber
 
         subscriber = LearningLifecycleSubscriber()
@@ -128,7 +130,7 @@ class TestSkillSubscribers:
             new_callable=AsyncMock,
         ) as mock_export:
             await subscriber.on_skill_updated(event)
-            mock_export.assert_called_once_with(7)
+            mock_export.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_on_skill_deleted_calls_delete(self, mock_event):

@@ -8,10 +8,11 @@ These functions ensure that event publishing is centralized in the core layer,
 preventing infrastructure/domain layers from directly accessing the event bus.
 """
 
-from app.core.events import BaseEvent, SystemEventType, system_bus
+from app.core.events import system_bus
 from app.core.events.schemas import (
     AppStartedEvent,
     AppStoppingEvent,
+    ConfigChangedEvent,
     UserLoggedInEvent,
     UserLoggedOutEvent,
 )
@@ -39,16 +40,15 @@ async def publish_app_stopping() -> None:
 
 async def publish_context_polishing(thread_id: str, project_id: int | None, model: str, context: dict) -> None:
     """Publish a context polishing event."""
+    from app.core.context.event import ContextPolishingEvent
+
     await system_bus.publish(
-        BaseEvent(
-            event_type=SystemEventType.CONTEXT_POLISHING,
+        ContextPolishingEvent(
             source="engine",
-            data={
-                "thread_id": thread_id,
-                "project_id": project_id,
-                "model": model,
-                "context": context,
-            },
+            thread_id=thread_id,
+            project_id=project_id,
+            model=model,
+            context=context,
         )
     )
 
@@ -63,25 +63,24 @@ async def publish_session_completed(data) -> None:
 async def publish_config_changed(key: str, old_value: str, new_value: str) -> None:
     """Publish a system event when a configuration value changes."""
     await system_bus.publish(
-        BaseEvent(
-            event_type=SystemEventType.CONFIG_CHANGED,
+        ConfigChangedEvent(
             source="SystemConfigService",
-            data={
-                "key": key,
-                "old_value": old_value,
-                "new_value": new_value,
-            },
+            key=key,
+            old_value=old_value,
+            new_value=new_value,
         )
     )
 
 
 async def publish_embedding_updated(repo_id: int, project_id: int) -> None:
     """Publish a system event when embeddings are updated for a project."""
+    from app.infrastructure.embeddings.event import EmbeddingUpdatedEvent
+
     await system_bus.publish(
-        BaseEvent(
-            event_type=SystemEventType.EMBEDDING_UPDATED,
+        EmbeddingUpdatedEvent(
             source="embedding_config",
-            data={"repo_id": repo_id, "project_id": project_id},
+            repo_id=repo_id,
+            project_id=project_id,
         )
     )
 
@@ -125,25 +124,22 @@ async def publish_skill_mutated(
     namespace: str | None = None,
     name: str | None = None,
 ) -> None:
-    """Publish a skill lifecycle event (created/updated/deleted)."""
-    event_type_map = {
-        "create": SystemEventType.SKILL_CREATED,
-        "update": SystemEventType.SKILL_UPDATED,
-        "delete": SystemEventType.SKILL_DELETED,
-    }
-    event_type = event_type_map.get(action)
-    if not event_type:
+    """Publish a skill lifecycle event (created/updated/deleted).
+
+    Unknown actions are dropped: an event with an empty event_type would be
+    unroutable noise on the bus.
+    """
+    from app.core.learning.event import SkillMutatedEvent
+
+    if action not in ("create", "update", "delete"):
         return
 
     await system_bus.publish(
-        BaseEvent(
-            event_type=event_type,
+        SkillMutatedEvent(
             source="learning",
-            data={
-                "skill_id": skill_id,
-                "action": action,
-                "namespace": namespace,
-                "name": name,
-            },
+            skill_id=skill_id,
+            action=action,
+            namespace=namespace,
+            name=name,
         )
     )

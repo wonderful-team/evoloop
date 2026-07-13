@@ -99,7 +99,7 @@ class CodebaseSystemEventSubscriber:
     - project.switched: Setup context when user switches project
     """
 
-    @event_subscribe("system.embedding_updated")
+    @event_subscribe(SystemEventType.EMBEDDING_UPDATED)
     async def on_embedding_updated(self, event: BaseEvent) -> None:
         """
         Handle embedding model update by triggering background re-index.

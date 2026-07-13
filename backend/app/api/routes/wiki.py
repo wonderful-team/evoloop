@@ -34,6 +34,7 @@ router = APIRouter(tags=["wiki"])
 
 async def _ensure_wiki_generation_skill():
     """Fetch or import the 'Wiki Generation' learned skill."""
+    from app.core.learning.skill_visibility import visible_filter
     from app.infrastructure.database import session_scope
     from app.models.learning import LearnedSkill
 
@@ -41,7 +42,7 @@ async def _ensure_wiki_generation_skill():
         from sqlalchemy import select
         stmt = select(LearnedSkill).where(
             LearnedSkill.name == "Wiki Generation",
-            LearnedSkill.is_active == True,
+            visible_filter(),
         )
         result = await session.execute(stmt)
         skill = result.scalar_one_or_none()
@@ -53,7 +54,7 @@ async def _ensure_wiki_generation_skill():
             from sqlalchemy import select
             stmt = select(LearnedSkill).where(
                 LearnedSkill.name == "Wiki Generation",
-                LearnedSkill.is_active == True,
+                visible_filter(),
             )
             result = await session.execute(stmt)
             return result.scalar_one_or_none()

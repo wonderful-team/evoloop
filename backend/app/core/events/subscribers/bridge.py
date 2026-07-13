@@ -1,11 +1,10 @@
 import logging
 
-from app.core.engine.message.event_bus import get_event_bus
+from app.core.channel import ChannelContext, channel_registry
 from app.core.events.base import BaseEvent
 from app.core.events.decorators import (
     event_register,
     event_subscribe_all,
-    register_instance_handlers,
 )
 
 logger = logging.getLogger(__name__)
@@ -15,29 +14,20 @@ logger = logging.getLogger(__name__)
 class UniversalBridgeSubscriber:
     """
     The "Master Bridge" for the EvoLoop Event System.
-    
-    Instead of hardcoded mapping tables, this subscriber inspects every internal 
-    event for the 'is_public' metadata flag. If enabled, it automatically 
-    translates and broadcasts the event to the external EventBus (UI/WebSocket).
+
+    Instead of hardcoded mapping tables, this subscriber inspects every internal
+    event for the 'is_public' metadata flag. If enabled, it automatically
+    forwards the event to the ChannelRegistry for outbound streaming.
     """
 
     def __init__(self):
-        """
-        Initialize the bridge and subscribe to multiple domain buses.
-        """
-        try:
-            from app.core.environment.bus import event_bus as awakening_bus
-            # Manually register to the awakening bus (domain-specific)
-            # The system_bus registration is handled by the @event_register decorator
-            register_instance_handlers(self, awakening_bus)
-            logger.info("[UniversalBridge] Multi-bus subscription active (System + Awakening)")
-        except ImportError:
-            logger.warning("[UniversalBridge] Awakening bus not found, skipping...")
+        """Initialize the bridge."""
+        pass
 
     @event_subscribe_all()
     async def handle_event(self, event: BaseEvent) -> None:
         """
-        Listen to all system events and bridge public ones to the external bus.
+        Listen to all system events and bridge public ones to the external channels.
         """
         # Defensive: some events on the bus are plain Pydantic models, not BaseEvent
         if not isinstance(event, BaseEvent):
@@ -47,29 +37,19 @@ class UniversalBridgeSubscriber:
             return
 
         event_type = event.type_name
-
-        # Extract routing metadata
-        channel_type = event.broadcast_channel
         thread_id = event.thread_id
 
-        # Determine target channel name
-        if channel_type == "chat" and thread_id:
-            target_channel = f"chat:{thread_id}:events"
-        else:
-            # Fallback to system events or global notifications
-            target_channel = "system:events"
+        ctx = ChannelContext(
+            thread_id=thread_id or "system",
+            project_id=getattr(event, "project_id", None)
+        )
 
         try:
-            # Standardized payload conversion via BaseEvent's method
-            payload = event.to_frontend_payload()
+            # Forward the public system event to Web UI via ChannelRegistry (sse)
+            selected = channel_registry.select({"sse"}, payload_is_block=False)
+            for ch in selected:
+                await ch.send(event, ctx)
 
-            # Publish to external EventBus (Redis/PubSub)
-            # Use app.utils.json for robust serialization of domain objects (messages, etc)
-            from app.utils.json import dumps as utils_dumps
-            bus = get_event_bus()
-            await bus.publish(target_channel, utils_dumps(payload, ensure_ascii=False))
-
-            logger.debug(f"[UniversalBridge] Bridged {event_type} -> {target_channel}")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.debug(f"[UniversalBridge] Bridged {event_type} to ChannelRegistry (sse)")
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.warning(f"[UniversalBridge] Failed to bridge event {event_type}: {e}")
-

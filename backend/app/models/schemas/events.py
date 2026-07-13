@@ -33,14 +33,6 @@ class BaseStreamEvent(BaseEvent):
         self.event_type = f"stream.{self.type}"
         return self
 
-    def to_frontend_payload(self) -> dict:
-        """高性能序列化入口"""
-        return self.model_dump(exclude_none=True)
-    
-    def to_json(self) -> str:
-        """Backward compatibility for legacy bus calls"""
-        return self.model_dump_json(exclude_none=True)
-
 
 # --- 1. 高频文本流：LLM Tokens ---
 class TokenEvent(BaseStreamEvent):
@@ -99,10 +91,6 @@ class MessageSyncEvent(BaseStreamEvent):
     action: Literal["create", "update", "append"] = "create"
     data: "MessageBlock"                             # Forward ref to avoid circular import
 
-    def to_json(self) -> str:
-        # Special handling for MessageBlock which might need exclude_none on its data field
-        return self.model_dump_json(exclude_none=True)
-
 
 # --- 8. 人机交互请求事件 ---
 class HumanRequestEvent(BaseStreamEvent):
@@ -139,36 +127,6 @@ class LLMAuthErrorEvent(BaseStreamEvent):
     message: str = "Invalid API Key or expired."
     hint: str | None = None
 
-
-# --- 10. 运行生命周期流 ---
-class RunStartEvent(BaseStreamEvent):
-    type: Literal["run_start"] = "run_start"
-    run_id: str | None = None
-    goal: str | None = None
-
-
-class RunEndEvent(BaseStreamEvent):
-    type: Literal["run_end"] = "run_end"
-    run_id: str | None = None
-    status: Literal["done", "failed", "cancelled", "interrupted"]
-    final_outcome: str | None = None
-
-
-# Type alias for all possible stream events
-StreamEvent = Union[
-    TokenEvent,
-    ThinkingEvent,
-    ProgressEvent,
-    ArtifactEvent,
-    AgentStateEvent,
-    MessageSyncEvent,
-    HumanRequestEvent,
-    QuotaExhaustedEvent,
-    AuthExpiredEvent,
-    LLMAuthErrorEvent,
-    RunStartEvent,
-    RunEndEvent
-]
 
 # Type-safe import of MessageBlock for type checking
 from typing import TYPE_CHECKING

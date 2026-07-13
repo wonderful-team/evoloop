@@ -33,12 +33,6 @@ class PlanRewind:
     def __init__(self):
         self._reset_count = 0
 
-    @classmethod
-    def register(cls, bus: AsyncEventBus) -> "PlanRewind":
-        instance = cls()
-        register_instance_handlers(instance, bus)
-        return instance
-
     @event_subscribe(REWIND_REQUESTED)
     async def _handle_rewind_requested(self, event: RewindRequestedEvent) -> None:
         try:
@@ -48,7 +42,7 @@ class PlanRewind:
                     session, event.thread_id, event.target_sequence
                 )
 
-                # Step 2: load the plan for this thread
+                # Step 1: load plan for the thread
                 from app.models.planning import Plan as DBPlan
                 from app.models.planning import PlanStep as DBPlanStep
 
@@ -75,9 +69,11 @@ class PlanRewind:
                     )
                     # Notify frontend that plan was updated (deleted)
                     try:
-                        from app.core.engine.message.publisher import MessagePublisher
-                        publisher = MessagePublisher(thread_id=event.thread_id)
-                        await publisher.publish_custom_event("plan.updated", {"plan_id": plan.id, "status": "deleted"})
+                        from app.core.events import system_bus
+                        from app.domain.planning.event import PlanUpdatedEvent
+                        await system_bus.publish(
+                            PlanUpdatedEvent(thread_id=event.thread_id, plan_id=plan.id, status="deleted")
+                        )
                     except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                         logger.warning(
                             "[PlanRewind] Failed to publish plan updated event for deletion: %s",
@@ -122,9 +118,11 @@ class PlanRewind:
                     )
                     # Notify frontend plan panel to refresh
                     try:
-                        from app.core.engine.message.publisher import MessagePublisher
-                        publisher = MessagePublisher(thread_id=event.thread_id)
-                        await publisher.publish_custom_event("plan.updated", {"plan_id": plan.id})
+                        from app.core.events import system_bus
+                        from app.domain.planning.event import PlanUpdatedEvent
+                        await system_bus.publish(
+                            PlanUpdatedEvent(thread_id=event.thread_id, plan_id=plan.id)
+                        )
                     except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                         logger.warning(
                             "[PlanRewind] Failed to publish plan updated event: %s",
@@ -153,8 +151,7 @@ class PlanRewind:
             Message.thread_id == thread_id,
             Message.sequence_number == target_sequence,
         )
-        result = await session.execute(stmt)
-        return result.scalar_one_or_none()
+        return await session.scalar(stmt)
 
     def _is_step_stale(
         self,

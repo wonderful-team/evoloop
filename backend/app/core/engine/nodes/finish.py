@@ -250,6 +250,7 @@ class FinishNode(BaseNode):
             duration_ms=total_duration,
             turn_summary_message_id=None,
             model=ctx.active_model,
+            source=metadata.get("source"),
             original_skill_id=metadata.get("original_skill_id"),
             ticket_topic=state.ticket.topic if state.ticket else None,
             ticket_reason=state.ticket.reason if state.ticket else None,

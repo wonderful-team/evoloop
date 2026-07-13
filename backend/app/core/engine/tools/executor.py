@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from app.core.config import settings
 from app.core.engine.hooks import HookContext, HookEvent, ToolResult, hook_system
 from app.core.engine.hooks.schemas import ToolInput
+from app.core.engine.message.native_classes import BaseMessage, ToolMessage
 from app.core.engine.signals import AgentSignal, signal_manager
 from app.core.engine.state import AgentState, RunnableConfigMetadata
 from app.core.exceptions import AgentHumanInterruptException
@@ -24,7 +25,9 @@ logger = logging.getLogger(__name__)
 
 class ToolExecutionResult(BaseModel):
     """Result of a tool execution, including the message and raw output."""
-    message: dict
+    model_config = {"arbitrary_types_allowed": True}
+
+    message: BaseMessage
     raw_result: Any | None = None
 
 
@@ -312,8 +315,8 @@ class AgentToolExecutor:
         tool_calls: list[dict],
         local_tool_history: list[str],
         parallel: bool = False,
-    ) -> tuple[list[dict], AgentSignal | None]:
-        async def _run_one(tc: dict) -> tuple[dict, Any]:
+    ) -> tuple[list[BaseMessage], AgentSignal | None]:
+        async def _run_one(tc: dict) -> tuple[BaseMessage, Any]:
             result = await self.execute_tool(
                 tool_name=tc["name"],
                 tool_args=tc["args"],
@@ -330,7 +333,7 @@ class AgentToolExecutor:
             for msg, raw in batch_results:
                 results.append(msg)
                 if not pending_signal:
-                    tool_name = next(tc["name"] for tc in tool_calls if tc["id"] == msg.get("tool_call_id"))
+                    tool_name = next(tc["name"] for tc in tool_calls if tc["id"] == msg.tool_call_id)
                     pending_signal = signal_manager.detect_post_execution_signal(tool_name, raw)
         else:
             for tc in tool_calls:
@@ -348,16 +351,15 @@ class AgentToolExecutor:
         tool_name: str,
         run_id: str | None,
         message_id: str | None = None,
-    ) -> dict:
-        """Create a native dictionary tool message with run_id metadata."""
+    ) -> BaseMessage:
+        """Create a native tool message with run_id metadata."""
         metadata = {"run_id": run_id} if run_id else {}
 
-        return {
-            "role": "tool",
-            "content": str(content),
-            "tool_call_id": tool_id,
-            "name": tool_name,
-            "id": message_id or gen_uuid(),
-            "metadata": metadata,
-            "additional_kwargs": metadata,
-        }
+        return ToolMessage(
+            content=str(content),
+            tool_call_id=tool_id,
+            name=tool_name,
+            id=message_id or gen_uuid(),
+            metadata=metadata,
+            additional_kwargs=metadata,
+        )
