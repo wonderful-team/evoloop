@@ -26,8 +26,11 @@ pub fn sync_tray_recording_state(
     stop_text: String,
 ) {
     eprintln!("[Tray Debug] sync_tray_recording_state called: is_recording={}, ts={:?}", is_recording, std::time::SystemTime::now());
-    let item_lock = state.record_item.lock().unwrap();
-    if let Some(record_item) = item_lock.as_ref() {
+    let record_item_opt = {
+        let lock = state.record_item.lock().unwrap();
+        lock.clone()
+    };
+    if let Some(record_item) = record_item_opt {
         let text = if is_recording { stop_text } else { start_text };
         let _ = record_item.set_text(text);
     }
@@ -37,8 +40,11 @@ pub fn sync_tray_recording_state(
     // Explicitly clear tray title and start time when stopping
     if !is_recording {
         *state.recording_start_time.lock().unwrap() = None;
-        let tray_lock = state.tray.lock().unwrap();
-        if let Some(tray) = tray_lock.as_ref() {
+        let tray_opt = {
+            let lock = state.tray.lock().unwrap();
+            lock.clone()
+        };
+        if let Some(tray) = tray_opt {
             #[cfg(target_os = "macos")]
             let _ = tray.set_title(Some(""));
         }
@@ -52,17 +58,20 @@ pub fn sync_tray_translations(
     show_text: String,
     quit_text: String,
 ) {
-    {
-        let item_lock = state.show_item.lock().unwrap();
-        if let Some(show_item) = item_lock.as_ref() {
-            let _ = show_item.set_text(show_text);
-        }
+    let show_item_opt = {
+        let lock = state.show_item.lock().unwrap();
+        lock.clone()
+    };
+    if let Some(show_item) = show_item_opt {
+        let _ = show_item.set_text(show_text);
     }
-    {
-        let item_lock = state.quit_item.lock().unwrap();
-        if let Some(quit_item) = item_lock.as_ref() {
-            let _ = quit_item.set_text(quit_text);
-        }
+
+    let quit_item_opt = {
+        let lock = state.quit_item.lock().unwrap();
+        lock.clone()
+    };
+    if let Some(quit_item) = quit_item_opt {
+        let _ = quit_item.set_text(quit_text);
     }
 }
 
@@ -215,6 +224,8 @@ pub fn setup_tray(
 
     std::thread::spawn(move || {
         let mut was_recording_or_preparing = false;  // Track if we were in recording or preparing state last iteration
+        let mut is_active_icon = false;
+        let mut last_elapsed_secs = None;
         loop {
             let is_recording = is_blinking.load(Ordering::Relaxed);
             let preparing = is_preparing.load(Ordering::Relaxed);
@@ -233,31 +244,44 @@ pub fn setup_tray(
             if is_recording {
                 was_recording_or_preparing = true;
 
-                // --- Keep red icon while recording (no blinking) ---
-                let _ = tray_handle.set_icon(Some(active_icon.clone()));
-
-                // --- Calculate time ---
-                let start_time_lock = recording_start.lock().unwrap();
-                if let Some(start_time) = start_time_lock.as_ref() {
-                    let elapsed_secs = start_time.elapsed().as_secs();
-                    let mm = elapsed_secs / 60;
-                    let ss = elapsed_secs % 60;
-                    let time_str = format!("{:02}:{:02}", mm, ss);
-
-                    // --- Show time in tray title (macOS) ---
-                    #[cfg(target_os = "macos")]
-                    let _ = tray_handle.set_title(Some(&time_str));
-                } else {
-                    // Start time not yet available (ffmpeg starting or preparation)
-                    #[cfg(target_os = "macos")]
-                    let _ = tray_handle.set_title(Some("00:00"));
+                // --- Keep red icon and tooltip while recording (no blinking) ---
+                if !is_active_icon {
+                    let _ = tray_handle.set_icon(Some(active_icon.clone()));
+                    let _ = tray_handle.set_tooltip(Some("正在录制屏幕中，点击这里可停止录制"));
+                    is_active_icon = true;
                 }
 
-                // --- Event count in menu text ---
+                // --- Calculate time (acquire lock, copy out of lock immediately to prevent deadlock) ---
+                let start_time_opt = *recording_start.lock().unwrap();
+                if let Some(start_time) = start_time_opt {
+                    let elapsed_secs = start_time.elapsed().as_secs();
+                    if Some(elapsed_secs) != last_elapsed_secs {
+                        last_elapsed_secs = Some(elapsed_secs);
+                        let mm = elapsed_secs / 60;
+                        let ss = elapsed_secs % 60;
+                        let time_str = format!("{:02}:{:02}", mm, ss);
+
+                        // --- Show time in tray title (macOS) ---
+                        #[cfg(target_os = "macos")]
+                        let _ = tray_handle.set_title(Some(&time_str));
+                    }
+                } else {
+                    if last_elapsed_secs != Some(u64::MAX) {
+                        last_elapsed_secs = Some(u64::MAX);
+                        // Start time not yet available (ffmpeg starting or preparation)
+                        #[cfg(target_os = "macos")]
+                        let _ = tray_handle.set_title(Some("00:00"));
+                    }
+                }
+
+                // --- Event count in menu text (acquire lock, clone out of lock immediately to prevent deadlock) ---
                 let event_count = event_count_arc.load(Ordering::Relaxed);
                 let label = format!("停止录制 [{} 事件]", event_count);
-                let lock = record_item_arc.lock().unwrap();
-                if let Some(item) = lock.as_ref() {
+                let record_item_opt = {
+                    let lock = record_item_arc.lock().unwrap();
+                    lock.clone()
+                };
+                if let Some(item) = record_item_opt {
                     let _ = item.set_text(label);
                 }
 
@@ -266,11 +290,18 @@ pub fn setup_tray(
                 // Only reset when transitioning from recording/preparing to stopped state
                 if was_recording_or_preparing {
                     let _ = tray_handle.set_icon(Some(normal_icon.clone()));
+                    let _ = tray_handle.set_tooltip(Some("EvoLoop"));
+                    is_active_icon = false;
+                    last_elapsed_secs = None;
                     // Clear tray title (macOS)
                     #[cfg(target_os = "macos")]
                     let _ = tray_handle.set_title(Some(""));
-                    let lock = record_item_arc.lock().unwrap();
-                    if let Some(item) = lock.as_ref() {
+                    
+                    let record_item_opt = {
+                        let lock = record_item_arc.lock().unwrap();
+                        lock.clone()
+                    };
+                    if let Some(item) = record_item_opt {
                         let _ = item.set_text("技能录制");
                     }
                     was_recording_or_preparing = false;

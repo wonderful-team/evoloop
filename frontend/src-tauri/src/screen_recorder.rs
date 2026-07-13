@@ -75,7 +75,7 @@ pub async fn start_screen_recording(
             "-tune", "zerolatency",
             &video_path_str,
         ])
-        .stdin(Stdio::null())
+        .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
@@ -203,19 +203,31 @@ pub async fn stop_screen_recording(
     let video_path = path_lock.clone().unwrap_or_default();
 
     if let Some(mut child) = proc_lock.take() {
-        // Send SIGINT (Ctrl+C) to gracefully stop ffmpeg and finalize the video file
-        #[cfg(unix)]
-        {
-            let id = child.id();
-            println!("[ScreenRecorder] Sending SIGINT to PID {}", id);
-            unsafe {
-                libc::kill(id as i32, libc::SIGINT);
+        use std::io::Write;
+        let mut stopped_gracefully = false;
+
+        if let Some(mut stdin) = child.stdin.take() {
+            println!("[ScreenRecorder] Sending 'q' to ffmpeg stdin...");
+            if stdin.write_all(b"q").is_ok() && stdin.flush().is_ok() {
+                stopped_gracefully = true;
             }
         }
 
-        #[cfg(not(unix))]
-        {
-            let _ = child.kill();
+        if !stopped_gracefully {
+            // Send SIGINT (Ctrl+C) to gracefully stop ffmpeg and finalize the video file
+            #[cfg(unix)]
+            {
+                let id = child.id();
+                println!("[ScreenRecorder] Stdin not available, sending SIGINT to PID {}", id);
+                unsafe {
+                    libc::kill(id as i32, libc::SIGINT);
+                }
+            }
+
+            #[cfg(not(unix))]
+            {
+                let _ = child.kill();
+            }
         }
 
         // Wait for it to exit

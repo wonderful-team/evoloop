@@ -93,11 +93,14 @@ export function MultimodalSynthesizeDialog({
     fetchAnnotations()
   }, [open, sessionId])
 
-  // Check if video file exists when videoPath changes
+  // Check if video file exists when videoPath changes or dialog opens
   useEffect(() => {
     const checkVideoExists = async () => {
       if (!videoPath) {
         setVideoExists(null)
+        return
+      }
+      if (!open) {
         return
       }
       if (!isTauri()) {
@@ -120,7 +123,7 @@ export function MultimodalSynthesizeDialog({
       }
     }
     checkVideoExists()
-  }, [videoPath])
+  }, [videoPath, open])
 
   const { synthesize, isSynthesizing, progress } = useMultimodalSynthesis({
     onSuccess: (data) => {

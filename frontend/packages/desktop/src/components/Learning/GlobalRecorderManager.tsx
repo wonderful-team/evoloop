@@ -71,6 +71,16 @@ export function GlobalRecorderManager() {
         console.log("[GlobalRecorderManager] Tray toggle received")
         const state = useRecordingStore.getState()
         if (state.isRecording) {
+          // Ignore toggle if it happens within 5 seconds of starting (debounce Bartender/Hidden Bar phantom clicks)
+          if (
+            state.recordingStartTime &&
+            Date.now() - state.recordingStartTime < 5000
+          ) {
+            console.warn(
+              "[GlobalRecorderManager] Ignoring tray toggle due to 5-second debounce window.",
+            )
+            return
+          }
           state.setPostRecordingAction("synthesize")
           state.stopRecording()
         } else if (state.isPreparing) {
@@ -298,6 +308,126 @@ export function GlobalRecorderManager() {
     setSessionId,
   ])
 
+  // Helper to stop native recorders (extracted to prevent swallowing during busy state)
+  const stopRecorders = async () => {
+    busyRef.current = true
+    recordingStartedRef.current = false
+    console.log("[GlobalRecorderManager] Stopping recorders...")
+    try {
+      let totalEventsCount = 0
+      if (isDesktopRecording || recordingSource === "mobile") {
+        const res = await globalRecorder.stopRecording()
+        if (res) totalEventsCount += res.eventCount
+      }
+      const domRes = await domRecorder.stopRecording()
+      if (domRes) totalEventsCount += domRes.eventCount
+
+      // Stop screen recording - Skip if we are recording mobile specifically
+      let vPath: string | null = null
+      if (useRecordingStore.getState().recordingSource === "desktop") {
+        try {
+          vPath = await safeInvoke<string>("stop_screen_recording")
+          console.log(
+            "[GlobalRecorderManager] Screen recording stopped:",
+            vPath,
+          )
+        } catch (videoErr) {
+          console.warn(
+            "[GlobalRecorderManager] Screen recording stop failed:",
+            videoErr,
+          )
+        }
+      } else {
+        console.log(
+          "[GlobalRecorderManager] Mobile recording mode - stopping backend mirror session",
+        )
+        const mobSessionId =
+          useRecordingStore.getState().recordingSourceSessionId
+        if (mobSessionId) {
+          try {
+            const res = await LearningService.stopMirrorSession({
+              requestBody: { session_id: mobSessionId },
+            })
+            vPath = res.video_path || null
+            // [FIX] Add Android events count from backend to result total
+            const androidEventCount = res.event_count || 0
+            totalEventsCount += androidEventCount
+            console.log(
+              "[GlobalRecorderManager] Mobile mirror session stopped, video path:",
+              vPath,
+              "android events:",
+              androidEventCount,
+            )
+          } catch (mobErr) {
+            console.error(
+              "[GlobalRecorderManager] Failed to stop mobile mirror session:",
+              mobErr,
+            )
+          }
+        }
+      }
+
+      // Set the video path in the store so the synthesizer can find it
+      if (vPath) {
+        setVideoPath(vPath)
+      }
+
+      // [v3 Unified] Events are now persisted in real-time via /global/events and /dom/events
+      // No need to cache locally - just ensure final flush is complete
+      // Final flush happens in stopRecording() of each recorder
+      console.log(
+        "[GlobalRecorderManager] Recording stopped, events persisted via real-time API",
+      )
+
+      if (totalEventsCount === 0) {
+        // If video exists but no events, or video is tiny, it's likely a permission issue
+        toast.warning(t("learning.noEvents"))
+        setSessionId(null)
+        setVideoPath(null)
+        busyRef.current = false
+        return
+      }
+
+      // Note: Keyframe extraction now happens after events are persisted in MultimodalSynthesizeDialog
+      // We'll trigger it there once user confirms synthesis
+
+      toast.success(
+        t("learning.recordingStopped", { count: totalEventsCount }),
+      )
+
+      if (useRecordingStore.getState().recordingSource === "mobile") {
+        const mobSessionId =
+          useRecordingStore.getState().recordingSourceSessionId
+        if (mobSessionId) {
+          setSessionId(mobSessionId)
+        }
+      } else {
+        if (domRes?.sessionId) setSessionId(domRes.sessionId)
+      }
+
+      // If it was triggered from tray, navigate to learning center
+      if (postRecordingAction === "synthesize") {
+        navigate({ to: "/learning" })
+      }
+
+      // [FIX] Show and focus main window when recording stops
+      try {
+        await safeInvoke("show_main_window")
+      } catch (showErr) {
+        console.warn(
+          "[GlobalRecorderManager] Failed to show/focus main window:",
+          showErr,
+        )
+      }
+    } catch (e) {
+      console.error("Failed to stop recording", e)
+    } finally {
+      // Don't clear videoPath immediately - let the UI (MultimodalSynthesizeDialog) use it first
+      // It will be cleared on next recording start
+      busyRef.current = false
+    }
+  }
+
   // Effect to Start/Stop based on store state
   useEffect(() => {
     const manageRecording = async () => {
@@ -327,6 +457,20 @@ export function GlobalRecorderManager() {
               stopRecording()
               busyRef.current = false
               return
+            }
+
+            // [FIX] Hide main window BEFORE starting the recording process to prevent it from being captured
+            try {
+              const win = await safeGetCurrentWindow()
+              if (win) {
+                await win.hide()
+                console.log("[GlobalRecorderManager] Main window hidden successfully before recording start")
+              }
+            } catch (hideErr) {
+              console.warn(
+                "[GlobalRecorderManager] Failed to hide main window early:",
+                hideErr,
+              )
             }
 
             console.log(
@@ -408,17 +552,6 @@ export function GlobalRecorderManager() {
             }
 
             toast.info(t("learning.recordingStarted"))
-
-            // [FIX] Hide main window when recording starts to avoid obstructing the screen
-            try {
-              const win = await safeGetCurrentWindow()
-              if (win) await win.hide()
-            } catch (hideErr) {
-              console.warn(
-                "[GlobalRecorderManager] Failed to hide main window:",
-                hideErr,
-              )
-            }
           } catch (e) {
             console.error("Failed to start recording", e)
             // If it's a benefit error (403), the global interceptor already showed a Modal/Toast.
@@ -433,7 +566,7 @@ export function GlobalRecorderManager() {
             if (pendingStopRef.current) {
               pendingStopRef.current = false
               console.log("[GlobalRecorderManager] Executing queued stop action")
-              stopRecording()
+              stopRecorders()
             }
           }
         }
@@ -447,122 +580,7 @@ export function GlobalRecorderManager() {
             pendingStopRef.current = true
             return
           }
-          busyRef.current = true
-          recordingStartedRef.current = false
-          console.log("[GlobalRecorderManager] Stopping recorders...")
-          try {
-            let totalEventsCount = 0
-            if (isDesktopRecording || recordingSource === "mobile") {
-              const res = await globalRecorder.stopRecording()
-              if (res) totalEventsCount += res.eventCount
-            }
-            const domRes = await domRecorder.stopRecording()
-            if (domRes) totalEventsCount += domRes.eventCount
-
-            // Stop screen recording - Skip if we are recording mobile specifically
-            let vPath: string | null = null
-            if (useRecordingStore.getState().recordingSource === "desktop") {
-              try {
-                vPath = await safeInvoke<string>("stop_screen_recording")
-                console.log(
-                  "[GlobalRecorderManager] Screen recording stopped:",
-                  vPath,
-                )
-              } catch (videoErr) {
-                console.warn(
-                  "[GlobalRecorderManager] Screen recording stop failed:",
-                  videoErr,
-                )
-              }
-            } else {
-              console.log(
-                "[GlobalRecorderManager] Mobile recording mode - stopping backend mirror session",
-              )
-              const mobSessionId =
-                useRecordingStore.getState().recordingSourceSessionId
-              if (mobSessionId) {
-                try {
-                  const res = await LearningService.stopMirrorSession({
-                    requestBody: { session_id: mobSessionId },
-                  })
-                  vPath = res.video_path || null
-                  // [FIX] Add Android events count from backend to result total
-                  const androidEventCount = res.event_count || 0
-                  totalEventsCount += androidEventCount
-                  console.log(
-                    "[GlobalRecorderManager] Mobile mirror session stopped, video path:",
-                    vPath,
-                    "android events:",
-                    androidEventCount,
-                  )
-                } catch (mobErr) {
-                  console.error(
-                    "[GlobalRecorderManager] Failed to stop mobile mirror session:",
-                    mobErr,
-                  )
-                }
-              }
-            }
-
-            // Set the video path in the store so the synthesizer can find it
-            if (vPath) {
-              setVideoPath(vPath)
-            }
-
-            // [v3 Unified] Events are now persisted in real-time via /global/events and /dom/events
-            // No need to cache locally - just ensure final flush is complete
-            // Final flush happens in stopRecording() of each recorder
-            console.log(
-              "[GlobalRecorderManager] Recording stopped, events persisted via real-time API",
-            )
-
-            if (totalEventsCount === 0) {
-              // If video exists but no events, or video is tiny, it's likely a permission issue
-              toast.warning(t("learning.noEvents"))
-              setSessionId(null)
-              setVideoPath(null)
-              busyRef.current = false
-              return
-            }
-
-            // Note: Keyframe extraction now happens after events are persisted in MultimodalSynthesizeDialog
-            // We'll trigger it there once user confirms synthesis
-
-            toast.success(
-              t("learning.recordingStopped", { count: totalEventsCount }),
-            )
-
-            if (useRecordingStore.getState().recordingSource === "mobile") {
-              const mobSessionId =
-                useRecordingStore.getState().recordingSourceSessionId
-              if (mobSessionId) {
-                setSessionId(mobSessionId)
-              }
-            } else {
-              if (domRes?.sessionId) setSessionId(domRes.sessionId)
-            }
-
-            // If it was triggered from tray, navigate to learning center
-            if (postRecordingAction === "synthesize") {
-              navigate({ to: "/learning" })
-            }
-
-            // [FIX] Show and focus main window when recording stops
-            try {
-              await safeInvoke("show_main_window")
-            } catch (showErr) {
-              console.warn(
-                "[GlobalRecorderManager] Failed to show/focus main window:",
-                showErr,
-              )
-            }
-          } catch (e) {
-            console.error("Failed to stop recording", e)
-          } finally {
-            // Don't clear videoPath immediately - let the UI (MultimodalSynthesizeDialog) use it first
-            // It will be cleared on next recording start
-            busyRef.current = false
-          }
+          await stopRecorders()
         }
       }
     }

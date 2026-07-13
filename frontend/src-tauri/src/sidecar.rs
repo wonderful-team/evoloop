@@ -329,7 +329,8 @@ impl SidecarClient {
         // Update state first
         *self.state.lock().unwrap() = BackendState::Idle;
 
-        if let Some(mut child) = self.process.lock().unwrap().take() {
+        let child_opt = self.process.lock().unwrap().take();
+        if let Some(mut child) = child_opt {
             let pid = child.id();
             
             #[cfg(unix)]
