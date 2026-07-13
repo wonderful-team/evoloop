@@ -11,6 +11,5 @@ export * from './useConversations';
 export * from './useSubscription';
 export * from './useFeatureAccess';
 export * from './useTTS';
-export * from './useWakeWord';
 export * from './useNLS';
 export * from './useDeviceControl';

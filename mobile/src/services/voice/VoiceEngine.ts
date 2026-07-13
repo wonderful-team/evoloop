@@ -1,5 +1,5 @@
 // Native 语音引擎 JS 封装
-// 统一封装麦克风采集、VAD、ASR、唤醒词、TTS 音频播放
+// 统一封装麦克风采集、VAD、ASR、TTS 音频播放
 
 import {
   NativeModules,
@@ -10,11 +10,10 @@ import {
 import NativeVoiceEngine from '@/specs/NativeVoiceEngine';
 import { voiceEngineHarmony } from './VoiceEngineHarmony';
 
-export type VoiceEngineMode = 'idle' | 'wake' | 'asr';
+export type VoiceEngineMode = 'idle' | 'asr';
 
 export interface VoiceEngineConfig {
   modelDir: string;
-  wakeWord?: string;
   sampleRate?: number;
   numThreads?: number;
   vadThreshold?: number;
@@ -26,7 +25,6 @@ export interface VoiceEngineEventCallbacks {
   onVadEnd?: () => void;
   onPartial?: (text: string) => void;
   onFinal?: (text: string) => void;
-  onWake?: (text: string) => void;
   onVolume?: (value: number) => void;
   onError?: (error: Error) => void;
 }
@@ -112,7 +110,6 @@ class NativeVoiceEngineWrapper {
 
     await NativeVoiceEngine.initialize({
       modelDir: config.modelDir,
-      wakeWord: config.wakeWord,
       sampleRate: config.sampleRate ?? 16000,
       numThreads: config.numThreads ?? 2,
       vadThreshold: config.vadThreshold ?? 0.5,
@@ -134,9 +131,6 @@ class NativeVoiceEngineWrapper {
       ),
       emitter.addListener('voiceEngine:final', (event: { text: string }) =>
         callbacks.onFinal?.(event.text)
-      ),
-      emitter.addListener('voiceEngine:wake', (event: { text: string }) =>
-        callbacks.onWake?.(event.text)
       ),
       emitter.addListener('voiceEngine:volume', (event: { value: number }) =>
         callbacks.onVolume?.(event.value)

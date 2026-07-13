@@ -43,20 +43,6 @@ console.error = function (...args: any[]) {
   originalConsoleError.apply(console, args);
 };
 
-// 注册 Notifee 前台服务（唤醒词后台监听必需，非鸿蒙平台适用）
-if (Platform.OS !== 'harmony') {
-  try {
-    const notifee = require('@notifee/react-native').default;
-    notifee.registerForegroundService(() => {
-      return new Promise(() => {
-        // 保持服务运行，直到调用 notifee.stopForegroundService()
-      });
-    });
-  } catch (e) {
-    console.error('[App] Failed to register Notifee foreground service:', e);
-  }
-}
-
 import { ToastProvider } from './src/contexts/ToastContext';
 import RootNavigator from './src/navigation';
 import { navigationRef } from './src/utils/navigation';

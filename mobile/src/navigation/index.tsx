@@ -14,7 +14,6 @@ import SettingsScreen from '../screens/SettingsScreen';
 import SettingsVoiceScreen from '../screens/SettingsVoiceScreen';
 import SettingsAccountScreen from '../screens/SettingsAccountScreen';
 import SettingsAboutScreen from '../screens/SettingsAboutScreen';
-import WakeWordSettingsScreen from '../screens/WakeWordSettingsScreen';
 import HelpScreen from '../screens/HelpScreen';
 import PlansScreen from '../screens/PlansScreen';
 import PayConfirmScreen from '../screens/PayConfirmScreen';
@@ -46,7 +45,6 @@ export default function RootNavigator() {
       <Stack.Screen name="SettingsVoice" component={SettingsVoiceScreen} />
       <Stack.Screen name="SettingsAccount" component={SettingsAccountScreen} />
       <Stack.Screen name="SettingsAbout" component={SettingsAboutScreen} />
-      <Stack.Screen name="SettingsWakeWord" component={WakeWordSettingsScreen} />
 
       {/* 订阅相关 */}
       <Stack.Screen name="Plans" component={PlansScreen} />

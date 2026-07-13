@@ -18,7 +18,6 @@ export interface VoiceSession {
   finalText: string;
   volume: number;
   error: string | null;
-  isWakeWordMode: boolean;
   isContinuousMode: boolean;
   isPressed: boolean;
 }
@@ -31,7 +30,6 @@ interface VoiceSessionActions {
   clearFinalText: () => void;
   setVolume: (volume: number) => void;
   setError: (error: string | null) => void;
-  setWakeWordMode: (enabled: boolean) => void;
   setContinuousMode: (enabled: boolean) => void;
   setPressed: (pressed: boolean) => void;
 }
@@ -42,7 +40,6 @@ const initialState: VoiceSession = {
   finalText: '',
   volume: 0,
   error: null,
-  isWakeWordMode: false,
   isContinuousMode: false,
   isPressed: false,
 };
@@ -66,8 +63,6 @@ export const useVoiceSessionStore = create<VoiceSession & VoiceSessionActions>((
   setVolume: (volume) => set({ volume }),
 
   setError: (error) => set({ error }),
-
-  setWakeWordMode: (isWakeWordMode) => set({ isWakeWordMode }),
 
   setContinuousMode: (isContinuousMode) => set({ isContinuousMode }),
 

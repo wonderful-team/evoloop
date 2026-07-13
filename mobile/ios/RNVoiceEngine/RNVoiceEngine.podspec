@@ -1,7 +1,7 @@
 Pod::Spec.new do |s|
   s.name         = "RNVoiceEngine"
   s.version      = "1.0.0"
-  s.summary      = "EvoLoop Voice Engine (ASR + VAD + Wake) for React Native"
+  s.summary      = "EvoLoop Voice Engine (ASR + VAD) for React Native"
   s.description  = "React Native native module bridging sherpa-onnx streaming ASR with VAD"
   s.homepage     = "https://github.com/evoloop/mobile"
   s.license      = "Apache-2.0"
@@ -22,6 +22,11 @@ Pod::Spec.new do |s|
     '../Frameworks/onnxruntime.xcframework',
     '../Frameworks/libarchive.xcframework',
   ]
+
+  s.user_target_xcconfig = {
+    'LIBRARY_SEARCH_PATHS' => '"${PODS_ROOT}/../Frameworks/sherpa-onnx.xcframework/ios-arm64_x86_64-simulator" "${PODS_ROOT}/../Frameworks/onnxruntime.xcframework/ios-arm64_x86_64-simulator" "${PODS_ROOT}/../Frameworks/libarchive.xcframework/ios-arm64_x86_64-simulator"',
+    'OTHER_LDFLAGS' => '$(inherited) -lsherpa-onnx "${PODS_ROOT}/../Frameworks/onnxruntime.xcframework/ios-arm64_x86_64-simulator/onnxruntime.a" -larchive',
+  }
 
   # ASR + Kokoro TTS 模型资源（直接拷贝到 app bundle）
   s.resources = [

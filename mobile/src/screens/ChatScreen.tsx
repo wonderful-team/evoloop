@@ -36,9 +36,7 @@ import { useStreamingTTS, detectEmotionAndSpeed } from '@/hooks/useStreamingTTS'
 import { useVoiceInput } from '@/hooks/useVoiceInput';
 import type { LocalIntent } from '@/services/voice/localNLU';
 import { extractSegments } from '@/services/voice/streamingSegmenter';
-import { useWakeWordSettings } from '@/hooks/useWakeWord';
 import { useSystemIntent } from '@/hooks/useSystemIntent';
-import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import { useConversationStore } from '@/stores/conversationStore';
 import { useTheme } from '@/theme';
 import { useAuthStore } from '@/stores/authStore';
@@ -113,7 +111,7 @@ export default function ChatScreen() {
 
   // 连续对话与打断设置
   const [continuousListening, setContinuousListening] = useState(true);
-  const startVoiceInputRef = useRef<((mode?: 'wake' | 'asr') => Promise<void>) | null>(null);
+  const startVoiceInputRef = useRef<(() => Promise<void>) | null>(null);
   const handleBeforeStartRecordingRef = useRef<(() => Promise<boolean>) | null>(null);
 
   useEffect(() => {
@@ -139,7 +137,7 @@ export default function ChatScreen() {
         console.log('[ChatScreen] Continuous listening is enabled, auto-starting voice input...');
         handleBeforeStartRecordingRef.current?.().then((allowed) => {
           if (allowed) {
-            startVoiceInputRef.current?.('asr').catch((err) => {
+            startVoiceInputRef.current?.().catch((err) => {
               console.error('[ChatScreen] Auto start voice input failed:', err);
             });
           }
@@ -199,11 +197,9 @@ export default function ChatScreen() {
   const setSetting = useSettingsStore((state) => state.setSetting);
   const toggleAutoSpeak = useCallback(() => setSetting('autoSpeak', !autoSpeak), [autoSpeak, setSetting]);
 
-  // 唤醒词设置
-  const { enabled: wakeWordEnabled, toggleWakeWord } = useWakeWordSettings();
 
-  // 新语音输入 Hook（包含唤醒词能力）
-  const { startWakeWord, stop: stopVoiceInput, start: startVoiceInput } = useVoiceInput({
+  // 新语音输入 Hook
+  const { start: startVoiceInput } = useVoiceInput({
     onFinalResult: (text) => handleSendMessage(text),
     onError: (error) => {
       const errorMsg = error?.message || '';
@@ -213,18 +209,6 @@ export default function ChatScreen() {
       } else {
         showSnackbar(t('chat.voiceRecognitionError') + errorMsg);
       }
-    },
-    onWake: (detectedWord) => {
-      stopTTS();
-      const currentId = useConversationStore.getState().currentConversationId;
-      if (currentId) {
-        stopAgent(currentId, activeDeviceKey).catch(() => {});
-      }
-      ReactNativeHapticFeedback.trigger('notificationSuccess', {
-        enableVibrateFallback: true,
-        ignoreAndroidSystemSettings: false,
-      });
-      showSnackbar(t('chat.wakeWordDetected', { word: detectedWord }));
     },
     onInterrupt: () => {
       stopTTS();
@@ -265,23 +249,6 @@ export default function ChatScreen() {
     setSnackbarVisible(true);
   }, []);
 
-  // 唤醒词状态
-  const [isWakeWordListening, setIsWakeWordListening] = useState(false);
-  const [isWakeWordDetected, setIsWakeWordDetected] = useState(false);
-
-  useEffect(() => {
-    if (wakeWordEnabled && isLoggedIn) {
-      startWakeWord().then(() => setIsWakeWordListening(true)).catch(() => {});
-    } else {
-      stopVoiceInput().then(() => {
-        setIsWakeWordListening(false);
-        setIsWakeWordDetected(false);
-      }).catch(() => {});
-    }
-    return () => {
-      stopVoiceInput().catch(() => {});
-    };
-  }, [wakeWordEnabled, isLoggedIn]);
 
   // ========== 设备控制（HTTP 版本） ==========
   // 使用 useCallback 稳定回调引用，避免 ChatScreen 重渲染导致 useDeviceControl 内部重建
@@ -631,14 +598,8 @@ export default function ChatScreen() {
       return false;
     }
 
-    // 停止唤醒词监听，释放麦克风给 ASR 使用
-    if (wakeWordEnabled) {
-      await stopVoiceInput();
-      setIsWakeWordListening(false);
-    }
-
     return true;
-  }, [isLoggedIn, requestMicrophonePermission, showSnackbar, wakeWordEnabled, stopVoiceInput]);
+  }, [isLoggedIn, requestMicrophonePermission, showSnackbar]);
 
   useEffect(() => {
     handleBeforeStartRecordingRef.current = handleBeforeStartRecording;
@@ -1120,11 +1081,6 @@ export default function ChatScreen() {
           onSendText={handleSendMessage}
           onBeforeStartRecording={handleBeforeStartRecording}
           onFinalResult={handleSendMessage}
-          onRecordingEnd={() => {
-            if (wakeWordEnabled) {
-              startWakeWord().then(() => setIsWakeWordListening(true)).catch(() => {});
-            }
-          }}
           onError={handleNLSError}
           onInterrupt={handleInterrupt}
           inputMode={inputMode}
@@ -1134,10 +1090,6 @@ export default function ChatScreen() {
           isSpeaking={isTTSSpeaking}
           projectId={currentProject?.id}
           conversationId={currentConversationId || undefined}
-          wakeWordEnabled={wakeWordEnabled}
-          isWakeWordListening={isWakeWordListening}
-          isWakeWordDetected={isWakeWordDetected}
-          onToggleWakeWord={toggleWakeWord}
         />
 
         {/* ===== TTS 自动朗读（副作用组件，自行订阅 messages） ===== */}

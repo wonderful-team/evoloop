@@ -24,10 +24,6 @@ interface VoiceInputWithEngineProps {
   isSpeaking: boolean;
   projectId?: number;
   conversationId?: string;
-  wakeWordEnabled: boolean;
-  isWakeWordListening: boolean;
-  isWakeWordDetected: boolean;
-  onToggleWakeWord?: () => void;
   onBeforeStartRecording?: () => Promise<boolean>;
   onFinalResult: (text: string) => void;
   onError?: (error: Error) => void;
@@ -45,10 +41,6 @@ export const VoiceInputWithEngine = forwardRef<VoiceInputWithEngineHandle, Voice
     isSpeaking,
     projectId,
     conversationId,
-    wakeWordEnabled,
-    isWakeWordListening,
-    isWakeWordDetected,
-    onToggleWakeWord,
     onBeforeStartRecording,
     onFinalResult,
     onError,
@@ -132,10 +124,6 @@ export const VoiceInputWithEngine = forwardRef<VoiceInputWithEngineHandle, Voice
       isSpeaking={isSpeaking}
       projectId={projectId}
       conversationId={conversationId}
-      wakeWordEnabled={wakeWordEnabled}
-      isWakeWordListening={isWakeWordListening}
-      isWakeWordDetected={isWakeWordDetected}
-      onToggleWakeWord={onToggleWakeWord}
       transcriptionText={transcriptionText}
       isPressed={isPressed}
     />

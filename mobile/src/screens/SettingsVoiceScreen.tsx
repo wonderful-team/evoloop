@@ -10,13 +10,10 @@ import { Header } from '@/components/common/Header';
 import { AudioRecorder } from '@/services/voice/AudioRecorder';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getDefaultVoices } from '@/hooks/useTTS';
-import { useSettingsStore } from '@/stores/settingsStore';
-import { router } from '@/utils/navigation';
 
 interface VoiceSettings {
   autoStart: boolean;
   continuousListening: boolean;
-  wakeWordEnabled: boolean;
   vadThreshold: number;
   silenceTimeout: number;
   language: string;
@@ -25,7 +22,6 @@ interface VoiceSettings {
 const DEFAULT_SETTINGS: VoiceSettings = {
   autoStart: false,
   continuousListening: true,
-  wakeWordEnabled: false,
   vadThreshold: 0.15,
   silenceTimeout: 1500,
   language: 'zh-CN',
@@ -44,10 +40,6 @@ export default function VoiceSettingsScreen() {
   const colors = theme.colors;
   const [settings, setSettings] = useState<VoiceSettings>(DEFAULT_SETTINGS);
 
-  // 唤醒词设置使用 settingsStore（zustand persist）
-  const wakeWordEnabled = useSettingsStore((state) => state.settings.wakeWordEnabled);
-  const wakeWord = useSettingsStore((state) => state.settings.wakeWord);
-  const setSetting = useSettingsStore((state) => state.setSetting);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [showLanguageDialog, setShowLanguageDialog] = useState(false);
   const [ttsVoice, setTtsVoice] = useState<string>('aimei');
@@ -148,22 +140,6 @@ export default function VoiceSettingsScreen() {
               onValueChange={(value) => saveSettings({ continuousListening: value })}
             />
           )}
-        />
-        <List.Item
-          title={t('settings.voice.wakeWord')}
-          description={t('settings.voice.wakeWordDesc', { wakeWord })}
-          right={() => (
-            <Switch
-              value={wakeWordEnabled}
-              onValueChange={(value) => setSetting('wakeWordEnabled', value)}
-            />
-          )}
-        />
-        <List.Item
-          title={t('settings.voice.wakeWordSettingsTitle')}
-          description={t('settings.voice.wakeWordSettingsDesc')}
-          right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          onPress={() => router.push('SettingsWakeWord')}
         />
       </List.Section>
 

@@ -40,14 +40,6 @@ interface VoiceInputWithNLSProps {
   projectId?: number;
   /** 会话 ID */
   conversationId?: string;
-  /** 唤醒词开关 */
-  wakeWordEnabled: boolean;
-  /** 唤醒词监听中 */
-  isWakeWordListening: boolean;
-  /** 唤醒词已检测到 */
-  isWakeWordDetected: boolean;
-  /** 切换唤醒词开关 */
-  onToggleWakeWord?: () => void;
   /** 录音启动前的前置检查（权限、登录等），返回 false 则取消录音 */
   onBeforeStartRecording?: () => Promise<boolean>;
   /** 语音识别最终结果回调 */
@@ -80,7 +72,7 @@ export const VoiceInputWithNLS = forwardRef<VoiceInputWithNLSHandle, VoiceInputW
   const nlsCurrentText = useNLSStore((s) => s.currentText);
   const nlsVolume = useNLSStore((s) => s.volume);
 
-  // 监听 NLS 录音状态变化：从录音变为停止时，通知外层恢复唤醒词
+  // 监听 NLS 录音状态变化：从录音变为停止时，通知外层
   useEffect(() => {
     if (prevNlsIsRecording.current && !nlsIsRecording) {
       onRecordingEndRef.current?.();
@@ -155,10 +147,6 @@ export const VoiceInputWithNLS = forwardRef<VoiceInputWithNLSHandle, VoiceInputW
       isSpeaking={props.isSpeaking}
       projectId={props.projectId}
       conversationId={props.conversationId}
-      wakeWordEnabled={props.wakeWordEnabled}
-      isWakeWordListening={props.isWakeWordListening}
-      isWakeWordDetected={props.isWakeWordDetected}
-      onToggleWakeWord={props.onToggleWakeWord}
       transcriptionText={nlsCurrentText}
     />
   );

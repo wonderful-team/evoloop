@@ -52,11 +52,6 @@ interface VoiceInputProps {
   // 引用相关
   projectId?: number;
   conversationId?: string;
-  // 唤醒词状态
-  wakeWordEnabled?: boolean;
-  isWakeWordListening?: boolean;
-  isWakeWordDetected?: boolean;
-  onToggleWakeWord?: () => void;
   // 实时转录文字
   transcriptionText?: string;
   // 是否按住中（新引擎）
@@ -80,10 +75,6 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
   isSpeaking = false,
   projectId,
   conversationId,
-  wakeWordEnabled: _wakeWordEnabled = false,
-  isWakeWordListening = false,
-  isWakeWordDetected = false,
-  onToggleWakeWord,
   // 实时转录文字
   transcriptionText = '',
   // 是否按住中（新引擎）
@@ -422,25 +413,6 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
               </TouchableOpacity>
             )}
 
-            {/* 唤醒词状态 */}
-            {onToggleWakeWord && (
-              <TouchableOpacity style={styles.toolbarBtn} onPress={onToggleWakeWord}>
-                <MaterialIcons
-                  name={isWakeWordDetected ? 'notifications-active' : isWakeWordListening ? 'hearing' : 'hearing-disabled'}
-                  size={20}
-                  color={isWakeWordDetected ? colors.primary : isWakeWordListening ? colors.success : colors.onSurfaceVariant}
-                />
-                <Text
-                  variant="bodySmall"
-                  style={{
-                    color: isWakeWordDetected ? colors.primary : isWakeWordListening ? colors.success : colors.onSurfaceVariant,
-                    marginLeft: 4,
-                  }}
-                >
-                  {isWakeWordDetected ? t('voice.input.awakened') : isWakeWordListening ? t('voice.input.listening') : t('voice.input.standby')}
-                </Text>
-              </TouchableOpacity>
-            )}
           </View>
 
           <Divider style={{ width: '100%', marginVertical: 8 }} />

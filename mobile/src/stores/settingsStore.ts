@@ -6,8 +6,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface Settings {
   autoSpeak: boolean;
-  wakeWordEnabled: boolean;
-  wakeWord: string;
   voiceSpeed: number;
   selectedVoice: string;
   theme: 'light' | 'dark' | 'system';
@@ -25,8 +23,6 @@ interface SettingsState {
 
 const DEFAULT_SETTINGS: Settings = {
   autoSpeak: false,
-  wakeWordEnabled: false,
-  wakeWord: '木头人',
   voiceSpeed: 1.0,
   selectedVoice: 'zh-CN-XiaoxiaoNeural',
   theme: 'system',

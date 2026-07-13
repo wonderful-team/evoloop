@@ -8,7 +8,7 @@ import {
 import NativeVoiceEngine from '@/specs/NativeVoiceEngine';
 import type { VoiceEngineEventCallbacks, AudioEventCallbacks, VoiceEngineConfig } from './VoiceEngine';
 
-export type VoiceEngineMode = 'idle' | 'wake' | 'asr';
+export type VoiceEngineMode = 'idle' | 'asr';
 
 class VoiceEngineHarmonyAdapter {
   private subscriptions: EmitterSubscription[] = [];
@@ -21,7 +21,6 @@ class VoiceEngineHarmonyAdapter {
     console.log('[VoiceEngineHarmony] initialize called with modelDir:', config.modelDir);
     await NativeVoiceEngine.initialize({
       modelDir: config.modelDir,
-      wakeWord: config.wakeWord,
       sampleRate: config.sampleRate ?? 16000,
       numThreads: config.numThreads ?? 2,
       vadThreshold: config.vadThreshold ?? 0.5,
@@ -49,9 +48,6 @@ class VoiceEngineHarmonyAdapter {
       emitter.addListener('voiceEngine:final', (event: { text: string }) => {
         console.log('[VoiceEngineHarmony] final event:', event?.text);
         callbacks.onFinal?.(event.text);
-      }),
-      emitter.addListener('voiceEngine:wake', (event: { text: string }) => {
-        callbacks.onWake?.(event.text);
       }),
       emitter.addListener('voiceEngine:volume', (event: { value: number }) => {
         callbacks.onVolume?.(event.value);

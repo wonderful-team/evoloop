@@ -1,13 +1,12 @@
 import type { TurboModule } from 'react-native';
 import { TurboModuleRegistry, NativeModules, Platform } from 'react-native';
 
-export type VoiceEngineMode = 'idle' | 'wake' | 'asr';
+export type VoiceEngineMode = 'idle' | 'asr';
 
 export interface Spec extends TurboModule {
   // === ASR ===
   initialize(config: {
     modelDir: string;
-    wakeWord?: string;
     sampleRate?: number;
     numThreads?: number;
     vadThreshold?: number;
@@ -44,7 +43,6 @@ export interface Spec extends TurboModule {
   // voiceEngine:vadEnd
   // voiceEngine:partial { text }
   // voiceEngine:final { text }
-  // voiceEngine:wake { text }
   // voiceEngine:error { message }
   // voiceEngine:volume { value }
   // audio:ended

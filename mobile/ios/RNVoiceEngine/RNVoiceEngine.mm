@@ -56,8 +56,6 @@ public:
   AVAudioConverter *_audioConverter;
   BOOL _isRunning;
   BOOL _isRecognizing;
-  NSString *_wakeWord;
-  NSString *_mode;
   std::string _lastText;
   std::vector<std::string> _stringHolders;
   NSMutableArray<NSString *> *_partialBuffer;
@@ -88,7 +86,6 @@ RCT_EXPORT_MODULE(RNVoiceEngine);
     @"voiceEngine:vadEnd",
     @"voiceEngine:partial",
     @"voiceEngine:final",
-    @"voiceEngine:wake",
     @"voiceEngine:volume",
     @"voiceEngine:error",
     @"audio:ended",
@@ -106,8 +103,6 @@ RCT_EXPORT_MODULE(RNVoiceEngine);
     _audioEngine = nil;
     _isRunning = NO;
     _isRecognizing = NO;
-    _wakeWord = @"";
-    _mode = @"idle";
     _partialBuffer = [NSMutableArray array];
     _audioBuffer = [NSMutableData data];
     _vadThreshold = 0.5f;
@@ -136,7 +131,6 @@ RCT_EXPORT_METHOD(initialize:(NSDictionary *)config
     int numThreads = config[@"numThreads"] != nil ? [config[@"numThreads"] intValue] : 2;
     float vadThreshold = config[@"vadThreshold"] != nil ? [config[@"vadThreshold"] floatValue] : 0.5f;
     int silenceTimeoutMs = config[@"silenceTimeoutMs"] != nil ? [config[@"silenceTimeoutMs"] intValue] : 800;
-    _wakeWord = config[@"wakeWord"] ?: @"";
 
     NSBundle *bundle = [NSBundle mainBundle];
 
@@ -224,12 +218,7 @@ RCT_EXPORT_METHOD(initialize:(NSDictionary *)config
 RCT_EXPORT_METHOD(setMode:(NSString *)mode
                   resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject) {
-  _mode = [mode copy];
-  if ([_mode isEqualToString:@"asr"] || [_mode isEqualToString:@"wake"]) {
-    _isRecognizing = YES;
-  } else {
-    _isRecognizing = NO;
-  }
+  _isRecognizing = [mode isEqualToString:@"asr"];
   resolve(nil);
 }
 
@@ -410,15 +399,6 @@ RCT_EXPORT_METHOD(release:(RCTPromiseResolveBlock)resolve
       _lastText = newText;
       NSString *text = [NSString stringWithUTF8String:result->text];
       [self sendEventWithName:@"voiceEngine:partial" body:@{ @"text": text }];
-
-      // Wake word check
-      if ([_mode isEqualToString:@"wake"] && _wakeWord.length > 0) {
-        NSString *normalized = [text stringByReplacingOccurrencesOfString:@" " withString:@""];
-        NSString *wakeNormalized = [_wakeWord stringByReplacingOccurrencesOfString:@" " withString:@""];
-        if ([normalized containsString:wakeNormalized]) {
-          [self sendEventWithName:@"voiceEngine:wake" body:@{ @"text": _wakeWord }];
-        }
-      }
     }
   }
 

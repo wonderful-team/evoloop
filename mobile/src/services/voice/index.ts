@@ -1,8 +1,6 @@
 // 语音服务导出
 
 export { AudioRecorder, getAudioRecorder } from './AudioRecorder';
-export { WakeWordDetector } from './WakeWordDetector';
-export { WakeWordService } from './WakeWordService';
 export { voiceEngine } from './VoiceEngine';
 export { parseLocalIntent } from './localNLU';
 export type { LocalIntent, IntentAction, IntentObject } from './localNLU';

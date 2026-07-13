@@ -1,19 +1,17 @@
 // 新版语音输入 Hook
-// 支持：按住说话、点击说话、唤醒词、连续对话、语音打断、本地意图拦截
+// 支持：按住说话、点击说话、连续对话、语音打断、本地意图拦截
 
 import { useCallback, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { voiceEngine, type VoiceEngineEventCallbacks } from '@/services/voice/VoiceEngine';
 import { useVoiceSessionStore } from '@/stores/voiceSessionStore';
 import { useAuthStore } from '@/stores/authStore';
-import { useSettingsStore } from '@/stores/settingsStore';
 import i18n from '@/locales';
 import { parseLocalIntent, type LocalIntent } from '@/services/voice/localNLU';
 
 export interface UseVoiceInputOptions {
   onFinalResult?: (text: string) => void;
   onError?: (error: Error) => void;
-  onWake?: (text: string) => void;
   onInterrupt?: () => void;
   /** 本地意图拦截回调：ASR 识别出控制指令时触发，不转发给 LLM */
   onLocalIntent?: (intent: LocalIntent) => void;
@@ -24,15 +22,12 @@ export interface UseVoiceInputOptions {
 }
 
 export function useVoiceInput(options: UseVoiceInputOptions = {}) {
-  const { onFinalResult, onError, onWake, onInterrupt, onLocalIntent, onVadEndPrewarm, uiState } = options;
+  const { onFinalResult, onError, onInterrupt, onLocalIntent, onVadEndPrewarm, uiState } = options;
   // 使用 ref 保持最新的 uiState 引用，避免 stale closure
   const uiStateRef = useRef(uiState ?? { isHistoryOpen: false });
   useEffect(() => { uiStateRef.current = uiState ?? { isHistoryOpen: false }; }, [uiState]);
 
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
-  const settings = useSettingsStore((state) => state.settings);
-  const wakeWordEnabled = settings.wakeWordEnabled;
-  const wakeWord = settings.wakeWord;
 
   const {
     setState,
@@ -41,7 +36,6 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
     clearFinalText,
     setVolume,
     setError,
-    setWakeWordMode,
     setContinuousMode,
     setPressed,
   } = useVoiceSessionStore.getState();
@@ -66,7 +60,6 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
     console.log('[useVoiceInput] calling voiceEngine.initialize');
     voiceEngine.initialize({
       modelDir: 'sherpa-asr/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23',
-      wakeWord,
       sampleRate: 16000,
       numThreads: 2,
       vadThreshold: 0.5,
@@ -94,7 +87,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
     return () => {
       voiceEngine.release().catch(() => {});
     };
-  }, [isLoggedIn, wakeWord, setContinuous]);
+  }, [isLoggedIn, setContinuous]);
 
   const flushFinal = useCallback(() => {
     const text = sessionTextRef.current.trim();
@@ -149,14 +142,6 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
 
       // 手动触发结束（pressOut/toggle）时才发送；VAD 仅做断句积累
     },
-    onWake: (text) => {
-      onWake?.(text);
-      onInterrupt?.();
-      voiceEngine.setMode('asr').catch(() => {});
-      setState('listening');
-      clearFinalText();
-      sessionTextRef.current = '';
-    },
     onVolume: (value) => {
       setVolume(value);
     },
@@ -167,8 +152,8 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
     },
   };
 
-  const start = useCallback(async (mode: 'wake' | 'asr' = 'asr') => {
-    console.log(`[useVoiceInput] start called, mode=${mode}, isRunning=${isRunningRef.current}`);
+  const start = useCallback(async () => {
+    console.log(`[useVoiceInput] start called, isRunning=${isRunningRef.current}`);
     if (!isLoggedIn) {
       onError?.(new Error(i18n.t('auth.errors.notLoggedIn')));
       return;
@@ -188,11 +173,10 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
 
     try {
       voiceEngine.start(callbacksRef.current);
-      await voiceEngine.setMode(mode);
+      await voiceEngine.setMode('asr');
       await voiceEngine.beginSession();
       console.log('[useVoiceInput] session started');
 
-      setWakeWordMode(mode === 'wake');
       setState('listening');
     } catch (err) {
       console.error('[useVoiceInput] start session failed:', err);
@@ -201,7 +185,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
       setState('error');
       onError?.(err instanceof Error ? err : new Error(String(err)));
     }
-  }, [isLoggedIn, onError, setState, setWakeWordMode, clearFinalText, setPartialText, setError, stop]);
+  }, [isLoggedIn, onError, setState, clearFinalText, setPartialText, setError, stop]);
 
   const stop = useCallback(async () => {
     if (!isRunningRef.current) {return;}
@@ -220,7 +204,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
     console.log('[useVoiceInput] pressIn called');
     setPressed(true);
     try {
-      await start('asr');
+      await start();
       console.log('[useVoiceInput] pressIn start completed');
     } catch (err) {
       console.error('[useVoiceInput] pressIn start failed:', err);
@@ -243,15 +227,9 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
     if (isRunningRef.current) {
       await stop();
     } else {
-      await start('asr');
+      await start();
     }
   }, [start, stop]);
-
-  // 启动唤醒词监听
-  const startWakeWord = useCallback(async () => {
-    if (!wakeWordEnabled) {return;}
-    await start('wake');
-  }, [start, wakeWordEnabled]);
 
   return {
     start,
@@ -260,8 +238,6 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
     pressOut,
     toggle,
     setContinuous,
-    startWakeWord,
     flushFinal,
-    isWakeWordEnabled: wakeWordEnabled,
   };
 }
