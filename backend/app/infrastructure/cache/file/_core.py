@@ -5,12 +5,19 @@ Low-level FileCache Implementation
 import json
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Any
 
 from app.utils.pubsub import in_memory_bus
 
 logger = logging.getLogger(__name__)
+
+# Envelope marker for TTL-bearing entries. Legacy files store the raw value
+# directly (no expiry); new files written with a TTL wrap the value so reads
+# can enforce expiration. The marker key is deliberately unusual to avoid
+# colliding with user payloads.
+_TTL_MARKER = "__fc_ttl_v1__"
 
 
 class _FileCacheCore:
@@ -29,7 +36,8 @@ class _FileCacheCore:
         safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in name)
         return self.cache_dir / category / f"{safe_name}.json"
 
-    def _read(self, category: str, name: str) -> Any:
+    def _read_raw(self, category: str, name: str) -> Any:
+        """Read the raw JSON payload from disk without TTL processing."""
         path = self._get_path(category, name)
         if not path.exists():
             return None
@@ -40,7 +48,18 @@ class _FileCacheCore:
             logger.debug(f"Cache read error for {category}/{name}: {e}")
             return None
 
-    def _write(self, category: str, name: str, data: Any) -> bool:
+    def _read(self, category: str, name: str) -> Any:
+        raw = self._read_raw(category, name)
+        if isinstance(raw, dict) and _TTL_MARKER in raw:
+            if time.time() >= raw[_TTL_MARKER]:
+                self._delete(category, name)
+                return None
+            return raw.get("value")
+        return raw
+
+    def _write(self, category: str, name: str, data: Any, ttl: int | None = None) -> bool:
+        if ttl is not None:
+            data = {_TTL_MARKER: time.time() + ttl, "value": data}
         path = self._get_path(category, name)
         try:
             with open(path, "w", encoding="utf-8") as f:
@@ -64,10 +83,10 @@ class _FileCacheCore:
         return self._read("strings", key)
 
     async def set(self, key: str, value: Any, **kwargs) -> bool:
-        return self._write("strings", key, value)
+        return self._write("strings", key, value, ttl=kwargs.get("ex"))
 
     async def setex(self, key: str, time: int, value: Any) -> bool:
-        return self._write("strings", key, value)
+        return self._write("strings", key, value, ttl=time)
 
     async def delete(self, *keys: str) -> int:
         count = 0
@@ -79,22 +98,38 @@ class _FileCacheCore:
 
     async def exists(self, key: str) -> bool:
         for category in ["strings", "hashes", "sets", "lists"]:
-            path = self._get_path(category, key)
-            if path.exists():
+            if self._read(category, key) is not None:
                 return True
         return False
 
     async def expire(self, key: str, seconds: int) -> bool:
-        return True
+        for category in ["strings", "hashes", "sets", "lists"]:
+            raw = self._read_raw(category, key)
+            if raw is None:
+                continue
+            value = self._read(category, key)
+            if value is None:
+                # Missing or already expired (expired entries self-delete on read)
+                return False
+            return self._write(category, key, value, ttl=seconds)
+        return False
 
     async def incr(self, key: str, amount: int = 1) -> int:
-        data = self._read("strings", key)
+        raw = self._read_raw("strings", key)
+        expires_at = None
+        data = raw
+        if isinstance(raw, dict) and _TTL_MARKER in raw:
+            expires_at = raw[_TTL_MARKER]
+            data = None if time.time() >= expires_at else raw.get("value")
         try:
             current = int(data) if data is not None else 0
         except (ValueError, TypeError):
             current = 0
         new_value = current + amount
-        self._write("strings", key, new_value)
+        if expires_at is not None and time.time() < expires_at:
+            self._write("strings", key, new_value, ttl=int(expires_at - time.time()))
+        else:
+            self._write("strings", key, new_value)
         return new_value
 
     async def hget(self, name: str, key: str) -> Any | None:

@@ -1,9 +1,11 @@
 import inspect
+import json
 import logging
-from typing import Any, AsyncGenerator, Union, get_args, get_origin
+from collections.abc import AsyncGenerator
+from typing import Any
 
 import openai
-from pydantic import BaseModel, Field, create_model
+from pydantic import BaseModel, create_model
 
 from app.core.engine.message.native_classes import AIMessageChunk
 from app.i18n.service import i18n
@@ -38,6 +40,30 @@ def _generate_args_schema_from_signature(func) -> type[BaseModel] | None:
     func_name = getattr(func, "__name__", "Tool")
     model_name = f"{func_name}_AutoSchema"
     return create_model(model_name, **fields)
+
+
+def _to_openai_tool_call(tc: dict) -> dict:
+    """Normalize a native tool-call dict to the standard OpenAI wire format.
+
+    Native shape (used across the engine): ``{"index", "id", "name", "args"}``.
+    The EvoLoop gateway's OpenAI→anthropic translation requires the standard
+    function-wrapped shape; passing the native shape through verbatim makes
+    the upstream kimi endpoint answer 400 "tokenization failed" on any
+    multi-step tool loop.
+    """
+    if "function" in tc:
+        return tc
+    args = tc.get("args")
+    if isinstance(args, (dict, list)):
+        args = json.dumps(args, ensure_ascii=False)
+    return {
+        "id": tc.get("id") or "",
+        "type": "function",
+        "function": {
+            "name": tc.get("name") or "",
+            "arguments": args or "",
+        },
+    }
 
 
 class AdaptiveRetryState(BaseModel):
@@ -90,6 +116,7 @@ class AdaptiveChatOpenAI:
         self.extra_body = extra_body or {}
         self.default_headers = default_headers or {}
         self._tools = []
+        self._tool_choice: str | None = None
 
         # Create native async OpenAI client
         self.client = openai.AsyncOpenAI(
@@ -99,9 +126,16 @@ class AdaptiveChatOpenAI:
             default_headers=default_headers
         )
 
-    def bind_tools(self, tools: list[Any]) -> "AdaptiveChatOpenAI":
+    def bind_tools(self, tools: list[Any], tool_choice: str | None = None) -> "AdaptiveChatOpenAI":
         self._tools = []
+        self._tool_choice = tool_choice
         for t in tools:
+            # Accept pre-built OpenAI function schemas (dicts) verbatim — used by
+            # the voice router which hands us ROUTE_TOOLS already in wire format.
+            if isinstance(t, dict):
+                if t.get("type") == "function" and "function" in t:
+                    self._tools.append(t)
+                continue
             # Use explicit args_schema if provided, otherwise auto-generate
             # from the function signature so the LLM sees proper parameters.
             args_schema = getattr(t, "args_schema", None)
@@ -127,8 +161,12 @@ class AdaptiveChatOpenAI:
 
     async def astream(self, messages: list[Any], config: dict = None, **kwargs: Any) -> AsyncGenerator[AIMessageChunk, None]:
         from app.core.engine.callbacks.bridge import (
-            _get_callbacks, _get_run_id, _get_metadata,
-            emit_llm_start, emit_llm_new_token, emit_llm_end,
+            _get_callbacks,
+            _get_metadata,
+            _get_run_id,
+            emit_llm_end,
+            emit_llm_new_token,
+            emit_llm_start,
         )
         from app.core.engine.message.native_classes import AIMessage
 
@@ -153,7 +191,7 @@ class AdaptiveChatOpenAI:
                 if role == "tool" and m.tool_call_id:
                     msg_dict["tool_call_id"] = m.tool_call_id
                 elif role == "assistant" and m.tool_calls:
-                    msg_dict["tool_calls"] = m.tool_calls
+                    msg_dict["tool_calls"] = [_to_openai_tool_call(tc) for tc in m.tool_calls]
                 api_messages.append(msg_dict)
 
         if callbacks:
@@ -172,6 +210,8 @@ class AdaptiveChatOpenAI:
                     req_params["max_tokens"] = state.current_max_tokens
                 if self._tools:
                     req_params["tools"] = self._tools
+                    if self._tool_choice is not None:
+                        req_params["tool_choice"] = self._tool_choice
 
                 if state.attempt > 0:
                     logger.info(f"🔄 Adaptive Retry {state.attempt}/{state.max_retries}: {state}")
@@ -252,7 +292,7 @@ class AdaptiveChatOpenAI:
         from app.core.engine.message.native_classes import AIMessage
 
         response_content = ""
-        tool_calls = []
+        tool_call_slots: dict[int, dict] = {}
         additional_kwargs = {}
         reasoning_parts: list[str] = []
 
@@ -260,13 +300,30 @@ class AdaptiveChatOpenAI:
             if chunk.content:
                 response_content += chunk.content
             if chunk.tool_calls:
-                tool_calls.extend(chunk.tool_calls)
+                # Streaming tool-calls arrive as deltas: the first chunk carries
+                # the name/id with an empty args string, and subsequent chunks
+                # carry only args fragments (name/id=None). They MUST be merged
+                # by index back into a single tool-call with the full JSON args;
+                # treating each delta as a standalone call yields an empty args
+                # on slot 0 and silently corrupts every downstream consumer
+                # (voice router, structured output, ...).
+                for tc in chunk.tool_calls:
+                    idx = tc.get("index") or 0
+                    slot = tool_call_slots.setdefault(idx, {"index": idx, "id": None, "name": None, "args": ""})
+                    if tc.get("id"):
+                        slot["id"] = tc["id"]
+                    if tc.get("name"):
+                        slot["name"] = tc["name"]
+                    if tc.get("args"):
+                        slot["args"] += tc["args"]
             if chunk.additional_kwargs:
                 chunk_reasoning = chunk.additional_kwargs.get("reasoning_content") or ""
                 if chunk_reasoning:
                     reasoning_parts.append(chunk_reasoning)
                 else:
                     additional_kwargs.update(chunk.additional_kwargs)
+
+        tool_calls = [tool_call_slots[i] for i in sorted(tool_call_slots)]
 
         full_reasoning = "".join(reasoning_parts)
         if full_reasoning:
@@ -300,6 +357,39 @@ class AdaptiveChatOpenAI:
         return _StructuredOutputWrapper(self, output_schema, method=method)
 
 
+def _inline_json_schema_refs(schema: dict) -> dict:
+    """Resolve ``#/$defs/*`` references inline and drop ``$defs``.
+
+    Pydantic v2 emits nested models as ``$ref`` + ``$defs``; some providers
+    (Kimi / moonshot) do not resolve ``$defs`` and return 400 ("$defs not found
+    for reference"). Inline every reference so the schema is self-contained.
+    Cyclic references degrade to ``{}`` to avoid infinite recursion.
+    """
+    defs = schema.get("$defs", {}) or {}
+
+    def resolve(node, seen):
+        if isinstance(node, dict):
+            ref = node.get("$ref")
+            if isinstance(ref, str) and ref.startswith("#/$defs/"):
+                name = ref[len("#/$defs/"):]
+                if name in seen:
+                    return {}
+                target = defs.get(name)
+                if isinstance(target, dict):
+                    merged = {k: v for k, v in node.items() if k != "$ref"}
+                    merged.update(resolve(target, seen | {name}))
+                    return resolve(merged, seen | {name})
+            return {k: resolve(v, seen) for k, v in node.items()}
+        if isinstance(node, list):
+            return [resolve(x, seen) for x in node]
+        return node
+
+    out = resolve(schema, frozenset())
+    if isinstance(out, dict):
+        out.pop("$defs", None)
+    return out
+
+
 class _StructuredOutputWrapper:
     """Wrapper that enforces a structured Pydantic output via function calling."""
 
@@ -310,7 +400,7 @@ class _StructuredOutputWrapper:
 
     def _build_tool_schema(self) -> dict:
         """Convert a Pydantic model class to an OpenAI function-tool schema."""
-        schema = self._schema.model_json_schema()
+        schema = _inline_json_schema_refs(self._schema.model_json_schema())
         params = {
             "type": "object",
             "properties": schema.get("properties", {}),
@@ -319,8 +409,7 @@ class _StructuredOutputWrapper:
             params["required"] = schema["required"]
         params.pop("title", None)
         params.pop("additionalProperties", None)
-        if "$defs" in params:
-            params.pop("$defs", None)
+        params.pop("$defs", None)
         return {
             "type": "function",
             "function": {

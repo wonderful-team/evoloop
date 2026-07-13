@@ -7,7 +7,7 @@ connected to Redis broker. Used by factory.py for distributed task execution.
 
 import logging
 
-from celery.signals import setup_logging
+from celery.signals import setup_logging, worker_process_init
 
 from app.core.config import settings
 
@@ -25,6 +25,20 @@ def config_loggers(*args, **kwargs):
     
     # Also ensure celery task logger propagates or we configure root
     # setup_logging() already sets the root logger, which handles everything.
+
+
+@worker_process_init.connect
+def on_worker_init(*args, **kwargs):
+    """
+    Hook into Celery worker child process initialization to ensure all in-process
+    event handlers (like MemoryRewind, TodoRewind) are auto-discovered and registered.
+    """
+    from app.core.events.discovery import auto_discover_handlers
+    try:
+        auto_discover_handlers()
+        logger.info("[Celery] All event handlers auto-discovered and registered in worker process.")
+    except (ImportError, ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        logger.error(f"[Celery] Failed to auto-discover event handlers in worker: {e}")
 
 
 def create_celery_app():

@@ -1,6 +1,5 @@
-"""
-Embeddings Event Package
-========================
+from .schemas import EmbeddingUpdatedEvent
 
-Event subscribers for the embeddings infrastructure.
-"""
+__all__ = [
+    "EmbeddingUpdatedEvent",
+]

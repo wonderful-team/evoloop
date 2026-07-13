@@ -32,7 +32,7 @@ class FileCache(Cache):
         return await self._cache.get(key)
 
     async def set(self, key: str, value: Any, ex: int | None = None) -> bool:
-        return await self._cache.set(key, value)
+        return await self._cache.set(key, value, ex=ex)
 
     async def setex(self, key: str, ex: int, value: Any) -> bool:
         return await self._cache.setex(key, ex, value)
@@ -44,7 +44,7 @@ class FileCache(Cache):
         return await self._cache.exists(key)
 
     async def expire(self, key: str, seconds: int) -> bool:
-        return True
+        return await self._cache.expire(key, seconds)
 
     async def incr(self, key: str, amount: int = 1) -> int:
         return await self._cache.incr(key, amount)
