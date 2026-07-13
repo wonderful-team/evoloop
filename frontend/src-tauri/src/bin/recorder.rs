@@ -60,7 +60,11 @@ fn main() {
                 if output.status.success() {
                     let result = String::from_utf8_lossy(&output.stdout);
                     let parts: Vec<&str> = result.trim().split("|||").collect();
-                    if parts.len() >= 4 {
+                    // Transient AppleScript failures (menu-bar tracking, app
+                    // switches, permission hiccups) return "Unknown". Skip
+                    // those polls and keep the last known-good window info
+                    // instead of poisoning every event captured meanwhile.
+                    if parts.len() >= 4 && parts[0] != "Unknown" {
                         let pos_parts: Vec<&str> = parts[2].split(',').collect();
                         let size_parts: Vec<&str> = parts[3].split(',').collect();
 
@@ -76,7 +80,7 @@ fn main() {
                     }
                 }
             }
-            thread::sleep(Duration::from_millis(1000));
+            thread::sleep(Duration::from_millis(500));
         }
     });
 
