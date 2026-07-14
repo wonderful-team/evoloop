@@ -8,7 +8,12 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 from app.core.config import settings
-from app.infrastructure.voice.stt.base import BaseSTTProvider, STTOptions, STTResult, VoiceLocale
+from app.infrastructure.voice.stt.base import (
+    BaseSTTProvider,
+    STTOptions,
+    STTResult,
+    VoiceLocale,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,14 +85,14 @@ def _copy_bundled_models_if_needed():
         user_models_dir.mkdir(parents=True, exist_ok=True)
         for item in bundled_path.iterdir():
             dest = user_models_dir / item.name
-            
+
             # 安全清理冲突路径
             if dest.exists():
                 if dest.is_dir() and not dest.is_symlink():
                     shutil.rmtree(dest)
                 else:
                     dest.unlink()
-            
+
             if item.is_dir():
                 shutil.copytree(item, dest)
                 logger.info(f"Deployed model directory: {item.name}")
@@ -151,7 +156,7 @@ class FunASRProvider(BaseSTTProvider):
                 model_id = model_config["model_id"]
 
                 logger.info(f"[FunASR] Loading model '{self.model_name}' on {self.device}...")
-                
+
                 # 运行在执行器中，防止阻塞主线程
                 loop = asyncio.get_running_loop()
                 self._model = await loop.run_in_executor(
@@ -188,7 +193,7 @@ class FunASRProvider(BaseSTTProvider):
         else:
             if not options.audio_data:
                 raise ValueError("Missing audio data or file path")
-                
+
             suffix = f".{options.audio_format}" if options.audio_format else ".wav"
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                 tmp.write(options.audio_data)
@@ -206,7 +211,7 @@ class FunASRProvider(BaseSTTProvider):
             if result and len(result) > 0:
                 raw_item = result[0]
                 text = raw_item.get("text", "").strip()
-                
+
                 # 尝试提取更多元数据
                 confidence = raw_item.get("confidence")
                 # 某些模型可能在不同的 key 下返回
@@ -218,7 +223,7 @@ class FunASRProvider(BaseSTTProvider):
                     language=self._detect_language(text),
                     confidence=confidence,
                 )
-            
+
             return STTResult(text="", language=options.language or VoiceLocale.AUTO)
 
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:

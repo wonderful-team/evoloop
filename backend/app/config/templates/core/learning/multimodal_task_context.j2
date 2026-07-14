@@ -1,6 +1,11 @@
 ## Task Description
 {{ task_description }}
 
+{% if voice_transcript %}
+## User Voice Instructions (Speech-to-Text Transcript)
+{{ voice_transcript }}
+{% endif %}
+
 ## {{ app_context_label }}
 {{ bundle_id }}
 

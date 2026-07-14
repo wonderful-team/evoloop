@@ -68,11 +68,12 @@ pub async fn start_screen_recording(
             "-f", "avfoundation",
             "-capture_cursor", "1",
             "-framerate", "15",
-            "-i", "0",
+            "-i", "0:default",
             "-pix_fmt", "yuv420p",
             "-c:v", "libx264",
             "-preset", "ultrafast",
             "-tune", "zerolatency",
+            "-c:a", "aac",
             &video_path_str,
         ])
         .stdin(Stdio::piped())

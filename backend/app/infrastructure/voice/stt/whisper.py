@@ -15,7 +15,12 @@ except ImportError:
     OPENAI_AVAILABLE = False
 
 from app.core.config import settings
-from app.infrastructure.voice.stt.base import BaseSTTProvider, STTOptions, STTResult, VoiceLocale
+from app.infrastructure.voice.stt.base import (
+    BaseSTTProvider,
+    STTOptions,
+    STTResult,
+    VoiceLocale,
+)
 
 logger = logging.getLogger(__name__)
 

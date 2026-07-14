@@ -16,9 +16,11 @@
 7. 解析并保存 Skill
 """
 
+import asyncio
 import base64
 import json
 import logging
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -28,16 +30,6 @@ from sqlalchemy import or_, select
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
-from app.infrastructure.video.compressor import (
-    CoordinateNormalizer,
-    FrameCompressor,
-    KeyframeSelector,
-)
-from app.infrastructure.video.schemas import (
-    CompressedFrame,
-    KeyframeCandidate,
-    VideoInfo,
-)
 from app.core.learning.prompts.builder import LearningPromptBuilder
 from app.core.learning.schemas import RecordingSession
 from app.core.learning.skill_synthesizer import SynthesizedSkill
@@ -54,6 +46,16 @@ from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.database import session_scope
 from app.infrastructure.drivers.adb import adb_driver
 from app.infrastructure.llm.vision import VisionLLMFactory
+from app.infrastructure.video.compressor import (
+    CoordinateNormalizer,
+    FrameCompressor,
+    KeyframeSelector,
+)
+from app.infrastructure.video.schemas import (
+    CompressedFrame,
+    KeyframeCandidate,
+    VideoInfo,
+)
 from app.models import TraceEvent
 
 logger = logging.getLogger(__name__)
@@ -86,7 +88,7 @@ class MultimodalSkillSynthesizer:
             recording: 录制会话数据
 
         Returns:
-            dict: 包含 skill 数据和元信息
+            dict: 包含 skill 数据 and 元信息
         """
         start_time = time.time()
         logger.info(f"Starting multimodal synthesis for session {recording.session_id}")
@@ -94,6 +96,24 @@ class MultimodalSkillSynthesizer:
         # Step 1: 获取视频信息
         video_info = await self._get_video_info(recording.video_path)
         logger.info(f"Video: {video_info.width}x{video_info.height}, {video_info.duration:.1f}s")
+
+        # Step 1.5: 提取视频音频轨并进行语音识别 (Speech-to-Text)
+        voice_transcript = None
+        try:
+            audio_path = await self._extract_audio(recording.video_path)
+            if audio_path and os.path.exists(audio_path):
+                from app.infrastructure.voice import transcribe_file
+                logger.info("Transcribing extracted audio track...")
+                stt_result = await transcribe_file(audio_path)
+                if stt_result and stt_result.text.strip():
+                    voice_transcript = stt_result.text.strip()
+                    logger.info(f"Audio transcription success: {voice_transcript}")
+                try:
+                    os.unlink(audio_path)
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning(f"Audio transcription failed or skipped: {e}")
 
         # Step 2: 获取事件序列
         events = await self._fetch_events(recording.session_id)
@@ -150,7 +170,8 @@ class MultimodalSkillSynthesizer:
                 task_description=recording.task_description,
                 bundle_id=bundle_id,
                 frames=frames_with_events,
-                event_context=event_context
+                event_context=event_context,
+                voice_transcript=voice_transcript
             )
         except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(f"Vision LLM call failed: {e}")
@@ -266,6 +287,41 @@ class MultimodalSkillSynthesizer:
             project_id=project_id,
             params={"max_scrolls": 2, "is_dry_run": True}
         )
+
+    async def _extract_audio(self, video_path: str) -> str | None:
+        """FFmpeg 提取视频中的音频轨并存为临时 WAV 文件"""
+        import os
+        import subprocess
+        import tempfile
+
+        output_path = os.path.join(tempfile.gettempdir(), f"evoloop_audio_{os.path.basename(video_path)}.wav")
+
+        # ffmpeg -y -i video.mp4 -vn -acodec pcm_s16le -ar 16000 -ac 1 output.wav
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", video_path,
+            "-vn",                  # 禁用视频流
+            "-acodec", "pcm_s16le",  # 使用无损 PCM 16-bit
+            "-ar", "16000",         # 16kHz
+            "-ac", "1",             # 单声道
+            output_path
+        ]
+        try:
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(
+                None,
+                lambda: subprocess.run(cmd, capture_output=True, timeout=30)
+            )
+            if result.returncode == 0:
+                if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
+                    logger.info(f"Successfully extracted audio from video to: {output_path}")
+                    return output_path
+            else:
+                logger.warning(f"Audio extraction warning (ffmpeg): {result.stderr.decode()}")
+        except Exception as e:
+            logger.error(f"Failed to extract audio track: {e}")
+
+        return None
 
     async def _get_video_info(self, video_path: str) -> VideoInfo:
         """使用 ffprobe JSON 获取视频元信息（更鲁棒）"""
@@ -513,7 +569,14 @@ class MultimodalSkillSynthesizer:
 
         return ", ".join(all_apps)
 
-    async def _call_vision_llm(self, task_description: str, bundle_id: str, frames: list[CompressedFrame], event_context: str) -> str:
+    async def _call_vision_llm(
+        self,
+        task_description: str,
+        bundle_id: str,
+        frames: list[CompressedFrame],
+        event_context: str,
+        voice_transcript: str | None = None
+    ) -> str:
         """构建多模态消息并调用 LLM"""
         from app.core.engine.message.native_classes import HumanMessage, SystemMessage
 
@@ -530,7 +593,8 @@ class MultimodalSkillSynthesizer:
             "task_description": task_description,
             "app_context_label": app_context_label,
             "bundle_id": bundle_id,
-            "event_context": event_context
+            "event_context": event_context,
+            "voice_transcript": voice_transcript
         }
 
         task_context = self.prompt_builder.build_multimodal_context_prompt(context_vars)

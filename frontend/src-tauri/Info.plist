@@ -4,5 +4,7 @@
 <dict>
 	<key>NSScreenCaptureUsageDescription</key>
 	<string>EvoLoop needs screen recording permission to capture visual context for skill learning and imitation.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>EvoLoop needs microphone permission to record user voice instructions during screen recording.</string>
 </dict>
 </plist>
