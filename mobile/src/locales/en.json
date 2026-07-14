@@ -574,7 +574,7 @@
       "hours": "{{count}} hr ago",
       "days": "{{count}} days ago"
     },
-    "cloudModeTitle": "Cloud Intelligence (Cloud Mode)",
+    "cloudModeTitle": "Cloud Intelligence",
     "cloudModeDesc": "Chat directly with cloud AI without connecting local devices",
     "unnamedDevice": "Unnamed Device",
     "fetchFailed": "Failed to get device list"

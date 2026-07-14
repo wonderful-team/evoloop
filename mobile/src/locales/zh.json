@@ -626,7 +626,7 @@
       "hours": "{{count}}小时前",
       "days": "{{count}}天前"
     },
-    "cloudModeTitle": "云端智能 (Cloud Mode)",
+    "cloudModeTitle": "云端智能",
     "cloudModeDesc": "不连接本地设备，直接使用云端 AI 进行对话",
     "unnamedDevice": "未命名设备",
     "fetchFailed": "获取设备列表失败"
