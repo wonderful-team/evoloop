@@ -281,6 +281,27 @@ export const AnnotationResponseSchema = {
     description: '标注响应'
 } as const;
 
+export const AppMapGenerateRequestSchema = {
+    properties: {
+        project_id: {
+            type: 'integer',
+            title: 'Project Id'
+        },
+        entity: {
+            type: 'string',
+            title: 'Entity'
+        },
+        force_regenerate: {
+            type: 'boolean',
+            title: 'Force Regenerate',
+            default: false
+        }
+    },
+    type: 'object',
+    required: ['project_id', 'entity'],
+    title: 'AppMapGenerateRequest'
+} as const;
+
 export const BaseAPIResponseSchema = {
     properties: {
         success: {
@@ -348,94 +369,6 @@ export const BatchCheckResponseSchema = {
     type: 'object',
     required: ['results', 'is_expired', 'level_name'],
     title: 'BatchCheckResponse'
-} as const;
-
-export const BatchImportRequestSchema = {
-    properties: {
-        repo_ids: {
-            items: {
-                type: 'integer'
-            },
-            type: 'array',
-            title: 'Repo Ids'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['repo_ids'],
-    title: 'BatchImportRequest'
-} as const;
-
-export const BatchImportResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        status: {
-            type: 'string',
-            title: 'Status'
-        },
-        summary: {
-            type: 'string',
-            title: 'Summary'
-        },
-        results: {
-            additionalProperties: {
-                items: {
-                    '$ref': '#/components/schemas/BatchResultItem'
-                },
-                type: 'array'
-            },
-            type: 'object',
-            title: 'Results'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['status', 'summary', 'results'],
-    title: 'BatchImportResponse'
-} as const;
-
-export const BatchResultItemSchema = {
-    properties: {
-        repo_id: {
-            type: 'integer',
-            title: 'Repo Id'
-        },
-        name: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Name'
-        },
-        error: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Error'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['repo_id'],
-    title: 'BatchResultItem'
 } as const;
 
 export const BenefitsUpdateWebhookSchema = {
@@ -1255,6 +1188,21 @@ export const ConceptUpdateSchema = {
     title: 'ConceptUpdate'
 } as const;
 
+export const ConfirmBulkRequestSchema = {
+    properties: {
+        macro_ids: {
+            items: {
+                type: 'integer'
+            },
+            type: 'array',
+            title: 'Macro Ids'
+        }
+    },
+    type: 'object',
+    required: ['macro_ids'],
+    title: 'ConfirmBulkRequest'
+} as const;
+
 export const ConversationListItemSchema = {
     properties: {
         thread_id: {
@@ -1578,13 +1526,31 @@ export const CreateProjectRequestSchema = {
             default: ''
         },
         path: {
-            type: 'string',
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
             title: 'Path'
+        },
+        sub_path: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Sub Path'
         }
     },
     additionalProperties: true,
     type: 'object',
-    required: ['name', 'path'],
+    required: ['name'],
     title: 'CreateProjectRequest'
 } as const;
 
@@ -1806,45 +1772,6 @@ export const DebugStatusResponseSchema = {
     required: ['is_logged_in', 'token_prefix', 'device_id', 'device_name', 'is_connected', 'api_url'],
     title: 'DebugStatusResponse',
     description: 'EvoCloud debug status response.'
-} as const;
-
-export const DetectedProjectItemSchema = {
-    properties: {
-        id: {
-            type: 'integer',
-            title: 'Id'
-        },
-        name: {
-            type: 'string',
-            title: 'Name'
-        },
-        path: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Path'
-        },
-        detected_at: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Detected At'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['id', 'name', 'path', 'detected_at'],
-    title: 'DetectedProjectItem'
 } as const;
 
 export const DeviceResolutionResponseSchema = {
@@ -2835,34 +2762,31 @@ export const HybridSearchResponseSchema = {
     description: 'Hybrid search response.'
 } as const;
 
-export const IgnoreProjectResponseSchema = {
+export const ImportProjectByPathRequestSchema = {
     properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
+        path: {
             type: 'string',
-            title: 'Message',
-            default: ''
+            title: 'Path'
         },
-        status: {
-            type: 'string',
-            title: 'Status'
-        },
-        repo_id: {
-            type: 'integer',
-            title: 'Repo Id'
+        name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Name'
         }
     },
     additionalProperties: true,
     type: 'object',
-    required: ['status', 'repo_id'],
-    title: 'IgnoreProjectResponse'
+    required: ['path'],
+    title: 'ImportProjectByPathRequest'
 } as const;
 
-export const ImportProjectResponseSchema = {
+export const ImportProjectByPathResponseSchema = {
     properties: {
         success: {
             type: 'boolean',
@@ -2890,7 +2814,7 @@ export const ImportProjectResponseSchema = {
     additionalProperties: true,
     type: 'object',
     required: ['status', 'repo_id', 'name'],
-    title: 'ImportProjectResponse'
+    title: 'ImportProjectByPathResponse'
 } as const;
 
 export const ImportSkillsRequestSchema = {
@@ -3154,46 +3078,6 @@ export const LLMTestResponseSchema = {
     title: 'LLMTestResponse'
 } as const;
 
-export const ListResponse_DetectedProjectItem_Schema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        data: {
-            items: {
-                '$ref': '#/components/schemas/DetectedProjectItem'
-            },
-            type: 'array',
-            title: 'Data'
-        },
-        total: {
-            type: 'integer',
-            title: 'Total',
-            default: 0
-        },
-        page: {
-            type: 'integer',
-            title: 'Page',
-            default: 1
-        },
-        page_size: {
-            type: 'integer',
-            title: 'Page Size',
-            default: 20
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    title: 'ListResponse[DetectedProjectItem]'
-} as const;
-
 export const LoginResultSchema = {
     properties: {
         success: {
@@ -3274,6 +3158,322 @@ export const LogoutResponseSchema = {
     type: 'object',
     required: ['code'],
     title: 'LogoutResponse'
+} as const;
+
+export const MacroDTOSchema = {
+    properties: {
+        id: {
+            type: 'integer',
+            title: 'Id'
+        },
+        app_map_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'App Map Id'
+        },
+        entity: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Entity'
+        },
+        name: {
+            type: 'string',
+            title: 'Name'
+        },
+        description: {
+            type: 'string',
+            title: 'Description'
+        },
+        trigger_patterns: {
+            items: {},
+            type: 'array',
+            title: 'Trigger Patterns'
+        },
+        parameters: {
+            items: {},
+            type: 'array',
+            title: 'Parameters'
+        },
+        risk_tier: {
+            type: 'string',
+            title: 'Risk Tier'
+        },
+        requires_confirmation: {
+            type: 'boolean',
+            title: 'Requires Confirmation'
+        },
+        status: {
+            type: 'string',
+            title: 'Status'
+        },
+        is_active: {
+            type: 'boolean',
+            title: 'Is Active'
+        },
+        namespace: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Namespace'
+        },
+        fallback_skill_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Fallback Skill Id'
+        },
+        project_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Project Id'
+        }
+    },
+    type: 'object',
+    required: ['id', 'app_map_id', 'entity', 'name', 'description', 'trigger_patterns', 'parameters', 'risk_tier', 'requires_confirmation', 'status', 'is_active', 'namespace', 'fallback_skill_id', 'project_id'],
+    title: 'MacroDTO'
+} as const;
+
+export const MacroDetailDTOSchema = {
+    properties: {
+        id: {
+            type: 'integer',
+            title: 'Id'
+        },
+        app_map_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'App Map Id'
+        },
+        entity: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Entity'
+        },
+        name: {
+            type: 'string',
+            title: 'Name'
+        },
+        description: {
+            type: 'string',
+            title: 'Description'
+        },
+        trigger_patterns: {
+            items: {},
+            type: 'array',
+            title: 'Trigger Patterns'
+        },
+        parameters: {
+            items: {},
+            type: 'array',
+            title: 'Parameters'
+        },
+        risk_tier: {
+            type: 'string',
+            title: 'Risk Tier'
+        },
+        requires_confirmation: {
+            type: 'boolean',
+            title: 'Requires Confirmation'
+        },
+        status: {
+            type: 'string',
+            title: 'Status'
+        },
+        is_active: {
+            type: 'boolean',
+            title: 'Is Active'
+        },
+        namespace: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Namespace'
+        },
+        fallback_skill_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Fallback Skill Id'
+        },
+        project_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Project Id'
+        },
+        macro_script: {
+            type: 'string',
+            title: 'Macro Script'
+        },
+        app_map_version: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'App Map Version'
+        },
+        source_thread_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Source Thread Id'
+        }
+    },
+    type: 'object',
+    required: ['id', 'app_map_id', 'entity', 'name', 'description', 'trigger_patterns', 'parameters', 'risk_tier', 'requires_confirmation', 'status', 'is_active', 'namespace', 'fallback_skill_id', 'project_id', 'macro_script', 'app_map_version', 'source_thread_id'],
+    title: 'MacroDetailDTO'
+} as const;
+
+export const MacroExecuteRequestSchema = {
+    properties: {
+        params: {
+            additionalProperties: true,
+            type: 'object',
+            title: 'Params',
+            default: {}
+        }
+    },
+    type: 'object',
+    title: 'MacroExecuteRequest'
+} as const;
+
+export const MacroUpdateRequestSchema = {
+    properties: {
+        name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Name'
+        },
+        description: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Description'
+        },
+        trigger_patterns: {
+            anyOf: [
+                {
+                    items: {},
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Trigger Patterns'
+        },
+        parameters: {
+            anyOf: [
+                {
+                    items: {},
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Parameters'
+        },
+        macro_script: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Macro Script'
+        },
+        namespace: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Namespace'
+        }
+    },
+    type: 'object',
+    title: 'MacroUpdateRequest'
 } as const;
 
 export const McpConnectResponseSchema = {
@@ -4484,53 +4684,6 @@ export const ProjectDeleteResponseSchema = {
     type: 'object',
     required: ['status', 'id'],
     title: 'ProjectDeleteResponse'
-} as const;
-
-export const ProjectDiscoveryConfigRequestSchema = {
-    properties: {
-        enabled: {
-            type: 'boolean',
-            title: 'Enabled'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['enabled'],
-    title: 'ProjectDiscoveryConfigRequest'
-} as const;
-
-export const ProjectDiscoveryConfigUpdateResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        enabled: {
-            type: 'boolean',
-            title: 'Enabled'
-        },
-        locked: {
-            anyOf: [
-                {
-                    type: 'boolean'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Locked'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['enabled'],
-    title: 'ProjectDiscoveryConfigUpdateResponse'
 } as const;
 
 export const ProjectStatusActivitySchema = {
@@ -5929,11 +6082,6 @@ export const SynthesizeRequestSchema = {
                 }
             ],
             title: 'Session Id'
-        },
-        auto_optimize: {
-            type: 'boolean',
-            title: 'Auto Optimize',
-            default: true
         }
     },
     type: 'object',
@@ -6101,6 +6249,22 @@ export const TTSResponseSchema = {
     required: ['url'],
     title: 'TTSResponse',
     description: '语音合成响应'
+} as const;
+
+export const TaskAcceptedResponseSchema = {
+    properties: {
+        status: {
+            type: 'string',
+            title: 'Status'
+        },
+        task_id: {
+            type: 'string',
+            title: 'Task Id'
+        }
+    },
+    type: 'object',
+    required: ['status', 'task_id'],
+    title: 'TaskAcceptedResponse'
 } as const;
 
 export const TaskCreateRequestSchema = {
@@ -7182,37 +7346,6 @@ export const TranscriptionResponseSchema = {
     required: ['text', 'duration', 'language'],
     title: 'TranscriptionResponse',
     description: '语音识别响应'
-} as const;
-
-export const UnignoreProjectResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        status: {
-            type: 'string',
-            title: 'Status'
-        },
-        repo_id: {
-            type: 'integer',
-            title: 'Repo Id'
-        },
-        name: {
-            type: 'string',
-            title: 'Name'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['status', 'repo_id', 'name'],
-    title: 'UnignoreProjectResponse'
 } as const;
 
 export const UpdateProfileRequestSchema = {

@@ -1,5 +1,4 @@
 import { Button } from "@evoloop/shared/components/ui/button"
-import { Checkbox } from "@evoloop/shared/components/ui/checkbox"
 import {
   Form,
   FormControl,
@@ -37,7 +36,6 @@ const generalSettingsSchema = z.object({
   EVOCLOUD_DEVICE_NAME: z.string().min(1),
   EVOCLOUD_DEVICE_DESCRIPTION: z.string(),
   LANGUAGE: z.string().default("zh"),
-  PROJECT_DISCOVERY_ENABLED: z.boolean().default(true),
 })
 
 type GeneralSettingsValues = z.infer<typeof generalSettingsSchema>
@@ -60,7 +58,6 @@ export default function GeneralSettings() {
       EVOCLOUD_DEVICE_NAME: "",
       EVOCLOUD_DEVICE_DESCRIPTION: "",
       LANGUAGE: "zh",
-      PROJECT_DISCOVERY_ENABLED: true,
     },
   })
 
@@ -71,10 +68,7 @@ export default function GeneralSettings() {
 
   const fetchConfig = async () => {
     try {
-      const [configResponse, discoveryResponse] = (await Promise.all([
-        SystemService.getSystemConfig(),
-        SystemService.getProjectDiscoveryConfig(),
-      ])) as [any, { enabled?: boolean }]
+      const configResponse = await SystemService.getSystemConfig()
 
       const configMap: Record<string, string> = {}
       if (Array.isArray(configResponse)) {
@@ -90,7 +84,6 @@ export default function GeneralSettings() {
         EVOCLOUD_DEVICE_DESCRIPTION:
           configMap.EVOCLOUD_DEVICE_DESCRIPTION || "",
         LANGUAGE: language,
-        PROJECT_DISCOVERY_ENABLED: discoveryResponse.enabled ?? true,
       }
       form.reset(values)
       i18n.changeLanguage(language)
@@ -130,9 +123,6 @@ export default function GeneralSettings() {
         }),
         SystemService.updateSystemConfig({
           requestBody: { key: "LANGUAGE", value: data.LANGUAGE },
-        }),
-        SystemService.setProjectDiscoveryConfig({
-          requestBody: { enabled: data.PROJECT_DISCOVERY_ENABLED },
         }),
       ])
 
@@ -312,29 +302,6 @@ export default function GeneralSettings() {
                     {t("settings.general.workspaceRootDesc")}
                   </FormDescription>
                   <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="PROJECT_DISCOVERY_ENABLED"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border border-border/50 bg-muted/5 p-4 transition-colors hover:bg-muted/10">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel className="text-sm font-medium">
-                      {t("settings.general.projectDiscoveryEnabled")}
-                    </FormLabel>
-                    <FormDescription className="text-xs">
-                      {t("settings.general.projectDiscoveryEnabledDesc")}
-                    </FormDescription>
-                  </div>
                 </FormItem>
               )}
             />

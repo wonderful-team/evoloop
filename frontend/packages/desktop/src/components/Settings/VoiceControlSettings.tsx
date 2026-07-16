@@ -12,13 +12,13 @@ import { cn } from "@evoloop/shared/lib/utils"
 import {
   AlertCircle,
   Cpu,
+  Eye,
+  EyeOff,
   Keyboard,
   Mic,
   MousePointerClick,
   Power,
   Zap,
-  Eye,
-  EyeOff,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -67,9 +67,9 @@ export function VoiceControlSettings() {
   const [isTauri, setIsTauri] = useState(false)
   const [sttModel, setSttModel] = useState("paraformer-zh")
   const [sttDevice, setSttDevice] = useState("cpu")
-  const [sttProvider, setSttProvider] = useState("funasr")
+  const [_sttProvider, setSttProvider] = useState("funasr")
   const [tempSttProvider, setTempSttProvider] = useState("funasr")
-  const [sttApiKey, setSttApiKey] = useState("")
+  const [_sttApiKey, setSttApiKey] = useState("")
   const [tempSttApiKey, setTempSttApiKey] = useState("")
   const [showApiKey, setShowApiKey] = useState(false)
   const [sttLoading, setSttLoading] = useState(false)
@@ -453,14 +453,22 @@ export function VoiceControlSettings() {
             </div>
           )}
 
-          {(tempSttProvider === "aliyun-sensevoice" || tempSttProvider === "openai-whisper") && (
+          {(tempSttProvider === "aliyun-sensevoice" ||
+            tempSttProvider === "openai-whisper") && (
             <div className="space-y-3 p-4 bg-muted/10 border border-border/50 rounded-xl animate-in fade-in duration-200">
-              <Label htmlFor="stt-api-key" className="text-sm font-medium flex items-center justify-between">
+              <Label
+                htmlFor="stt-api-key"
+                className="text-sm font-medium flex items-center justify-between"
+              >
                 <span>
-                  {tempSttProvider === "aliyun-sensevoice" ? "阿里云百炼 API Key" : "OpenAI API Key"}
+                  {tempSttProvider === "aliyun-sensevoice"
+                    ? "阿里云百炼 API Key"
+                    : "OpenAI API Key"}
                 </span>
                 <span className="text-xs text-muted-foreground font-normal">
-                  {tempSttProvider === "aliyun-sensevoice" ? "通过百炼控制台获取" : "通过 OpenAI Platform 获取"}
+                  {tempSttProvider === "aliyun-sensevoice"
+                    ? "通过百炼控制台获取"
+                    : "通过 OpenAI Platform 获取"}
                 </span>
               </Label>
               <div className="relative flex items-center">
@@ -470,14 +478,22 @@ export function VoiceControlSettings() {
                   value={tempSttApiKey}
                   onChange={(e) => setTempSttApiKey(e.target.value)}
                   className="flex-1 pl-3 pr-10 py-2 bg-background border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all focus:border-primary font-mono"
-                  placeholder={tempSttProvider === "aliyun-sensevoice" ? "sk-..." : "sk-proj-..."}
+                  placeholder={
+                    tempSttProvider === "aliyun-sensevoice"
+                      ? "sk-..."
+                      : "sk-proj-..."
+                  }
                 />
                 <button
                   type="button"
                   onClick={() => setShowApiKey(!showApiKey)}
                   className="absolute right-3 text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showApiKey ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </button>
               </div>
               <p className="text-xs text-muted-foreground">

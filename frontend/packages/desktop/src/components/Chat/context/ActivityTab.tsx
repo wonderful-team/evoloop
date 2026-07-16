@@ -145,7 +145,9 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
       toast.success(t("learning.executionStarted"))
     } catch (error) {
       console.error("Execution failed", error)
-      toast.error(executeSkillErrorMessage(error) ?? t("learning.executionFailed"))
+      toast.error(
+        executeSkillErrorMessage(error) ?? t("learning.executionFailed"),
+      )
     }
   }
 

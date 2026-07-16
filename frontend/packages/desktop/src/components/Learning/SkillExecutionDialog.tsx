@@ -92,7 +92,9 @@ export function SkillExecutionDialog({
       onSuccess?.()
     } catch (error) {
       console.error("Execution failed", error)
-      toast.error(executeSkillErrorMessage(error) ?? t("learning.executionFailed"))
+      toast.error(
+        executeSkillErrorMessage(error) ?? t("learning.executionFailed"),
+      )
     } finally {
       setExecuting(false)
     }

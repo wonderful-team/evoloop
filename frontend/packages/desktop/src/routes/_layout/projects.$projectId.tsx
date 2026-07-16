@@ -7,6 +7,7 @@ import {
   FileText,
   Key,
   LayoutDashboard,
+  Zap,
 } from "lucide-react"
 import { useEffect } from "react"
 import { useTranslation } from "react-i18next"
@@ -103,7 +104,12 @@ function ProjectLayout() {
       icon: Key,
       path: "/vault",
     },
-    // { id: 'reports', label: t('projects.tabs.reports'), icon: PieChart, path: '/reports' },
+    {
+      id: "macros",
+      label: t("projects.tabs.macros", { defaultValue: "自动化宏" }),
+      icon: Zap,
+      path: "/macros",
+    },
   ]
 
   return (

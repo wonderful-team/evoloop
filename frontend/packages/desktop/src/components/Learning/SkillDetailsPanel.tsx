@@ -143,7 +143,9 @@ export function SkillDetailsPanel({
                     variant="outline"
                     className="bg-primary/5 text-primary border-primary/20"
                   >
-                    {t(`learning.statusBadge.${skill.status || "pending_review"}`)}
+                    {t(
+                      `learning.statusBadge.${skill.status || "pending_review"}`,
+                    )}
                   </Badge>
                   <Badge
                     variant="outline"

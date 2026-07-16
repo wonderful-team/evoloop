@@ -69,6 +69,12 @@ export type AnnotationResponse = {
     [key: string]: unknown | boolean | string | number;
 };
 
+export type AppMapGenerateRequest = {
+    project_id: number;
+    entity: string;
+    force_regenerate?: boolean;
+};
+
 /**
  * Standard API response envelope with success/message.
  */
@@ -92,29 +98,6 @@ export type BatchCheckResponse = {
     is_expired: boolean;
     level_name: string;
     [key: string]: unknown | boolean | string;
-};
-
-export type BatchImportRequest = {
-    repo_ids: Array<(number)>;
-    [key: string]: unknown | number;
-};
-
-export type BatchImportResponse = {
-    success?: boolean;
-    message?: string;
-    status: string;
-    summary: string;
-    results: {
-        [key: string]: Array<BatchResultItem>;
-    };
-    [key: string]: unknown | boolean | string | BatchResultItem;
-};
-
-export type BatchResultItem = {
-    repo_id: number;
-    name?: (string | null);
-    error?: (string | null);
-    [key: string]: unknown | number;
 };
 
 export type BenefitsUpdateWebhook = {
@@ -313,6 +296,10 @@ export type ConceptUpdate = {
     [key: string]: unknown;
 };
 
+export type ConfirmBulkRequest = {
+    macro_ids: Array<(number)>;
+};
+
 export type ConversationListItem = {
     thread_id: string;
     title: string;
@@ -383,7 +370,8 @@ export type CreateOrderRequest = {
 export type CreateProjectRequest = {
     name: string;
     description?: string;
-    path: string;
+    path?: (string | null);
+    sub_path?: (string | null);
     [key: string]: unknown | string;
 };
 
@@ -437,14 +425,6 @@ export type DebugStatusResponse = {
     is_connected: boolean;
     api_url: string;
     [key: string]: unknown | boolean | string;
-};
-
-export type DetectedProjectItem = {
-    id: number;
-    name: string;
-    path: (string | null);
-    detected_at: (string | null);
-    [key: string]: unknown | number | string;
 };
 
 export type DeviceResolutionResponse = {
@@ -698,15 +678,13 @@ export type HybridSearchResponse = {
     [key: string]: unknown | boolean | string | HybridResultItem | number;
 };
 
-export type IgnoreProjectResponse = {
-    success?: boolean;
-    message?: string;
-    status: string;
-    repo_id: number;
-    [key: string]: unknown | boolean | string | number;
+export type ImportProjectByPathRequest = {
+    path: string;
+    name?: (string | null);
+    [key: string]: unknown | string;
 };
 
-export type ImportProjectResponse = {
+export type ImportProjectByPathResponse = {
     success?: boolean;
     message?: string;
     status: string;
@@ -739,16 +717,6 @@ export type IndexingRunResponse = {
     status: string;
     project_id: number;
     [key: string]: unknown | boolean | string | number;
-};
-
-export type ListResponse_DetectedProjectItem_ = {
-    success?: boolean;
-    message?: string;
-    data?: Array<DetectedProjectItem>;
-    total?: number;
-    page?: number;
-    page_size?: number;
-    [key: string]: unknown | boolean | string | DetectedProjectItem | number;
 };
 
 export type LLMApplyResponse = {
@@ -831,6 +799,58 @@ export type LogoutResponse = {
     message?: string;
     code: number;
     [key: string]: unknown | boolean | string | number;
+};
+
+export type MacroDetailDTO = {
+    id: number;
+    app_map_id: (number | null);
+    entity: (string | null);
+    name: string;
+    description: string;
+    trigger_patterns: Array<unknown>;
+    parameters: Array<unknown>;
+    risk_tier: string;
+    requires_confirmation: boolean;
+    status: string;
+    is_active: boolean;
+    namespace: (string | null);
+    fallback_skill_id: (number | null);
+    project_id: (number | null);
+    macro_script: string;
+    app_map_version: (number | null);
+    source_thread_id: (string | null);
+};
+
+export type MacroDTO = {
+    id: number;
+    app_map_id: (number | null);
+    entity: (string | null);
+    name: string;
+    description: string;
+    trigger_patterns: Array<unknown>;
+    parameters: Array<unknown>;
+    risk_tier: string;
+    requires_confirmation: boolean;
+    status: string;
+    is_active: boolean;
+    namespace: (string | null);
+    fallback_skill_id: (number | null);
+    project_id: (number | null);
+};
+
+export type MacroExecuteRequest = {
+    params?: {
+        [key: string]: unknown;
+    };
+};
+
+export type MacroUpdateRequest = {
+    name?: (string | null);
+    description?: (string | null);
+    trigger_patterns?: (Array<unknown> | null);
+    parameters?: (Array<unknown> | null);
+    macro_script?: (string | null);
+    namespace?: (string | null);
 };
 
 /**
@@ -1152,19 +1172,6 @@ export type ProjectDeleteResponse = {
     status: string;
     id: number;
     [key: string]: unknown | boolean | string | number;
-};
-
-export type ProjectDiscoveryConfigRequest = {
-    enabled: boolean;
-    [key: string]: unknown | boolean;
-};
-
-export type ProjectDiscoveryConfigUpdateResponse = {
-    success?: boolean;
-    message?: string;
-    enabled: boolean;
-    locked?: (boolean | null);
-    [key: string]: unknown | boolean | string;
 };
 
 export type ProjectStatusActivity = {
@@ -1519,7 +1526,6 @@ export type SynthesizeRequest = {
     project_id?: (number | null);
     thread_id: string;
     session_id?: (string | null);
-    auto_optimize?: boolean;
 };
 
 export type SynthesizeSkillResponse = {
@@ -1546,6 +1552,11 @@ export type SystemStatusResponse = {
     ram_total_gb: number;
     status?: string;
     [key: string]: unknown | boolean | string | number;
+};
+
+export type TaskAcceptedResponse = {
+    status: string;
+    task_id: string;
 };
 
 export type TaskCreateRequest = {
@@ -1799,15 +1810,6 @@ export type TTSResponse = {
     url: string;
     duration?: (number | null);
     [key: string]: unknown | boolean | string;
-};
-
-export type UnignoreProjectResponse = {
-    success?: boolean;
-    message?: string;
-    status: string;
-    repo_id: number;
-    name: string;
-    [key: string]: unknown | boolean | string | number;
 };
 
 export type UpdateProfileRequest = {
@@ -2153,6 +2155,24 @@ export type AgentWebhookEndpointData = {
 };
 
 export type AgentWebhookEndpointResponse = (unknown);
+
+export type AtlasGenerateAppMapData = {
+    requestBody: AppMapGenerateRequest;
+};
+
+export type AtlasGenerateAppMapResponse = (TaskAcceptedResponse);
+
+export type AtlasGenerateMacrosData = {
+    appMapId: number;
+};
+
+export type AtlasGenerateMacrosResponse = (TaskAcceptedResponse);
+
+export type AtlasListAppMapsData = {
+    projectId: number;
+};
+
+export type AtlasListAppMapsResponse = (unknown);
 
 export type AudioListVoicesResponse = (VoiceListResponse);
 
@@ -2674,6 +2694,52 @@ export type LearningListAndroidExtractPointsData = {
 
 export type LearningListAndroidExtractPointsResponse = (Array<AndroidExtractPointResponse>);
 
+export type MacrosListMacrosData = {
+    appMapId?: (number | null);
+    projectId?: (number | null);
+    status?: (string | null);
+};
+
+export type MacrosListMacrosResponse = (Array<MacroDTO>);
+
+export type MacrosGetMacroData = {
+    macroId: number;
+};
+
+export type MacrosGetMacroResponse = (MacroDetailDTO);
+
+export type MacrosUpdateMacroData = {
+    macroId: number;
+    requestBody: MacroUpdateRequest;
+};
+
+export type MacrosUpdateMacroResponse = (MacroDTO);
+
+export type MacrosDeleteMacroData = {
+    macroId: number;
+};
+
+export type MacrosDeleteMacroResponse = (unknown);
+
+export type MacrosConfirmMacroData = {
+    macroId: number;
+};
+
+export type MacrosConfirmMacroResponse = (MacroDTO);
+
+export type MacrosConfirmBulkData = {
+    requestBody: ConfirmBulkRequest;
+};
+
+export type MacrosConfirmBulkResponse = (unknown);
+
+export type MacrosExecuteMacroData = {
+    macroId: number;
+    requestBody: MacroExecuteRequest;
+};
+
+export type MacrosExecuteMacroResponse = (unknown);
+
 export type McpListMcpServersResponse = (Array<unknown>);
 
 export type McpAddMcpServerData = {
@@ -2896,47 +2962,13 @@ export type ProjectsCreateProjectData = {
 
 export type ProjectsCreateProjectResponse = (unknown);
 
-export type ProjectsScanWorkspaceProjectsEndpointResponse = (ListResponse_DetectedProjectItem_);
-
-export type ProjectsGetDetectedProjectsData = {
-    force?: boolean;
-};
-
-export type ProjectsGetDetectedProjectsResponse = (ListResponse_DetectedProjectItem_);
-
-export type ProjectsImportDetectedProjectData = {
-    repoId: number;
-};
-
-export type ProjectsImportDetectedProjectResponse = (ImportProjectResponse);
-
-export type ProjectsIgnoreDetectedProjectData = {
-    repoId: number;
-};
-
-export type ProjectsIgnoreDetectedProjectResponse = (IgnoreProjectResponse);
-
-export type ProjectsGetIgnoredProjectsResponse = (ListResponse_DetectedProjectItem_);
-
-export type ProjectsUnignoreProjectData = {
-    repoId: number;
-};
-
-export type ProjectsUnignoreProjectResponse = (UnignoreProjectResponse);
-
-export type ProjectsBatchImportProjectsData = {
-    requestBody: BatchImportRequest;
-};
-
-export type ProjectsBatchImportProjectsResponse = (BatchImportResponse);
-
-export type ProjectsBatchIgnoreProjectsData = {
-    requestBody: BatchImportRequest;
-};
-
-export type ProjectsBatchIgnoreProjectsResponse = (BatchImportResponse);
-
 export type ProjectsGetCurrentProjectResponse = (unknown);
+
+export type ProjectsImportProjectByPathData = {
+    requestBody: ImportProjectByPathRequest;
+};
+
+export type ProjectsImportProjectByPathResponse = (ImportProjectByPathResponse);
 
 export type ProjectsGetProjectStatusData = {
     projectId: number;
@@ -3156,14 +3188,6 @@ export type SystemGetLlmModelsData = {
 export type SystemGetLlmModelsResponse = (ModelsListResponse);
 
 export type SystemGetEmbeddingModelsResponse = (ModelsListResponse);
-
-export type SystemGetProjectDiscoveryConfigResponse = (unknown);
-
-export type SystemSetProjectDiscoveryConfigData = {
-    requestBody: ProjectDiscoveryConfigRequest;
-};
-
-export type SystemSetProjectDiscoveryConfigResponse = (ProjectDiscoveryConfigUpdateResponse);
 
 export type TasksGetProjectTasksData = {
     page?: number;

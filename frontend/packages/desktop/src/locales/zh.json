@@ -922,7 +922,8 @@
     "statusBadge": {
       "candidate": "候选",
       "pending_review": "待审核",
-      "verified": "已验证"
+      "verified": "已验证",
+      "obsolete": "已废弃"
     },
     "steps": "{{count}} 步骤",
     "stopRecording": "停止",
@@ -936,6 +937,7 @@
     "synthesizingProgress": "正在分析录制内容...",
     "tabs": {
       "library": "技能库",
+      "macros": "宏库",
       "mcpServers": "外部工具",
       "recording": "移动录制"
     },
@@ -972,6 +974,34 @@
     "selfHeal": {
       "toggle": "自愈",
       "toggleHint": "开启后，宏执行失败会回落给 Agent 尝试恢复。此开关仅影响调试运行。"
+    },
+    "macros": {
+      "searchPlaceholder": "搜索宏（名称/描述/实体）",
+      "total": "个宏",
+      "empty": "暂无宏 — 先运行 AppMap 源码勘测生成",
+      "confirm": "确认",
+      "confirmSelected": "批量确认 ({{count}})",
+      "confirmed": "已确认 {{count}} 个宏",
+      "deleted": "宏已删除",
+      "pendingCount": "{{count}} 待审核",
+      "selectPending": "全选待审核",
+      "regenerate": "重新生成",
+      "regenStarted": "宏重新生成已提交，稍后自动刷新",
+      "requiresConfirm": "执行前需要人工确认",
+      "runNeedsConfirm": "确认并激活后才能运行",
+      "runTitle": "运行宏：{{name}}",
+      "runSuccess": "宏执行成功",
+      "runFailed": "宏执行失败",
+      "noParams": "该宏无需参数",
+      "noEntity": "未关联实体",
+      "editTitle": "编辑宏：{{name}}",
+      "editDesc": "修改名称、描述、语音触发词，以及 YAML 步骤脚本。risk_tier 由系统自动分析，不可手动更改。",
+      "triggerPatterns": "语音触发词",
+      "triggerPatternsHint": "每行一条，支持自然语言变体",
+      "riskTier": "风险等级",
+      "riskTierHint": "由系统自动评估，不可手动更改",
+      "fallbackSkill": "自愈回落技能",
+      "fallbackSkillRequired": "开启自愈后，必须选择一个回落技能作为接管心法"
     }
   },
   "macroEditor": {
@@ -1228,6 +1258,8 @@
       "errorNameRequired": "项目名称不能为空",
       "nameLabel": "项目名称",
       "namePlaceholder": "my-awesome-project",
+      "subPathLabel": "子目录路径 (可选)",
+      "subPathPlaceholder": "如 team-a/my-project，留空则使用项目名称",
       "submit": "创建项目",
       "success": "项目创建成功",
       "title": "创建新项目"
@@ -1269,7 +1301,16 @@
       "manualImport": "导入项目",
       "newProjectsDetected": "检测到新项目",
       "scanComplete": "扫描完成",
-      "scanFailed": "扫描失败"
+      "scanFailed": "扫描失败",
+      "errorPathRequired": "项目路径不能为空",
+      "success": "项目导入成功",
+      "title": "导入现有目录",
+      "description": "通过指定 WORKSPACE_ROOT 下的路径导入一个已存在的项目目录。",
+      "pathLabel": "目录路径",
+      "pathPlaceholder": "如 team-a/my-project (可以是相对或绝对路径)",
+      "nameLabel": "项目显示名称 (可选)",
+      "namePlaceholder": "留空则使用文件夹名",
+      "submit": "确认导入"
     },
     "loading": "加载项目中...",
     "new": "新建项目",

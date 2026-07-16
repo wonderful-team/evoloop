@@ -15,7 +15,13 @@ const fetchStatus = async (projectId: number) => {
 }
 
 export function useProjectStatus() {
-  const { currentProject, updateProjectStatus, getProject, setProject, fetchProjects } = useProjectStore()
+  const {
+    currentProject,
+    updateProjectStatus,
+    getProject,
+    setProject,
+    fetchProjects,
+  } = useProjectStore()
 
   useEffect(() => {
     if (!isLoggedIn()) return

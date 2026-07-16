@@ -922,7 +922,8 @@
     "statusBadge": {
       "candidate": "Candidate",
       "pending_review": "Pending Review",
-      "verified": "Verified"
+      "verified": "Verified",
+      "obsolete": "Obsolete"
     },
     "steps": "{{count}} STEPS",
     "stopRecording": "Stop",
@@ -936,6 +937,7 @@
     "synthesizingProgress": "Analyzing recording content...",
     "tabs": {
       "library": "Skill Library",
+      "macros": "Macros",
       "mcpServers": "External Tools",
       "recording": "Active Recording"
     },
@@ -972,6 +974,34 @@
     "selfHeal": {
       "toggle": "Self-heal",
       "toggleHint": "When enabled, a failed macro run falls back to the agent to recover. This toggle affects debug runs only."
+    },
+    "macros": {
+      "searchPlaceholder": "Search macros (name/description/entity)",
+      "total": "macros",
+      "empty": "No macros yet — run an AppMap source survey first",
+      "confirm": "Confirm",
+      "confirmSelected": "Confirm selected ({{count}})",
+      "confirmed": "Confirmed {{count}} macro(s)",
+      "deleted": "Macro deleted",
+      "pendingCount": "{{count}} pending",
+      "selectPending": "Select pending",
+      "regenerate": "Regenerate",
+      "regenStarted": "Macro regeneration submitted; refreshing shortly",
+      "requiresConfirm": "Requires human confirmation before execution",
+      "runNeedsConfirm": "Confirm and activate before running",
+      "runTitle": "Run macro: {{name}}",
+      "runSuccess": "Macro executed successfully",
+      "runFailed": "Macro execution failed",
+      "noParams": "This macro takes no parameters",
+      "noEntity": "No entity",
+      "editTitle": "Edit Macro: {{name}}",
+      "editDesc": "Modify name, description, voice trigger patterns, and the YAML step script. Risk tier is assessed automatically and cannot be changed manually.",
+      "triggerPatterns": "Voice Trigger Patterns",
+      "triggerPatternsHint": "One pattern per line, natural language variants supported",
+      "riskTier": "Risk Tier",
+      "riskTierHint": "Assessed automatically by the system, cannot be changed manually",
+      "fallbackSkill": "Self-healing Fallback Skill",
+      "fallbackSkillRequired": "A fallback skill must be selected when self-healing is enabled"
     }
   },
   "macroEditor": {
@@ -1228,6 +1258,8 @@
       "errorNameRequired": "Project name is required",
       "nameLabel": "Project Name",
       "namePlaceholder": "my-awesome-project",
+      "subPathLabel": "Subdirectory Path (Optional)",
+      "subPathPlaceholder": "e.g. team-a/my-project. Leave empty to use project name",
       "submit": "Create Project",
       "success": "Project created successfully",
       "title": "Create New Project"
@@ -1269,7 +1301,16 @@
       "manualImport": "Import Projects",
       "newProjectsDetected": "New Projects Detected",
       "scanComplete": "Scan complete",
-      "scanFailed": "Scan failed"
+      "scanFailed": "Scan failed",
+      "errorPathRequired": "Project path is required",
+      "success": "Project imported successfully",
+      "title": "Import Existing Directory",
+      "description": "Import an existing directory as a project by specifying its path under WORKSPACE_ROOT.",
+      "pathLabel": "Directory Path",
+      "pathPlaceholder": "e.g. team-a/my-project (relative or absolute path)",
+      "nameLabel": "Display Name (Optional)",
+      "namePlaceholder": "Leave empty to use folder name",
+      "submit": "Import"
     },
     "loading": "Loading projects...",
     "new": "New Project",

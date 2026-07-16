@@ -14,19 +14,17 @@ import {
   CheckCircle2,
   Clock,
   FolderOpen,
-  FolderPlus,
   Layers,
   ListTodo,
   RefreshCw,
   XCircle,
 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { useProjectImportStore } from "@/stores/projectImportStore"
 import type { Project } from "@/stores/projectStore"
 import { useProjectStore } from "@/stores/projectStore"
 import AddProject from "./AddProject"
+import ImportProject from "./ImportProject"
 import { ProjectActions } from "./ProjectActions"
 
 // Helper to get indexing status display info
@@ -89,9 +87,6 @@ export function ProjectList() {
     isLoading: isListLoading,
   } = useProjectStore()
 
-  const { scanProjects } = useProjectImportStore()
-  const [isScanning, setIsScanning] = useState(false)
-
   // Trigger fetch on mount
   useEffect(() => {
     fetchProjects()
@@ -101,24 +96,12 @@ export function ProjectList() {
     fetchProjects()
   }
 
-  const handleScan = async () => {
-    setIsScanning(true)
-    try {
-      await scanProjects()
-      toast.success(t("projects.import.scanComplete"))
-    } catch (_error) {
-      toast.error(t("projects.import.scanFailed"))
-    } finally {
-      setIsScanning(false)
-    }
-  }
-
   const handleSelect = (proj: any) => {
     setProject(proj)
     navigate({ to: `/projects/${proj.id}` })
   }
 
-  const isLoading = isListLoading || isScanning
+  const isLoading = isListLoading
 
   if (isListLoading && projects.length === 0) {
     return <div className="p-8">{t("projects.loading")}</div>
@@ -145,12 +128,7 @@ export function ProjectList() {
             {t("projects.refresh")}
           </Button>
 
-          <Button variant="outline" onClick={handleScan} disabled={isLoading}>
-            <FolderPlus
-              className={`mr-2 h-4 w-4 ${isScanning ? "animate-spin" : ""}`}
-            />
-            {t("projects.import.manualImport")}
-          </Button>
+          <ImportProject />
 
           <AddProject />
         </div>

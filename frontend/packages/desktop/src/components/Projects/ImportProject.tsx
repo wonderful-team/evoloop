@@ -21,51 +21,77 @@ import { Input } from "@evoloop/shared/components/ui/input"
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation } from "@tanstack/react-query"
-import { Plus } from "lucide-react"
+import { FolderPlus } from "lucide-react"
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
 import { z } from "zod"
 import { ProjectsService } from "@/client"
+import { isTauri } from "@/lib/tauri"
 import { useProjectStore } from "@/stores/projectStore"
 import { handleError } from "@/utils"
 
-const createSchema = (t: any) =>
+const importSchema = (t: any) =>
   z.object({
-    name: z
+    path: z
       .string()
-      .min(1, { message: t("projects.create.errorNameRequired") }),
-    sub_path: z.string().optional(),
+      .min(1, { message: t("projects.import.errorPathRequired") }),
+    name: z.string().optional(),
   })
 
-type CreateProjectForm = z.infer<ReturnType<typeof createSchema>>
+type ImportProjectForm = z.infer<ReturnType<typeof importSchema>>
 
-export default function AddProject() {
+export default function ImportProject() {
   const [open, setOpen] = useState(false)
   const { fetchProjects } = useProjectStore()
   const { showSuccessToast, showErrorToast } = useCustomToast()
   const { t } = useTranslation()
-  const schema = createSchema(t)
+  const schema = importSchema(t)
 
-  const form = useForm<CreateProjectForm>({
+  const form = useForm<ImportProjectForm>({
     resolver: zodResolver(schema),
     defaultValues: {
+      path: "",
       name: "",
-      sub_path: "",
     },
   })
 
+  const handleBrowse = async () => {
+    if (!isTauri()) {
+      toast.info(
+        t("settings.general.webBrowseHint") ||
+          "Directory browsing is only supported in the desktop app.",
+      )
+      return
+    }
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog")
+      const selected = await open({
+        directory: true,
+        multiple: false,
+      })
+      if (typeof selected === "string") {
+        form.setValue("path", selected)
+      }
+    } catch (_error) {
+      toast.error(
+        t("settings.general.browseError") || "Failed to select directory",
+      )
+    }
+  }
+
   const mutation = useMutation({
-    mutationFn: (data: CreateProjectForm) => {
-      return ProjectsService.createProject({
+    mutationFn: (data: ImportProjectForm) => {
+      return ProjectsService.importProjectByPath({
         requestBody: {
-          name: data.name,
-          sub_path: data.sub_path || undefined,
+          path: data.path,
+          name: data.name || undefined,
         },
       })
     },
     onSuccess: () => {
-      showSuccessToast(t("projects.create.success"))
+      showSuccessToast(t("projects.import.success"))
       setOpen(false)
       form.reset()
       fetchProjects()
@@ -73,22 +99,23 @@ export default function AddProject() {
     onError: handleError.bind(showErrorToast),
   })
 
-  const onSubmit = (data: CreateProjectForm) => {
+  const onSubmit = (data: ImportProjectForm) => {
     mutation.mutate(data)
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" /> {t("projects.new")}
+        <Button variant="outline">
+          <FolderPlus className="mr-2 h-4 w-4" />{" "}
+          {t("projects.import.manualImport")}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>{t("projects.create.title")}</DialogTitle>
+          <DialogTitle>{t("projects.import.title")}</DialogTitle>
           <DialogDescription>
-            {t("projects.create.description")}
+            {t("projects.import.description")}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -98,16 +125,33 @@ export default function AddProject() {
           >
             <FormField
               control={form.control}
-              name="name"
+              name="path"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t("projects.create.nameLabel")}</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={t("projects.create.namePlaceholder")}
-                      {...field}
-                    />
-                  </FormControl>
+                  <FormLabel>{t("projects.import.pathLabel")}</FormLabel>
+                  <div className="flex gap-2">
+                    <FormControl>
+                      <Input
+                        placeholder={t("projects.import.pathPlaceholder")}
+                        {...field}
+                      />
+                    </FormControl>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-10 shrink-0"
+                      onClick={handleBrowse}
+                      disabled={!isTauri()}
+                      title={
+                        !isTauri()
+                          ? t("settings.general.webBrowseHint") ||
+                            "Only available in desktop app"
+                          : ""
+                      }
+                    >
+                      {t("settings.general.browse") || "Browse"}
+                    </Button>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
@@ -115,17 +159,13 @@ export default function AddProject() {
 
             <FormField
               control={form.control}
-              name="sub_path"
+              name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>
-                    {t("projects.create.subPathLabel") ||
-                      t("projects.create.subPath") ||
-                      "Subdirectory path (Optional)"}
-                  </FormLabel>
+                  <FormLabel>{t("projects.import.nameLabel")}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder={t("projects.create.subPathPlaceholder")}
+                      placeholder={t("projects.import.namePlaceholder")}
                       {...field}
                     />
                   </FormControl>
@@ -141,7 +181,7 @@ export default function AddProject() {
                 </Button>
               </DialogClose>
               <Button type="submit" disabled={mutation.isPending}>
-                {t("projects.create.submit")}
+                {t("projects.import.submit")}
               </Button>
             </DialogFooter>
           </form>

@@ -1,22 +1,13 @@
 /**
- * SkillEditorPage - Full page skill editor (replaces SkillEditorDialog)
+ * SkillEditorPage - Full page skill editor for agentic SOP skills only.
+ * Macro script editing has been moved to MacroLibraryView / MacroEditDialog.
  */
 
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Separator } from "@evoloop/shared/components/ui/separator"
 import { Switch } from "@evoloop/shared/components/ui/switch"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { dump as yamlDump, load as yamlLoad } from "js-yaml"
-import {
-  ArrowLeft,
-  Loader2,
-  Play,
-  Save,
-  Settings2,
-  Sparkles,
-  Trash2,
-  Zap,
-} from "lucide-react"
+import { ArrowLeft, Loader2, Play, Save, Settings2, Sparkles, Trash2 } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -28,7 +19,6 @@ import type { ParamDef } from "./EditorSidebar"
 import { EditorSidebar } from "./EditorSidebar"
 import { MacroRunFeed } from "./MacroRunFeed"
 import { executeSkillErrorMessage } from "./skillLifecycle"
-import { MacroEditor, type MacroStep, MacroYamlEditor } from "./SmartReplay"
 
 interface SkillEditorPageProps {
   skillId: number
@@ -51,14 +41,6 @@ export function SkillEditorPage({
   const [newTrigger, setNewTrigger] = useState("")
   const [params, setParams] = useState<ParamDef[]>([])
   const [instructions, setInstructions] = useState("")
-  const [executionMode, setExecutionMode] = useState<
-    "agentic" | "deterministic"
-  >("agentic")
-  const [macroScript, setMacroScript] = useState("[]")
-  const [editorMode, setEditorMode] = useState<"visual" | "yaml">("visual")
-  // Per-run self-heal toggle for debug runs (defaults to the skill's
-  // declared setting; the run-level flag can only disable healing).
-  const [selfHealEnabled, setSelfHealEnabled] = useState(true)
   const [hasChanges, setHasChanges] = useState(false)
 
   // Fetch skill data
@@ -70,20 +52,12 @@ export function SkillEditorPage({
     },
   })
 
-  // Track changes and warn before unload
+  // Track changes
   useEffect(() => {
     if (skill) {
       setHasChanges(true)
     }
-  }, [
-    name,
-    description,
-    triggers,
-    params,
-    instructions,
-    executionMode,
-    macroScript,
-  ])
+  }, [name, description, triggers, params, instructions])
 
   // Warn before closing/leaving page with unsaved changes
   useEffect(() => {
@@ -130,89 +104,13 @@ export function SkillEditorPage({
       setTriggers(safeParse(skill.trigger_patterns, []))
       setParams(safeParse(skill.parameters, []))
       setInstructions(skill.instructions || "")
-      setExecutionMode(
-        (skill as any).execution_mode === "deterministic"
-          ? "deterministic"
-          : "agentic",
-      )
-      setSelfHealEnabled(skill.allow_self_healing !== false)
-
-      // Handle macro_script: API now returns YAML string directly
-      const rawMacro = (skill as any).macro_script
-      if (rawMacro) {
-        if (typeof rawMacro === "string") {
-          // It's already YAML string from API
-          setMacroScript(rawMacro)
-        } else {
-          // Legacy: convert JSON to YAML
-          setMacroScript(
-            yamlDump(rawMacro, {
-              indent: 2,
-              lineWidth: -1,
-              noRefs: true,
-              sortKeys: false,
-            }),
-          )
-        }
-      } else {
-        setMacroScript(
-          'version: "1.0"\nmetadata:\n  format: evoloop-macro\n  step_count: 0\nsteps: []',
-        )
-      }
       setHasChanges(false)
     }
   }, [skill])
 
-  // Helper to safely parse macro script from YAML
-  const safeParseMacro = (script: string): MacroStep[] => {
-    try {
-      // Try YAML first (new format)
-      const parsed = yamlLoad(script || "steps: []")
-
-      // Handle null/undefined
-      if (!parsed) return []
-
-      // Handle direct array format (must check before object check)
-      if (Array.isArray(parsed)) {
-        return parsed
-      }
-
-      // Handle object formats
-      if (typeof parsed === "object") {
-        // Handle { steps: [...] } format
-        if (Array.isArray((parsed as any).steps)) {
-          return (parsed as any).steps
-        }
-        // Handle nested { macro_script: { steps: [...] } } format from LLM
-        const nested = (parsed as any).macro_script
-        if (nested && typeof nested === "object") {
-          if (Array.isArray(nested.steps)) {
-            return nested.steps
-          }
-        }
-      }
-      return []
-    } catch {
-      // Fallback to JSON (legacy format)
-      try {
-        const parsed = JSON.parse(script || "[]")
-        return Array.isArray(parsed) ? parsed : []
-      } catch {
-        return []
-      }
-    }
-  }
-
   // Mutations
   const updateMutation = useMutation({
     mutationFn: async () => {
-      // Validate YAML before saving
-      try {
-        yamlLoad(macroScript || "steps: []")
-      } catch (_e) {
-        throw new Error(t("learning.editor.invalidMacroYaml"))
-      }
-
       return LearningService.updateSkill({
         skillId,
         requestBody: {
@@ -221,8 +119,6 @@ export function SkillEditorPage({
           trigger_patterns: triggers,
           parameters: params as any[],
           instructions: instructions,
-          execution_mode: executionMode,
-          macro_script: macroScript, // Send YAML string directly
         } as any,
       })
     },
@@ -305,35 +201,19 @@ export function SkillEditorPage({
 
   const handleRun = async () => {
     try {
-      // Progress (macro_thought steps) streams to the active chat thread's
-      // SSE; without one the run would be invisible, so require it.
       const threadId = useChatStore.getState().threadId
       if (!threadId) {
         toast.error(t("learning.macroRun.openChatFirst"))
         return
       }
-      const response = await LearningService.executeSkill({
+      await LearningService.executeSkill({
         skillId,
         requestBody: {
           thread_id: threadId,
           params: {},
-          // Use current page execution mode (allows testing before saving)
-          execution_mode: executionMode,
-          // Per-run self-heal override from the debug-run toggle
-          allow_self_healing: selfHealEnabled,
         },
       })
-      // Show execution mode in toast for clarity
-      const modeLabel =
-        response.execution_mode === "deterministic"
-          ? t("learning.deterministic")
-          : t("learning.agentic")
-      toast.success(
-        t("learning.executionStartedWithMode", {
-          message: t("learning.executionStarted"),
-          mode: modeLabel,
-        }),
-      )
+      toast.success(t("learning.executionStarted"))
     } catch (e) {
       toast.error(executeSkillErrorMessage(e) ?? t("learning.executionFailed"))
     }
@@ -392,18 +272,6 @@ export function SkillEditorPage({
         </div>
 
         <div className="flex items-center gap-3">
-          <label
-            className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none"
-            title={t("learning.selfHeal.toggleHint")}
-          >
-            <Switch
-              checked={selfHealEnabled}
-              onCheckedChange={setSelfHealEnabled}
-              className="scale-90"
-            />
-            {t("learning.selfHeal.toggle")}
-          </label>
-
           <Button
             variant="outline"
             size="sm"
@@ -466,119 +334,15 @@ export function SkillEditorPage({
         <div className="flex-1 p-3 flex flex-col bg-muted/10 h-full min-h-0">
           <div className="flex flex-row items-center justify-between mb-2 shrink-0">
             <div className="flex items-center gap-2 text-sm font-bold text-amber-600">
-              {executionMode === "agentic" ? (
-                <Sparkles className="h-4 w-4" />
-              ) : (
-                <Zap className="h-4 w-4 text-emerald-500" />
-              )}
-              <span
-                className={
-                  executionMode === "deterministic" ? "text-emerald-600" : ""
-                }
-              >
-                {executionMode === "agentic"
-                  ? t("learning.expertGuide")
-                  : t("learning.macroSequence")}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              {executionMode === "deterministic" && (
-                <div className="flex items-center gap-1 text-xs bg-muted p-1 rounded-md">
-                  <button
-                    onClick={() => setEditorMode("visual")}
-                    className={`px-2 py-1 rounded-sm transition-colors ${
-                      editorMode === "visual"
-                        ? "bg-background font-medium shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {t("macroEditor.visual")}
-                  </button>
-                  <button
-                    onClick={() => setEditorMode("yaml")}
-                    className={`px-2 py-1 rounded-sm transition-colors ${
-                      editorMode === "yaml"
-                        ? "bg-background font-medium shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    YAML
-                  </button>
-                </div>
-              )}
-              <div className="flex items-center gap-2 text-xs bg-background p-1 rounded-md border shadow-sm">
-                <button
-                  onClick={() => setExecutionMode("agentic")}
-                  className={`px-3 py-1.5 rounded-sm transition-colors ${
-                    executionMode === "agentic"
-                      ? "bg-amber-100 text-amber-800 font-bold"
-                      : "hover:bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {t("learning.agenticIcon")} {t("learning.agentic")}
-                </button>
-                <button
-                  onClick={() => setExecutionMode("deterministic")}
-                  className={`px-3 py-1.5 rounded-sm transition-colors ${
-                    executionMode === "deterministic"
-                      ? "bg-emerald-100 text-emerald-800 font-bold"
-                      : "hover:bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {t("learning.deterministicIcon")}{" "}
-                  {t("learning.deterministic")}
-                </button>
-              </div>
+              <Sparkles className="h-4 w-4" />
+              <span>{t("learning.expertGuide")}</span>
             </div>
           </div>
-          {executionMode === "agentic" ? (
-            <MarkdownEditor
-              value={instructions}
-              onChange={setInstructions}
-              placeholder={t("learning.editor.expertGuidePlaceholder")}
-            />
-          ) : (
-            <div className="flex-1 min-h-0 border rounded-xl bg-background shadow-sm overflow-hidden">
-              {editorMode === "visual" ? (
-                <MacroEditor
-                  steps={safeParseMacro(macroScript)}
-                  onChange={(steps) =>
-                    setMacroScript(
-                      yamlDump(steps, {
-                        indent: 2,
-                        lineWidth: -1,
-                        noRefs: true,
-                        sortKeys: false,
-                      }),
-                    )
-                  }
-                  onStepPreview={(step) => {
-                    console.log("Preview step:", step)
-                    toast.info(
-                      t("learning.stepPreview", {
-                        number: step.step_number,
-                        description: step.description || step.event_type,
-                      }),
-                    )
-                  }}
-                />
-              ) : (
-                <MacroYamlEditor
-                  steps={safeParseMacro(macroScript)}
-                  onChange={(steps) =>
-                    setMacroScript(
-                      yamlDump(steps, {
-                        indent: 2,
-                        lineWidth: -1,
-                        noRefs: true,
-                        sortKeys: false,
-                      }),
-                    )
-                  }
-                />
-              )}
-            </div>
-          )}
+          <MarkdownEditor
+            value={instructions}
+            onChange={setInstructions}
+            placeholder={t("learning.editor.expertGuidePlaceholder")}
+          />
         </div>
       </div>
     </div>

@@ -113,32 +113,29 @@ export function GlobalRecorderManager() {
     let active = true
     let unlistenFn: (() => void) | undefined
     const setup = async () => {
-      const fn = await safeListen<string>(
-        "recording-auto-stopped",
-        (event) => {
-          const reason = event.payload
-          console.warn(
-            "[GlobalRecorderManager] Recording auto-stopped by watchdog:",
-            reason,
-          )
+      const fn = await safeListen<string>("recording-auto-stopped", (event) => {
+        const reason = event.payload
+        console.warn(
+          "[GlobalRecorderManager] Recording auto-stopped by watchdog:",
+          reason,
+        )
 
-          const state = useRecordingStore.getState()
-          if (!state.isRecording) return
+        const state = useRecordingStore.getState()
+        if (!state.isRecording) return
 
-          // Show appropriate toast
-          if (reason === "timeout") {
-            toast.warning(t("learning.recordingAutoStoppedTimeout"))
-          } else if (reason === "size_limit") {
-            toast.warning(t("learning.recordingAutoStoppedSize"))
-          } else {
-            toast.warning(t("learning.recordingAutoStopped"))
-          }
+        // Show appropriate toast
+        if (reason === "timeout") {
+          toast.warning(t("learning.recordingAutoStoppedTimeout"))
+        } else if (reason === "size_limit") {
+          toast.warning(t("learning.recordingAutoStoppedSize"))
+        } else {
+          toast.warning(t("learning.recordingAutoStopped"))
+        }
 
-          // Trigger the same graceful stop flow as a manual tray stop
-          state.setPostRecordingAction("synthesize")
-          state.stopRecording()
-        },
-      )
+        // Trigger the same graceful stop flow as a manual tray stop
+        state.setPostRecordingAction("synthesize")
+        state.stopRecording()
+      })
       if (!active) {
         fn()
       } else {
@@ -391,9 +388,7 @@ export function GlobalRecorderManager() {
       // Note: Keyframe extraction now happens after events are persisted in MultimodalSynthesizeDialog
       // We'll trigger it there once user confirms synthesis
 
-      toast.success(
-        t("learning.recordingStopped", { count: totalEventsCount }),
-      )
+      toast.success(t("learning.recordingStopped", { count: totalEventsCount }))
 
       if (useRecordingStore.getState().recordingSource === "mobile") {
         const mobSessionId =
@@ -432,15 +427,18 @@ export function GlobalRecorderManager() {
   useEffect(() => {
     const manageRecording = async () => {
       const now = performance.now()
-      console.log(`[GlobalRecorderManager] manageRecording triggered at ${now}ms`, {
-        isRecording,
-        isDesktopRecording,
-        activeThreadId,
-        domRecIsRec: domRecorder.isRecording,
-        isDesktopSource,
-        busy: busyRef.current,
-        pendingStop: pendingStopRef.current,
-      })
+      console.log(
+        `[GlobalRecorderManager] manageRecording triggered at ${now}ms`,
+        {
+          isRecording,
+          isDesktopRecording,
+          activeThreadId,
+          domRecIsRec: domRecorder.isRecording,
+          isDesktopSource,
+          busy: busyRef.current,
+          pendingStop: pendingStopRef.current,
+        },
+      )
       // START
       if (isRecording) {
         if (!domRecorder.isRecording && !busyRef.current) {
@@ -464,7 +462,9 @@ export function GlobalRecorderManager() {
               const win = await safeGetCurrentWindow()
               if (win) {
                 await win.hide()
-                console.log("[GlobalRecorderManager] Main window hidden successfully before recording start")
+                console.log(
+                  "[GlobalRecorderManager] Main window hidden successfully before recording start",
+                )
               }
             } catch (hideErr) {
               console.warn(
@@ -562,10 +562,14 @@ export function GlobalRecorderManager() {
             stopRecording()
           } finally {
             busyRef.current = false
-            console.log(`[GlobalRecorderManager] Start finished. pendingStop: ${pendingStopRef.current}`)
+            console.log(
+              `[GlobalRecorderManager] Start finished. pendingStop: ${pendingStopRef.current}`,
+            )
             if (pendingStopRef.current) {
               pendingStopRef.current = false
-              console.log("[GlobalRecorderManager] Executing queued stop action")
+              console.log(
+                "[GlobalRecorderManager] Executing queued stop action",
+              )
               stopRecorders()
             }
           }
@@ -576,7 +580,9 @@ export function GlobalRecorderManager() {
         // [FIX] Enter stop logic if either domRecorder is active OR we previously started a recording (incl mobile)
         if (domRecorder.isRecording || recordingStartedRef.current) {
           if (busyRef.current) {
-            console.warn(`[GlobalRecorderManager] Stop requested during busy state at ${now}ms. Queuing stop.`)
+            console.warn(
+              `[GlobalRecorderManager] Stop requested during busy state at ${now}ms. Queuing stop.`,
+            )
             pendingStopRef.current = true
             return
           }

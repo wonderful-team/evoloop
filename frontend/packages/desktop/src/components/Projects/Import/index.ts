@@ -1,1 +1,0 @@
-export { DetectedProjectAlert } from "./DetectedProjectAlert"

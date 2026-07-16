@@ -10,11 +10,19 @@ import {
   redirect,
   useRouterState,
 } from "@tanstack/react-router"
-import { BookOpen, GraduationCap, Server, Sparkles, Square } from "lucide-react"
+import {
+  BookOpen,
+  GraduationCap,
+  Server,
+  Sparkles,
+  Square,
+  Zap,
+} from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { RecordingButton } from "@/components/Chat/RecordingButton"
 import { AndroidMirrorConsole } from "@/components/Learning/AndroidMirrorConsole"
+import { MacroLibraryView } from "@/components/Learning/MacroLibraryView"
 import { McpView } from "@/components/Learning/McpView"
 import { MultimodalSynthesizeDialog } from "@/components/Learning/MultimodalSynthesizeDialog"
 import { SkillLibraryView } from "@/components/Learning/SkillLibraryView"
@@ -147,6 +155,13 @@ function LearningPage() {
             </TabsTrigger>
           )}
           <TabsTrigger
+            value="macros"
+            className="rounded-md px-6 gap-2 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all text-left"
+          >
+            <Zap className="h-3.5 w-3.5" />
+            {t("learning.tabs.macros")}
+          </TabsTrigger>
+          <TabsTrigger
             value="mcp"
             className="rounded-md px-6 gap-2 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all text-left"
           >
@@ -176,6 +191,13 @@ function LearningPage() {
               setActiveTab("library")
             }}
           />
+        </TabsContent>
+
+        <TabsContent
+          value="macros"
+          className="flex-1 mt-0 overflow-hidden outline-none"
+        >
+          <MacroLibraryView />
         </TabsContent>
 
         <TabsContent

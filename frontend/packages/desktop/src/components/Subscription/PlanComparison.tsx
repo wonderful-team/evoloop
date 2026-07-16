@@ -264,7 +264,9 @@ export const PlanComparison = ({
                         : "bg-primary hover:bg-primary/90 shadow-md shadow-primary/10"
                     }`}
                     disabled={isCurrent || isLoading || !canPurchase}
-                    onClick={() => !isCurrent && canPurchase && onSelect(plan.level_id)}
+                    onClick={() =>
+                      !isCurrent && canPurchase && onSelect(plan.level_id)
+                    }
                   >
                     {isCurrent
                       ? t("subscription.plan.active")
