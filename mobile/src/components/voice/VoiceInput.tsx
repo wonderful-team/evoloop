@@ -225,11 +225,10 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
 
   // 处理语音按钮松开（松开发送）
   const handleVoicePressOut = useCallback(() => {
-    if (isListening && onPressOut) {
-      // 录音状态下松开停止录音
-      onPressOut();
-    }
-  }, [isListening, onPressOut]);
+    // 不检查 isListening：start() 是异步的，快速松开时状态可能还未更新
+    // stop() 内部有 isRunningRef 保护，安全调用
+    onPressOut?.();
+  }, [onPressOut]);
 
   // 底部媒体面板
   const openMediaPicker = useCallback(() => {

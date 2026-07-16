@@ -101,12 +101,14 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
   const callbacksRef = useRef<VoiceEngineEventCallbacks>({});
   callbacksRef.current = {
     onVadStart: () => {
+      if (!isRunningRef.current) return;
       setState('speaking');
       setPressed(true);
       // VAD 检测到人声，触发打断 (Barge-in)
       onInterrupt?.();
     },
     onVadEnd: () => {
+      if (!isRunningRef.current) return;
       setState('recognizing');
       pendingFinalRef.current = true;
       // VAD 静音超时，标记下一句前加句号
@@ -175,8 +177,14 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
       voiceEngine.start(callbacksRef.current);
       await voiceEngine.setMode('asr');
       await voiceEngine.beginSession();
-      console.log('[useVoiceInput] session started');
 
+      // stop() 可能在 await 期间被调用，检查是否仍然有效
+      if (!isRunningRef.current) {
+        console.log('[useVoiceInput] start cancelled by stop');
+        return;
+      }
+
+      console.log('[useVoiceInput] session started');
       setState('listening');
     } catch (err) {
       console.error('[useVoiceInput] start session failed:', err);

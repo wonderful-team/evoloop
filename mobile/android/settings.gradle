@@ -4,7 +4,7 @@ pluginManagement {
         maven { url 'http://maven.aliyun.com/repository/gradle-plugin'; allowInsecureProtocol = true }
         maven { url 'http://maven.aliyun.com/repository/public'; allowInsecureProtocol = true }
         maven { url 'http://maven.aliyun.com/repository/google'; allowInsecureProtocol = true }
-        maven { url 'https://repo.huaweicloud.com/repository/maven' }
+        google()
     }
 }
 
@@ -21,8 +21,8 @@ dependencyResolutionManagement {
     repositories {
         maven { url 'http://maven.aliyun.com/repository/google'; allowInsecureProtocol = true }
         maven { url 'http://maven.aliyun.com/repository/public'; allowInsecureProtocol = true }
-        maven { url 'https://repo.huaweicloud.com/repository/maven' }
-        maven { url 'https://repo.huaweicloud.com/repository/google' }
+        google()
+        mavenCentral()
         // Essential Local Repositories for Autolinking and prebuilt AARs
         maven {
             url "../node_modules/react-native/android"

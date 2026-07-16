@@ -166,9 +166,10 @@ function AudioMessage({ url, name }: { url: string; name: string }) {
 interface MessageContentProps {
   content: string;
   isUser?: boolean;
+  isStreaming?: boolean;
 }
 
-export function MessageContent({ content, isUser = false }: MessageContentProps) {
+export function MessageContent({ content, isUser = false, isStreaming = false }: MessageContentProps) {
   const { colors } = useTheme();
   const toast = useGlobalToast();
   const { t } = useTranslation();
@@ -308,6 +309,17 @@ export function MessageContent({ content, isUser = false }: MessageContentProps)
       <Text style={{ color: colors.onSurface }}>
         {JSON.stringify(content, null, 2)}
       </Text>
+    );
+  }
+
+  // 流式输出期间用纯文本渲染，避免每 token 重解析 Markdown
+  if (isStreaming && !isUser) {
+    return (
+      <View style={styles.container}>
+        <Text style={{ color: colors.onSurface, fontSize: 15, lineHeight: 22 }}>
+          {parsedContent.displayContent}
+        </Text>
+      </View>
     );
   }
 

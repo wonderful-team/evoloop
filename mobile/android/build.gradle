@@ -11,8 +11,6 @@ buildscript {
         maven { url 'http://maven.aliyun.com/repository/gradle-plugin'; allowInsecureProtocol = true }
         maven { url 'http://maven.aliyun.com/repository/public'; allowInsecureProtocol = true }
         maven { url 'http://maven.aliyun.com/repository/google'; allowInsecureProtocol = true }
-        maven { url 'https://repo.huaweicloud.com/repository/maven' }
-        maven { url 'https://repo.huaweicloud.com/repository/google' }
         google()
         mavenCentral()
     }
@@ -29,8 +27,6 @@ allprojects {
     repositories {
         maven { url 'http://maven.aliyun.com/repository/public'; allowInsecureProtocol = true }
         maven { url 'http://maven.aliyun.com/repository/google'; allowInsecureProtocol = true }
-        maven { url 'https://repo.huaweicloud.com/repository/maven' }
-        maven { url 'https://repo.huaweicloud.com/repository/google' }
         google()
         mavenCentral()
     }

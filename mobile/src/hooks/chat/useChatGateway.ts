@@ -96,24 +96,23 @@ export function useChatGateway({ isLoggedIn, syncMessages, onAgentRunCompleted, 
 
       if (agentMessages.length === 0) return;
 
+      const firstMsg = agentMessages[0];
+      const messageId = firstMsg?.id;
+      const projectId = firstMsg?.project_id;
+
+      // 非当前会话：只累加未读，不触发配额/HITL 等会话级卡片
+      if (threadId !== currentConversationIdRef.current) {
+        incrementUnreadRef.current(threadId, messageId, projectId);
+        return;
+      }
+
       // 检测配额耗尽错误消息，触发充值引导 UI
       const quotaMsg = agentMessages.find(m => m.category === 'quota_exhausted');
       if (quotaMsg) {
         onQuotaExhaustedRef.current?.(quotaMsg.content);
       }
 
-      const firstMsg = agentMessages[0];
-      const messageId = firstMsg?.id;
-      const projectId = firstMsg?.project_id;
-
-      // 只有当前会话不是打开状态时才累加未读
-      if (threadId && threadId !== currentConversationIdRef.current) {
-        incrementUnreadRef.current(threadId, messageId, projectId);
-      }
-
       // 只有当前打开的会话才同步到 UI
-      if (threadId !== currentConversationIdRef.current) return;
-
       syncMessagesRef.current(agentMessages);
 
       // 如果该 thread 尚未出现在本地 conversations 列表，说明是新建会话的首次消息同步。
@@ -203,7 +202,10 @@ export function useChatGateway({ isLoggedIn, syncMessages, onAgentRunCompleted, 
         case 'hitl.request': {
           const hitlData = parseHITLRequest(message.data);
           if (hitlData) {
-            setHitlRequestRef.current(hitlData);
+            // 只接受属于当前会话的 HITL 请求，避免无会话/其它会话的卡片泄漏
+            if (hitlData.threadId && hitlData.threadId === currentConversationIdRef.current) {
+              setHitlRequestRef.current(hitlData);
+            }
           }
           break;
         }

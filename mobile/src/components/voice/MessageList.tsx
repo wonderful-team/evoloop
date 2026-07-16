@@ -283,7 +283,7 @@ const MessageItem = React.memo(function MessageItem({
                   disabled={true}
                 />
               ) : (
-                <MessageContent content={message.content} isUser={isUser} />
+                <MessageContent content={message.content} isUser={isUser} isStreaming={isStreaming} />
               )}
 
               {/* 附件/文件 (AI 消息：保持在下方) */}

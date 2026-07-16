@@ -181,15 +181,43 @@ export default function ChatScreen() {
   }, [enqueueTTS, cleanForTTS]);
 
 
-  // 更新指定 ID 的消息内容（流式用）
-  const updateStreamMessage = useCallback((messageId: string, content: string, isComplete?: boolean) => {
+  // 流式消息节流：缓冲 SSE chunk，每 100ms flush 一次到 store
+  const streamBufferRef = useRef<{ msgId: string; content: string } | null>(null);
+  const streamTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushStreamBuffer = useCallback(() => {
+    const buf = streamBufferRef.current;
+    if (!buf) return;
+    streamBufferRef.current = null;
+    streamTimerRef.current = null;
     const { messages } = useConversationStore.getState();
-    const index = messages.findIndex(m => m.id === messageId);
+    const index = messages.findIndex(m => m.id === buf.msgId);
     if (index === -1) return;
     const updated = [...messages];
-    updated[index] = { ...updated[index], content, ...(isComplete !== undefined ? { isComplete } : {}) };
+    updated[index] = { ...updated[index], content: buf.content };
     useConversationStore.setState({ messages: updated });
   }, []);
+
+  // 更新指定 ID 的消息内容（流式用，节流入store）
+  const updateStreamMessage = useCallback((messageId: string, content: string, isComplete?: boolean) => {
+    if (isComplete) {
+      // 流结束：立即 flush 缓冲 + 最终更新
+      if (streamTimerRef.current) clearTimeout(streamTimerRef.current);
+      flushStreamBuffer();
+      const { messages } = useConversationStore.getState();
+      const index = messages.findIndex(m => m.id === messageId);
+      if (index === -1) return;
+      const updated = [...messages];
+      updated[index] = { ...updated[index], content, isComplete, status: 'sent' };
+      useConversationStore.setState({ messages: updated });
+      return;
+    }
+    // 流式中：缓冲，每 100ms flush 一次
+    streamBufferRef.current = { msgId: messageId, content };
+    if (!streamTimerRef.current) {
+      streamTimerRef.current = setTimeout(flushStreamBuffer, 100);
+    }
+  }, [flushStreamBuffer]);
 
   // 控制指令（stop / retry / rewind）
   const { stop: stopAgent } = useCommands();
@@ -327,6 +355,7 @@ export default function ChatScreen() {
     respondToHITL,
     cancelHITL,
     clearQuotaExhausted,
+    setHitlRequest,
   } = useDeviceControl({
     onError: handleDeviceError,
     onMessageSent: handleMessageSent,
@@ -395,12 +424,14 @@ export default function ChatScreen() {
     clearTTSQueue();
     // 配额耗尽状态归属发起它的会话；切换/新建会话时清除，避免卡片/横幅泄漏到无关会话
     clearQuotaExhausted();
+    // HITL 请求同样是会话级；切换/新建会话时清除，避免无会话或其它会话的 HITL 卡片泄漏
+    setHitlRequest(null);
     if (currentConversationId) {
       clearUnread(currentConversationId);
       // 进入会话时同步标记后端已读
       conversationApi.markAsRead(currentConversationId).catch(() => {});
     }
-  }, [currentConversationId, setCurrentConversationId, clearUnread, stopTTS, clearTTSQueue, clearQuotaExhausted]);
+  }, [currentConversationId, setCurrentConversationId, clearUnread, stopTTS, clearTTSQueue, clearQuotaExhausted, setHitlRequest]);
 
   const clearAgentProcessing = useCallback(() => {
     setIsAgentProcessing(false);
