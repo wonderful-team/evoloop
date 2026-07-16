@@ -88,6 +88,9 @@ class MirrorSession:
                         "platform": "android",
                         "package_name": event_data.app_package,
                         "relative_timestamp_ms": relative_ms,
+                        "swipe_end_x": getattr(event_data, "swipe_end_x", None),
+                        "swipe_end_y": getattr(event_data, "swipe_end_y", None),
+                        "swipe_duration_ms": getattr(event_data, "swipe_duration_ms", None),
                     }
                 }
                 batch_buffer.append(buffered_event)

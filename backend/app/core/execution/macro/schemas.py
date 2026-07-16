@@ -79,12 +79,86 @@ class MacroActionType(str, Enum):
     GET_ACTIVE_APP = "get_active_app"
     GET_INFO = "get_info"
 
+    # Atlas-Native AX primitives (macOS, focus-free)
+    AX_PRESS = "ax_press"
+    AX_MENU_PRESS = "ax_menu_press"
+    AX_SET_VALUE = "ax_set_value"
+
     # Advanced / Generic
     BATCH = "batch"
 
     # Automation Primitives
     DETECT_PAGINATION = "detect_pagination"
     SCROLL_TO_BOTTOM = "scroll_to_bottom"
+
+
+# ---- P0: Action Family & Risk Model (§7.2, §10.1) ----
+
+# Risk tiers ordered from lowest to highest.
+RISK_TIERS: list[str] = ["observe", "act", "data", "money", "escape"]
+RISK_TIER_ORDER: dict[str, int] = {t: i for i, t in enumerate(RISK_TIERS)}
+
+
+def action_family(step_type: MacroStepType, event_type: MacroActionType | str | None) -> str:
+    """Derive action family from a macro step using priority:
+    1. escape  — type==NATIVE or event_type in (APPLESCRIPT, RUN_JS)
+    2. observe — type in (EXTRACT, DUMP) or perception event_type
+    3. control — type in (CONTROL, IF, LOOP)
+    4. act     — everything else
+    """
+    if step_type == MacroStepType.NATIVE:
+        return "escape"
+    if event_type and str(event_type) in ("applescript", "run_js"):
+        return "escape"
+    if step_type in (MacroStepType.EXTRACT, MacroStepType.DUMP):
+        return "observe"
+    _perception = frozenset({
+        "get_text", "get_attribute", "get_html", "get_links", "get_elements",
+        "screenshot", "dump_ui", "gui_extract",
+    })
+    if event_type and str(event_type) in _perception:
+        return "observe"
+    if step_type in (MacroStepType.CONTROL, MacroStepType.IF, MacroStepType.LOOP):
+        return "control"
+    return "act"
+
+
+def action_risk(event_type: MacroActionType | str | None) -> str:
+    """Default risk tier for a given action type."""
+    _risk: dict[str, str] = {
+        # Navigation — observe
+        "navigate": "observe", "back": "observe", "forward": "observe",
+        "reload": "observe",
+        # Interaction — act (safe clicks / scrolls)
+        "click": "act", "double_click": "act", "tap": "act",
+        "long_press": "act", "key_press": "act", "scroll": "observe",
+        "swipe": "act", "drag_drop": "act", "hover": "act",
+        "wait": "observe", "wait_for": "observe",
+        # Data input — data
+        "input": "data", "type_text": "data", "select_option": "data",
+        "upload": "data",
+        # Browser tabs — act
+        "new_tab": "act", "switch_tab": "act", "dialog_handle": "act",
+        # Code execution — escape
+        "run_js": "escape", "applescript": "escape",
+        # Perception / read-only — observe
+        "get_text": "observe", "get_attribute": "observe", "get_html": "observe",
+        "get_links": "observe", "screenshot": "observe", "dump_ui": "observe",
+        "get_elements": "observe", "gui_extract": "observe",
+        # Desktop app — act
+        "open_app": "act", "close_app": "act", "home": "act",
+        "back_key": "act", "mouse_click": "act",
+        "get_active_app": "observe", "get_info": "observe",
+        # Atlas-Native AX primitives — act / data
+        "ax_press": "act", "ax_menu_press": "act", "ax_set_value": "data",
+        # Advanced
+        "batch": "observe", "detect_pagination": "observe",
+        "scroll_to_bottom": "observe",
+        "evaluate": "escape",
+    }
+    if event_type is None:
+        return "observe"
+    return _risk.get(str(event_type), "act")
 
 
 class ExtractType(str, Enum):
@@ -209,9 +283,9 @@ class MacroStep(DynamicBaseModel):
 
     # Control Flow (if/loop)
     condition: MacroCondition | None = None
-    then_steps: list["MacroStep"] = Field(default_factory=list)
-    else_steps: list["MacroStep"] = Field(default_factory=list)
-    steps: list["MacroStep"] = Field(default_factory=list)
+    then_steps: list[MacroStep] = Field(default_factory=list)
+    else_steps: list[MacroStep] = Field(default_factory=list)
+    steps: list[MacroStep] = Field(default_factory=list)
     max_iterations: int | str = 100
 
     # Batch Collection Mode (for LOOP steps)
@@ -340,7 +414,7 @@ class MacroScript(DynamicBaseModel):
         return values
 
     @classmethod
-    def from_yaml(cls, yaml_content: str) -> "MacroScript":
+    def from_yaml(cls, yaml_content: str) -> MacroScript:
         """Parse macro from YAML string."""
         steps = macro_from_yaml(yaml_content)
         return cls(steps=steps)
@@ -358,14 +432,14 @@ class MacroScript(DynamicBaseModel):
         return macro_to_yaml(steps_data)
 
     @classmethod
-    def parse(cls, content: str, format: str = "auto") -> "MacroScript":
+    def parse(cls, content: str, format: str = "auto") -> MacroScript:
         """
         Parse macro from string (auto-detect or specified format).
-        
+
         Args:
             content: String content (JSON or YAML)
             format: "auto", "json", or "yaml"
-            
+
         Raises:
             ValueError: If parsing fails
             YAMLError: If YAML parsing fails

@@ -31,6 +31,9 @@ async def resume_graph_background(
     state = AgentState.model_validate(inputs)
     state.next_node = "supervisor"
 
+    # Restore context via hydration (skills index, telemetry, memory etc.)
+    await _restore_resume_context(thread_id, state, config)
+
     callback = TransparentCallbackHandler(thread_id=thread_id)
     raw_project_id = config.get("metadata", {}).get("project_id") if config else None
     project_id = int(raw_project_id) if raw_project_id is not None else DEFAULT_PROJECT_ID
@@ -70,3 +73,49 @@ async def resume_graph_background(
     except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.error(f"Resume error for {thread_id}: {e}")
         await activity_monitor.end_run(thread_id, "failed")
+
+
+async def _restore_resume_context(thread_id: str, state: "AgentState", config: dict) -> None:
+    """Restore context (skills, telemetry, memory) for a resumed agent session.
+
+    During resume the AgentState is created fresh from the resume ToolMessage
+    only, so AgentContextHydrator.hydrate needs to be called again to populate
+    ctx.metadata.active_skills, environment telemetry, etc.
+    """
+    from app.core.context import ContextManager
+    from app.core.engine.context_hydrator import AgentContextHydrator
+
+    last_human_msg = ""
+    try:
+        from sqlalchemy import select
+        from app.infrastructure.database import session_scope
+        from app.models import Message as DBMessage
+
+        async with session_scope() as session:
+            stmt = (
+                select(DBMessage.content)
+                .where(
+                    DBMessage.thread_id == thread_id,
+                    DBMessage.role == "human",
+                    DBMessage.name != "context_ticket",
+                )
+                .order_by(DBMessage.sequence_number.desc())
+                .limit(1)
+            )
+            res = await session.execute(stmt)
+            row = res.scalar_one_or_none()
+            if row:
+                last_human_msg = str(row)[:500]
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        logger.warning(f"[ResumeGraph] Failed to load last human msg for hydration")
+
+    ctx = ContextManager.current()
+    await AgentContextHydrator.hydrate(
+        ctx=ctx,
+        state=state,
+        config=config,
+        last_human_msg=last_human_msg,
+        is_retry=False,
+        is_subtask=False,
+        iteration_count=0,
+    )

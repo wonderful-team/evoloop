@@ -9,12 +9,12 @@ Domain-specific events are defined in their respective modules.
 from .lifecycle import (
     AppStartedEvent,
     AppStoppingEvent,
+    ConfigChangedEvent,
     SessionCompletedData,
     SessionCompletedEvent,
     SubscriptionChangedEvent,
     UserLoggedInEvent,
     UserLoggedOutEvent,
-    ConfigChangedEvent,
 )
 
 __all__ = [

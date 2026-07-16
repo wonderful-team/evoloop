@@ -51,10 +51,13 @@ class SupervisorNode(BaseAgentNode):
     def _filter_messages_for_supervisor(messages: list[BaseMessage]) -> list[BaseMessage]:
         result: list[BaseMessage] = []
         latest_ticket_idx = -1
+        latest_tool_idx = -1
 
         for i, msg in enumerate(messages):
             if msg.role == "user" and msg.name == "context_ticket":
                 latest_ticket_idx = i
+            if msg.role == "tool":
+                latest_tool_idx = i
 
         for i, msg in enumerate(messages):
             role = msg.role
@@ -69,6 +72,8 @@ class SupervisorNode(BaseAgentNode):
             elif role == "assistant":
                 if not msg.tool_calls:
                     result.append(msg)
+            elif role == "tool" and i == latest_tool_idx:
+                result.append(msg)
 
         dropped = len(messages) - len(result)
         if dropped > 0:

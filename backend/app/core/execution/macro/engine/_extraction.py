@@ -9,6 +9,23 @@ from app.core.monitoring.activity import activity_monitor
 logger = logging.getLogger(__name__)
 
 
+def _unwrap_controller_value(res):
+    """Strip the ✅/❌ ControllerResponse envelope, keeping the details payload.
+
+    Browser extraction actions render `✅ <message>\\n\\n<details>`; macros need
+    the raw value (an id, a price) for downstream {{key}} references. ❌ means
+    the extraction failed -> None, so unresolved placeholders trip the
+    navigate guard instead of fabricating a garbage URL.
+    """
+    if not isinstance(res, str):
+        return res
+    if res.startswith("❌"):
+        return None
+    if res.startswith("✅"):
+        return res.split("\n\n", 1)[1].strip() if "\n\n" in res else ""
+    return res
+
+
 class ExtractionMixin:
     @classmethod
     async def _handle_extraction(cls, thread_id, step, selector, payload, params, extracted_data):
@@ -29,12 +46,15 @@ class ExtractionMixin:
             elif extract_type in ("run_js", "evaluate") and ("script" in payload or "expression" in payload):
                 call_kwargs["action"] = "run_js"
                 call_kwargs["script"] = payload.get("script") or payload.get("expression")
+            if payload.get("state"):
+                call_kwargs["state"] = payload["state"]
 
             res = await BrowserController.execute(**call_kwargs)
             if extract_type == "screenshot":
                 match = re.search(r"(/.*\.png)", str(res))
                 extracted_data[key] = match.group(1) if match else res
             else:
+                res = _unwrap_controller_value(res)
                 try:
                     if isinstance(res, str) and (res.startswith("[") or res.startswith("{")):
                         extracted_data[key] = json.loads(res)

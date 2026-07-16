@@ -12,6 +12,16 @@ logger = logging.getLogger(__name__)
 #  Browser Manager (Persistent Singleton)
 # ─────────────────────────────────────────────
 
+class _PageState:
+    """Pages + active index for a thread or the default session."""
+
+    __slots__ = ("pages", "active_idx")
+
+    def __init__(self) -> None:
+        self.pages: list = []
+        self.active_idx: int = 0
+
+
 class BrowserManager:
     """
     Manages a single, persistent Playwright browser session.
@@ -30,6 +40,10 @@ class BrowserManager:
     Both modes use the same CDP connection path, so the rest of the codebase is
     completely unaware of which mode is active.
 
+    Pages are isolated per thread_id: each voice thread/macro execution gets its
+    own page in the shared browser context, preventing concurrent DOM operations
+    from interfering with each other.
+
     Settings are managed in app.core.config.
     """
 
@@ -37,14 +51,39 @@ class BrowserManager:
         self._playwright = None
         self._browser = None
         self._context = None
-        self._pages: list = []
-        self._active_page_idx: int = 0
+        self._default_state = _PageState()
+        self._thread_states: dict[str, _PageState] = {}
         self._lock_pool = LoopBoundResource(asyncio.Lock)
         self._is_cdp = False
         self._chrome_proc = None  # Set if we auto-launched Chrome via subprocess
 
-    async def get_page(self):
-        """Return the active Page, lazily starting Chrome if needed."""
+    def _resolve_thread_id(self, thread_id: str | None) -> str | None:
+        """Return explicit thread_id or fall back to the current EvoContext."""
+        if thread_id:
+            return thread_id
+        try:
+            from app.core.context import ContextManager
+
+            tid = ContextManager.get_var("thread_id")
+            if tid:
+                return str(tid)
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError):
+            pass
+        return None
+
+    def _get_state(self, thread_id: str | None) -> _PageState:
+        """Get or create the page state for a thread (or the default session)."""
+        if thread_id is None:
+            return self._default_state
+        state = self._thread_states.get(thread_id)
+        if state is None:
+            state = _PageState()
+            self._thread_states[thread_id] = state
+        return state
+
+    async def get_page(self, thread_id: str | None = None):
+        """Return the active Page for a thread, lazily starting Chrome if needed."""
+        thread_id = self._resolve_thread_id(thread_id)
         async with self._lock_pool.get():
             # Check if existing context belongs to a connected browser
             needs_init = self._context is None
@@ -52,32 +91,44 @@ class BrowserManager:
                 if not self._browser.is_connected():
                     logger.info("[Browser] Browser disconnected. Re-initializing...")
                     needs_init = True
-            
+
             if needs_init:
                 await self.close_internal()  # Clean up any partial state
                 await self._start()
-            
+
+            state = self._get_state(thread_id)
             try:
                 ctx_pages = self._context.pages
-                if not ctx_pages:
-                    self._pages = [await self._context.new_page()]
-                    self._active_page_idx = 0
-                else:
-                    self._pages = list(ctx_pages)
-                    self._active_page_idx = min(self._active_page_idx, len(self._pages) - 1)
-                return self._pages[self._active_page_idx]
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                # Drop pages that have been closed (e.g. by user action or crash).
+                state.pages = [p for p in state.pages if p in ctx_pages]
+                if not state.pages:
+                    state.active_idx = 0
+
+                if state.pages:
+                    state.active_idx = min(state.active_idx, len(state.pages) - 1)
+                    return state.pages[state.active_idx]
+
+                page = await self._context.new_page()
+                state.pages.append(page)
+                state.active_idx = 0
+                return page
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                 # Catch cases where context exists but is closed (e.g. TargetClosed)
                 if "closed" in str(e).lower():
                     logger.warning(f"[Browser] Context is closed ({e}). Re-starting.")
                     await self.close_internal()
                     await self._start()
-                    return await self._context.new_page()
+                    page = await self._context.new_page()
+                    state = self._get_state(thread_id)
+                    state.pages = [page]
+                    state.active_idx = 0
+                    return page
                 raise
 
     async def _start(self) -> None:
         import subprocess
 
+        from playwright.async_api import Error as PlaywrightError
         from playwright.async_api import async_playwright
         self._playwright = await async_playwright().start()
 
@@ -93,7 +144,11 @@ class BrowserManager:
                 self._context = await self._browser.new_context()
             logger.info("✅ [Browser] Mode 1: Took over existing Chrome via CDP.")
             self._is_cdp = True
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (PlaywrightError, ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            # Playwright wraps connection-refused/timeout in its own Error type, which is
+            # NOT a built-in — without it here, Mode 1 failure crashes instead of falling
+            # through to Mode 2 auto-launch (dead code). Probe failure = expected "no
+            # external Chrome" env condition, so catch it and auto-launch.
             logger.info(f"ℹ️ [Browser] No external Chrome found ({type(e).__name__}). Will auto-launch.")
             self._is_cdp = False
 
@@ -113,7 +168,7 @@ class BrowserManager:
                 try:
                     # Check if the hardware supports arm64
                     is_apple_silicon = subprocess.check_output(["sysctl", "-n", "hw.optional.arm64"]).decode().strip() == "1"
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError):
                     # Fallback to platform check
                     is_apple_silicon = platform.machine() == "arm64"
 
@@ -121,7 +176,7 @@ class BrowserManager:
                 chrome_cmd = ["arch", "-arm64"] + chrome_cmd
 
             chrome_cmd.extend([
-                f"--remote-debugging-port=9222",
+                "--remote-debugging-port=9222",
                 f"--user-data-dir={automation_dir}",
                 "--disable-infobars",
                 "--disable-extensions",
@@ -148,60 +203,79 @@ class BrowserManager:
                     self._context = await self._browser.new_context()
                 self._is_cdp = True
                 logger.info("✅ [Browser] Mode 2: auto-launched Chrome + CDP connected.")
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                 logger.error(f"[Browser] Mode 2 (auto-launch CDP) failed: {e}")
                 raise RuntimeError(
                     f"Browser startup failed. Could not connect to CDP at {settings.CHROME_CDP_URL}. "
                     "Please ensure Google Chrome is installed at the default path."
                 ) from e
 
-        # ─── Initialize page list ────────────────────────────────────────────
+        # ─── Initialize default page list ────────────────────────────────────────────
+        default_state = self._get_state(None)
         if self._context.pages:
-            self._pages = list(self._context.pages)
+            default_state.pages = list(self._context.pages)
         else:
-            self._pages = [await self._context.new_page()]
-        self._active_page_idx = 0
+            default_state.pages = [await self._context.new_page()]
+        default_state.active_idx = 0
         logger.info(
-            f"[Browser] Ready — {len(self._pages)} page(s), mode={'CDP-Takeover' if self._is_cdp and not hasattr(self, '_chrome_proc') else 'CDP-AutoLaunch' if self._is_cdp else 'Launch'}.")
+            f"[Browser] Ready — {len(default_state.pages)} page(s), mode={'CDP-Takeover' if self._is_cdp and not hasattr(self, '_chrome_proc') else 'CDP-AutoLaunch' if self._is_cdp else 'Launch'}.")
 
-    async def new_tab(self, url: str | None = None):
+    async def new_tab(self, url: str | None = None, thread_id: str | None = None):
         """Open a new tab, optionally navigate to url, and switch to it."""
-        page = await self._context.new_page()
-        self._pages = list(self._context.pages)
-        self._active_page_idx = self._pages.index(page)
-        if url:
-            await page.goto(url, wait_until="networkidle", timeout=30_000)
-        return page
+        thread_id = self._resolve_thread_id(thread_id)
+        async with self._lock_pool.get():
+            needs_init = self._context is None
+            if not needs_init and self._browser:
+                if not self._browser.is_connected():
+                    needs_init = True
+            if needs_init:
+                await self.close_internal()
+                await self._start()
 
-    def switch_tab(self, index: int):
-        """Switch active tab by index."""
-        if index < 0 or index >= len(self._pages):
-            raise IndexError(f"Tab index {index} out of range (0–{len(self._pages) - 1})")
-        self._active_page_idx = index
-        return self._pages[index]
+            state = self._get_state(thread_id)
+            page = await self._context.new_page()
+            state.pages.append(page)
+            state.active_idx = len(state.pages) - 1
+            if url:
+                await page.goto(url, wait_until="networkidle", timeout=30_000)
+            return page
 
-    @property
-    def tab_count(self) -> int:
-        return len(self._pages)
+    async def switch_tab(self, index: int, thread_id: str | None = None):
+        """Switch active tab by index for a thread or the default session."""
+        thread_id = self._resolve_thread_id(thread_id)
+        async with self._lock_pool.get():
+            state = self._get_state(thread_id)
+            if index < 0 or index >= len(state.pages):
+                raise IndexError(f"Tab index {index} out of range (0–{len(state.pages) - 1})")
+            state.active_idx = index
+            return state.pages[index]
 
-    def get_status(self) -> dict:
+    def tab_count(self, thread_id: str | None = None) -> int:
+        """Return the number of tabs for a thread or the default session."""
+        thread_id = self._resolve_thread_id(thread_id)
+        state = self._get_state(thread_id)
+        return len(state.pages)
+
+    def get_status(self, thread_id: str | None = None) -> dict:
         """Return connectivity and state info for environment prompts."""
+        thread_id = self._resolve_thread_id(thread_id)
+        state = self._get_state(thread_id)
         if not self._context:
             return {"mode": "Disconnected", "cdp_url": settings.CHROME_CDP_URL, "tab_count": 0}
 
         mode = "CDP-Takeover" if self._is_cdp and not self._chrome_proc else "CDP-AutoLaunch" if self._is_cdp else "Launch"
         active_url = "None"
         try:
-            if self._pages and self._active_page_idx < len(self._pages):
-                active_url = self._pages[self._active_page_idx].url
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            if state.pages and state.active_idx < len(state.pages):
+                active_url = state.pages[state.active_idx].url
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.debug("Suppressed error: %s", e, exc_info=True)
 
         return {
             "mode": mode,
             "cdp_url": settings.CHROME_CDP_URL,
             "active_url": active_url,
-            "tab_count": len(self._pages),
+            "tab_count": len(state.pages),
         }
 
     async def close(self) -> None:
@@ -215,18 +289,18 @@ class BrowserManager:
         if self._is_cdp and self._browser:
             try:
                 await self._browser.close()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
         elif self._context:
             try:
                 await self._context.close()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
 
         if self._playwright:
             try:
                 await self._playwright.stop()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
 
         # 2. Terminate auto-launched subprocess if any
@@ -241,7 +315,7 @@ class BrowserManager:
                     await asyncio.sleep(0.1)
                 if self._chrome_proc.poll() is None:
                     self._chrome_proc.kill()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                 logger.warning(f"[Browser] Failed to terminate Chrome subprocess: {e}")
             self._chrome_proc = None
 
@@ -249,9 +323,10 @@ class BrowserManager:
         self._context = None
         self._browser = None
         self._playwright = None
-        self._pages = []
+        self._default_state = _PageState()
+        self._thread_states = {}
         self._is_cdp = False
-        self._active_page_idx = 0
+        self._chrome_proc = None
         logger.info("[Browser] Browser closed.")
 
 

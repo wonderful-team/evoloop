@@ -14,6 +14,7 @@ from app.core.events.base import BaseEvent
 
 class MacroEvent(BaseEvent):
     """Base class for macro-related events."""
+
     source: str = "macro_engine"
 
 
@@ -22,6 +23,7 @@ class MacroExecutionFailedEvent(MacroEvent):
     Event emitted when a deterministic macro execution fails.
     Used to trigger perceptual self-healing or reporting.
     """
+
     event_type: str = "macro.execution_failed"
     skill_id: int | None = None
     skill_name: str | None = None
@@ -38,5 +40,32 @@ class MacroExecutionFailedEvent(MacroEvent):
             "skill_name": self.skill_name,
             "error_message": self.error_message,
             "fallback_context": self.fallback_context,
-            "thread_id": self.thread_id
+            "thread_id": self.thread_id,
+        }
+
+
+class MacroMutatedEvent(MacroEvent):
+    """Published when a macro lifecycle event (created/updated/deleted/obsoleted) occurs."""
+
+    source: str = "learning"
+    macro_id: int = 0
+    action: str = ""
+    namespace: str | None = None
+    name: str | None = None
+
+    def model_post_init(self, __context: Any) -> None:
+        from app.core.events.registry import SystemEventType
+
+        event_type_map = {
+            "create": SystemEventType.MACRO_CREATED,
+            "update": SystemEventType.MACRO_UPDATED,
+            "delete": SystemEventType.MACRO_DELETED,
+            "obsolete": SystemEventType.MACRO_OBSOLETED,
+        }
+        self.event_type = event_type_map.get(self.action) or ""
+        self.data = {
+            "macro_id": self.macro_id,
+            "action": self.action,
+            "namespace": self.namespace,
+            "name": self.name,
         }

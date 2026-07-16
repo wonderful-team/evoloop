@@ -3,7 +3,6 @@ Projects API Routes — package with sub-routers.
 
 Routes are split by functional domain:
 - _listing: project listing and status enrichment
-- _imports: project import management (scan, detect, import, ignore)
 - _profiles: project profile discovery (Agent-driven via Skill system)
 - _modules: budget, timesheet, statistics (included separately at /project-modules)
 """
@@ -19,6 +18,8 @@ from sqlalchemy import select
 from app.api.deps import TokenDep
 from app.api.schemas.projects import (
     CreateProjectRequest,
+    ImportProjectByPathRequest,
+    ImportProjectByPathResponse,
     IndexingRequest,
     IndexingRunResponse,
     ProjectDeleteResponse,
@@ -39,7 +40,6 @@ from app.infrastructure.database import session_scope
 from app.infrastructure.database.vector import get_vector_store
 from app.models import Repository
 
-from ._imports import router as imports_router
 from ._listing import router as listing_router
 from ._modules import router as modules_router  # noqa: F401 — re-export for main.py
 from ._profiles import router as profiles_router
@@ -49,7 +49,6 @@ logger = logging.getLogger(__name__)
 # fmt: off
 router = APIRouter()
 router.include_router(listing_router)
-router.include_router(imports_router)
 router.include_router(profiles_router)
 # fmt: on
 
@@ -71,21 +70,36 @@ async def get_current_project(_token: TokenDep):
 
 @router.post("/")
 async def create_project(req: CreateProjectRequest, _token: TokenDep):
+    """
+    Create a new project directory under WORKSPACE_ROOT.
+    Supports sub_path to place the project in a subdirectory.
+    """
+    from app.core.project.path_validator import validate_project_path
+
     root_dir = SystemConfigService.get_value("WORKSPACE_ROOT")
     if not root_dir:
         raise HTTPException(500, "WORKSPACE_ROOT not configured")
 
-    project_path = os.path.join(root_dir, req.name)
+    # Determine project directory: use sub_path if provided, otherwise use name
+    rel_path = req.sub_path.strip("/") if req.sub_path else req.name
+    project_path = os.path.realpath(os.path.join(root_dir, rel_path))
+
     if os.path.exists(project_path):
-        raise HTTPException(400, "Project already exists")
+        raise HTTPException(400, "Project already exists at this path")
+
+    try:
+        await validate_project_path(project_path, root_dir)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
     try:
         os.makedirs(project_path, exist_ok=True)
         meta_dir = os.path.join(project_path, ".evoloop")
         os.makedirs(meta_dir, exist_ok=True)
         description = "Created via EvoLoop"
+        display_name = req.name
         skeleton = {
-            "name": req.name,
+            "name": display_name,
             "description": description,
             "project_id": None,
             "sensitive_patterns": DEFAULT_SENSITIVE_PATTERNS,
@@ -94,7 +108,7 @@ async def create_project(req: CreateProjectRequest, _token: TokenDep):
         with open(os.path.join(meta_dir, "project.json"), "w", encoding="utf-8") as f:
             json.dump(skeleton, f, indent=2, ensure_ascii=False)
 
-        res = await evocloud_manager.api.create_project(req.name, description, project_path, token=_token)
+        res = await evocloud_manager.api.create_project(display_name, description, project_path, token=_token)
         if res.get("code") != 0:
             logger.warning("Failed to sync project creation to Member Center: %s", res)
             raise HTTPException(500, f"Failed to create project in cloud: {res.get('message')}")
@@ -102,7 +116,7 @@ async def create_project(req: CreateProjectRequest, _token: TokenDep):
         evocloud_manager.invalidate_projects_cache()
 
         projects = await evocloud_manager.scan_projects()
-        new_proj = next((p for p in projects if p["name"] == req.name), None)
+        new_proj = next((p for p in projects if p["name"] == display_name), None)
         if not new_proj:
             raise HTTPException(500, "Project created in cloud but ID could not be resolved")
 
@@ -115,6 +129,37 @@ async def create_project(req: CreateProjectRequest, _token: TokenDep):
         raise
     except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.error("Failed to create project: %s", e)
+        raise HTTPException(500, str(e))
+
+
+@router.post("/import-by-path", response_model=ImportProjectByPathResponse)
+async def import_project_by_path(req: ImportProjectByPathRequest, _token: TokenDep):
+    """
+    Import an existing directory as a project.
+    The path must be under WORKSPACE_ROOT and must not overlap with existing projects.
+    """
+    from app.core.project.sync_service import project_sync_service
+
+    root_dir = SystemConfigService.get_value("WORKSPACE_ROOT")
+    if not root_dir:
+        raise HTTPException(500, "WORKSPACE_ROOT not configured")
+
+    try:
+        repo = await project_sync_service.import_project_by_path(
+            path=req.path,
+            workspace_root=root_dir,
+            name=req.name,
+        )
+        return ImportProjectByPathResponse(
+            status="success",
+            repo_id=repo.id,
+            name=repo.name,
+            message=f"Project '{repo.name}' imported successfully",
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except (OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        logger.error("Failed to import project by path: %s", e)
         raise HTTPException(500, str(e))
 
 

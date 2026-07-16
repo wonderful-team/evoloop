@@ -8,17 +8,18 @@ DatabaseCallbackHandler - 数据库日志回调处理器（重构版）
 
 不再包含复杂的过滤逻辑！
 """
+
 import contextvars
 import logging
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from app.core.engine.callbacks.base import AsyncCallbackHandler, LLMResult
 from app.core.engine.message import MessageHandler
 from app.core.engine.message.reasoning import extract_reasoning_from_message
 from app.core.engine.message.utils import parse_tool_input
 
-current_node_source: contextvars.ContextVar[str | None] = contextvars.ContextVar('db_node_source', default=None)
+current_node_source: contextvars.ContextVar[str | None] = contextvars.ContextVar("db_node_source", default=None)
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ logger = logging.getLogger(__name__)
 def _censor_secrets(val: Any) -> Any:
     """Censor any raw secrets stored in the EvoContext's injected_secrets."""
     from app.core.context.manager import ContextManager
+
     try:
         ctx = ContextManager.current()
         injected_secrets = ctx.injected_secrets
@@ -95,10 +97,14 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         **kwargs: Any,
     ) -> None:
         """LLM 开始执行时调用"""
-        message_id = str(run_id)
+        # Message id must be unique per LLM call — the callback run_id can be
+        # a session-level id (e.g. "resume-<thread>-<ts>"), which would collide
+        # on the second persisted AI message of the same run.
+        message_id = str(uuid4())
         self._last_ai_message_id = message_id
 
         from app.core.context.manager import ContextManager
+
         ctx = ContextManager.current()
         ctx.last_ai_message_id = message_id
         logger.debug(f"[DatabaseCallback] LLM started. Pre-allocated message_id={message_id}")
@@ -140,7 +146,10 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         thinking = extract_reasoning_from_message(message)
         # 传递 reasoning_content 信息，供 handler 正确标记 thinking_type
         if additional_kwargs.get("reasoning_content"):
-            metadata = {**metadata, "reasoning_content": additional_kwargs["reasoning_content"]}
+            metadata = {
+                **metadata,
+                "reasoning_content": additional_kwargs["reasoning_content"],
+            }
 
         # 提取 node_source（优先从 ContextVar，兜底从 additional_kwargs）
         node_source = current_node_source.get()
@@ -162,6 +171,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         if result.get("message_id"):
             self._last_ai_message_id = result["message_id"]
             from app.core.context.manager import ContextManager
+
             ctx = ContextManager.current()
             ctx.last_ai_message_id = result.message_id
 
@@ -201,8 +211,8 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
         if not tool_name:
             # 回退逻辑
-            tool_name = 'unknown_tool'
-            tool_call_id = run_id_str # 假设 run_id 就是 tool_call_id（符合 Engine 行为）
+            tool_name = "unknown_tool"
+            tool_call_id = run_id_str  # 假设 run_id 就是 tool_call_id（符合 Engine 行为）
 
         # Censor raw secrets before writing to the database log
         output = _censor_secrets(output)
@@ -257,18 +267,15 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         """
         # 提取工具名称（兼容不同版本的序列化格式）
         tool_name = str(
-            serialized.get("name") or
-            serialized.get("kwargs", {}).get("name") or
-            "unknown_tool"
+            serialized.get("name")
+            or serialized.get("kwargs", {}).get("name")
+            or "unknown_tool"
         )
         run_id_str = str(run_id)
 
         # 使用传入的 metadata 参数，而不是从 kwargs 中提取（因为它已被参数捕获）
         effective_metadata = metadata or {}
-        tool_call_id = (
-            effective_metadata.get("_evoloop_tool_call_id") or
-            kwargs.get("tool_call_id")
-        )
+        tool_call_id = effective_metadata.get("_evoloop_tool_call_id") or kwargs.get("tool_call_id")
 
         # Parse input data
         input_data = parse_tool_input(input_str)
@@ -286,6 +293,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
         # Store in context for HITL tools to access
         from app.core.context.manager import ContextManager
+
         ctx = ContextManager.current()
         ctx.current_tool_call_id = tool_call_id
 

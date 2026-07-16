@@ -25,6 +25,7 @@ class SystemStatusResponse(BaseAPIResponse):
     ram_used_gb: float
     ram_total_gb: float
     status: str = "ok"
+    enable_macro_self_healing: bool = True
 
 
 class HealthCheckResponse(BaseAPIResponse):
@@ -61,11 +62,6 @@ class ModelsListResponse(BaseAPIResponse):
     last_updated: str
 
 
-class ProjectDiscoveryConfigUpdateResponse(BaseAPIResponse):
-    enabled: bool
-    locked: bool | None = None
-
-
 class LLMConfigRequest(DynamicBaseModel):
     provider: str = Field(..., description="供应商名称: openai, anthropic, moonshot, deepseek")
     provider_type: str = Field(default="openai", description="协议类型: openai | anthropic")
@@ -78,12 +74,3 @@ class LLMConfigRequest(DynamicBaseModel):
     api_key: str | None = None
     default_model_id: str | None = Field(None, description="Selected Default Model ID")
     headers: dict[str, str] | None = Field(None, description="自定义请求头 (JSON 字典)")
-
-
-class ProjectDiscoveryConfigResponse(BaseAPIResponse):
-    enabled: bool
-    source: str  # "env" | "config" | "default"
-
-
-class ProjectDiscoveryConfigRequest(DynamicBaseModel):
-    enabled: bool

@@ -111,12 +111,18 @@ nodes:
       - "list_skills"
       - "read_skill_sop"
       - "run_macro"
+      - "reconcile_skill"
       - "query_app_atlas"
       - "list_app_atlas"
       - "search_native_tools"
       - "save_concepts"
       - "query_concepts"
       - "sql_query"
+      # Atlas AppMap (source-survey → macro factory)
+      - "write_app_map"
+      - "read_app_map"
+      - "list_app_maps"
+      - "generate_macros_from_app_map"
       # Wiki (Project documentation authoring)
       - "write_wiki_page"
       - "edit_wiki_page"
@@ -163,6 +169,7 @@ nodes:
       - "read_skill_sop"
       - "run_macro"
       - "synthesize_skill"
+      - "learn_from_trace"
       - "verify_ui_state"
 
   - id: "chat"

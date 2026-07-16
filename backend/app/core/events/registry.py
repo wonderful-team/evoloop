@@ -11,9 +11,10 @@ from enum import Enum
 class SystemEventType(str, Enum):
     """
     System-wide event types.
-    
+
     These are cross-domain events that multiple modules may be interested in.
     """
+
     # Lifecycle Events
     APP_STARTED = "system.app_started"
     APP_STOPPING = "system.app_stopping"
@@ -49,6 +50,12 @@ class SystemEventType(str, Enum):
     SKILL_CREATED = "learning.skill_created"
     SKILL_UPDATED = "learning.skill_updated"
     SKILL_DELETED = "learning.skill_deleted"
+
+    # Macro Lifecycle Events
+    MACRO_CREATED = "learning.macro_created"
+    MACRO_UPDATED = "learning.macro_updated"
+    MACRO_DELETED = "learning.macro_deleted"
+    MACRO_OBSOLETED = "learning.macro_obsoleted"
 
     # Subscriptions & Logs
     SUBSCRIPTION_CHANGED = "subscription.changed"

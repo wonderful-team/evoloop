@@ -183,7 +183,7 @@ class MobileInteractionMixin:
                 try:
                     curr_ui = await asyncio.to_thread(adb_driver.dump_ui, device_id=device_id)
                     curr_hash = str(hash(curr_ui))
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError):
                     curr_hash = str(time.time())
 
                 if curr_hash == last_ui_hash:

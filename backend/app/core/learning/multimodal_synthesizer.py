@@ -32,7 +32,7 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.learning.prompts.builder import LearningPromptBuilder
 from app.core.learning.schemas import RecordingSession
-from app.core.learning.skill_synthesizer import SynthesizedSkill
+from app.core.learning.skill_synthesizer import SynthesisResult, SynthesizedSkill
 from app.core.learning.synthesizer_utils import (
     MacroVerificationResult,
     cleanup_macro_steps,
@@ -69,7 +69,7 @@ class MultimodalSkillSynthesizer:
     """
 
     # 配置（从 settings 读取，见 __init__）
-    DEFAULT_VIDEO_FPS = 15       # 默认帧率
+    DEFAULT_VIDEO_FPS = 15  # 默认帧率
 
     def __init__(self):
         self.compressor = FrameCompressor()
@@ -78,7 +78,9 @@ class MultimodalSkillSynthesizer:
         self.prompt_builder = LearningPromptBuilder()
         # 使用系统配置的 Vision LLM
         self.vision_llm = VisionLLMFactory.create_vision_llm(temperature=0.3)
-        self.model_name = SystemConfigService.get_value("VISION_MODEL") or SystemConfigService.get_value("LLM_MODEL")
+        self.model_name = SystemConfigService.get_value(
+            "VISION_MODEL"
+        ) or SystemConfigService.get_value("LLM_MODEL")
 
     async def synthesize(self, recording: RecordingSession) -> dict:
         """
@@ -95,7 +97,9 @@ class MultimodalSkillSynthesizer:
 
         # Step 1: 获取视频信息
         video_info = await self._get_video_info(recording.video_path)
-        logger.info(f"Video: {video_info.width}x{video_info.height}, {video_info.duration:.1f}s")
+        logger.info(
+            f"Video: {video_info.width}x{video_info.height}, {video_info.duration:.1f}s"
+        )
 
         # Step 1.5: 提取视频音频轨并进行语音识别 (Speech-to-Text)
         voice_transcript = None
@@ -103,6 +107,7 @@ class MultimodalSkillSynthesizer:
             audio_path = await self._extract_audio(recording.video_path)
             if audio_path and os.path.exists(audio_path):
                 from app.infrastructure.voice import transcribe_file
+
                 logger.info("Transcribing extracted audio track...")
                 stt_result = await transcribe_file(audio_path)
                 if stt_result and stt_result.text.strip():
@@ -123,7 +128,7 @@ class MultimodalSkillSynthesizer:
         # [v3 Unified] Log event source distribution
         source_counts = {}
         for e in events:
-            src = e.source or 'unknown'
+            src = e.source or "unknown"
             source_counts[src] = source_counts.get(src, 0) + 1
         source_summary = ", ".join([f"{k}={v}" for k, v in source_counts.items()])
         logger.info(f"[Unified] Fetched {len(events)} events ({source_summary})")
@@ -142,21 +147,20 @@ class MultimodalSkillSynthesizer:
         compressed_frames = await self._extract_and_compress_frames(
             video_path=recording.video_path,
             keyframes=keyframes,
-            original_resolution=(video_info.width, video_info.height)
+            original_resolution=(video_info.width, video_info.height),
         )
         logger.info(f"Compressed {len(compressed_frames)} frames")
 
         # Step 5: 构建事件上下文（用于 Prompt 文本部分）
         event_context = self._build_event_context(
-            events=events,
-            original_resolution=(video_info.width, video_info.height)
+            events=events, original_resolution=(video_info.width, video_info.height)
         )
 
         # Step 6: 关联事件到帧（用于多模态图片标注）
         frames_with_events = self._associate_events_to_frames(
             frames=compressed_frames,
             keyframes=keyframes,
-            normalizer=CoordinateNormalizer(video_info.width, video_info.height)
+            normalizer=CoordinateNormalizer(video_info.width, video_info.height),
         )
 
         # Step 6.5: 提取真实包名 (用于 open_app 指令)
@@ -171,20 +175,21 @@ class MultimodalSkillSynthesizer:
                 bundle_id=bundle_id,
                 frames=frames_with_events,
                 event_context=event_context,
-                voice_transcript=voice_transcript
+                voice_transcript=voice_transcript,
             )
         except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(f"Vision LLM call failed: {e}")
             raise RuntimeError(f"LLM analysis failed: {e}")
 
         # Step 8: 解析 LLM 输出
-        skill_data = self._parse_llm_response(llm_response, recording)
+        parsed = self._parse_llm_response(llm_response, recording)
+        skill_data = parsed.skill
 
         # Step 9: 辅助生成确定性宏脚本 (Fallback/Verification Basis)
         compiled_macro = await self._compile_macro_from_events(events)
 
         # Step 10: 验证 Dry-run (优先验证实际要返回的宏)
-        target_macro = skill_data.macro_script or compiled_macro
+        target_macro = parsed.macro_script or compiled_macro
 
         # 如果 LLM 返回的是字符串 JSON，尝试解析它
         if isinstance(target_macro, str):
@@ -210,25 +215,25 @@ class MultimodalSkillSynthesizer:
         if isinstance(target_macro, list):
             final_steps, _ = cleanup_macro_steps(target_macro)
         else:
-            logger.warning("Target macro is not a list, falling back to compiled_macro.")
+            logger.warning(
+                "Target macro is not a list, falling back to compiled_macro."
+            )
             final_steps = compiled_macro
 
         # 如果没有有效的宏，使用编译出来的作为兜底
         if not final_steps or not isinstance(final_steps, list):
             final_steps = compiled_macro
 
-        # Convert to YAML string for storage
+        # Convert to YAML string for storage; the macro is returned separately
+        # from the skill metadata to keep the two models decoupled.
+        macro_script = None
         if final_steps:
-            skill_data["macro_script"] = yaml.dump(
+            macro_script = yaml.dump(
                 final_steps,
                 default_flow_style=False,
                 allow_unicode=True,
-                sort_keys=False
+                sort_keys=False,
             )
-            skill_data["execution_mode"] = "deterministic"
-        else:
-            skill_data["macro_script"] = None
-            skill_data["execution_mode"] = "agentic"
 
         processing_time = time.time() - start_time
         logger.info(f"Synthesis completed in {processing_time:.1f}s.")
@@ -238,13 +243,14 @@ class MultimodalSkillSynthesizer:
 
         return {
             "skill": skill_data,
+            "macro_script": macro_script,
             "metadata": {
                 "processing_time_seconds": processing_time,
                 "frames_analyzed": len(compressed_frames),
                 "events_processed": len(events),
                 "video_duration": video_info.duration,
                 "model": self.model_name or "unknown",
-            }
+            },
         }
 
     async def _compile_macro_from_events(self, events: list[TraceEvent]) -> list[dict]:
@@ -266,11 +272,15 @@ class MultimodalSkillSynthesizer:
         macro_script = synth._compile_macro_script(sequence)
         # _compile_macro_script returns a MacroScript object
         if hasattr(macro_script, "steps"):
-            return [s if isinstance(s, dict) else s.model_dump(exclude_none=True) for s in macro_script.steps]
+            return [
+                s if isinstance(s, dict) else s.model_dump(exclude_none=True)
+                for s in macro_script.steps
+            ]
         # Defensive: older implementations returned a YAML string
         if isinstance(macro_script, str):
             try:
                 import yaml
+
                 data = yaml.safe_load(macro_script)
                 if isinstance(data, dict) and "steps" in data:
                     return data["steps"]
@@ -279,13 +289,15 @@ class MultimodalSkillSynthesizer:
                 return []
         return macro_script if isinstance(macro_script, list) else []
 
-    async def verify_macro(self, macro_script: str, project_id: int = DEFAULT_PROJECT_ID) -> MacroVerificationResult:
+    async def verify_macro(
+        self, macro_script: str, project_id: int = DEFAULT_PROJECT_ID
+    ) -> MacroVerificationResult:
         """Dry-run 验证宏脚本的有效性"""
         return await verify_macro_script(
             macro_script=macro_script,
             thread_id="multimodal_dryrun",
             project_id=project_id,
-            params={"max_scrolls": 2, "is_dry_run": True}
+            params={"max_scrolls": 2, "is_dry_run": True},
         )
 
     async def _extract_audio(self, video_path: str) -> str | None:
@@ -294,30 +306,40 @@ class MultimodalSkillSynthesizer:
         import subprocess
         import tempfile
 
-        output_path = os.path.join(tempfile.gettempdir(), f"evoloop_audio_{os.path.basename(video_path)}.wav")
+        output_path = os.path.join(
+            tempfile.gettempdir(), f"evoloop_audio_{os.path.basename(video_path)}.wav"
+        )
 
         # ffmpeg -y -i video.mp4 -vn -acodec pcm_s16le -ar 16000 -ac 1 output.wav
         cmd = [
-            "ffmpeg", "-y",
-            "-i", video_path,
-            "-vn",                  # 禁用视频流
-            "-acodec", "pcm_s16le",  # 使用无损 PCM 16-bit
-            "-ar", "16000",         # 16kHz
-            "-ac", "1",             # 单声道
-            output_path
+            "ffmpeg",
+            "-y",
+            "-i",
+            video_path,
+            "-vn",  # 禁用视频流
+            "-acodec",
+            "pcm_s16le",  # 使用无损 PCM 16-bit
+            "-ar",
+            "16000",  # 16kHz
+            "-ac",
+            "1",  # 单声道
+            output_path,
         ]
         try:
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(
-                None,
-                lambda: subprocess.run(cmd, capture_output=True, timeout=30)
+                None, lambda: subprocess.run(cmd, capture_output=True, timeout=30)
             )
             if result.returncode == 0:
                 if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
-                    logger.info(f"Successfully extracted audio from video to: {output_path}")
+                    logger.info(
+                        f"Successfully extracted audio from video to: {output_path}"
+                    )
                     return output_path
             else:
-                logger.warning(f"Audio extraction warning (ffmpeg): {result.stderr.decode()}")
+                logger.warning(
+                    f"Audio extraction warning (ffmpeg): {result.stderr.decode()}"
+                )
         except Exception as e:
             logger.error(f"Failed to extract audio track: {e}")
 
@@ -327,12 +349,18 @@ class MultimodalSkillSynthesizer:
         """使用 ffprobe JSON 获取视频元信息（更鲁棒）"""
         try:
             cmd = [
-                "ffprobe", "-v", "error",
-                "-select_streams", "v:0",
-                "-show_entries", "stream=width,height,r_frame_rate,duration",
-                "-show_entries", "format=duration",
-                "-of", "json",
-                video_path
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=width,height,r_frame_rate,duration",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "json",
+                video_path,
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
             data = json.loads(result.stdout)
@@ -347,22 +375,32 @@ class MultimodalSkillSynthesizer:
 
             # 解析帧率
             fps_str = stream.get("r_frame_rate", "15/1")
-            fps = float(fps_str.split("/")[0]) / float(fps_str.split("/")[1]) if "/" in fps_str else float(fps_str)
+            fps = (
+                float(fps_str.split("/")[0]) / float(fps_str.split("/")[1])
+                if "/" in fps_str
+                else float(fps_str)
+            )
 
             return VideoInfo(duration=duration, width=width, height=height, fps=fps)
         except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(f"Failed to get video info for {video_path}: {e}")
-            return VideoInfo(duration=30.0, width=1920, height=1080, fps=self.DEFAULT_VIDEO_FPS)
+            return VideoInfo(
+                duration=30.0, width=1920, height=1080, fps=self.DEFAULT_VIDEO_FPS
+            )
 
     async def _fetch_events(self, session_id: str) -> list[TraceEvent]:
         """从数据库获取事件并进行时间轴归一化"""
         async with session_scope() as session:
-            stmt = select(TraceEvent).where(
-                or_(
-                    TraceEvent.recording_session_id == session_id,
-                    TraceEvent.session_id == session_id
+            stmt = (
+                select(TraceEvent)
+                .where(
+                    or_(
+                        TraceEvent.recording_session_id == session_id,
+                        TraceEvent.session_id == session_id,
+                    )
                 )
-            ).order_by(TraceEvent.timestamp)
+                .order_by(TraceEvent.timestamp)
+            )
             result = await session.execute(stmt)
             events = list(result.scalars().all())
 
@@ -378,7 +416,9 @@ class MultimodalSkillSynthesizer:
             if events:
                 timestamps = [e.timestamp for e in events if e.timestamp is not None]
                 if timestamps:
-                    logger.info(f"[_fetch_events] Normalized timestamp range: {min(timestamps):.3f}s - {max(timestamps):.3f}s, count: {len(timestamps)}")
+                    logger.info(
+                        f"[_fetch_events] Normalized timestamp range: {min(timestamps):.3f}s - {max(timestamps):.3f}s, count: {len(timestamps)}"
+                    )
 
             return events
 
@@ -386,16 +426,20 @@ class MultimodalSkillSynthesizer:
         self,
         video_path: str,
         keyframes: list[KeyframeCandidate],
-        original_resolution: tuple[int, int]
+        original_resolution: tuple[int, int],
     ) -> list[CompressedFrame]:
         """批量提取并压缩帧"""
         frames = []
-        logger.info(f"[KeyframeExtraction] Starting extraction of {len(keyframes)} keyframes from video: {video_path}")
+        logger.info(
+            f"[KeyframeExtraction] Starting extraction of {len(keyframes)} keyframes from video: {video_path}"
+        )
 
         for i, keyframe in enumerate(keyframes, 1):
             try:
                 # 提取单帧
-                frame_path = await self._extract_single_frame(video_path, keyframe.timestamp)
+                frame_path = await self._extract_single_frame(
+                    video_path, keyframe.timestamp
+                )
 
                 # 记录原始截图路径
                 logger.info(
@@ -412,7 +456,9 @@ class MultimodalSkillSynthesizer:
 
                 # 自适应控制大小 (150KB 以内)
                 if len(compressed.data) > 150 * 1024:
-                    compressed = self.compressor.compress_with_target_size(frame_path, target_kb=100)
+                    compressed = self.compressor.compress_with_target_size(
+                        frame_path, target_kb=100
+                    )
                     compressed_size_kb = len(compressed.data) / 1024
                     logger.info(
                         f"[KeyframeExtraction] Frame {i} compressed (adaptive): "
@@ -457,27 +503,38 @@ class MultimodalSkillSynthesizer:
     async def _extract_single_frame(self, video_path: str, timestamp: float) -> str:
         """FFmpeg 提取单帧 (兼容 Mac 格式)"""
         import tempfile
+
         output_path = Path(tempfile.gettempdir()) / f"evoloop_frame_{timestamp:.3f}.jpg"
 
         cmd = [
-            "ffmpeg", "-y",
-            "-ss", str(timestamp),
-            "-i", video_path,
-            "-frames:v", "1",
-            "-q:v", "2",
-            "-pix_fmt", "yuvj420p", # Mac JPEG 兼容性
-            str(output_path)
+            "ffmpeg",
+            "-y",
+            "-ss",
+            str(timestamp),
+            "-i",
+            video_path,
+            "-frames:v",
+            "1",
+            "-q:v",
+            "2",
+            "-pix_fmt",
+            "yuvj420p",  # Mac JPEG 兼容性
+            str(output_path),
         ]
         result = subprocess.run(cmd, capture_output=True, timeout=10)
         if result.returncode != 0:
             raise RuntimeError(f"FFmpeg extraction failed: {result.stderr.decode()}")
         return str(output_path)
 
-    def _build_event_context(self, events: list[TraceEvent], original_resolution: tuple[int, int]) -> str:
+    def _build_event_context(
+        self, events: list[TraceEvent], original_resolution: tuple[int, int]
+    ) -> str:
         """构建详细的事件内容上下文 (用于 Prompt) - 使用模板渲染"""
         from app.utils.template import render_template
 
-        normalizer = CoordinateNormalizer(original_resolution[0], original_resolution[1])
+        normalizer = CoordinateNormalizer(
+            original_resolution[0], original_resolution[1]
+        )
 
         # 准备原始数据，格式化逻辑移至模板
         event_data = []
@@ -487,45 +544,59 @@ class MultimodalSkillSynthesizer:
 
             norm_pos = normalizer.normalize(event.mouse_x, event.mouse_y)
 
-            event_data.append({
-                "action_name": "tap" if event.action_type == "touch_down" else event.action_type,
-                "timestamp": event.timestamp or 0.0,
-                "norm_pos": norm_pos,
-                "position_desc": self._describe_position(norm_pos[0], norm_pos[1]) if norm_pos else None,
-                "target": event.target_text,
-                "window": event.window_title,
-                "app": event.app_name,
-                "key": event.key_name,
-            })
+            event_data.append(
+                {
+                    "action_name": "tap"
+                    if event.action_type == "touch_down"
+                    else event.action_type,
+                    "timestamp": event.timestamp or 0.0,
+                    "norm_pos": norm_pos,
+                    "position_desc": self._describe_position(norm_pos[0], norm_pos[1])
+                    if norm_pos
+                    else None,
+                    "target": event.target_text,
+                    "window": event.window_title,
+                    "app": event.app_name,
+                    "key": event.key_name,
+                }
+            )
 
         return render_template(
             "common/events/event_context.prompt.j2",
             events=event_data,
-            resolution=original_resolution
+            resolution=original_resolution,
         )
 
     def _associate_events_to_frames(
         self,
         frames: list[CompressedFrame],
         keyframes: list[KeyframeCandidate],
-        normalizer: CoordinateNormalizer
+        normalizer: CoordinateNormalizer,
     ) -> list[CompressedFrame]:
         """将事件语义关联到关键帧对象中"""
         for frame, keyframe in zip(frames, keyframes, strict=False):
             if keyframe.related_event:
                 pos = normalizer.normalize(
-                    getattr(keyframe.related_event, 'mouse_x', None),
-                    getattr(keyframe.related_event, 'mouse_y', None)
+                    getattr(keyframe.related_event, "mouse_x", None),
+                    getattr(keyframe.related_event, "mouse_y", None),
                 )
-                payload = getattr(keyframe.related_event, 'payload', {}) or {}
-                action_name = "tap" if keyframe.related_event.action_type == "touch_down" else keyframe.related_event.action_type
-                frame.norm_events = [{
-                    'action': action_name,
-                    'position': pos,
-                    'target_text': getattr(keyframe.related_event, 'target_text', None),
-                    'timestamp': getattr(keyframe.related_event, 'timestamp', 0),
-                    'package_name': payload.get('package_name')
-                }]
+                payload = getattr(keyframe.related_event, "payload", {}) or {}
+                action_name = (
+                    "tap"
+                    if keyframe.related_event.action_type == "touch_down"
+                    else keyframe.related_event.action_type
+                )
+                frame.norm_events = [
+                    {
+                        "action": action_name,
+                        "position": pos,
+                        "target_text": getattr(
+                            keyframe.related_event, "target_text", None
+                        ),
+                        "timestamp": getattr(keyframe.related_event, "timestamp", 0),
+                        "package_name": payload.get("package_name"),
+                    }
+                ]
         return frames
 
     async def _get_bundle_id_from_events(self, events: list[TraceEvent]) -> str:
@@ -539,7 +610,7 @@ class MultimodalSkillSynthesizer:
             "com.google.android.inputmethod",
             "android",
             "scrcpy",
-            "global_recorder"
+            "global_recorder",
         )
 
         for e in events:
@@ -559,7 +630,11 @@ class MultimodalSkillSynthesizer:
             try:
                 app_info = adb_driver.get_current_app()
                 pkg = app_info.get("package")
-                if pkg and pkg not in ("unknown", "error", "") and not pkg.startswith(system_prefixes):
+                if (
+                    pkg
+                    and pkg not in ("unknown", "error", "")
+                    and not pkg.startswith(system_prefixes)
+                ):
                     all_apps.append(pkg)
             except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                 logger.debug(f"Failed to get current app from ADB: {e}")
@@ -575,7 +650,7 @@ class MultimodalSkillSynthesizer:
         bundle_id: str,
         frames: list[CompressedFrame],
         event_context: str,
-        voice_transcript: str | None = None
+        voice_transcript: str | None = None,
     ) -> str:
         """构建多模态消息并调用 LLM"""
         from app.core.engine.message.native_classes import HumanMessage, SystemMessage
@@ -587,22 +662,23 @@ class MultimodalSkillSynthesizer:
         content = []
 
         # 1. 构建核心任务上下文
-        app_context_label = "Target Applications" if ", " in bundle_id else "Target Application (Package Name)"
+        app_context_label = (
+            "Target Applications"
+            if ", " in bundle_id
+            else "Target Application (Package Name)"
+        )
 
         context_vars = {
             "task_description": task_description,
             "app_context_label": app_context_label,
             "bundle_id": bundle_id,
             "event_context": event_context,
-            "voice_transcript": voice_transcript
+            "voice_transcript": voice_transcript,
         }
 
         task_context = self.prompt_builder.build_multimodal_context_prompt(context_vars)
 
-        content.append({
-            "type": "text",
-            "text": task_context
-        })
+        content.append({"type": "text", "text": task_context})
 
         # 2. 关键帧详情 (附带图片) - 使用新模板
         frame_vars = []
@@ -610,42 +686,51 @@ class MultimodalSkillSynthesizer:
             f_data = {
                 "timestamp": frame.timestamp,
                 "description": frame.description,
-                "norm_events": []
+                "norm_events": [],
             }
             if frame.norm_events:
                 for evt in frame.norm_events:
-                    pos = evt.get('position')
+                    pos = evt.get("position")
                     pos_desc = self._describe_position(pos[0], pos[1]) if pos else ""
-                    f_data["norm_events"].append({
-                        "action": evt["action"],
-                        "position": pos,
-                        "position_desc": pos_desc,
-                        "target_text": evt.get("target_text")
-                    })
+                    f_data["norm_events"].append(
+                        {
+                            "action": evt["action"],
+                            "position": pos,
+                            "position_desc": pos_desc,
+                            "target_text": evt.get("target_text"),
+                        }
+                    )
             frame_vars.append(f_data)
 
         try:
             from app.utils.template import render_template
-            frames_narrative = render_template("core/vision/multimodal_frames.prompt.j2", frames=frame_vars)
+
+            frames_narrative = render_template(
+                "core/vision/multimodal_frames.prompt.j2", frames=frame_vars
+            )
             content.append({"type": "text", "text": frames_narrative})
         except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(f"Failed to render Multimodal Frames template: {e}")
-            content.append({"type": "text", "text": "## Keyframes Analysis\n(Error rendering frames detail)"})
+            content.append(
+                {
+                    "type": "text",
+                    "text": "## Keyframes Analysis\n(Error rendering frames detail)",
+                }
+            )
 
         # 插入 Base64 图片 (每个关键帧一张)
         for frame in frames:
             if not frame.data:
                 continue
-            base64_img = base64.b64encode(frame.data).decode('utf-8')
-            content.append({
-                "type": "image_url",
-                "image_url": {"url": f"data:image/jpeg;base64,{base64_img}"}
-            })
+            base64_img = base64.b64encode(frame.data).decode("utf-8")
+            content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{base64_img}"},
+                }
+            )
 
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=content)
-        ]
+        messages = [SystemMessage(content=system_prompt), HumanMessage(content=content)]
 
         response = await self.vision_llm.ainvoke(messages)
         return str(response.content)
@@ -654,8 +739,10 @@ class MultimodalSkillSynthesizer:
         """将归一化坐标转换为精细的语义描述 (5x5 风格)"""
         return describe_normalized_position(norm_x, norm_y)
 
-    def _parse_llm_response(self, response: str, recording: RecordingSession) -> SynthesizedSkill:
-        """解析 LLM 返回的混合格式"""
+    def _parse_llm_response(
+        self, response: str, recording: RecordingSession
+    ) -> SynthesisResult:
+        """Parse LLM response into skill metadata and an optional raw macro."""
         yaml_content = self._extract_yaml(response)
         instructions = self._extract_instructions(response)
 
@@ -673,21 +760,22 @@ class MultimodalSkillSynthesizer:
         if isinstance(raw_macro, dict):
             macro_value: object = raw_macro.get("steps", [])
         elif raw_macro is None:
-            macro_value = ""
+            macro_value = None
         else:
             macro_value = raw_macro
 
-        return SynthesizedSkill(
-            name=metadata.get("name", "unnamed_skill"),
-            namespace=metadata.get("namespace", "misc"),
-            description=metadata.get("description", ""),
-            trigger_patterns=metadata.get("trigger_patterns", []),
-            parameters=metadata.get("parameters", []),
-            instructions=instructions or response,
-            source_session_id=recording.session_id,
-            source_thread_id=recording.thread_id,
+        return SynthesisResult(
+            skill=SynthesizedSkill(
+                name=metadata.get("name", "unnamed_skill"),
+                namespace=metadata.get("namespace", "misc"),
+                description=metadata.get("description", ""),
+                trigger_patterns=metadata.get("trigger_patterns", []),
+                parameters=metadata.get("parameters", []),
+                instructions=instructions or response,
+                source_session_id=recording.session_id,
+                source_thread_id=recording.thread_id,
+            ),
             macro_script=macro_value,
-            execution_mode="deterministic" if macro_value else "agentic",
         )
 
     def _extract_yaml(self, text: str) -> str | None:
@@ -701,7 +789,7 @@ class MultimodalSkillSynthesizer:
         # 如果工具函数返回原文且没有探测到预期的 Meta 标签，则返回 None 交由调用者回退到原文
         # 这也是为了防止直接暴露纯文本响应而没有解析
         if result == text:
-             # 再尝试寻找通用的 Expert 指导标记
-             if "# " not in text and "## " not in text:
-                 return None
+            # 再尝试寻找通用的 Expert 指导标记
+            if "# " not in text and "## " not in text:
+                return None
         return result

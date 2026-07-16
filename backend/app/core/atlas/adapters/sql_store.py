@@ -34,8 +34,14 @@ class SQLAtlasStore(IAtlasStore):
                 app_record.app_name = atlas_app.app_name
                 app_record.version_hash = atlas_app.version_hash
                 app_record.last_observed_at = datetime.now()
-                # Remove old states & transitions
-                for s in app_record.states:
+                # Remove old states & transitions (explicit selects — the
+                # `states` relationship lazy-loads, which breaks under async)
+                old_states = (
+                    await session.execute(
+                        select(AtlasStateModel).where(AtlasStateModel.app_id == app_record.id)
+                    )
+                ).scalars().all()
+                for s in old_states:
                     await session.delete(s)
                 old_transitions = (
                     await session.execute(

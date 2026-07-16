@@ -15,14 +15,15 @@ from app.infrastructure.config import SystemConfigService
 from app.infrastructure.database import session_scope
 from app.infrastructure.queue.factory import shared_task
 from app.models import FileOperation, Message
-from app.utils.pydantic_helpers import (
-    clean_none_values,
-)
+from app.utils.parameters import normalize_parameters
+from app.utils.pydantic_helpers import clean_none_values
 
 logger = logging.getLogger(__name__)
 
 
-async def _notify_file_operation(thread_id: str, message_id: str, file_path: str, operation: str):
+async def _notify_file_operation(
+    thread_id: str, message_id: str, file_path: str, operation: str
+):
     """Notify frontend of new file operation via SSE through MessagePublisher."""
     from app.core.engine.message.publisher import MessagePublisher
     from app.core.engine.message.schemas import MessageBlock
@@ -65,10 +66,13 @@ async def _persist_file_operation_task(
         target_msg_id = message_id
         if tool_call_id:
             # Find the actual message ID associated with this tool_call_id
-            stmt_msg = select(Message.id).where(
-                Message.thread_id == thread_id,
-                Message.tool_call_id == tool_call_id
-            ).order_by(desc(Message.sequence_number))
+            stmt_msg = (
+                select(Message.id)
+                .where(
+                    Message.thread_id == thread_id, Message.tool_call_id == tool_call_id
+                )
+                .order_by(desc(Message.sequence_number))
+            )
             res = await session.execute(stmt_msg)
             found_id = res.scalar_one_or_none()
             if found_id:
@@ -88,6 +92,7 @@ async def _persist_file_operation_task(
 
     # --- [Phase 2] 同步到消息标准化引用并触发实时更新 ---
     from app.core.engine.message.repository import MessageRepository
+
     repo = MessageRepository(thread_id=thread_id)
     await repo.sync_changeset_reference(
         message_id=message_id,
@@ -95,7 +100,7 @@ async def _persist_file_operation_task(
         operation=operation,
         run_id=run_id,
         tool_call_id=tool_call_id,
-        diff_content=diff_content
+        diff_content=diff_content,
     )
 
 
@@ -130,7 +135,11 @@ async def persist_file_operation_task(
     # 2. 触发 SSE 增量更新：让前端气泡即时显示“变更徽章”
     async with session_scope() as session:
         # 获取最新的消息（带引用）
-        stmt = select(Message).where(Message.id == message_id).options(selectinload(Message.references))
+        stmt = (
+            select(Message)
+            .where(Message.id == message_id)
+            .options(selectinload(Message.references))
+        )
         result = await session.execute(stmt)
         db_msg = result.scalar_one_or_none()
 
@@ -147,6 +156,7 @@ async def persist_file_operation_task(
     try:
         from app.core.events import system_bus
         from app.core.file.event import ChangesetUpdatedEvent
+
         await system_bus.publish(
             ChangesetUpdatedEvent(
                 thread_id=thread_id,
@@ -194,10 +204,13 @@ async def harvest_concepts_task(concepts_data: list[dict], project_id: int):
                 from app.core.environment.event.publishers import (
                     publish_ui_tree_observed,
                 )
+
                 await publish_ui_tree_observed(
                     platform="android",
                     bundle_id=bundle_id,
-                    window_title=name.replace("android_layout:", "").split('(')[0].strip(),
+                    window_title=name.replace("android_layout:", "")
+                    .split("(")[0]
+                    .strip(),
                     elements=[e.model_dump() for e in elements],
                 )
 
@@ -228,7 +241,9 @@ async def record_episode_task(
     """
     Background task to sync thread trace to the episode graph (memory system).
     """
-    logger.info(f"[Celery] Recording episode for thread {thread_id} (Source: {source_message_id}, AutoSynth: {auto_synthesize})...")
+    logger.info(
+        f"[Celery] Recording episode for thread {thread_id} (Source: {source_message_id}, AutoSynth: {auto_synthesize})..."
+    )
 
     ctx = EvoContext(thread_id=thread_id, project_id=project_id, active_model=model)
     token = ContextManager.set(ctx)
@@ -250,41 +265,72 @@ async def record_episode_task(
 
             # Check if there are meaningful events to synthesize
             async with session_scope() as db:
-                stmt = select(func.count(TraceEvent.id)).where(TraceEvent.thread_id == thread_id)
+                stmt = select(func.count(TraceEvent.id)).where(
+                    TraceEvent.thread_id == thread_id
+                )
                 count_res = await db.execute(stmt)
                 event_count = count_res.scalar()
 
             if event_count and event_count >= 3:
-                logger.info(f"[Celery] 🧬 Auto-triggering skill synthesis for thread {thread_id} ({event_count} events)")
+                logger.info(
+                    f"[Celery] 🧬 Auto-triggering skill synthesis for thread {thread_id} ({event_count} events)"
+                )
                 synthesizer = WorkflowSynthesizer(thread_id=thread_id)
                 result = await synthesizer.synthesize()
-                if result:
+                if result and result.skill:
                     # Persist through the single creation service so the skill
                     # lands as pending_review (user confirmation required),
                     # exactly like the REST /skills/synthesize path.
-                    from app.core.events.publishers import publish_skill_mutated
-                    from app.services.learning.skill_lifecycle import create_from_synthesis
+                    from app.core.events.publishers import (
+                        publish_macro_mutated,
+                        publish_skill_mutated,
+                    )
+                    from app.core.learning.skill_lifecycle import create_from_synthesis
 
                     async with session_scope() as db:
                         db_skill = await create_from_synthesis(
                             db,
                             member_id=0,
-                            name=result.name,
-                            description=result.description,
-                            trigger_patterns=result.trigger_patterns,
-                            parameters=result.parameters,
-                            preconditions=result.preconditions,
-                            tools_used=result.tools_used,
-                            source_thread_id=result.source_thread_id,
-                            source_session_id=result.source_session_id,
-                            instructions=result.instructions,
-                            execution_mode=result.execution_mode,
-                            macro_script=result.macro_script,
+                            name=result.skill.name,
+                            description=result.skill.description,
+                            trigger_patterns=result.skill.trigger_patterns,
+                            parameters=result.skill.parameters,
+                            preconditions=result.skill.preconditions,
+                            tools_used=result.skill.tools_used,
+                            source_thread_id=result.skill.source_thread_id,
+                            source_session_id=result.skill.source_session_id,
+                            instructions=result.skill.instructions,
                         )
+                        db_macro = None
+                        if result.macro_script:
+                            from app.core.execution.macro.lifecycle import (
+                                create_macro_from_synthesis,
+                            )
+
+                            db_macro = await create_macro_from_synthesis(
+                                db,
+                                name=db_skill.name,
+                                description=db_skill.description,
+                                trigger_patterns=db_skill.trigger_patterns,
+                                parameters=normalize_parameters(
+                                    result.skill.parameters
+                                ),
+                                macro_script=result.macro_script,
+                                fallback_skill_id=db_skill.id,
+                                source_thread_id=result.skill.source_thread_id,
+                                project_id=project_id,
+                            )
+                            db_skill.macro_id = db_macro.id
                     await publish_skill_mutated(skill_id=db_skill.id, action="create")
-                    logger.info(f"[Celery] ✅ Skill synthesis complete: {result.name} (pending_review)")
+                    if db_macro is not None:
+                        await publish_macro_mutated(db_macro.id, action="create")
+                    logger.info(
+                        f"[Celery] ✅ Skill synthesis complete: {result.skill.name} (pending_review)"
+                    )
                 else:
-                    logger.info("[Celery] ⏩ Skill synthesis skipped (no unique pattern found)")
+                    logger.info(
+                        "[Celery] ⏩ Skill synthesis skipped (no unique pattern found)"
+                    )
     finally:
         ContextManager.reset(token)
 
@@ -304,6 +350,7 @@ def cleanup_artifacts_task(max_age_days: int = 3):
 
         logger.info(f"[Celery] Cleaning up old artifacts in {directory}...")
         from app.core.file import FileTraverser
+
         for entry in FileTraverser.list_entries(directory):
             try:
                 # File-level try-except is justified for cleanup tasks
@@ -330,12 +377,15 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
     try:
         # 1. Get Diff
         if not os.path.exists(cwd):
-            logger.warning(f"[Celery] Skipping git harvest: Directory '{cwd}' does not exist.")
+            logger.warning(
+                f"[Celery] Skipping git harvest: Directory '{cwd}' does not exist."
+            )
             return
 
         cmd = ["git", "diff", "HEAD"]
         process = await asyncio.create_subprocess_exec(
-            *cmd, cwd=cwd,
+            *cmd,
+            cwd=cwd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -351,13 +401,15 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
         user_lang = SystemConfigService.get_language_preference()
 
         from app.utils.template import render_template
+
         prompt_text = render_template(
             "core/engine/tasks/git_harvest.prompt.j2",
             diff_content=diff_text,
-            user_language=user_lang
+            user_language=user_lang,
         )
 
         from app.infrastructure.llm import InternalLLMService
+
         model_name = SystemConfigService.get_value("LLM_MODEL")
         result = await InternalLLMService.invoke_structured(
             messages=[{"role": "system", "content": prompt_text}],
@@ -370,17 +422,18 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
 
         if result.concepts:
             from app.core.memory.lifespan import MemoryLifespanManager
+            from app.core.memory.schemas import Concept
+
             if not MemoryLifespanManager.is_initialized():
                 await MemoryLifespanManager.ainitialize()
             container = MemoryLifespanManager.get_container()
 
-            from app.core.memory.schemas import Concept
             for concept in result.concepts:
                 mem_concept = Concept(
                     name=concept.name,
                     description=concept.description,
                     project_id=project_id,
-                    related_files=concept.related_files
+                    related_files=concept.related_files,
                 )
                 await container.memory_manager.store_concept(mem_concept)
                 logger.info(f"[Celery] Harvested concept: {concept.name}")
@@ -389,7 +442,9 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
 
 
 @shared_task(name="engine_reconcile_skill_macro")
-async def reconcile_skill_macro_task(skill_id: int, thread_id: str, model: str | None = None):
+async def reconcile_skill_macro_task(
+    skill_id: int, thread_id: str, model: str | None = None
+):
     """
     Background task to reconcile a broken skill macro.
     """
@@ -399,7 +454,9 @@ async def reconcile_skill_macro_task(skill_id: int, thread_id: str, model: str |
 
     # Pre-check: ensure there are enough trace events to synthesize from
     async with session_scope() as db:
-        stmt = select(func.count(TraceEvent.id)).where(TraceEvent.thread_id == thread_id)
+        stmt = select(func.count(TraceEvent.id)).where(
+            TraceEvent.thread_id == thread_id
+        )
         count_res = await db.execute(stmt)
         event_count = count_res.scalar()
 
@@ -419,26 +476,80 @@ async def reconcile_skill_macro_task(skill_id: int, thread_id: str, model: str |
         repaired_skill = await synthesizer.synthesize()
 
         if not repaired_skill.macro_script:
-            logger.warning(f"[Celery] No valid macro synthesized from recovery thread {thread_id}. Aborting patch.")
+            logger.warning(
+                f"[Celery] No valid macro synthesized from recovery thread {thread_id}. Aborting patch."
+            )
             return
 
         healed = False
+        healed_macro_ids: list[int] = []
         async with session_scope() as session:
             stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
             result = await session.execute(stmt)
             original_skill = result.scalar_one_or_none()
 
             if original_skill:
-                original_skill.macro_script = repaired_skill.macro_script
-                if repaired_skill.instructions:
-                    original_skill.instructions = repaired_skill.instructions
+                if repaired_skill.skill.instructions:
+                    original_skill.instructions = repaired_skill.skill.instructions
                 healed = True
+
+                # Chain-heal paired flywheel macros (macros table is the
+                # authoritative store for deterministic scripts).
+                from app.models.macro import Macro
+
+                if original_skill.macro_id:
+                    macro = await session.get(Macro, original_skill.macro_id)
+                    if macro is not None:
+                        macro.macro_script = repaired_skill.macro_script
+                        session.add(macro)
+                        healed_macro_ids.append(macro.id)
+                else:
+                    existing = (
+                        (
+                            await session.execute(
+                                select(Macro).where(Macro.fallback_skill_id == skill_id)
+                            )
+                        )
+                        .scalars()
+                        .first()
+                    )
+                    if existing is not None:
+                        existing.macro_script = repaired_skill.macro_script
+                        session.add(existing)
+                        original_skill.macro_id = existing.id
+                        healed_macro_ids.append(existing.id)
+                    else:
+                        new_macro = Macro(
+                            app_map_id=None,
+                            entity=None,
+                            name=original_skill.name,
+                            description=original_skill.description or "",
+                            trigger_patterns=original_skill.trigger_patterns or [],
+                            parameters=original_skill.parameters or [],
+                            macro_script=repaired_skill.macro_script,
+                            risk_tier="ui",
+                            requires_confirmation=False,
+                            status="pending_review",
+                            is_active=False,
+                            fallback_skill_id=original_skill.id,
+                            source_thread_id=original_skill.source_thread_id,
+                            project_id=original_skill.project_id,
+                            member_id=original_skill.member_id,
+                        )
+                        session.add(new_macro)
+                        await session.flush()
+                        original_skill.macro_id = new_macro.id
+                        healed_macro_ids.append(new_macro.id)
 
         # Publish AFTER commit: subscribers re-query the row in a new session
         # (file export + route-index upsert) and must see the patched macro.
         if healed:
             logger.info(f"[Celery] ✅ Skill {skill_id} has been self-healed.")
             await publish_skill_mutated(skill_id=skill_id, action="update")
+            from app.core.events.publishers import publish_macro_mutated
+
+            for macro_id in healed_macro_ids:
+                await publish_macro_mutated(macro_id, action="update")
     finally:
         ContextManager.reset(token)
 
@@ -449,6 +560,7 @@ async def engine_scheduler_tick():
     Background task to poll for due autonomous tasks.
     """
     from app.infrastructure.scheduler.service import SchedulerService
+
     await SchedulerService.tick()
 
 
@@ -484,16 +596,18 @@ async def run_autonomous_task_execution(task_id: int, project_id: int | None = N
         thread_id = f"auton-{task_id}-{int(time.time())}"
 
         from app.utils.template import render_template
+
         prompt = render_template(
             "core/engine/tasks/autonomous_task.prompt.j2",
             intent_description=intent_description,
             skill_name=skill_name,
             skill_id=skill_id,
-            device_id=device_id
+            device_id=device_id,
         )
 
         # 2. Trigger Unified Dispatcher
         from app.core.engine.dispatch import dispatch_agent_run
+
         result = await dispatch_agent_run(
             thread_id=thread_id,
             message_content=prompt,
@@ -503,13 +617,15 @@ async def run_autonomous_task_execution(task_id: int, project_id: int | None = N
                 "source_skill_id": skill_id,
                 "device_id": device_id,
                 "goal_prefix": "[Autonomous Task] ",
-            }
+            },
         )
 
         if result.status == "failed":
             raise RuntimeError(f"Dispatch failed for task {task_id}: {result.error}")
 
-        logger.info(f"[Celery] Starting autonomous agent for task {task_id} on {device_id}")
+        logger.info(
+            f"[Celery] Starting autonomous agent for task {task_id} on {device_id}"
+        )
 
         async with session_scope() as session:
             task = await session.get(AutonomousTask, task_id)
@@ -541,19 +657,21 @@ async def run_engine_audit_structured_extraction(
     """
     import json
 
-    from app.core.engine.extraction.schema import build_dynamic_schema
-    from app.core.engine.message.converter import EvoMessageConverter
-    from app.core.engine.message.native_classes import SystemMessage
-    from app.core.events.base import system_bus
     from app.core.engine.event import (
         ExtractionCompletedEvent,
         ExtractionRequest,
     )
+    from app.core.engine.extraction.schema import build_dynamic_schema
+    from app.core.engine.message.converter import EvoMessageConverter
+    from app.core.engine.message.native_classes import SystemMessage
+    from app.core.events.base import system_bus
     from app.infrastructure.llm import InternalLLMService
     from app.utils.template import render_template
 
     if not collected_schemas:
-        logger.info(f"[Celery] No extraction schemas requested for thread {thread_id}, skipping extraction.")
+        logger.info(
+            f"[Celery] No extraction schemas requested for thread {thread_id}, skipping extraction."
+        )
         return
 
     requests = [ExtractionRequest(**s) for s in collected_schemas]
@@ -565,7 +683,9 @@ async def run_engine_audit_structured_extraction(
     messages = EvoMessageConverter.repair(messages_dicts)
 
     model_name = SystemConfigService.get_value("LLM_MODEL")
-    schema_json = json.dumps(DynamicVerdict.model_json_schema(), ensure_ascii=False, indent=2)
+    schema_json = json.dumps(
+        DynamicVerdict.model_json_schema(), ensure_ascii=False, indent=2
+    )
 
     extract_prompt = render_template(
         "core/memory/audit_extraction.prompt.j2",
@@ -574,7 +694,6 @@ async def run_engine_audit_structured_extraction(
     )
 
     try:
-        import asyncio
         response = await asyncio.wait_for(
             InternalLLMService.invoke_structured(
                 messages=messages + [SystemMessage(content=extract_prompt)],
@@ -601,10 +720,14 @@ async def run_engine_audit_structured_extraction(
                 run_id=run_id,
                 extracted_data=extracted_data,
             )
-            logger.info(f"[Celery] 🚀 Publishing ExtractionCompletedEvent for thread {thread_id}")
+            logger.info(
+                f"[Celery] 🚀 Publishing ExtractionCompletedEvent for thread {thread_id}"
+            )
             await system_bus.publish(event)
     except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
-        logger.error(f"[Celery] engine_audit_structured_extraction failed for thread {thread_id}: {e!r}")
+        logger.error(
+            f"[Celery] engine_audit_structured_extraction failed for thread {thread_id}: {e!r}"
+        )
         raise
 
 
@@ -640,6 +763,7 @@ async def run_agent_background_task(thread_id: str, inputs: dict):
     Execute an agent run in the background (within Celery/Huey worker).
     """
     from app.core.engine.background_agent import run_agent_background
+
     await run_agent_background(thread_id, inputs)
 
 
@@ -655,6 +779,7 @@ async def resume_graph_background_task(
     Execute graph resumption in the background (within Celery/Huey worker).
     """
     from app.core.engine.graph_runner import resume_graph_background
+
     await resume_graph_background(
         thread_id=thread_id,
         inputs=inputs,

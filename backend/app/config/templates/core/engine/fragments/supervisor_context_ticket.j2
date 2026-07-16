@@ -18,6 +18,14 @@
 {%- endfor %}
 {%- endif %}
 
+{%- if active_macros %}
+## Available Macros (Deterministic Scripts)
+Reusable verified macros for this project. Prefer `run_macro(macro_id, params)` over manual tool sequences when one matches the user's intent.
+{%- for m in active_macros %}
+- {{ m.name }} (ID: {{ m.id }}){%- if m.entity %} [{{ m.entity }}]{% endif %}: {{ m.description }}
+{%- endfor %}
+{%- endif %}
+
 {% if session_goal %}
 ## Session Goal
 {{ session_goal }}

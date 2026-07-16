@@ -3,12 +3,24 @@ import logging
 import subprocess
 from typing import Any, cast
 
+from app.infrastructure.drivers.macos._workspace import (
+    ax_copy_attribute,
+    ax_value_point,
+    ax_value_size,
+    frontmost_application,
+)
+
 logger = logging.getLogger(__name__)
 
 
 class AXMixin:
     @classmethod
-    def dump_ax_tree(cls):
+    def dump_ax_tree(cls, pid: int | None = None):
+        """Dump the AX tree as a JSON string.
+
+        pid: target a specific running process (focus NOT required, verified
+        in §四十一); when None, falls back to the frontmost application.
+        """
         try:
             import AppKit
             try:
@@ -31,12 +43,11 @@ class AXMixin:
             kAXSizeAttribute = "AXSize"
             kAXWindowsAttribute = "AXWindows"
 
-            workspace = NSWorkspace.sharedWorkspace()
-            active_app = workspace.frontmostApplication()
-            if not active_app:
-                return "[]"
-
-            pid = active_app.processIdentifier()
+            if pid is None:
+                active_app = frontmost_application()
+                if not active_app:
+                    return "[]"
+                pid = active_app.processIdentifier()
             app_element = AXUIElementCreateApplication(pid)
 
             error, windows = AXUIElementCopyAttributeValue(app_element, kAXWindowsAttribute, None)
@@ -58,14 +69,12 @@ class AXMixin:
                     _, name = AXUIElementCopyAttributeValue(element, kAXDescriptionAttribute, None)
                 data["name"] = str(name) if name else ""
 
-                _, pos = AXUIElementCopyAttributeValue(element, kAXPositionAttribute, None)
-                _, size = AXUIElementCopyAttributeValue(element, kAXSizeAttribute, None)
-
-                if pos and size:
-                    try:
-                        data["bounds"] = [int(pos.x), int(pos.y), int(size.width), int(size.height)]
-                    except AttributeError:
-                        data["bounds"] = [0, 0, 0, 0]
+                pos = ax_copy_attribute(element, kAXPositionAttribute)
+                size = ax_copy_attribute(element, kAXSizeAttribute)
+                point = ax_value_point(pos)
+                extent = ax_value_size(size)
+                if point and extent:
+                    data["bounds"] = [point[0], point[1], extent[0], extent[1]]
                 else:
                     data["bounds"] = [0, 0, 0, 0]
 

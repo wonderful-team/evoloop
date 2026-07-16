@@ -7,7 +7,7 @@ This module provides active verification of macros through real environment exec
 perception-first reasoning, macro evolution, and multi-round orchestration.
 """
 
-from app.core.execution.macro.agent_validator import AgentMacroValidator
+from app.core.execution.macro.validator import AgentMacroValidator
 from app.core.execution.macro.event.subscribers import MacroSelfHealingAdvisor
 from app.core.execution.macro.evolution_engine import (
     AgenticTransformer,

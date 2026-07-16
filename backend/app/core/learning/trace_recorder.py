@@ -291,7 +291,7 @@ async def sync_thread_to_graph(
         container = MemoryLifespanManager.get_container()
         manager = container.memory_manager
         
-        from app.core.memory.models import Episode
+        from app.core.memory.schemas import Episode
         
         # Unified recording: Create Episode object first
         episode_obj = Episode(

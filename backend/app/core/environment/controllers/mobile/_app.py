@@ -49,7 +49,7 @@ class MobileAppMixin:
                             logger.info(f"[Mobile] Atlas strategy preloaded for {text}")
                     else:
                         await trigger_atlas_harvest(bundle_id=text)
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                     logger.debug(f"[Mobile] Atlas preload for {text} (non-critical): {e}")
 
             asyncio.create_task(_preload_atlas_data())

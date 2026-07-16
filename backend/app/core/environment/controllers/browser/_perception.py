@@ -33,7 +33,7 @@ class BrowserPerceptionMixin:
                     await elem.screenshot(path=filepath, animations="disabled", timeout=timeout_ms)
                 else:
                     await page.screenshot(path=filepath, full_page=full_page, animations="disabled", timeout=timeout_ms)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                 logger.error(f"[Browser] Screenshot action failed: {e}")
                 return ControllerResponse.error(
                     f"Screenshot failed (timeout={timeout_ms}ms).",
@@ -64,19 +64,24 @@ class BrowserPerceptionMixin:
         elif action == "check_element":
             if not selector:
                 return ControllerResponse.missing_param("selector")
+            if await page.locator(selector).count() == 0:
+                return ControllerResponse.success(
+                    f"Not found: {selector}",
+                    details="visible=False, enabled=False"
+                )
             elem = page.locator(selector).first
             try:
                 visible = await elem.is_visible()
                 enabled = await elem.is_enabled()
                 checked = await elem.is_checked() if await elem.get_attribute("type") in ("checkbox", "radio") else None
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                 return ControllerResponse.error(f"check_element error: {e}")
-            data = {"visible": visible, "enabled": enabled}
+            parts = [f"visible={visible}", f"enabled={enabled}"]
             if checked is not None:
-                data["checked"] = checked
+                parts.append(f"checked={checked}")
             return ControllerResponse.success(
-                f"Element status information for: {selector}",
-                details=str(data)
+                f"Found element: {selector}",
+                details=", ".join(parts)
             )
 
         return None

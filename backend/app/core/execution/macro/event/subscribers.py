@@ -15,6 +15,21 @@ logger = logging.getLogger(__name__)
 
 
 @event_register()
+class MacroAppMapSubscriber:
+    """Obsolete macros when their source AppMap is superseded."""
+
+    @event_subscribe("atlas.app_map.superseded")
+    async def on_app_map_superseded(self, event) -> None:
+        data = event.data or {}
+        app_map_id = data.get("app_map_id")
+        if not app_map_id:
+            return
+        from app.core.execution.macro import lifecycle
+
+        await lifecycle.mark_obsolete_by_app_map(int(app_map_id))
+
+
+@event_register()
 class MacroSelfHealingAdvisor:
     """
     Decoupled listener that decides if an agent should attempt self-healing
@@ -36,14 +51,12 @@ class MacroSelfHealingAdvisor:
         # Use centralized policy check
         decision = SelfHealingPolicy.check(
             skill=None,  # Skill-level check already done in MacroService
-            execution_params=event.data
+            execution_params=event.data,
         )
 
         if not decision.allowed:
             logger.info(f"[Self-Healing] {decision.source}-level skip for macro failure in thread {event.thread_id}")
-            event.suggestions.append(
-                SelfHealingPolicy.get_disabled_message(decision)
-            )
+            event.suggestions.append(SelfHealingPolicy.get_disabled_message(decision))
             return
 
         # Success Case: Suggest recovery with contextual information

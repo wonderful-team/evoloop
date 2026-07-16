@@ -203,13 +203,11 @@ class ProjectLifecycleSubscriber:
     @event_subscribe(SystemEventType.APP_STARTED)
     async def on_application_started(self, event):
         """
-        Handle APP_STARTED: Initialize project discovery and reconcile state.
+        Handle APP_STARTED: Reconcile project state with filesystem.
         """
-        from app.core.project.discovery_manager import discovery_manager
-
         root_projects_dir = SystemConfigService.get_value("WORKSPACE_ROOT")
         if not root_projects_dir:
-            logger.warning("[Project] WORKSPACE_ROOT not configured. Skipping discovery.")
+            logger.warning("[Project] WORKSPACE_ROOT not configured. Skipping reconciliation.")
             return
 
         if not os.path.exists(root_projects_dir):
@@ -217,28 +215,18 @@ class ProjectLifecycleSubscriber:
             return
 
         try:
-            # 1. Start Manager
-            discovery_manager.start(root_projects_dir)
-
-            # 2. Reconcile (Sync filesystem with DB)
             from app.core.project.sync_service import project_sync_service
 
-            logger.info(f"[Project] Synchronizing projects in {root_projects_dir}...")
+            logger.info(f"[Project] Reconciling projects in {root_projects_dir}...")
             await project_sync_service.reconcile_projects(root_projects_dir)
-            logger.info("[Project] ✓ Discovery and synchronization complete")
+            logger.info("[Project] ✓ Project reconciliation complete")
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-            logger.error(f"[Project] Startup initialization failed: {e}")
+            logger.error(f"[Project] Startup reconciliation failed: {e}")
 
     @event_subscribe(SystemEventType.APP_STOPPING)
     async def on_application_stopping(self, event):
-        """Handle APP_STOPPING: Stop project discovery manager."""
-        try:
-            from app.core.project.discovery_manager import discovery_manager
-
-            discovery_manager.stop()
-            logger.info("[Project] Project discovery manager stopped")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-            logger.warning(f"[Project] Failed to stop discovery manager: {e}")
+        """Handle APP_STOPPING: cleanup."""
+        logger.info("[Project] Application stopping.")
 
     @event_subscribe(SystemEventType.CONTEXT_POLISHING)
     async def on_context_polishing(self, event):
@@ -267,13 +255,7 @@ class ProjectLifecycleSubscriber:
                 from app.core.project.sync_service import project_sync_service
                 logger.info(f"[Project] WORKSPACE_ROOT changed, reconciling projects in {new_value}...")
                 await project_sync_service.reconcile_projects(new_value)
-
-                # Restart discovery manager for new path
-                from app.core.project.discovery_manager import discovery_manager
-
-                discovery_manager.stop()
-                discovery_manager.start(new_value)
-                logger.info(f"[Project] Discovery manager restarted for {new_value}")
+                logger.info(f"[Project] ✓ Reconciliation complete for {new_value}")
 
             except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"[Project] Failed to handle WORKSPACE_ROOT change: {e}")

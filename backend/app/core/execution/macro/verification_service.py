@@ -11,7 +11,7 @@ import logging
 from typing import Any
 
 from app.constants import DEFAULT_PROJECT_ID
-from app.core.execution.macro.agent_validator import AgentMacroValidator
+from app.core.execution.macro.validator import AgentMacroValidator
 from app.core.execution.macro.models import (
     EnvironmentConfig,
     ExecutionMode,
@@ -73,7 +73,7 @@ class VerificationService:
             # Parse YAML string
             try:
                 steps = [MacroStep.model_validate(s) for s in macro_from_yaml(macro_script)]
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                 logger.error(f"Failed to parse macro YAML: {e}")
                 return VerificationResponse(
                     success=False,

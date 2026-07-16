@@ -45,7 +45,7 @@ class AgentContextHydrator:
         last_human_msg: str = "",
         is_retry: bool = False,
         is_subtask: bool = False,
-        iteration_count: int = 0
+        iteration_count: int = 0,
     ) -> None:
         """
         Layered context hydration with caching and predictive memory loading.
@@ -79,7 +79,7 @@ class AgentContextHydrator:
         # Tier 1: Hot Memory (High Priority Instructions)
         hot_memory = await memory_manager.get_hot_memory(ctx.project_id)
         if hot_memory:
-            memory_data['hot_memory'] = hot_memory
+            memory_data["hot_memory"] = hot_memory
 
         # Tier 2: Predictive load (Concepts & Episodes - Only for primary turns)
         if last_human_msg and not is_subtask:
@@ -113,20 +113,32 @@ class AgentContextHydrator:
                     concepts,
                     key=lambda c: (c.source_thread_id != current_thread_id,),
                 )
-                memory_data['project_concepts'] = "\n".join([f"- **{c.name}**: {c.description}" for c in sorted_concepts[:5]])
+                memory_data["project_concepts"] = "\n".join([f"- **{c.name}**: {c.description}" for c in sorted_concepts[:5]])
             if episodes:
                 current_run_id = config.get("configurable", {}).get("run_id")
-                filtered = [e for e in episodes if e.get("id") != f"ep_{current_run_id}"]
+                filtered = [
+                    e for e in episodes if e.get("id") != f"ep_{current_run_id}"
+                ]
                 if filtered:
-                    memory_data['episodes'] = "\n".join([f"- **Goal**: {e['goal']}\n  **Result**: {e['result']}" for e in filtered[:2]])
+                    memory_data["episodes"] = "\n".join(
+                        [
+                            f"- **Goal**: {e['goal']}\n  **Result**: {e['result']}"
+                            for e in filtered[:2]
+                        ]
+                    )
 
         # 5. Static Layer (Skills, Telemetry)
         async def _load_static_data():
             data = dict(memory_data)
             from app.core.learning.discovery import skill_discovery
-            data['active_skills'] = await skill_discovery.get_active_skills_list()
-
+            from app.core.execution.macro.lifecycle import list_active_macro_index
+            from app.core.atlas.source.persistence import operation_map_summary
             from app.core.environment import get_awakened_state
+
+            data["active_skills"] = await skill_discovery.get_active_skills_list()
+            data["active_macros"] = await list_active_macro_index(project_id=ctx.project_id)
+            data["operation_map"] = await operation_map_summary(ctx.project_id) if ctx.project_id else ""
+
             env_state = get_awakened_state()
             if env_state:
                 try:
@@ -136,32 +148,43 @@ class AgentContextHydrator:
                     if env_state.host and env_state.host.os_name == "macOS":
                         try:
                             from app.infrastructure.drivers.macos import macos_driver
+
                             active_win = macos_driver.get_current_app()
                         except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                             logger.debug("Suppressed error: %s", e, exc_info=True)
 
                     telemetry_data = {
-                        "cpu": {"usage_percent": cpu_percent, "load_avg": psutil.getloadavg() if hasattr(psutil, "getloadavg") else []},
+                        "cpu": {
+                            "usage_percent": cpu_percent,
+                            "load_avg": psutil.getloadavg()
+                            if hasattr(psutil, "getloadavg")
+                            else [],
+                        },
                         "memory": {"percent": mem.percent, "available": mem.available},
-                        "android": [{"id": d.device_id, "reachable": d.is_reachable} for d in env_state.android_devices],
+                        "android": [
+                            {"id": d.device_id, "reachable": d.is_reachable}
+                            for d in env_state.android_devices
+                        ],
                         "host": bool(env_state.host),
                         "active_window": active_win,
-                        "network": env_state.network.internet_connected if env_state.network else False
+                        "network": env_state.network.internet_connected if env_state.network else False,
                     }
                 except (ValueError, OSError, RuntimeError, TypeError, KeyError):
                     telemetry_data = {}
-                data['telemetry'] = telemetry_data
+                data["telemetry"] = telemetry_data
             return data
 
         session_id = config.get("configurable", {}).get("run_id", ctx.request_id)
         static_layer = await LayeredContextCache.get_static_layer(
             session_id=session_id,
             project_id=ctx.project_id,
-            loader_fn=_load_static_data
+            loader_fn=_load_static_data,
         )
 
         ctx.metadata.project_concepts = static_layer.project_concepts
         ctx.metadata.active_skills = static_layer.active_skills_index
+        ctx.metadata.active_macros = static_layer.active_macros_index
+        ctx.metadata.operation_map = static_layer.operation_map
         ctx.metadata.environment_telemetry = static_layer.environment_telemetry
 
         # Memory pipeline — forward cached memory data into context metadata
@@ -179,10 +202,12 @@ class AgentContextHydrator:
         ctx.metadata.blackboard = state
 
         from app.core.context.plugins import plugin_registry
+
         plugin_registry.hydrate_context(ctx)
 
         # 7. Domain Expert Polishing (Event-Driven)
         from app.core.events.publishers import publish_context_polishing
+
         topic = state.ticket.topic if state.ticket else ""
         await publish_context_polishing(
             thread_id=ctx.thread_id,

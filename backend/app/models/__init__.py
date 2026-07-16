@@ -1,5 +1,6 @@
 from sqlmodel import SQLModel
 
+from .app_map import AppMap as AppMap
 from .atlas import AtlasApp as AtlasApp
 from .atlas import AtlasState as AtlasState
 from .atlas import AtlasTransition as AtlasTransition
@@ -18,6 +19,7 @@ from .credential import SecureCredential as SecureCredential
 from .file_operation import FileOperation as FileOperation
 from .learning import LearnedSkill as LearnedSkill
 from .learning import TraceEvent as TraceEvent
+from .macro import Macro as Macro
 from .maintenance import MaintenanceReport as MaintenanceReport
 from .memory import MemoryConcept as MemoryConcept
 from .planning import Plan as Plan

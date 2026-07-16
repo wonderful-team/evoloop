@@ -165,10 +165,16 @@ class LLMFactory:
 
     @staticmethod
     def _generate_cache_key(
-        config_type: str, provider: str, base_url: str, model_name: str, temperature: float, **kwargs
+        config_type: str,
+        provider: str,
+        base_url: str,
+        model_name: str,
+        temperature: float,
+        max_tokens: int | None = None,
+        **kwargs,
     ) -> str:
         """Generate unique cache key from LLM configuration."""
-        key_data = f"{config_type}:{provider}:{base_url}:{model_name}:{temperature}:{sorted(kwargs.items())}"
+        key_data = f"{config_type}:{provider}:{base_url}:{model_name}:{temperature}:{max_tokens}:{sorted(kwargs.items())}"
         return hashlib.md5(key_data.encode()).hexdigest()[:16]
 
     @staticmethod
@@ -223,7 +229,13 @@ class LLMFactory:
 
         # Generate cache key
         cache_key = LLMFactory._generate_cache_key(
-            config_type, provider, base_url, config.model_name, config.temperature, **config.extra_body
+            config_type,
+            provider,
+            base_url,
+            config.model_name,
+            config.temperature,
+            config.max_tokens,
+            **config.extra_body,
         )
 
         # ---------- Fast path: check cache without lock ----------

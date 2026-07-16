@@ -183,7 +183,7 @@ class AndroidEventRecorder:
 
             return None, 0
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.debug(f"Failed to parse event line: {line.strip()}, error: {e}")
             return None, 0
 
@@ -203,7 +203,7 @@ class AndroidEventRecorder:
             if pkg and pkg not in ("error", "unknown"):
                 self.current_package = pkg
                 return pkg
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.debug(f"[AndroidEventRecorder] Failed to get package: {e}")
 
         return self.current_package
@@ -319,11 +319,11 @@ class AndroidEventRecorder:
                 except (BlockingIOError, InterruptedError):
                     time.sleep(0.01)
                     continue
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                     logger.debug(f"Error reading from adb: {e}")
                     break
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(f"Event recording error: {e}")
         finally:
             self.is_recording = False
@@ -354,7 +354,7 @@ class AndroidEventRecorder:
                     f"Kernel={kernel_uptime:.3f}s, Host={host_now:.3f}s. "
                     f"Offset={self._relative_offset_ms:.1f}ms"
                 )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.warning(f"[AndroidEventRecorder] Failed to calibrate clocks: {e}")
 
     def start_recording(self, device_id: str, callback=None, video_start_time: float | None = None) -> bool:
@@ -381,7 +381,7 @@ class AndroidEventRecorder:
                 loop.create_task(self._calibrate_clocks())
             else:
                 asyncio.run(self._calibrate_clocks())
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError):
             # Fallback if loop is unavailable
             pass
 

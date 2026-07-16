@@ -153,16 +153,19 @@ class IndexingEventSubscriber(FileSystemEventHandler):
         self._process_move(event.src_path, event.dest_path)
 
     def _is_valid_code_file(self, path: str) -> bool:
-        # 1. Check if the file is a code file (extension/shebang)
+        # 1. Check if the file is a code file (extension/shebang) - Fast check
         if not is_code_file(path):
             return False
 
-        # 2. Check .gitignore rules (if a matcher is available)
+        # 2. Check global exclusion rules (node_modules, .git, etc.) - Fast path check
+        if is_ignored_path(path):
+            return False
+
+        # 3. Check .gitignore rules (if a matcher is available)
         if self._gitignore_matcher and self._gitignore_matcher.should_ignore(path, is_dir=False):
             return False
 
-        # 3. Check global exclusion rules (node_modules, .git, large files, etc.)
-        return self.file_filter.should_include(path)
+        return True
 
     def _process(self, path: str):
         if self._is_valid_code_file(path):
@@ -171,7 +174,6 @@ class IndexingEventSubscriber(FileSystemEventHandler):
                 self._pending_tasks[path].cancel()
 
             # Schedule new task
-            # We schedule a callback on the LOOP, which will then launch the coroutine
             task = self.loop.call_later(
                 self._debounce_delay,
                 lambda: asyncio.create_task(self._debounce_callback(path)),
@@ -179,11 +181,15 @@ class IndexingEventSubscriber(FileSystemEventHandler):
             self._pending_tasks[path] = task
 
     async def _debounce_callback(self, path: str):
-        """Publish FileModifiedEvent to the event bus."""
+        """Publish FileModifiedEvent to the event bus after verifying content filter."""
         # Cleanup
         self._pending_tasks.pop(path, None)
 
-        logger.info(f"File modified (Debounced): {path}")
+        # Run the heavy content-based FileFilter check only after debounce (avoids blocking watcher thread)
+        if not self.file_filter.should_include(path):
+            return
+
+        logger.info(f"File modified (Debounced & Filtered): {path}")
 
         # Publish event to system bus instead of directly calling service
         from app.domain.codebase.event.publishers import publish_file_modified
@@ -246,121 +252,3 @@ class RepoWatcher:
 
     def stop(self):
         observer_manager.unschedule(self.path)
-
-
-class ProjectDiscoverySubscriber(FileSystemEventHandler):
-    """
-    File system event handler that publishes project events to the unified event bus.
-
-    Instead of directly calling ProjectSyncService, this handler publishes
-    events (ProjectCreatedEvent, ProjectDeletedEvent, ProjectMovedEvent) to the
-    system event bus. ProjectSyncSubscriber (via ProjectDomainSubscriber)
-    subscribes to these events and performs the actual synchronization operations.
-    """
-
-    def __init__(self, root_path: str, loop: asyncio.AbstractEventLoop):
-        self.root_path = root_path
-        self.loop = loop
-
-    def on_created(self, event):
-        if not event.is_directory:
-            return
-        if is_ignored_path(event.src_path):
-            return
-        # Only handle direct children of root_path
-        parent = os.path.dirname(event.src_path)
-        if os.path.normpath(parent) != os.path.normpath(self.root_path):
-            return
-        logger.info(f"Project Created (Detected): {event.src_path}")
-        self._publish_project_created(event.src_path)
-
-    def on_moved(self, event):
-        if not event.is_directory:
-            return
-        if is_ignored_path(event.src_path) and is_ignored_path(event.dest_path):
-            return
-        # src_path is the OLD path. If its parent was root_path, it's a rename or move-out.
-        src_parent = os.path.dirname(event.src_path)
-        dest_parent = os.path.dirname(event.dest_path)
-
-        is_src_in_root = os.path.normpath(src_parent) == os.path.normpath(self.root_path)
-        is_dest_in_root = os.path.normpath(dest_parent) == os.path.normpath(self.root_path)
-
-        if is_src_in_root and is_dest_in_root:
-            # Rename in-place
-            logger.info(f"Project Renamed (Detected): {event.src_path} -> {event.dest_path}")
-            self._publish_project_moved(event.src_path, event.dest_path)
-        elif is_src_in_root and not is_dest_in_root:
-            # Moved out of root -> Treat as deletion
-            logger.info(f"Project Moved Out (Detected): {event.src_path} -> {event.dest_path}")
-            self._publish_project_deleted(event.src_path)
-        elif not is_src_in_root and is_dest_in_root:
-            # Moved into root from elsewhere -> Treat as creation
-            logger.info(f"Project Moved In (Detected): {event.src_path} -> {event.dest_path}")
-            self._publish_project_created(event.dest_path)
-
-    def on_deleted(self, event):
-        if not event.is_directory:
-            return
-        if is_ignored_path(event.src_path):
-            return
-        # Only handle direct children of root_path
-        parent = os.path.dirname(event.src_path)
-        if os.path.normpath(parent) != os.path.normpath(self.root_path):
-            return
-        logger.info(f"Project Deleted (Detected): {event.src_path}")
-        self._publish_project_deleted(event.src_path)
-
-    def _publish_project_created(self, path: str):
-        """Publish ProjectCreatedEvent to the event bus."""
-        from app.core.project.event.publishers import publish_project_created
-
-        asyncio.run_coroutine_threadsafe(
-            publish_project_created(path=path, repo_id=0, project_id=None, project_name=""),
-            self.loop
-        )
-
-    def _publish_project_deleted(self, path: str):
-        """Publish ProjectDeletedEvent to the event bus."""
-        from app.core.project.event.publishers import publish_project_deleted
-
-        asyncio.run_coroutine_threadsafe(
-            publish_project_deleted(path=path, repo_id=0, project_id=None),
-            self.loop
-        )
-
-    def _publish_project_moved(self, src_path: str, dest_path: str):
-        """Publish ProjectMovedEvent to the event bus."""
-        from app.core.project.event.publishers import publish_project_moved
-
-        asyncio.run_coroutine_threadsafe(
-            publish_project_moved(src_path=src_path, dest_path=dest_path),
-            self.loop
-        )
-
-
-class ProjectDiscoveryWatcher:
-    """
-    Watches the WORKSPACE_ROOT using the global observer.
-    """
-
-    def __init__(self, root_path: str):
-        self.root_path = root_path
-
-    def start(self):
-        if not os.path.exists(self.root_path):
-            logger.warning(f"Root path {self.root_path} does not exist. Cannot watch for new projects.")
-            return
-
-        logger.info(f"Starting Project Discovery Watcher on: {self.root_path}")
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            # If explicit loop needed or not running (should be running in server)
-            loop = asyncio.new_event_loop()
-
-        event_handler = ProjectDiscoverySubscriber(self.root_path, loop)
-        observer_manager.schedule(event_handler, self.root_path, recursive=False)
-
-    def stop(self):
-        observer_manager.unschedule(self.root_path)

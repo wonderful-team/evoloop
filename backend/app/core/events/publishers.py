@@ -118,6 +118,33 @@ async def publish_subscription_changed(member_id: int | None = None, event: str 
     )
 
 
+async def publish_macro_mutated(
+    macro_id: int,
+    action: str,
+    namespace: str | None = None,
+    name: str | None = None,
+) -> None:
+    """Publish a macro lifecycle event (created/updated/deleted/obsoleted).
+
+    Unknown actions are dropped: an event with an empty event_type would be
+    unroutable noise on the bus.
+    """
+    from app.core.execution.macro.event.schemas import MacroMutatedEvent
+
+    if action not in ("create", "update", "delete", "obsolete"):
+        return
+
+    await system_bus.publish(
+        MacroMutatedEvent(
+            source="learning",
+            macro_id=macro_id,
+            action=action,
+            namespace=namespace,
+            name=name,
+        )
+    )
+
+
 async def publish_skill_mutated(
     skill_id: int,
     action: str,

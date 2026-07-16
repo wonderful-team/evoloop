@@ -25,6 +25,7 @@ class WorkerPromptBuilder(BasePromptBuilder):
     decision has already been made upstream. NLP skill indexing / lazy loading belongs
     to the Supervisor, not here.
     """
+
     def __init__(
         self,
         agent_config: AgentRuntimeConfig | None,
@@ -32,7 +33,7 @@ class WorkerPromptBuilder(BasePromptBuilder):
         skills: list = None,
         ticket: ExecutionTicket | None = None,
         focus_paths: list = None,
-        plan: dict | str = None
+        plan: dict | str = None,
     ):
         self.agent_config = agent_config
         self.blackboard = blackboard
@@ -61,6 +62,7 @@ class WorkerPromptBuilder(BasePromptBuilder):
 
         # Read wiki index for prompt injection (project mode only)
         from app.core.engine.nodes.utils.node_utils import read_wiki_index
+
         wiki_index = await read_wiki_index(ctx.project_id)
 
         # Static Sys Info (Project identity only)
@@ -68,23 +70,33 @@ class WorkerPromptBuilder(BasePromptBuilder):
             "project_concepts": ctx.metadata.get("project_concepts", ""),
             "project_profile": project_profile,
             "wiki_index": wiki_index,
-            "cwd": self.get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", "")),
+            "cwd": self.get_mapped_cwd(
+                ctx.working_directory or ctx.metadata.get("cwd", "")
+            ),
         }
 
         # Protocol flags based on the node's tool list (Static for the node)
         node_tools = self.agent_config.tools if self.agent_config else []
         has_desktop_tool = any(t in node_tools for t in ["desktop_control", "open_app"])
-        has_mobile_tool = any(t in node_tools for t in ["mobile_control", "list_devices"])
+        has_mobile_tool = any(
+            t in node_tools for t in ["mobile_control", "list_devices"]
+        )
         has_browser_tool = "browser_control" in node_tools
-        has_wiki_tools = any(t in node_tools for t in ["write_wiki_page", "edit_wiki_page", "save_concepts"])
+        has_wiki_tools = any(
+            t in node_tools
+            for t in ["write_wiki_page", "edit_wiki_page", "save_concepts"]
+        )
 
-        logger.info(f"[WorkerPromptBuilder] Static Protocol flags: "
-                   f"browser={has_browser_tool}, desktop={has_desktop_tool}, mobile={has_mobile_tool}, wiki={has_wiki_tools}")
+        logger.info(
+            f"[WorkerPromptBuilder] Static Protocol flags: "
+            f"browser={has_browser_tool}, desktop={has_desktop_tool}, mobile={has_mobile_tool}, wiki={has_wiki_tools}"
+        )
 
         # Static Feature Check
         has_interactive_charts = False
         from app.core.evocloud import evocloud_manager
         from app.services.benefit_service import benefit_service
+
         token = await evocloud_manager.get_token()
         member_id = ctx.member_id
         if token and member_id:
@@ -145,6 +157,8 @@ class WorkerPromptBuilder(BasePromptBuilder):
 
         template_vars = {
             "topic": topic,
+            "active_macros": ctx.metadata.get("active_macros", []) or [],
+            "operation_map": ctx.metadata.get("operation_map", "") or "",
             "acceptance_criteria": self.ticket.acceptance_criteria if self.ticket else [],
             "parameters": self.ticket.parameters if self.ticket else {},
             "is_subtask": self.agent_config.is_subtask if self.agent_config else False,
@@ -178,7 +192,7 @@ class WorkerPromptBuilder(BasePromptBuilder):
         selected which skills are relevant — there is no routing decision left
         for the Worker to make, so no need for a lightweight index.
 
-        Uses a single template render with the knowledge_blocks_wrapper.j2
+        Uses a single template render with the knowledge_blocks.j2
         template for efficiency, then splits the result into individual blocks.
         """
         if not self.skills:
@@ -186,21 +200,21 @@ class WorkerPromptBuilder(BasePromptBuilder):
 
         try:
             rendered = render_template(
-                "core/engine/fragments/knowledge_blocks_wrapper.j2",
+                "core/engine/fragments/knowledge_blocks.j2",
                 skills=self.skills,
-                is_subtask=self.agent_config.is_subtask if self.agent_config else False
+                is_subtask=self.agent_config.is_subtask if self.agent_config else False,
             )
-            blocks = [b.strip() for b in rendered.split('\n\n\n') if b.strip()]
+            blocks = [b.strip() for b in rendered.split("\n\n\n") if b.strip()]
             return blocks or [rendered.strip()]
         except (ImportError, TemplateError) as e:
             logger.error(f"Error rendering Knowledge Blocks: {e}")
             blocks = []
             for i, skill in enumerate(self.skills):
                 block = render_template(
-                    "core/engine/fragments/knowledge_block.j2",
+                    "core/engine/fragments/skill_block.j2",
                     skill=skill,
                     is_primary=(i == 0),
-                    is_subtask=self.agent_config.is_subtask if self.agent_config else False
+                    is_subtask=self.agent_config.is_subtask if self.agent_config else False,
                 )
                 blocks.append(block)
             return blocks

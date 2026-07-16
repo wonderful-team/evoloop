@@ -69,7 +69,7 @@ class MobileAdvancedMixin:
                             cropped = img.crop(box)
                             cropped.save(filepath)
                             logger.info(f"[Mobile] Screenshot cropped to region: {region}")
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                     logger.warning(f"[Mobile] Region cropping failed: {e}")
 
             result_msg = ControllerResponse.screenshot_result(success=True, filename=filepath)
@@ -86,7 +86,7 @@ class MobileAdvancedMixin:
                         )
                     else:
                         result_msg += "\n\n" + ControllerResponse.error("OCR requested but no text detected.")
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                     result_msg += "\n\n" + ControllerResponse.error("OCR Error.", details=str(e))
             return await finish_action(result_msg)
 
@@ -169,7 +169,7 @@ class MobileAdvancedMixin:
                         box = (max(0, rx), max(0, ry), min(img.size[0], rx + rw), min(img.size[1], ry + rh))
                         img.crop(box).save(filepath)
                     return True
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError):
                     return False
 
             def _group_elements_to_rows(elements, screen_height: int = 2400):

@@ -65,7 +65,7 @@ class VerificationWorker:
     async def _init_browser(self) -> None:
         """Initialize browser controller"""
         try:
-            from app.infrastructure.automation.web.controller import BrowserController
+            from app.core.environment.controllers.browser import BrowserController
 
             self._browser_controller = BrowserController()
 
@@ -94,9 +94,7 @@ class VerificationWorker:
     async def _init_desktop(self) -> None:
         """Initialize desktop controller"""
         try:
-            from app.infrastructure.automation.desktop.controller import (
-                DesktopController,
-            )
+            from app.core.environment.controllers.desktop import DesktopController
 
             self._desktop_controller = DesktopController()
 

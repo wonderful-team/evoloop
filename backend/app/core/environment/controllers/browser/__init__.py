@@ -87,13 +87,13 @@ class BrowserController(
 
             if action == "new_tab":
                 page = await browser_manager.new_tab(url)
-                count = browser_manager.tab_count
+                count = browser_manager.tab_count()
                 return ControllerResponse.success(f"New tab opened (tab {count - 1}/{count - 1}). URL: {page.url}")
 
             if action == "switch_tab":
                 if tab_index is None:
                     return ControllerResponse.missing_param("tab_index")
-                page = browser_manager.switch_tab(tab_index)
+                page = await browser_manager.switch_tab(tab_index)
                 return ControllerResponse.success(f"Switched to tab {tab_index}. URL: {page.url}")
 
             # ── All other actions need a live page ────────────────────────
@@ -120,7 +120,7 @@ class BrowserController(
             pre_url = page.url
             try:
                 pre_title = await page.title()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError):
                 pre_title = ""
 
             # ── Build shared context dict for mixin handlers ──────────────
@@ -217,14 +217,14 @@ class BrowserController(
                 try:
                     await page.locator(loc).first.set_input_files(file_path)
                     return ControllerResponse.success(f"Uploaded file '{os.path.basename(file_path)}' to {loc}")
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                     logger.error(f"[Browser] Upload failed: {e}")
                     return ControllerResponse.error("Upload failed.", details=str(e))
 
             else:
                 return ControllerResponse.error(f"Unknown action '{action}'.")
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             error_msg = f"[Browser] action='{action}' failed: {e}"
             if continue_on_error:
                 logger.warning(f"Optional {error_msg}. Continuing.")

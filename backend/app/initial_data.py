@@ -52,7 +52,7 @@ def init() -> None:
 
     # 6. Skill lifecycle data migration (idempotent; repairs pre-convergence rows)
     try:
-        from app.services.learning.skill_lifecycle import migrate_legacy_status_rows
+        from app.core.learning.skill_lifecycle import migrate_legacy_status_rows
 
         migrate_legacy_status_rows()
     except (SQLAlchemyError, ConnectionError, ValueError, RuntimeError, TypeError) as e:
@@ -60,7 +60,7 @@ def init() -> None:
 
     # 7. Trace state_snapshot encoding repair (idempotent; safe in any mode)
     try:
-        from app.services.learning.skill_lifecycle import repair_state_snapshot_encoding
+        from app.core.learning.skill_lifecycle import repair_state_snapshot_encoding
 
         repair_state_snapshot_encoding()
     except (SQLAlchemyError, ConnectionError, ValueError, RuntimeError, TypeError) as e:
@@ -68,7 +68,7 @@ def init() -> None:
 
     # 8. Drop legacy learning tables (one-time; no-op after first drop)
     try:
-        from app.services.learning.skill_lifecycle import drop_legacy_learning_tables
+        from app.core.learning.skill_lifecycle import drop_legacy_learning_tables
 
         drop_legacy_learning_tables()
     except (SQLAlchemyError, ConnectionError, ValueError, RuntimeError, TypeError) as e:

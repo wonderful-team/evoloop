@@ -1,0 +1,13 @@
+{%- if active_macros %}
+## Attached Macros (Deterministic Scripts)
+Verified macros available for this project. If the mission matches one, call `run_macro(macro_id, params)` instead of manual tool sequences.
+{% for m in active_macros -%}
+- {{ m.name }} (ID: {{ m.id }}){%- if m.entity %} [{{ m.entity }}]{% endif %}: {{ m.description }}
+{% endfor -%}
+{%- endif %}
+
+{%- if operation_map %}
+## Project Operation Map
+Known business operations surveyed from the project source (Atlas AppMap). Use it to ground URLs, actions and field names — do NOT guess.
+{{ operation_map }}
+{%- endif %}

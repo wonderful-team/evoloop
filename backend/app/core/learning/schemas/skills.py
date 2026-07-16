@@ -34,9 +34,7 @@ class SkillDTO(BaseModel):
     failure_count: int
     is_active: bool
     status: str
-    execution_mode: str = "agentic"
-    allow_self_healing: bool = True
-    macro_script: str | None = None  # YAML format
+    macro_id: int | None = None
     validation_report: dict[str, Any] | None = None
     instructions: str | None = None
     created_at: datetime
@@ -48,3 +46,5 @@ class SkillDetailResponse(SkillDTO):
     source_thread_id: str | None = None
     source_session_id: str | None = None
     resource_path: str | None = None
+    macro_script: str | None = None  # YAML format, exposed via linked macro
+    allow_self_healing: bool = True  # exposed via linked macro

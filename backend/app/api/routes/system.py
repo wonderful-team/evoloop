@@ -15,9 +15,6 @@ from app.api.schemas.system import (
     LLMConfigRequest,
     LLMTestResponse,
     ModelsListResponse,
-    ProjectDiscoveryConfigRequest,
-    ProjectDiscoveryConfigResponse,
-    ProjectDiscoveryConfigUpdateResponse,
     SystemStatusResponse,
 )
 from app.infrastructure.config import EmbeddingConfigService
@@ -32,6 +29,8 @@ from app.models.system import SystemConfig
 router = APIRouter(prefix="/system", tags=["system"])
 
 
+from app.core.config import settings
+
 @router.get("/status", dependencies=[Depends(get_current_user)])
 def get_system_status() -> SystemStatusResponse:
     """
@@ -45,7 +44,8 @@ def get_system_status() -> SystemStatusResponse:
         ram_percent=ram.percent,
         ram_used_gb=round(ram.used / (1024**3), 2),
         ram_total_gb=round(ram.total / (1024**3), 2),
-        status="ok"
+        status="ok",
+        enable_macro_self_healing=settings.ENABLE_MACRO_SELF_HEALING,
     )
 
 
@@ -214,42 +214,3 @@ async def get_embedding_models() -> ModelsListResponse:
     models = await get_available_embedding_models()
     return ModelsListResponse(models=models, last_updated=time.strftime("%Y-%m-%d"))
 
-
-# --- Project Discovery Config ---
-
-@router.get("/project-discovery/config", dependencies=[Depends(get_current_user)])
-async def get_project_discovery_config():
-    """
-    获取项目自动发现功能的配置状态。
-
-    Returns:
-        enabled: 是否启用项目发现
-        source: 配置来源 (env-环境变量, config-系统配置, default-默认值)
-    """
-    # Check system config (DB)
-    config_value = SystemConfigService.get_value("PROJECT_DISCOVERY_ENABLED")
-    if config_value is not None:
-        enabled = config_value.lower() in ("true", "1", "yes", "on")
-        return ProjectDiscoveryConfigResponse(enabled=enabled, source="config")
-
-    # Default: enabled
-    return ProjectDiscoveryConfigResponse(enabled=True, source="default")
-
-
-@router.post("/project-discovery/config", dependencies=[Depends(get_current_user)])
-async def set_project_discovery_config(req: ProjectDiscoveryConfigRequest) -> ProjectDiscoveryConfigUpdateResponse:
-    """
-    设置项目自动发现功能的启用/禁用状态。
-
-    Note: 如果通过环境变量 DISABLED，此处设置将无效（环境变量优先级最高）
-    """
-    from app.core.project.discovery_manager import discovery_manager
-
-    # Set the configuration
-    success = await discovery_manager.set_discovery_enabled(req.enabled)
-
-    return ProjectDiscoveryConfigUpdateResponse(
-        success=success,
-        enabled=req.enabled,
-        message=f"Project discovery {'enabled' if req.enabled else 'disabled'} successfully",
-    )

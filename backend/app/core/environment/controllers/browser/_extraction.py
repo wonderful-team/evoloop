@@ -25,7 +25,13 @@ class BrowserExtractionMixin:
 
         if action == "get_text":
             if selector:
-                content = await page.locator(selector).first.inner_text(timeout=timeout_ms)
+                if ctx.get("state") == "attached":
+                    # Empty/hidden containers (e.g. tbody of an empty table is
+                    # zero-height): inner_text would wait for visibility and
+                    # time out; text_content reads "" honestly.
+                    content = await page.locator(selector).first.text_content(timeout=timeout_ms) or ""
+                else:
+                    content = await page.locator(selector).first.inner_text(timeout=timeout_ms)
             else:
                 content = await page.inner_text("body")
             content = re.sub(r"\n{3,}", "\n\n", content).strip()
@@ -52,7 +58,7 @@ class BrowserExtractionMixin:
                             f"Attribute (JS property) '{attribute}' of '{selector}'",
                             details=str(val).strip()
                         )
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                     logger.debug("Suppressed error: %s", e, exc_info=True)
             if val is None:
                 return ControllerResponse.not_found(attribute, item_type="attribute")
@@ -87,7 +93,7 @@ class BrowserExtractionMixin:
                     f"Element found: '{loc}'",
                     note="Not in viewport, no bounding box."
                 )
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError):
                 return ControllerResponse.not_found(loc, item_type="element")
 
         elif action == "get_elements":
@@ -131,7 +137,7 @@ class BrowserExtractionMixin:
                             "maxCount": max_elements
                         })
                         return json.dumps(batch_results)
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as js_e:
+                    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as js_e:
                         logger.debug(f"[Browser] Batch JS failed, falling back: {js_e}")
 
                 results = []
@@ -149,7 +155,7 @@ class BrowserExtractionMixin:
                         "height": box["height"] if box else 0
                     })
                 return json.dumps(results)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                 logger.error(f"[Browser] get_elements failed: {e}")
                 return "[]"
 

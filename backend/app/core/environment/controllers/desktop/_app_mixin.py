@@ -59,6 +59,14 @@ class DesktopAppMixin:
         elif action == "applescript":
             if not script:
                 return ControllerResponse.missing_param("script")
+            # G5: static review — shell escape / privilege escalation banned
+            from app.core.atlas.script_gate import ScriptGateError, review_applescript
+
+            try:
+                review_applescript(script)
+            except ScriptGateError as e:
+                logger.warning(f"[Desktop] applescript rejected by gate: {e}")
+                return ControllerResponse.error(str(e))
             output = await asyncio.to_thread(macos_driver.run_applescript, script)
             if output:
                 if "</div>" in output or "</body>" in output or "<br>" in output:
@@ -66,7 +74,7 @@ class DesktopAppMixin:
                         md_output = markdownify.markdownify(output, heading_style="ATX")
                         if md_output.strip():
                             output = f"[Converted from HTML to Markdown]\n{md_output}"
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                         logger.warning(f"Markdown conversion failed: {e}")
                 output = truncate_output(output, MAX_OUTPUT_LENGTH)
             if output:

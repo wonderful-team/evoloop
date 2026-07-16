@@ -6,6 +6,7 @@ from app.core.execution.macro.healing_policy import SelfHealingPolicy
 from app.core.execution.macro.optimizer import MacroOptimizer
 from app.core.execution.macro.schemas import MacroRunResult, MacroScript
 from app.core.monitoring.activity import activity_monitor
+from app.models.macro import Macro
 
 logger = logging.getLogger(__name__)
 
@@ -22,17 +23,17 @@ class MacroService:
         thread_id: str,
         script_input: MacroScript | list[dict],
         params: dict[str, Any] | None = None,
-        skill: Any | None = None  # LearnedSkill, optional for policy check
+        macro: Macro | None = None  # Macro, optional for policy check
     ) -> MacroRunResult:
         """
         High-level entry point to execute a macro.
         Handles: Validation, Activity Monitoring, Parameters, and Engine Dispatch.
-        
+
         Args:
             thread_id: The conversation thread ID
             script_input: Macro script (MacroScript object or list of step dicts)
             params: Execution parameters (optional)
-            skill: The LearnedSkill being executed (optional, for self-healing policy)
+            macro: The Macro being executed (optional, for self-healing policy)
         """
         # 1. Validation / Hydration
         try:
@@ -67,7 +68,7 @@ class MacroService:
                 await activity_monitor.end_run(thread_id, "failed")
 
                 # --- Unified Self-Healing Decision ---
-                decision = SelfHealingPolicy.check(skill=skill, execution_params=params)
+                decision = SelfHealingPolicy.check(macro=macro, execution_params=params)
 
                 if not decision.allowed:
                     logger.warning(f"[{thread_id}] Self-healing disabled: {decision.reason}")

@@ -26,8 +26,11 @@ logger = logging.getLogger(__name__)
 
 class StaticContextLayer(DynamicBaseModel):
     """Static context that can be safely cached across nodes."""
+
     project_concepts: str | None = None
     active_skills_index: list = Field(default_factory=list)
+    active_macros_index: list = Field(default_factory=list)
+    operation_map: str = ""
     environment_telemetry: dict = Field(default_factory=dict)
     system_preferences: dict = Field(default_factory=dict)
 
@@ -55,9 +58,9 @@ class LayeredContextCache:
 
     # Statistics
     _stats = {
-        'static_hits': 0,
-        'static_misses': 0,
-        'dynamic_loads': 0,
+        "static_hits": 0,
+        "static_misses": 0,
+        "dynamic_loads": 0,
     }
 
     # TTL configuration (seconds)
@@ -65,14 +68,11 @@ class LayeredContextCache:
 
     @classmethod
     async def get_static_layer(
-        cls,
-        session_id: str,
-        project_id: int | None,
-        loader_fn: callable
+        cls, session_id: str, project_id: int | None, loader_fn: callable
     ) -> StaticContextLayer:
         """
         Get static context layer with caching.
-        
+
         Args:
             session_id: Unique session identifier
             project_id: Project ID for cache scoping (None defaults to global)
@@ -85,7 +85,7 @@ class LayeredContextCache:
         if cache_key in cls._static_cache:
             cached = cls._static_cache[cache_key]
             if cached.is_valid(cls.STATIC_TTL):
-                cls._stats['static_hits'] += 1
+                cls._stats["static_hits"] += 1
                 logger.debug(f"[ContextCache] ✓ Static layer hit: {cache_key[:20]}...")
                 return cached
             else:
@@ -93,7 +93,7 @@ class LayeredContextCache:
                 del cls._static_cache[cache_key]
 
         # Load fresh data
-        cls._stats['static_misses'] += 1
+        cls._stats["static_misses"] += 1
         logger.info(f"[ContextCache] Loading static layer for project {project_id}")
 
         start_time = time.time()
@@ -102,13 +102,15 @@ class LayeredContextCache:
 
         # Create cached layer
         layer = StaticContextLayer(
-            project_concepts=static_data.get('project_concepts'),
-            active_skills_index=static_data.get('active_skills', []),
-            environment_telemetry=static_data.get('telemetry', {}),
-            system_preferences=static_data.get('preferences', {}),
+            project_concepts=static_data.get("project_concepts"),
+            active_skills_index=static_data.get("active_skills", []),
+            active_macros_index=static_data.get("active_macros", []),
+            operation_map=static_data.get("operation_map", ""),
+            environment_telemetry=static_data.get("telemetry", {}),
+            system_preferences=static_data.get("preferences", {}),
             # Memory pipeline — carry through from loader_fn output
-            hot_memory=static_data.get('hot_memory'),
-            episodes=static_data.get('episodes'),
+            hot_memory=static_data.get("hot_memory"),
+            episodes=static_data.get("episodes"),
             project_id=project_id,
         )
 
@@ -122,7 +124,7 @@ class LayeredContextCache:
         """
         Get dynamic context layer - always fresh, never cached.
         """
-        cls._stats['dynamic_loads'] += 1
+        cls._stats["dynamic_loads"] += 1
 
         # Extract last human message
         messages = list(state.messages) if state else []
@@ -146,8 +148,7 @@ class LayeredContextCache:
         if project_id is not None:
             # Invalidate all entries for this project (project_id=DEFAULT_PROJECT_ID/0 is global mode, also valid)
             keys_to_remove = [
-                k for k in cls._static_cache.keys()
-                if k.endswith(f":{project_id}")
+                k for k in cls._static_cache.keys() if k.endswith(f":{project_id}")
             ]
             for key in keys_to_remove:
                 del cls._static_cache[key]
@@ -155,8 +156,7 @@ class LayeredContextCache:
         elif session_id:
             # Invalidate specific session
             keys_to_remove = [
-                k for k in cls._static_cache.keys()
-                if k.startswith(f"{session_id}:")
+                k for k in cls._static_cache.keys() if k.startswith(f"{session_id}:")
             ]
             for key in keys_to_remove:
                 del cls._static_cache[key]
@@ -164,16 +164,16 @@ class LayeredContextCache:
     @classmethod
     def get_stats(cls) -> dict:
         """Get cache statistics."""
-        total_static = cls._stats['static_hits'] + cls._stats['static_misses']
-        hit_rate = cls._stats['static_hits'] / total_static if total_static > 0 else 0.0
+        total_static = cls._stats["static_hits"] + cls._stats["static_misses"]
+        hit_rate = cls._stats["static_hits"] / total_static if total_static > 0 else 0.0
 
         return {
-            'static_hits': cls._stats['static_hits'],
-            'static_misses': cls._stats['static_misses'],
-            'static_hit_rate': f"{hit_rate:.1%}",
-            'dynamic_loads': cls._stats['dynamic_loads'],
-            'cache_entries': len(cls._static_cache),
-            'estimated_time_saved_ms': cls._stats['static_hits'] * 200,  # Approx 200ms per hit
+            "static_hits": cls._stats["static_hits"],
+            "static_misses": cls._stats["static_misses"],
+            "static_hit_rate": f"{hit_rate:.1%}",
+            "dynamic_loads": cls._stats["dynamic_loads"],
+            "cache_entries": len(cls._static_cache),
+            "estimated_time_saved_ms": cls._stats["static_hits"] * 200,  # Approx 200ms per hit
         }
 
     @classmethod
@@ -181,8 +181,7 @@ class LayeredContextCache:
         """Clean up expired cache entries."""
         now = time.time()
         expired = [
-            k for k, v in cls._static_cache.items()
-            if (now - v.cached_at) > max_age
+            k for k, v in cls._static_cache.items() if (now - v.cached_at) > max_age
         ]
         for key in expired:
             del cls._static_cache[key]

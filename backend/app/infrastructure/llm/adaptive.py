@@ -1,3 +1,4 @@
+import copy
 import inspect
 import json
 import logging
@@ -127,14 +128,20 @@ class AdaptiveChatOpenAI:
         )
 
     def bind_tools(self, tools: list[Any], tool_choice: str | None = None) -> "AdaptiveChatOpenAI":
-        self._tools = []
-        self._tool_choice = tool_choice
+        # Operate on a copy, not self: LLMFactory caches LLM instances per
+        # config, so mutating self would leak tools/tool_choice into later
+        # raw calls that reuse the cached instance (observed: the voice
+        # router's tool_choice="required" binding poisoned decompose's raw
+        # calls, which then returned tool-call responses with empty content).
+        bound = copy.copy(self)
+        bound._tools = []
+        bound._tool_choice = tool_choice
         for t in tools:
             # Accept pre-built OpenAI function schemas (dicts) verbatim — used by
             # the voice router which hands us ROUTE_TOOLS already in wire format.
             if isinstance(t, dict):
                 if t.get("type") == "function" and "function" in t:
-                    self._tools.append(t)
+                    bound._tools.append(t)
                 continue
             # Use explicit args_schema if provided, otherwise auto-generate
             # from the function signature so the LLM sees proper parameters.
@@ -156,8 +163,8 @@ class AdaptiveChatOpenAI:
                 params = t_schema["function"]["parameters"]
                 params.pop("title", None)
                 params.pop("additionalProperties", None)
-            self._tools.append(t_schema)
-        return self
+            bound._tools.append(t_schema)
+        return bound
 
     async def astream(self, messages: list[Any], config: dict = None, **kwargs: Any) -> AsyncGenerator[AIMessageChunk, None]:
         from app.core.engine.callbacks.bridge import (

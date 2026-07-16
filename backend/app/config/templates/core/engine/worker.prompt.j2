@@ -81,7 +81,7 @@ Based on your role "{{ role_name }}", prioritize these tools:
   - For mobile tasks: `mobile_control`, `analyze_image`
   - For search tasks: `search_web`
 {%- endif %}
-- **Secondary (All roles)**: `list_skills` and `read_skill_sop` (use to browse and read SOPs), `search_history`, `save_preference`, `ask_human` (when stuck)
+- **Secondary (All roles)**: `list_skills` and `read_skill_sop` (use to browse and read SOPs), `list_macros` and `run_macro` (deterministic scripts — prefer over manual steps when one matches), `search_history`, `save_preference`, `ask_human` (when stuck)
 
 **Memory Tools (Use these to remember and recall information):**
 - `remember(content, context)`: **REMEMBER** - Save important information when user asks you to remember
@@ -146,7 +146,7 @@ When editing or creating files, follow this protocol (The Golden Workflow) for m
 ## Operation Protocol (The Inner Loop)
 You are a highly specialized specialist. To succeed, follow this cycle:
 1. **Understand**: Read the Mission Ticket and identify required technical outcomes.
-2. **Check for Learned Skills**: **RECOMMENDED** — Call `list_skills` to browse SOPs, then `read_skill_sop(id)` for your **Mission Goal**.
+2. **Check for Learned Skills**: **RECOMMENDED** — Call `list_skills` to browse SOPs, then `read_skill_sop(id)` for your **Mission Goal**. Also check `list_macros` — a matching macro executes deterministically via `run_macro(macro_id, params)` and is preferred over manual steps.
    - If no match after 1 attempt, **PROCEED IMMEDIATELY** to Step 3.
 3. **Consult Knowledge**: Review any matched SOPs below.
 4. **Observe & Act**: Use tools via the formal function calling system.

@@ -1,4 +1,5 @@
 """Skills sub-router — skill CRUD, validation, YAML import/export, execution."""
+
 import logging
 import math
 from pathlib import Path
@@ -20,6 +21,13 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.events.publishers import publish_skill_mutated
+from app.core.execution.macro.lifecycle import create_macro_from_synthesis
+from app.core.execution.macro.runner import (
+    WEB_POLICY,
+    MacroGateError,
+    preflight,
+    run_deterministic,
+)
 from app.core.learning.discovery import skill_discovery
 from app.core.learning.schemas import (
     CreateSkillFromYamlRequest,
@@ -41,22 +49,19 @@ from app.core.learning.schemas import (
     ValidateYamlResponse,
 )
 from app.core.learning.skill_importer import SkillImporter
+from app.core.learning.skill_lifecycle import (
+    create_from_synthesis,
+    deduplicate_name,
+)
 from app.core.learning.skill_synthesizer import WorkflowSynthesizer
 from app.core.learning.skill_validator import SkillValidator
 from app.core.learning.skill_visibility import visible_filter
 from app.infrastructure.database import session_scope
 from app.models import LearnedSkill
-from app.services.learning.skill_execution import (
-    WEB_POLICY,
-    ExecutionPolicy,
-    SkillGateError,
-    load_skill,
-    preflight,
-    run_deterministic,
-)
-from app.services.learning.skill_lifecycle import (
-    create_from_synthesis,
-    deduplicate_name,
+from app.utils.parameters import (
+    derive_parameters_from_macro,
+    missing_required_params,
+    normalize_parameters,
 )
 from app.utils.template import render_template
 from app.utils.yaml import YAMLError, macro_from_yaml, validate_macro_yaml
@@ -78,7 +83,8 @@ async def synthesize_skill(
     """Synthesize a new skill from a trace sequence."""
     try:
         synthesizer = WorkflowSynthesizer(body.thread_id, body.session_id)
-        skill = await synthesizer.synthesize()
+        result = await synthesizer.synthesize()
+        skill = result.skill
 
         async with session_scope() as db:
             db_skill = await create_from_synthesis(
@@ -93,9 +99,21 @@ async def synthesize_skill(
                 source_thread_id=skill.source_thread_id,
                 source_session_id=skill.source_session_id,
                 instructions=skill.instructions,
-                execution_mode=skill.execution_mode,
-                macro_script=skill.macro_script,
             )
+            if result.macro_script:
+                new_macro = await create_macro_from_synthesis(
+                    db,
+                    name=db_skill.name,
+                    description=db_skill.description,
+                    trigger_patterns=db_skill.trigger_patterns,
+                    parameters=normalize_parameters(db_skill.parameters),
+                    macro_script=result.macro_script,
+                    fallback_skill_id=db_skill.id,
+                    source_thread_id=skill.source_thread_id,
+                    project_id=body.project_id,
+                    member_id=current_user.id if current_user else 0,
+                )
+                db_skill.macro_id = new_macro.id
 
         await publish_skill_mutated(skill_id=db_skill.id, action="create")
 
@@ -178,9 +196,7 @@ async def list_skills(
                     failure_count=s.failure_count,
                     is_active=s.is_active,
                     status=s.status,
-                    execution_mode=s.execution_mode,
-                    allow_self_healing=s.allow_self_healing,
-                    macro_script=s.macro_script or "",
+                    macro_id=s.macro_id,
                     validation_report=s.validation_report,
                     instructions=s.instructions,
                     created_at=s.created_at,
@@ -215,6 +231,12 @@ async def get_skill(skill_id: int, current_user: CurrentUserOptional = None):
         if not skill:
             raise HTTPException(status_code=404, detail="Skill not found")
 
+        macro = None
+        if skill.macro_id:
+            from app.models.macro import Macro
+
+            macro = await db.get(Macro, skill.macro_id)
+
         return SkillDetailResponse(
             id=skill.id,
             name=skill.name,
@@ -230,9 +252,9 @@ async def get_skill(skill_id: int, current_user: CurrentUserOptional = None):
             failure_count=skill.failure_count,
             is_active=skill.is_active,
             status=skill.status,
-            execution_mode=skill.execution_mode,
-            allow_self_healing=skill.allow_self_healing,
-            macro_script=skill.macro_script or "",
+            macro_id=skill.macro_id,
+            macro_script=macro.macro_script if macro else "",
+            allow_self_healing=macro.allow_self_healing if macro else True,
             validation_report=skill.validation_report,
             instructions=skill.instructions,
             resource_path=skill.resource_path,
@@ -345,18 +367,17 @@ async def update_skill(
                 skill.parameters = body.parameters
             if body.preconditions is not None:
                 skill.preconditions = body.preconditions
-            if body.execution_mode is not None:
-                skill.execution_mode = body.execution_mode
-            if body.macro_script is not None:
-                try:
-                    macro_from_yaml(body.macro_script)
-                    skill.macro_script = body.macro_script
-                except YAMLError as e:
-                    raise HTTPException(status_code=400, detail=f"Invalid YAML: {e}")
 
             await db.flush()
 
         await publish_skill_mutated(skill_id=skill_id, action="update")
+
+        macro = None
+        if skill.macro_id:
+            from app.models.macro import Macro
+
+            async with session_scope() as db:
+                macro = await db.get(Macro, skill.macro_id)
 
         return UpdateSkillResponse(
             success=True,
@@ -376,9 +397,9 @@ async def update_skill(
                 failure_count=skill.failure_count,
                 is_active=skill.is_active,
                 status=skill.status,
-                execution_mode=skill.execution_mode,
-                allow_self_healing=skill.allow_self_healing,
-                macro_script=skill.macro_script or "",
+                macro_id=skill.macro_id,
+                macro_script=macro.macro_script if macro else "",
+                allow_self_healing=macro.allow_self_healing if macro else True,
                 validation_report=skill.validation_report,
                 instructions=skill.instructions,
                 resource_path=skill.resource_path,
@@ -398,50 +419,60 @@ async def execute_skill(
     current_user: CurrentUserOptional = None,
 ):
     """Execute a skill by injecting a directive into the agent's conversation."""
-    skill = await load_skill(skill_id)
-    if not skill:
-        raise HTTPException(status_code=404, detail="Skill not found")
+    async with session_scope() as db:
+        skill = await db.get(LearnedSkill, skill_id)
+        if not skill:
+            raise HTTPException(status_code=404, detail="Skill not found")
+
+        macro = None
+        if skill.macro_id:
+            from app.models.macro import Macro
+
+            macro = await db.get(Macro, skill.macro_id)
 
     params = body.params.model_dump()
-    execution_mode = body.execution_mode or skill.execution_mode
-    try:
-        script = preflight(skill, params, execution_mode)
-    except SkillGateError as e:
-        status = {"not_routable": 403, "missing_params": 400, "bad_macro": 500}.get(
-            e.code, 400
-        )
-        raise HTTPException(status_code=status, detail=e.message) from e
+    if macro is not None:
+        try:
+            script = preflight(macro, params)
+        except MacroGateError as e:
+            status = {"not_routable": 403, "missing_params": 400, "bad_macro": 500}.get(
+                e.code, 400
+            )
+            raise HTTPException(status_code=status, detail=e.message) from e
 
-    skill_name = skill.name
-
-    if script is not None:
-        # Per-run self-heal override (editor debug-run). AND semantics with
-        # the skill-level allow_self_healing column: the run-level flag can
-        # only disable healing, never force-enable it.
-        policy = WEB_POLICY
-        if body.allow_self_healing is not None:
-            params["_allow_self_healing"] = body.allow_self_healing
-            if not body.allow_self_healing:
-                policy = ExecutionPolicy(
-                    allow_self_heal=False,
-                    allowed_sources=WEB_POLICY.allowed_sources,
-                )
-        bg_tasks.add_task(
-            run_deterministic,
-            skill=skill,
+        outcome = await run_deterministic(
+            macro,
             thread_id=body.thread_id,
             params=params,
             project_id=body.project_id
             if body.project_id is not None
             else DEFAULT_PROJECT_ID,
             script=script,
-            policy=policy,
+            policy=WEB_POLICY,
+            skill_name=skill.name,
         )
+        if outcome.fell_back:
+            return ExecuteSkillResponse(
+                success=True,
+                message=outcome.message
+                or f"Macro failed; self-healing queued for '{skill.name}'",
+                execution_mode="deterministic",
+            )
+        if not outcome.ok:
+            raise HTTPException(status_code=500, detail=outcome.message)
         return ExecuteSkillResponse(
             success=True,
-            message=f"Deterministic Macro execution queued for '{skill_name}'",
-            execution_mode=execution_mode,
+            message=outcome.message or f"Executed '{skill.name}'",
+            execution_mode="deterministic",
         )
+
+    missing = missing_required_params(skill.parameters, params)
+    if missing:
+        raise HTTPException(
+            status_code=400, detail=f"Missing required parameters: {', '.join(missing)}"
+        )
+
+    skill_name = skill.name
 
     directive = render_template(
         "core/learning/skill_directive.prompt.j2",
@@ -465,7 +496,7 @@ async def execute_skill(
     return ExecuteSkillResponse(
         success=True,
         message=f"Agentic execution queued for '{skill_name}'",
-        execution_mode=execution_mode,
+        execution_mode="agentic",
     )
 
 
@@ -485,9 +516,6 @@ async def validate_skill(skill_id: int, current_user: CurrentUserOptional = None
         validation = SkillValidator.validate_folder(Path(skill.resource_path))
         skill.validation_report = validation.model_dump()
         skill.status = "verified" if validation.status == "healthy" else "candidate"
-        # Both reachable statuses require is_active=True; without this a
-        # pending_review skill validated healthy lands on the illegal
-        # (verified, False) pair: invisible, unroutable, unconfirmable.
         skill.is_active = True
 
         return ValidateSkillResponse(success=True, validation=validation.model_dump())
@@ -518,6 +546,14 @@ async def confirm_learned_skill(
         skill.status = "verified"
         skill.is_active = True
 
+        if skill.macro_id:
+            from app.models.macro import Macro
+
+            macro = await db.get(Macro, skill.macro_id)
+            if macro is not None:
+                macro.status = "verified"
+                macro.is_active = True
+
         logger.info(f"Skill {skill.id} ({skill.name}) confirmed by user.")
 
     await publish_skill_mutated(skill_id=skill_id, action="update")
@@ -545,9 +581,9 @@ async def create_skill_from_yaml(
             )
 
         macro_steps = macro_from_yaml(body.yaml_content)
+        derived_params = derive_parameters_from_macro(body.yaml_content)
 
         async with session_scope() as db:
-            # Pre-dedup: trigger patterns embed the final unique name
             unique_name = await deduplicate_name(
                 db, body.name, current_user.id if current_user else 0
             )
@@ -558,12 +594,22 @@ async def create_skill_from_yaml(
                 description=body.description
                 or f"Created from YAML ({len(macro_steps)} steps)",
                 namespace=body.namespace,
-                macro_script=body.yaml_content,
-                execution_mode="deterministic",
                 trigger_patterns=[unique_name.lower().replace(" ", "_")],
-                derive_parameters=True,
+                parameters=derived_params,
                 tools_used=[],
             )
+            macro = await create_macro_from_synthesis(
+                db,
+                name=skill.name,
+                description=skill.description,
+                trigger_patterns=skill.trigger_patterns,
+                parameters=normalize_parameters(skill.parameters),
+                macro_script=body.yaml_content,
+                fallback_skill_id=skill.id,
+                project_id=body.project_id,
+                member_id=current_user.id if current_user else 0,
+            )
+            skill.macro_id = macro.id
 
         await publish_skill_mutated(skill_id=skill.id, action="create")
 
@@ -607,13 +653,22 @@ async def get_skill_yaml(skill_id: int, current_user: CurrentUserOptional = None
         if not skill:
             raise HTTPException(status_code=404, detail="Skill not found")
 
-        if not skill.macro_script:
+        if not skill.macro_id:
             return Response(
                 content="# No macro script defined for this skill\n",
                 media_type="text/yaml",
             )
 
-        return Response(content=skill.macro_script, media_type="text/yaml")
+        from app.models.macro import Macro
+
+        macro = await db.get(Macro, skill.macro_id)
+        if not macro or not macro.macro_script:
+            return Response(
+                content="# No macro script defined for this skill\n",
+                media_type="text/yaml",
+            )
+
+        return Response(content=macro.macro_script, media_type="text/yaml")
 
 
 @router.put("/skills/{skill_id}/yaml", response_model=UpdateSkillFromYamlResponse)
@@ -635,7 +690,25 @@ async def update_skill_yaml(
             if not skill:
                 raise HTTPException(status_code=404, detail="Skill not found")
 
-            skill.macro_script = yaml_content
+            from app.models.macro import Macro
+
+            if skill.macro_id:
+                macro = await db.get(Macro, skill.macro_id)
+                if macro is not None:
+                    macro.macro_script = yaml_content
+            else:
+                macro = await create_macro_from_synthesis(
+                    db,
+                    name=skill.name,
+                    description=skill.description,
+                    trigger_patterns=skill.trigger_patterns,
+                    parameters=normalize_parameters(skill.parameters),
+                    macro_script=yaml_content,
+                    fallback_skill_id=skill.id,
+                    member_id=current_user.id if current_user else 0,
+                )
+                skill.macro_id = macro.id
+
             await db.flush()
 
         await publish_skill_mutated(skill_id=skill_id, action="update")

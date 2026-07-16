@@ -6,7 +6,11 @@
 {% if frame.norm_events %}
 **User actions during this frame**:
 {% for evt in frame.norm_events %}
+{% if evt.position %}
   - {{ evt.action }} at ({{ evt.position[0]|round(3) }}, {{ evt.position[1]|round(3) }}) [{{ evt.position_desc }}]
+{% else %}
+  - {{ evt.action }}
+{% endif %}
 {% if evt.target_text %}
     Target: "{{ evt.target_text }}"
 {% endif %}

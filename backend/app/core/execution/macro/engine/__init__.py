@@ -2,7 +2,7 @@ import logging
 import re
 from typing import Any
 
-from app.core.environment.capabilities.registry import ActionRegistry
+from app.core.context import ContextManager, EvoContext
 from app.core.execution.macro.engine._control import ControlMixin
 from app.core.execution.macro.engine._dump import DumpMixin
 from app.core.execution.macro.engine._executors import ExecutorMixin
@@ -11,8 +11,26 @@ from app.core.execution.macro.engine._loops import LoopMixin
 from app.core.execution.macro.engine._native import NativeMixin
 from app.core.execution.macro.schemas import MacroSource, MacroStepType
 from app.core.monitoring.activity import activity_monitor
+from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
+
+try:
+    from playwright.async_api import Error as _PlaywrightError
+except ImportError:  # playwright is an optional dependency outside DOM macros
+    _PlaywrightError = TimeoutError
+
+# Playwright errors (TimeoutError on a stale selector, TargetClosedError, ...)
+# are NOT subclasses of the stdlib types below; without listing them a single
+# timed-out selector escaped the engine and crashed the voice dispatcher.
+_STEP_EXCEPTIONS = (
+    ValueError,
+    OSError,
+    RuntimeError,
+    TypeError,
+    KeyError,
+    _PlaywrightError,
+)
 
 
 class MacroEngine(
@@ -55,6 +73,37 @@ class MacroEngine(
             extracted_data = {}
         if params is None:
             params = {}
+
+        # Bind the execution context so downstream tools (browser, etc.) can
+        # resolve the current thread_id and provide per-thread isolation.
+        ctx = ContextManager.current()
+        token = None
+        if ctx.thread_id != thread_id or ctx.request_id == "global-fallback":
+            ctx = EvoContext(
+                thread_id=thread_id,
+                request_id=gen_uuid(),
+                project_id=ctx.project_id,
+                member_id=ctx.member_id,
+            )
+            token = ContextManager.set(ctx)
+        try:
+            return await cls._execute_steps_inner(
+                thread_id, steps, params, extracted_data, disable_ocr, active_bundle_id
+            )
+        finally:
+            if token:
+                ContextManager.reset(token)
+
+    @classmethod
+    async def _execute_steps_inner(
+        cls,
+        thread_id: str,
+        steps: list,
+        params: dict[str, Any],
+        extracted_data: dict[str, Any],
+        disable_ocr: bool,
+        active_bundle_id: str | None,
+    ) -> tuple[bool, str, dict[str, Any] | None]:
 
         for step in steps:
             step_num = step.step_number
@@ -102,7 +151,28 @@ class MacroEngine(
                 continue
 
             if step.type == MacroStepType.EXTRACT:
-                await cls._handle_extraction(thread_id, step, target_selector, payload, params, extracted_data)
+                try:
+                    await cls._handle_extraction(thread_id, step, target_selector, payload, params, extracted_data)
+                except _STEP_EXCEPTIONS as e:
+                    error_msg = str(e)
+                    screenshot_path = await cls._debug_screenshot(step.source)
+                    await cls._handle_action_error(thread_id, step_num, step.event_type or "extract", error_msg, screenshot_path)
+                    return (
+                        False,
+                        error_msg,
+                        {
+                            "screenshot_path": screenshot_path,
+                            "step_number": step_num,
+                            "event_type": step.event_type or "extract",
+                        },
+                    )
+                # Two-stage macros: extracted values become {{key}} references
+                # for downstream steps. Explicit caller params win; failed
+                # extractions (None) stay unresolved and trip the URL guard.
+                params = {
+                    **{k: v for k, v in extracted_data.items() if v is not None},
+                    **params,
+                }
                 continue
 
             if step.type == MacroStepType.DUMP:
@@ -116,6 +186,17 @@ class MacroEngine(
             if step.type == MacroStepType.ACTION:
                 event_type = step.event_type
                 source = step.source
+
+                if event_type == "navigate":
+                    nav_url = payload.get("url")
+                    if isinstance(nav_url, str) and "{{" in nav_url:
+                        unresolved = f"navigate url 含未解析参数: {nav_url}"
+                        await cls._handle_action_error(thread_id, step_num, event_type, unresolved)
+                        return (
+                            False,
+                            unresolved,
+                            {"step_number": step_num, "event_type": event_type},
+                        )
 
                 if event_type == "open_app":
                     new_pkg = (
@@ -143,24 +224,34 @@ class MacroEngine(
                         await cls._execute_desktop_step(event_type, target_selector, payload)
                     else:
                         logger.warning(f"Unknown macro source: {source}")
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+                except _STEP_EXCEPTIONS as e:
                     error_msg = str(e)
-
-                    screenshot_path = None
-                    try:
-                        if source == MacroSource.DOM:
-                            from app.core.environment.controllers.browser import BrowserController
-                            res = await BrowserController.execute(action="screenshot", purpose="debug")
-                            match = re.search(r"(/.*\.png)", str(res))
-                            if match:
-                                screenshot_path = match.group(1)
-                    except (ValueError, OSError, RuntimeError, TypeError, KeyError):
-                        pass
-
+                    screenshot_path = await cls._debug_screenshot(source)
                     await cls._handle_action_error(thread_id, step_num, event_type, error_msg, screenshot_path)
-                    return False, error_msg, {"screenshot_path": screenshot_path}
+                    return (
+                        False,
+                        error_msg,
+                        {
+                            "screenshot_path": screenshot_path,
+                            "step_number": step_num,
+                            "event_type": event_type,
+                        },
+                    )
 
         return True, "", None
+
+    @classmethod
+    async def _debug_screenshot(cls, source) -> str | None:
+        if source != MacroSource.DOM:
+            return None
+        try:
+            from app.core.environment.controllers.browser import BrowserController
+
+            res = await BrowserController.execute(action="screenshot", purpose="debug")
+            match = re.search(r"(/.*\.png)", str(res))
+            return match.group(1) if match else None
+        except _STEP_EXCEPTIONS:
+            return None
 
     @classmethod
     async def _handle_action_error(cls, thread_id, step_num, event_type, error_msg, screenshot_path=None):

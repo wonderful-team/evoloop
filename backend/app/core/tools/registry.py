@@ -166,6 +166,9 @@ def _ensure_scanned():
         # Scan MCP Tools
         REGISTRY.scan("app.core.mcp.tools")
 
+        # Scan Atlas source tools (AppMap generation)
+        REGISTRY.scan("app.core.atlas.source")
+
         # Validate critical tools are present; retry if necessary
         _validate_critical_tools()
 

@@ -20,7 +20,6 @@ except ImportError:
         PROJECT_DELETED = "project.deleted"
         PROJECT_MOVED = "project.moved"
         PROJECT_SWITCHED = "project.switched"
-        NEW_PROJECT_DETECTED = "project.new_detected"
 
 
 class ProjectEvent(BaseEvent):
@@ -103,23 +102,4 @@ class ProjectSwitchedEvent(ProjectEvent):
             "project_id": self.project_id,
             "project_name": self.project_name,
             "path": self.path
-        }
-
-
-class NewProjectDetectedEvent(ProjectEvent):
-    """
-    Published when a new project directory is detected but not yet imported.
-    """
-    repo_id: int = 0
-    path: str = ""
-    name: str = ""
-    detected_at: datetime = Field(default_factory=datetime.now)
-
-    def model_post_init(self, __context: Any) -> None:
-        self.event_type = ProjectEventType.NEW_PROJECT_DETECTED
-        self.data = {
-            "repo_id": self.repo_id,
-            "path": self.path,
-            "name": self.name,
-            "detected_at": self.detected_at.isoformat()
         }

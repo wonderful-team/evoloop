@@ -136,7 +136,7 @@ class MobileController(
             curr = await cls.get_current_app_cached(device_id=device_id)
             act = curr.get("activity", "").lower()
             hb = any(k in act for k in ["web", "hybrid", "browser", "h5"])
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError):
             hb = False
         node_count = len(a11y_result.elements) if a11y_result.success and a11y_result.elements else 0
         is_h5 = has_webview or hb or (0 < node_count < 10)
@@ -186,7 +186,7 @@ class MobileController(
         try:
             from app.core.atlas.tasks import map_observed_ui_task
             map_observed_ui_task.delay(image_source=screenshot_path, device_id=device_id, platform="android", bundle_id=bundle_id)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.warning(f"[Harvest] Failed to trigger: {e}")
 
     @classmethod
@@ -393,7 +393,7 @@ class MobileController(
                         for el in ocr_result.elements:
                             if target_norm in normalize_text(el.text):
                                 return {"x": el.x, "y": el.y}
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                     logger.debug(f"[Mobile] OCR attempt {ocr_attempts} failed: {e}")
 
             await asyncio.sleep(0.05)
@@ -519,6 +519,6 @@ class MobileController(
 
         except ADBError as e:
             return ControllerResponse.error("ADB ERROR", details=str(e))
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(f"Mobile control error: {e}")
             return ControllerResponse.error("Mobile action failed.", details=str(e))

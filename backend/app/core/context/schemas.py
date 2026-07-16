@@ -10,6 +10,7 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 
 class DynamicContextLayer(DynamicBaseModel):
     """Dynamic context that must always be fresh."""
+
     shared_context: dict[str, str] = Field(default_factory=dict)
     tool_memory: dict | None = None
     execution_ticket: ExecutionTicket | None = None
@@ -19,11 +20,14 @@ class DynamicContextLayer(DynamicBaseModel):
 
 class ContextMetadata(DynamicBaseModel):
     """Dynamic metadata attached to an EvoContext."""
+
     has_android: bool | None = None
     has_macos: bool | None = None
     user_preferences: Any | None = None
     project_concepts: Any | None = None
     active_skills: Any | None = None
+    active_macros: Any | None = None
+    operation_map: str | None = None
     environment_telemetry: Any | None = None
     shared_context: dict[str, str] = Field(default_factory=dict)
     tool_memory: dict | None = None

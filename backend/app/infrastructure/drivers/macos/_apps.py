@@ -3,7 +3,24 @@ import subprocess
 import time
 from typing import Any, cast
 
+from app.infrastructure.drivers.macos._workspace import (
+    ax_copy_attribute,
+    ax_value_point,
+    ax_value_size,
+    frontmost_application,
+)
+
 logger = logging.getLogger(__name__)
+
+
+def _window_bounds_str(window: Any) -> str:
+    pos = ax_copy_attribute(window, "AXPosition")
+    size = ax_copy_attribute(window, "AXSize")
+    point = ax_value_point(pos)
+    extent = ax_value_size(size)
+    if point and extent:
+        return f"{point[0]},{point[1]},{extent[0]},{extent[1]}"
+    return "0,0,0,0"
 
 
 class AppMixin:
@@ -41,8 +58,7 @@ class AppMixin:
             if not NSWorkspace:
                 raise ImportError("AppKit symbols not found")
 
-            workspace = NSWorkspace.sharedWorkspace()
-            active_app = workspace.frontmostApplication()
+            active_app = frontmost_application()
 
             if not active_app:
                 return {"name": "unknown", "pid": -1, "bounds": "0,0,0,0"}
@@ -64,18 +80,11 @@ class AppMixin:
                 app_element = AXUIElementCreateApplication(pid)
                 _, windows = AXUIElementCopyAttributeValue(app_element, "AXWindows", None)
                 if windows:
-                    front_window = windows[0]
-                    _, pos = AXUIElementCopyAttributeValue(front_window, "AXPosition", None)
-                    _, size = AXUIElementCopyAttributeValue(front_window, "AXSize", None)
-                    if pos and size:
-                        try:
-                            bounds = f"{int(pos.x)},{int(pos.y)},{int(size.width)},{int(size.height)}"
-                        except AttributeError:
-                            pass
+                    bounds = _window_bounds_str(windows[0])
 
             return {"name": app_name, "pid": pid, "bounds": bounds}
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.debug(f"Native get_current_app failed: {e}")
 
         try:
@@ -116,7 +125,9 @@ class AppMixin:
                 raise ImportError("AppKit symbols not found")
 
             workspace = NSWorkspace.sharedWorkspace()
-            active_app = workspace.frontmostApplication()
+            if workspace is None:
+                raise ImportError("NSWorkspace unavailable")
+            active_app = frontmost_application()
             if not active_app:
                 return {"app_name": "unknown", "window_title": "", "bounds": "0,0,0,0"}
 
@@ -141,13 +152,7 @@ class AppMixin:
                     _, title_value = AXUIElementCopyAttributeValue(front_window, "AXTitle", None)
                     if title_value:
                         title = str(title_value)
-                    _, pos = AXUIElementCopyAttributeValue(front_window, "AXPosition", None)
-                    _, size = AXUIElementCopyAttributeValue(front_window, "AXSize", None)
-                    if pos and size:
-                        try:
-                            bounds = f"{int(pos.x)},{int(pos.y)},{int(size.width)},{int(size.height)}"
-                        except AttributeError:
-                            pass
+                    bounds = _window_bounds_str(front_window)
 
             return {"app_name": app_name, "window_title": title, "bounds": bounds}
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:

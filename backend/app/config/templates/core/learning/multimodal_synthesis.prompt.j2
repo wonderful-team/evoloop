@@ -17,7 +17,7 @@ Anti-patterns to avoid:
 - ❌ "Click the button" → Too vague, which button?
 - ✅ "Click the blue 'Search' button in the top-right corner of the window"
 
-The output must be a valid YAML frontmatter + Markdown body in the exact format specified.
+The output must be a single ```yaml fenced block (skill metadata) followed by the Markdown Expert Skill Guide, in the exact format specified.
 
 ## Required Output Format
 
@@ -29,7 +29,7 @@ namespace: [logical_category like "cross_app", "os/macos/wechat", "web/browser"]
 description: |
   [Clear description of what this skill does]
 trigger_patterns:
-  - "[natural language pattern with {{parameter}}]"
+  - "{% raw %}[natural language pattern with {{parameter}}]{% endraw %}"
   - "[alternative phrasing]"
 parameters:
   - name: [param_name]
@@ -40,7 +40,7 @@ macro_script:
   version: "1.0"
   metadata:
     format: evoloop-macro
-    step_count: 2
+    step_count: 4
   steps:
     - type: action
       event_type: navigate
@@ -55,29 +55,22 @@ macro_script:
       payload:
         x: 0.5
         y: 0.3
-    {
-      "type": "extract",
-      "extract_type": "gui_extract",
-      "source": "desktop",
-      "key": "title",
-      "payload": {
-        "relative_position": {"x": 0.5, "y": 0.3},
-        "extraction_method": "ocr_nearby"
-      }
-    },
-    {
-      "type": "loop",
-      "source": "dom",
-      "payload": {"items_key": "products"},
-      "steps": [
-         {
-           "type": "action",
-           "event_type": "click",
-           "payload": {"target": "item"}
-         }
-      ]
-    }
-  ]
+    - type: extract
+      extract_type: gui_extract
+      source: desktop
+      key: title
+      payload:
+        relative_position: {x: 0.5, y: 0.3}
+        extraction_method: ocr_nearby
+    - type: loop
+      source: dom
+      payload:
+        items_key: products
+      steps:
+        - type: action
+          event_type: click
+          payload:
+            target: item
 ```
 
 ## Macro Script Schema (STRICT)
@@ -108,8 +101,8 @@ The `macro_script` field MUST be a YAML object with a `steps` array following th
 
 ### 3. Allowed Event Types by Source:
 - **DOM**: "navigate", "click", "input", "key_press", "scroll", "wait", "get_text", "run_js", "detect_pagination", "scroll_to_bottom".
-- **Desktop**: "click", "double_click", "type_text", "key_press", "scroll", "drag_drop", "screenshot", "gui_extract", "dump_ui", "open_app", "applescript".
-- **Mobile**: "tap", "long_press", "input_text", "key_press", "scroll", "screenshot", "gui_extract", "dump_ui", "open_app".
+- **Desktop**: "click", "double_click", "type_text", "key_press", "scroll", "drag_drop", "screenshot", "dump_ui", "open_app", "applescript".
+- **Mobile**: "tap", "long_press", "input", "key_press", "swipe", "scroll", "back", "back_key", "home", "scroll_to_bottom", "screenshot", "dump_ui", "open_app".
     - **open_app**: For Mobile, ALWAYS use the provided `Target Application (Package Name)` as the payload `package` value. If multiple packages are provided, use the one relevant to the current phase of the task. DO NOT use localized names like "藏宝阁".
     - **CROSS-APP TRANSITIONS**: If the task involves switching between applications, ensure the `macro_script` includes an `open_app` action at the exact point where the user switches context.
     - **Mobile Coordinates (CRITICAL)**: Whenever possible for `tap`, provide precise `x` and `y` values in the `payload` (based on the visual trace's relative positions). Mobile UI element names are often ambiguous; providing coordinates ensures the execution engine has a reliable fallback if `target_selector` fails to resolve.
@@ -119,11 +112,11 @@ The `macro_script` field MUST be a YAML object with a `steps` array following th
 ### 4. Loop & Logic (STRICT):
 - **if**: Use `"type": "if"`, `"condition": {"type": "element_exists", "target_selector": "..."}`, and `"then_steps"`/`"else_steps"` arrays.
 - **loop (conditional)**: Use `"type": "loop"`. Place `"condition"` (e.g., `{"type": "has_more_items"}`) and `"max_iterations"` (e.g., `20`) at the **ROOT level** of the step, NOT inside `payload`. Place loop body in `"steps"` array.
-- **loop (batch)**: Use `"type": "loop"`. Place `"items_key"` (matching a previous `extract` key) at the **ROOT level**. Iterate using `"item"` variable in `"steps"`.
+- **loop (batch)**: Use `"type": "loop"`. Place `"items_key"` (matching a previous `extract` key) inside `payload`. Iterate using `"item"` variable in `"steps"`.
 - **Logic**: For dry-runs, `has_more_items` always evaluates to `True` initially.
         - **VARIABLE CONSISTENCY**: The `items_key` MUST exactly match a `key` used in a previous `extract` step.
 - **Parameters & Templates**: 
-    - You MAY use `{{parameter_name}}` in payloads ONLY if the parameter is defined in the YAML `parameters` section.
+    - You MAY use {% raw %}`{{parameter_name}}`{% endraw %} in payloads ONLY if the parameter is defined in the YAML `parameters` section.
 - **wait**: Use `"event_type": "wait"` with `"payload": {"seconds": 2}`. DO NOT use `type: "wait"`.
 
 # Expert Skill Guide
@@ -159,7 +152,7 @@ Example: "This skill bridges information between apps using clipboard as a unive
   1. `tap` into a specific item in the list.
   2. `wait` for the detail page to load.
   3. `gui_extract` the requested details (Title, Price, etc.) on the detail page using `ocr_nearby` or `ocr_region`.
-  4. `tap` the back button (with precise `x` and `y` coordinates) to return to the list.
+  4. Use `back` (preferred) or `back_key` to return to the list — fall back to a `tap` on the back button (with precise `x` and `y` coordinates) only if the on-screen back control is the intended navigation.
   5. `scroll` the list to reveal new items.
   You must infer these steps from the video even if explicit "extraction markers" are missing!
 - **Scroll Timing**: [e.g., "Wait 1.5s after scroll for the list to finish animating"]

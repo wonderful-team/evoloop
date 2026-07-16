@@ -31,6 +31,10 @@ class MessageType(str, Enum):
     SYSTEM_INIT = "system.init"
     SYSTEM_ERROR = "system.error"
     MEMORY_SYNC = "memory.sync"
+    # Voice assistant (thin-client) channel
+    VOICE_ROUTE = "voice.route"
+    VOICE_CANCEL = "voice.cancel"
+    VOICE_ROUTE_RESULT = "voice.route_result"
 
 
 class EndpointKind(str, Enum):
@@ -39,6 +43,7 @@ class EndpointKind(str, Enum):
     GATEWAY = "gateway"
     BACKEND = "backend"
     MC = "mc"
+    VOICE = "voice"
 
 
 # ============ Envelope ============

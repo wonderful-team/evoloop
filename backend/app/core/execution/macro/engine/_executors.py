@@ -2,7 +2,6 @@ import asyncio
 import logging
 
 from app.core.environment.capabilities.registry import ActionRegistry
-from app.core.execution.macro.schemas import MacroSource
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +26,17 @@ class ExecutorMixin:
         tool_action = ActionRegistry.get_tool_action(event_type, "dom")
 
         if event_type in ("goto", "navigate"):
-            res = await BrowserController.execute(action=tool_action, url=payload.get("url"), timeout_ms=timeout_ms, continue_on_error=continue_on_error)
+            target_url = payload.get("url")
+            # Navigation skip: when the browser already sits on the exact
+            # target URL (query string included — ?goods_id=2 vs 3 must NOT
+            # skip), goto is pure waste (~2s per multi-turn step).
+            from app.infrastructure.drivers.browser import browser_manager
+
+            page = await browser_manager.get_page()
+            if page is not None and isinstance(target_url, str) and page.url.rstrip("/") == target_url.rstrip("/"):
+                logger.info("[macro-engine] navigate skip: already on %s", target_url)
+                return
+            res = await BrowserController.execute(action=tool_action, url=target_url, timeout_ms=timeout_ms, continue_on_error=continue_on_error)
             handle_res(res)
             await BrowserController.execute(action="wait_for_stability", timeout_ms=5000)
         elif event_type == "back":
@@ -93,7 +102,69 @@ class ExecutorMixin:
         elif event_type == "drag_drop":
             handle_res(await DesktopController.execute(action=tool_action, x=payload.get("x"), y=payload.get("y"), x2=payload.get("x2"), y2=payload.get("y2"), source_element=payload.get("source_element") or selector, target_element=payload.get("target_element")))
         elif event_type == "open_app":
-            handle_res(await DesktopController.execute(action=tool_action, app_name=payload.get("app_name") or payload.get("text")))
+            bundle_id = payload.get("bundle_id")
+            if bundle_id and payload.get("focus") is False:
+                # Focus-free launch (Atlas-Native): open -b + window poll.
+                from app.core.atlas.ax_actions import ensure_pid
+
+                pid = await asyncio.to_thread(ensure_pid, bundle_id)
+                if pid is None:
+                    raise ValueError(f"Error: open_app failed for {bundle_id}")
+            else:
+                handle_res(await DesktopController.execute(action=tool_action, app_name=payload.get("app_name") or payload.get("text")))
+        elif event_type == "ax_press":
+            from app.core.atlas.ax_actions import (
+                activate_at_path,
+                ensure_pid,
+                perform_by_label,
+                press_at_path,
+            )
+
+            pid = await asyncio.to_thread(ensure_pid, payload["bundle_id"])
+            if pid is None:
+                raise ValueError(f"Error: app not running: {payload['bundle_id']}")
+            ax_action = payload.get("ax_action")
+            # 优先 role+label 运行时解析，ax_path 兜底
+            if payload.get("role") and payload.get("label") and ax_action:
+                ok = await asyncio.to_thread(perform_by_label, pid, payload["role"], payload["label"], ax_action)
+                if ok:
+                    return
+            if ax_action:
+                ok = await asyncio.to_thread(press_at_path, pid, payload["ax_path"], ax_action)
+            else:
+                ok = await asyncio.to_thread(activate_at_path, pid, payload["ax_path"])
+            if not ok:
+                raise ValueError(f"Error: ax_press failed at {payload['ax_path']}")
+        elif event_type == "ax_menu_press":
+            from app.core.atlas.ax_actions import ensure_pid, press_menu_labels
+
+            pid = await asyncio.to_thread(ensure_pid, payload["bundle_id"])
+            if pid is None:
+                raise ValueError(f"Error: app not running: {payload['bundle_id']}")
+            labels = payload.get("menu_labels") or []
+            ok = await asyncio.to_thread(press_menu_labels, pid, labels)
+            if not ok:
+                raise ValueError(f"Error: ax_menu_press failed: {' > '.join(labels)}")
+        elif event_type == "ax_set_value":
+            from app.core.atlas.ax_actions import (
+                ensure_pid,
+                set_value_at_path,
+                set_value_by_label,
+            )
+
+            pid = await asyncio.to_thread(ensure_pid, payload["bundle_id"])
+            if pid is None:
+                raise ValueError(f"Error: app not running: {payload['bundle_id']}")
+            text = payload.get("text") or payload.get("value", "")
+            # 优先 role+label 运行时解析（结构路径会随 UI 演化失效），ax_path 兜底
+            if payload.get("role") and payload.get("label"):
+                ok = await asyncio.to_thread(set_value_by_label, pid, payload["role"], payload["label"], text)
+            else:
+                ok = False
+            if not ok and payload.get("ax_path"):
+                ok = await asyncio.to_thread(set_value_at_path, pid, payload["ax_path"], text)
+            if not ok:
+                raise ValueError(f"Error: ax_set_value rejected for {payload.get('label') or payload.get('ax_path')}")
         elif event_type == "applescript":
             handle_res(await DesktopController.execute(action=tool_action, script=payload.get("script")))
         elif event_type == "screenshot":

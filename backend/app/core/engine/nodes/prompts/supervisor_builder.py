@@ -8,6 +8,7 @@ The Supervisor owns skill ROUTING — it sees a lightweight skill index (name + 
 in its static system prompt and uses read_skill_sop / route_to to dispatch the
 selected skill_ids to Workers. Workers receive the full skill content downstream.
 """
+
 import json
 import logging
 from typing import Any
@@ -48,14 +49,19 @@ class SupervisorPromptBuilder(BasePromptBuilder):
         ctx = ContextManager.current()
         plugin_registry.hydrate_context(ctx)
         user_lang = self.get_user_lang()
-        actual_cwd = self.get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", ""))
+        actual_cwd = self.get_mapped_cwd(
+            ctx.working_directory or ctx.metadata.get("cwd", "")
+        )
         mode = self.get_sandbox_mode()
 
         # 2. Protocol & Sys Info Prep (STATIC parts only)
-        project_profile = self.read_project_profile(ctx.working_directory, "[SupervisorPrompt]")
+        project_profile = self.read_project_profile(
+            ctx.working_directory, "[SupervisorPrompt]"
+        )
 
         # Read wiki index for prompt injection (project mode only)
         from app.core.engine.nodes.utils.node_utils import read_wiki_index
+
         wiki_index = await read_wiki_index(ctx.project_id)
 
         # 3. Prepare Template Variables (STATIC only — no blackboard/memory/telemetry)
@@ -115,7 +121,6 @@ class SupervisorPromptBuilder(BasePromptBuilder):
                 })
         return index
 
-
     async def build_context_ticket(self, config: Any = None, session_goal: str | None = None) -> str:
         """Constructs the dynamic CONTEXT TICKET for injection as a User Message.
 
@@ -135,6 +140,7 @@ class SupervisorPromptBuilder(BasePromptBuilder):
 
         env_block = ctx.environment_block or ""
         active_skills = ctx.metadata.get("active_skills", [])
+        active_macros = ctx.metadata.get("active_macros", [])
 
         # Extract explicit skill attachment from run metadata
         run_metadata = config.get("metadata", {}) if config else {}
@@ -148,6 +154,7 @@ class SupervisorPromptBuilder(BasePromptBuilder):
             "environment_block": env_block,
             "session_goal": session_goal,
             "active_skills": active_skills,
+            "active_macros": active_macros,
             "explicit_skills": explicit_skills,
             "memory": {
                 "episodic_raw": ctx.metadata.get("episodic_memory_raw", ""),

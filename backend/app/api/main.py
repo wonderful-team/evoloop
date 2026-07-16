@@ -3,18 +3,21 @@ from fastapi import APIRouter
 from app.api.routes import (
     account,
     agent,
+    atlas,
     audio,
     auth_proxy,
     conversations,
     devices,
     files,
     learning,
+    macros,
     mcp,
     member,
     memory,
     planning,
     projects,
     resources,
+    route,
     stream,
     subscription,
     subtasks,
@@ -25,6 +28,7 @@ from app.api.routes import (
     tools,
     utils,
     vault,
+    voice_ws,
     wiki,
 )
 
@@ -68,3 +72,11 @@ api_router.include_router(wiki.router, prefix="/wiki", tags=["wiki"])
 
 # Audio Processing (Voice Messages)
 api_router.include_router(audio.router, prefix="/audio", tags=["audio"])
+
+# Voice assistant (thin-client VLA): WebSocket + Init Spec / diagnostics
+api_router.include_router(voice_ws.router)
+api_router.include_router(route.router, prefix="/route", tags=["route"])
+
+# Atlas AppMap + Macro library
+api_router.include_router(atlas.router, prefix="/atlas", tags=["atlas"])
+api_router.include_router(macros.router, prefix="/macros", tags=["macros"])

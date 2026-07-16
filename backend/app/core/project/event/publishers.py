@@ -10,26 +10,11 @@ from datetime import datetime
 from app.core.events import system_bus
 
 from .schemas import (
-    NewProjectDetectedEvent,
     ProjectCreatedEvent,
     ProjectDeletedEvent,
     ProjectMovedEvent,
     ProjectSwitchedEvent,
 )
-
-
-async def publish_new_project_detected(
-    repo_id: int, path: str, name: str, detected_at: datetime
-) -> None:
-    """Publish an event when a new project is detected but not yet imported."""
-    await system_bus.publish(
-        NewProjectDetectedEvent(
-            repo_id=repo_id,
-            path=path,
-            name=name,
-            detected_at=detected_at,
-        )
-    )
 
 
 async def publish_project_created(

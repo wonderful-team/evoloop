@@ -26,8 +26,6 @@ class ExecuteSkillRequest(ScopedRequest):
     thread_id: str
     params: SkillExecutionParams
     project_id: int | None = DEFAULT_PROJECT_ID
-    execution_mode: str | None = None  # Optional: override skill's execution mode
-    allow_self_healing: bool | None = None  # Optional: per-run override of the self-heal fallback (editor debug-run)
 
 
 class RespondRequest(BaseModel):
@@ -90,8 +88,6 @@ class UpdateSkillRequest(BaseModel):
     parameters: list[dict[str, Any]] | None = None
     instructions: str | None = None
     preconditions: list[dict[str, Any]] | None = None
-    execution_mode: str | None = None
-    macro_script: str | None = None  # YAML format
 
 
 class SynthesizeFromRecordingRequest(ScopedRequest):
@@ -125,6 +121,7 @@ class CreateSkillFromYamlRequest(BaseModel):
     description: str | None = None
     namespace: str | None = None
     yaml_content: str
+    project_id: int | None = None
 
 
 class ValidateYamlRequest(BaseModel):

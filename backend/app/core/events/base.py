@@ -140,12 +140,21 @@ class AsyncEventBus(Generic[E]):
             return
 
         async def safe_handle(handler: EventHandler) -> None:
-            await handler(event)
+            try:
+                await handler(event)
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, IndexError) as e:
+                handler_name = handler.__name__ if hasattr(handler, "__name__") else str(handler)
+                logger.exception(f"[{self._name}] Handler '{handler_name}' failed for event {type_key}: {e}")
+                if propagate_errors:
+                    raise e
 
         if sequential or propagate_errors:
             # Execute one by one
             for handler in handlers:
-                await safe_handle(handler)
+                if propagate_errors:
+                    await handler(event)
+                else:
+                    await safe_handle(handler)
         else:
             # Execute concurrently
             await asyncio.gather(*[safe_handle(h) for h in handlers])

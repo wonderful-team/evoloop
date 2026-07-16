@@ -7,6 +7,7 @@ import logging
 from app.core.shortcuts import get_shortcut
 from app.infrastructure.drivers.macos import macos_driver
 from app.utils.controller_response import ControllerResponse
+from app.utils.geometry import normalize_coordinates
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ class DesktopInteractionMixin:
                         await asyncio.to_thread(macos_driver.key_press, shortcut)
                         await recording_func("key_press", {"key": shortcut, "converted_from_click": element_name})
                         return f"Pressed shortcut '{shortcut}' (converted from click on '{element_name}') - Faster!"
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                     logger.debug(f"[Desktop] Shortcut conversion failed: {e}, falling back to click")
 
             target_x, target_y = x, y
@@ -80,6 +81,7 @@ class DesktopInteractionMixin:
                 return ControllerResponse.error(f"'x' and 'y' coordinates OR 'element_name' are required for {action} action.")
 
             screen_w, screen_h = await asyncio.to_thread(macos_driver.get_screen_size)
+            target_x, target_y = normalize_coordinates(target_x, target_y, screen_w, screen_h)
             if not (0 <= target_x <= screen_w and 0 <= target_y <= screen_h):
                 return ControllerResponse.error(f"Coordinates ({target_x}, {target_y}) are out of screen bounds ({screen_w}x{screen_h}).")
 
@@ -165,6 +167,9 @@ class DesktopInteractionMixin:
                     return ControllerResponse.not_found(target_element, item_type="target element")
             if source_x is None or source_y is None or target_x is None or target_y is None:
                 return ControllerResponse.error("Drag-drop requires source and target coordinates, or element names.")
+            screen_w, screen_h = await asyncio.to_thread(macos_driver.get_screen_size)
+            source_x, source_y = normalize_coordinates(source_x, source_y, screen_w, screen_h)
+            target_x, target_y = normalize_coordinates(target_x, target_y, screen_w, screen_h)
             try:
                 from Quartz import (
                     CGEventCreateMouseEvent,

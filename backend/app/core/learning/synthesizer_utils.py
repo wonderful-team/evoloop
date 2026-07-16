@@ -173,7 +173,6 @@ class SkillExportModel(DynamicBaseModel):
     parameters: list[Any] = Field(default_factory=list)
     preconditions: list[Any] = Field(default_factory=list)
     instructions: str | None = None
-    macro_script: str | None = None
 
 
 def export_skill_to_filesystem(skill_data: Any) -> str | None:
@@ -196,13 +195,12 @@ def export_skill_to_filesystem(skill_data: Any) -> str | None:
                     "parameters": skill_data.parameters or [],
                     "preconditions": skill_data.preconditions or [],
                     "instructions": skill_data.instructions,
-                    "macro_script": None,
                 }
         else:
             data = skill_data
 
         export = SkillExportModel(**data)
-        
+
         base_dir = settings.SKILLS_DIR
         namespace_path = os.path.join(base_dir, export.namespace, export.name)
 
@@ -233,12 +231,6 @@ def export_skill_to_filesystem(skill_data: Any) -> str | None:
 
         if export.instructions:
             content += f"## Instructions\n\n{export.instructions}\n\n"
-
-        if export.macro_script:
-            content += "## Macro Script\n\n"
-            content += "```yaml\n"
-            content += export.macro_script
-            content += "\n```\n"
 
         with open(skill_md_path, "w", encoding="utf-8") as f:
             f.write(content)

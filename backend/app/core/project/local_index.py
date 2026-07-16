@@ -71,7 +71,7 @@ class LocalProjectIndex:
 
     def refresh(self, workspace_root: str) -> dict[int, LocalProjectEntry]:
         """
-        Synchronously scan workspace_root and rebuild the index.
+        Synchronously scan workspace_root and rebuild the index recursively.
 
         Returns the rebuilt id -> entry mapping.
         """
@@ -81,52 +81,54 @@ class LocalProjectIndex:
         if not workspace_root or not os.path.isdir(workspace_root):
             return {}
 
-        try:
-            entries = os.listdir(workspace_root)
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-            logger.warning(f"[LocalProjectIndex] Failed to list {workspace_root}: {e}")
-            return {}
+        from app.core.file import is_ignored_path
 
-        for entry in entries:
-            path = os.path.join(workspace_root, entry)
-            if not os.path.isdir(path):
-                continue
+        def scan_dir(current_dir: str, depth: int):
+            if depth > 3:  # limit depth to 3 layers
+                return
+            if is_ignored_path(current_dir):
+                return
 
-            meta_file = os.path.join(path, ".evoloop", "project.json")
-            meta = self._read_project_meta(meta_file)
-            if not meta:
-                continue
+            # Check if this directory itself is a project
+            meta_file = os.path.join(current_dir, ".evoloop", "project.json")
+            if os.path.exists(meta_file):
+                meta = self._read_project_meta(meta_file)
+                if meta:
+                    project_id = meta.get("project_id")
+                    if isinstance(project_id, int):
+                        if project_id in self._id_to_entry:
+                            existing = self._id_to_entry[project_id]
+                            logger.warning(
+                                f"[LocalProjectIndex] project_id {project_id} conflict: "
+                                f"found at {existing.path} and {current_dir}; "
+                                "keeping first discovered, please reconcile manually"
+                            )
+                        else:
+                            repo_id = self._coerce_repo_id(meta.get("repo_id"))
+                            local_entry = LocalProjectEntry(
+                                path=current_dir,
+                                project_id=project_id,
+                                repo_id=repo_id,
+                                name=meta.get("name"),
+                            )
+                            self._id_to_entry[project_id] = local_entry
+                            self._path_to_id[current_dir] = project_id
+                            # Stop scanning subdirectories of this project
+                            return
 
-            project_id = meta.get("project_id")
-            if project_id is None:
-                continue
+            # If not a project, scan subdirectories
+            try:
+                entries = os.listdir(current_dir)
+            except Exception as e:
+                logger.warning(f"[LocalProjectIndex] Failed to list {current_dir}: {e}")
+                return
 
-            if not isinstance(project_id, int):
-                logger.warning(
-                    f"[LocalProjectIndex] Invalid project_id type in {meta_file}: "
-                    f"{type(project_id).__name__}"
-                )
-                continue
+            for entry in entries:
+                sub_path = os.path.join(current_dir, entry)
+                if os.path.isdir(sub_path):
+                    scan_dir(sub_path, depth + 1)
 
-            if project_id in self._id_to_entry:
-                existing = self._id_to_entry[project_id]
-                logger.warning(
-                    f"[LocalProjectIndex] project_id {project_id} conflict: "
-                    f"found at {existing.path} and {path}; "
-                    "keeping first discovered, please reconcile manually"
-                )
-                continue
-
-            repo_id = self._coerce_repo_id(meta.get("repo_id"))
-            local_entry = LocalProjectEntry(
-                path=path,
-                project_id=project_id,
-                repo_id=repo_id,
-                name=meta.get("name"),
-            )
-            self._id_to_entry[project_id] = local_entry
-            self._path_to_id[path] = project_id
-
+        scan_dir(os.path.abspath(workspace_root), 0)
         return dict(self._id_to_entry)
 
     def get_entry(self, project_id: int, workspace_root: str) -> LocalProjectEntry | None:

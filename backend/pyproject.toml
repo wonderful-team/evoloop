@@ -90,6 +90,7 @@ dependencies = [
     "transformers<5.0.0; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "einops>=0.8.2",
     "psycopg2-binary>=2.9.12",
+    "pypinyin>=0.55.0",
 ]
 
 [project.optional-dependencies]

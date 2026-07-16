@@ -105,6 +105,8 @@ WARNING: No Standard Operating Procedure (SOP) is available for this mission.
 **ONLY proceed directly if the task is trivial (e.g., single file read, simple command).**
 {%- endif %}
 
+{%- include 'core/engine/fragments/macro_block.j2' %}
+
 {%- if previous_output %}
 ## Previous Step Output
 {{ previous_output | truncate(500) }}

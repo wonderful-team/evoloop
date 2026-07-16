@@ -20,19 +20,23 @@ class NativeMixin:
             logger.error(f"[{thread_id}] No script_path provided for native step")
             return
 
-        cmd_list = [command, script_path] + [str(a) for a in args]
-        cmd_str = " ".join(cmd_list)
+        # G5: default-deny whitelist (command + script_prefix + sha256)
+        from app.core.atlas.script_gate import check_native_allowed
 
-        logger.info(f"[{thread_id}] Executing native script: {cmd_str}")
+        check_native_allowed(command, script_path)
+
+        cmd_list = [command, script_path] + [str(a) for a in args]
+
+        logger.info(f"[{thread_id}] Executing native script: {' '.join(cmd_list)}")
         await activity_monitor.log_event(
             "macro_thought",
-            {"text": f"Running native script: {cmd_str}"},
+            {"text": f"Running native script: {' '.join(cmd_list)}"},
             thread_id
         )
 
         try:
-            process = await asyncio.create_subprocess_shell(
-                cmd_str,
+            process = await asyncio.create_subprocess_exec(
+                *cmd_list,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )

@@ -1,11 +1,12 @@
 import logging
 
-from app.core.events.publishers import publish_skill_mutated
+from app.core.events.publishers import publish_macro_mutated, publish_skill_mutated
+from app.core.learning.skill_lifecycle import create_from_synthesis
 from app.core.learning.skill_synthesizer import WorkflowSynthesizer
 from app.core.tools import evoloop_tool
 from app.i18n.service import i18n
 from app.infrastructure.database import session_scope
-from app.services.learning.skill_lifecycle import create_from_synthesis
+from app.utils.parameters import normalize_parameters
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,8 @@ async def learn_from_trace(thread_id: str, session_id: str | None = None) -> str
     """
     try:
         synthesizer = WorkflowSynthesizer(thread_id, session_id)
-        skill_data = await synthesizer.synthesize()
+        result = await synthesizer.synthesize()
+        skill_data = result.skill
 
         # Save to Database
         async with session_scope() as db:
@@ -41,12 +43,29 @@ async def learn_from_trace(thread_id: str, session_id: str | None = None) -> str
                 tools_used=skill_data.tools_used,
                 source_thread_id=skill_data.source_thread_id,
                 source_session_id=skill_data.source_session_id,
-                execution_mode=skill_data.execution_mode,
-                macro_script=skill_data.macro_script,
             )
+            new_macro = None
+            if result.macro_script:
+                from app.core.execution.macro.lifecycle import (
+                    create_macro_from_synthesis,
+                )
+
+                new_macro = await create_macro_from_synthesis(
+                    db,
+                    name=new_skill.name,
+                    description=new_skill.description,
+                    trigger_patterns=new_skill.trigger_patterns,
+                    parameters=normalize_parameters(new_skill.parameters),
+                    macro_script=result.macro_script,
+                    fallback_skill_id=new_skill.id,
+                    source_thread_id=skill_data.source_thread_id,
+                )
+                new_skill.macro_id = new_macro.id
             # Commit happens automatically on exit of session_scope
 
         await publish_skill_mutated(skill_id=new_skill.id, action="create")
+        if new_macro is not None:
+            await publish_macro_mutated(new_macro.id, action="create")
 
         return i18n.get(
             "domain_tools.learning.success",
