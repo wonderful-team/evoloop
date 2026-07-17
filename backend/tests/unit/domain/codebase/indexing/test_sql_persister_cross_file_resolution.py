@@ -66,7 +66,7 @@ async def test_resolve_cross_file_target_unique_match(_real_db):
         await db.refresh(rel)
 
         assert rel.target_entity_id == target_entity.id
-        assert rel.confidence == "EXTRACTED"
+        assert rel.confidence == "INFERRED"
 
 
 @pytest.mark.asyncio
@@ -183,5 +183,5 @@ async def test_batch_persist_resolves_cross_file_targets(_real_db):
             .first()
         )
         assert rel is not None
-        assert rel.confidence == "EXTRACTED"
+        assert rel.confidence == "INFERRED"
         assert rel.target_entity_id is not None

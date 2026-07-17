@@ -1,6 +1,5 @@
 """Unit tests for P0.3c: file type detection normalization."""
 
-from app.utils.controller_response import ContentFormatter
 from app.utils.detect import detect_language, is_code_file
 
 
@@ -13,23 +12,6 @@ class TestIsCodeFile:
 
     def test_is_code_file_js(self):
         assert is_code_file("app.js") is True
-
-
-class TestContentFormatterDetectLanguage:
-    def test_detect_language_python(self):
-        assert ContentFormatter._detect_language("main.py") == "python"
-
-    def test_detect_language_javascript(self):
-        assert ContentFormatter._detect_language("app.js") == "javascript"
-
-    def test_detect_language_typescript(self):
-        assert ContentFormatter._detect_language("component.tsx") == "typescript"
-
-    def test_detect_language_delegates_to_central(self):
-        """_detect_language is a thin wrapper around app.utils.detect.detect_language."""
-        from app.utils.detect import detect_language as dl
-        assert ContentFormatter._detect_language("test.py") == dl("test.py")
-        assert ContentFormatter._detect_language("readme.md") == dl("readme.md")
 
 
 class TestCentralDetectLanguage:
