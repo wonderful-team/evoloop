@@ -1,0 +1,78 @@
+{
+  "timestamp": "2026-03-22T23:06:49.173446",
+  "test_session": "DEMO-001",
+  "scenarios_tested": 3,
+  "results": [
+    {
+      "id": "TEST-001",
+      "category": "代码生成",
+      "user_input": "帮我写一个 Python 函数，计算斐波那契数列",
+      "status": "PASSED",
+      "response_time": 2.34,
+      "tokens_used": 245,
+      "ai_response_preview": "当然！这是一个斐波那契数列的实现：\n\n```python\ndef fibonacci(n):\n    if n <= 1:\n        return n\n    return fibonacci(n-1) + fibonacci(n-2)\n```",
+      "validation": {
+        "keywords_found": [
+          "def",
+          "fibonacci",
+          "return"
+        ],
+        "code_executable": true,
+        "test_result": "fib(10) = 55 ✓"
+      },
+      "anomalies": []
+    },
+    {
+      "id": "TEST-002",
+      "category": "代码生成2",
+      "user_input": "生成一个 React 组件，显示用户头像和名称",
+      "status": "WARNING",
+      "response_time": 3.12,
+      "tokens_used": 380,
+      "ai_response_preview": "这是一个 React 头像组件：\n\n```jsx\nconst Avatar = ({ name, src }) => (\n  <div className=\"avatar\">\n    <img src={src} alt={name} />\n    <span>{name}</span>\n  </div>\n);\n```",
+      "validation": {
+        "keywords_found": [
+          "React",
+          "component"
+        ],
+        "keywords_missing": [
+          "avatar"
+        ]
+      },
+      "anomalies": [
+        {
+          "type": "MISSING_KEYWORD",
+          "detail": "未明确提到 'avatar' 关键词",
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "id": "TEST-003",
+      "category": "知识查询",
+      "user_input": "解释一下什么是依赖注入",
+      "status": "PASSED",
+      "response_time": 1.89,
+      "tokens_used": 198,
+      "ai_response_preview": "依赖注入（Dependency Injection）是一种设计模式，用于实现控制反转（IoC）。它允许你将依赖关系从代码内部转移到外部...",
+      "validation": {
+        "keywords_found": [
+          "依赖",
+          "注入",
+          "设计模式"
+        ],
+        "content_quality": "good"
+      },
+      "anomalies": []
+    }
+  ],
+  "summary": {
+    "total": 3,
+    "passed": 2,
+    "warning": 1,
+    "failed": 0,
+    "total_time": 7.35,
+    "total_tokens": 823,
+    "estimated_cost_usd": 0.000123
+  }
+}
