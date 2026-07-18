@@ -89,10 +89,48 @@ async def _run_wiki(project_id: int) -> None:
 
 
 async def _run_appmap(project_id: int) -> None:
-    """Dispatch an AppMap Agent — the SKILL.md handles the full pipeline."""
+    """Run deterministic AppMap extraction + batch write, then dispatch an
+    AppMap Agent for verification."""
     path = await get_project_path(project_id)
     if not path or not os.path.isdir(path):
         raise FileNotFoundError(f"Project path not found: {path}")
+
+    from app.core.atlas.source.skeleton import get_entity_groups
+
+    groups = await get_entity_groups(project_id)
+    if not groups:
+        logger.info("[AppMap] No entity groups found for project %s", project_id)
+        return
+
+    # Deterministic path: run reference_collector + batch_write directly.
+    # The Agent is only for verification — not for data production.
+    sql_file = os.path.join(path, "b2c_mall.sql")
+    if os.path.isfile(sql_file):
+        ref_script = os.path.join(
+            os.path.dirname(__file__),
+            "../../config/skills/app_map_analysis/scripts/reference_collector.py",
+        )
+        batch_script = os.path.join(
+            os.path.dirname(__file__),
+            "../../config/skills/app_map_analysis/scripts/batch_write_app_maps.py",
+        )
+        ref_script = os.path.abspath(ref_script)
+        batch_script = os.path.abspath(batch_script)
+
+        import subprocess
+        logger.info("[AppMap] Running reference collector...")
+        subprocess.run(
+            ["uv", "run", "python", ref_script, path, "--sql", sql_file],
+            capture_output=True, timeout=120,
+        )
+        logger.info("[AppMap] Running batch write...")
+        subprocess.run(
+            ["uv", "run", "python", batch_script,
+             "--project-id", str(project_id), "--input", "/tmp/appmap_extracted.json"],
+            capture_output=True, timeout=300,
+        )
+    else:
+        logger.warning("[AppMap] No SQL file found at %s — collector will produce limited tables", sql_file)
 
     thread_id = f"appmap-gen-{project_id}-{int(time.time())}"
     from app.core.context import thread_context_store
@@ -101,12 +139,12 @@ async def _run_appmap(project_id: int) -> None:
     result = await dispatch_agent_run(
         thread_id=thread_id,
         message_content=(
-            f"**Mission Goal**: Produce complete AppMaps for the project at {path}.\n\n"
-            "Follow the **AppMap Analysis** skill's procedure step by step:\n"
-            "1. Recon: read ~2-3 sample controllers, 2-3 sample views, and skim DB schema.\n"
-            "2. Copy the reference collector script (scripts/reference_collector.py) to the project root, configure FRAMEWORK CONFIG, and run it. Output JSON to /tmp/appmap_extracted.json, STDOUT is a single line.\n"
-            "3. Verify the JSON, then IMMEDIATELY call batch_write_app_maps.py. DO NOT stop after the script runs.\n"
-            "4. Verify a few written AppMaps via read_app_map."
+            f"**Mission Goal**: Verify and refine the generated AppMaps for the project at {path}.\n\n"
+            "The AppMap extraction has already been completed by the deterministic pipeline.\n"
+            "1. List a few written AppMaps via `read_app_map` to verify quality.\n"
+            "2. If you see gaps (missing elements, routes, or db_tables), fix the collector script "
+            "at collect_appmaps.py and re-run it, then call batch_write_app_maps.py.\n"
+            "3. Report coverage summary."
         ),
         project_id=project_id,
         skip_message_persistence=True,
@@ -126,6 +164,7 @@ async def _run_appmap(project_id: int) -> None:
             role_name="Worker",
             tools=[
                 "query_code_chunks", "query_code_relations",
+                "read_app_map",
                 "write_app_map", "execute_command",
                 "generate_macros_from_app_map",
             ] + read_only_tools,
