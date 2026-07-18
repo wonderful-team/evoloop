@@ -40,6 +40,10 @@ def pick_templates(action: dict) -> list:
         return [templates.crud_read]
     if kind == "write" and risk == "money":
         return [templates.crud_write, templates.crud_field_read]
+    if kind == "write" and risk == "data":
+        return [templates.crud_write, templates.basic_navigate]
+    if kind == "write" and risk == "ui":
+        return [templates.basic_navigate]
     return []
 
 

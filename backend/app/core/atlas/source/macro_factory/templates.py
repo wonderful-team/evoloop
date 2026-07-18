@@ -233,6 +233,48 @@ def _candidate(
     )
 
 
+def basic_navigate(entity_map: dict, action: dict) -> MacroCandidate | None:
+    """Fallback write/ui template: navigate to the entity's list page or the
+    action's own URL.  Does not attempt to fill fields or click save —
+    intended for actions where set_fields / save_button are unavailable.
+    """
+    route = _route_for(entity_map, action["name"])
+    if not route:
+        return None
+    if not _allows_get(route):
+        # POST-only action — try the entity's list page instead
+        for a in entity_map.get("actions", []):
+            if a.get("kind") == "read":
+                r = _route_for(entity_map, a["name"])
+                if r and _allows_get(r):
+                    route = r
+                    break
+        if not _allows_get(route):
+            return None
+
+    entity_cn = _entity_cn(entity_map)
+    steps = [
+        {
+            "step_number": 1,
+            "type": "action",
+            "event_type": "navigate",
+            "source": "dom",
+            "payload": {"url": _full_url(entity_map, route)},
+        },
+        {"step_number": 2, "type": "action", "event_type": "wait",
+         "source": "dom", "payload": {"seconds": 1}},
+    ]
+    return _candidate(
+        entity_map, action,
+        name=f"打开{entity_cn}{entity_map['entity']}",
+        steps=steps,
+        trigger_patterns=[f"打开{{{{entity_cn}}}}列表",
+                          f"查看{{{{entity_cn}}}}"],
+        parameters=[], requires_confirmation=False,
+        description=f"导航到{entity_cn}页面",
+    )
+
+
 def list_view(entity_map: dict, action: dict) -> MacroCandidate | None:
     """UI read macro: open list URL -> search -> extract result table."""
     route = _route_for(entity_map, action["name"])
