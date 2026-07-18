@@ -1,79 +1,110 @@
 #!/usr/bin/env python3
 """
-Pre-download embedding models to local cache.
+Pre-download GGUF models for Lightning Channel.
 
 Usage:
-    python scripts/download_models.py [model_name] [--endpoint URL]
+    python scripts/download_models.py <name> [--output-dir PATH]
 
-Example:
-    python scripts/download_models.py nomic-ai/nomic-embed-text-v1.5
-    python scripts/download_models.py nomic-ai/nomic-embed-text-v1.5 --endpoint https://hf-mirror.com
+Examples:
+    python scripts/download_models.py qwen3-4b-instruct-2507
+    python scripts/download_models.py bge-base-zh-v1.5 --output-dir /path/to/gguf
 """
 
+import argparse
 import os
 import sys
-import argparse
+from pathlib import Path
+
+import requests
+
+GGUF_REGISTRY: dict[str, str] = {
+    "qwen3-4b-instruct-2507": (
+        "https://huggingface.co/Qwen/Qwen3-4B-Instruct-GGUF/resolve/main/"
+        "qwen3-4b-instruct-2507-q4_k_m.gguf"
+    ),
+    "bge-base-zh-v1.5": (
+        "https://huggingface.co/ChristianAzinn/bge-base-zh-v1.5-GGUF/resolve/main/"
+        "bge-base-zh-v1.5-q4_k_m.gguf"
+    ),
+}
 
 
-def download_model(model_name: str, endpoint: str | None = None) -> None:
-    """Download a SentenceTransformer model to local cache."""
-    # Ensure cache directories are set (must match config.py)
-    models_dir = os.path.expanduser("~/.evoloop/models")
-    os.environ.setdefault("HF_HOME", os.path.join(models_dir, "huggingface"))
-    os.environ.setdefault("SENTENCE_TRANSFORMERS_HOME", os.path.join(models_dir, "sentence_transformers"))
-
-    # Temporarily allow network access for downloading.
-    # HF_HUB_OFFLINE=1 is set in config.py, but we need to download here.
-    original_hf_offline = os.environ.pop("HF_HUB_OFFLINE", None)
-
-    # Set HuggingFace endpoint (mirror) for downloading.
-    original_hf_endpoint = os.environ.get("HF_ENDPOINT")
-    if endpoint:
-        os.environ["HF_ENDPOINT"] = endpoint
-
-    try:
-        from sentence_transformers import SentenceTransformer
-
-        print(f"Downloading model: {model_name}")
-        print(f"  HF_HOME: {os.environ.get('HF_HOME')}")
-        print(f"  SENTENCE_TRANSFORMERS_HOME: {os.environ.get('SENTENCE_TRANSFORMERS_HOME')}")
-        print(f"  HF_ENDPOINT: {os.environ.get('HF_ENDPOINT')}")
-
-        # local_files_only=False allows downloading.
-        # trust_remote_code=True is required for Nomic models.
-        model = SentenceTransformer(
-            model_name,
-            device="cpu",
-            trust_remote_code=True,
-            local_files_only=False,
+def download_gguf(name: str, output_dir: str) -> str:
+    """Download a GGUF model file from HuggingFace."""
+    url = GGUF_REGISTRY.get(name)
+    if not url:
+        raise ValueError(
+            f"Unknown model: {name}. Available: {', '.join(GGUF_REGISTRY)}"
         )
-        print(f"✓ Model downloaded and cached successfully: {model_name}")
-    finally:
-        if original_hf_offline is not None:
-            os.environ["HF_HUB_OFFLINE"] = original_hf_offline
-        if endpoint:
-            if original_hf_endpoint is not None:
-                os.environ["HF_ENDPOINT"] = original_hf_endpoint
-            else:
-                os.environ.pop("HF_ENDPOINT", None)
+
+    os.makedirs(output_dir, exist_ok=True)
+    filename = url.rstrip("/").rsplit("/", 1)[-1]
+    dest = os.path.join(output_dir, filename)
+
+    if os.path.exists(dest):
+        file_size = os.path.getsize(dest)
+        if file_size > 1024:
+            print(f"✓ Already exists: {dest} ({file_size / 1024**3:.1f} GB)")
+            return dest
+
+    print(f"Downloading {name} ({url.split('/')[-1]})...")
+    print(f"  → {dest}")
+
+    response = requests.get(url, stream=True, timeout=300)
+    response.raise_for_status()
+
+    total = int(response.headers.get("content-length", 0))
+    downloaded = 0
+
+    with open(dest, "wb") as f:
+        for chunk in response.iter_content(chunk_size=8 * 1024 * 1024):
+            f.write(chunk)
+            downloaded += len(chunk)
+            if total:
+                pct = downloaded / total * 100
+                sys.stdout.write(f"\r  {pct:.0f}% ({downloaded / 1024**3:.1f} GB)")
+                sys.stdout.flush()
+
+    print()
+    print(f"✓ Downloaded: {dest} ({os.path.getsize(dest) / 1024**3:.1f} GB)")
+    return dest
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Pre-download embedding models")
+def main():
+    parser = argparse.ArgumentParser(description="Download GGUF models")
     parser.add_argument(
-        "model",
+        "name",
         nargs="?",
-        default="nomic-ai/nomic-embed-text-v1.5",
-        help="Model name to download (default: nomic-ai/nomic-embed-text-v1.5)",
+        default="",
+        help=f"Model name. Available: {', '.join(GGUF_REGISTRY)}",
     )
     parser.add_argument(
-        "--endpoint",
-        default=None,
-        help="HuggingFace endpoint mirror URL (e.g. https://hf-mirror.com)",
+        "--output-dir",
+        default=os.path.join(os.path.expanduser("~"), ".evoloop", "models", "gguf"),
+        help="GGUF output directory (default: ~/.evoloop/models/gguf)",
+    )
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="List available models and exit",
     )
     args = parser.parse_args()
 
-    download_model(args.model, endpoint=args.endpoint)
+    if args.list:
+        print("Available GGUF models:")
+        for name, url in GGUF_REGISTRY.items():
+            filename = url.rstrip("/").rsplit("/", 1)[-1]
+            print(f"  {name:30s} → {filename}")
+        return
+
+    if not args.name:
+        parser.print_help()
+        print("\nAvailable models:")
+        for name in GGUF_REGISTRY:
+            print(f"  {name}")
+        return
+
+    download_gguf(args.name, args.output_dir)
 
 
 if __name__ == "__main__":
