@@ -6470,70 +6470,6 @@ export const SystemStatusResponseSchema = {
     title: 'SystemStatusResponse'
 } as const;
 
-export const TTSRequestSchema = {
-    properties: {
-        text: {
-            type: 'string',
-            title: 'Text'
-        },
-        voice_id: {
-            type: 'string',
-            title: 'Voice Id',
-            default: 'zh-CN-XiaoxiaoNeural'
-        },
-        speed: {
-            type: 'number',
-            title: 'Speed',
-            default: 1
-        },
-        format: {
-            type: 'string',
-            title: 'Format',
-            default: 'mp3'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['text'],
-    title: 'TTSRequest',
-    description: '语音合成请求'
-} as const;
-
-export const TTSResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        url: {
-            type: 'string',
-            title: 'Url'
-        },
-        duration: {
-            anyOf: [
-                {
-                    type: 'number'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Duration'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['url'],
-    title: 'TTSResponse',
-    description: '语音合成响应'
-} as const;
-
 export const TaskAcceptedResponseSchema = {
     properties: {
         status: {
@@ -8347,34 +8283,6 @@ export const VectorSearchResultSchema = {
     required: ['id', 'content', 'file_path', 'repository_id', 'chunk_type', 'identifier', 'start_line', 'end_line', 'language', 'score'],
     title: 'VectorSearchResult',
     description: 'Vector search result item.'
-} as const;
-
-export const VoiceListResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        voices: {
-            items: {
-                additionalProperties: true,
-                type: 'object'
-            },
-            type: 'array',
-            title: 'Voices'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['voices'],
-    title: 'VoiceListResponse',
-    description: 'TTS 声音列表响应'
 } as const;
 
 export const WeChatConfigResponseSchema = {

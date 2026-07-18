@@ -12,6 +12,7 @@ use tauri_plugin_shell::process::CommandChild;
 // ShellExt removed - no longer needed for sidecar management
 
 use crate::sidecar::SidecarClient;
+use crate::voice::event::VoiceEventBus;
 
 // Marker overlay window management
 #[cfg(desktop)]
@@ -171,7 +172,22 @@ enum VoiceCommand {
     },
 }
 
-fn spawn_voice_manager() -> VoiceManagerHandle {
+// ===== Tauri Event Bus =====
+
+struct TauriEventBus {
+    handle: tauri::AppHandle,
+}
+
+impl VoiceEventBus for TauriEventBus {
+    fn emit(&self, event: &str, payload: serde_json::Value) {
+        use tauri::Emitter;
+        let _ = self.handle.emit(event, payload);
+    }
+}
+
+// ===== Voice Manager =====
+
+fn spawn_voice_manager(model_search_paths: Vec<std::path::PathBuf>) -> VoiceManagerHandle {
     let (tx, mut rx) = mpsc::channel::<VoiceCommand>(32);
 
     // VoiceSession owns cpal::Stream which is not Send, so it cannot live in
@@ -186,7 +202,7 @@ fn spawn_voice_manager() -> VoiceManagerHandle {
             }
         };
         rt.block_on(async {
-            let session = VoiceSession::new();
+            let session = VoiceSession::new(model_search_paths);
             while let Some(cmd) = rx.recv().await {
                 match cmd {
                     VoiceCommand::InitEngines { asr_model_dir, vad_model_path, vad_silence_ms, respond } => {
@@ -198,7 +214,8 @@ fn spawn_voice_manager() -> VoiceManagerHandle {
                         let _ = respond.send(res);
                     }
                     VoiceCommand::Start { app_handle, thread_id, lang, mode, respond } => {
-                        session.set_app_handle(app_handle);
+                        let bus = Arc::new(TauriEventBus { handle: app_handle }) as Arc<dyn VoiceEventBus>;
+                        session.set_event_bus(bus);
                         let res = session.start(thread_id, lang, mode).await;
                         let _ = respond.send(res);
                     }
@@ -371,6 +388,85 @@ async fn get_voice_state() -> Result<String, String> {
 #[cfg(mobile)]
 async fn start_dictation(_: String, _: String) -> Result<String, String> {
     Err("Dictation not supported on mobile".to_string())
+}
+
+// ===== TTS Commands =====
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn speak_text(text: String, voice: String, rate: i32) -> Result<(), String> {
+    use std::process::Command;
+    let result = Command::new("say")
+        .arg("-v")
+        .arg(&voice)
+        .arg("-r")
+        .arg(rate.to_string())
+        .arg(&text)
+        .output()
+        .map_err(|e| format!("TTS failed: {}", e))?;
+    if !result.status.success() {
+        let stderr = String::from_utf8_lossy(&result.stderr);
+        return Err(format!("TTS failed: {}", stderr));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn stop_speaking() -> Result<(), String> {
+    use std::process::Command;
+    Command::new("pkill")
+        .arg("-x")
+        .arg("say")
+        .output()
+        .map_err(|e| format!("Failed to stop TTS: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn list_system_voices() -> Result<Vec<serde_json::Value>, String> {
+    use std::process::Command;
+    let output = Command::new("say")
+        .arg("-v")
+        .arg("?")
+        .output()
+        .map_err(|e| format!("Failed to list voices: {}", e))?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut voices = Vec::new();
+    for line in stdout.lines() {
+        let parts: Vec<&str> = line.splitn(2, "  ").collect();
+        if parts.len() >= 1 {
+            let name = parts[0].trim();
+            if !name.is_empty() {
+                voices.push(serde_json::json!({
+                    "id": name,
+                    "name": name,
+                    "gender": "unknown",
+                    "description": parts.get(1).unwrap_or(&"").trim(),
+                }));
+            }
+        }
+    }
+    Ok(voices)
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn speak_text(_text: String, _voice: String, _rate: i32) -> Result<(), String> {
+    Err("TTS not supported on mobile".to_string())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn stop_speaking() -> Result<(), String> {
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn list_system_voices() -> Result<Vec<serde_json::Value>, String> {
+    Err("TTS not supported on mobile".to_string())
 }
 
 // ===== Global Voice Shortcut Commands =====
@@ -660,7 +756,16 @@ pub fn run() {
             // Backend Sidecar (HTTP Server)
             sidecar_client: Arc::new(Mutex::new(None)),
             // Full-duplex voice manager
-            voice_manager: spawn_voice_manager(),
+            voice_manager: {
+                let mut paths = Vec::new();
+                if let Ok(dir) = _app.path().resource_dir() {
+                    paths.push(dir.join("models"));
+                }
+                if let Ok(dir) = _app.path().app_data_dir() {
+                    paths.push(dir.join("models"));
+                }
+                spawn_voice_manager(paths)
+            },
         };
             _app.manage(service_state);
 
@@ -744,8 +849,12 @@ pub fn run() {
             commands::sidecar::sidecar_is_ready,
             commands::sidecar::sidecar_get_status,
             commands::sidecar::sidecar_restart,
-            // Voice shortcut commands
-            start_voice_shortcut_listener,
+    // TTS commands
+    speak_text,
+    stop_speaking,
+    list_system_voices,
+    // Voice shortcut commands
+    start_voice_shortcut_listener,
             stop_voice_shortcut_listener,
             set_voice_shortcut_key,
             set_voice_shortcut_duration,

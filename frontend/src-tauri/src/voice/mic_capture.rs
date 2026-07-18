@@ -1,8 +1,9 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{Device, Stream, StreamConfig};
+use rubato::{Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use log::{info, warn, error};
+use log::{error, info, warn};
 
 const TARGET_SAMPLE_RATE: u32 = 16000;
 
@@ -74,9 +75,9 @@ impl MicCapture {
                         data.to_vec()
                     };
 
-                    // Resample if needed (simple linear interpolation)
+                    // Resample if needed (rubato Sinc band-limited)
                     let resampled = if sample_rate != TARGET_SAMPLE_RATE {
-                        resample_linear(&mono, sample_rate, TARGET_SAMPLE_RATE)
+                        resample_rubato(&mono, sample_rate, TARGET_SAMPLE_RATE)
                     } else {
                         mono
                     };
@@ -112,24 +113,30 @@ impl MicCapture {
     }
 }
 
-/// Simple linear interpolation resampler.
-fn resample_linear(input: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
+/// Audio resampler using rubato (Sinc band-limited interpolation).
+fn resample_rubato(input: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
     if from_rate == to_rate || input.is_empty() {
         return input.to_vec();
     }
 
     let ratio = to_rate as f64 / from_rate as f64;
-    let output_len = (input.len() as f64 * ratio).ceil() as usize;
-    let mut output = Vec::with_capacity(output_len);
+    let params = SincInterpolationParameters {
+        sinc_len: 256,
+        f_cutoff: 0.95,
+        interpolation: SincInterpolationType::Linear,
+        oversampling_factor: 256,
+        window: WindowFunction::BlackmanHarris2,
+    };
 
-    for i in 0..output_len {
-        let src_idx = i as f64 / ratio;
-        let idx0 = src_idx.floor() as usize;
-        let idx1 = (idx0 + 1).min(input.len() - 1);
-        let frac = src_idx - idx0 as f64;
-        let sample = input[idx0] * (1.0 - frac as f32) + input[idx1] * frac as f32;
-        output.push(sample);
-    }
+    let mut resampler = SincFixedIn::<f32>::new(
+        ratio,
+        1.0,
+        params,
+        input.len(),
+        1,
+    ).expect("Failed to create rubato resampler");
 
-    output
+    let waves_in = vec![input.to_vec()];
+    let mut output = resampler.process(&waves_in, None).expect("Rubato resampling failed");
+    output.remove(0)
 }

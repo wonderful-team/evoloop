@@ -1,6 +1,7 @@
+import { invoke } from "@tauri-apps/api/core"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { AudioService, OpenAPI } from "@/client"
+import { isTauri } from "@/lib/tauri"
 
 export interface TTSOptions {
   voiceId?: string
@@ -72,18 +73,22 @@ export function useTTS(): UseTTSReturn {
   }, [])
 
   const fetchVoices = useCallback(async () => {
+    if (!isTauri()) return
     try {
-      const data = (await AudioService.listVoices()) as { voices: TTSVoice[] }
-      if (data.voices && Array.isArray(data.voices)) {
-        setVoices(data.voices)
+      const tauriVoices = await invoke<any[]>("list_system_voices")
+      if (tauriVoices && Array.isArray(tauriVoices)) {
+        setVoices(tauriVoices as TTSVoice[])
       }
     } catch (err) {
       console.warn("Failed to fetch voices:", err)
-      // Keep default voices
     }
   }, [])
 
   const stop = useCallback(() => {
+    if (isTauri()) {
+      invoke("stop_speaking").catch(() => {})
+    }
+
     if (audioRef.current) {
       audioRef.current.pause()
       audioRef.current.src = ""
@@ -101,10 +106,13 @@ export function useTTS(): UseTTSReturn {
 
   const speak = useCallback(
     async (text: string, options: TTSOptions = {}) => {
-      // Stop any current playback
       stop()
-
       if (!text.trim()) return
+
+      if (!isTauri()) {
+        setError("TTS is only available in the desktop app")
+        return
+      }
 
       setIsLoading(true)
       setError(null)
@@ -112,64 +120,11 @@ export function useTTS(): UseTTSReturn {
       try {
         const voiceId = options.voiceId || currentVoice
         const speed = options.speed ?? 1.0
-        const format = options.format || "mp3"
-
-        // Use streaming endpoint for faster playback
-        const formData = new FormData()
-        formData.append("text", text)
-        formData.append("voice_id", voiceId)
-        formData.append("speed", speed.toString())
-        formData.append("format", format)
-
-        abortControllerRef.current = new AbortController()
-
-        const response = await fetch(
-          `${OpenAPI.BASE}/api/v1/audio/tts-stream`,
-          {
-            method: "POST",
-            body: formData,
-            signal: abortControllerRef.current.signal,
-          },
-        )
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.detail || t("chat.tts.failed"))
-        }
-
-        // Get audio blob from stream
-        const blob = await response.blob()
-        const url = URL.createObjectURL(blob)
-
-        // Create and play audio
-        const audio = new Audio(url)
-        audioRef.current = audio
-
-        // Set up event handlers
-        audio.onended = () => {
-          URL.revokeObjectURL(url)
-          setIsSpeaking(false)
-          setIsLoading(false)
-        }
-
-        audio.onerror = (e) => {
-          URL.revokeObjectURL(url)
-          console.error("Audio playback error:", e)
-          setError(t("chat.tts.playbackError"))
-          setIsSpeaking(false)
-          setIsLoading(false)
-        }
-
-        setIsSpeaking(true)
+        const rate = Math.round(speed * 200) // convert 0.5-2.0 to say's rate
+        await invoke("speak_text", { text, voice: voiceId, rate })
+        setIsSpeaking(false)
         setIsLoading(false)
-
-        await audio.play()
       } catch (err: any) {
-        if (err.name === "AbortError") {
-          // User cancelled, not an error
-          return
-        }
-
         console.error("TTS error:", err)
         setError(err.message || t("chat.tts.error"))
         setIsSpeaking(false)

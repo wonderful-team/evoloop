@@ -14,10 +14,11 @@ import {
   TooltipTrigger,
 } from "@evoloop/shared/components/ui/tooltip"
 import { cn } from "@evoloop/shared/lib/utils"
-import { Brain, Eye, Loader2 } from "lucide-react"
+import { Brain, Cpu, Eye, Globe, Loader2, Server } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { isLoggedIn } from "@/hooks/useAuth"
+import { SystemService } from "@/client"
 import { type LLMModel, llmPlatformService } from "@/services/llmPlatform"
 
 interface ModelSelectorProps {
@@ -46,8 +47,31 @@ export function ModelSelector({
   const loadModels = async () => {
     setIsLoading(true)
     try {
-      const fetchedModels = await llmPlatformService.fetchModels()
-      setModels(fetchedModels)
+      const [fetchedModels, discovery] = await Promise.all([
+        llmPlatformService.fetchModels(),
+        SystemService.discoverModels().catch(() => ({ models: [] })),
+      ])
+
+      // Convert discovered models to LLMModel format
+      const discoveredModels: LLMModel[] = ((discovery as any)?.models || []).map((m: any) => ({
+        id: m.id,
+        name: m.name,
+        model: m.model_name,
+        type: "platform" as const, // discovered models filtered by provider below
+        provider: m.source,
+        description: m.base_url || "",
+        available: m.status === "available",
+        context_window: m.context_window || undefined,
+      }))
+
+      // Merge and deduplicate by id
+      const all = [...fetchedModels]
+      for (const dm of discoveredModels) {
+        if (!all.some((e) => e.id === dm.id)) {
+          all.push(dm)
+        }
+      }
+      setModels(all)
     } catch (error) {
       console.error("[ModelSelector] Failed to load models:", error)
     } finally {
@@ -58,6 +82,16 @@ export function ModelSelector({
   // 分组模型
   const platformModels = models.filter((m) => m.type === "platform")
   const customModels = models.filter((m) => m.type === "custom")
+  // Local models are those discovered from lm-studio/ollama/gguf
+  const localProviders = new Set(["lm-studio", "ollama", "gguf", "local"])
+  const localModels = models.filter((m) => localProviders.has(m.provider || ""))
+
+  const sourceIcons: Record<string, typeof Cpu> = {
+    "lm-studio": Server,
+    ollama: Globe,
+    gguf: Cpu,
+    custom: Brain,
+  }
 
   // 获取当前选中的模型信息 (使用 id 而不是 model，以区分 platform 和 custom)
   const selectedModel = models.find((m) => m.id === value)
@@ -161,6 +195,41 @@ export function ModelSelector({
                         </span>
                       </SelectItem>
                     ))}
+                  </SelectGroup>
+                )}
+
+                {/* 本地自动发现模型 */}
+                {localModels.length > 0 && (
+                  <SelectGroup>
+                    <SelectLabel className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                      {t("chat.modelSelector.localModels")}
+                    </SelectLabel>
+                    {localModels.map((model) => {
+                      const SrcIcon = sourceIcons[model.provider || ""] || Cpu
+                      const color =
+                        model.provider === "lm-studio"
+                          ? "text-amber-500"
+                          : model.provider === "ollama"
+                            ? "text-green-500"
+                            : model.provider === "gguf"
+                              ? "text-purple-500"
+                              : "text-muted-foreground"
+                      return (
+                        <SelectItem
+                          key={model.id}
+                          value={model.id}
+                          className="text-xs py-2"
+                        >
+                          <span className="flex items-center gap-2 w-full min-w-0">
+                            <SrcIcon className={`h-3.5 w-3.5 ${color} shrink-0`} />
+                            <span className="flex-1 truncate">{model.name}</span>
+                            <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                              {model.provider}
+                            </span>
+                          </span>
+                        </SelectItem>
+                      )
+                    })}
                   </SelectGroup>
                 )}
 

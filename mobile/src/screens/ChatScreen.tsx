@@ -133,7 +133,7 @@ export default function ChatScreen() {
   const { speak, enqueue: enqueueTTS, clearQueue: clearTTSQueue, stop: stopTTS, isSpeaking: isTTSSpeaking, prewarm: prewarmTTS } = useStreamingTTS({
     onComplete: () => {
       console.log('[ChatScreen] TTS complete callback');
-      if (continuousListening) {
+      if (continuousListening && autoSpeak) {
         console.log('[ChatScreen] Continuous listening is enabled, auto-starting voice input...');
         handleBeforeStartRecordingRef.current?.().then((allowed) => {
           if (allowed) {

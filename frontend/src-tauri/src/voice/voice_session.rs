@@ -75,15 +75,14 @@ pub struct VoiceSession {
     running: Arc<AtomicBool>,
     lang: Arc<RwLock<String>>,
     mode: Arc<RwLock<String>>,
-    /// Whether the dialogue loop is active (mic + ASR + VAD running).
     dialogue_active: Arc<AtomicBool>,
-    /// Shared queue of TTS audio samples, consumed by the VoiceProcessingIO output callback.
     audio_queue: Arc<Mutex<VecDeque<f32>>>,
-    app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
+    event_bus: Arc<Mutex<Option<Arc<dyn VoiceEventBus>>>>,
+    model_search_paths: Vec<PathBuf>,
 }
 
 impl VoiceSession {
-    pub fn new() -> Self {
+    pub fn new(model_search_paths: Vec<PathBuf>) -> Self {
         let audio_queue = Arc::new(Mutex::new(VecDeque::new()));
         let tts = Arc::new(TtsEngine::new_with_queue(audio_queue.clone()).unwrap_or_else(|e| {
             error!("[voice-session] TTS init failed: {}", e);
@@ -103,20 +102,21 @@ impl VoiceSession {
             mode: Arc::new(RwLock::new("dialogue".to_string())),
             dialogue_active: Arc::new(AtomicBool::new(false)),
             audio_queue,
-            app_handle: Arc::new(Mutex::new(None)),
+            event_bus: Arc::new(Mutex::new(None)),
+            model_search_paths,
         }
     }
 
-    pub fn set_app_handle(&self, handle: tauri::AppHandle) {
-        if let Ok(mut h) = self.app_handle.lock() {
-            *h = Some(handle);
+    pub fn set_event_bus(&self, bus: Arc<dyn VoiceEventBus>) {
+        if let Ok(mut lock) = self.event_bus.lock() {
+            *lock = Some(bus);
         }
     }
 
     fn emit_event(&self, event: &str, payload: serde_json::Value) {
-        if let Ok(h) = self.app_handle.lock() {
-            if let Some(handle) = h.as_ref() {
-                let _ = handle.emit(event, payload);
+        if let Ok(lock) = self.event_bus.lock() {
+            if let Some(bus) = lock.as_ref() {
+                bus.emit(event, payload);
             }
         }
     }
@@ -145,18 +145,20 @@ impl VoiceSession {
 
     /// Connect to Python backend WebSocket.
     pub async fn connect_backend(&self, ws_url: &str) -> Result<(), String> {
+        let bus = self.event_bus.lock().ok().and_then(|lock| lock.as_ref().cloned())
+            .ok_or("Event bus not set")?;
         let session_state = self.state_machine.clone();
         let session_tts = self.tts.clone();
         let session_lang = self.lang.clone();
         let _session_thread_id = self.thread_id.clone();
-        let app_handle = self.app_handle.clone();
+        let event_bus = bus;
 
         let handler = Arc::new(move |envelope: VoiceEnvelope| {
             let session_state = session_state.clone();
             let session_tts = session_tts.clone();
             let session_lang = session_lang.clone();
             let _session_thread_id = _session_thread_id.clone();
-            let app_handle = app_handle.clone();
+            let event_bus = event_bus.clone();
 
             // Do not block the WebSocket read loop; dispatch to async task.
             tokio::spawn(async move {
@@ -170,14 +172,34 @@ impl VoiceSession {
                             .unwrap_or("");
                         info!("[voice-session] route_result: {}", status);
 
-                        if status == "done" || status == "failed" || status == "cancelled" {
-                            if let Ok(h) = app_handle.lock() {
-                                if let Some(handle) = h.as_ref() {
-                                    let _ = handle.emit("voice:route_result", &body);
+                        event_bus.emit("voice:route_result", body.clone());
+
+                        if status == "routed" {
+                            // Agent dispatched: TTS "好的，我来处理"
+                            let is_agent = body.get("target")
+                                .and_then(|t| t.get("type"))
+                                .and_then(|v| v.as_str())
+                                .map(|t| t == "agent")
+                                .unwrap_or(false);
+                            if is_agent {
+                                let lang = session_lang.read().await.clone();
+                                session_tts.queue_sentence("好的，我来处理".to_string());
+                                session_tts.speak_next(&lang);
+                            }
+                        } else if status == "done" || status == "failed" || status == "cancelled" {
+                            // Terminal result: speak summary via TTS
+                            if status == "done" {
+                                if let Some(summary) = body.get("summary").and_then(|v| v.as_str()) {
+                                    let s = summary.trim();
+                                    if !s.is_empty() {
+                                        session_tts.queue_sentence(s.to_string());
+                                        let lang = session_lang.read().await.clone();
+                                        session_tts.speak_next(&lang);
+                                    }
                                 }
                             }
 
-                            // If no more TTS queued, move back to idle.
+                            // Move to idle only when TTS has finished
                             if !session_tts.has_queued() && !session_tts.is_speaking() {
                                 let _ = session_state.set(VoiceState::Idle).await;
                             }
@@ -187,11 +209,7 @@ impl VoiceSession {
                     "voice.token" => {
                         if let Some(token) = body.get("token").and_then(|v| v.as_str()) {
                             log::debug!("[voice-session] token: {}", token);
-                            if let Ok(h) = app_handle.lock() {
-                                if let Some(handle) = h.as_ref() {
-                                    let _ = handle.emit("voice:token", serde_json::json!({"token": token}));
-                                }
-                            }
+                            event_bus.emit("voice:token", serde_json::json!({"token": token}));
                         }
                     }
 
@@ -208,11 +226,7 @@ impl VoiceSession {
                             session_tts.queue_sentence(sentence.to_string());
                             session_tts.speak_next(&lang);
 
-                            if let Ok(h) = app_handle.lock() {
-                                if let Some(handle) = h.as_ref() {
-                                    let _ = handle.emit("voice:tts_boundary", &body);
-                                }
-                            }
+                            event_bus.emit("voice:tts_boundary", body.clone());
                         }
                     }
 
@@ -221,12 +235,7 @@ impl VoiceSession {
                         if let Some(text) = body.get("polished_text").and_then(|v| v.as_str()) {
                             dictation_paste(text);
                         }
-                        // Also emit to the EvoLoop frontend for own-window display
-                        if let Ok(h) = app_handle.lock() {
-                            if let Some(handle) = h.as_ref() {
-                                let _ = handle.emit("voice:dictation_polished", &body);
-                            }
-                        }
+                        event_bus.emit("voice:dictation_polished", body.clone());
                     }
 
                     "system.init" => {
@@ -255,7 +264,6 @@ impl VoiceSession {
     }
 
     pub async fn ensure_initialized(&self) -> Result<(), String> {
-        // Check if already fully initialized and connected
         if self.asr.read().await.is_some()
             && self.vad.read().await.is_some()
             && self.ws_client.read().await.is_some()
@@ -263,21 +271,13 @@ impl VoiceSession {
             return Ok(());
         }
 
-        let handle = {
-            let h = self.app_handle.lock().unwrap();
-            h.as_ref().ok_or("AppHandle not set")?.clone()
-        };
-
-        // Search order: bundled, app data dir, ~/.evoloop/models, prototype path
+        // Search: configured paths + hardcoded fallbacks
         let home = dirs::home_dir();
         let evoloop_models = home.as_ref().map(|p| p.join(".evoloop/models"));
         let prototype_asr = home.as_ref().map(|p| p.join(".config/models/sherpa-onnx/model"));
-        let model_dirs = [
-            handle.path().resource_dir().ok().map(|p| p.join("models")),
-            handle.path().app_data_dir().ok().map(|p| p.join("models")),
-            evoloop_models.clone(),
-            prototype_asr.clone(),
-        ];
+        let model_dirs: Vec<_> = self.model_search_paths.iter().cloned().map(Some)
+            .chain([evoloop_models.clone(), prototype_asr.clone()])
+            .collect();
 
         let mut found = false;
         for dir in model_dirs.iter().flatten() {
@@ -301,7 +301,7 @@ impl VoiceSession {
                 self.init_engines(
                     &dir.to_string_lossy(),
                     &vad_path.to_string_lossy(),
-                    800.0,
+                    400.0,
                 )
                 .await?;
 
@@ -353,7 +353,7 @@ impl VoiceSession {
         let tid = thread_id.clone();
         let running = self.running.clone();
         let dialogue_active = self.dialogue_active.clone();
-        let app_handle = self.app_handle.clone();
+        let event_bus = self.event_bus.lock().ok().and_then(|lock| lock.as_ref().cloned()).expect("Event bus not set");
 
         let stream = Arc::new(Mutex::new(asr.create_stream()));
         let last_partial = Arc::new(Mutex::new(String::new()));
@@ -367,7 +367,7 @@ impl VoiceSession {
         let last_partial_clone = last_partial.clone();
         let sm_clone = sm.clone();
         let tts_clone = tts.clone();
-        let app_handle_clone = app_handle.clone();
+        let event_bus_clone = event_bus.clone();
         let mode_clone = self.mode.clone();
         let lang_clone = self.lang.clone();
         let rt_handle = tokio::runtime::Handle::current();
@@ -396,15 +396,11 @@ impl VoiceSession {
                         let sm = sm_clone.clone();
                         let ws = ws_clone.clone();
                         let tid = tid_clone.clone();
-                        let app = app_handle_clone.clone();
+                        let bus = event_bus_clone.clone();
                         rt.spawn(async move {
                             let _ = sm.force_set(VoiceState::Interrupted).await;
                             let _ = ws.send_barge_in(&tid).await;
-                            if let Ok(h) = app.lock() {
-                                if let Some(handle) = h.as_ref() {
-                                    let _ = handle.emit("voice:state", serde_json::json!({"state": "interrupted"}));
-                                }
-                            }
+                            bus.emit("voice:state", serde_json::json!({"state": "interrupted"}));
                         });
                     }
                 }
@@ -429,15 +425,11 @@ impl VoiceSession {
                         *last = partial.clone();
                         let ws = ws_clone.clone();
                         let tid = tid_clone.clone();
-                        let app = app_handle_clone.clone();
+                        let bus = event_bus_clone.clone();
                         rt.spawn(async move {
                             ws.send_partial(&tid, &partial).await.ok();
-                            if let Ok(h) = app.lock() {
-                                if let Some(handle) = h.as_ref() {
-                                    let _ = handle.emit("voice:log", serde_json::json!({"message": format!("ASR partial: {}", partial)}));
-                                    let _ = handle.emit("voice:partial", serde_json::json!({"text": partial}));
-                                }
-                            }
+                            bus.emit("voice:log", serde_json::json!({"message": format!("ASR partial: {}", partial)}));
+                            bus.emit("voice:partial", serde_json::json!({"text": partial}));
                         });
                     }
                 }
@@ -463,24 +455,25 @@ impl VoiceSession {
 
                         let ws = ws_clone.clone();
                         let tid = tid_clone.clone();
-                        let app = app_handle_clone.clone();
                         let sm = sm_clone.clone();
+                        let bus = event_bus_clone.clone();
                         let mode_for_task = mode_clone.clone();
                         let lang_for_task = lang_clone.clone();
                         rt.spawn(async move {
                             let mode = mode_for_task.read().await.clone();
                             if mode == "dictation" {
-                                let target_locale = lang_for_task.read().await.clone();
-                                ws.send_dictation_finalize(&tid, &final_text, &target_locale).await.ok();
+                                if final_text.chars().count() <= 5 {
+                                    bus.emit("voice:log", serde_json::json!({"message": format!("短文本跳过 LLM: {}", final_text)}));
+                                    dictation_paste(&final_text);
+                                } else {
+                                    let target_locale = lang_for_task.read().await.clone();
+                                    ws.send_dictation_finalize(&tid, &final_text, &target_locale).await.ok();
+                                }
                             } else {
                                 let msg_id = Uuid::new_v4().to_string();
                                 ws.send_route(&tid, &final_text, &msg_id).await.ok();
                                 let _ = sm.set(VoiceState::Processing).await;
-                                if let Ok(h) = app.lock() {
-                                    if let Some(handle) = h.as_ref() {
-                                        let _ = handle.emit("voice:state", serde_json::json!({"state": "processing"}));
-                                    }
-                                }
+                                bus.emit("voice:state", serde_json::json!({"state": "processing"}));
                             }
                         });
                     }

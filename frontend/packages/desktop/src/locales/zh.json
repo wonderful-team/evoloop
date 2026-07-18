@@ -356,7 +356,8 @@
       "selectModel": "请选择模型",
       "tooltip": "选择用于此对话的 AI 模型",
       "customBadge": "自定义",
-      "platformBadge": "平台"
+      "platformBadge": "平台",
+      "localModels": "本地模型"
     },
     "noLinks": "没有链接",
     "noPinnedFiles": "在文件浏览器中右键点击文件可将其置顶至此。",
@@ -671,7 +672,10 @@
     "separator": "·",
     "speedMultiplier": "倍",
     "terminalIcon": ">_",
-    "terminalPrompt": "$"
+    "terminalPrompt": "$",
+    "connected": "已连接",
+    "disconnected": "未连接",
+    "testing": "测试中..."
   },
   "generation": {
     "title": "生成物管理",
@@ -1632,11 +1636,11 @@
     },
     "embedding": {
       "title": "🔗 嵌入通道",
-      "description": "独立的嵌入模型，3 级优先级链：GGUF → 本地 HTTP → 远程 API。",
-      "tiers": "优先级顺序（逗号分隔）",
-      "tierGguf": "第 1 级：GGUF (llama.cpp)",
-      "tierLocal": "第 2 级：本地 HTTP",
-      "tierRemote": "第 3 级：远程 API",
+      "description": "管理用于知识库索引和语义搜索的向量模型。",
+      "auto_try_hint": "只需配置你有的来源。系统会自动按 GGUF → 本地 HTTP → 远程 API 的顺序尝试。",
+      "ggufLabel": "本地 GGUF（llama.cpp）",
+      "localLabel": "本地 HTTP（LM Studio / Ollama）",
+      "remoteLabel": "远程 API",
       "ggufModel": "GGUF 模型路径",
       "localUrl": "Base URL",
       "localApiKey": "API Key",
@@ -1662,13 +1666,16 @@
       "error_update": "更新 Embedding 模型失败",
       "select_default_placeholder": "请选择默认模型...",
       "select_model_placeholder": "请选择模型...",
-      "description": "管理用于知识库索引和语义搜索的向量模型。",
       "apiKeyPlaceholder": "sk-...",
       "baseUrlPlaceholder": "https://api.openai.com/v1",
       "dimensionsPlaceholder": "1536",
       "modelPlaceholder": "text-embedding-3-small",
       "providerPlaceholder": "openai",
-      "connectionErrorWithMessage": "{{message}}：{{detail}}"
+      "connectionErrorWithMessage": "{{message}}：{{detail}}",
+      "mode": "MISSING",
+      "none_hint": "MISSING",
+      "active_tier": "当前：{{tier}}",
+      "gguf_hint": "下载：{{cmd}}"
     },
     "general": {
       "browse": "浏览",
@@ -1760,7 +1767,21 @@
       "connection_failed": "LLM {{llm}} 嵌入 {{embed}}",
       "connection_error": "连接错误：{{message}}",
       "loadError": "加载轻量通道配置失败",
-      "channel_separator": "重型通道（复杂 Agent 任务）"
+      "channel_separator": "重型通道（复杂 Agent 任务）",
+      "gguf_hint": "下载：{{cmd}}"
+    },
+    "models": {
+      "default_view": {
+        "title": "AI 助手",
+        "description": "选择你的 AI 模型。系统会自动发现本地运行的服务。",
+        "select_placeholder": "选择一个模型...",
+        "test_connection": "测试连接",
+        "untested": "未测试",
+        "no_models": "没有发现模型。请启动 LM Studio、Ollama，或添加自定义 Provider。"
+      },
+      "advanced": {
+        "title": "高级设置"
+      }
     },
     "pageTitle": "设置 - EvoLoop",
     "password": {
@@ -1831,6 +1852,9 @@
       }
     },
     "voice": {
+      "advanced": {
+        "title": "高级语音设置"
+      },
       "enableShortcut": "启用快捷键",
       "enableUnifiedDesc": "单击=听写模式，长按=对话模式。全局生效，窗口隐藏也可用。",
       "enableWakeWord": "启用唤醒词",
@@ -1892,7 +1916,8 @@
         "setDuration": "设置长按持续时间失败",
         "setMode": "设置触发模式失败",
         "setInterval": "设置双击间隔失败"
-      }
+      },
+      "sttProvider": "语音识别服务提供商"
     }
   },
   "startup": {
@@ -2069,6 +2094,9 @@
     },
     "empty": {
       "loading": "加载中...",
+      "testing": "测试中...",
+      "connected": "已连接",
+      "disconnected": "未连接",
       "noActive": "暂无待办事项。请在上方添加！",
       "noFilterMatch": "没有符合当前筛选条件的事项。"
     },

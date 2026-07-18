@@ -895,6 +895,23 @@ export type EmbeddingTierTestResponse = {
     error?: (string | null);
 };
 
+export type DiscoveredModelDTO = {
+    id: string;
+    name: string;
+    source: string;
+    model_name: string;
+    base_url?: (string | null);
+    capabilities?: Array<string>;
+    status?: string;
+    context_window?: (number | null);
+};
+
+export type ModelDiscoveryResponse = {
+    success?: boolean;
+    message?: string;
+    models: Array<DiscoveredModelDTO>;
+};
+
 /**
  * Enriched login result from EvoCloud auth methods.
  */
@@ -1921,25 +1938,6 @@ export type TranscriptionResponse = {
 /**
  * 语音合成请求
  */
-export type TTSRequest = {
-    text: string;
-    voice_id?: string;
-    speed?: number;
-    format?: string;
-    [key: string]: unknown | string | number;
-};
-
-/**
- * 语音合成响应
- */
-export type TTSResponse = {
-    success?: boolean;
-    message?: string;
-    url: string;
-    duration?: (number | null);
-    [key: string]: unknown | boolean | string;
-};
-
 export type UpdateProfileRequest = {
     content: string;
     [key: string]: unknown | string;
@@ -2104,18 +2102,6 @@ export type VectorSearchResult = {
 
 /**
  * TTS 声音列表响应
- */
-export type VoiceListResponse = {
-    success?: boolean;
-    message?: string;
-    voices: Array<{
-        [key: string]: unknown;
-    }>;
-    [key: string]: unknown | boolean | string;
-};
-
-/**
- * External webhook payload. Extra fields are allowed per source/event_type.
  */
 export type WebhookPayload = {
     [key: string]: unknown;
@@ -2299,26 +2285,6 @@ export type AtlasListAppMapsData = {
 };
 
 export type AtlasListAppMapsResponse = (unknown);
-
-export type AudioListVoicesResponse = (VoiceListResponse);
-
-export type AudioTextToSpeechData = {
-    requestBody: TTSRequest;
-};
-
-export type AudioTextToSpeechResponse = (TTSResponse);
-
-export type AudioTextToSpeechStreamData = {
-    formData: Body_audio_text_to_speech_stream;
-};
-
-export type AudioTextToSpeechStreamResponse = (unknown);
-
-export type AudioGetTtsFileData = {
-    filename: string;
-};
-
-export type AudioGetTtsFileResponse = (unknown);
 
 export type AudioListSttProvidersResponse = (STTProvidersResponse);
 
@@ -3348,6 +3314,8 @@ export type SystemGetLlmModelsData = {
 export type SystemGetLlmModelsResponse = (ModelsListResponse);
 
 export type SystemGetEmbeddingModelsResponse = (ModelsListResponse);
+
+export type SystemDiscoverModelsResponse = (ModelDiscoveryResponse);
 
 export type SystemGetEmbeddingTierStatusResponse = (EmbeddingTierStatusResponse);
 

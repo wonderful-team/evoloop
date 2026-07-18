@@ -198,7 +198,15 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
     if (!isRunningRef.current) {return;}
     isRunningRef.current = false;
 
-    await voiceEngine.endSession();
+    try {
+      // 5s timeout: native endSession 可能因音频回调未触发而挂起
+      await Promise.race([
+        voiceEngine.endSession(),
+        new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+      ]);
+    } catch (err) {
+      console.error('[useVoiceInput] endSession error:', err);
+    }
     // Wait a short time to let any trailing ASR events cross the React Native bridge and process in JS
     await new Promise((resolve) => setTimeout(resolve, 150));
     flushFinal();

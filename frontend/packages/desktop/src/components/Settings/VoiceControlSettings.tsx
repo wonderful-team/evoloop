@@ -1,4 +1,9 @@
 import { Button } from "@evoloop/shared/components/ui/button"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@evoloop/shared/components/ui/collapsible"
 import { Label } from "@evoloop/shared/components/ui/label"
 import {
   Select,
@@ -11,6 +16,7 @@ import { Switch } from "@evoloop/shared/components/ui/switch"
 import { cn } from "@evoloop/shared/lib/utils"
 import {
   AlertCircle,
+  ChevronDown,
   Cpu,
   Eye,
   EyeOff,
@@ -306,7 +312,13 @@ export function VoiceControlSettings() {
     <div className="space-y-6">
       <TTSSettings />
 
-      <div className="h-px bg-border/50" />
+      <Collapsible className="border rounded-lg">
+        <CollapsibleTrigger className="flex w-full items-center justify-between p-4 text-sm font-medium hover:bg-muted/20 transition-colors">
+          <span>{t("settings.voice.advanced.title")}</span>
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="px-4 pb-4 space-y-6">
       {/* STT Engine Section */}
       <SettingsCard
         icon={Cpu}
@@ -716,6 +728,9 @@ export function VoiceControlSettings() {
           )}
         </div>
       </SettingsCard>
+          </div>{/* end advanced content */}
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   )
 }

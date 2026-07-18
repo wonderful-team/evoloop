@@ -356,7 +356,8 @@
       "selectModel": "Please select a model",
       "tooltip": "Select AI model for this conversation",
       "customBadge": "Custom",
-      "platformBadge": "Platform"
+      "platformBadge": "Platform",
+      "localModels": "Local Models"
     },
     "noLinks": "No links",
     "noPinnedFiles": "Right click files in file explorer to pin them here.",
@@ -587,6 +588,9 @@
     "keep": "Keep",
     "later": "Later",
     "loading": "Loading...",
+    "testing": "Testing...",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
     "name": "Name",
     "next": "Next",
     "no": "No",
@@ -1632,11 +1636,11 @@
     },
     "embedding": {
       "title": "🔗 Embedding Channel",
-      "description": "Independent embedding model with 3-tier priority: GGUF → Local HTTP → Remote API.",
-      "tiers": "Tier Priority (comma-separated)",
-      "tierGguf": "Tier 1: GGUF (llama.cpp)",
-      "tierLocal": "Tier 2: Local HTTP",
-      "tierRemote": "Tier 3: Remote API",
+      "description": "Manage vector models used for knowledge base indexing and semantic search.",
+      "auto_try_hint": "Configure what you have. The system will try GGUF first, then Local HTTP, then Remote API automatically.",
+      "ggufLabel": "Local GGUF (llama.cpp)",
+      "localLabel": "Local HTTP (LM Studio / Ollama)",
+      "remoteLabel": "Remote API",
       "ggufModel": "GGUF Model Path",
       "localUrl": "Base URL",
       "localApiKey": "API Key",
@@ -1662,13 +1666,16 @@
       "error_update": "Failed to update embedding model",
       "select_default_placeholder": "Select default model...",
       "select_model_placeholder": "Choose a model...",
-      "description": "Manage vector models used for knowledge base indexing and semantic search.",
       "apiKeyPlaceholder": "sk-...",
       "baseUrlPlaceholder": "https://api.openai.com/v1",
       "dimensionsPlaceholder": "1536",
       "modelPlaceholder": "text-embedding-3-small",
       "providerPlaceholder": "openai",
-      "connectionErrorWithMessage": "{{message}}: {{detail}}"
+      "connectionErrorWithMessage": "{{message}}: {{detail}}",
+      "mode": "MISSING",
+      "none_hint": "MISSING",
+      "active_tier": "Active: {{tier}}",
+      "gguf_hint": "Download: {{cmd}}"
     },
     "general": {
       "browse": "Browse",
@@ -1748,7 +1755,8 @@
       "connection_failed": "LLM {{llm}} Embed {{embed}}",
       "connection_error": "Connection error: {{message}}",
       "loadError": "Failed to load Lightning config",
-      "channel_separator": "Heavy Channel (Complex Agent Tasks)"
+      "channel_separator": "Heavy Channel (Complex Agent Tasks)",
+      "gguf_hint": "Download: {{cmd}}"
     },
     "modelFields": {
       "apiKey": "API Key",
@@ -1761,6 +1769,19 @@
       "providerType": "Protocol Type",
       "visionModel": "Vision Model (Optional)",
       "visionModelDesc": "Model used for image analysis (e.g. gpt-4o, claude-3-opus)."
+    },
+    "models": {
+      "default_view": {
+        "title": "AI Assistant",
+        "description": "Select your AI model. The system auto-discovers local providers.",
+        "select_placeholder": "Choose a model...",
+        "test_connection": "Test Connection",
+        "untested": "Not tested",
+        "no_models": "No models found. Start LM Studio, Ollama, or add a custom provider."
+      },
+      "advanced": {
+        "title": "Advanced Settings"
+      }
     },
     "pageTitle": "Settings - EvoLoop",
     "password": {
@@ -1831,6 +1852,9 @@
       }
     },
     "voice": {
+      "advanced": {
+        "title": "Advanced Voice Settings"
+      },
       "enableShortcut": "Enable Shortcut",
       "enableUnifiedDesc": "Tap = dictation mode, hold = dialogue mode. Works globally even when window is hidden.",
       "enableWakeWord": "Enable Wake Word",
@@ -1892,7 +1916,8 @@
         "setDuration": "Failed to set shortcut duration",
         "setMode": "Failed to set trigger mode",
         "setInterval": "Failed to set double click interval"
-      }
+      },
+      "sttProvider": "STT Provider"
     }
   },
   "startup": {

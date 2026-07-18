@@ -38,6 +38,7 @@ import { Route as LayoutProjectsProjectIdMacrosRouteImport } from './routes/_lay
 import { Route as LayoutProjectsProjectIdGenerationRouteImport } from './routes/_layout/projects.$projectId.generation'
 import { Route as LayoutProjectsProjectIdGanttRouteImport } from './routes/_layout/projects.$projectId.gantt'
 import { Route as LayoutProjectsProjectIdFilesRouteImport } from './routes/_layout/projects.$projectId.files'
+import { Route as LayoutProjectsProjectIdAppmapRouteImport } from './routes/_layout/projects.$projectId.appmap'
 import { Route as LayoutLearningSkillsSkillIdEditRouteImport } from './routes/_layout/learning.skills.$skillId.edit'
 import { Route as LayoutLearningMacrosMacroIdEditRouteImport } from './routes/_layout/learning.macros.$macroId.edit'
 
@@ -198,6 +199,12 @@ const LayoutProjectsProjectIdFilesRoute =
     path: '/files',
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
+const LayoutProjectsProjectIdAppmapRoute =
+  LayoutProjectsProjectIdAppmapRouteImport.update({
+    id: '/appmap',
+    path: '/appmap',
+    getParentRoute: () => LayoutProjectsProjectIdRoute,
+  } as any)
 const LayoutLearningSkillsSkillIdEditRoute =
   LayoutLearningSkillsSkillIdEditRouteImport.update({
     id: '/skills/$skillId/edit',
@@ -227,6 +234,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId': typeof LayoutProjectsProjectIdRouteWithChildren
   '/projects/': typeof LayoutProjectsIndexRoute
   '/subscription/': typeof LayoutSubscriptionIndexRoute
+  '/projects/$projectId/appmap': typeof LayoutProjectsProjectIdAppmapRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
   '/projects/$projectId/generation': typeof LayoutProjectsProjectIdGenerationRoute
@@ -257,6 +265,7 @@ export interface FileRoutesByTo {
   '/': typeof LayoutIndexRoute
   '/projects': typeof LayoutProjectsIndexRoute
   '/subscription': typeof LayoutSubscriptionIndexRoute
+  '/projects/$projectId/appmap': typeof LayoutProjectsProjectIdAppmapRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
   '/projects/$projectId/generation': typeof LayoutProjectsProjectIdGenerationRoute
@@ -291,6 +300,7 @@ export interface FileRoutesById {
   '/_layout/projects/$projectId': typeof LayoutProjectsProjectIdRouteWithChildren
   '/_layout/projects/': typeof LayoutProjectsIndexRoute
   '/_layout/subscription/': typeof LayoutSubscriptionIndexRoute
+  '/_layout/projects/$projectId/appmap': typeof LayoutProjectsProjectIdAppmapRoute
   '/_layout/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/_layout/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
   '/_layout/projects/$projectId/generation': typeof LayoutProjectsProjectIdGenerationRoute
@@ -325,6 +335,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId'
     | '/projects/'
     | '/subscription/'
+    | '/projects/$projectId/appmap'
     | '/projects/$projectId/files'
     | '/projects/$projectId/gantt'
     | '/projects/$projectId/generation'
@@ -355,6 +366,7 @@ export interface FileRouteTypes {
     | '/'
     | '/projects'
     | '/subscription'
+    | '/projects/$projectId/appmap'
     | '/projects/$projectId/files'
     | '/projects/$projectId/gantt'
     | '/projects/$projectId/generation'
@@ -388,6 +400,7 @@ export interface FileRouteTypes {
     | '/_layout/projects/$projectId'
     | '/_layout/projects/'
     | '/_layout/subscription/'
+    | '/_layout/projects/$projectId/appmap'
     | '/_layout/projects/$projectId/files'
     | '/_layout/projects/$projectId/gantt'
     | '/_layout/projects/$projectId/generation'
@@ -620,6 +633,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutProjectsProjectIdFilesRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
+    '/_layout/projects/$projectId/appmap': {
+      id: '/_layout/projects/$projectId/appmap'
+      path: '/appmap'
+      fullPath: '/projects/$projectId/appmap'
+      preLoaderRoute: typeof LayoutProjectsProjectIdAppmapRouteImport
+      parentRoute: typeof LayoutProjectsProjectIdRoute
+    }
     '/_layout/learning/skills/$skillId/edit': {
       id: '/_layout/learning/skills/$skillId/edit'
       path: '/skills/$skillId/edit'
@@ -663,6 +683,7 @@ const LayoutSubscriptionRouteWithChildren =
   LayoutSubscriptionRoute._addFileChildren(LayoutSubscriptionRouteChildren)
 
 interface LayoutProjectsProjectIdRouteChildren {
+  LayoutProjectsProjectIdAppmapRoute: typeof LayoutProjectsProjectIdAppmapRoute
   LayoutProjectsProjectIdFilesRoute: typeof LayoutProjectsProjectIdFilesRoute
   LayoutProjectsProjectIdGanttRoute: typeof LayoutProjectsProjectIdGanttRoute
   LayoutProjectsProjectIdGenerationRoute: typeof LayoutProjectsProjectIdGenerationRoute
@@ -680,6 +701,7 @@ interface LayoutProjectsProjectIdRouteChildren {
 
 const LayoutProjectsProjectIdRouteChildren: LayoutProjectsProjectIdRouteChildren =
   {
+    LayoutProjectsProjectIdAppmapRoute: LayoutProjectsProjectIdAppmapRoute,
     LayoutProjectsProjectIdFilesRoute: LayoutProjectsProjectIdFilesRoute,
     LayoutProjectsProjectIdGanttRoute: LayoutProjectsProjectIdGanttRoute,
     LayoutProjectsProjectIdGenerationRoute:
