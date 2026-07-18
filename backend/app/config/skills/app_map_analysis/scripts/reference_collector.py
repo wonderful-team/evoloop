@@ -381,7 +381,35 @@ def main():
                         a["touches_tables"].append(tname)
                 break
 
-    # 5. Write output
+    # 5. Infer set_fields from HTML element names × DB column names.
+    # Framework-agnostic: HTML <input name="xxx"> maps to DB column "xxx".
+    for ename, edata in entities.items():
+        # Collect all DB column names for this entity
+        db_cols = set()
+        pk = ""
+        for t in edata.get("db_tables", []):
+            for c in t.get("cols", []):
+                db_cols.add(c)
+            if t.get("table") == ename and t.get("pk"):
+                pk = t["pk"]
+        if not db_cols:
+            continue
+        # Collect all HTML element names for this entity
+        el_names = set()
+        for el in edata.get("elements", []):
+            el_names.add(el.get("name", "").lower())
+        # Intersection = form fields that map to DB columns
+        common = db_cols & el_names
+        if not common:
+            continue
+        # Apply to write actions
+        for a in edata["actions"]:
+            if a["kind"] == "write" and not a.get("set_fields"):
+                a["set_fields"] = sorted(c for c in common if c != pk)
+                if pk and pk in common and pk not in a.get("touches_tables", []):
+                    a["pk"] = pk
+
+    # 6. Write output
     output_path = "/tmp/appmap_extracted.json"
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(entities, f, ensure_ascii=False, indent=2)
