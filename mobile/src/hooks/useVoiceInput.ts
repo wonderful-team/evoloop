@@ -103,7 +103,6 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
     onVadStart: () => {
       if (!isRunningRef.current) return;
       setState('speaking');
-      setPressed(true);
       // VAD 检测到人声，触发打断 (Barge-in)
       onInterrupt?.();
     },
