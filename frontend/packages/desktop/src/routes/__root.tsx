@@ -20,7 +20,9 @@ function RootComponent() {
   const isOverlay =
     typeof window !== "undefined" &&
     (window.location.pathname.includes("marker-overlay") ||
-      window.location.hash.includes("marker-overlay"))
+      window.location.hash.includes("marker-overlay") ||
+      window.location.pathname.includes("voice-hud") ||
+      window.location.hash.includes("voice-hud"))
 
   if (isOverlay) {
     return (

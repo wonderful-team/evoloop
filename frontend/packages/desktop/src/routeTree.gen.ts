@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VoiceHudRouteImport } from './routes/voice-hud'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RecoverPasswordRouteImport } from './routes/recover-password'
@@ -42,6 +43,11 @@ import { Route as LayoutProjectsProjectIdAppmapRouteImport } from './routes/_lay
 import { Route as LayoutLearningSkillsSkillIdEditRouteImport } from './routes/_layout/learning.skills.$skillId.edit'
 import { Route as LayoutLearningMacrosMacroIdEditRouteImport } from './routes/_layout/learning.macros.$macroId.edit'
 
+const VoiceHudRoute = VoiceHudRouteImport.update({
+  id: '/voice-hud',
+  path: '/voice-hud',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -226,6 +232,7 @@ export interface FileRoutesByFullPath {
   '/recover-password': typeof RecoverPasswordRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
+  '/voice-hud': typeof VoiceHudRoute
   '/chat': typeof LayoutChatRoute
   '/learning': typeof LayoutLearningRouteWithChildren
   '/settings': typeof LayoutSettingsRoute
@@ -258,6 +265,7 @@ export interface FileRoutesByTo {
   '/recover-password': typeof RecoverPasswordRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
+  '/voice-hud': typeof VoiceHudRoute
   '/chat': typeof LayoutChatRoute
   '/learning': typeof LayoutLearningRouteWithChildren
   '/settings': typeof LayoutSettingsRoute
@@ -291,6 +299,7 @@ export interface FileRoutesById {
   '/recover-password': typeof RecoverPasswordRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
+  '/voice-hud': typeof VoiceHudRoute
   '/_layout/chat': typeof LayoutChatRoute
   '/_layout/learning': typeof LayoutLearningRouteWithChildren
   '/_layout/settings': typeof LayoutSettingsRoute
@@ -327,6 +336,7 @@ export interface FileRouteTypes {
     | '/recover-password'
     | '/reset-password'
     | '/signup'
+    | '/voice-hud'
     | '/chat'
     | '/learning'
     | '/settings'
@@ -359,6 +369,7 @@ export interface FileRouteTypes {
     | '/recover-password'
     | '/reset-password'
     | '/signup'
+    | '/voice-hud'
     | '/chat'
     | '/learning'
     | '/settings'
@@ -391,6 +402,7 @@ export interface FileRouteTypes {
     | '/recover-password'
     | '/reset-password'
     | '/signup'
+    | '/voice-hud'
     | '/_layout/chat'
     | '/_layout/learning'
     | '/_layout/settings'
@@ -426,10 +438,18 @@ export interface RootRouteChildren {
   RecoverPasswordRoute: typeof RecoverPasswordRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
+  VoiceHudRoute: typeof VoiceHudRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/voice-hud': {
+      id: '/voice-hud'
+      path: '/voice-hud'
+      fullPath: '/voice-hud'
+      preLoaderRoute: typeof VoiceHudRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/signup': {
       id: '/signup'
       path: '/signup'
@@ -757,6 +777,7 @@ const rootRouteChildren: RootRouteChildren = {
   RecoverPasswordRoute: RecoverPasswordRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
+  VoiceHudRoute: VoiceHudRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

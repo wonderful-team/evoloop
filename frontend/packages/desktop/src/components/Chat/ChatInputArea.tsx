@@ -183,6 +183,12 @@ export const ChatInputArea = memo(
       const { autoSpeak, toggleAutoSpeak } = useAutoSpeak()
       const voiceState = useVoiceStore((s) => s.voiceState)
 
+      // Refs for global shortcut F10/F12 cycle state machine
+      const voiceModeRef = useRef(voiceMode)
+      useEffect(() => {
+        voiceModeRef.current = voiceMode
+      }, [voiceMode])
+
       // Wake word settings
       const { wakeWord, wakeWordEnabled } = useWakeWordSettings()
       const [showWakeWordIndicator, setShowWakeWordIndicator] = useState(false)
@@ -492,15 +498,79 @@ export const ChatInputArea = memo(
         onWake: handleWakeWordDetected,
       })
 
-      // Tauri voice shortcut: cycle voice mode
+      // Show/Hide voice-hud window helpers
+      const showHudWindow = useCallback(async () => {
+        try {
+          const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow")
+          const win = await WebviewWindow.getByLabel("voice-hud")
+          if (win) {
+            await win.show()
+            await win.setAlwaysOnTop(true)
+          }
+        } catch (e) {
+          console.error("Failed to show HUD window:", e)
+        }
+      }, [])
+
+      const hideHudWindow = useCallback(async () => {
+        try {
+          const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow")
+          const win = await WebviewWindow.getByLabel("voice-hud")
+          if (win) {
+            await win.hide()
+          }
+        } catch (e) {
+          console.error("Failed to hide HUD window:", e)
+        }
+      }, [])
+
+      // Sync voice HUD state
+      const partialText = useVoiceStore((s) => s.partialText)
+      const ttsSentence = useVoiceStore((s) => s.ttsSentence)
+
+      useEffect(() => {
+        if (!isTauri()) return
+
+        const updateHud = async () => {
+          const { emit } = await import("@tauri-apps/api/event")
+          
+          if (voiceMode === "off") {
+            await emit("hud-update", { mode: "off", state: "idle", text: "" })
+            await hideHudWindow()
+            return
+          }
+
+          await showHudWindow()
+
+          let displayText = ""
+          if (voiceMode === "dictation") {
+            displayText = partialText
+          } else if (voiceMode === "dialogue") {
+            displayText = voiceState === "speaking" ? ttsSentence : partialText
+          }
+
+          await emit("hud-update", {
+            mode: voiceMode,
+            state: voiceState,
+            text: displayText,
+          })
+        }
+
+        updateHud().catch(console.error)
+      }, [voiceMode, voiceState, partialText, ttsSentence, showHudWindow, hideHudWindow])
+
+      // Tauri voice shortcut: off -> dictation -> dialogue -> off cycle
       const voiceShortcutHandlers = useMemo(
         () => ({
           onPress: () => {
-            setVoiceMode((prev) => {
-              const cycle: ("off" | "dictation" | "dialogue")[] = ["off", "dictation", "dialogue"]
-              const idx = cycle.indexOf(prev)
-              return cycle[(idx + 1) % cycle.length]
-            })
+            const currentMode = voiceModeRef.current
+            if (currentMode === "off") {
+              setVoiceMode("dictation")
+            } else if (currentMode === "dictation") {
+              setVoiceMode("dialogue")
+            } else {
+              setVoiceMode("off")
+            }
           },
         }),
         [],
@@ -547,6 +617,28 @@ export const ChatInputArea = memo(
           setInputValue((prev) =>
             prev ? `${prev}\n${dictationResult}` : dictationResult,
           )
+
+          if (isTauri()) {
+            import("@tauri-apps/api/event").then(({ emit }) => {
+              emit("hud-update", {
+                mode: "dictation",
+                state: "idle",
+                text: "已粘贴",
+              }).catch(console.error)
+              
+              // Return to listening after 1.5 seconds
+              setTimeout(() => {
+                if (voiceModeRef.current === "dictation") {
+                  emit("hud-update", {
+                    mode: "dictation",
+                    state: "listening",
+                    text: "",
+                  }).catch(console.error)
+                }
+              }, 1500)
+            }).catch(console.error)
+          }
+
           setDictationResult("")
         }
       }, [dictationResult, setDictationResult])

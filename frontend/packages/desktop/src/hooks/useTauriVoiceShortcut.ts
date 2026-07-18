@@ -110,7 +110,10 @@ export function useTauriVoiceShortcut(
 export function useTauriVoiceShortcutSettings() {
   const [shortcutKey, setShortcutKeyState] = useState(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("evoloop_voice_shortcut_key") || "F12"
+      const stored = localStorage.getItem("evoloop_voice_shortcut_key")
+      if (stored) return stored
+      const isMac = navigator.userAgent.includes("Mac")
+      return isMac ? "F10" : "F12"
     }
     return "F12"
   })

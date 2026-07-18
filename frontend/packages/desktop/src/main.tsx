@@ -119,6 +119,10 @@ if (window.location.pathname.includes("/android-marker-overlay")) {
   if (!window.location.hash.includes("/marker-overlay")) {
     window.location.hash = "#/marker-overlay"
   }
+} else if (window.location.pathname.includes("/voice-hud")) {
+  if (!window.location.hash.includes("/voice-hud")) {
+    window.location.hash = "#/voice-hud"
+  }
 }
 
 // Use hash history for Tauri WebView compatibility
