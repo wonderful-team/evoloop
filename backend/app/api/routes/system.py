@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends
 from app.api.deps import get_current_user
 from app.api.schemas.system import (
     CloudStatusResponse,
+    DiscoveredModelResponse,
     EmbeddingApplyResponse,
     EmbeddingConfigRequest,
     EmbeddingTestResponse,
@@ -22,6 +23,7 @@ from app.api.schemas.system import (
     LLMApplyResponse,
     LLMConfigRequest,
     LLMTestResponse,
+    ModelDiscoveryResponse,
     ModelsListResponse,
     SystemStatusResponse,
 )
@@ -157,6 +159,38 @@ async def test_lightning_connection(req: LightningConfigRequest) -> LightningTes
         llm_reply = str(e)
 
     return LightningTestResponse(llm_ok=llm_ok, llm_reply=llm_reply)
+
+
+# --- Model Discovery ---
+
+@router.get("/models/discover", dependencies=[Depends(get_current_user)])
+async def discover_models() -> ModelDiscoveryResponse:
+    """Auto-discover available models from local providers (LM Studio, Ollama, GGUF)."""
+    from app.infrastructure.llm.discovery import DiscoveredModel, ModelDiscoveryService
+
+    raw_models = await ModelDiscoveryService.discover_all()
+    models: list[DiscoveredModelResponse] = [
+        DiscoveredModelResponse(**m.__dict__) for m in raw_models
+    ]
+
+    # Also include platform models if logged in
+    try:
+        platform_models = await get_available_llm_models(config_type="platform")
+        for pm in platform_models:
+            models.append(DiscoveredModelResponse(
+                id=pm.get("id", ""),
+                name=pm.get("name", ""),
+                source="evocloud",
+                model_name=pm.get("model", ""),
+                status="available",
+                capabilities=["chat", "embedding"] if pm.get("supports_tool_calls") else ["embedding"],
+                context_window=pm.get("context_window"),
+            ))
+    except Exception as e:
+        logger.debug("[Discovery] Platform models unavailable: %s", e)
+
+    message = f"Found {len(models)} model(s)"
+    return ModelDiscoveryResponse(models=models, message=message)
 
 
 @router.get("/health")

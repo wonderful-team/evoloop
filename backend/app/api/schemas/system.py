@@ -132,3 +132,20 @@ class EmbeddingTierTestResponse(BaseAPIResponse):
     success: bool = False
     dimensions: int | None = None
     error: str | None = None
+
+
+class DiscoveredModelResponse(DynamicBaseModel):
+    id: str
+    name: str
+    source: str
+    model_name: str
+    base_url: str | None = None
+    capabilities: list[str] = ["chat"]
+    status: str = "unknown"
+    context_window: int | None = None
+    error: str | None = None
+
+
+class ModelDiscoveryResponse(BaseAPIResponse):
+    models: list[DiscoveredModelResponse] = []
+    message: str = ""
