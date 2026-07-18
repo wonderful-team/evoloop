@@ -114,8 +114,6 @@ async def main() -> None:
     parser.add_argument("--member-id", type=int, default=0, help="Member ID (default 0)")
     args = parser.parse_args()
 
-    os.environ.setdefault("EMBEDDED_MODE", "True")
-
     with open(args.input, encoding="utf-8") as f:
         entities: dict = json.load(f)
 
