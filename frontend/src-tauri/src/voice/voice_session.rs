@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use super::asr_engine::AsrEngine;
 use super::vad_engine::VadEngine;
-use super::tts_engine::TtsEngine;
+use super::tts_engine::{TtsEngine, TtsEngineKind};
 use super::aec_engine::AecMicCapture;
 use super::event::VoiceEventBus;
 use super::state_machine::{VoiceState, VoiceStateMachine};
@@ -145,13 +145,14 @@ impl VoiceSession {
 
     /// Connect to Python backend WebSocket.
     pub async fn connect_backend(&self, ws_url: &str) -> Result<(), String> {
-        let bus = self.event_bus.lock().ok().and_then(|lock| lock.as_ref().cloned())
-            .ok_or("Event bus not set")?;
+        let event_bus = {
+            let lock = self.event_bus.lock().unwrap();
+            lock.as_ref().cloned().ok_or("Event bus not set")?
+        };
         let session_state = self.state_machine.clone();
         let session_tts = self.tts.clone();
         let session_lang = self.lang.clone();
         let _session_thread_id = self.thread_id.clone();
-        let event_bus = bus;
 
         let handler = Arc::new(move |envelope: VoiceEnvelope| {
             let session_state = session_state.clone();
@@ -353,11 +354,17 @@ impl VoiceSession {
         let tid = thread_id.clone();
         let running = self.running.clone();
         let dialogue_active = self.dialogue_active.clone();
-        let event_bus = self.event_bus.lock().ok().and_then(|lock| lock.as_ref().cloned()).expect("Event bus not set");
-
+        let event_bus = {
+            let lock = self.event_bus.lock().unwrap();
+            match lock.as_ref() {
+                Some(b) => b.clone(),
+                None => panic!("Event bus not set"),
+            }
+        };
+        
         let stream = Arc::new(Mutex::new(asr.create_stream()));
         let last_partial = Arc::new(Mutex::new(String::new()));
-
+        
         let mut mic = self.mic.write().await;
         let tid_clone = tid.clone();
         let ws_clone = ws_client.clone();
@@ -522,6 +529,22 @@ impl VoiceSession {
 
     pub async fn get_state(&self) -> VoiceState {
         self.state_machine.get().await
+    }
+
+    pub fn set_tts_engine(&self, kind: TtsEngineKind) {
+        self.tts.set_engine(kind);
+    }
+
+    pub fn get_tts_engine(&self) -> TtsEngineKind {
+        self.tts.get_engine()
+    }
+
+    pub fn set_tts_voice(&self, voice: String) {
+        self.tts.set_voice(voice);
+    }
+
+    pub fn set_tts_speed(&self, speed: f32) {
+        self.tts.set_speed(speed);
     }
 
     pub async fn is_running(&self) -> bool {

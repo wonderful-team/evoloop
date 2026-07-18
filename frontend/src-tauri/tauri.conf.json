@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "EvoLoop",
         "width": 1200,
         "height": 800,
@@ -20,6 +21,22 @@
         "dragDropEnabled": false,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true
+      },
+      {
+        "label": "voice-hud",
+        "title": "EvoLoop Voice HUD",
+        "url": "index.html#/voice-hud",
+        "width": 300,
+        "height": 70,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "hiddenTitle": true,
+        "dragDropEnabled": false,
+        "shadow": false
       }
     ],
     "macOSPrivateApi": true,

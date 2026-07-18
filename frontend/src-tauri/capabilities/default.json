@@ -64,8 +64,6 @@
       ]
     },
     "shell:default",
-    "stt:default",
-    "tts:default",
     "core:tray:default",
     "core:tray:allow-set-title",
     "core:tray:allow-set-icon-as-template",

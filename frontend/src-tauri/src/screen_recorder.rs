@@ -168,7 +168,7 @@ pub async fn start_screen_recording(
                     let mut lock = proc_wdg.lock().unwrap();
                     if let Some(mut child) = lock.take() {
                         #[cfg(unix)]
-                        unsafe { libc::kill(child.id() as i32, libc::SIGINT); }
+                        crate::safe_kill(child.id() as i32);
                         #[cfg(not(unix))]
                         let _ = child.kill();
                         let _ = child.wait();
@@ -220,9 +220,7 @@ pub async fn stop_screen_recording(
             {
                 let id = child.id();
                 println!("[ScreenRecorder] Stdin not available, sending SIGINT to PID {}", id);
-                unsafe {
-                    libc::kill(id as i32, libc::SIGINT);
-                }
+                crate::safe_kill(id as i32);
             }
 
             #[cfg(not(unix))]

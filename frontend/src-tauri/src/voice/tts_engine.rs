@@ -3,19 +3,43 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use log::{info, warn};
-use rubato::{Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction};
-use uuid::Uuid;
 
-/// TTS engine that produces audio into a shared queue.
-/// The audio is consumed by the VoiceProcessingIO output callback, which both
-/// plays it to the speakers and exposes it as the AEC reference signal.
-/// On non-macOS platforms, the queue is never filled (no TTS audio).
+use crate::voice::audio_utils::resample_rubato;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TtsEngineKind {
+    System,
+    EdgeTts,
+    QwenTts,
+}
+
+impl TtsEngineKind {
+    pub fn from_str(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "edge" | "edge-tts" | "edgetts" => TtsEngineKind::EdgeTts,
+            "qwen" | "qwen-tts" | "qwents" => TtsEngineKind::QwenTts,
+            _ => TtsEngineKind::System,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TtsEngineKind::System => "system",
+            TtsEngineKind::EdgeTts => "edge-tts",
+            TtsEngineKind::QwenTts => "qwen-tts",
+        }
+    }
+}
+
 pub struct TtsEngine {
     speaking: Arc<AtomicBool>,
     sentence_queue: Arc<Mutex<Vec<String>>>,
     audio_queue: Arc<Mutex<VecDeque<f32>>>,
     stop_signal: Arc<AtomicBool>,
     lang: Arc<Mutex<String>>,
+    engine: Arc<Mutex<TtsEngineKind>>,
+    voice_name: Arc<Mutex<String>>,
+    speed: Arc<Mutex<f32>>,
 }
 
 impl TtsEngine {
@@ -27,79 +51,124 @@ impl TtsEngine {
             audio_queue,
             stop_signal: Arc::new(AtomicBool::new(false)),
             lang: Arc::new(Mutex::new("zh-CN".to_string())),
+            engine: Arc::new(Mutex::new(TtsEngineKind::System)),
+            voice_name: Arc::new(Mutex::new("zh-CN-XiaoxiaoNeural".to_string())),
+            speed: Arc::new(Mutex::new(1.0)),
         })
     }
 
+    pub fn set_engine(&self, kind: TtsEngineKind) {
+        if let Ok(mut e) = self.engine.lock() {
+            *e = kind;
+            info!("[tts] engine set to {:?}", kind);
+        }
+    }
+
+    pub fn get_engine(&self) -> TtsEngineKind {
+        self.engine.lock().map(|e| *e).unwrap_or(TtsEngineKind::System)
+    }
+
+    pub fn set_voice(&self, name: String) {
+        if let Ok(mut v) = self.voice_name.lock() {
+            *v = name;
+        }
+    }
+
+    pub fn get_voice(&self) -> String {
+        self.voice_name.lock().map(|v| v.clone()).unwrap_or_default()
+    }
+
+    pub fn set_speed(&self, speed: f32) {
+        if let Ok(mut s) = self.speed.lock() {
+            *s = speed.clamp(0.5, 2.0);
+        }
+    }
+
+    pub fn get_speed(&self) -> f32 {
+        self.speed.lock().map(|s| *s).unwrap_or(1.0)
+    }
+    
     #[cfg(target_os = "macos")]
-    pub fn speak(&self, text: &str, lang: &str) {
-        if text.is_empty() {
-            return;
-        }
+    fn speak_system(&self, text: &str, lang: &str) {
         self.speaking.store(true, Ordering::SeqCst);
-        if let Ok(mut l) = self.lang.lock() {
-            *l = lang.to_string();
-        }
-
-        info!("[tts] speaking: {}...", &text[..text.len().min(50)]);
-
-        let audio_queue = self.audio_queue.clone();
+        info!("[tts] system speak: {}...", &text[..text.len().min(50)]);
+        let speed = self.get_speed();
         let speaking = self.speaking.clone();
-        let stop_signal = self.stop_signal.clone();
         let text = text.to_string();
         let lang = lang.to_string();
-
         std::thread::spawn(move || {
             let voice = if lang.starts_with("zh") { "Ting-Ting" } else { "Samantha" };
-            let temp_path = std::env::temp_dir().join(format!("evoloop_tts_{}.wav", Uuid::new_v4()));
-
+            let rate = (speed * 200.0) as i32;
             let status = std::process::Command::new("say")
-                .arg("-v")
-                .arg(voice)
-                .arg("-r")
-                .arg("200")
-                .arg("-o")
-                .arg(&temp_path)
+                .arg("-v").arg(voice)
+                .arg("-r").arg(rate.to_string())
                 .arg(&text)
                 .status();
-
             if let Ok(status) = status {
-                if status.success() {
-                        if let Ok(mut reader) = hound::WavReader::open(&temp_path) {
-                        let spec = reader.spec();
-                        let samples_i16: Vec<i16> = reader.samples::<i16>()
-                            .filter_map(|s| s.ok())
-                            .collect();
-                        let samples_f32: Vec<f32> = samples_i16
-                            .iter()
-                            .map(|s| *s as f32 / i16::MAX as f32)
-                            .collect();
-
-                        let resampled = if spec.sample_rate != 16000 {
-                            resample_rubato(&samples_f32,
-                                spec.sample_rate,
-                                16000,
-                            )
-                        } else {
-                            samples_f32
-                        };
-
-                        if let Ok(mut q) = audio_queue.lock() {
-                            if !stop_signal.load(Ordering::SeqCst) {
-                                q.extend(resampled);
-                            }
-                        }
-                    }
+                if !status.success() {
+                    warn!("[tts] say command failed for: {}", text);
                 }
-                let _ = std::fs::remove_file(temp_path);
             }
-
             speaking.store(false, Ordering::SeqCst);
         });
     }
 
-    #[cfg(not(target_os = "macos"))]
-    pub fn speak(&self, _text: &str, _lang: &str) {
-        warn!("[tts] TTS not supported on this platform");
+    fn speak_edge(&self, text: &str, _lang: &str) {
+        self.speaking.store(true, Ordering::SeqCst);
+        info!("[tts] edge-tts: {}...", &text[..text.len().min(50)]);
+        let speaking = self.speaking.clone();
+        let text = text.to_string();
+        let voice_name = self.get_voice();
+        let final_voice = if voice_name.is_empty() { "zh-CN-XiaoxiaoNeural".to_string() } else { voice_name };
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build();
+            match rt {
+                Ok(rt) => {
+                    rt.block_on(async {
+                        speak_edge_tts(&text, &final_voice, true).await;
+                    });
+                }
+                Err(e) => {
+                    warn!("[tts] failed to create tokio runtime for edge-tts: {}", e);
+                }
+            }
+            speaking.store(false, Ordering::SeqCst);
+        });
+    }
+
+    fn speak_qwen(&self, text: &str, _lang: &str) {
+        self.speaking.store(true, Ordering::SeqCst);
+        info!("[tts] qwen-tts: {}...", &text[..text.len().min(50)]);
+        let speaking = self.speaking.clone();
+        let text = text.to_string();
+        let voice_name = self.get_voice();
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build();
+            match rt {
+                Ok(rt) => {
+                    rt.block_on(async {
+                        let _ = speak_qwen_tts(&text, &voice_name).await;
+                    });
+                }
+                Err(e) => warn!("[tts] failed to create runtime: {}", e),
+            }
+            speaking.store(false, Ordering::SeqCst);
+        });
+    }
+
+    #[cfg(target_os = "macos")]
+    pub fn speak(&self, text: &str, lang: &str) {
+        if text.is_empty() { return; }
+        let engine = self.engine.lock().map(|e| *e).unwrap_or(TtsEngineKind::System);
+        match engine {
+            TtsEngineKind::System => self.speak_system(text, lang),
+            TtsEngineKind::EdgeTts => self.speak_edge(text, lang),
+            TtsEngineKind::QwenTts => self.speak_qwen(text, lang),
+        }
     }
 
     /// Queue a sentence for synthesis (used by streaming TTS).
@@ -161,30 +230,176 @@ impl TtsEngine {
     }
 }
 
-/// Audio resampler using rubato (Sinc band-limited interpolation).
-fn resample_rubato(input: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
-    if from_rate == to_rate || input.is_empty() {
-        return input.to_vec();
-    }
+async fn speak_edge_tts(text: &str, voice_name: &str, _is_zh: bool) -> Result<(), String> {
+    use msedge_tts::tts::{client::tokio_runtime::connect_async, SpeechConfig};
 
-    let ratio = to_rate as f64 / from_rate as f64;
-    let params = SincInterpolationParameters {
-        sinc_len: 256,
-        f_cutoff: 0.95,
-        interpolation: SincInterpolationType::Linear,
-        oversampling_factor: 256,
-        window: WindowFunction::BlackmanHarris2,
+    let config = SpeechConfig {
+        voice_name: voice_name.to_string(),
+        audio_format: "audio-24khz-48kbitrate-mono-mp3".to_string(),
+        pitch: 0,
+        rate: 0,
+        volume: 0,
     };
 
-    let mut resampler = SincFixedIn::<f32>::new(
-        ratio,
-        1.0,
-        params,
-        input.len(),
-        1,
-    ).expect("Failed to create rubato resampler");
+    let mut client = connect_async().await
+        .map_err(|e| {
+            let err = format!("Edge-TTS connect failed: {}", e);
+            warn!("[tts] {}", err);
+            err
+        })?;
 
-    let waves_in = vec![input.to_vec()];
-    let mut output = resampler.process(&waves_in, None).expect("Rubato resampling failed");
-    output.remove(0)
+    let audio = client.synthesize(text, &config).await
+        .map_err(|e| {
+            let err = format!("Edge-TTS synthesize failed: {}", e);
+            warn!("[tts] {}", err);
+            err
+        })?;
+
+    info!("[tts] edge-tts received {} bytes audio", audio.audio_bytes.len());
+    let path = std::env::temp_dir().join(format!("evoloop_edge_{}.mp3", uuid::Uuid::new_v4()));
+    std::fs::write(&path, &audio.audio_bytes)
+        .map_err(|e| {
+            let err = format!("Edge-TTS failed to write temp file: {}", e);
+            warn!("[tts] {}", err);
+            err
+        })?;
+
+    let status = std::process::Command::new("afplay")
+        .arg(&path)
+        .status()
+        .map_err(|e| {
+            let err = format!("afplay failed: {}", e);
+            warn!("[tts] {}", err);
+            let _ = std::fs::remove_file(&path);
+            err
+        })?;
+
+    let _ = std::fs::remove_file(&path);
+
+    if !status.success() {
+        return Err(format!("afplay exited with status: {:?}", status.code()));
+    }
+
+    Ok(())
+}
+
+pub async fn speak_edge_tts_for_preview(text: &str, voice_name: &str) -> Result<(), String> {
+    speak_edge_tts(text, voice_name, false).await
+}
+
+pub async fn speak_qwen_tts_for_preview(text: &str, voice_name: &str) -> Result<(), String> {
+    speak_qwen_tts(text, voice_name).await
+}
+
+async fn speak_qwen_tts(text: &str, voice: &str) -> Result<(), String> {
+    // Qwen-TTS via DashScope API (Alibaba Cloud)
+    // Requires API key from env: EVOLOOP_QWEN_TTS_KEY or config
+    let api_key = std::env::var("EVOLOOP_QWEN_TTS_KEY").unwrap_or_default();
+    if api_key.is_empty() {
+        let err = "Qwen-TTS: EVOLOOP_QWEN_TTS_KEY not set".to_string();
+        warn!("[tts] {}", err);
+        return Err(err);
+    }
+
+    let final_voice = if voice.is_empty() || voice == "standard_voice" { "Cherry" } else { voice };
+
+    let client = reqwest::Client::new();
+    let body = serde_json::json!({
+        "model": "qwen3-tts-flash",
+        "input": {
+            "text": text,
+            "voice": final_voice,
+            "language_type": "Chinese"
+        },
+        "parameters": {
+            "format": "wav"
+        }
+    });
+
+    let resp = client
+        .post("https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| {
+            let mut err_msg = format!("Qwen-TTS request failed: {}", e);
+            let mut current = std::error::Error::source(&e);
+            while let Some(cause) = current {
+                err_msg = format!("{}: {}", err_msg, cause);
+                current = std::error::Error::source(cause);
+            }
+            warn!("[tts] {}", err_msg);
+            err_msg
+        })?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let err_body = resp.text().await.unwrap_or_default();
+        let err = format!("Qwen-TTS API error status {}: {}", status, err_body);
+        warn!("[tts] {}", err);
+        return Err(err);
+    }
+
+    let json_resp: serde_json::Value = resp.json().await
+        .map_err(|e| format!("Qwen-TTS parse response failed: {}", e))?;
+
+    let audio_url = json_resp
+        .pointer("/output/audio/url")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| {
+            let err = format!("Qwen-TTS API response missing audio URL: {:?}", json_resp);
+            warn!("[tts] {}", err);
+            err
+        })?;
+
+    info!("[tts] Qwen-TTS audio URL: {}", audio_url);
+
+    let audio_resp = client.get(audio_url).send().await
+        .map_err(|e| format!("Failed to download audio from Qwen-TTS: {}", e))?;
+
+    if !audio_resp.status().is_success() {
+        return Err(format!("Failed to download audio: status {}", audio_resp.status()));
+    }
+
+    let bytes = audio_resp.bytes().await
+        .map_err(|e| format!("Failed to read audio bytes: {}", e))?;
+
+    info!("[tts] qwen-tts received {} bytes", bytes.len());
+
+    if bytes.len() < 100 {
+        let text_preview = String::from_utf8_lossy(&bytes);
+        return Err(format!("Downloaded audio is too small: {} bytes. Content: {}", bytes.len(), text_preview));
+    }
+
+    if bytes[0] == b'<' || bytes[0] == b'{' {
+        let text_preview = String::from_utf8_lossy(&bytes[..bytes.len().min(500)]);
+        return Err(format!("Downloaded data is not audio (JSON/XML). Content: {}", text_preview));
+    }
+
+    let path = std::env::temp_dir().join(format!("evoloop_qwen_{}.wav", uuid::Uuid::new_v4()));
+    std::fs::write(&path, &bytes)
+        .map_err(|e| {
+            let err = format!("Qwen-TTS write failed: {}", e);
+            warn!("[tts] {}", err);
+            err
+        })?;
+
+    let status = std::process::Command::new("afplay")
+        .arg(&path)
+        .status()
+        .map_err(|e| {
+            let err = format!("afplay failed: {}", e);
+            warn!("[tts] {}", err);
+            let _ = std::fs::remove_file(&path);
+            err
+        })?;
+
+    let _ = std::fs::remove_file(&path);
+
+    if !status.success() {
+        return Err(format!("afplay exited with error: {:?}", status.code()));
+    }
+
+    Ok(())
 }

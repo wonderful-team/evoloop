@@ -67,13 +67,6 @@ pub struct AppServiceState {
     pub voice_manager: VoiceManagerHandle,
 }
 
-// ===== Trivial Command =====
-
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
 // ===== Global Recording Commands =====
 
 #[tauri::command]
@@ -133,6 +126,7 @@ async fn show_main_window() -> Result<(), String> {
     Ok(())
 }
 
+use crate::voice::tts_engine::TtsEngineKind;
 use crate::voice::{VoiceSession, VoiceState};
 use tokio::sync::{mpsc, oneshot};
 
@@ -144,6 +138,30 @@ pub struct VoiceManagerHandle {
 impl VoiceManagerHandle {
     pub async fn send(&self, cmd: VoiceCommand) -> Result<(), String> {
         self.tx.send(cmd).await.map_err(|e| e.to_string())
+    }
+
+    pub async fn set_tts_engine(&self, kind: TtsEngineKind) -> Result<(), String> {
+        let (tx, rx) = oneshot::channel();
+        self.send(VoiceCommand::SetTtsEngine { kind, respond: tx }).await?;
+        rx.await.map_err(|e| e.to_string())?
+    }
+
+    pub async fn get_tts_engine(&self) -> String {
+        let (tx, rx) = oneshot::channel();
+        let _ = self.send(VoiceCommand::GetTtsEngine { respond: tx }).await;
+        rx.await.unwrap_or("system".to_string())
+    }
+
+    pub async fn set_tts_voice(&self, voice: String) -> Result<(), String> {
+        let (tx, rx) = oneshot::channel();
+        self.send(VoiceCommand::SetTtsVoice { voice, respond: tx }).await?;
+        rx.await.map_err(|e| e.to_string())?
+    }
+
+    pub async fn set_tts_speed(&self, speed: f32) -> Result<(), String> {
+        let (tx, rx) = oneshot::channel();
+        self.send(VoiceCommand::SetTtsSpeed { speed, respond: tx }).await?;
+        rx.await.map_err(|e| e.to_string())?
     }
 }
 
@@ -169,6 +187,21 @@ enum VoiceCommand {
     BargeIn,
     GetState {
         respond: oneshot::Sender<VoiceState>,
+    },
+    SetTtsEngine {
+        kind: crate::voice::tts_engine::TtsEngineKind,
+        respond: oneshot::Sender<Result<(), String>>,
+    },
+    GetTtsEngine {
+        respond: oneshot::Sender<String>,
+    },
+    SetTtsVoice {
+        voice: String,
+        respond: oneshot::Sender<Result<(), String>>,
+    },
+    SetTtsSpeed {
+        speed: f32,
+        respond: oneshot::Sender<Result<(), String>>,
     },
 }
 
@@ -228,6 +261,22 @@ fn spawn_voice_manager(model_search_paths: Vec<std::path::PathBuf>) -> VoiceMana
                     VoiceCommand::GetState { respond } => {
                         let state = session.get_state().await;
                         let _ = respond.send(state);
+                    }
+                    VoiceCommand::SetTtsEngine { kind, respond } => {
+                        session.set_tts_engine(kind);
+                        let _ = respond.send(Ok(()));
+                    }
+                    VoiceCommand::GetTtsEngine { respond } => {
+                        let engine = session.get_tts_engine();
+                        let _ = respond.send(engine.as_str().to_string());
+                    }
+                    VoiceCommand::SetTtsVoice { voice, respond } => {
+                        session.set_tts_voice(voice);
+                        let _ = respond.send(Ok(()));
+                    }
+                    VoiceCommand::SetTtsSpeed { speed, respond } => {
+                        session.set_tts_speed(speed);
+                        let _ = respond.send(Ok(()));
                     }
                 }
             }
@@ -390,24 +439,104 @@ async fn start_dictation(_: String, _: String) -> Result<String, String> {
     Err("Dictation not supported on mobile".to_string())
 }
 
+// ===== Safe Process Kill Helpers =====
+
+/// Send SIGINT to a process safely (wraps unsafe libc::kill).
+pub fn safe_kill(pid: i32) {
+    unsafe { libc::kill(pid, libc::SIGINT); }
+}
+
+/// Send SIGTERM to a process group safely (wraps unsafe libc::killpg).
+pub fn safe_killpg(pgid: i32) {
+    unsafe { libc::killpg(pgid, libc::SIGTERM); }
+}
+
 // ===== TTS Commands =====
 
 #[tauri::command]
 #[cfg(desktop)]
-async fn speak_text(text: String, voice: String, rate: i32) -> Result<(), String> {
-    use std::process::Command;
-    let result = Command::new("say")
-        .arg("-v")
-        .arg(&voice)
-        .arg("-r")
-        .arg(rate.to_string())
-        .arg(&text)
-        .output()
-        .map_err(|e| format!("TTS failed: {}", e))?;
-    if !result.status.success() {
-        let stderr = String::from_utf8_lossy(&result.stderr);
-        return Err(format!("TTS failed: {}", stderr));
+async fn speak_text(
+    state: tauri::State<'_, AppServiceState>,
+    text: String,
+    voice: String,
+    rate: i32,
+    engine: Option<String>,
+    api_key: Option<String>,
+) -> Result<(), String> {
+    if let Some(ref key) = api_key {
+        if !key.is_empty() {
+            unsafe {
+                std::env::set_var("EVOLOOP_QWEN_TTS_KEY", key);
+            }
+        }
     }
+    let engine_kind = match engine {
+        Some(e) => e,
+        None => state.voice_manager.get_tts_engine().await,
+    };
+    match engine_kind.as_str() {
+        "edge-tts" => {
+            let voice_name = if voice.is_empty() { "zh-CN-XiaoxiaoNeural".to_string() } else { voice };
+            let text_clone = text.clone();
+            let res = tokio::task::spawn_blocking(move || {
+                let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+                rt.block_on(async {
+                    crate::voice::tts_engine::speak_edge_tts_for_preview(&text_clone, &voice_name).await
+                })
+            }).await.map_err(|e| format!("Edge TTS task join error: {}", e))?;
+            res?;
+            Ok(())
+        }
+        "qwen-tts" => {
+            let voice_name = if voice.is_empty() { "standard_voice".to_string() } else { voice };
+            let text_clone = text.clone();
+            let res = tokio::task::spawn_blocking(move || {
+                let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+                rt.block_on(async {
+                    crate::voice::tts_engine::speak_qwen_tts_for_preview(&text_clone, &voice_name).await
+                })
+            }).await.map_err(|e| format!("Qwen TTS task join error: {}", e))?;
+            res?;
+            Ok(())
+        }
+        _ => {
+            use std::process::Command;
+            let sys_voice = if voice.starts_with("zh") { "Ting-Ting".to_string() }
+                else if voice.starts_with("en") { "Samantha".to_string() }
+                else if voice.is_empty() { "Ting-Ting".to_string() }
+                else { voice.clone() };
+            eprintln!("[tts] speak_text: engine=system voice={} sys_voice={} rate={} text=\"{}\"", voice, sys_voice, rate, text);
+            // Spawn say in a background thread and wait for completion
+            let text_clone = text.clone();
+            std::thread::spawn(move || {
+                let status = Command::new("say")
+                    .arg("-v").arg(&sys_voice)
+                    .arg("-r").arg(rate.to_string())
+                    .arg(&text_clone)
+                    .status();
+                match status {
+                    Ok(s) => eprintln!("[tts] say exited: {:?}", s.code()),
+                    Err(e) => eprintln!("[tts] say failed: {}", e),
+                }
+            });
+            Ok(())
+        }
+    }
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn set_qwen_api_key(key: String) -> Result<(), String> {
+    unsafe {
+        std::env::set_var("EVOLOOP_QWEN_TTS_KEY", &key);
+    }
+    log::info!("[tts] Qwen-TTS API Key synchronized in process");
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn set_qwen_api_key(_key: String) -> Result<(), String> {
     Ok(())
 }
 
@@ -453,7 +582,7 @@ async fn list_system_voices() -> Result<Vec<serde_json::Value>, String> {
 
 #[tauri::command]
 #[cfg(mobile)]
-async fn speak_text(_text: String, _voice: String, _rate: i32) -> Result<(), String> {
+async fn speak_text(_text: String, _voice: String, _rate: i32, _engine: Option<String>) -> Result<(), String> {
     Err("TTS not supported on mobile".to_string())
 }
 
@@ -468,6 +597,56 @@ async fn stop_speaking() -> Result<(), String> {
 async fn list_system_voices() -> Result<Vec<serde_json::Value>, String> {
     Err("TTS not supported on mobile".to_string())
 }
+
+// ===== TTS Engine Selection =====
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn set_tts_engine(state: tauri::State<'_, AppServiceState>, engine: String) -> Result<(), String> {
+    use crate::voice::tts_engine::TtsEngineKind;
+    let kind = TtsEngineKind::from_str(&engine);
+    state.voice_manager.set_tts_engine(kind).await
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn get_tts_engine(state: tauri::State<'_, AppServiceState>) -> Result<String, String> {
+    Ok(state.voice_manager.get_tts_engine().await)
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn set_tts_engine(_engine: String) -> Result<(), String> {
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn get_tts_engine() -> Result<String, String> {
+    Ok("system".to_string())
+}
+
+// ===== TTS Voice & Speed Settings =====
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn set_tts_voice(state: tauri::State<'_, AppServiceState>, voice: String) -> Result<(), String> {
+    state.voice_manager.set_tts_voice(voice).await
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn set_tts_speed(state: tauri::State<'_, AppServiceState>, speed: f32) -> Result<(), String> {
+    state.voice_manager.set_tts_speed(speed).await
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn set_tts_voice(_voice: String) -> Result<(), String> { Ok(()) }
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn set_tts_speed(_speed: f32) -> Result<(), String> { Ok(()) }
 
 // ===== Global Voice Shortcut Commands =====
 
@@ -501,20 +680,6 @@ async fn set_voice_shortcut_duration(duration_ms: u64) -> Result<(), String> {
 }
 
 #[tauri::command]
-#[cfg(desktop)]
-async fn set_voice_shortcut_mode(_mode: String) -> Result<(), String> {
-    // Unified mode: tap = dictation, hold = dialogue. Mode selection is deprecated.
-    Ok(())
-}
-
-#[tauri::command]
-#[cfg(desktop)]
-async fn set_voice_shortcut_interval(_interval_ms: u64) -> Result<(), String> {
-    // Unified mode no longer uses double-click interval. Kept for backward compat.
-    Ok(())
-}
-
-#[tauri::command]
 #[cfg(mobile)]
 async fn start_voice_shortcut_listener() -> Result<(), String> {
     Err("Voice shortcut is not supported on mobile".to_string())
@@ -538,43 +703,35 @@ async fn set_voice_shortcut_duration(_duration_ms: u64) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
-#[cfg(mobile)]
-async fn set_voice_shortcut_mode(_mode: String) -> Result<(), String> {
-    Ok(())
-}
-
-#[tauri::command]
-#[cfg(mobile)]
-async fn set_voice_shortcut_interval(_interval_ms: u64) -> Result<(), String> {
-    Ok(())
-}
-
 // ===== Marker Overlay Window Commands =====
 
-#[tauri::command]
+/// Create a small floating overlay window. Used for both regular and Android markers.
 #[cfg(desktop)]
-async fn create_marker_overlay(app: tauri::AppHandle) -> Result<String, String> {
+fn create_overlay_window(
+    app: &tauri::AppHandle,
+    label: &str,
+    url_path: &str,
+    title: &str,
+    flag: &std::sync::atomic::AtomicBool,
+) -> Result<String, String> {
     use std::sync::atomic::Ordering;
 
-    // Check if already open
-    if MARKER_OVERLAY_OPEN.load(Ordering::SeqCst) {
-        // Just show it if it exists
-        if let Some(window) = app.get_webview_window("marker-overlay") {
+    if flag.load(Ordering::SeqCst) {
+        if let Some(window) = app.get_webview_window(label) {
             let _ = window.show();
             let _ = window.set_focus();
-            return Ok("marker-overlay-already-exists".to_string());
+            return Ok(format!("{}-already-exists", label));
         }
     }
 
-    MARKER_OVERLAY_OPEN.store(true, Ordering::SeqCst);
+    flag.store(true, Ordering::SeqCst);
 
-    let _window = WebviewWindowBuilder::new(
-        &app,
-        "marker-overlay",
-        tauri::WebviewUrl::App("/marker-overlay".into())
+    let _window = tauri::WebviewWindowBuilder::new(
+        app,
+        label,
+        tauri::WebviewUrl::App(url_path.into())
     )
-    .title("EvoLoop Marker Overlay")
+    .title(title)
     .inner_size(64.0, 64.0)
     .max_inner_size(64.0, 64.0)
     .min_inner_size(64.0, 64.0)
@@ -585,18 +742,23 @@ async fn create_marker_overlay(app: tauri::AppHandle) -> Result<String, String> 
     .maximizable(false)
     .minimizable(false)
     .closable(true)
-    .visible(false) // Start hidden, move in react, then show
+    .visible(false)
     .transparent(true)
     .shadow(false)
     .position(100.0, 100.0)
     .build()
-    .map_err(|e| format!("Failed to create marker overlay: {}", e))?;
+    .map_err(|e| format!("Failed to create {}: {}", label, e))?;
 
-    // We can show it immediately or let React show it. Given React does `initPosition()`, let's let React show it or show it here.
-    // Actually, setting visible(false) means React needs to show it.
-
-    Ok("marker-overlay-created".to_string())
+    Ok(format!("{}-created", label))
 }
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn create_marker_overlay(app: tauri::AppHandle) -> Result<String, String> {
+    create_overlay_window(&app, "marker-overlay", "/marker-overlay", "EvoLoop Marker Overlay", &MARKER_OVERLAY_OPEN)
+}
+
+
 
 #[tauri::command]
 #[cfg(desktop)]
@@ -631,43 +793,7 @@ async fn update_marker_overlay_position(
 #[tauri::command]
 #[cfg(desktop)]
 async fn create_android_marker_overlay(app: tauri::AppHandle) -> Result<String, String> {
-    use std::sync::atomic::Ordering;
-
-    // Check if already open
-    if ANDROID_MARKER_OVERLAY_OPEN.load(Ordering::SeqCst) {
-        if let Some(window) = app.get_webview_window("android-marker-overlay") {
-            let _ = window.show();
-            let _ = window.set_focus();
-            return Ok("android-marker-overlay-already-exists".to_string());
-        }
-    }
-
-    ANDROID_MARKER_OVERLAY_OPEN.store(true, Ordering::SeqCst);
-
-    let _window = WebviewWindowBuilder::new(
-        &app,
-        "android-marker-overlay",
-        tauri::WebviewUrl::App("/android-marker-overlay".into())
-    )
-    .title("EvoLoop Android Marker Overlay")
-    .inner_size(64.0, 64.0)
-    .max_inner_size(64.0, 64.0)
-    .min_inner_size(64.0, 64.0)
-    .always_on_top(true)
-    .decorations(false)
-    .skip_taskbar(true)
-    .resizable(false)
-    .maximizable(false)
-    .minimizable(false)
-    .closable(true)
-    .visible(false) // Start hidden to prevent jump
-    .transparent(true)
-    .shadow(false)
-    .position(100.0, 100.0)
-    .build()
-    .map_err(|e| format!("Failed to create Android marker overlay: {}", e))?;
-
-    Ok("android-marker-overlay-created".to_string())
+    create_overlay_window(&app, "android-marker-overlay", "/android-marker-overlay", "EvoLoop Android Marker Overlay", &ANDROID_MARKER_OVERLAY_OPEN)
 }
 
 #[tauri::command]
@@ -702,6 +828,7 @@ async fn update_android_marker_position(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
     #[cfg(desktop)]
     {
         env_logger::init();
@@ -718,8 +845,6 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_stt::init())
-        .plugin(tauri_plugin_tts::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build());
 
@@ -818,7 +943,6 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            greet,
             commands::screenshot::capture_screenshot,
             start_global_recording,
             stop_global_recording,
@@ -853,13 +977,16 @@ pub fn run() {
     speak_text,
     stop_speaking,
     list_system_voices,
+    set_tts_engine,
+    get_tts_engine,
+    set_tts_voice,
+    set_tts_speed,
+    set_qwen_api_key,
     // Voice shortcut commands
     start_voice_shortcut_listener,
             stop_voice_shortcut_listener,
             set_voice_shortcut_key,
             set_voice_shortcut_duration,
-            set_voice_shortcut_mode,
-            set_voice_shortcut_interval,
             // Version commands
             version::get_version_info,
             version::get_version,
@@ -912,7 +1039,7 @@ pub fn run() {
                 let mut rec_lock = state.recording_process.lock().unwrap();
                 if let Some(mut rec_child) = rec_lock.take() {
                     #[cfg(unix)]
-                    unsafe { libc::kill(rec_child.id() as i32, libc::SIGINT); }
+                    safe_kill(rec_child.id() as i32);
                     #[cfg(not(unix))]
                     let _ = rec_child.kill();
                     let _ = rec_child.wait();

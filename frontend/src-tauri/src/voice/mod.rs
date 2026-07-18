@@ -1,3 +1,4 @@
+pub mod audio_utils;
 pub mod ws_client;
 pub mod asr_engine;
 pub mod vad_engine;

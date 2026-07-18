@@ -338,10 +338,8 @@ impl SidecarClient {
                 use std::process::Command;
                 // Try process group kill
                 let pgid = -(pid as i32);
-                unsafe {
-                    libc::killpg(pgid, libc::SIGTERM);
-                    libc::kill(pid as i32, libc::SIGTERM);
-                }
+                crate::safe_killpg(pgid);
+                crate::safe_kill(pid as i32);
                 thread::sleep(Duration::from_millis(500));
                 
                 // Force kill

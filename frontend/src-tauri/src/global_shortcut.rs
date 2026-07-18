@@ -1,3 +1,4 @@
+use std::sync::LazyLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::Emitter;
@@ -5,10 +6,7 @@ use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut,
 
 /// Global shortcut manager for voice input.
 ///
-/// Uses Tauri's official global-shortcut plugin instead of rdev.
-/// Since the plugin only fires on KeyDown (not KeyUp), we emit
-/// "voice-shortcut-press" on each press and let the frontend handle
-/// tap vs hold logic via timers.
+/// Uses Tauri's official global-shortcut plugin.
 pub struct GlobalShortcutManager {
     is_registered: AtomicBool,
     target_key: Arc<Mutex<String>>,
@@ -118,6 +116,4 @@ fn key_to_code(key: &str) -> Option<Code> {
     }
 }
 
-lazy_static::lazy_static! {
-    pub static ref GLOBAL_SHORTCUT_MANAGER: GlobalShortcutManager = GlobalShortcutManager::new();
-}
+pub static GLOBAL_SHORTCUT_MANAGER: LazyLock<GlobalShortcutManager> = LazyLock::new(GlobalShortcutManager::new);
