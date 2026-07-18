@@ -104,33 +104,27 @@ async def _run_appmap(project_id: int) -> None:
 
     # Deterministic path: run collector + batch writer directly.
     # The Agent is only for verification — not for data production.
-    sql_file = os.path.join(path, "b2c_mall.sql")
-    if os.path.isfile(sql_file):
-        ref_script = os.path.join(
-            os.path.dirname(__file__),
-            "../../core/atlas/source/skeleton/collector.py",
-        )
-        batch_script = os.path.join(
-            os.path.dirname(__file__),
-            "../../core/atlas/source/skeleton/batch_writer.py",
-        )
-        ref_script = os.path.abspath(ref_script)
-        batch_script = os.path.abspath(batch_script)
+    ref_script = os.path.abspath(os.path.join(
+        os.path.dirname(__file__),
+        "../../core/atlas/source/skeleton/collector.py",
+    ))
+    batch_script = os.path.abspath(os.path.join(
+        os.path.dirname(__file__),
+        "../../core/atlas/source/skeleton/batch_writer.py",
+    ))
 
-        import subprocess
-        logger.info("[AppMap] Running reference collector...")
-        subprocess.run(
-            ["uv", "run", "python", ref_script, path, "--sql", sql_file],
-            capture_output=True, timeout=120,
-        )
-        logger.info("[AppMap] Running batch write...")
-        subprocess.run(
-            ["uv", "run", "python", batch_script,
-             "--project-id", str(project_id), "--input", "/tmp/appmap_extracted.json"],
-            capture_output=True, timeout=300,
-        )
-    else:
-        logger.warning("[AppMap] No SQL file found at %s — collector will produce limited tables", sql_file)
+    import subprocess
+    logger.info("[AppMap] Running collector...")
+    subprocess.run(
+        ["uv", "run", "python", ref_script, path],
+        capture_output=True, timeout=120,
+    )
+    logger.info("[AppMap] Running batch writer...")
+    subprocess.run(
+        ["uv", "run", "python", batch_script,
+         "--project-id", str(project_id), "--input", "/tmp/appmap_extracted.json"],
+        capture_output=True, timeout=300,
+    )
 
     thread_id = f"appmap-gen-{project_id}-{int(time.time())}"
     from app.core.context import thread_context_store

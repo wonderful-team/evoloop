@@ -494,21 +494,19 @@ async def _run_appmap(project_id: int, timeout: int = 3600):
         logger.info(f"[Test] Pre-copied reference_collector.py to project root")
 
     # Pre-run the reference script + batch write so we always have AppMap data
-    sql_file = os.path.join(TEST_PROJECT_PATH, "b2c_mall.sql")
-    if os.path.isfile(sql_file):
-        import subprocess
-        logger.info("[Test] Running reference collector script...")
-        subprocess.run(
-            ["uv", "run", "python", ref_dst, TEST_PROJECT_PATH, "--sql", sql_file],
-            capture_output=True, timeout=120, cwd=os.path.join(os.path.dirname(__file__), "../.."),
-        )
-        logger.info("[Test] Running batch write...")
-        subprocess.run(
-            ["uv", "run", "python",
-             os.path.join(os.path.dirname(ref_src), "batch_writer.py"),
-             "--project-id", str(project_id), "--input", "/tmp/appmap_extracted.json"],
-            capture_output=True, timeout=300, cwd=os.path.join(os.path.dirname(__file__), "../.."),
-        )
+    import subprocess
+    logger.info("[Test] Running reference collector script...")
+    subprocess.run(
+        ["uv", "run", "python", ref_dst, TEST_PROJECT_PATH],
+        capture_output=True, timeout=120, cwd=os.path.join(os.path.dirname(__file__), "../.."),
+    )
+    logger.info("[Test] Running batch writer...")
+    subprocess.run(
+        ["uv", "run", "python",
+         os.path.join(os.path.dirname(ref_src), "batch_writer.py"),
+         "--project-id", str(project_id), "--input", "/tmp/appmap_extracted.json"],
+        capture_output=True, timeout=300, cwd=os.path.join(os.path.dirname(__file__), "../.."),
+    )
 
     path = TEST_PROJECT_PATH
     thread_id = f"appmap-gen-{project_id}-{int(time.time())}"
