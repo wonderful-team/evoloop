@@ -126,6 +126,34 @@ pub fn set_recording_start_time(
 #[cfg(mobile)]
 pub fn set_recording_start_time() {}
 
+// ===== Voice State Tray Indicator =====
+
+#[tauri::command]
+#[cfg(desktop)]
+pub fn sync_tray_voice_state(
+    state: tauri::State<'_, AppServiceState>,
+    mode: String,
+    voice_state: String,
+) {
+    state.voice_active.store(mode != "off", Ordering::Relaxed);
+    let tray_opt = {
+        let lock = state.tray.lock().unwrap();
+        lock.clone()
+    };
+    if let Some(tray) = tray_opt {
+        if mode != "off" {
+            let tooltip = format!("{} · {}", mode, voice_state);
+            let _ = tray.set_tooltip(Some(&tooltip));
+        } else {
+            let _ = tray.set_tooltip(Some("EvoLoop"));
+        }
+    }
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+pub fn sync_tray_voice_state() {}
+
 // ===== Tray Setup =====
 
 /// Builds and returns the system tray icon.
@@ -158,7 +186,20 @@ pub fn setup_tray(
     let normal_data: &'static [u8] = Box::leak(normal_raw.into_boxed_slice());
     let normal_icon = Image::new(normal_data, width, height);
 
-    // Create a red version for the "active" state
+    // Create a blue version for the voice active state
+    let mut voice_raw = normal_img.clone().into_raw();
+    for i in (0..voice_raw.len()).step_by(4) {
+        // Tint light pixels blue
+        if voice_raw[i] > 150 && voice_raw[i+1] > 150 && voice_raw[i+2] > 150 {
+            voice_raw[i] = 50;
+            voice_raw[i+1] = 50;
+            voice_raw[i+2] = 255;
+        }
+    }
+    let voice_data: &'static [u8] = Box::leak(voice_raw.into_boxed_slice());
+    let voice_icon = Image::new(voice_data, width, height);
+
+    // Create a red version for the screen recording state
     let mut active_raw = normal_img.into_raw();
     for i in (0..active_raw.len()).step_by(4) {
         // If it's the white ring (approximate), tint it red
@@ -221,11 +262,13 @@ pub fn setup_tray(
     let record_item_arc   = Arc::clone(&state.record_item);
     let event_count_arc   = Arc::clone(&state.event_count);
     let tray_handle       = tray.clone();
+    let voice_active      = state.voice_active.clone();
 
     std::thread::spawn(move || {
-        let mut was_recording_or_preparing = false;  // Track if we were in recording or preparing state last iteration
+        let mut was_recording_or_preparing = false;
         let mut is_active_icon = false;
         let mut last_elapsed_secs = None;
+        let mut is_voice_icon = false;
         loop {
             let is_recording = is_blinking.load(Ordering::Relaxed);
             let preparing = is_preparing.load(Ordering::Relaxed);
@@ -289,8 +332,6 @@ pub fn setup_tray(
             } else {
                 // Only reset when transitioning from recording/preparing to stopped state
                 if was_recording_or_preparing {
-                    let _ = tray_handle.set_icon(Some(normal_icon.clone()));
-                    let _ = tray_handle.set_tooltip(Some("EvoLoop"));
                     is_active_icon = false;
                     last_elapsed_secs = None;
                     // Clear tray title (macOS)
@@ -306,6 +347,42 @@ pub fn setup_tray(
                     }
                     was_recording_or_preparing = false;
                 }
+
+                // Check voice active state and update icon
+                let is_voice = voice_active.load(Ordering::Relaxed);
+                if is_voice && !is_voice_icon {
+                    let _ = tray_handle.set_icon(Some(voice_icon.clone()));
+                    let _ = tray_handle.set_tooltip(Some("语音模式激活"));
+                    is_voice_icon = true;
+                } else if !is_voice && is_voice_icon {
+                    let _ = tray_handle.set_icon(Some(normal_icon.clone()));
+                    let _ = tray_handle.set_tooltip(Some("EvoLoop"));
+                    is_voice_icon = false;
+                }
+
+                if was_recording_or_preparing {
+                    // Recording just stopped, reset state
+                    is_active_icon = false;
+                    was_recording_or_preparing = false;
+                    last_elapsed_secs = None;
+                    #[cfg(target_os = "macos")]
+                    let _ = tray_handle.set_title(Some(""));
+                    
+                    let record_item_opt = {
+                        let lock = record_item_arc.lock().unwrap();
+                        lock.clone()
+                    };
+                    if let Some(item) = record_item_opt {
+                        let _ = item.set_text("技能录制");
+                    }
+
+                    // Ensure icon is reset (voice logic above may have already set it)
+                    if !is_voice {
+                        let _ = tray_handle.set_icon(Some(normal_icon.clone()));
+                        let _ = tray_handle.set_tooltip(Some("EvoLoop"));
+                    }
+                }
+
                 std::thread::sleep(std::time::Duration::from_millis(500));
             }
         }

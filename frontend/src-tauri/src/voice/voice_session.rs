@@ -1,0 +1,543 @@
+use std::collections::VecDeque;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
+use tokio::sync::RwLock;
+use log::{info, warn, error};
+use uuid::Uuid;
+
+use super::asr_engine::AsrEngine;
+use super::vad_engine::VadEngine;
+use super::tts_engine::TtsEngine;
+use super::aec_engine::AecMicCapture;
+use super::event::VoiceEventBus;
+use super::state_machine::{VoiceState, VoiceStateMachine};
+use super::ws_client::{VoiceEnvelope, VoiceWsClient};
+
+use crate::sidecar::BACKEND_PORT;
+
+/// Copy text to clipboard and simulate Cmd+V to paste into the frontmost app.
+#[cfg(target_os = "macos")]
+fn dictation_paste(text: &str) {
+    // 1. Set clipboard
+    if let Ok(mut clipboard) = arboard::Clipboard::new() {
+        let _ = clipboard.set_text(text);
+    } else {
+        warn!("[dictation] failed to open clipboard");
+        return;
+    }
+
+    // 2. Simulate Cmd+V via CGEventPost
+    use core_graphics::event::{CGEvent, CGEventTapLocation, CGKeyCode};
+    use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
+
+    let source = match CGEventSource::new(CGEventSourceStateID::Private) {
+        Ok(s) => s,
+        Err(_) => {
+            warn!("[dictation] failed to create event source");
+            return;
+        }
+    };
+    let cmd: CGKeyCode = 0x37;
+    let v: CGKeyCode = 0x09;
+
+    let post = |key: CGKeyCode, down: bool, cmd_flag: bool| {
+        if let Ok(event) = CGEvent::new_keyboard_event(source.clone(), key, down) {
+            if cmd_flag {
+                event.set_flags(core_graphics::event::CGEventFlags::CGEventFlagCommand);
+            }
+            event.post(CGEventTapLocation::HID);
+        }
+    };
+
+    post(cmd, true, false);
+    post(v, true, true);
+    post(v, false, true);
+    post(cmd, false, false);
+
+    info!("[dictation] pasted: {}", text);
+}
+
+#[cfg(not(target_os = "macos"))]
+fn dictation_paste(_text: &str) {
+    warn!("[dictation] paste not supported on this platform");
+}
+
+pub struct VoiceSession {
+    asr: Arc<RwLock<Option<AsrEngine>>>,
+    vad: Arc<RwLock<Option<VadEngine>>>,
+    tts: Arc<TtsEngine>,
+    mic: Arc<RwLock<AecMicCapture>>,
+    state_machine: Arc<VoiceStateMachine>,
+    ws_client: Arc<RwLock<Option<Arc<VoiceWsClient>>>>,
+    thread_id: Arc<RwLock<String>>,
+    running: Arc<AtomicBool>,
+    lang: Arc<RwLock<String>>,
+    mode: Arc<RwLock<String>>,
+    /// Whether the dialogue loop is active (mic + ASR + VAD running).
+    dialogue_active: Arc<AtomicBool>,
+    /// Shared queue of TTS audio samples, consumed by the VoiceProcessingIO output callback.
+    audio_queue: Arc<Mutex<VecDeque<f32>>>,
+    app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
+}
+
+impl VoiceSession {
+    pub fn new() -> Self {
+        let audio_queue = Arc::new(Mutex::new(VecDeque::new()));
+        let tts = Arc::new(TtsEngine::new_with_queue(audio_queue.clone()).unwrap_or_else(|e| {
+            error!("[voice-session] TTS init failed: {}", e);
+            panic!("TTS engine required but failed to initialize");
+        }));
+
+        Self {
+            asr: Arc::new(RwLock::new(None)),
+            vad: Arc::new(RwLock::new(None)),
+            tts,
+            mic: Arc::new(RwLock::new(AecMicCapture::new())),
+            state_machine: Arc::new(VoiceStateMachine::new()),
+            ws_client: Arc::new(RwLock::new(None)),
+            thread_id: Arc::new(RwLock::new(String::new())),
+            running: Arc::new(AtomicBool::new(false)),
+            lang: Arc::new(RwLock::new("zh-CN".to_string())),
+            mode: Arc::new(RwLock::new("dialogue".to_string())),
+            dialogue_active: Arc::new(AtomicBool::new(false)),
+            audio_queue,
+            app_handle: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    pub fn set_app_handle(&self, handle: tauri::AppHandle) {
+        if let Ok(mut h) = self.app_handle.lock() {
+            *h = Some(handle);
+        }
+    }
+
+    fn emit_event(&self, event: &str, payload: serde_json::Value) {
+        if let Ok(h) = self.app_handle.lock() {
+            if let Some(handle) = h.as_ref() {
+                let _ = handle.emit(event, payload);
+            }
+        }
+    }
+
+    fn emit_log(&self, message: &str) {
+        info!("[voice-log] {}", message);
+        self.emit_event("voice:log", serde_json::json!({"message": message}));
+    }
+
+    /// Initialize ASR and VAD engines with model paths.
+    pub async fn init_engines(
+        &self,
+        asr_model_dir: &str,
+        vad_model_path: &str,
+        vad_silence_ms: f32,
+    ) -> Result<(), String> {
+        let asr = AsrEngine::new(asr_model_dir)?;
+        let vad = VadEngine::new(vad_model_path, vad_silence_ms)?;
+
+        *self.asr.write().await = Some(asr);
+        *self.vad.write().await = Some(vad);
+
+        info!("[voice-session] engines initialized");
+        Ok(())
+    }
+
+    /// Connect to Python backend WebSocket.
+    pub async fn connect_backend(&self, ws_url: &str) -> Result<(), String> {
+        let session_state = self.state_machine.clone();
+        let session_tts = self.tts.clone();
+        let session_lang = self.lang.clone();
+        let _session_thread_id = self.thread_id.clone();
+        let app_handle = self.app_handle.clone();
+
+        let handler = Arc::new(move |envelope: VoiceEnvelope| {
+            let session_state = session_state.clone();
+            let session_tts = session_tts.clone();
+            let session_lang = session_lang.clone();
+            let _session_thread_id = _session_thread_id.clone();
+            let app_handle = app_handle.clone();
+
+            // Do not block the WebSocket read loop; dispatch to async task.
+            tokio::spawn(async move {
+                let msg_type = envelope.msg_type.as_str();
+                let body = envelope.body.unwrap_or(serde_json::Value::Null);
+
+                match msg_type {
+                    "voice.route_result" => {
+                        let status = body.get("status")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        info!("[voice-session] route_result: {}", status);
+
+                        if status == "done" || status == "failed" || status == "cancelled" {
+                            if let Ok(h) = app_handle.lock() {
+                                if let Some(handle) = h.as_ref() {
+                                    let _ = handle.emit("voice:route_result", &body);
+                                }
+                            }
+
+                            // If no more TTS queued, move back to idle.
+                            if !session_tts.has_queued() && !session_tts.is_speaking() {
+                                let _ = session_state.set(VoiceState::Idle).await;
+                            }
+                        }
+                    }
+
+                    "voice.token" => {
+                        if let Some(token) = body.get("token").and_then(|v| v.as_str()) {
+                            log::debug!("[voice-session] token: {}", token);
+                            if let Ok(h) = app_handle.lock() {
+                                if let Some(handle) = h.as_ref() {
+                                    let _ = handle.emit("voice:token", serde_json::json!({"token": token}));
+                                }
+                            }
+                        }
+                    }
+
+                    "voice.tts_boundary" => {
+                        let sentence = body.get("sentence")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+
+                        if !sentence.is_empty() {
+                            info!("[voice-session] tts_boundary: {}...", &sentence[..sentence.len().min(40)]);
+                            let _ = session_state.set(VoiceState::Speaking).await;
+
+                            let lang = session_lang.read().await.clone();
+                            session_tts.queue_sentence(sentence.to_string());
+                            session_tts.speak_next(&lang);
+
+                            if let Ok(h) = app_handle.lock() {
+                                if let Some(handle) = h.as_ref() {
+                                    let _ = handle.emit("voice:tts_boundary", &body);
+                                }
+                            }
+                        }
+                    }
+
+                    "voice.dictation.polished" => {
+                        // Paste globally to the frontmost application
+                        if let Some(text) = body.get("polished_text").and_then(|v| v.as_str()) {
+                            dictation_paste(text);
+                        }
+                        // Also emit to the EvoLoop frontend for own-window display
+                        if let Ok(h) = app_handle.lock() {
+                            if let Some(handle) = h.as_ref() {
+                                let _ = handle.emit("voice:dictation_polished", &body);
+                            }
+                        }
+                    }
+
+                    "system.init" => {
+                        info!("[voice-session] backend handshake received");
+                    }
+
+                    "system.error" => {
+                        let code = body.get("code").and_then(|v| v.as_str()).unwrap_or("unknown");
+                        let message = body.get("message").and_then(|v| v.as_str()).unwrap_or("");
+                        warn!("[voice-session] backend error: {} {}", code, message);
+                    }
+
+                    _ => {
+                        log::debug!("[voice-session] unhandled: {}", msg_type);
+                    }
+                }
+            });
+        });
+
+        let client = Arc::new(VoiceWsClient::new(ws_url.to_string(), handler));
+        client.connect().await?;
+
+        *self.ws_client.write().await = Some(client);
+        info!("[voice-session] backend connected at {}", ws_url);
+        Ok(())
+    }
+
+    pub async fn ensure_initialized(&self) -> Result<(), String> {
+        // Check if already fully initialized and connected
+        if self.asr.read().await.is_some()
+            && self.vad.read().await.is_some()
+            && self.ws_client.read().await.is_some()
+        {
+            return Ok(());
+        }
+
+        let handle = {
+            let h = self.app_handle.lock().unwrap();
+            h.as_ref().ok_or("AppHandle not set")?.clone()
+        };
+
+        // Search order: bundled, app data dir, ~/.evoloop/models, prototype path
+        let home = dirs::home_dir();
+        let evoloop_models = home.as_ref().map(|p| p.join(".evoloop/models"));
+        let prototype_asr = home.as_ref().map(|p| p.join(".config/models/sherpa-onnx/model"));
+        let model_dirs = [
+            handle.path().resource_dir().ok().map(|p| p.join("models")),
+            handle.path().app_data_dir().ok().map(|p| p.join("models")),
+            evoloop_models.clone(),
+            prototype_asr.clone(),
+        ];
+
+        let mut found = false;
+        for dir in model_dirs.iter().flatten() {
+            if !dir.join("encoder.int8.onnx").exists() {
+                self.emit_log(&format!("no models at {}", dir.display()));
+                continue;
+            }
+            // Try VAD in same dir, then in parent dir (prototype layout)
+            let vad_candidates = [
+                Some(dir.join("silero_vad.onnx")),
+                dir.parent().map(|p| p.join("silero_vad.onnx")),
+            ];
+            let vad_path = vad_candidates.iter().find_map(|p| {
+                let p = p.as_ref()?;
+                if p.exists() { Some(p.clone()) } else { None }
+            });
+
+            if let Some(vad_path) = vad_path {
+                self.emit_log(&format!("models found at {}, VAD at {}", dir.display(), vad_path.display()));
+
+                self.init_engines(
+                    &dir.to_string_lossy(),
+                    &vad_path.to_string_lossy(),
+                    800.0,
+                )
+                .await?;
+
+                let ws_url = format!("ws://127.0.0.1:{}/api/v1/voice/ws", BACKEND_PORT);
+                self.connect_backend(&ws_url).await?;
+
+                found = true;
+                break;
+            }
+        }
+
+        if !found {
+            return Err(
+                "语音模型文件未找到。请运行 deploy/download_models.sh --all 下载模型。"
+                    .to_string(),
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Start a voice session.
+    /// Begins microphone capture, ASR processing, and VAD detection.
+    pub async fn start(&self, thread_id: String, lang: String, mode: String) -> Result<(), String> {
+        // Auto-initialize if not ready
+        self.ensure_initialized().await?;
+
+        let asr = self.asr.read().await.as_ref().cloned().ok_or("ASR not initialized".to_string())?;
+        let vad = self.vad.read().await.as_ref().cloned().ok_or("VAD not initialized".to_string())?;
+        let ws_client = self.ws_client.read().await.as_ref().cloned().ok_or("WS not connected".to_string())?;
+
+        *self.thread_id.write().await = thread_id.clone();
+        *self.lang.write().await = lang.clone();
+        *self.mode.write().await = mode.clone();
+        self.running.store(true, Ordering::SeqCst);
+        self.dialogue_active.store(true, Ordering::SeqCst);
+
+        // Notify backend
+        ws_client.send_voice_start(&thread_id).await.ok();
+        self.emit_log(&format!("voice session started, mode={}", mode));
+
+        self.state_machine.set(VoiceState::Listening).await;
+        self.emit_event("voice:state", serde_json::json!({"state": "listening"}));
+
+        // Start microphone capture
+        let audio_queue = self.audio_queue.clone();
+        let sm = self.state_machine.clone();
+        let tts = self.tts.clone();
+        let tid = thread_id.clone();
+        let running = self.running.clone();
+        let dialogue_active = self.dialogue_active.clone();
+        let app_handle = self.app_handle.clone();
+
+        let stream = Arc::new(Mutex::new(asr.create_stream()));
+        let last_partial = Arc::new(Mutex::new(String::new()));
+
+        let mut mic = self.mic.write().await;
+        let tid_clone = tid.clone();
+        let ws_clone = ws_client.clone();
+        let vad_clone = vad.clone();
+        let asr_clone = asr.clone();
+        let stream_clone = stream.clone();
+        let last_partial_clone = last_partial.clone();
+        let sm_clone = sm.clone();
+        let tts_clone = tts.clone();
+        let app_handle_clone = app_handle.clone();
+        let mode_clone = self.mode.clone();
+        let lang_clone = self.lang.clone();
+        let rt_handle = tokio::runtime::Handle::current();
+
+        mic.start(audio_queue, move |samples: &[f32]| {
+            let rt = rt_handle.clone();
+                if !running.load(Ordering::SeqCst) {
+                    return;
+                }
+                if !dialogue_active.load(Ordering::SeqCst) {
+                    return;
+                }
+
+                // Feed to VAD first (used for both endpoint and barge-in detection).
+                let segments = vad_clone.process(samples);
+                let speech_active = vad_clone.is_speech_active();
+
+                // Barge-in detection: if VAD sees speech while TTS is playing,
+                // stop TTS and notify the backend.
+                if tts_clone.is_speaking() || tts_clone.has_queued() || tts_clone.has_audio() {
+                    if speech_active {
+                        info!("[voice-session] barge-in detected by VAD");
+                        tts_clone.stop();
+                        tts_clone.resume();
+
+                        let sm = sm_clone.clone();
+                        let ws = ws_clone.clone();
+                        let tid = tid_clone.clone();
+                        let app = app_handle_clone.clone();
+                        rt.spawn(async move {
+                            let _ = sm.force_set(VoiceState::Interrupted).await;
+                            let _ = ws.send_barge_in(&tid).await;
+                            if let Ok(h) = app.lock() {
+                                if let Some(handle) = h.as_ref() {
+                                    let _ = handle.emit("voice:state", serde_json::json!({"state": "interrupted"}));
+                                }
+                            }
+                        });
+                    }
+                }
+
+                // Feed to ASR and decode (no endpoint detection, rely on VAD).
+                let mut partial = String::new();
+                if let Ok(mut s) = stream_clone.lock() {
+                    s.accept_waveform(16000, samples);
+                    let recognizer = asr_clone.recognizer();
+                    if recognizer.is_ready(&*s) {
+                        recognizer.decode(&*s);
+                        if let Some(result) = recognizer.get_result(&*s) {
+                            partial = result.text;
+                        }
+                    }
+                }
+
+                // Send partial transcript if it changed and is non-empty.
+                if !partial.is_empty() {
+                    let mut last = last_partial_clone.lock().unwrap();
+                    if partial != *last {
+                        *last = partial.clone();
+                        let ws = ws_clone.clone();
+                        let tid = tid_clone.clone();
+                        let app = app_handle_clone.clone();
+                        rt.spawn(async move {
+                            ws.send_partial(&tid, &partial).await.ok();
+                            if let Ok(h) = app.lock() {
+                                if let Some(handle) = h.as_ref() {
+                                    let _ = handle.emit("voice:log", serde_json::json!({"message": format!("ASR partial: {}", partial)}));
+                                    let _ = handle.emit("voice:partial", serde_json::json!({"text": partial}));
+                                }
+                            }
+                        });
+                    }
+                }
+
+                // Endpoint: finalize the utterance when VAD detects a speech segment end.
+                if !segments.is_empty() {
+                    let final_text = {
+                        let last = last_partial_clone.lock().unwrap();
+                        last.clone()
+                    };
+                    if !final_text.is_empty() {
+                        // Clear the partial buffer for the next utterance.
+                        {
+                            let mut last = last_partial_clone.lock().unwrap();
+                            last.clear();
+                        }
+
+                        // Reset ASR stream for the next utterance
+                        if let Ok(mut s) = stream_clone.lock() {
+                            let recognizer = asr_clone.recognizer();
+                            recognizer.reset(&*s);
+                        }
+
+                        let ws = ws_clone.clone();
+                        let tid = tid_clone.clone();
+                        let app = app_handle_clone.clone();
+                        let sm = sm_clone.clone();
+                        let mode_for_task = mode_clone.clone();
+                        let lang_for_task = lang_clone.clone();
+                        rt.spawn(async move {
+                            let mode = mode_for_task.read().await.clone();
+                            if mode == "dictation" {
+                                let target_locale = lang_for_task.read().await.clone();
+                                ws.send_dictation_finalize(&tid, &final_text, &target_locale).await.ok();
+                            } else {
+                                let msg_id = Uuid::new_v4().to_string();
+                                ws.send_route(&tid, &final_text, &msg_id).await.ok();
+                                let _ = sm.set(VoiceState::Processing).await;
+                                if let Ok(h) = app.lock() {
+                                    if let Some(handle) = h.as_ref() {
+                                        let _ = handle.emit("voice:state", serde_json::json!({"state": "processing"}));
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+            }).map_err(|e| e)?;
+
+        info!("[voice-session] started for thread {}", thread_id);
+        Ok(())
+    }
+
+    /// Stop the voice dialogue session.
+    pub async fn stop(&self) {
+        self.dialogue_active.store(false, Ordering::SeqCst);
+        self.running.store(false, Ordering::SeqCst);
+
+        let thread_id = self.thread_id.read().await.clone();
+        if !thread_id.is_empty() {
+            if let Some(ws) = self.ws_client.read().await.as_ref() {
+                ws.send_voice_stop(&thread_id).await.ok();
+            }
+        }
+
+        self.mic.write().await.stop();
+        self.tts.stop();
+        self.tts.resume();
+        self.state_machine.force_set(VoiceState::Idle).await;
+        self.emit_event("voice:state", serde_json::json!({"state": "idle"}));
+
+        info!("[voice-session] stopped");
+    }
+
+    /// Trigger barge-in manually (e.g. from UI button).
+    pub async fn barge_in(&self) {
+        let thread_id = self.thread_id.read().await.clone();
+        if let Some(ws) = self.ws_client.read().await.as_ref() {
+            ws.send_barge_in(&thread_id).await.ok();
+        }
+        self.tts.stop();
+        self.tts.resume();
+        self.state_machine
+            .force_set(VoiceState::Interrupted)
+            .await;
+        self.emit_event("voice:state", serde_json::json!({"state": "interrupted"}));
+        info!("[voice-session] barge-in triggered");
+    }
+
+    pub async fn get_state(&self) -> VoiceState {
+        self.state_machine.get().await
+    }
+
+    pub async fn is_running(&self) -> bool {
+        self.running.load(Ordering::SeqCst)
+    }
+
+    pub async fn disconnect_backend(&self) {
+        if let Some(ws) = self.ws_client.write().await.take() {
+            ws.disconnect().await;
+        }
+    }
+}

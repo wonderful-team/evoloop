@@ -31,6 +31,7 @@ mod screen_recorder;
 mod sidecar;
 mod tray;
 mod version;
+mod voice;
 #[cfg(desktop)]
 mod global_shortcut;
 
@@ -55,10 +56,14 @@ pub struct AppServiceState {
     pub recording_start_time: Arc<Mutex<Option<std::time::Instant>>>,
     pub is_preparing: Arc<AtomicBool>,
     pub countdown: Arc<AtomicI32>,
+    // Voice session active (for tray icon indicator)
+    pub voice_active: Arc<AtomicBool>,
     // Event count from frontend (DOM + Global events)
     pub event_count: Arc<AtomicUsize>,
     // Sidecar Client (Backend HTTP process)
     pub sidecar_client: Arc<Mutex<Option<SidecarClient>>>,
+    // Full-duplex voice manager
+    pub voice_manager: VoiceManagerHandle,
 }
 
 // ===== Trivial Command =====
@@ -127,6 +132,247 @@ async fn show_main_window() -> Result<(), String> {
     Ok(())
 }
 
+use crate::voice::{VoiceSession, VoiceState};
+use tokio::sync::{mpsc, oneshot};
+
+#[derive(Clone)]
+pub struct VoiceManagerHandle {
+    tx: mpsc::Sender<VoiceCommand>,
+}
+
+impl VoiceManagerHandle {
+    pub async fn send(&self, cmd: VoiceCommand) -> Result<(), String> {
+        self.tx.send(cmd).await.map_err(|e| e.to_string())
+    }
+}
+
+enum VoiceCommand {
+    InitEngines {
+        asr_model_dir: String,
+        vad_model_path: String,
+        vad_silence_ms: f32,
+        respond: oneshot::Sender<Result<(), String>>,
+    },
+    ConnectBackend {
+        ws_url: String,
+        respond: oneshot::Sender<Result<(), String>>,
+    },
+    Start {
+        app_handle: tauri::AppHandle,
+        thread_id: String,
+        lang: String,
+        mode: String,
+        respond: oneshot::Sender<Result<(), String>>,
+    },
+    Stop,
+    BargeIn,
+    GetState {
+        respond: oneshot::Sender<VoiceState>,
+    },
+}
+
+fn spawn_voice_manager() -> VoiceManagerHandle {
+    let (tx, mut rx) = mpsc::channel::<VoiceCommand>(32);
+
+    // VoiceSession owns cpal::Stream which is not Send, so it cannot live in
+    // Tauri's managed state or in a tokio task that may move between threads.
+    // Run it on a dedicated OS thread with its own tokio runtime instead.
+    std::thread::spawn(move || {
+        let rt = match tokio::runtime::Runtime::new() {
+            Ok(rt) => rt,
+            Err(e) => {
+                log::error!("[voice-manager] failed to create runtime: {}", e);
+                return;
+            }
+        };
+        rt.block_on(async {
+            let session = VoiceSession::new();
+            while let Some(cmd) = rx.recv().await {
+                match cmd {
+                    VoiceCommand::InitEngines { asr_model_dir, vad_model_path, vad_silence_ms, respond } => {
+                        let res = session.init_engines(&asr_model_dir, &vad_model_path, vad_silence_ms).await;
+                        let _ = respond.send(res);
+                    }
+                    VoiceCommand::ConnectBackend { ws_url, respond } => {
+                        let res = session.connect_backend(&ws_url).await;
+                        let _ = respond.send(res);
+                    }
+                    VoiceCommand::Start { app_handle, thread_id, lang, mode, respond } => {
+                        session.set_app_handle(app_handle);
+                        let res = session.start(thread_id, lang, mode).await;
+                        let _ = respond.send(res);
+                    }
+                    VoiceCommand::Stop => {
+                        session.stop().await;
+                    }
+                    VoiceCommand::BargeIn => {
+                        session.barge_in().await;
+                    }
+                    VoiceCommand::GetState { respond } => {
+                        let state = session.get_state().await;
+                        let _ = respond.send(state);
+                    }
+                }
+            }
+        });
+    });
+
+    VoiceManagerHandle { tx }
+}
+
+// ===== Voice Session Commands =====
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn init_voice_engines(
+    state: tauri::State<'_, AppServiceState>,
+    asr_model_dir: String,
+    vad_model_path: String,
+    vad_silence_ms: f32,
+) -> Result<(), String> {
+    let (tx, rx) = oneshot::channel();
+    state.voice_manager.send(VoiceCommand::InitEngines {
+        asr_model_dir,
+        vad_model_path,
+        vad_silence_ms,
+        respond: tx,
+    }).await?;
+    rx.await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn connect_voice_backend(
+    state: tauri::State<'_, AppServiceState>,
+    ws_url: String,
+) -> Result<(), String> {
+    let (tx, rx) = oneshot::channel();
+    state.voice_manager.send(VoiceCommand::ConnectBackend {
+        ws_url,
+        respond: tx,
+    }).await?;
+    rx.await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn start_voice_session(
+    state: tauri::State<'_, AppServiceState>,
+    app: tauri::AppHandle,
+    thread_id: String,
+    lang: String,
+    mode: String,
+) -> Result<(), String> {
+    let (tx, rx) = oneshot::channel();
+    state.voice_manager.send(VoiceCommand::Start {
+        app_handle: app,
+        thread_id,
+        lang,
+        mode,
+        respond: tx,
+    }).await?;
+    rx.await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn stop_voice_session(
+    state: tauri::State<'_, AppServiceState>,
+) -> Result<(), String> {
+    state.voice_manager.send(VoiceCommand::Stop).await?;
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn trigger_voice_barge_in(
+    state: tauri::State<'_, AppServiceState>,
+) -> Result<(), String> {
+    state.voice_manager.send(VoiceCommand::BargeIn).await?;
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn get_voice_state(
+    state: tauri::State<'_, AppServiceState>,
+) -> Result<String, String> {
+    let (tx, rx) = oneshot::channel();
+    state.voice_manager.send(VoiceCommand::GetState { respond: tx }).await?;
+    let state = rx.await.map_err(|e| e.to_string())?;
+    Ok(state.as_str().to_string())
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn start_dictation(
+    app: tauri::AppHandle,
+    raw_text: String,
+    target_locale: String,
+) -> Result<String, String> {
+    use crate::voice::DictationEngine;
+
+    let lm_url = "http://127.0.0.1:1234".to_string();
+    let model = "Qwen3-4B-Instruct-2507".to_string();
+    let engine = DictationEngine::new(lm_url, model);
+
+    let polished_ref = Arc::new(Mutex::new(String::new()));
+    let polished_clone = polished_ref.clone();
+    let app_clone = app.clone();
+
+    engine.polish_stream(&raw_text, &target_locale, move |token: &str| {
+        let mut buf = polished_clone.lock().unwrap();
+        buf.push_str(token);
+        let _ = app_clone.emit("voice:dictation_token", serde_json::json!({"token": token}));
+    }).await?;
+
+    let polished = polished_ref.lock().unwrap().clone();
+    let _ = app.emit("voice:dictation_polished", serde_json::json!({"polished_text": &polished}));
+    Ok(polished)
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn init_voice_engines(_: String, _: String, _: f32) -> Result<(), String> {
+    Err("Voice engines not supported on mobile".to_string())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn connect_voice_backend(_: String) -> Result<(), String> {
+    Err("Voice backend not supported on mobile".to_string())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn start_voice_session(_: String, _: String) -> Result<(), String> {
+    Err("Voice session not supported on mobile".to_string())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn stop_voice_session() -> Result<(), String> {
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn trigger_voice_barge_in() -> Result<(), String> {
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn get_voice_state() -> Result<String, String> {
+    Ok("idle".to_string())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn start_dictation(_: String, _: String) -> Result<String, String> {
+    Err("Dictation not supported on mobile".to_string())
+}
+
 // ===== Global Voice Shortcut Commands =====
 
 #[tauri::command]
@@ -154,27 +400,21 @@ async fn set_voice_shortcut_key(key: String) -> Result<(), String> {
 #[tauri::command]
 #[cfg(desktop)]
 async fn set_voice_shortcut_duration(duration_ms: u64) -> Result<(), String> {
-    GLOBAL_SHORTCUT_MANAGER.set_press_duration(duration_ms);
+    GLOBAL_SHORTCUT_MANAGER.set_long_press_threshold(duration_ms);
     Ok(())
 }
 
 #[tauri::command]
 #[cfg(desktop)]
-async fn set_voice_shortcut_mode(mode: String) -> Result<(), String> {
-    use crate::global_shortcut::TriggerMode;
-    let trigger_mode = match mode.as_str() {
-        "longPress" => TriggerMode::LongPress,
-        "doubleClick" => TriggerMode::DoubleClick,
-        _ => TriggerMode::DoubleClick, // Default to double click
-    };
-    GLOBAL_SHORTCUT_MANAGER.set_trigger_mode(trigger_mode);
+async fn set_voice_shortcut_mode(_mode: String) -> Result<(), String> {
+    // Unified mode: tap = dictation, hold = dialogue. Mode selection is deprecated.
     Ok(())
 }
 
 #[tauri::command]
 #[cfg(desktop)]
-async fn set_voice_shortcut_interval(interval_ms: u64) -> Result<(), String> {
-    GLOBAL_SHORTCUT_MANAGER.set_double_click_interval(interval_ms);
+async fn set_voice_shortcut_interval(_interval_ms: u64) -> Result<(), String> {
+    // Unified mode no longer uses double-click interval. Kept for backward compat.
     Ok(())
 }
 
@@ -384,7 +624,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_stt::init())
         .plugin(tauri_plugin_tts::init())
-        .plugin(tauri_plugin_fs::init());
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build());
 
     let builder = builder.setup(|_app| {
         #[cfg(mobile)]
@@ -413,11 +654,14 @@ pub fn run() {
                 recording_start_time: Arc::new(Mutex::new(None)),
                 is_preparing: Arc::new(AtomicBool::new(false)),
                 countdown: Arc::new(AtomicI32::new(0)),
+                voice_active: Arc::new(AtomicBool::new(false)),
                 // Event count from frontend (DOM + Global events)
                 event_count: Arc::new(AtomicUsize::new(0)),
-                // Backend Sidecar (HTTP Server)
-                sidecar_client: Arc::new(Mutex::new(None)),
-            };
+            // Backend Sidecar (HTTP Server)
+            sidecar_client: Arc::new(Mutex::new(None)),
+            // Full-duplex voice manager
+            voice_manager: spawn_voice_manager(),
+        };
             _app.manage(service_state);
 
             // Build system tray
@@ -451,13 +695,6 @@ pub fn run() {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 #[cfg(desktop)]
                 if window.label() == "main" {
-                    // Stop backend before closing
-                    let app_handle = window.app_handle();
-                    let state = app_handle.state::<AppServiceState>();
-                    if let Some(client) = state.sidecar_client.lock().unwrap().take() {
-                        let _ = client.stop();
-                    }
-                    
                     let _ = window.hide();
                     #[cfg(target_os = "macos")]
                     window.app_handle().set_activation_policy(tauri::ActivationPolicy::Accessory).ok();
@@ -488,6 +725,7 @@ pub fn run() {
             tray::sync_tray_event_count,
             tray::sync_tray_countdown,
             tray::set_recording_start_time,
+            tray::sync_tray_voice_state,
             screen_recorder::start_screen_recording,
             screen_recorder::stop_screen_recording,
             commands::permissions::check_screen_recording_permission,
@@ -519,6 +757,14 @@ pub fn run() {
             version::is_stage,
             version::compare_versions,
             version::needs_update,
+            // Full-duplex voice commands
+            init_voice_engines,
+            connect_voice_backend,
+            start_voice_session,
+            stop_voice_session,
+            trigger_voice_barge_in,
+            get_voice_state,
+            start_dictation,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

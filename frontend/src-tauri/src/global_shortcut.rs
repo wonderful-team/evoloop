@@ -1,36 +1,25 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::{Duration, Instant};
-use rdev::{listen, EventType, Key};
 use tauri::Emitter;
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
-/// Global shortcut manager for voice input
+/// Global shortcut manager for voice input.
+///
+/// Uses Tauri's official global-shortcut plugin instead of rdev.
+/// Since the plugin only fires on KeyDown (not KeyUp), we emit
+/// "voice-shortcut-press" on each press and let the frontend handle
+/// tap vs hold logic via timers.
 pub struct GlobalShortcutManager {
-    is_listening: Arc<AtomicBool>,
-    is_recording: Arc<AtomicBool>,
+    is_registered: AtomicBool,
     target_key: Arc<Mutex<String>>,
-    trigger_mode: Arc<Mutex<TriggerMode>>,
-    press_duration: Arc<Mutex<u64>>, // for long press (milliseconds)
-    double_click_interval: Arc<Mutex<u64>>, // for double click (milliseconds)
     app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
-}
-
-#[derive(Clone, Debug)]
-pub enum TriggerMode {
-    LongPress,
-    DoubleClick,
 }
 
 impl GlobalShortcutManager {
     pub fn new() -> Self {
         Self {
-            is_listening: Arc::new(AtomicBool::new(false)),
-            is_recording: Arc::new(AtomicBool::new(false)),
-            target_key: Arc::new(Mutex::new("Ctrl".to_string())),
-            trigger_mode: Arc::new(Mutex::new(TriggerMode::DoubleClick)), // Default to double click
-            press_duration: Arc::new(Mutex::new(500)),
-            double_click_interval: Arc::new(Mutex::new(300)), // 300ms default for double click
+            is_registered: AtomicBool::new(false),
+            target_key: Arc::new(Mutex::new("F12".to_string())),
             app_handle: Arc::new(Mutex::new(None)),
         }
     }
@@ -43,242 +32,92 @@ impl GlobalShortcutManager {
         *self.target_key.lock().unwrap() = key;
     }
 
-    pub fn set_trigger_mode(&self, mode: TriggerMode) {
-        *self.trigger_mode.lock().unwrap() = mode;
-    }
+    pub fn set_long_press_threshold(&self, _ms: u64) {}
 
-    pub fn set_press_duration(&self, duration_ms: u64) {
-        *self.press_duration.lock().unwrap() = duration_ms;
-    }
-
-    pub fn set_double_click_interval(&self, interval_ms: u64) {
-        *self.double_click_interval.lock().unwrap() = interval_ms;
-    }
+    pub fn set_trigger_mode(&self, _mode: TriggerMode) {}
+    pub fn set_press_duration(&self, ms: u64) { self.set_long_press_threshold(ms); }
+    pub fn set_double_click_interval(&self, _ms: u64) {}
 
     pub fn start_listening(&self) {
-        if self.is_listening.load(Ordering::SeqCst) {
+        if self.is_registered.load(Ordering::SeqCst) {
             return;
         }
-        self.is_listening.store(true, Ordering::SeqCst);
 
-        let is_listening = self.is_listening.clone();
-        let is_recording = self.is_recording.clone();
-        let target_key = self.target_key.clone();
-        let trigger_mode = self.trigger_mode.clone();
-        let press_duration = self.press_duration.clone();
-        let double_click_interval = self.double_click_interval.clone();
-        let app_handle = self.app_handle.clone();
+        let handle = self.app_handle.lock().unwrap().clone();
+        let Some(app) = handle else {
+            return;
+        };
 
-        thread::spawn(move || {
-            // State for long press
-            let mut key_pressed: Option<Instant> = None;
-            let mut sent_start = false;
+        let key = self.target_key.lock().unwrap().clone();
+        let code = key_to_code(&key).unwrap_or(Code::F12);
+        let shortcut = Shortcut::new(Some(Modifiers::empty()), code);
 
-            // State for double click
-            let mut last_click: Option<Instant> = None;
-            let mut click_count = 0u32;
-
-            let callback = move |event: rdev::Event| {
-                if !is_listening.load(Ordering::SeqCst) {
-                    return;
-                }
-
-                let target = target_key.lock().unwrap().clone();
-                let mode = trigger_mode.lock().unwrap().clone();
-
-                match mode {
-                    TriggerMode::LongPress => {
-                        Self::handle_long_press(
-                            &event,
-                            &target,
-                            &press_duration,
-                            &mut key_pressed,
-                            &mut sent_start,
-                            &is_recording,
-                            &app_handle,
-                        );
-                    }
-                    TriggerMode::DoubleClick => {
-                        Self::handle_double_click(
-                            &event,
-                            &target,
-                            &double_click_interval,
-                            &mut last_click,
-                            &mut click_count,
-                            &is_recording,
-                            &app_handle,
-                        );
-                    }
-                }
-            };
-
-            // Run the listener (this blocks the thread)
-            if let Err(e) = listen(callback) {
-                eprintln!("Global shortcut listener error: {:?}", e);
+        let app_clone = app.clone();
+        if let Err(e) = app.global_shortcut().on_shortcut(shortcut, move |_app, _event, state| {
+            if state.state == ShortcutState::Pressed {
+                let _ = app_clone.emit("voice-shortcut-press", ());
             }
-        });
-    }
-
-    fn handle_long_press(
-        event: &rdev::Event,
-        target: &str,
-        press_duration: &Arc<Mutex<u64>>,
-        key_pressed: &mut Option<Instant>,
-        sent_start: &mut bool,
-        is_recording: &Arc<AtomicBool>,
-        app_handle: &Arc<Mutex<Option<tauri::AppHandle>>>,
-    ) {
-        let duration = *press_duration.lock().unwrap();
-
-        match event.event_type {
-            EventType::KeyPress(key) => {
-                if matches_key(&key, target) && key_pressed.is_none() {
-                    *key_pressed = Some(Instant::now());
-                    *sent_start = false;
-                }
-            }
-            EventType::KeyRelease(key) => {
-                if matches_key(&key, target) {
-                    if let Some(pressed_time) = *key_pressed {
-                        let elapsed = pressed_time.elapsed().as_millis() as u64;
-
-                        if elapsed >= duration && is_recording.load(Ordering::SeqCst) {
-                            // Long press completed - stop recording
-                            is_recording.store(false, Ordering::SeqCst);
-                            Self::emit_event(app_handle, "voice-shortcut-end");
-                        }
-                    }
-                    *key_pressed = None;
-                    *sent_start = false;
-                }
-            }
-            _ => {}
+        }) {
+            log::error!("[shortcut] failed to register handler: {:?}", e);
+            return;
         }
 
-        // Check for long press while key is held
-        if let Some(pressed_time) = *key_pressed {
-            let elapsed = pressed_time.elapsed().as_millis() as u64;
-            if elapsed >= duration && !*sent_start && !is_recording.load(Ordering::SeqCst) {
-                *sent_start = true;
-                is_recording.store(true, Ordering::SeqCst);
-                Self::emit_event(app_handle, "voice-shortcut-start");
-            }
+        if let Err(e) = app.global_shortcut().register(shortcut) {
+            log::error!("[shortcut] failed to register key: {:?}", e);
+            return;
         }
-    }
 
-    fn handle_double_click(
-        event: &rdev::Event,
-        target: &str,
-        double_click_interval: &Arc<Mutex<u64>>,
-        last_click: &mut Option<Instant>,
-        click_count: &mut u32,
-        is_recording: &Arc<AtomicBool>,
-        app_handle: &Arc<Mutex<Option<tauri::AppHandle>>>,
-    ) {
-        let interval = *double_click_interval.lock().unwrap();
-
-        match event.event_type {
-            EventType::KeyPress(key) => {
-                if matches_key(&key, target) {
-                    let now = Instant::now();
-
-                    // Check if this is a double click
-                    if let Some(last) = *last_click {
-                        let elapsed = last.elapsed().as_millis() as u64;
-                        if elapsed <= interval {
-                            *click_count += 1;
-                        } else {
-                            // Too slow, reset
-                            *click_count = 1;
-                        }
-                    } else {
-                        *click_count = 1;
-                    }
-
-                    *last_click = Some(now);
-
-                    // Double click detected
-                    if *click_count >= 2 && !is_recording.load(Ordering::SeqCst) {
-                        *click_count = 0;
-                        is_recording.store(true, Ordering::SeqCst);
-                        Self::emit_event(app_handle, "voice-shortcut-start");
-
-                        // Auto-stop after 30 seconds (safety timeout)
-                        let is_recording_clone = is_recording.clone();
-                        let app_handle_clone = app_handle.clone();
-                        thread::spawn(move || {
-                            thread::sleep(Duration::from_secs(30));
-                            if is_recording_clone.load(Ordering::SeqCst) {
-                                is_recording_clone.store(false, Ordering::SeqCst);
-                                Self::emit_event(&app_handle_clone, "voice-shortcut-end");
-                            }
-                        });
-                    }
-                }
-            }
-            EventType::KeyRelease(key) => {
-                if matches_key(&key, target) && is_recording.load(Ordering::SeqCst) {
-                    // For double click mode, we stop on key release
-                    // But add a small delay to allow for "hold to record" behavior
-                    let is_recording_clone = is_recording.clone();
-                    let app_handle_clone = app_handle.clone();
-                    thread::spawn(move || {
-                        thread::sleep(Duration::from_millis(100));
-                        if is_recording_clone.load(Ordering::SeqCst) {
-                            is_recording_clone.store(false, Ordering::SeqCst);
-                            Self::emit_event(&app_handle_clone, "voice-shortcut-end");
-                        }
-                    });
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn emit_event(app_handle: &Arc<Mutex<Option<tauri::AppHandle>>>, event: &str) {
-        if let Ok(handle) = app_handle.lock() {
-            if let Some(ref h) = *handle {
-                let _ = h.emit(event, ());
-            }
-        }
+        self.is_registered.store(true, Ordering::SeqCst);
+        log::info!("[shortcut] global shortcut {} registered", key);
     }
 
     pub fn stop_listening(&self) {
-        self.is_listening.store(false, Ordering::SeqCst);
-        self.is_recording.store(false, Ordering::SeqCst);
+        if !self.is_registered.load(Ordering::SeqCst) {
+            return;
+        }
+        if let Ok(handle) = self.app_handle.lock() {
+            if let Some(ref app) = *handle {
+                let key = self.target_key.lock().unwrap().clone();
+                if let Some(code) = key_to_code(&key) {
+                    let shortcut = Shortcut::new(Some(Modifiers::empty()), code);
+                    let _ = app.global_shortcut().unregister(shortcut);
+                }
+            }
+        }
+        self.is_registered.store(false, Ordering::SeqCst);
+        log::info!("[shortcut] global shortcut unregistered");
     }
 
     pub fn is_recording(&self) -> bool {
-        self.is_recording.load(Ordering::SeqCst)
+        false
     }
 }
 
-fn matches_key(key: &Key, target: &str) -> bool {
-    match target {
-        "Alt" => matches!(key, Key::Alt | Key::AltGr),
-        "Ctrl" | "Control" => matches!(key, Key::ControlLeft | Key::ControlRight),
-        "Shift" => matches!(key, Key::ShiftLeft | Key::ShiftRight),
-        "Cmd" | "Meta" | "Command" | "Windows" => matches!(key, Key::MetaLeft | Key::MetaRight),
-        "F1" => matches!(key, Key::F1),
-        "F2" => matches!(key, Key::F2),
-        "F3" => matches!(key, Key::F3),
-        "F4" => matches!(key, Key::F4),
-        "F5" => matches!(key, Key::F5),
-        "F6" => matches!(key, Key::F6),
-        "F7" => matches!(key, Key::F7),
-        "F8" => matches!(key, Key::F8),
-        "F9" => matches!(key, Key::F9),
-        "F10" => matches!(key, Key::F10),
-        "F11" => matches!(key, Key::F11),
-        "F12" => matches!(key, Key::F12),
-        "Escape" | "Esc" => matches!(key, Key::Escape),
-        "Space" => matches!(key, Key::Space),
-        "Tab" => matches!(key, Key::Tab),
-        _ => false,
+#[derive(Clone, Debug)]
+#[allow(dead_code)]
+pub enum TriggerMode {
+    LongPress,
+    DoubleClick,
+}
+
+fn key_to_code(key: &str) -> Option<Code> {
+    match key {
+        "F1" => Some(Code::F1),
+        "F2" => Some(Code::F2),
+        "F3" => Some(Code::F3),
+        "F4" => Some(Code::F4),
+        "F5" => Some(Code::F5),
+        "F6" => Some(Code::F6),
+        "F7" => Some(Code::F7),
+        "F8" => Some(Code::F8),
+        "F9" => Some(Code::F9),
+        "F10" => Some(Code::F10),
+        "F11" => Some(Code::F11),
+        "F12" => Some(Code::F12),
+        _ => None,
     }
 }
 
-// Default instance for the app
 lazy_static::lazy_static! {
     pub static ref GLOBAL_SHORTCUT_MANAGER: GlobalShortcutManager = GlobalShortcutManager::new();
 }
