@@ -142,12 +142,13 @@ def extract_actions(filepath: str, entity: str) -> list[dict]:
 
             kind = "write"
             risk = "ui"
-            if any(kw in name.lower() for kw in ("list", "page", "index", "get", "search")):
-                kind = "read"
-            elif any(kw in name.lower() for kw in MONEY_KEYWORDS):
+            lower = name.lower()
+            if any(kw in lower for kw in MONEY_KEYWORDS):
                 kind = "write"
                 risk = "money"
-            elif any(kw in name.lower() for kw in DATA_KEYWORDS):
+            elif any(kw in lower for kw in ("list", "page", "index", "get", "search", "find")):
+                kind = "read"
+            elif any(kw in lower for kw in DATA_KEYWORDS):
                 kind = "write"
                 risk = "data"
 
