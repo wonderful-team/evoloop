@@ -66,7 +66,19 @@ async def main() -> None:
     logger.info("Starting batch write for %d entities (project=%s)", len(entities), args.project_id)
 
     from app.core.atlas.source.persistence import save_app_map
-    from app.core.execution.macro.tasks import synthesize_macros_task
+    from app.core.execution.macro.tasks import synthesize_macros_task as _wrapped_task
+    import inspect
+
+    # Unwrap @shared_task decorator to get the raw coroutine function
+    _raw = getattr(_wrapped_task, "func", _wrapped_task)
+    if not inspect.iscoroutinefunction(_raw):
+        for _cell in getattr(_raw, "__closure__", None) or []:
+            if inspect.iscoroutinefunction(_cell.cell_contents):
+                _raw = _cell.cell_contents
+                break
+
+    async def _gen_macros(app_map_id, project_id, member_id):
+        return await _raw(app_map_id=app_map_id, project_id=project_id, member_id=member_id)
 
     written = 0
     skipped = 0
@@ -96,7 +108,7 @@ async def main() -> None:
                 logger.info("  [SKIP]  %s → v%s (unchanged)", entity_name, version)
 
             try:
-                result = await synthesize_macros_task(
+                result = await _gen_macros(
                     app_map_id=app_map_id,
                     project_id=args.project_id,
                     member_id=member_id,

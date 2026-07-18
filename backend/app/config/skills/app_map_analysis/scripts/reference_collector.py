@@ -409,7 +409,15 @@ def main():
                 if pk and pk in common and pk not in a.get("touches_tables", []):
                     a["pk"] = pk
 
-    # 6. Write output
+    # 6. Remove empty entities (no actions, no routes, no db_tables)
+    empty = [e for e, d in entities.items()
+             if not d.get("actions") and not d.get("routes") and not d.get("db_tables")]
+    for e in empty:
+        del entities[e]
+    if empty:
+        print(f"  (skipped {len(empty)} empty entities: {', '.join(sorted(empty))})")
+
+    # 7. Write output
     output_path = "/tmp/appmap_extracted.json"
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(entities, f, ensure_ascii=False, indent=2)
