@@ -5,7 +5,6 @@ Uses a dedicated PostgreSQL instance (or separate database) for vector storage.
 Schema is managed via Alembic migrations; the store only ensures the pgvector
 extension is present and tables exist as a fallback.
 """
-import hashlib
 import logging
 from datetime import datetime
 from typing import Any
@@ -25,6 +24,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
+from app.core.file import compute_md5
 from app.infrastructure.database.vector.base import BaseVectorStore
 from app.utils.time import utcnow
 
@@ -132,10 +132,8 @@ class PgVectorStore(BaseVectorStore):
 
         now = utcnow()
         with self._session() as session:
-            for chunk, emb in zip(chunks, embeddings):
-                chunk_id = hashlib.md5(
-                    f"{chunk['file_path']}:{chunk['start_line']}:{chunk['content'][:100]}".encode()
-                ).hexdigest()
+            for chunk, emb in zip(chunks, embeddings, strict=False):
+                chunk_id = compute_md5(f"{chunk['file_path']}:{chunk['start_line']}:{chunk['content'][:100]}")
                 existing = session.query(VectorEmbedding).filter_by(
                     source_type="code_chunk", source_id=chunk_id
                 ).first()

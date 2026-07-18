@@ -1,5 +1,4 @@
 import dataclasses
-import hashlib
 import json
 import logging
 import os
@@ -18,6 +17,7 @@ from typing import Self, cast
 
 import pathspec
 
+from app.core.file import compute_md5
 from app.infrastructure.solidlsp import ls_types
 from app.infrastructure.solidlsp.ls_config import Language, LanguageServerConfig
 from app.infrastructure.solidlsp.ls_exceptions import SolidLSPException
@@ -85,7 +85,7 @@ class LSPFileBuffer:
     content_hash: str = ""
 
     def __post_init__(self) -> None:
-        self.content_hash = hashlib.md5(self.contents.encode("utf-8")).hexdigest()
+        self.content_hash = compute_md5(self.contents)
 
     def split_lines(self) -> list[str]:
         """Splits the contents of the file into lines."""

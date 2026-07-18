@@ -4,7 +4,6 @@ Contains various configurations and settings specific to TOML files.
 """
 
 import gzip
-import hashlib
 import logging
 import os
 import platform
@@ -47,11 +46,8 @@ TAPLO_SHA256_CHECKSUMS: dict[str, str] = {
 
 def _verify_sha256(file_path: str, expected_hash: str) -> bool:
     """Verify SHA256 checksum of a downloaded file."""
-    sha256_hash = hashlib.sha256()
-    with open(file_path, "rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            sha256_hash.update(chunk)
-    actual_hash = sha256_hash.hexdigest()
+    from app.core.file.hash import compute_file_hash
+    actual_hash = compute_file_hash(file_path, algo="sha256", chunk_size=8192)
     return actual_hash.lower() == expected_hash.lower()
 
 

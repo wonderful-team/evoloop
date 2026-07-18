@@ -11,7 +11,7 @@ class DynamicBaseModel(BaseModel, LegacyDictMixin):
     Use this for dynamic schemas, state bags, and loose payloads.
     """
 
-    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
+    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, populate_by_name=True)
 
 
 class EventBase(DynamicBaseModel):

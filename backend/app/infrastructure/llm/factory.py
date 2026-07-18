@@ -1,5 +1,4 @@
 import asyncio
-import hashlib
 import json
 import logging
 import weakref
@@ -7,6 +6,7 @@ from typing import Any
 
 import httpx
 
+from app.core.file import compute_md5
 from app.infrastructure.config import SystemConfigService
 from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
 from app.infrastructure.llm.thinking_adapter import (
@@ -65,7 +65,7 @@ try:
     from openai._base_client import AsyncAPIClient as OpenAIAsyncClient
     _original_openai_del = getattr(OpenAIAsyncClient, "__del__", None)
     if _original_openai_del:
-        def _safe_openai_del(self):
+        def _safe_openai_del(_self):
             # Do nothing! We manage the httpx client via _HTTP_CLIENT_POOL explicitly
             # so we don't need the SDK to asynchronously close it during GC.
             pass
@@ -77,7 +77,7 @@ try:
     from anthropic._base_client import AsyncAPIClient as AnthropicAsyncClient
     _original_anthropic_del = getattr(AnthropicAsyncClient, "__del__", None)
     if _original_anthropic_del:
-        def _safe_anthropic_del(self):
+        def _safe_anthropic_del(_self):
             pass
         AnthropicAsyncClient.__del__ = _safe_anthropic_del
 except ImportError:
@@ -175,7 +175,7 @@ class LLMFactory:
     ) -> str:
         """Generate unique cache key from LLM configuration."""
         key_data = f"{config_type}:{provider}:{base_url}:{model_name}:{temperature}:{max_tokens}:{sorted(kwargs.items())}"
-        return hashlib.md5(key_data.encode()).hexdigest()[:16]
+        return compute_md5(key_data)[:16]
 
     @staticmethod
     async def create_llm(config: LLMConfig | str | None = None, **kwargs) -> Any:
@@ -326,8 +326,7 @@ class LLMFactory:
         actual_model = parts[2]
 
         # Use explicit overrides if provided, otherwise fall back to global config
-        if not config.base_url or not config.api_key or not config.provider_type:
-            config.provider_type = config.provider_type or SystemConfigService.get_value("LLM_PROVIDER_TYPE")
+        if not config.base_url or not config.api_key:
             config.base_url = config.base_url or SystemConfigService.get_value("LLM_BASE_URL")
             config.api_key = config.api_key or SystemConfigService.get_value("LLM_API_KEY")
 
@@ -341,7 +340,6 @@ class LLMFactory:
             base_url=config.base_url,
             model_name=actual_model,
             temperature=config.temperature,
-            provider_type=config.provider_type,
             streaming=config.streaming,
             max_tokens=config.max_tokens,
             extra_body=config.extra_body,
@@ -355,10 +353,6 @@ class LLMFactory:
         if not config.base_url:
             raise ValueError(f"Direct model '{config.model_name}' requires base_url")
 
-        # Use explicit provider_type or detect from URL
-        if not config.provider_type:
-            config.provider_type = LLMFactory._detect_provider_from_url(config.base_url)
-
         logger.info(f"[LLMFactory] Direct mode: model={config.model_name}, base_url={config.base_url}")
 
         return LLMFactory._build_llm_instance(
@@ -366,19 +360,10 @@ class LLMFactory:
             base_url=config.base_url,
             model_name=config.model_name,
             temperature=config.temperature,
-            provider_type=config.provider_type,
             streaming=config.streaming,
             max_tokens=config.max_tokens,
             extra_body=config.extra_body,
         )
-
-    @staticmethod
-    def _detect_provider_from_url(base_url: str) -> str:
-        """Detect provider type from URL patterns."""
-        url = base_url.lower()
-        if "anthropic" in url:
-            return "anthropic"
-        return "openai"
 
     @staticmethod
     def _build_llm_instance(
@@ -387,12 +372,12 @@ class LLMFactory:
         base_url: str,
         model_name: str,
         temperature: float,
-        provider_type: str,
+        provider_type: str = "",  # deprecated, auto-detected from URL
         streaming: bool = False,
         max_tokens: int | None = None,
         extra_body: dict[str, Any] | None = None,
     ):
-        """Build the actual LLM instance based on provider_type."""
+        """Build the actual LLM instance. Provider type is auto-detected from URL."""
         cfg = ThinkingConfig()
         family = detect_model_family(model_name, base_url)
 
@@ -403,7 +388,7 @@ class LLMFactory:
                 temperature = 1.0
 
         # --- Anthropic branch: different SDK + URL normalization ---
-        if provider_type == "anthropic" or family == "anthropic":
+        if family == "anthropic":
             from app.infrastructure.llm.anthropic_adapter import CompatibleChatAnthropic
 
             # Anthropic SDK automatically appends /v1/messages to the base_url.

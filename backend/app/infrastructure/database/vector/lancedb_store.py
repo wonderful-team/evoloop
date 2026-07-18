@@ -1,12 +1,8 @@
-import logging
-
-logger = logging.getLogger(__name__)
 """
 LanceDB vector storage implementation for EvoLoop Backend (Embedded Mode).
 Replaces PostgreSQL + pgvector with embedded file-based storage.
 """
 
-import hashlib
 import threading
 from pathlib import Path
 from typing import Any
@@ -16,6 +12,7 @@ import pyarrow as pa
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
+from app.core.file import compute_md5
 from app.infrastructure.database.vector.base import BaseVectorStore
 from app.logging import logger
 from app.utils.time import utcnow
@@ -194,7 +191,7 @@ class LanceVectorStore(BaseVectorStore):
 
             # 2. Generate IDs from content hash
             ids = [
-                hashlib.md5(f"{c['file_path']}:{c['start_line']}:{c['content'][:100]}".encode()).hexdigest()
+                compute_md5(f"{c['file_path']}:{c['start_line']}:{c['content'][:100]}")
                 for c in chunks
             ]
 
@@ -209,7 +206,7 @@ class LanceVectorStore(BaseVectorStore):
                 "start_line": [c.get("start_line", 0) for c in chunks],
                 "end_line": [c.get("end_line", 0) for c in chunks],
                 "language": [c.get("language", "unknown") for c in chunks],
-                "checksum": [hashlib.md5(c["content"].encode()).hexdigest()[:16] for c in chunks],
+                "checksum": [compute_md5(c["content"])[:16] for c in chunks],
                 "created_at": [utcnow() for _ in chunks],
             })
 

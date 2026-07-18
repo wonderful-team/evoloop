@@ -5,23 +5,33 @@ from app.core.config import settings
 from app.infrastructure.config import SystemConfigService
 from app.infrastructure.embeddings.base import BaseEmbedder
 from app.infrastructure.embeddings.local import LocalEmbedder
-from app.infrastructure.embeddings.ollama import OllamaEmbedder
 from app.infrastructure.embeddings.openai import GenericOpenAIEmbedder
 
 logger = logging.getLogger(__name__)
 
 
+def _svc(key: str, default: str | None = None) -> str | None:
+    """Read a system config value with safe fallback."""
+    try:
+        return SystemConfigService.get_value(key, default)
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+        return default
+
+
 class EmbedderFactory:
     """Creates and caches the configured Embedder.
 
-    The embedder instance is cached so that repeated calls within the
-    same process reuse the same underlying model, avoiding redundant
-    ~3-5s model loading from disk (especially in Huey worker tasks).
+    Resolution follows a priority chain (EMBEDDING_TIERS):
+      Tier 1 "gguf"   : llama.cpp embedder via LocalEmbedder
+      Tier 2 "local"  : LM Studio / Ollama via GenericOpenAIEmbedder
+      Tier 3 "remote" : configured provider (openai, ollama, lm-studio, …)
+
+    Falls back to the next tier when the current one is unavailable.
+    Results are cached so repeated calls reuse the same in-memory model.
 
     Thread-safety:
         A threading.Lock protects the shared cache. The expensive embedder
-        creation happens outside the lock so that the asyncio event loop is
-        not blocked while the model is being loaded.
+        creation happens outside the lock.
     """
 
     _instances: dict[str, BaseEmbedder] = {}
@@ -30,16 +40,6 @@ class EmbedderFactory:
 
     @classmethod
     def get_embedder(cls, model_name: str | None = None) -> BaseEmbedder:
-        """
-        Factory to create the configured Embedder.
-        Priority:
-        1. Explicit model_name (if provided)
-        2. System Config (DB)
-        3. Environment Variables (Settings)
-
-        Results are cached by model_name so repeated calls in the same
-        process share one embedder instance (and its in-memory model).
-        """
         cache_key = model_name or cls._default_key
 
         with cls._lock:
@@ -47,8 +47,6 @@ class EmbedderFactory:
         if cached is not None:
             return cached
 
-        # Create the embedder outside the lock so the asyncio event loop is
-        # not blocked by potentially expensive model initialization.
         embedder = cls._create_embedder(model_name, cache_key)
 
         with cls._lock:
@@ -58,126 +56,100 @@ class EmbedderFactory:
 
     @classmethod
     def _create_embedder(cls, model_name: str | None, cache_key: str) -> BaseEmbedder:
-        """Resolve and instantiate the configured embedder (no cache lookup)."""
-        # 0. Resolution: if not provided, fetch from DB
-        if not model_name:
-            try:
-                model_name = SystemConfigService.get_value("EMBEDDING_MODEL")
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-                logger.debug("Suppressed error: %s", e, exc_info=True)
-
-        # 1. Auto-detect custom embedding model by ID prefix
         if model_name and (model_name.startswith("custom-embedding-") or model_name.startswith("custom-")):
-            prefix = "custom-embedding-" if model_name.startswith("custom-embedding-") else "custom-"
-            parts = model_name[len(prefix):].split("-", 1)
+            return cls._create_custom_embedding(model_name)
 
-            if len(parts) >= 2:
-                provider = parts[0]
-                actual_model = parts[1]
-                logger.debug(f"[EmbeddingFactory] Resolved custom embedding: provider={provider}, model={actual_model} (ID: {model_name})")
+        raw_tiers = _svc("EMBEDDING_TIERS")
+        if not raw_tiers:
+            logger.info("[EmbeddingFactory] EMBEDDING_TIERS empty, semantic search disabled.")
+            return None
+        tiers = [t.strip() for t in raw_tiers.split(",") if t.strip()]
 
-                base_url = SystemConfigService.get_value("EMBEDDING_BASE_URL")
-                api_key = SystemConfigService.get_value("EMBEDDING_API_KEY")
-                dim_val = SystemConfigService.get_value("EMBEDDING_DIMENSIONS")
+        for tier in tiers:
+            embedder = cls._try_tier(tier)
+            if embedder is not None:
+                if tier != tiers[0]:
+                    logger.info("[EmbeddingFactory] Resolved via tier=%s", tier)
+                return embedder
 
-                if not api_key:
-                    raise ValueError(f"Custom embedding '{actual_model}' requires EMBEDDING_API_KEY in configuration")
+        logger.info(
+            "[EmbeddingFactory] No embedding tier available. "
+            "Semantic search disabled. Configure EMBEDDING_GGUF_MODEL, "
+            "EMBEDDING_LOCAL_URL, or EMBEDDING_PROVIDER."
+        )
+        return None
 
-                dimensions = int(dim_val) if dim_val else 1536
+    @classmethod
+    def _try_tier(cls, tier: str) -> BaseEmbedder | None:
+        if tier == "gguf":
+            return cls._tier_gguf()
+        if tier == "local":
+            return cls._tier_local_http()
+        if tier == "remote":
+            return cls._tier_remote()
+        logger.warning("[EmbeddingFactory] Unknown tier '%s', skipping", tier)
+        return None
 
-                return GenericOpenAIEmbedder(
-                    api_key=api_key,
-                    base_url=base_url,
-                    model=actual_model,
-                    dimensions=dimensions
-                )
+    # ---- tier implementations -----------------------------------------------
 
-        # 2. Try DB Config (handle case where DB tables don't exist yet)
+    @classmethod
+    def _tier_gguf(cls) -> BaseEmbedder | None:
+        model_path = _svc("EMBEDDING_GGUF_MODEL")
+        if not model_path:
+            return None
         try:
-            provider = SystemConfigService.get_value("EMBEDDING_PROVIDER")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-            logger.debug(f"Could not read EMBEDDING_PROVIDER from DB (tables may not exist yet): {e}")
-            provider = None
+            import llama_cpp  # noqa: F401
+            logger.info("[EmbeddingFactory] Tier=gguf, model=%s", model_path)
+            return LocalEmbedder(model_path=model_path)
+        except ImportError:
+            logger.debug("[EmbeddingFactory] Tier=gguf skipped (llama_cpp not installed)")
+            return None
 
-        # 3. If no provider configured, fall back to local embedder only when
-        # explicitly enabled. Local embeddings are CPU-heavy and can make the
-        # whole system unresponsive, so they are opt-in via EMBEDDING_ENABLED.
-        if not provider:
-            if not settings.EMBEDDING_ENABLED:
-                logger.info(
-                    "Embedding provider not configured and EMBEDDING_ENABLED is false. "
-                    "Semantic search disabled; set a third-party embedding provider or "
-                    "set EMBEDDING_ENABLED=true to enable local embeddings."
-                )
-                return None
-            try:
-                import sentence_transformers  # noqa: F401
-                logger.info("Embedding provider not configured but EMBEDDING_ENABLED is true. Falling back to LocalEmbedder (SentenceTransformers).")
-                return LocalEmbedder()
-            except ImportError:
-                logger.warning(
-                    "Embedding provider not configured and sentence_transformers is not installed. "
-                    "Semantic search will be disabled until a provider is configured."
-                )
-                return None
+    @classmethod
+    def _tier_local_http(cls) -> BaseEmbedder | None:
+        url = _svc("EMBEDDING_LOCAL_URL")
+        if not url:
+            return None
+        api_key = _svc("EMBEDDING_LOCAL_API_KEY") or "lm-studio"
+        model = _svc("EMBEDDING_LOCAL_MODEL") or "text-embedding-nomic-embed-text-v1.5"
+        logger.info("[EmbeddingFactory] Tier=local, url=%s, model=%s", url, model)
+        return GenericOpenAIEmbedder(
+            api_key=api_key,
+            base_url=url,
+            model=model,
+        )
 
-        # 4. DB Config Exists
-        if provider == "openai" or provider == "generic":
-            base_url = SystemConfigService.get_value("EMBEDDING_BASE_URL")
-            model = SystemConfigService.get_value("CUSTOM_EMBEDDING_MODEL") or SystemConfigService.get_value("EMBEDDING_MODEL")
-            api_key = SystemConfigService.get_value("EMBEDDING_API_KEY")
-            dim_val = SystemConfigService.get_value("EMBEDDING_DIMENSIONS")
-            dimensions = int(dim_val) if dim_val else settings.EMBEDDING_DIMENSIONS
+    @classmethod
+    def _tier_remote(cls) -> BaseEmbedder | None:
+        base_url = _svc("EMBEDDING_BASE_URL")
+        if not base_url:
+            return None
+        model = _svc("CUSTOM_EMBEDDING_MODEL") or _svc("EMBEDDING_MODEL")
+        api_key = _svc("EMBEDDING_API_KEY")
+        dim_val = _svc("EMBEDDING_DIMENSIONS")
+        dims = int(dim_val) if dim_val else settings.EMBEDDING_DIMENSIONS
+        return GenericOpenAIEmbedder(
+            api_key=api_key, base_url=base_url, model=model, dimensions=dims,
+        )
 
-            return GenericOpenAIEmbedder(
-                api_key=api_key,
-                base_url=base_url,
-                model=model,
-                dimensions=dimensions
-            )
-
-        elif provider == "local":
-            if not settings.EMBEDDING_ENABLED:
-                logger.info(
-                    "Embedding provider configured as 'local' but EMBEDDING_ENABLED is false. "
-                    "Semantic search disabled."
-                )
-                return None
-            try:
-                import sentence_transformers  # noqa: F401
-                logger.info("Embedding provider configured as 'local' and EMBEDDING_ENABLED is true. Using LocalEmbedder (SentenceTransformers).")
-                return LocalEmbedder()
-            except ImportError:
-                logger.warning(
-                    "Embedding provider configured as 'local' but sentence_transformers is not installed. "
-                    "Semantic search will be disabled."
-                )
-                return None
-
-        elif provider == "ollama":
-            base_url = SystemConfigService.get_value("EMBEDDING_BASE_URL") or "http://localhost:11434"
-            model = SystemConfigService.get_value("EMBEDDING_MODEL") or "nomic-embed-text"
-            return OllamaEmbedder(base_url=base_url, model=model)
-
-        elif provider == "lm-studio" or provider == "lmstudio":
-            base_url = SystemConfigService.get_value("EMBEDDING_BASE_URL") or "http://localhost:1234/v1"
-            model = SystemConfigService.get_value("EMBEDDING_MODEL") or "text-embedding-nomic-embed-text-v1.5"
-            api_key = SystemConfigService.get_value("EMBEDDING_API_KEY") or "lm-studio"
-            dim_val = SystemConfigService.get_value("EMBEDDING_DIMENSIONS")
-            dimensions = int(dim_val) if dim_val else settings.EMBEDDING_DIMENSIONS
-
-            return GenericOpenAIEmbedder(
-                api_key=api_key,
-                base_url=base_url,
-                model=model,
-                dimensions=dimensions
-            )
-
-        else:
-            raise ValueError(f"Unknown Embedding Provider: {provider}")
+    @classmethod
+    def _create_custom_embedding(cls, model_name: str) -> BaseEmbedder:
+        prefix = "custom-embedding-" if model_name.startswith("custom-embedding-") else "custom-"
+        parts = model_name[len(prefix):].split("-", 1)
+        if len(parts) < 2:
+            raise ValueError(f"Invalid custom model ID: {model_name}")
+        actual_model = parts[1]
+        base_url = _svc("EMBEDDING_BASE_URL")
+        api_key = _svc("EMBEDDING_API_KEY")
+        dim_val = _svc("EMBEDDING_DIMENSIONS")
+        if not api_key:
+            raise ValueError(f"Custom embedding requires EMBEDDING_API_KEY")
+        dims = int(dim_val) if dim_val else 1536
+        return GenericOpenAIEmbedder(
+            api_key=api_key, base_url=base_url, model=actual_model, dimensions=dims,
+        )
 
     @classmethod
     def reset_cache(cls) -> None:
-        """Clear the cached embedder instance (useful for testing)."""
         with cls._lock:
             cls._instances.clear()
