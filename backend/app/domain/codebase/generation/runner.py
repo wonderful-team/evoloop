@@ -102,17 +102,17 @@ async def _run_appmap(project_id: int) -> None:
         logger.info("[AppMap] No entity groups found for project %s", project_id)
         return
 
-    # Deterministic path: run reference_collector + batch_write directly.
+    # Deterministic path: run collector + batch writer directly.
     # The Agent is only for verification — not for data production.
     sql_file = os.path.join(path, "b2c_mall.sql")
     if os.path.isfile(sql_file):
         ref_script = os.path.join(
             os.path.dirname(__file__),
-            "../../config/skills/app_map_analysis/scripts/reference_collector.py",
+            "../../core/atlas/source/skeleton/collector.py",
         )
         batch_script = os.path.join(
             os.path.dirname(__file__),
-            "../../config/skills/app_map_analysis/scripts/batch_write_app_maps.py",
+            "../../core/atlas/source/skeleton/batch_writer.py",
         )
         ref_script = os.path.abspath(ref_script)
         batch_script = os.path.abspath(batch_script)
