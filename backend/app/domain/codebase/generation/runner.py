@@ -102,29 +102,23 @@ async def _run_appmap(project_id: int) -> None:
         logger.info("[AppMap] No entity groups found for project %s", project_id)
         return
 
-    # Deterministic path: run collector + batch writer directly.
+    # Deterministic path: run collector + batch writer directly (no subprocess).
     # The Agent is only for verification — not for data production.
-    ref_script = os.path.abspath(os.path.join(
-        os.path.dirname(__file__),
-        "../../core/atlas/source/skeleton/collector.py",
-    ))
-    batch_script = os.path.abspath(os.path.join(
-        os.path.dirname(__file__),
-        "../../core/atlas/source/skeleton/batch_writer.py",
-    ))
+    from app.core.atlas.source.skeleton.collector import collect
+    from app.core.atlas.source.skeleton.batch_writer import batch_write
 
-    import subprocess
     logger.info("[AppMap] Running collector...")
-    subprocess.run(
-        ["uv", "run", "python", ref_script, path],
-        capture_output=True, timeout=120,
-    )
-    logger.info("[AppMap] Running batch writer...")
-    subprocess.run(
-        ["uv", "run", "python", batch_script,
-         "--project-id", str(project_id), "--input", "/tmp/appmap_extracted.json"],
-        capture_output=True, timeout=300,
-    )
+    entities = await collect(project_root=path)
+    if entities:
+        logger.info("[AppMap] Collector found %d entities", len(entities))
+        logger.info("[AppMap] Running batch writer...")
+        result = await batch_write(project_id=project_id, entities=entities, member_id=0)
+        logger.info(
+            "[AppMap] Batch write: %d written, %d skipped, %d failed, %d macros",
+            result["written"], result["skipped"], result["failed"], result["macros_generated"],
+        )
+    else:
+        logger.info("[AppMap] Collector returned no entities, skipping batch write")
 
     thread_id = f"appmap-gen-{project_id}-{int(time.time())}"
     from app.core.context import thread_context_store

@@ -33,7 +33,78 @@ import os
 import sys
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger("batch_write_app_maps")
+logger = logging.getLogger("batch_writer")
+
+from app.core.atlas.source.persistence import save_app_map
+from app.core.execution.macro.tasks import synthesize_macros_task as _wrapped_task
+import inspect
+
+# Unwrap @shared_task decorator once at module level
+_raw = getattr(_wrapped_task, "func", _wrapped_task)
+if not inspect.iscoroutinefunction(_raw):
+    for _cell in getattr(_raw, "__closure__", None) or []:
+        if inspect.iscoroutinefunction(_cell.cell_contents):
+            _raw = _cell.cell_contents
+            break
+
+
+async def _gen_macros(app_map_id, project_id, member_id):
+    return await _raw(app_map_id=app_map_id, project_id=project_id, member_id=member_id)
+
+
+async def batch_write(
+    project_id: int,
+    entities: dict,
+    member_id: int = 0,
+) -> dict:
+    """Batch-write AppMap records and generate macros.
+
+    Returns ``{"written": int, "skipped": int, "failed": int, "macros_generated": int}``.
+    """
+    written = 0
+    skipped = 0
+    failed = 0
+    macros_generated = 0
+
+    for entity_name, data in sorted(entities.items()):
+        try:
+            app_map_id, version, created = await save_app_map(
+                project_id=project_id,
+                entity=entity_name,
+                platform=data.get("platform", "web"),
+                aliases=data.get("aliases", [entity_name]),
+                routes=data.get("routes", []),
+                actions=data.get("actions", []),
+                elements=data.get("elements", []),
+                db_tables=data.get("db_tables", []),
+                extra=data.get("extra"),
+                member_id=member_id,
+            )
+
+            if created:
+                written += 1
+            else:
+                skipped += 1
+
+            try:
+                result = await _gen_macros(
+                    app_map_id=app_map_id,
+                    project_id=project_id,
+                    member_id=member_id,
+                )
+                macros_generated += result.get("candidates", 0)
+            except Exception as exc:
+                logger.warning("  [MACRO] %s macro generation failed: %s", entity_name, exc)
+
+        except Exception as exc:
+            failed += 1
+            logger.error("  [FAIL]  %s: %s", entity_name, exc)
+
+    logger.info(
+        "Batch complete: %d written, %d skipped (unchanged), %d failed, %d macros generated",
+        written, skipped, failed, macros_generated,
+    )
+    return {"written": written, "skipped": skipped, "failed": failed, "macros_generated": macros_generated}
 
 
 async def main() -> None:
@@ -50,6 +121,7 @@ async def main() -> None:
 
     if not entities:
         logger.warning("Empty entity data — nothing to write")
+        print(json.dumps({"status": "ok", "total": 0, "written": 0, "skipped": 0, "failed": 0, "macros_generated": 0}))
         return
 
     from app.infrastructure.database.resource_manager import db_resource_manager
@@ -65,74 +137,8 @@ async def main() -> None:
 
     logger.info("Starting batch write for %d entities (project=%s)", len(entities), args.project_id)
 
-    from app.core.atlas.source.persistence import save_app_map
-    from app.core.execution.macro.tasks import synthesize_macros_task as _wrapped_task
-    import inspect
-
-    # Unwrap @shared_task decorator to get the raw coroutine function
-    _raw = getattr(_wrapped_task, "func", _wrapped_task)
-    if not inspect.iscoroutinefunction(_raw):
-        for _cell in getattr(_raw, "__closure__", None) or []:
-            if inspect.iscoroutinefunction(_cell.cell_contents):
-                _raw = _cell.cell_contents
-                break
-
-    async def _gen_macros(app_map_id, project_id, member_id):
-        return await _raw(app_map_id=app_map_id, project_id=project_id, member_id=member_id)
-
-    written = 0
-    skipped = 0
-    failed = 0
-    macros_generated = 0
-
-    for entity_name, data in sorted(entities.items()):
-        try:
-            app_map_id, version, created = await save_app_map(
-                project_id=args.project_id,
-                entity=entity_name,
-                platform=data.get("platform", "web"),
-                aliases=data.get("aliases", [entity_name]),
-                routes=data.get("routes", []),
-                actions=data.get("actions", []),
-                elements=data.get("elements", []),
-                db_tables=data.get("db_tables", []),
-                extra=data.get("extra"),
-                member_id=member_id,
-            )
-
-            if created:
-                written += 1
-                logger.info("  [WRITE] %s → v%s (id=%s)", entity_name, version, app_map_id)
-            else:
-                skipped += 1
-                logger.info("  [SKIP]  %s → v%s (unchanged)", entity_name, version)
-
-            try:
-                result = await _gen_macros(
-                    app_map_id=app_map_id,
-                    project_id=args.project_id,
-                    member_id=member_id,
-                )
-                macros_generated += result.get("candidates", 0)
-            except Exception as exc:
-                logger.warning("  [MACRO] %s macro generation failed: %s", entity_name, exc)
-
-        except Exception as exc:
-            failed += 1
-            logger.error("  [FAIL]  %s: %s", entity_name, exc)
-
-    logger.info(
-        "Batch complete: %d written, %d skipped (unchanged), %d failed, %d macros generated",
-        written, skipped, failed, macros_generated,
-    )
-    print(json.dumps({
-        "status": "ok" if not failed else "partial",
-        "total": len(entities),
-        "written": written,
-        "skipped": skipped,
-        "failed": failed,
-        "macros_generated": macros_generated,
-    }))
+    result = await batch_write(project_id=args.project_id, entities=entities, member_id=member_id)
+    print(json.dumps({"status": "ok" if not result["failed"] else "partial", **result}))
 
     await db_resource_manager.shutdown()
 

@@ -284,36 +284,34 @@ def guess_entity(filepath: str) -> str | None:
     return None
 
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: collect_appmaps.py <project_root> [--sql <sql_path>]")
-        sys.exit(1)
+async def collect(project_root: str, sql_path: str | None = None, output_path: str = "/tmp/appmap_extracted.json") -> dict:
+    """Run the full collection and return the entities dict.
 
-    root = sys.argv[1]
-    sql_path = None
-    if "--sql" in sys.argv:
-        idx = sys.argv.index("--sql")
-        sql_path = os.path.join(root, sys.argv[idx + 1]) if idx + 1 < len(sys.argv) else None
+    Framework-agnostic: configure FRAMEWORK CONFIG at the top of this file
+    to match your project conventions.
+    """
     if not sql_path:
-        sql_path = os.path.join(root, SQL_PATH) if SQL_PATH else None
+        candidate = os.path.join(project_root, SQL_PATH) if SQL_PATH else None
+        if candidate and os.path.isfile(candidate):
+            sql_path = candidate
 
     # 1. Find all controller files
     controller_files = []
-    for d in find_files(root, CONTROLLER_DIRS):
+    for d in find_files(project_root, CONTROLLER_DIRS):
         if os.path.isdir(d):
             for f in sorted(os.listdir(d)):
-                if f.endswith(".php"):
+                if f.endswith((".php", ".py", ".java", ".ts", ".js", ".go", ".rb")):
                     controller_files.append(os.path.join(d, f))
 
     # 2. Find all view files
     view_files = []
-    for d in find_files(root, VIEW_DIRS):
+    for d in find_files(project_root, VIEW_DIRS):
         if os.path.isdir(d):
             for sub in sorted(os.listdir(d)):
                 subdir = os.path.join(d, sub)
                 if os.path.isdir(subdir):
                     for f in os.listdir(subdir):
-                        if f.endswith(".html"):
+                        if f.endswith((".html", ".htm", ".vue", ".jsp", ".ftl", ".blade.php")):
                             view_files.append(os.path.join(subdir, f))
 
     # 3. Parse SQL schema
@@ -343,96 +341,94 @@ def main():
         entities[entity]["routes"].extend(build_routes(entity, actions))
 
     # Attach view elements to entities based on view directory structure.
-    # For a file at app/{module}/view/{entity}/lists.html, the entity is
-    # the directory immediately under "view".
     for vf in view_files:
-        parts = vf.replace(root, "").lstrip("/").split("/")
+        parts = vf.replace(project_root, "").lstrip("/").split("/")
         view_entity = None
-        # Find the directory right after "view" or "views"
         for i, p in enumerate(parts):
             if p.lower() in ("view", "views") and i + 1 < len(parts):
                 candidate = parts[i + 1].lower()
                 if candidate in entities:
                     view_entity = candidate
-                # Try singular form
                 elif candidate.rstrip("s") in entities:
                     view_entity = candidate.rstrip("s")
                 break
-
         if view_entity:
             elements = extract_elements(vf)
             entities[view_entity]["elements"].extend(elements)
 
-    # Attach schema tables to entities (heuristic: table name starts with entity)
-    all_actions = {}
-    for ename, edata in entities.items():
-        for a in edata["actions"]:
-            all_actions.setdefault(ename, []).append(a)
-
+    # Attach schema tables to entities
     for tname, tdata in schema_tables.items():
         t_clean = tname.lower().replace("_", "").replace("-", "")
         for ename in entities:
             e_clean = ename.lower().replace("_", "").replace("-", "")
             if t_clean.startswith(e_clean) or e_clean.startswith(t_clean):
                 entities[ename]["db_tables"].append(tdata)
-                # Also link tables to actions
                 for a in entities[ename]["actions"]:
                     if tname not in a["touches_tables"]:
                         a["touches_tables"].append(tname)
                 break
 
-    # 5. Infer set_fields from HTML element names × DB column names.
-    # Framework-agnostic: HTML <input name="xxx"> maps to DB column "xxx".
+    # Set fields from element × DB column intersection
+    db_cols_by_entity = {}
     for ename, edata in entities.items():
-        # Collect all DB column names for this entity
-        db_cols = set()
+        cols = set()
         pk = ""
         for t in edata.get("db_tables", []):
             for c in t.get("cols", []):
-                db_cols.add(c)
+                cols.add(c)
             if t.get("table") == ename and t.get("pk"):
                 pk = t["pk"]
+        db_cols_by_entity[ename] = (cols, pk)
+
+    for ename, edata in entities.items():
+        db_cols, pk = db_cols_by_entity.get(ename, (set(), ""))
         if not db_cols:
             continue
-        # Collect all HTML element names for this entity
-        el_names = set()
-        for el in edata.get("elements", []):
-            el_names.add(el.get("name", "").lower())
-        # Intersection = form fields that map to DB columns
+        el_names = {el.get("name", "").lower() for el in edata.get("elements", [])}
         common = db_cols & el_names
         if not common:
             continue
-        # Apply to write actions
         for a in edata["actions"]:
             if a["kind"] == "write" and not a.get("set_fields"):
                 a["set_fields"] = sorted(c for c in common if c != pk)
-                if pk and pk in common and pk not in a.get("touches_tables", []):
+                if pk and pk in common:
                     a["pk"] = pk
 
-    # 6. Remove empty entities (no actions, no routes, no db_tables)
+    # Remove empty entities
     empty = [e for e, d in entities.items()
              if not d.get("actions") and not d.get("routes") and not d.get("db_tables")]
     for e in empty:
         del entities[e]
-    if empty:
-        print(f"  (skipped {len(empty)} empty entities: {', '.join(sorted(empty))})")
 
-    # 7. Write output
-    output_path = "/tmp/appmap_extracted.json"
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(entities, f, ensure_ascii=False, indent=2)
+
+    return entities
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: collect_appmaps.py <project_root> [--sql <sql_path>]")
+        sys.exit(1)
+
+    root = sys.argv[1]
+    sql_path = None
+    if "--sql" in sys.argv:
+        idx = sys.argv.index("--sql")
+        sql_path = os.path.join(root, sys.argv[idx + 1]) if idx + 1 < len(sys.argv) else None
+
+    entities = asyncio.run(collect(project_root=root, sql_path=sql_path))
 
     total_actions = sum(len(e["actions"]) for e in entities.values())
     total_elements = sum(len(e["elements"]) for e in entities.values())
     total_routes = sum(len(e["routes"]) for e in entities.values())
     total_tables = sum(len(e["db_tables"]) for e in entities.values())
 
-    # Minimal STDOUT — one line so Agent doesn't get truncated output
     print(
         f"✅ Collected {len(entities)} entities, "
         f"{total_actions} actions, {total_elements} elements, "
         f"{total_routes} routes, {total_tables} db_tables "
-        f"→ {output_path}"
+        f"→ /tmp/appmap_extracted.json"
     )
 
 

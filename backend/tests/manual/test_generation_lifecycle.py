@@ -491,22 +491,22 @@ async def _run_appmap(project_id: int, timeout: int = 3600):
     ref_dst = os.path.join(TEST_PROJECT_PATH, "collect_appmaps.py")
     if os.path.isfile(ref_src):
         shutil.copy(ref_src, ref_dst)
-        logger.info(f"[Test] Pre-copied reference_collector.py to project root")
+        logger.info(f"[Test] Pre-copied collector.py to project root")
 
-    # Pre-run the reference script + batch write so we always have AppMap data
-    import subprocess
-    logger.info("[Test] Running reference collector script...")
-    subprocess.run(
-        ["uv", "run", "python", ref_dst, TEST_PROJECT_PATH],
-        capture_output=True, timeout=120, cwd=os.path.join(os.path.dirname(__file__), "../.."),
-    )
-    logger.info("[Test] Running batch writer...")
-    subprocess.run(
-        ["uv", "run", "python",
-         os.path.join(os.path.dirname(ref_src), "batch_writer.py"),
-         "--project-id", str(project_id), "--input", "/tmp/appmap_extracted.json"],
-        capture_output=True, timeout=300, cwd=os.path.join(os.path.dirname(__file__), "../.."),
-    )
+    # Pre-run the collector + batch writer so we always have AppMap data
+    from app.core.atlas.source.skeleton.collector import collect
+    from app.core.atlas.source.skeleton.batch_writer import batch_write
+
+    logger.info("[Test] Running collector...")
+    entities = await collect(project_root=TEST_PROJECT_PATH)
+    if entities:
+        logger.info("[Test] Collector found %d entities", len(entities))
+        logger.info("[Test] Running batch writer...")
+        r = await batch_write(project_id=project_id, entities=entities, member_id=0)
+        logger.info("[Test] Batch write: %d written, %d skipped, %d failed, %d macros",
+                    r["written"], r["skipped"], r["failed"], r["macros_generated"])
+
+    path = TEST_PROJECT_PATH
 
     path = TEST_PROJECT_PATH
     thread_id = f"appmap-gen-{project_id}-{int(time.time())}"
