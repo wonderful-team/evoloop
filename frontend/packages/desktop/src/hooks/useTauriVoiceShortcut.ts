@@ -3,57 +3,39 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { isTauri, safeInvoke, safeListen } from "@/lib/tauri"
 
-type TriggerMode = "longPress" | "doubleClick"
-
 interface UseTauriVoiceShortcutOptions {
-  onShortcutStart?: () => void
-  onShortcutEnd?: () => void
+  onPress?: () => void
   enabled?: boolean
 }
 
 interface UseTauriVoiceShortcutReturn {
   isListening: boolean
-  isRecording: boolean
   error: string | null
   startListening: () => Promise<void>
   stopListening: () => Promise<void>
   setShortcutKey: (key: string) => Promise<void>
-  setShortcutDuration: (durationMs: number) => Promise<void>
-  setTriggerMode: (mode: TriggerMode) => Promise<void>
-  setDoubleClickInterval: (intervalMs: number) => Promise<void>
+  setLongPressThreshold: (durationMs: number) => Promise<void>
 }
 
 export function useTauriVoiceShortcut(
   options: UseTauriVoiceShortcutOptions = {},
 ): UseTauriVoiceShortcutReturn {
   const { t } = useTranslation()
-  const { onShortcutStart, onShortcutEnd, enabled = true } = options
+  const { onPress, enabled = true } = options
 
   const [isListening, setIsListening] = useState(false)
-  const [isRecording, setIsRecording] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const unlistenStartRef = useRef<UnlistenFn | null>(null)
-  const unlistenEndRef = useRef<UnlistenFn | null>(null)
+  const unlistenRef = useRef<UnlistenFn | null>(null)
 
-  // Listen for Tauri events
   useEffect(() => {
     if (!enabled) return
 
     const setupListeners = async () => {
       if (!isTauri()) return
       try {
-        unlistenStartRef.current = await safeListen(
-          "voice-shortcut-start",
-          () => {
-            setIsRecording(true)
-            onShortcutStart?.()
-          },
-        )
-
-        unlistenEndRef.current = await safeListen("voice-shortcut-end", () => {
-          setIsRecording(false)
-          onShortcutEnd?.()
+        unlistenRef.current = await safeListen("voice-shortcut-press", () => {
+          onPress?.()
         })
       } catch (e) {
         console.error("Failed to setup voice shortcut listeners:", e)
@@ -64,10 +46,9 @@ export function useTauriVoiceShortcut(
     setupListeners()
 
     return () => {
-      unlistenStartRef.current?.()
-      unlistenEndRef.current?.()
+      unlistenRef.current?.()
     }
-  }, [enabled, onShortcutStart, onShortcutEnd, t])
+  }, [enabled, onPress, t])
 
   const startListening = useCallback(async () => {
     try {
@@ -85,7 +66,6 @@ export function useTauriVoiceShortcut(
     try {
       await safeInvoke("stop_voice_shortcut_listener")
       setIsListening(false)
-      setIsRecording(false)
     } catch (e) {
       console.error("Failed to stop voice shortcut listener:", e)
       setError(t("settings.voice.shortcutErrors.stopListener"))
@@ -104,37 +84,13 @@ export function useTauriVoiceShortcut(
     [t],
   )
 
-  const setShortcutDuration = useCallback(
+  const setLongPressThreshold = useCallback(
     async (durationMs: number) => {
       try {
         await safeInvoke("set_voice_shortcut_duration", { durationMs })
       } catch (e) {
-        console.error("Failed to set shortcut duration:", e)
+        console.error("Failed to set long press threshold:", e)
         setError(t("settings.voice.shortcutErrors.setDuration"))
-      }
-    },
-    [t],
-  )
-
-  const setTriggerMode = useCallback(
-    async (mode: TriggerMode) => {
-      try {
-        await safeInvoke("set_voice_shortcut_mode", { mode })
-      } catch (e) {
-        console.error("Failed to set trigger mode:", e)
-        setError(t("settings.voice.shortcutErrors.setMode"))
-      }
-    },
-    [t],
-  )
-
-  const setDoubleClickInterval = useCallback(
-    async (intervalMs: number) => {
-      try {
-        await safeInvoke("set_voice_shortcut_interval", { intervalMs })
-      } catch (e) {
-        console.error("Failed to set double click interval:", e)
-        setError(t("settings.voice.shortcutErrors.setInterval"))
       }
     },
     [t],
@@ -142,14 +98,11 @@ export function useTauriVoiceShortcut(
 
   return {
     isListening,
-    isRecording,
     error,
     startListening,
     stopListening,
     setShortcutKey,
-    setShortcutDuration,
-    setTriggerMode,
-    setDoubleClickInterval,
+    setLongPressThreshold,
   }
 }
 
@@ -157,35 +110,15 @@ export function useTauriVoiceShortcut(
 export function useTauriVoiceShortcutSettings() {
   const [shortcutKey, setShortcutKeyState] = useState(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("evoloop_voice_shortcut_key") || "Ctrl"
+      return localStorage.getItem("evoloop_voice_shortcut_key") || "F12"
     }
-    return "Ctrl"
+    return "F12"
   })
 
-  const [triggerMode, setTriggerModeState] = useState<TriggerMode>(() => {
-    if (typeof window !== "undefined") {
-      return (
-        (localStorage.getItem("evoloop_voice_trigger_mode") as TriggerMode) ||
-        "doubleClick"
-      )
-    }
-    return "doubleClick"
-  })
-
-  const [doubleClickInterval, setDoubleClickIntervalState] = useState(() => {
+  const [longPressThreshold, setLongPressThresholdState] = useState(() => {
     if (typeof window !== "undefined") {
       return parseInt(
-        localStorage.getItem("evoloop_voice_double_click_interval") || "300",
-        10,
-      )
-    }
-    return 300
-  })
-
-  const [shortcutDuration, setShortcutDurationState] = useState(() => {
-    if (typeof window !== "undefined") {
-      return parseInt(
-        localStorage.getItem("evoloop_voice_shortcut_duration") || "500",
+        localStorage.getItem("evoloop_voice_long_press_threshold") || "500",
         10,
       )
     }
@@ -194,9 +127,10 @@ export function useTauriVoiceShortcutSettings() {
 
   const [shortcutEnabled, setShortcutEnabled] = useState(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("evoloop_voice_shortcut_enabled") === "true"
+      const stored = localStorage.getItem("evoloop_voice_shortcut_enabled")
+      return stored === null ? true : stored === "true"
     }
-    return false
+    return true
   })
 
   const updateShortcutKey = useCallback(async (key: string) => {
@@ -209,36 +143,13 @@ export function useTauriVoiceShortcutSettings() {
     }
   }, [])
 
-  const updateTriggerMode = useCallback(async (mode: TriggerMode) => {
-    setTriggerModeState(mode)
-    localStorage.setItem("evoloop_voice_trigger_mode", mode)
+  const updateLongPressThreshold = useCallback(async (ms: number) => {
+    setLongPressThresholdState(ms)
+    localStorage.setItem("evoloop_voice_long_press_threshold", ms.toString())
     try {
-      await safeInvoke("set_voice_shortcut_mode", { mode })
+      await safeInvoke("set_voice_shortcut_duration", { durationMs: ms })
     } catch (e) {
-      console.error("Failed to update trigger mode:", e)
-    }
-  }, [])
-
-  const updateDoubleClickInterval = useCallback(async (interval: number) => {
-    setDoubleClickIntervalState(interval)
-    localStorage.setItem(
-      "evoloop_voice_double_click_interval",
-      interval.toString(),
-    )
-    try {
-      await safeInvoke("set_voice_shortcut_interval", { intervalMs: interval })
-    } catch (e) {
-      console.error("Failed to update double click interval:", e)
-    }
-  }, [])
-
-  const updateShortcutDuration = useCallback(async (duration: number) => {
-    setShortcutDurationState(duration)
-    localStorage.setItem("evoloop_voice_shortcut_duration", duration.toString())
-    try {
-      await safeInvoke("set_voice_shortcut_duration", { durationMs: duration })
-    } catch (e) {
-      console.error("Failed to update shortcut duration:", e)
+      console.error("Failed to update long press threshold:", e)
     }
   }, [])
 
@@ -261,32 +172,23 @@ export function useTauriVoiceShortcutSettings() {
   // Initialize shortcut settings on mount
   useEffect(() => {
     if (!isTauri() || !shortcutEnabled) return
-    // Apply saved settings
     safeInvoke("set_voice_shortcut_key", { key: shortcutKey }).catch(
       console.error,
     )
-    safeInvoke("set_voice_shortcut_mode", { mode: triggerMode }).catch(
-      console.error,
-    )
-    safeInvoke("set_voice_shortcut_interval", {
-      intervalMs: doubleClickInterval,
-    }).catch(console.error)
     safeInvoke("set_voice_shortcut_duration", {
-      durationMs: shortcutDuration,
+      durationMs: longPressThreshold,
     }).catch(console.error)
     safeInvoke("start_voice_shortcut_listener").catch(console.error)
   }, []) // Only run once on mount
 
   return {
     shortcutKey,
-    triggerMode,
-    doubleClickInterval,
-    shortcutDuration,
+    longPressThreshold,
     shortcutEnabled,
     updateShortcutKey,
-    updateTriggerMode,
-    updateDoubleClickInterval,
-    updateShortcutDuration,
+    updateLongPressThreshold,
     toggleShortcut,
   }
 }
+
+

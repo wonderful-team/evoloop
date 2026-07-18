@@ -383,6 +383,7 @@ export type CreateSkillFromYamlRequest = {
     description?: (string | null);
     namespace?: (string | null);
     yaml_content: string;
+    project_id?: (number | null);
 };
 
 export type CreateSkillFromYamlResponse = {
@@ -552,8 +553,6 @@ export type ExecuteSkillRequest = {
     project_id?: (number | null);
     thread_id: string;
     params: SkillExecutionParams;
-    execution_mode?: (string | null);
-    allow_self_healing?: (boolean | null);
 };
 
 export type ExecuteSkillResponse = {
@@ -595,6 +594,56 @@ export type FileSearchResult = {
     line: number;
     content: string;
     [key: string]: unknown | string | number;
+};
+
+export type GenerationContentResponse = {
+    success?: boolean;
+    message?: string;
+    project_id: number;
+    item: string;
+    content?: (string | null);
+    content_type?: string;
+    [key: string]: unknown | boolean | string | number;
+};
+
+export type GenerationDispatchResponse = {
+    success?: boolean;
+    message?: string;
+    project_id: number;
+    dispatched: Array<(string)>;
+    items: {
+        [key: string]: GenerationStatusRecord;
+    };
+    [key: string]: unknown | boolean | string | number | GenerationStatusRecord;
+};
+
+export type GenerationItemRequest = {
+    project_id: number;
+    items: Array<(string)>;
+    [key: string]: unknown | number | string;
+};
+
+export type GenerationRetryRequest = {
+    project_id: number;
+    item: string;
+    [key: string]: unknown | number | string;
+};
+
+export type GenerationStatusRecord = {
+    item: string;
+    status: string;
+    created_at?: (string | null);
+    updated_at?: (string | null);
+    error?: (string | null);
+    [key: string]: unknown | string;
+};
+
+export type GenerationStatusResponse = {
+    success?: boolean;
+    message?: string;
+    project_id: number;
+    items: Array<GenerationStatusRecord>;
+    [key: string]: unknown | boolean | string | number | GenerationStatusRecord;
 };
 
 /**
@@ -780,6 +829,72 @@ export type LLMTestResponse = {
     [key: string]: unknown | boolean | string;
 };
 
+export type LightningConfigRequest = {
+    mode: string;
+    llm_model?: (string | null);
+    embed_model?: (string | null);
+    base_url?: (string | null);
+    api_key?: (string | null);
+    context_window?: (number | null);
+};
+
+export type LightningStatusResponse = {
+    success?: boolean;
+    message?: string;
+    mode: string;
+    llm_available: boolean;
+    embedder_available: boolean;
+    llama_cpp_available: boolean;
+    llm_model: string;
+    embed_model: string;
+    base_url: string;
+    context_window: number;
+};
+
+export type LightningTestResponse = {
+    success?: boolean;
+    message?: string;
+    llm_ok: boolean;
+    embed_ok: boolean;
+    llm_reply?: (string | null);
+};
+
+export type LightningApplyResponse = {
+    success?: boolean;
+    message?: string;
+    status: string;
+};
+
+export type EmbeddingTierConfigRequest = {
+    tiers: string;
+    gguf_model?: (string | null);
+    local_url?: (string | null);
+    local_api_key?: (string | null);
+    local_model?: (string | null);
+    provider?: (string | null);
+    base_url?: (string | null);
+    model?: (string | null);
+    api_key?: (string | null);
+    dimensions?: (number | null);
+};
+
+export type EmbeddingTierStatusResponse = {
+    success?: boolean;
+    message?: string;
+    active_tier?: (string | null);
+    gguf_available: boolean;
+    local_available: boolean;
+    remote_available: boolean;
+    tiers: string;
+};
+
+export type EmbeddingTierTestResponse = {
+    success?: boolean;
+    message?: string;
+    dimensions?: (number | null);
+    error?: (string | null);
+};
+
 /**
  * Enriched login result from EvoCloud auth methods.
  */
@@ -801,6 +916,13 @@ export type LogoutResponse = {
     [key: string]: unknown | boolean | string | number;
 };
 
+export type MacroCreateRequest = {
+    name?: string;
+    description?: string;
+    project_id?: (number | null);
+    macro_script?: string;
+};
+
 export type MacroDetailDTO = {
     id: number;
     app_map_id: (number | null);
@@ -811,6 +933,7 @@ export type MacroDetailDTO = {
     parameters: Array<unknown>;
     risk_tier: string;
     requires_confirmation: boolean;
+    allow_self_healing: boolean;
     status: string;
     is_active: boolean;
     namespace: (string | null);
@@ -831,6 +954,7 @@ export type MacroDTO = {
     parameters: Array<unknown>;
     risk_tier: string;
     requires_confirmation: boolean;
+    allow_self_healing: boolean;
     status: string;
     is_active: boolean;
     namespace: (string | null);
@@ -839,6 +963,7 @@ export type MacroDTO = {
 };
 
 export type MacroExecuteRequest = {
+    thread_id?: (string | null);
     params?: {
         [key: string]: unknown;
     };
@@ -851,6 +976,10 @@ export type MacroUpdateRequest = {
     parameters?: (Array<unknown> | null);
     macro_script?: (string | null);
     namespace?: (string | null);
+    fallback_skill_id?: (number | null);
+    allow_self_healing?: (boolean | null);
+    risk_tier?: (string | null);
+    requires_confirmation?: (boolean | null);
 };
 
 /**
@@ -1333,9 +1462,7 @@ export type SkillDetailResponse = {
     failure_count: number;
     is_active: boolean;
     status: string;
-    execution_mode?: string;
-    allow_self_healing?: boolean;
-    macro_script?: (string | null);
+    macro_id?: (number | null);
     validation_report?: ({
     [key: string]: unknown;
 } | null);
@@ -1348,6 +1475,8 @@ export type SkillDetailResponse = {
     source_thread_id?: (string | null);
     source_session_id?: (string | null);
     resource_path?: (string | null);
+    macro_script?: (string | null);
+    allow_self_healing?: boolean;
 };
 
 export type SkillDTO = {
@@ -1362,9 +1491,7 @@ export type SkillDTO = {
     failure_count: number;
     is_active: boolean;
     status: string;
-    execution_mode?: string;
-    allow_self_healing?: boolean;
-    macro_script?: (string | null);
+    macro_id?: (number | null);
     validation_report?: ({
     [key: string]: unknown;
 } | null);
@@ -1551,6 +1678,7 @@ export type SystemStatusResponse = {
     ram_used_gb: number;
     ram_total_gb: number;
     status?: string;
+    enable_macro_self_healing?: boolean;
     [key: string]: unknown | boolean | string | number;
 };
 
@@ -1836,8 +1964,6 @@ export type UpdateSkillRequest = {
     preconditions?: (Array<{
     [key: string]: unknown;
 }> | null);
-    execution_mode?: (string | null);
-    macro_script?: (string | null);
 };
 
 export type UpdateSkillResponse = {
@@ -2472,6 +2598,34 @@ export type FilesDownloadAnyFileData = {
 
 export type FilesDownloadAnyFileResponse = (unknown);
 
+export type ProjectsDispatchGenerationEndpointData = {
+    projectId: number;
+    requestBody: GenerationItemRequest;
+};
+
+export type ProjectsDispatchGenerationEndpointResponse = (GenerationDispatchResponse);
+
+export type ProjectsListGenerationStatusEndpointData = {
+    projectId: number;
+};
+
+export type ProjectsListGenerationStatusEndpointResponse = (GenerationStatusResponse);
+
+export type ProjectsRetryGenerationEndpointData = {
+    item: string;
+    projectId: number;
+    requestBody: GenerationRetryRequest;
+};
+
+export type ProjectsRetryGenerationEndpointResponse = (GenerationStatusResponse);
+
+export type ProjectsGetGenerationContentEndpointData = {
+    item: string;
+    projectId: number;
+};
+
+export type ProjectsGetGenerationContentEndpointResponse = (GenerationContentResponse);
+
 export type LearningGetActionRegistryResponse = (Array<ActionDef>);
 
 export type LearningListPendingRequestsData = {
@@ -2693,6 +2847,12 @@ export type LearningListAndroidExtractPointsData = {
 };
 
 export type LearningListAndroidExtractPointsResponse = (Array<AndroidExtractPointResponse>);
+
+export type MacrosCreateMacroData = {
+    requestBody: MacroCreateRequest;
+};
+
+export type MacrosCreateMacroResponse = (MacroDTO);
 
 export type MacrosListMacrosData = {
     appMapId?: (number | null);
@@ -3188,6 +3348,34 @@ export type SystemGetLlmModelsData = {
 export type SystemGetLlmModelsResponse = (ModelsListResponse);
 
 export type SystemGetEmbeddingModelsResponse = (ModelsListResponse);
+
+export type SystemGetEmbeddingTierStatusResponse = (EmbeddingTierStatusResponse);
+
+export type SystemApplyEmbeddingTierConfigData = {
+    requestBody: EmbeddingTierConfigRequest;
+};
+
+export type SystemApplyEmbeddingTierConfigResponse = (EmbeddingApplyResponse);
+
+export type SystemTestEmbeddingTierConnectionData = {
+    requestBody: EmbeddingTierConfigRequest;
+};
+
+export type SystemTestEmbeddingTierConnectionResponse = (EmbeddingTierTestResponse);
+
+export type SystemGetLightningStatusResponse = (LightningStatusResponse);
+
+export type SystemApplyLightningConfigData = {
+    requestBody: LightningConfigRequest;
+};
+
+export type SystemApplyLightningConfigResponse = (LightningApplyResponse);
+
+export type SystemTestLightningConnectionData = {
+    requestBody: LightningConfigRequest;
+};
+
+export type SystemTestLightningConnectionResponse = (LightningTestResponse);
 
 export type TasksGetProjectTasksData = {
     page?: number;

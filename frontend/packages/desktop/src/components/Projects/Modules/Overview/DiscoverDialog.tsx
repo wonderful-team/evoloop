@@ -159,7 +159,7 @@ export function DiscoverDialog({
     addLog(t("projects.profile.startingDiscovery"))
 
     try {
-      const result = await ProjectProfilesService.discoverProfile({
+      const result = await ProjectProfilesService.projectsDiscoverProfile({
         projectId,
         requestBody: {
           record_secrets: recordSecrets,

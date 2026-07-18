@@ -39,29 +39,22 @@ export function VoiceControlSettings() {
     useWakeWordSettings()
 
   const {
-    shortcutKey,
-    triggerMode,
-    doubleClickInterval,
-    shortcutDuration,
-    shortcutEnabled,
+    shortcutKey: sk,
+    longPressThreshold,
+    shortcutEnabled: se,
     updateShortcutKey,
-    updateTriggerMode,
-    updateDoubleClickInterval,
-    updateShortcutDuration,
+    updateLongPressThreshold,
     toggleShortcut,
   } = useTauriVoiceShortcutSettings()
 
   const [tempWakeWord, setTempWakeWord] = useState(wakeWord)
   const [tempWakeWordEnabled, setTempWakeWordEnabled] =
     useState(wakeWordEnabled)
-  const [tempShortcutKey, setTempShortcutKey] = useState(shortcutKey)
-  const [tempTriggerMode, setTempTriggerMode] = useState(triggerMode)
-  const [tempDoubleClickInterval, setTempDoubleClickInterval] =
-    useState(doubleClickInterval)
-  const [tempShortcutDuration, setTempShortcutDuration] =
-    useState(shortcutDuration)
+  const [tempShortcutKey, setTempShortcutKey] = useState(sk)
+  const [tempLongPressThreshold, setTempLongPressThreshold] =
+    useState(longPressThreshold)
   const [tempShortcutEnabled, setTempShortcutEnabled] =
-    useState(shortcutEnabled)
+    useState(se)
 
   const [isSupported, setIsSupported] = useState(true)
   const [isTauri, setIsTauri] = useState(false)
@@ -122,20 +115,16 @@ export function VoiceControlSettings() {
         sttApiKey: apiKey,
         wakeWord,
         wakeWordEnabled,
-        shortcutKey,
-        triggerMode,
-        doubleClickInterval,
-        shortcutDuration,
-        shortcutEnabled,
+        shortcutKey: sk,
+        longPressThreshold,
+        shortcutEnabled: se,
       }
 
       setTempWakeWord(wakeWord)
       setTempWakeWordEnabled(wakeWordEnabled)
-      setTempShortcutKey(shortcutKey)
-      setTempTriggerMode(triggerMode)
-      setTempDoubleClickInterval(doubleClickInterval)
-      setTempShortcutDuration(shortcutDuration)
-      setTempShortcutEnabled(shortcutEnabled)
+      setTempShortcutKey(sk)
+      setTempLongPressThreshold(longPressThreshold)
+      setTempShortcutEnabled(se)
 
       setInitialState(state)
     } catch (error) {
@@ -148,11 +137,9 @@ export function VoiceControlSettings() {
   }, [
     wakeWord,
     wakeWordEnabled,
-    shortcutKey,
-    triggerMode,
-    doubleClickInterval,
-    shortcutDuration,
-    shortcutEnabled,
+    sk,
+    longPressThreshold,
+    se,
   ])
 
   // Check dirty
@@ -166,9 +153,7 @@ export function VoiceControlSettings() {
       tempWakeWord !== initialState.wakeWord ||
       tempWakeWordEnabled !== initialState.wakeWordEnabled ||
       tempShortcutKey !== initialState.shortcutKey ||
-      tempTriggerMode !== initialState.triggerMode ||
-      tempDoubleClickInterval !== initialState.doubleClickInterval ||
-      tempShortcutDuration !== initialState.shortcutDuration ||
+      tempLongPressThreshold !== initialState.longPressThreshold ||
       tempShortcutEnabled !== initialState.shortcutEnabled
 
     setComponentDirty("voice", isDirty)
@@ -180,9 +165,7 @@ export function VoiceControlSettings() {
     tempWakeWord,
     tempWakeWordEnabled,
     tempShortcutKey,
-    tempTriggerMode,
-    tempDoubleClickInterval,
-    tempShortcutDuration,
+    tempLongPressThreshold,
     tempShortcutEnabled,
     initialState,
     setComponentDirty,
@@ -228,15 +211,11 @@ export function VoiceControlSettings() {
       if (tempWakeWordEnabled !== wakeWordEnabled) toggleWakeWord()
 
       // 3. Save Shortcut (localStorage + Tauri via hook)
-      if (tempShortcutKey !== shortcutKey)
+      if (tempShortcutKey !== sk)
         await updateShortcutKey(tempShortcutKey)
-      if (tempTriggerMode !== triggerMode)
-        await updateTriggerMode(tempTriggerMode)
-      if (tempDoubleClickInterval !== doubleClickInterval)
-        await updateDoubleClickInterval(tempDoubleClickInterval)
-      if (tempShortcutDuration !== shortcutDuration)
-        await updateShortcutDuration(tempShortcutDuration)
-      if (tempShortcutEnabled !== shortcutEnabled) await toggleShortcut()
+      if (tempLongPressThreshold !== longPressThreshold)
+        await updateLongPressThreshold(tempLongPressThreshold)
+      if (tempShortcutEnabled !== se) await toggleShortcut()
 
       setInitialState({
         sttModel,
@@ -246,9 +225,7 @@ export function VoiceControlSettings() {
         wakeWord: tempWakeWord,
         wakeWordEnabled: tempWakeWordEnabled,
         shortcutKey: tempShortcutKey,
-        triggerMode: tempTriggerMode,
-        doubleClickInterval: tempDoubleClickInterval,
-        shortcutDuration: tempShortcutDuration,
+        longPressThreshold: tempLongPressThreshold,
         shortcutEnabled: tempShortcutEnabled,
       })
     } catch (error) {
@@ -275,9 +252,7 @@ export function VoiceControlSettings() {
     tempWakeWord,
     tempWakeWordEnabled,
     tempShortcutKey,
-    tempTriggerMode,
-    tempDoubleClickInterval,
-    tempShortcutDuration,
+    tempLongPressThreshold,
     tempShortcutEnabled,
     initialState,
   ])
@@ -299,17 +274,17 @@ export function VoiceControlSettings() {
 
   // Tauri shortcut test (uses temp settings for preview)
   const {
-    isRecording: isShortcutRecording,
-    setTriggerMode: setTauriTriggerMode,
-    setDoubleClickInterval: setTauriDoubleClickInterval,
+    setLongPressThreshold: setTauriLongPressThreshold,
     setShortcutKey: setTauriShortcutKey,
-    setShortcutDuration: setTauriShortcutDuration,
   } = useTauriVoiceShortcut({
     enabled: tempShortcutEnabled && isTauri,
-    onShortcutStart: () => {
+    onTap: () => {
       toast.success(t("settings.voice.shortcutStarted"))
     },
-    onShortcutEnd: () => {
+    onHold: () => {
+      toast.info(t("settings.voice.holdDetected"))
+    },
+    onRelease: () => {
       toast.info(t("settings.voice.shortcutEnded"))
     },
   })
@@ -318,26 +293,14 @@ export function VoiceControlSettings() {
   useEffect(() => {
     if (isTauri && tempShortcutEnabled) {
       setTauriShortcutKey(tempShortcutKey).catch(console.error)
-      setTauriTriggerMode(tempTriggerMode).catch(console.error)
-      setTauriDoubleClickInterval(tempDoubleClickInterval).catch(console.error)
-      setTauriShortcutDuration(tempShortcutDuration).catch(console.error)
+      setTauriLongPressThreshold(tempLongPressThreshold).catch(console.error)
     }
   }, [
     isTauri,
     tempShortcutKey,
-    tempTriggerMode,
-    tempDoubleClickInterval,
-    tempShortcutDuration,
+    tempLongPressThreshold,
     tempShortcutEnabled,
   ])
-
-  const _handleToggleShortcut = () => {
-    if (!isTauri) {
-      toast.error(t("settings.voice.tauriRequired"))
-      return
-    }
-    setTempShortcutEnabled(!tempShortcutEnabled)
-  }
 
   return (
     <div className="space-y-6">
@@ -639,7 +602,7 @@ export function VoiceControlSettings() {
               <div
                 className={cn(
                   "rounded-md p-2 transition-colors",
-                  shortcutEnabled && isTauri
+                  se && isTauri
                     ? "bg-primary/5 text-primary"
                     : "bg-muted text-muted-foreground",
                 )}
@@ -654,9 +617,7 @@ export function VoiceControlSettings() {
                   {t("settings.voice.enableShortcut")}
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  {triggerMode === "doubleClick"
-                    ? t("settings.voice.enableDoubleClickDesc")
-                    : t("settings.voice.enableLongPressDesc")}
+                  {t("settings.voice.enableUnifiedDesc")}
                 </p>
               </div>
             </div>
@@ -666,36 +627,6 @@ export function VoiceControlSettings() {
               onCheckedChange={setTempShortcutEnabled}
               disabled={!isTauri}
             />
-          </div>
-
-          <div className="space-y-4">
-            <Label className="text-sm font-medium">
-              {t("settings.voice.triggerMode")}
-            </Label>
-            <div className="flex gap-4">
-              <Button
-                variant={
-                  tempTriggerMode === "doubleClick" ? "default" : "outline"
-                }
-                onClick={() => setTempTriggerMode("doubleClick")}
-                disabled={!isTauri}
-                className="flex-1 h-12"
-              >
-                <MousePointerClick className="h-4 w-4 mr-2" />
-                {t("settings.voice.doubleClick")}
-              </Button>
-              <Button
-                variant={
-                  tempTriggerMode === "longPress" ? "default" : "outline"
-                }
-                onClick={() => setTempTriggerMode("longPress")}
-                disabled={!isTauri}
-                className="flex-1 h-12"
-              >
-                <Keyboard className="h-4 w-4 mr-2" />
-                {t("settings.voice.longPress")}
-              </Button>
-            </div>
           </div>
 
           <div className="space-y-4">
@@ -733,9 +664,7 @@ export function VoiceControlSettings() {
               ))}
             </div>
             <p className="text-xs text-muted-foreground italic">
-              {tempTriggerMode === "doubleClick"
-                ? t("settings.voice.doubleClickHint")
-                : t("settings.voice.longPressHint")}
+              {t("settings.voice.unifiedHint", { key: tempShortcutKey })}
             </p>
           </div>
 
@@ -743,32 +672,21 @@ export function VoiceControlSettings() {
             <div className="space-y-4">
               <div className="flex justify-between items-end">
                 <Label className="text-sm font-medium">
-                  {tempTriggerMode === "doubleClick"
-                    ? t("settings.voice.doubleClickInterval")
-                    : t("settings.voice.pressDuration")}
+                  {t("settings.voice.longPressThreshold")}
                 </Label>
                 <span className="text-sm font-bold text-primary">
-                  {tempTriggerMode === "doubleClick"
-                    ? tempDoubleClickInterval
-                    : tempShortcutDuration}
+                  {tempLongPressThreshold}
                   {t("common.ms")}
                 </span>
               </div>
               <input
                 type="range"
-                min={tempTriggerMode === "doubleClick" ? "100" : "200"}
-                max={tempTriggerMode === "doubleClick" ? "1000" : "2000"}
-                step={tempTriggerMode === "doubleClick" ? "50" : "100"}
-                value={
-                  tempTriggerMode === "doubleClick"
-                    ? tempDoubleClickInterval
-                    : tempShortcutDuration
-                }
+                min="200"
+                max="1500"
+                step="50"
+                value={tempLongPressThreshold}
                 onChange={(e) => {
-                  const val = parseInt(e.target.value, 10)
-                  tempTriggerMode === "doubleClick"
-                    ? setTempDoubleClickInterval(val)
-                    : setTempShortcutDuration(val)
+                  setTempLongPressThreshold(parseInt(e.target.value, 10))
                 }}
                 disabled={!isTauri}
                 className="w-full h-1.5 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
@@ -781,36 +699,18 @@ export function VoiceControlSettings() {
             </div>
           </div>
 
-          {isTauri && shortcutEnabled && (
+          {isTauri && tempShortcutEnabled && (
             <div className="space-y-4 p-5 border bg-muted/10 rounded-xl">
               <Label className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                 {t("settings.voice.testShortcut")}
               </Label>
               <div className="flex items-center justify-center p-6 border-2 border-dashed rounded-lg bg-background/50">
-                {isShortcutRecording ? (
-                  <div className="flex flex-col items-center gap-3 text-green-600 animate-in zoom-in-95">
-                    <div className="relative flex h-12 w-12 items-center justify-center">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                      <Mic className="h-8 w-8 relative" />
-                    </div>
-                    <span className="font-bold text-lg">
-                      {t("settings.voice.recording")}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-3 text-muted-foreground text-center">
-                    <Keyboard className="h-10 w-10 opacity-20" />
-                    <p className="text-sm max-w-[200px]">
-                      {triggerMode === "doubleClick"
-                        ? t("settings.voice.doubleClickInstruction", {
-                            key: shortcutKey,
-                          })
-                        : t("settings.voice.longPressInstruction", {
-                            key: shortcutKey,
-                          })}
-                    </p>
-                  </div>
-                )}
+                <div className="flex flex-col items-center gap-3 text-muted-foreground text-center">
+                  <Keyboard className="h-10 w-10 opacity-20" />
+                  <p className="text-sm max-w-[240px]">
+                    {t("settings.voice.unifiedInstruction", { key: tempShortcutKey })}
+                  </p>
+                </div>
               </div>
             </div>
           )}

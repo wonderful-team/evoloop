@@ -18,6 +18,7 @@ import {
   ListTodo,
   RefreshCw,
   Rocket,
+  Sparkles,
   Users,
 } from "lucide-react"
 import type React from "react"
@@ -27,6 +28,7 @@ import { toast } from "sonner"
 import {
   ProjectModulesService,
   ProjectProfilesService,
+  ProjectsService,
   TasksService,
   WikiService,
 } from "@/client/sdk.gen"
@@ -61,6 +63,7 @@ export const ProjectOverview: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [discoverOpen, setDiscoverOpen] = useState(false)
   const [hasProfile, setHasProfile] = useState(false)
+  const [generationItems, setGenerationItems] = useState<Array<{ item: string; status: string }>>([])
   const queryClient = useQueryClient()
 
   const { mutate: handleGenerateWiki, isPending: isWikiPending } = useMutation({
@@ -107,10 +110,24 @@ export const ProjectOverview: React.FC = () => {
         }
 
         // Check if profile exists
-        const profileData = await ProjectProfilesService.getProfile({
+        const profileData = await ProjectProfilesService.projectsGetProfile({
           projectId: parseInt(projectId, 10),
         })
         setHasProfile(profileData.exists === true)
+
+        // Fetch generation artifacts status
+        try {
+          const genData = await ProjectsService.listGenerationStatusEndpoint({
+            projectId: Number(projectId),
+          })
+          setGenerationItems(
+            (genData.items ?? []).filter(
+              (g: any) => g.status === "completed" || g.status === "failed" || g.status === "running",
+            ),
+          )
+        } catch {
+          // Generation endpoints may not be available; silently skip
+        }
 
         // Fetch Project Detail for members (using ProjectModulesService or ProjectsService?)
         // Assuming we can get members from project detail or stats
@@ -212,6 +229,44 @@ export const ProjectOverview: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Recent Generation Artifacts */}
+      {generationItems.length > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              {t("generation.title")}
+            </CardTitle>
+            <Link
+              to="/projects/$projectId/generation"
+              params={{ projectId: projectId! }}
+            >
+              <Button variant="ghost" size="sm">
+                {t("common.preview")}
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {generationItems.map((g) => (
+                <Link
+                  key={g.item}
+                  to={`/projects/$projectId/${g.item === "overview" ? "overview" : g.item}` as any}
+                  params={{ projectId: projectId! } as any}
+                >
+                  <Badge
+                    variant={g.status === "completed" ? "secondary" : g.status === "running" ? "default" : "destructive"}
+                    className="cursor-pointer"
+                  >
+                    {t(`generation.artifacts.${g.item}`, { defaultValue: g.item })}
+                  </Badge>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         {/* Recent Activity */}

@@ -30,9 +30,12 @@ import { Route as LayoutProjectsProjectIdWikiRouteImport } from './routes/_layou
 import { Route as LayoutProjectsProjectIdVaultRouteImport } from './routes/_layout/projects.$projectId.vault'
 import { Route as LayoutProjectsProjectIdTimesheetRouteImport } from './routes/_layout/projects.$projectId.timesheet'
 import { Route as LayoutProjectsProjectIdTasksRouteImport } from './routes/_layout/projects.$projectId.tasks'
+import { Route as LayoutProjectsProjectIdSummaryRouteImport } from './routes/_layout/projects.$projectId.summary'
 import { Route as LayoutProjectsProjectIdReportsRouteImport } from './routes/_layout/projects.$projectId.reports'
 import { Route as LayoutProjectsProjectIdProfileRouteImport } from './routes/_layout/projects.$projectId.profile'
+import { Route as LayoutProjectsProjectIdOverviewRouteImport } from './routes/_layout/projects.$projectId.overview'
 import { Route as LayoutProjectsProjectIdMacrosRouteImport } from './routes/_layout/projects.$projectId.macros'
+import { Route as LayoutProjectsProjectIdGenerationRouteImport } from './routes/_layout/projects.$projectId.generation'
 import { Route as LayoutProjectsProjectIdGanttRouteImport } from './routes/_layout/projects.$projectId.gantt'
 import { Route as LayoutProjectsProjectIdFilesRouteImport } from './routes/_layout/projects.$projectId.files'
 import { Route as LayoutLearningSkillsSkillIdEditRouteImport } from './routes/_layout/learning.skills.$skillId.edit'
@@ -147,6 +150,12 @@ const LayoutProjectsProjectIdTasksRoute =
     path: '/tasks',
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
+const LayoutProjectsProjectIdSummaryRoute =
+  LayoutProjectsProjectIdSummaryRouteImport.update({
+    id: '/summary',
+    path: '/summary',
+    getParentRoute: () => LayoutProjectsProjectIdRoute,
+  } as any)
 const LayoutProjectsProjectIdReportsRoute =
   LayoutProjectsProjectIdReportsRouteImport.update({
     id: '/reports',
@@ -159,10 +168,22 @@ const LayoutProjectsProjectIdProfileRoute =
     path: '/profile',
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
+const LayoutProjectsProjectIdOverviewRoute =
+  LayoutProjectsProjectIdOverviewRouteImport.update({
+    id: '/overview',
+    path: '/overview',
+    getParentRoute: () => LayoutProjectsProjectIdRoute,
+  } as any)
 const LayoutProjectsProjectIdMacrosRoute =
   LayoutProjectsProjectIdMacrosRouteImport.update({
     id: '/macros',
     path: '/macros',
+    getParentRoute: () => LayoutProjectsProjectIdRoute,
+  } as any)
+const LayoutProjectsProjectIdGenerationRoute =
+  LayoutProjectsProjectIdGenerationRouteImport.update({
+    id: '/generation',
+    path: '/generation',
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
 const LayoutProjectsProjectIdGanttRoute =
@@ -208,9 +229,12 @@ export interface FileRoutesByFullPath {
   '/subscription/': typeof LayoutSubscriptionIndexRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
+  '/projects/$projectId/generation': typeof LayoutProjectsProjectIdGenerationRoute
   '/projects/$projectId/macros': typeof LayoutProjectsProjectIdMacrosRoute
+  '/projects/$projectId/overview': typeof LayoutProjectsProjectIdOverviewRoute
   '/projects/$projectId/profile': typeof LayoutProjectsProjectIdProfileRoute
   '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
+  '/projects/$projectId/summary': typeof LayoutProjectsProjectIdSummaryRoute
   '/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
   '/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
   '/projects/$projectId/vault': typeof LayoutProjectsProjectIdVaultRoute
@@ -235,9 +259,12 @@ export interface FileRoutesByTo {
   '/subscription': typeof LayoutSubscriptionIndexRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
+  '/projects/$projectId/generation': typeof LayoutProjectsProjectIdGenerationRoute
   '/projects/$projectId/macros': typeof LayoutProjectsProjectIdMacrosRoute
+  '/projects/$projectId/overview': typeof LayoutProjectsProjectIdOverviewRoute
   '/projects/$projectId/profile': typeof LayoutProjectsProjectIdProfileRoute
   '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
+  '/projects/$projectId/summary': typeof LayoutProjectsProjectIdSummaryRoute
   '/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
   '/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
   '/projects/$projectId/vault': typeof LayoutProjectsProjectIdVaultRoute
@@ -266,9 +293,12 @@ export interface FileRoutesById {
   '/_layout/subscription/': typeof LayoutSubscriptionIndexRoute
   '/_layout/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/_layout/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
+  '/_layout/projects/$projectId/generation': typeof LayoutProjectsProjectIdGenerationRoute
   '/_layout/projects/$projectId/macros': typeof LayoutProjectsProjectIdMacrosRoute
+  '/_layout/projects/$projectId/overview': typeof LayoutProjectsProjectIdOverviewRoute
   '/_layout/projects/$projectId/profile': typeof LayoutProjectsProjectIdProfileRoute
   '/_layout/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
+  '/_layout/projects/$projectId/summary': typeof LayoutProjectsProjectIdSummaryRoute
   '/_layout/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
   '/_layout/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
   '/_layout/projects/$projectId/vault': typeof LayoutProjectsProjectIdVaultRoute
@@ -297,9 +327,12 @@ export interface FileRouteTypes {
     | '/subscription/'
     | '/projects/$projectId/files'
     | '/projects/$projectId/gantt'
+    | '/projects/$projectId/generation'
     | '/projects/$projectId/macros'
+    | '/projects/$projectId/overview'
     | '/projects/$projectId/profile'
     | '/projects/$projectId/reports'
+    | '/projects/$projectId/summary'
     | '/projects/$projectId/tasks'
     | '/projects/$projectId/timesheet'
     | '/projects/$projectId/vault'
@@ -324,9 +357,12 @@ export interface FileRouteTypes {
     | '/subscription'
     | '/projects/$projectId/files'
     | '/projects/$projectId/gantt'
+    | '/projects/$projectId/generation'
     | '/projects/$projectId/macros'
+    | '/projects/$projectId/overview'
     | '/projects/$projectId/profile'
     | '/projects/$projectId/reports'
+    | '/projects/$projectId/summary'
     | '/projects/$projectId/tasks'
     | '/projects/$projectId/timesheet'
     | '/projects/$projectId/vault'
@@ -354,9 +390,12 @@ export interface FileRouteTypes {
     | '/_layout/subscription/'
     | '/_layout/projects/$projectId/files'
     | '/_layout/projects/$projectId/gantt'
+    | '/_layout/projects/$projectId/generation'
     | '/_layout/projects/$projectId/macros'
+    | '/_layout/projects/$projectId/overview'
     | '/_layout/projects/$projectId/profile'
     | '/_layout/projects/$projectId/reports'
+    | '/_layout/projects/$projectId/summary'
     | '/_layout/projects/$projectId/tasks'
     | '/_layout/projects/$projectId/timesheet'
     | '/_layout/projects/$projectId/vault'
@@ -525,6 +564,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutProjectsProjectIdTasksRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
+    '/_layout/projects/$projectId/summary': {
+      id: '/_layout/projects/$projectId/summary'
+      path: '/summary'
+      fullPath: '/projects/$projectId/summary'
+      preLoaderRoute: typeof LayoutProjectsProjectIdSummaryRouteImport
+      parentRoute: typeof LayoutProjectsProjectIdRoute
+    }
     '/_layout/projects/$projectId/reports': {
       id: '/_layout/projects/$projectId/reports'
       path: '/reports'
@@ -539,11 +585,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutProjectsProjectIdProfileRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
+    '/_layout/projects/$projectId/overview': {
+      id: '/_layout/projects/$projectId/overview'
+      path: '/overview'
+      fullPath: '/projects/$projectId/overview'
+      preLoaderRoute: typeof LayoutProjectsProjectIdOverviewRouteImport
+      parentRoute: typeof LayoutProjectsProjectIdRoute
+    }
     '/_layout/projects/$projectId/macros': {
       id: '/_layout/projects/$projectId/macros'
       path: '/macros'
       fullPath: '/projects/$projectId/macros'
       preLoaderRoute: typeof LayoutProjectsProjectIdMacrosRouteImport
+      parentRoute: typeof LayoutProjectsProjectIdRoute
+    }
+    '/_layout/projects/$projectId/generation': {
+      id: '/_layout/projects/$projectId/generation'
+      path: '/generation'
+      fullPath: '/projects/$projectId/generation'
+      preLoaderRoute: typeof LayoutProjectsProjectIdGenerationRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
     '/_layout/projects/$projectId/gantt': {
@@ -605,9 +665,12 @@ const LayoutSubscriptionRouteWithChildren =
 interface LayoutProjectsProjectIdRouteChildren {
   LayoutProjectsProjectIdFilesRoute: typeof LayoutProjectsProjectIdFilesRoute
   LayoutProjectsProjectIdGanttRoute: typeof LayoutProjectsProjectIdGanttRoute
+  LayoutProjectsProjectIdGenerationRoute: typeof LayoutProjectsProjectIdGenerationRoute
   LayoutProjectsProjectIdMacrosRoute: typeof LayoutProjectsProjectIdMacrosRoute
+  LayoutProjectsProjectIdOverviewRoute: typeof LayoutProjectsProjectIdOverviewRoute
   LayoutProjectsProjectIdProfileRoute: typeof LayoutProjectsProjectIdProfileRoute
   LayoutProjectsProjectIdReportsRoute: typeof LayoutProjectsProjectIdReportsRoute
+  LayoutProjectsProjectIdSummaryRoute: typeof LayoutProjectsProjectIdSummaryRoute
   LayoutProjectsProjectIdTasksRoute: typeof LayoutProjectsProjectIdTasksRoute
   LayoutProjectsProjectIdTimesheetRoute: typeof LayoutProjectsProjectIdTimesheetRoute
   LayoutProjectsProjectIdVaultRoute: typeof LayoutProjectsProjectIdVaultRoute
@@ -619,9 +682,13 @@ const LayoutProjectsProjectIdRouteChildren: LayoutProjectsProjectIdRouteChildren
   {
     LayoutProjectsProjectIdFilesRoute: LayoutProjectsProjectIdFilesRoute,
     LayoutProjectsProjectIdGanttRoute: LayoutProjectsProjectIdGanttRoute,
+    LayoutProjectsProjectIdGenerationRoute:
+      LayoutProjectsProjectIdGenerationRoute,
     LayoutProjectsProjectIdMacrosRoute: LayoutProjectsProjectIdMacrosRoute,
+    LayoutProjectsProjectIdOverviewRoute: LayoutProjectsProjectIdOverviewRoute,
     LayoutProjectsProjectIdProfileRoute: LayoutProjectsProjectIdProfileRoute,
     LayoutProjectsProjectIdReportsRoute: LayoutProjectsProjectIdReportsRoute,
+    LayoutProjectsProjectIdSummaryRoute: LayoutProjectsProjectIdSummaryRoute,
     LayoutProjectsProjectIdTasksRoute: LayoutProjectsProjectIdTasksRoute,
     LayoutProjectsProjectIdTimesheetRoute:
       LayoutProjectsProjectIdTimesheetRoute,

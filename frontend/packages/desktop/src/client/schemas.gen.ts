@@ -1585,6 +1585,17 @@ export const CreateSkillFromYamlRequestSchema = {
         yaml_content: {
             type: 'string',
             title: 'Yaml Content'
+        },
+        project_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Project Id'
         }
     },
     type: 'object',
@@ -2271,28 +2282,6 @@ export const ExecuteSkillRequestSchema = {
         },
         params: {
             '$ref': '#/components/schemas/SkillExecutionParams'
-        },
-        execution_mode: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Execution Mode'
-        },
-        allow_self_healing: {
-            anyOf: [
-                {
-                    type: 'boolean'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Allow Self Healing'
         }
     },
     type: 'object',
@@ -2417,6 +2406,203 @@ export const FileSearchResultSchema = {
     required: ['file', 'line', 'content'],
     title: 'FileSearchResult',
     description: 'Single file content search result.'
+} as const;
+
+export const GenerationContentResponseSchema = {
+    properties: {
+        success: {
+            type: 'boolean',
+            title: 'Success',
+            default: true
+        },
+        message: {
+            type: 'string',
+            title: 'Message',
+            default: ''
+        },
+        project_id: {
+            type: 'integer',
+            title: 'Project Id'
+        },
+        item: {
+            type: 'string',
+            title: 'Item'
+        },
+        content: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Content'
+        },
+        content_type: {
+            type: 'string',
+            title: 'Content Type',
+            default: 'markdown'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['project_id', 'item'],
+    title: 'GenerationContentResponse'
+} as const;
+
+export const GenerationDispatchResponseSchema = {
+    properties: {
+        success: {
+            type: 'boolean',
+            title: 'Success',
+            default: true
+        },
+        message: {
+            type: 'string',
+            title: 'Message',
+            default: ''
+        },
+        project_id: {
+            type: 'integer',
+            title: 'Project Id'
+        },
+        dispatched: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Dispatched'
+        },
+        items: {
+            additionalProperties: {
+                '$ref': '#/components/schemas/GenerationStatusRecord'
+            },
+            type: 'object',
+            title: 'Items'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['project_id', 'dispatched', 'items'],
+    title: 'GenerationDispatchResponse'
+} as const;
+
+export const GenerationItemRequestSchema = {
+    properties: {
+        project_id: {
+            type: 'integer',
+            title: 'Project Id'
+        },
+        items: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Items'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['project_id', 'items'],
+    title: 'GenerationItemRequest'
+} as const;
+
+export const GenerationRetryRequestSchema = {
+    properties: {
+        project_id: {
+            type: 'integer',
+            title: 'Project Id'
+        },
+        item: {
+            type: 'string',
+            title: 'Item'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['project_id', 'item'],
+    title: 'GenerationRetryRequest'
+} as const;
+
+export const GenerationStatusRecordSchema = {
+    properties: {
+        item: {
+            type: 'string',
+            title: 'Item'
+        },
+        status: {
+            type: 'string',
+            title: 'Status'
+        },
+        created_at: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Created At'
+        },
+        updated_at: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Updated At'
+        },
+        error: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Error'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['item', 'status'],
+    title: 'GenerationStatusRecord'
+} as const;
+
+export const GenerationStatusResponseSchema = {
+    properties: {
+        success: {
+            type: 'boolean',
+            title: 'Success',
+            default: true
+        },
+        message: {
+            type: 'string',
+            title: 'Message',
+            default: ''
+        },
+        project_id: {
+            type: 'integer',
+            title: 'Project Id'
+        },
+        items: {
+            items: {
+                '$ref': '#/components/schemas/GenerationStatusRecord'
+            },
+            type: 'array',
+            title: 'Items'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['project_id', 'items'],
+    title: 'GenerationStatusResponse'
 } as const;
 
 export const GlobalEventDataSchema = {
@@ -3160,6 +3346,39 @@ export const LogoutResponseSchema = {
     title: 'LogoutResponse'
 } as const;
 
+export const MacroCreateRequestSchema = {
+    properties: {
+        name: {
+            type: 'string',
+            title: 'Name',
+            default: '未命名宏'
+        },
+        description: {
+            type: 'string',
+            title: 'Description',
+            default: ''
+        },
+        project_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Project Id'
+        },
+        macro_script: {
+            type: 'string',
+            title: 'Macro Script',
+            default: 'steps: []'
+        }
+    },
+    type: 'object',
+    title: 'MacroCreateRequest'
+} as const;
+
 export const MacroDTOSchema = {
     properties: {
         id: {
@@ -3214,6 +3433,10 @@ export const MacroDTOSchema = {
             type: 'boolean',
             title: 'Requires Confirmation'
         },
+        allow_self_healing: {
+            type: 'boolean',
+            title: 'Allow Self Healing'
+        },
         status: {
             type: 'string',
             title: 'Status'
@@ -3257,7 +3480,7 @@ export const MacroDTOSchema = {
         }
     },
     type: 'object',
-    required: ['id', 'app_map_id', 'entity', 'name', 'description', 'trigger_patterns', 'parameters', 'risk_tier', 'requires_confirmation', 'status', 'is_active', 'namespace', 'fallback_skill_id', 'project_id'],
+    required: ['id', 'app_map_id', 'entity', 'name', 'description', 'trigger_patterns', 'parameters', 'risk_tier', 'requires_confirmation', 'allow_self_healing', 'status', 'is_active', 'namespace', 'fallback_skill_id', 'project_id'],
     title: 'MacroDTO'
 } as const;
 
@@ -3314,6 +3537,10 @@ export const MacroDetailDTOSchema = {
         requires_confirmation: {
             type: 'boolean',
             title: 'Requires Confirmation'
+        },
+        allow_self_healing: {
+            type: 'boolean',
+            title: 'Allow Self Healing'
         },
         status: {
             type: 'string',
@@ -3384,12 +3611,23 @@ export const MacroDetailDTOSchema = {
         }
     },
     type: 'object',
-    required: ['id', 'app_map_id', 'entity', 'name', 'description', 'trigger_patterns', 'parameters', 'risk_tier', 'requires_confirmation', 'status', 'is_active', 'namespace', 'fallback_skill_id', 'project_id', 'macro_script', 'app_map_version', 'source_thread_id'],
+    required: ['id', 'app_map_id', 'entity', 'name', 'description', 'trigger_patterns', 'parameters', 'risk_tier', 'requires_confirmation', 'allow_self_healing', 'status', 'is_active', 'namespace', 'fallback_skill_id', 'project_id', 'macro_script', 'app_map_version', 'source_thread_id'],
     title: 'MacroDetailDTO'
 } as const;
 
 export const MacroExecuteRequestSchema = {
     properties: {
+        thread_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Thread Id'
+        },
         params: {
             additionalProperties: true,
             type: 'object',
@@ -3470,6 +3708,50 @@ export const MacroUpdateRequestSchema = {
                 }
             ],
             title: 'Namespace'
+        },
+        fallback_skill_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Fallback Skill Id'
+        },
+        allow_self_healing: {
+            anyOf: [
+                {
+                    type: 'boolean'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Allow Self Healing'
+        },
+        risk_tier: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Risk Tier'
+        },
+        requires_confirmation: {
+            anyOf: [
+                {
+                    type: 'boolean'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Requires Confirmation'
         }
     },
     type: 'object',
@@ -5369,26 +5651,16 @@ export const SkillDTOSchema = {
             type: 'string',
             title: 'Status'
         },
-        execution_mode: {
-            type: 'string',
-            title: 'Execution Mode',
-            default: 'agentic'
-        },
-        allow_self_healing: {
-            type: 'boolean',
-            title: 'Allow Self Healing',
-            default: true
-        },
-        macro_script: {
+        macro_id: {
             anyOf: [
                 {
-                    type: 'string'
+                    type: 'integer'
                 },
                 {
                     type: 'null'
                 }
             ],
-            title: 'Macro Script'
+            title: 'Macro Id'
         },
         validation_report: {
             anyOf: [
@@ -5491,26 +5763,16 @@ export const SkillDetailResponseSchema = {
             type: 'string',
             title: 'Status'
         },
-        execution_mode: {
-            type: 'string',
-            title: 'Execution Mode',
-            default: 'agentic'
-        },
-        allow_self_healing: {
-            type: 'boolean',
-            title: 'Allow Self Healing',
-            default: true
-        },
-        macro_script: {
+        macro_id: {
             anyOf: [
                 {
-                    type: 'string'
+                    type: 'integer'
                 },
                 {
                     type: 'null'
                 }
             ],
-            title: 'Macro Script'
+            title: 'Macro Id'
         },
         validation_report: {
             anyOf: [
@@ -5586,6 +5848,22 @@ export const SkillDetailResponseSchema = {
                 }
             ],
             title: 'Resource Path'
+        },
+        macro_script: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Macro Script'
+        },
+        allow_self_healing: {
+            type: 'boolean',
+            title: 'Allow Self Healing',
+            default: true
         }
     },
     type: 'object',
@@ -6179,6 +6457,11 @@ export const SystemStatusResponseSchema = {
             type: 'string',
             title: 'Status',
             default: 'ok'
+        },
+        enable_macro_self_healing: {
+            type: 'boolean',
+            title: 'Enable Macro Self Healing',
+            default: true
         }
     },
     additionalProperties: true,
@@ -7473,28 +7756,6 @@ export const UpdateSkillRequestSchema = {
                 }
             ],
             title: 'Preconditions'
-        },
-        execution_mode: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Execution Mode'
-        },
-        macro_script: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Macro Script'
         }
     },
     type: 'object',

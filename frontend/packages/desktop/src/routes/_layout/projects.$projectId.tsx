@@ -7,6 +7,7 @@ import {
   FileText,
   Key,
   LayoutDashboard,
+  Sparkles,
   Zap,
 } from "lucide-react"
 import { useEffect } from "react"
@@ -91,6 +92,18 @@ function ProjectLayout() {
       label: t("projects.tabs.wiki"),
       icon: FileText,
       path: "/wiki",
+    },
+    {
+      id: "generation",
+      label: t("projects.tabs.generation"),
+      icon: Sparkles,
+      path: "/generation",
+    },
+    {
+      id: "summary",
+      label: t("projects.tabs.summary"),
+      icon: FileText,
+      path: "/summary",
     },
     {
       id: "profile",

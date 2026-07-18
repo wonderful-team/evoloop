@@ -1,4 +1,11 @@
 import { Button } from "@evoloop/shared/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@evoloop/shared/components/ui/dropdown-menu"
 import { Separator } from "@evoloop/shared/components/ui/separator"
 import {
   Tooltip,
@@ -7,13 +14,13 @@ import {
   TooltipTrigger,
 } from "@evoloop/shared/components/ui/tooltip"
 import { cn } from "@evoloop/shared/lib/utils"
-import axios from "axios"
 import {
   BookOpen,
   Clock,
   Ear,
-  Keyboard,
+  FileText,
   Loader2,
+  MessageCircle,
   Mic,
   Paperclip,
   Send,
@@ -27,6 +34,7 @@ import {
   forwardRef,
   memo,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -40,9 +48,10 @@ import {
   useTauriVoiceShortcut,
   useTauriVoiceShortcutSettings,
 } from "@/hooks/useTauriVoiceShortcut"
-import { useAutoSpeak, useTTS } from "@/hooks/useTTS"
+import { useVoiceStore } from "@/stores/voiceStore"
+import { useAutoSpeak } from "@/hooks/useTTS"
 import { useWakeWord, useWakeWordSettings } from "@/hooks/useWakeWord"
-import { isTauri } from "@/lib/tauri"
+import { isTauri, safeInvoke } from "@/lib/tauri"
 import type { ActiveTaskInfo } from "@/stores/chat/types"
 import { useChatStore } from "@/stores/chatStore"
 import { FilePreview, type PickedFile } from "./FilePreview"
@@ -53,10 +62,6 @@ import {
   ReferencePicker,
   type ReferencePickerHandle,
 } from "./ReferencePicker"
-import {
-  VoiceRecorderButton,
-  type VoiceRecorderButtonHandle,
-} from "./VoiceRecorderButton"
 
 function TaskPill({
   task,
@@ -173,12 +178,10 @@ export const ChatInputArea = memo(
       const [history, setHistory] = useState<string[]>([])
       const [historyIndex, setHistoryIndex] = useState(-1) // -1: New Input, 0: Most recent history
 
-      // Voice input mode
-      const [inputMode, setInputMode] = useState<"text" | "voice">("text")
-      const [autoTranscribe] = useState(true)
-      const [isTranscribing, setIsTranscribing] = useState(false)
+      // Voice mode: off | dictation | dialogue
+      const [voiceMode, setVoiceMode] = useState<"off" | "dictation" | "dialogue">("off")
       const { autoSpeak, toggleAutoSpeak } = useAutoSpeak()
-      const { stop: stopTTS, isSpeaking } = useTTS()
+      const voiceState = useVoiceStore((s) => s.voiceState)
 
       // Wake word settings
       const { wakeWord, wakeWordEnabled } = useWakeWordSettings()
@@ -186,9 +189,6 @@ export const ChatInputArea = memo(
 
       // Tauri voice shortcut settings
       const { shortcutEnabled } = useTauriVoiceShortcutSettings()
-      const [isRecordingFromShortcut, setIsRecordingFromShortcut] =
-        useState(false)
-      const voiceRecorderRef = useRef<VoiceRecorderButtonHandle>(null)
 
       const handleSend = () => {
         if ((!inputValue.trim() && pickedFiles.length === 0) || isSending)
@@ -480,46 +480,30 @@ export const ChatInputArea = memo(
 
       // Wake word detection
       const handleWakeWordDetected = useCallback(() => {
-        if (inputMode !== "voice") {
-          setInputMode("voice")
-        }
         setShowWakeWordIndicator(true)
         // Auto-hide after 3 seconds
         setTimeout(() => setShowWakeWordIndicator(false), 3000)
         toast.success(t("chat.voice.wakeWordDetected"))
-      }, [inputMode, t])
+      }, [t])
 
-      const { isListening: isWakeWordListening } = useWakeWord({
+      useWakeWord({
         wakeWord,
-        enabled: wakeWordEnabled && inputMode === "voice",
+        enabled: wakeWordEnabled && voiceMode !== "off",
         onWake: handleWakeWordDetected,
       })
 
-      // Tauri voice shortcut for voice recording
+      // Tauri voice shortcut: cycle voice mode
       const voiceShortcutHandlers = useMemo(
         () => ({
-          onShortcutStart: () => {
-            // 语音打断：如果正在播放语音，先停止
-            if (isSpeaking) {
-              stopTTS()
-            }
-            setIsRecordingFromShortcut(true)
-            if (inputMode !== "voice") {
-              setInputMode("voice")
-            }
-
-            // 触发录音按钮开始录音
-            setTimeout(() => {
-              voiceRecorderRef.current?.start()
-            }, 50)
-          },
-          onShortcutEnd: () => {
-            voiceRecorderRef.current?.stop().then(() => {
-              setIsRecordingFromShortcut(false)
+          onPress: () => {
+            setVoiceMode((prev) => {
+              const cycle: ("off" | "dictation" | "dialogue")[] = ["off", "dictation", "dialogue"]
+              const idx = cycle.indexOf(prev)
+              return cycle[(idx + 1) % cycle.length]
             })
           },
         }),
-        [isSpeaking, stopTTS, inputMode],
+        [],
       )
 
       useTauriVoiceShortcut({
@@ -527,97 +511,45 @@ export const ChatInputArea = memo(
         ...voiceShortcutHandlers,
       })
 
-      // Handle voice recording
-      const handleVoiceRecorded = async ({
-        blob,
-        duration,
-        waveform,
-      }: {
-        blob: Blob
-        url: string
-        path: string
-        duration: number
-        waveform: number[]
-      }) => {
-        if (!currentProject && !isGlobalMode) {
-          toast.error(t("chat.voice.noProject"))
-          return
+      // Voice mode: start/stop session when mode changes
+      const prevVoiceModeRef = useRef(voiceMode)
+      useEffect(() => {
+        const prev = prevVoiceModeRef.current
+        prevVoiceModeRef.current = voiceMode
+
+        if (prev === voiceMode) return
+
+        // Stop previous session if any
+        if (prev !== "off") {
+          safeInvoke("stop_voice_session").catch(console.error)
         }
 
-        try {
-          const file = new File([blob], `voice_${Date.now()}.webm`, {
-            type: "audio/webm",
+        // Start new session if not off
+        if (voiceMode !== "off") {
+          const threadId = crypto.randomUUID()
+          safeInvoke("start_voice_session", {
+            threadId,
+            lang: "zh-CN",
+            mode: voiceMode,
+          }).catch((e) => {
+            console.error("[voice] start failed:", e)
+            setVoiceMode("off")
+            toast.error(String(e))
           })
-
-          let audioUrl = ""
-          let newFile: PickedFile | null = null
-
-          // If we have a project OR are in global mode, upload the file
-          if (currentProject?.id || isGlobalMode) {
-            const uploadProjectId = isGlobalMode ? 0 : currentProject!.id!
-            const res: any = await FilesService.uploadFile({
-              projectId: uploadProjectId,
-              formData: { file },
-            })
-            audioUrl = res.url
-
-            // Add audio file
-            newFile = {
-              id: Math.random().toString(36).substring(2, 15),
-              url: audioUrl,
-              name: file.name,
-              type: "audio",
-              metadata: { duration, waveform },
-            }
-            setPickedFiles((prev) => [...prev, newFile!])
-            toast.success(t("chat.voice.sentSuccess"))
-          }
-
-          // Auto transcribe if enabled
-          if (autoTranscribe) {
-            setIsTranscribing(true)
-            try {
-              const formData = new FormData()
-              formData.append("file", file)
-              formData.append("language", "zh")
-
-              const response = await axios.post(
-                "/api/v1/audio/transcribe",
-                formData,
-                {
-                  headers: { "Content-Type": "multipart/form-data" },
-                },
-              )
-
-              if (response.data.text) {
-                const transcript = response.data.text
-
-                // 如果是快捷键录音，转写完成后直接发送
-                if (isRecordingFromShortcut) {
-                  onSend(transcript, newFile ? [newFile] : [])
-                  setInputValue("")
-                  setPickedFiles([]) // Clear for next message
-                } else {
-                  setInputValue((prev) =>
-                    prev ? `${prev}\n${transcript}` : transcript,
-                  )
-                }
-              }
-            } catch (error) {
-              console.error("Transcription failed:", error)
-            } finally {
-              setIsTranscribing(false)
-            }
-          }
-        } catch (error: any) {
-          toast.error(t("chat.voice.uploadFailed"))
-          console.error(error)
         }
-      }
+      }, [voiceMode])
 
-      const toggleInputMode = () => {
-        setInputMode((prev) => (prev === "text" ? "voice" : "text"))
-      }
+      // Dictation result: auto-insert into textarea, keep listening
+      const dictationResult = useVoiceStore((s) => s.dictationResult)
+      const setDictationResult = useVoiceStore((s) => s.setDictationResult)
+      useEffect(() => {
+        if (dictationResult) {
+          setInputValue((prev) =>
+            prev ? `${prev}\n${dictationResult}` : dictationResult,
+          )
+          setDictationResult("")
+        }
+      }, [dictationResult, setDictationResult])
 
       useImperativeHandle(ref, () => ({
         addReference: (item: ReferenceItem, insertText = false) => {
@@ -703,62 +635,44 @@ export const ChatInputArea = memo(
               </div>
             )}
 
-            {/* Middle: Text Area or Voice Recorder */}
-            {inputMode === "text" ? (
-              <div className="px-2 py-2 flex items-center gap-2">
-                {isTerminalMode && (
-                  <span className="text-[#7aa2f7] font-mono font-bold select-none self-start">
-                    {t("chat.terminal.promptSymbol")}
-                  </span>
-                )}
-                <textarea
-                  ref={textareaRef}
-                  value={inputValue}
-                  onChange={(e) => handleTextareaChange(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  onPaste={handlePaste}
-                  placeholder={
-                    isTerminalMode
-                      ? t("chat.interface.terminalPlaceholder")
-                      : disabled
-                        ? t("chat.interface.inputDisabled")
-                        : isGlobalMode
-                          ? t("chat.interface.askGlobal")
-                          : currentProject
-                            ? t("chat.interface.askProject", {
-                                project: currentProject.name,
-                              })
-                            : t("chat.interface.selectProject")
-                  }
-                  disabled={(!currentProject && !isGlobalMode) || disabled}
-                  className="flex w-full bg-transparent border-none focus:ring-0 text-sm placeholder:text-muted-foreground resize-none focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 min-h-[36px] max-h-[300px]"
-                  rows={1}
-                  style={{ height: "auto", minHeight: "36px" }}
-                  onInput={(e) => {
-                    // Auto-grow hack
-                    const target = e.target as HTMLTextAreaElement
-                    target.style.height = "auto"
-                    target.style.height = `${Math.min(target.scrollHeight, 500)}px`
-                  }}
-                />
-              </div>
-            ) : (
-              <div className="px-3 py-2 flex items-center justify-center min-h-[80px]">
-                <VoiceRecorderButton
-                  ref={voiceRecorderRef}
-                  onVoiceRecorded={handleVoiceRecorded}
-                  disabled={isSending || isAgentWorking}
-                />
-              </div>
-            )}
-
-            {/* Transcribing indicator */}
-            {isTranscribing && (
-              <div className="px-4 py-1 flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                {t("chat.voice.transcribing")}
-              </div>
-            )}
+            {/* Middle: Text Area */}
+            <div className="px-2 py-2 flex items-center gap-2">
+              {isTerminalMode && (
+                <span className="text-[#7aa2f7] font-mono font-bold select-none self-start">
+                  {t("chat.terminal.promptSymbol")}
+                </span>
+              )}
+              <textarea
+                ref={textareaRef}
+                value={inputValue}
+                onChange={(e) => handleTextareaChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
+                placeholder={
+                  isTerminalMode
+                    ? t("chat.interface.terminalPlaceholder")
+                    : disabled
+                      ? t("chat.interface.inputDisabled")
+                      : isGlobalMode
+                        ? t("chat.interface.askGlobal")
+                        : currentProject
+                          ? t("chat.interface.askProject", {
+                              project: currentProject.name,
+                            })
+                          : t("chat.interface.selectProject")
+                }
+                disabled={(!currentProject && !isGlobalMode) || disabled}
+                className="flex w-full bg-transparent border-none focus:ring-0 text-sm placeholder:text-muted-foreground resize-none focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 min-h-[36px] max-h-[300px]"
+                rows={1}
+                style={{ height: "auto", minHeight: "36px" }}
+                onInput={(e) => {
+                  // Auto-grow hack
+                  const target = e.target as HTMLTextAreaElement
+                  target.style.height = "auto"
+                  target.style.height = `${Math.min(target.scrollHeight, 500)}px`
+                }}
+              />
+            </div>
 
             {/* Bottom: Toolbar */}
             <div className="flex items-center justify-between border-t border-border/40 bg-muted/20 px-2 py-1 gap-2 overflow-hidden">
@@ -862,39 +776,6 @@ export const ChatInputArea = memo(
 
               {/* Right Group: Action */}
               <div className="flex items-center gap-1.5 shrink-0">
-                {/* Wake word listening indicator */}
-                {wakeWordEnabled && inputMode === "voice" && (
-                  <TooltipProvider delayDuration={100}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div
-                          className={cn(
-                            "flex items-center gap-1.5 px-2 py-1 rounded-md text-xs",
-                            isWakeWordListening
-                              ? "bg-green-500/10 text-green-600"
-                              : "bg-muted text-muted-foreground",
-                          )}
-                        >
-                          <Ear
-                            className={cn(
-                              "h-3.5 w-3.5",
-                              isWakeWordListening && "animate-pulse",
-                            )}
-                          />
-                          <span className="hidden sm:inline">
-                            {isWakeWordListening
-                              ? t("chat.voice.listening")
-                              : t("chat.voice.standby")}
-                          </span>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        {t("chat.voice.wakeWordStatus", { word: wakeWord })}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-
                 {/* Voice and upload controls - only relevant for chat */}
                 {!isTerminalMode && (
                   <>
@@ -924,32 +805,72 @@ export const ChatInputArea = memo(
 
                     <Separator orientation="vertical" className="h-4 mx-1" />
 
-                    <TooltipProvider delayDuration={100}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant={
-                              inputMode === "voice" ? "secondary" : "ghost"
-                            }
-                            size="icon"
-                            onClick={toggleInputMode}
-                            disabled={isSending}
-                            className="h-8 w-8"
-                          >
-                            {inputMode === "voice" ? (
-                              <Keyboard className="h-4 w-4" />
-                            ) : (
-                              <Mic className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          {inputMode === "voice"
-                            ? t("chat.voice.switchToText")
-                            : t("chat.voice.switchToVoice")}
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant={voiceMode !== "off" ? "secondary" : "ghost"}
+                          size="icon"
+                          disabled={isSending}
+                          className={cn(
+                            "h-8 w-8",
+                            voiceMode === "dictation" && "text-blue-500 bg-blue-500/10",
+                            voiceMode === "dialogue" && "text-emerald-500 bg-emerald-500/10",
+                            voiceState !== "idle" && "animate-pulse",
+                          )}
+                        >
+                          <Mic className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="min-w-[40px]">
+                        <TooltipProvider delayDuration={100}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <DropdownMenuItem
+                                onClick={() => setVoiceMode("dictation")}
+                                className={voiceMode === "dictation" ? "text-blue-500" : ""}
+                              >
+                                <FileText className="h-4 w-4" />
+                              </DropdownMenuItem>
+                            </TooltipTrigger>
+                            <TooltipContent side="left">
+                              {t("chat.voice.dictationMode")}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        <TooltipProvider delayDuration={100}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <DropdownMenuItem
+                                onClick={() => setVoiceMode("dialogue")}
+                                className={voiceMode === "dialogue" ? "text-emerald-500" : ""}
+                              >
+                                <MessageCircle className="h-4 w-4" />
+                              </DropdownMenuItem>
+                            </TooltipTrigger>
+                            <TooltipContent side="left">
+                              {t("chat.voice.dialogueMode")}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        {voiceMode !== "off" && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <TooltipProvider delayDuration={100}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <DropdownMenuItem onClick={() => setVoiceMode("off")}>
+                                    <X className="h-4 w-4" />
+                                  </DropdownMenuItem>
+                                </TooltipTrigger>
+                                <TooltipContent side="left">
+                                  {t("chat.voice.voiceOff")}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
 
                     <TooltipProvider delayDuration={100}>
                       <Tooltip>
@@ -982,7 +903,6 @@ export const ChatInputArea = memo(
                 <Button
                   onClick={() => (isAgentWorking ? onStop() : handleSend())}
                   disabled={
-                    inputMode === "voice" ||
                     (!inputValue.trim() &&
                       pickedFiles.length === 0 &&
                       !isAgentWorking) ||

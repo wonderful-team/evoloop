@@ -530,7 +530,10 @@
       "wakeWordActive": "Wake word active, please speak...",
       "wakeWordDetected": "Wake word detected, starting recording...",
       "wakeWordStatus": "Wake word: \"{{word}}\"",
-      "notRecording": "Not recording"
+      "notRecording": "Not recording",
+      "dictationMode": "Dictation",
+      "dialogueMode": "Dialogue",
+      "voiceOff": "Disable voice"
     },
     "waitingForSteps": "Waiting for agent to start...",
     "welcome": {
@@ -669,6 +672,23 @@
     "speedMultiplier": "x",
     "terminalIcon": ">_",
     "terminalPrompt": "$"
+  },
+  "generation": {
+    "title": "Generation Artifacts",
+    "description": "Select the artifacts you want to generate. This will consume AI tokens based on project size.",
+    "generate": "Generate Selected",
+    "dispatched": "Generation tasks dispatched",
+    "dispatchFailed": "Failed to dispatch generation tasks",
+    "fetchFailed": "Failed to fetch generation status",
+    "retry": "Retry",
+    "retried": "Retrying {{item}}",
+    "retryFailed": "Failed to retry generation",
+    "artifacts": {
+      "wiki": "Wiki Documentation",
+      "appmap": "AppMap (Application Map)",
+      "summary": "Project Summary",
+      "overview": "Project Profile / PROJECT.md"
+    }
   },
   "context": {
     "noDescription": "No Description"
@@ -1396,7 +1416,9 @@
       "tasks": "Tasks",
       "timesheet": "Timesheet",
       "vault": "Vault",
-      "wiki": "Wiki"
+      "wiki": "Wiki",
+      "generation": "Generation",
+      "summary": "Summary"
     },
     "tasks": {
       "assignee": "Assignee",
@@ -1609,6 +1631,27 @@
       "title": "Delete Account"
     },
     "embedding": {
+      "title": "🔗 Embedding Channel",
+      "description": "Independent embedding model with 3-tier priority: GGUF → Local HTTP → Remote API.",
+      "tiers": "Tier Priority (comma-separated)",
+      "tierGguf": "Tier 1: GGUF (llama.cpp)",
+      "tierLocal": "Tier 2: Local HTTP",
+      "tierRemote": "Tier 3: Remote API",
+      "ggufModel": "GGUF Model Path",
+      "localUrl": "Base URL",
+      "localApiKey": "API Key",
+      "localModel": "Model Name",
+      "provider": "Provider",
+      "baseUrl": "Base URL",
+      "model": "Model Name",
+      "apiKey": "API Key",
+      "dimensions": "Dimensions",
+      "test_connection": "Test Connection",
+      "connectedWithDim": "Connected! Dimensions: {{dim}}",
+      "connection_failed": "Connection failed",
+      "connection_error": "Error: {{message}}",
+      "loadError": "Failed to load embedding config",
+      "channel_separator": "Heavy Channel (Complex Agent Tasks)",
       "activate_reindex": "Activate & Re-index",
       "apply_btn": "Apply & Re-Index",
       "confirm_switch": "WARNING: Switching embedding models will DELETE all existing knowledge indices (Vectors) and trigger a full re-index. This process cannot be undone. Are you sure?",
@@ -1617,12 +1660,8 @@
       "default_model_desc": "Select the default vector model used for semantic search and knowledge processing.",
       "error_connection": "Connection Error",
       "error_update": "Failed to update embedding model",
-      "loadError": "Load Error",
       "select_default_placeholder": "Select default model...",
       "select_model_placeholder": "Choose a model...",
-      "success_connected": "Connected! Dimensions: {{dim}}",
-      "success_updated": "Embedding Model Updated & Re-indexing Triggered",
-      "test_connection": "Test Connection",
       "description": "Manage vector models used for knowledge base indexing and semantic search.",
       "apiKeyPlaceholder": "sk-...",
       "baseUrlPlaceholder": "https://api.openai.com/v1",
@@ -1691,6 +1730,25 @@
       "modelPlaceholder": "gpt-4o",
       "providerPlaceholder": "openai",
       "visionModelPlaceholder": "gpt-4o"
+    },
+    "lightning": {
+      "title": "⚡ Lightning Channel",
+      "description": "Lightweight LLM for routing, classification, and embeddings. Uses a separate model from the Heavy Channel below.",
+      "mode": "Mode",
+      "none_hint": "Lightning Channel is disabled. Local routing and embeddings will not work. Suitable for low-spec machines.",
+      "llmModel": "LLM Model",
+      "llmModelPlaceholder": "/path/to/qwen3-4b-instruct-2507-q4_k_m.gguf",
+      "embedModel": "Embedding Model",
+      "embedModelPlaceholder": "/path/to/bge-base-zh-v1.5-q4_k_m.gguf",
+      "contextWindow": "Context Window (tokens)",
+      "baseUrl": "Base URL",
+      "apiKey": "API Key",
+      "test_connection": "Test Connection",
+      "connected": "Connected ✓",
+      "connection_failed": "LLM {{llm}} Embed {{embed}}",
+      "connection_error": "Connection error: {{message}}",
+      "loadError": "Failed to load Lightning config",
+      "channel_separator": "Heavy Channel (Complex Agent Tasks)"
     },
     "modelFields": {
       "apiKey": "API Key",
@@ -1773,35 +1831,30 @@
       }
     },
     "voice": {
-      "doubleClick": "Double Click",
-      "doubleClickHint": "Recommended: Double-click Ctrl is the most convenient",
-      "doubleClickInstruction": "Double-click {key} to start recording",
-      "doubleClickInterval": "Double-click Interval",
-      "enableDoubleClickDesc": "Double-click shortcut to start recording, single click to end",
-      "enableLongPressDesc": "Long-press shortcut to start recording, release to end",
       "enableShortcut": "Enable Shortcut",
+      "enableUnifiedDesc": "Tap = dictation mode, hold = dialogue mode. Works globally even when window is hidden.",
       "enableWakeWord": "Enable Wake Word",
       "enableWakeWordDesc": "Continuously listen to microphone, automatically start recording when wake word is detected",
       "fast": "Fast",
       "heard": "Heard",
+      "holdDetected": "Hold detected, dialogue mode",
       "listening": "Listening...",
-      "longPress": "Long Press",
-      "longPressHint": "Recommended: Long-press F1-F12 function keys or Meta(Command/Windows) key",
-      "longPressInstruction": "Long-press {key} to start recording",
+      "longPressThreshold": "Hold Threshold",
       "normal": "Normal",
       "notSupported": "Your browser does not support speech recognition. Please use Chrome, Edge, or Safari.",
-      "pressDuration": "Long-press Duration",
       "recording": "Recording...",
       "selectSttDevice": "Select execution device...",
       "selectSttModel": "Select recognition model...",
-      "shortcutDesc": "Set double-click or long-press shortcut to quickly activate voice input",
+      "shortcutDesc": "Set F12 shortcut: tap for dictation, hold for dialogue.",
       "shortcutDisabled": "Shortcut disabled",
       "shortcutEnabled": "Shortcut enabled",
-      "shortcutEnded": "Recording ended",
+      "shortcutEnded": "Voice ended",
       "shortcutKey": "Shortcut Key",
-      "shortcutStarted": "Shortcut activated, starting recording...",
+      "shortcutStarted": "Dictation mode activated",
       "shortcutTitle": "Shortcut Settings (Tauri)",
       "slow": "Slow",
+      "unifiedHint": "Tap {key} = dictation, hold {key} = dialogue mode",
+      "unifiedInstruction": "Tap {key} = dictation mode, hold {key} = dialogue mode. Try it now!",
       "startListening": "Start Listening",
       "stopListening": "Stop Listening",
       "sttConfigError": "Failed to save STT configuration",
@@ -2143,7 +2196,14 @@
     "notSupported": "Speech recognition not supported on this device.",
     "recognitionError": "Recognition error",
     "webSpeechNotSupported": "Web Speech API not supported in this browser.",
-    "recognitionErrorWithDetail": "{{message}}: {{detail}}"
+    "recognitionErrorWithDetail": "{{message}}: {{detail}}",
+    "state": {
+      "idle": "",
+      "listening": "Listening",
+      "processing": "Processing",
+      "speaking": "Speaking",
+      "interrupted": "Interrupted"
+    }
   },
   "wiki": {
     "generate": "Generate Wiki",

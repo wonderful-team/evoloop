@@ -16,6 +16,8 @@ import { SetupWizard, useSetupRequired } from "@/components/Wizard"
 import { useSetupWizard } from "@/components/Wizard/SetupWizardContext"
 import useAuth from "@/hooks/useAuth"
 
+import { useVoiceEvents } from "@/hooks/useVoiceEvents"
+
 export const Route = createFileRoute("/_layout")({
   component: Layout,
   // beforeLoad removed to allow Guest access
@@ -29,6 +31,8 @@ function Layout() {
   const { setIsWizardOpen } = useSetupWizard()
   const [showWizard, setShowWizard] = useState(false)
   const [hasShownWizard, setHasShownWizard] = useState(false)
+
+  useVoiceEvents()
 
   const isFullWidth =
     pathname.includes("/chat") ||

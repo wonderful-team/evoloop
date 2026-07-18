@@ -530,7 +530,10 @@
       "wakeWordActive": "唤醒词已激活，请说话...",
       "wakeWordDetected": "检测到唤醒词，开始录音",
       "wakeWordStatus": "唤醒词: \"{{word}}\"",
-      "notRecording": "未在录音"
+      "notRecording": "未在录音",
+      "dictationMode": "听写模式",
+      "dialogueMode": "对话模式",
+      "voiceOff": "关闭语音"
     },
     "waitingForSteps": "等待 Agent 开始执行...",
     "welcome": {
@@ -669,6 +672,23 @@
     "speedMultiplier": "倍",
     "terminalIcon": ">_",
     "terminalPrompt": "$"
+  },
+  "generation": {
+    "title": "生成物管理",
+    "description": "选择要生成的产物。根据项目规模，将消耗 AI Token。",
+    "generate": "开始生成",
+    "dispatched": "生成任务已分发",
+    "dispatchFailed": "分发生成任务失败",
+    "fetchFailed": "获取生成状态失败",
+    "retry": "重试",
+    "retried": "正在重试 {{item}}",
+    "retryFailed": "重试失败",
+    "artifacts": {
+      "wiki": "Wiki 文档",
+      "appmap": "应用地图 (AppMap)",
+      "summary": "项目摘要",
+      "overview": "项目画像 / PROJECT.md"
+    }
   },
   "context": {
     "noDescription": "No Description"
@@ -1396,7 +1416,9 @@
       "tasks": "任务",
       "timesheet": "工时",
       "vault": "密码箱",
-      "wiki": "百科"
+      "wiki": "百科",
+      "generation": "生成物",
+      "summary": "项目摘要"
     },
     "tasks": {
       "assignee": "负责人",
@@ -1609,6 +1631,27 @@
       "title": "删除账户"
     },
     "embedding": {
+      "title": "🔗 嵌入通道",
+      "description": "独立的嵌入模型，3 级优先级链：GGUF → 本地 HTTP → 远程 API。",
+      "tiers": "优先级顺序（逗号分隔）",
+      "tierGguf": "第 1 级：GGUF (llama.cpp)",
+      "tierLocal": "第 2 级：本地 HTTP",
+      "tierRemote": "第 3 级：远程 API",
+      "ggufModel": "GGUF 模型路径",
+      "localUrl": "Base URL",
+      "localApiKey": "API Key",
+      "localModel": "模型名称",
+      "provider": "供应商",
+      "baseUrl": "Base URL",
+      "model": "模型名称",
+      "apiKey": "API Key",
+      "dimensions": "维度",
+      "test_connection": "测试连接",
+      "connectedWithDim": "连接成功！维度：{{dim}}",
+      "connection_failed": "连接失败",
+      "connection_error": "错误：{{message}}",
+      "loadError": "加载嵌入配置失败",
+      "channel_separator": "重型通道（复杂 Agent 任务）",
       "activate_reindex": "激活并重建索引",
       "apply_btn": "应用配置 & 重建索引",
       "confirm_switch": "警告：切换 Embedding 模型将删除所有现有的知识索引 (向量)，并触发全面重新索引。此过程不可撤销。确定要继续吗？",
@@ -1617,12 +1660,8 @@
       "default_model_desc": "选择系统用于语义搜索和知识处理的默认向量模型。",
       "error_connection": "连接错误",
       "error_update": "更新 Embedding 模型失败",
-      "loadError": "Load Error",
       "select_default_placeholder": "请选择默认模型...",
       "select_model_placeholder": "请选择模型...",
-      "success_connected": "连接成功！维度：{{dim}}",
-      "success_updated": "Embedding 模型已更新并触发重建索引",
-      "test_connection": "测试连接",
       "description": "管理用于知识库索引和语义搜索的向量模型。",
       "apiKeyPlaceholder": "sk-...",
       "baseUrlPlaceholder": "https://api.openai.com/v1",
@@ -1704,6 +1743,25 @@
       "visionModel": "视觉模型（可选）",
       "visionModelDesc": "用于图像分析的模型（例如 gpt-4o, claude-3-opus）。"
     },
+    "lightning": {
+      "title": "⚡ 轻量通道",
+      "description": "用于路由决策、分类和嵌入的轻量 LLM。与下方的重型通道使用不同的模型。",
+      "mode": "模式",
+      "none_hint": "轻量通道已关闭。本地路由和嵌入将不可用。适合低算力机器。",
+      "llmModel": "LLM 模型",
+      "llmModelPlaceholder": "/path/to/qwen3-4b-instruct-2507-q4_k_m.gguf",
+      "embedModel": "嵌入模型",
+      "embedModelPlaceholder": "/path/to/bge-base-zh-v1.5-q4_k_m.gguf",
+      "contextWindow": "上下文窗口（tokens）",
+      "baseUrl": "Base URL",
+      "apiKey": "API Key",
+      "test_connection": "测试连接",
+      "connected": "连接成功 ✓",
+      "connection_failed": "LLM {{llm}} 嵌入 {{embed}}",
+      "connection_error": "连接错误：{{message}}",
+      "loadError": "加载轻量通道配置失败",
+      "channel_separator": "重型通道（复杂 Agent 任务）"
+    },
     "pageTitle": "设置 - EvoLoop",
     "password": {
       "confirm": "确认密码",
@@ -1773,35 +1831,30 @@
       }
     },
     "voice": {
-      "doubleClick": "双击",
-      "doubleClickHint": "推荐：双击 Ctrl 是最方便的操作方式",
-      "doubleClickInstruction": "双击 {key} 键开始录音",
-      "doubleClickInterval": "双击间隔时间",
-      "enableDoubleClickDesc": "双击快捷键开始录音，单击结束",
-      "enableLongPressDesc": "长按快捷键开始录音，松手结束",
       "enableShortcut": "启用快捷键",
+      "enableUnifiedDesc": "单击=听写模式，长按=对话模式。全局生效，窗口隐藏也可用。",
       "enableWakeWord": "启用唤醒词",
       "enableWakeWordDesc": "持续监听麦克风，检测到唤醒词时自动开始录音",
       "fast": "快",
       "heard": "听到",
+      "holdDetected": "检测到长按，进入对话模式",
       "listening": "正在监听...",
-      "longPress": "长按",
-      "longPressHint": "推荐：长按 F1-F12 功能键或 Meta(Command/Windows) 键",
-      "longPressInstruction": "长按 {key} 键开始录音",
+      "longPressThreshold": "长按阈值",
       "normal": "正常",
       "notSupported": "您的浏览器不支持语音识别功能。请使用 Chrome、Edge 或 Safari 浏览器。",
-      "pressDuration": "长按持续时间",
       "recording": "正在录音...",
       "selectSttDevice": "请选择运行设备...",
       "selectSttModel": "请选择识别模型...",
-      "shortcutDesc": "设置双击或长按快捷键快速激活语音输入",
+      "shortcutDesc": "设置 F12 快捷键：单击听写，长按对话。",
       "shortcutDisabled": "快捷键已禁用",
       "shortcutEnabled": "快捷键已启用",
-      "shortcutEnded": "录音结束",
+      "shortcutEnded": "语音结束",
       "shortcutKey": "快捷键",
-      "shortcutStarted": "快捷键激活，开始录音...",
+      "shortcutStarted": "听写模式已激活",
       "shortcutTitle": "快捷键设置 (Tauri)",
       "slow": "慢",
+      "unifiedHint": "单击 {key} = 听写，长按 {key} = 对话模式",
+      "unifiedInstruction": "单击 {key} = 听写模式，长按 {key} = 对话模式。立即试试！",
       "startListening": "开始监听",
       "stopListening": "停止监听",
       "sttConfigError": "保存语音识别配置失败",
@@ -2143,7 +2196,14 @@
     "notSupported": "此设备不支持语音识别。",
     "recognitionError": "识别错误",
     "webSpeechNotSupported": "此浏览器不支持 Web Speech API。",
-    "recognitionErrorWithDetail": "{{message}}：{{detail}}"
+    "recognitionErrorWithDetail": "{{message}}：{{detail}}",
+    "state": {
+      "idle": "",
+      "listening": "聆听中",
+      "processing": "处理中",
+      "speaking": "播报中",
+      "interrupted": "已打断"
+    }
   },
   "wiki": {
     "generate": "生成百科",
