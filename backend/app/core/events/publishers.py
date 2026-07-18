@@ -156,7 +156,7 @@ async def publish_skill_mutated(
     Unknown actions are dropped: an event with an empty event_type would be
     unroutable noise on the bus.
     """
-    from app.core.learning.event import SkillMutatedEvent
+    from app.core.learning.event.schemas import SkillMutatedEvent
 
     if action not in ("create", "update", "delete"):
         return

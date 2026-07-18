@@ -1,9 +1,8 @@
-import logging
 import os
 
 import pathspec
 
-logger = logging.getLogger(__name__)
+from app.core.file import FileStatus, read_file
 
 
 class GitignoreMatcher:
@@ -61,12 +60,9 @@ class GitignoreMatcher:
         """Create matcher from a .gitignore file in the root path."""
         file_path = os.path.join(root_path, ignore_file)
         content = ""
-        if os.path.exists(file_path):
-            try:
-                with open(file_path, encoding="utf-8") as f:
-                    content = f.read()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-                logger.debug("Suppressed error: %s", e, exc_info=True)
+        result = read_file(file_path)
+        if result.status == FileStatus.SUCCESS:
+            content = result.content
         return cls(root_path, content)
 
 

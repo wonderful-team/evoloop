@@ -17,6 +17,8 @@ from app.core.engine.state.sub_schemas import (
     ProgressMetrics,
 )
 from app.core.events.schemas import SessionCompletedData
+from app.infrastructure.database import session_scope
+from app.models import AgentActivity
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +96,40 @@ class FinishNode(BaseNode):
             next_node=RoutingTarget.END,
         )
 
+    async def _has_replayable_steps(self, thread_id: str) -> bool:
+        """Return True if the thread contains at least one deterministic replayable step."""
+        from app.core.execution.macro.sedimentation_service import (
+            MacroSedimentationService,
+        )
+
+        try:
+            return await MacroSedimentationService.is_eligible(thread_id)
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            logger.warning("[Finish] Failed to check replayable steps for %s: %s", thread_id, e)
+            return False
+
+    async def _update_agent_activity(
+        self,
+        thread_id: str,
+        summary: str | None,
+        final_outcome: str,
+        sedimentation_eligible: bool,
+    ) -> None:
+        """Persist the audit summary and sedimentation eligibility to AgentActivity."""
+        try:
+            async with session_scope() as session:
+                activity = await session.get(AgentActivity, thread_id)
+                if activity is None:
+                    logger.debug(
+                        f"[Finish] No AgentActivity record for {thread_id}; skipping sedimentation flag."
+                    )
+                    return
+                activity.summary = summary
+                activity.final_outcome = final_outcome
+                activity.sedimentation_eligible = sedimentation_eligible
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+            logger.warning(f"[Finish] Failed to update AgentActivity for {thread_id}: {e}")
+
     async def _run(self, state: "AgentState", config: dict) -> "StateUpdate":
         start_time = time.time()
 
@@ -162,6 +198,16 @@ class FinishNode(BaseNode):
 
         summary = audit_result.summary
         final_outcome = audit_result.meta.get("outcome", "")
+        sedimentation_eligible = (
+            final_outcome.upper() == "COMPLETED"
+            and await self._has_replayable_steps(effective_thread_id)
+        )
+        await self._update_agent_activity(
+            thread_id=effective_thread_id,
+            summary=summary,
+            final_outcome=final_outcome,
+            sedimentation_eligible=sedimentation_eligible,
+        )
 
         if final_outcome.upper() == "INCOMPLETE":
             if iteration_count < max_steps:
@@ -246,6 +292,7 @@ class FinishNode(BaseNode):
             blackboard_dict=blackboard_dict,
             summary=summary,
             outcome=final_outcome,
+            sedimentation_eligible=sedimentation_eligible,
             audit_tier="unified",
             duration_ms=total_duration,
             turn_summary_message_id=None,

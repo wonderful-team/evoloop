@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import JSON, DateTime, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
@@ -48,4 +48,8 @@ class AppMap(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+    route_links: Mapped[list["AppMapRouteLink"]] = relationship(
+        "AppMapRouteLink", back_populates="app_map", cascade="all, delete-orphan"
     )

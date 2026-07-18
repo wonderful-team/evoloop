@@ -74,3 +74,61 @@ class LLMConfigRequest(DynamicBaseModel):
     api_key: str | None = None
     default_model_id: str | None = Field(None, description="Selected Default Model ID")
     headers: dict[str, str] | None = Field(None, description="自定义请求头 (JSON 字典)")
+
+
+# --- Lightning Channel Schemas (LLM only) ---
+
+class LightningConfigRequest(DynamicBaseModel):
+    mode: str = Field(default="none", description="Lightning mode: none, llama.cpp, lm-studio, ollama")
+    llm_model: str | None = Field(None, description="LLM model name or GGUF path")
+    base_url: str | None = Field(None, description="Base URL for lm-studio/ollama")
+    api_key: str | None = Field(None, description="API key for local endpoint")
+    context_window: int | None = Field(None, description="Max context tokens")
+
+
+class LightningStatusResponse(BaseAPIResponse):
+    mode: str = "none"
+    llm_available: bool = False
+    llama_cpp_available: bool = False
+    llm_model: str = ""
+    base_url: str = ""
+    context_window: int = 8192
+
+
+class LightningTestResponse(BaseAPIResponse):
+    llm_ok: bool = False
+    llm_reply: str | None = None
+
+
+class LightningApplyResponse(BaseAPIResponse):
+    status: str = "applied"
+    message: str = ""
+
+
+# --- Embedding Channel Schemas (independent tier chain) ---
+
+class EmbeddingTierConfigRequest(DynamicBaseModel):
+    tiers: str = Field(default="gguf,local,remote", description="Comma-separated tier priority")
+    gguf_model: str | None = Field(None, description="Tier 1: GGUF file path")
+    local_url: str | None = Field(None, description="Tier 2: Local HTTP URL")
+    local_api_key: str | None = Field(None, description="Tier 2: API key")
+    local_model: str | None = Field(None, description="Tier 2: model name")
+    provider: str | None = Field(None, description="Tier 3: provider type (openai/ollama/lm-studio)")
+    base_url: str | None = Field(None, description="Tier 3: API base URL")
+    model: str | None = Field(None, description="Tier 3: model name")
+    api_key: str | None = Field(None, description="Tier 3: API key")
+    dimensions: int | None = Field(None, description="Tier 3: embedding dimensions")
+
+
+class EmbeddingTierStatusResponse(BaseAPIResponse):
+    active_tier: str | None = None
+    gguf_available: bool = False
+    local_available: bool = False
+    remote_available: bool = False
+    tiers: str = "gguf,local,remote"
+
+
+class EmbeddingTierTestResponse(BaseAPIResponse):
+    success: bool = False
+    dimensions: int | None = None
+    error: str | None = None

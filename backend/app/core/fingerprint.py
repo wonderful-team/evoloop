@@ -14,10 +14,11 @@ The fingerprint is a SHA256 hash of platform-specific identifiers,
 truncated to 32 hex characters for compactness.
 """
 
-import hashlib
 import logging
 import platform
 import subprocess
+
+from app.core.file import compute_sha256
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ def get_hardware_fingerprint() -> str:
 
     # Normalize and hash
     normalized = raw.strip().lower()
-    return hashlib.sha256(normalized.encode()).hexdigest()[:32]
+    return compute_sha256(normalized)[:32]
 
 
 def _get_macos_uuid() -> str:
@@ -108,7 +109,7 @@ def _get_windows_machine_guid() -> str:
             text=True,
             timeout=5,
         )
-        lines = [l.strip() for l in result.stdout.split("\n") if l.strip()]
+        lines = [line.strip() for line in result.stdout.split("\n") if line.strip()]
         if len(lines) >= 2 and lines[1].lower() != "ffffffff-ffff-ffff-ffff-ffffffffffff":
             return lines[1]
     except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
@@ -121,7 +122,7 @@ def _get_linux_machine_id() -> str:
     """Read /etc/machine-id or /var/lib/dbus/machine-id."""
     for path in ["/etc/machine-id", "/var/lib/dbus/machine-id"]:
         try:
-            with open(path, "r") as f:
+            with open(path) as f:
                 content = f.read().strip()
                 if content and content != "uninitialized":
                     return content

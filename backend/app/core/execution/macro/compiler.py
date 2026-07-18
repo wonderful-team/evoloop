@@ -1,0 +1,314 @@
+"""Macro compilation from trace sequences.
+
+This module lives in the macro execution domain and converts structured trace
+steps into a deterministic MacroScript. It is intentionally decoupled from
+skill synthesis, which only produces metadata (name, description, triggers,
+parameters).
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING, Any, cast
+
+from app.core.execution.macro.schemas import (
+    ExtractType,
+    MacroActionType,
+    MacroScript,
+    MacroSource,
+    MacroStep,
+    MacroStepType,
+)
+from app.core.execution.macro.utils import cleanup_macro_steps
+
+if TYPE_CHECKING:
+    from app.core.learning.schemas.migrated import TraceStep
+    from app.core.learning.trace_parser import TraceSequence
+
+logger = logging.getLogger(__name__)
+
+
+# Trace action types that can be turned into macro steps.
+ALLOWED_UI_ACTIONS = {
+    # Browser / DOM
+    "goto",
+    "navigate",
+    "click",
+    "type_text",
+    "input",
+    "key_press",
+    "scroll",
+    "wait",
+    "wait_for",
+    "extract",
+    "get_text",
+    "get_html",
+    "get_attribute",
+    "run_js",
+    "evaluate",
+    # Mobile / Android
+    "tap",
+    "long_press",
+    "swipe",
+    "input_text",
+    "open_app",
+    "back",
+    "home",
+    # Desktop / Global
+    "applescript",
+    "drag_drop",  # Automation Primitives
+    "detect_pagination",
+    "scroll_to_bottom",
+    # System
+    "screenshot",
+    "dump",
+    "dump_ui",
+}
+
+# Trace action names that pass ALLOWED_UI_ACTIONS but are not MacroActionType
+# members — remap before constructing MacroStep (enum-validated).
+_EVENT_TYPE_REMAP = {
+    "goto": "navigate",
+    "input_text": "input",
+    "evaluate": "run_js",
+    "dump": "dump_ui",
+}
+
+# Raw mobile mirror events that must be normalized before macro compilation.
+_RAW_MOBILE_EVENT_TYPES = frozenset({
+    "touch_down",
+    "touch_up",
+    "mouse_click",
+    "swipe",
+    "key",
+})
+
+
+class MacroScriptCompiler:
+    """Compile a TraceSequence into a deterministic MacroScript."""
+
+    def compile(self, sequence: TraceSequence) -> MacroScript:
+        """Compile raw TraceSteps into a clean structured MacroScript."""
+        from app.core.learning.trace_parser import TraceSequence
+
+        if not isinstance(sequence, TraceSequence):
+            raise TypeError(
+                f"MacroScriptCompiler expects TraceSequence, got {type(sequence)}"
+            )
+
+        steps = []
+        has_extract = False
+        last_package = None
+
+        for step in sequence.steps:
+            # Skip non-UI/agentic control events
+            if step.action_type in (
+                "node_start",
+                "llm_output",
+                "tool_result",
+                "macro_thought",
+            ):
+                continue
+
+            # Normalize raw mobile mirror events into macro-executable actions.
+            action_type, action_args = self._normalize_action(step)
+            if action_type is None:
+                continue
+
+            # Determine source
+            source_type = MacroSource.DOM
+            current_package = step.state_context.get("app_name") or step.node_name
+
+            if action_type == "mobile_control" or step.action_name == "mobile_control":
+                source_type = MacroSource.MOBILE
+            elif action_type == "desktop_control" or step.action_name == "desktop_control":
+                source_type = MacroSource.DESKTOP
+            elif step.state_context.get("source") == "mobile":
+                # Android mirror recordings (tap/swipe/key_press normalized above)
+                source_type = MacroSource.MOBILE
+            elif step.node_name in ("global_observation", "mobile_interaction"):
+                source_type = (
+                    MacroSource.MOBILE
+                    if step.state_context.get("is_mirrored")
+                    else MacroSource.DESKTOP
+                )
+
+            # Detect App Transition (mobile only)
+            if source_type == MacroSource.MOBILE and current_package not in (
+                "global_observation",
+                "mobile_interaction",
+                "unknown",
+            ):
+                if last_package and current_package != last_package:
+                    system_apps = (
+                        "com.android.launcher",
+                        "com.android.systemui",
+                        "android",
+                        "scrcpy",
+                    )
+                    if not any(current_package.startswith(sys) for sys in system_apps):
+                        logger.info(
+                            "[MacroCompiler] App transition detected: %s -> %s",
+                            last_package,
+                            current_package,
+                        )
+                        steps.append(
+                            MacroStep(
+                                type=MacroStepType.ACTION,
+                                event_type=MacroActionType.OPEN_APP,
+                                source=source_type,
+                                payload={"package_name": current_package},
+                            )
+                        )
+                        steps.append(
+                            MacroStep(
+                                type=MacroStepType.ACTION,
+                                event_type=MacroActionType.WAIT,
+                                source=source_type,
+                                payload={"duration_ms": 1500},
+                            )
+                        )
+
+                if not any(
+                    current_package.startswith(sys)
+                    for sys in (
+                        "com.android.launcher",
+                        "com.android.systemui",
+                        "android",
+                    )
+                ):
+                    last_package = current_package
+
+            # Filter noisy keys
+            if action_type == "key_press" and action_args.get("key") in (
+                "Alt",
+                "Shift",
+                "Control",
+                "Command",
+                "Meta",
+            ):
+                continue
+
+            event_type = action_type
+            payload = dict(action_args)
+
+            if current_package and current_package not in (
+                "global_observation",
+                "mobile_interaction",
+                "unknown",
+            ):
+                payload["package_name"] = current_package
+
+            # Tool Call Normalization
+            if event_type == "tool_call":
+                inner_action = payload.get("action")
+                if inner_action:
+                    event_type = inner_action
+                    if event_type == "navigate":
+                        event_type = "goto"
+                    elif event_type == "type_text":
+                        event_type = "input"
+                else:
+                    tool_invoked = step.action_name
+                    if tool_invoked == "wait_for":
+                        event_type = "wait"
+                        payload["duration_ms"] = float(payload.get("seconds", 1)) * 1000
+                    else:
+                        continue
+
+            if event_type not in ALLOWED_UI_ACTIONS:
+                continue
+
+            event_type = _EVENT_TYPE_REMAP.get(event_type, event_type)
+            macro_action = MacroActionType(event_type)
+
+            target_selector = (
+                step.ui_context.element_selector if step.ui_context else None
+            )
+
+            # Map to MacroStep
+            if event_type in ("get_text", "get_html", "get_attribute") or (
+                step.action_name == "mobile_control"
+                and payload.get("action") == "dump_ui"
+            ):
+                has_extract = True
+                macro_step = MacroStep(
+                    type=MacroStepType.EXTRACT,
+                    extract_type=ExtractType(payload.get("action") or event_type),
+                    key=f"data_{step.step_number}",
+                    source=source_type,
+                    target_selector=payload.get("selector") or target_selector,
+                    payload=payload,
+                    event_type=macro_action,
+                )
+            else:
+                macro_step = MacroStep(
+                    type=MacroStepType.ACTION,
+                    event_type=macro_action,
+                    source=source_type,
+                    target_selector=target_selector,
+                    payload=payload,
+                )
+
+            steps.append(macro_step)
+
+        if has_extract:
+            steps.append(MacroStep(type=MacroStepType.DUMP))
+
+        clean_steps = cleanup_macro_steps(
+            [s.model_dump(exclude_none=True) for s in steps]
+        )[0]
+        return MacroScript(steps=cast(list[MacroStep], clean_steps))
+
+    def _normalize_action(self, step: TraceStep) -> tuple[str | None, dict[str, Any]]:
+        """Return normalized (action_type, action_args) or (None, {}) to drop."""
+        action_type = step.action_type
+        action_args = dict(step.action_args)
+
+        if step.state_context.get("source") == "mobile" or action_type in _RAW_MOBILE_EVENT_TYPES:
+            normalized = _normalize_mobile_event(action_type, action_args)
+            if normalized is None:
+                return None, {}
+            return normalized
+
+        return action_type, action_args
+
+
+def _normalize_mobile_event(
+    event_type: str, payload: dict[str, Any]
+) -> tuple[str | None, dict[str, Any]] | None:
+    """Normalize raw Android mirror events into macro actions.
+
+    Returns (action_name, action_args) or None to drop the event.
+    The recorder emits touch_down/touch_up boundaries plus a composed
+    swipe event per gesture; a near-zero-distance swipe is a tap.
+    Mirror-window clicks arrive as mouse_click with device-pixel
+    coordinates (transformed client-side in GlobalRecorderManager).
+    """
+    if event_type in ("touch_down", "touch_up"):
+        return None
+    if event_type == "mouse_click":
+        pos = payload.get("position") or {}
+        if isinstance(pos, (list, tuple)) and len(pos) == 2:
+            return ("tap", {"x": pos[0], "y": pos[1]})
+        args = {k: v for k, v in {"x": payload.get("x"), "y": payload.get("y")}.items() if v is not None}
+        return ("tap", args)
+    if event_type == "swipe":
+        x, y = payload.get("x"), payload.get("y")
+        end_x = payload.get("swipe_end_x")
+        end_y = payload.get("swipe_end_y")
+        args = {k: v for k, v in {"x": x, "y": y}.items() if v is not None}
+        if end_x is None or end_y is None or x is None or y is None:
+            return ("tap", args)
+        distance = ((end_x - x) ** 2 + (end_y - y) ** 2) ** 0.5
+        if distance < 30:
+            return ("tap", args)
+        args["end_x"] = end_x
+        args["end_y"] = end_y
+        if payload.get("swipe_duration_ms") is not None:
+            args["duration_ms"] = payload["swipe_duration_ms"]
+        return ("swipe", args)
+    if event_type == "key":
+        return ("key_press", {"key": payload.get("key_code")})
+    # region_extract and other annotated events pass through as-is
+    return (event_type, payload)

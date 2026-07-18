@@ -87,7 +87,7 @@
     "step_skipped": "步骤 {i} ({action})：跳过 - 未找到工具"
   },
   "learning": {
-    "synthesis_lang_constraint": "\n\n重要提示：用户的首选语言是 {lang}。请确保生成的 'description' 字段以及任何自然语言文本都使用 {lang} 撰写。"
+    "synthesis_lang_constraint": "\n\n重要提示：用户的首选语言是 中文。请确保生成的 'description' 字段以及任何自然语言文本都使用 中文 撰写。"
   },
   "memory": {
     "pruned_output": "[已修剪的工具输出：移除旧的工具执行结果以节省上下文]",

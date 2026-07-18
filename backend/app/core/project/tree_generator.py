@@ -10,7 +10,7 @@ from app.core.config import settings
 from app.core.project import cache as project_cache
 from app.infrastructure.database import session_scope
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.models import CodeChunk, SourceFile
+from app.models import CodeChunk, Repository, SourceFile
 from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
@@ -69,23 +69,15 @@ class AnnotatedTreeGenerator:
         self.pattern = pattern
         self.with_symbols = with_symbols
         self.file_limit = file_limit
-        self.db_files_map = {}
 
     async def generate(self, style: str = "auto") -> str:
         """
         Generate the tree string.
         Args:
-             style: 'tree' (ASCII art) or 'flat' (List of paths). 'auto' defaults to 'flat' if no symbols, 'tree' if symbols.
+             style: 'tree' (ASCII art) or 'flat' (List of paths). 'auto' defaults to 'tree'.
         """
-        # 1. Fetch DB Data (Only if symbols requested)
-        if self.with_symbols:
-            async with session_scope() as session:
-                self.db_files_map = await self._fetch_source_files_map(session)
-
-        # 2. Build Tree Structure
         root_node = await self._build_tree_structure()
 
-        # 3. Determine Format
         if style == "auto":
             style = "tree"
 
@@ -94,8 +86,6 @@ class AnnotatedTreeGenerator:
                 flat_paths = self._collect_flat_paths(root_node)
                 return render_template("domain/codebase/codebase_tree.prompt.j2", style="flat", flat_paths=flat_paths)
 
-            # Strategy: Adjust root_node's visibility and render
-            # (Note: Original Level 1-4 logic simplified to just rendering the built structure)
             return render_template("domain/codebase/codebase_tree.prompt.j2", style="tree", root=root_node)
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Failed to render tree: {e}")
@@ -106,7 +96,7 @@ class AnnotatedTreeGenerator:
         current_path = os.path.join(prefix, node.name) if prefix else node.name
         if node.type == "file":
             paths.append(current_path)
-            
+
         for child in node.children:
             if child.type == "dir":
                 paths.extend(self._collect_flat_paths(child, current_path))
@@ -127,97 +117,29 @@ class AnnotatedTreeGenerator:
             return "\n".join(lines[: self.max_lines]) + f"\n... [Truncated at {self.max_lines} lines]"
         return text
 
-    async def _build_tree_structure(self) -> TreeNode:
-        from app.core.file.service import walk_tree
-        from app.domain.codebase.filter import FileFilter
+    def _is_path_ignored(self, path: str, ignored_paths: set) -> bool:
+        """
+        Check if a path should be ignored based on the ignored project paths.
 
-        self.file_filter = FileFilter()
+        Args:
+            path: The path to check
+            ignored_paths: Set of ignored project paths
 
-        # Get ignored project paths from cache (cache + DB)
-        ignored_paths = await project_cache.get_ignored_paths()
-        logger.debug(f"[TreeGenerator] Ignored paths: {ignored_paths}")
+        Returns:
+            True if the path should be ignored
+        """
+        abs_path = os.path.abspath(path)
 
-        # Check if root_path itself is inside an ignored project
-        if self._is_path_ignored(self.root_path, ignored_paths):
-            logger.warning(f"[TreeGenerator] Root path is inside ignored project: {self.root_path}")
-            # Return empty tree
-            return TreeNode(name=os.path.basename(self.root_path), type="dir")
+        for ignored_path in ignored_paths:
+            # Check if path is exactly the ignored path
+            if abs_path == ignored_path:
+                return True
+            # Check if path is inside an ignored project
+            # Use os.sep to ensure we're matching directory boundaries
+            if abs_path.startswith(ignored_path + os.sep):
+                return True
 
-        root_node = TreeNode(name=os.path.basename(self.root_path), type="dir")
-
-        # Map: abs_path -> TreeNode (for efficient retrieval during reconstruction)
-        nodes_map = {self.root_path: root_node}
-
-        # Create directory filter that excludes ignored projects
-        def dir_filter(dir_path: str) -> bool:
-            """Filter out directories that are in the ignored list."""
-            return not self._is_path_ignored(dir_path, ignored_paths)
-
-        for full_path in walk_tree(
-            self.root_path,
-            filter_func=self.file_filter.should_include,
-            max_depth=self.max_depth,
-            dir_filter=dir_filter
-        ):
-
-            # Pattern Filter (fnmatch)
-            filename = os.path.basename(full_path)
-            if self.pattern and not fnmatch.fnmatch(filename, self.pattern):
-                continue
-
-            # Build Tree Path
-            rel_path = os.path.relpath(full_path, self.root_path)
-            parts = rel_path.split(os.sep)
-
-            # Start from root and traverse/create
-            current_node = root_node
-            current_abs = self.root_path
-
-            for i, part in enumerate(parts):
-                is_last_part = (i == len(parts) - 1)
-                current_abs = os.path.join(current_abs, part)
-
-                if current_abs in nodes_map:
-                    current_node = nodes_map[current_abs]
-                else:
-                    # Create new node
-                    node_type = "file" if is_last_part else "dir"
-                    new_node = TreeNode(name=part, type=node_type)
-                    current_node.add_child(new_node)
-                    nodes_map[current_abs] = new_node
-                    current_node = new_node
-
-            # At end of loop, current_node is the file node
-            file_node = current_node
-
-            # Add Symbols
-            chunks = []
-            if rel_path in self.db_files_map:
-                chunks = self.db_files_map[rel_path]
-
-            self._add_symbols_to_file_node(file_node, chunks)
-
-        # Post-process: Prune empty directories if pattern is active
-        # Or always? walk_tree only yields files. Dirs only exist if they lead to valid files.
-        # So "empty dirs" that contain no code files shouldn't logically exist in this constructed tree.
-        # Exception: Dirs created by one file that was later skipped? No.
-        # Wait, if pattern skipped the file, the dir node wasn't created.
-        # BUT: Explicitly strictly empty dirs (no files at all deep down) are auto-pruned by this logic.
-        # This is strictly better than _prune_empty_dirs!
-        # However, _prune_empty_dirs might still be needed if `pattern` is applied in the loop?
-        # If all files in a dir match pattern "exclude", then we skip them. We never create the dir node.
-        # So _prune_empty_dirs is implicit!
-        # Unless we want to keep dirs that match pattern? But pattern usually applies to files.
-
-        # Let's keep `_prune_empty_dirs` call just in case I missed an edge case or for legacy safety?
-        # Actually logic says: if file is skipped, loops continues. dir nodes not created.
-        # So structure is clean by definition.
-
-        if self.pattern:
-            self._prune_empty_dirs(root_node)
-
-        root_node.sort_children()
-        return root_node
+        return False
 
     def _add_symbols_to_file_node(self, file_node: TreeNode, chunks: list[CodeChunk]):
         if not chunks:
@@ -271,43 +193,6 @@ class AnnotatedTreeGenerator:
         for fn in functions:
             file_node.add_child(fn)
 
-    # Removed manual rendering methods in favor of domain/codebase_tree.prompt.j2
-
-    def _is_path_ignored(self, path: str, ignored_paths: set) -> bool:
-        """
-        Check if a path should be ignored based on the ignored project paths.
-
-        Args:
-            path: The path to check
-            ignored_paths: Set of ignored project paths
-
-        Returns:
-            True if the path should be ignored
-        """
-        abs_path = os.path.abspath(path)
-
-        for ignored_path in ignored_paths:
-            # Check if path is exactly the ignored path
-            if abs_path == ignored_path:
-                return True
-            # Check if path is inside an ignored project
-            # Use os.sep to ensure we're matching directory boundaries
-            if abs_path.startswith(ignored_path + os.sep):
-                return True
-
-        return False
-
-    async def _fetch_source_files_map(self, session) -> dict[str, list[CodeChunk]]:
-        # Modified to fetch chunks with identifiers
-        stmt = select(SourceFile).options(selectinload(SourceFile.chunks))
-        result = await session.execute(stmt)
-        files = result.scalars().all()
-
-        mapping = {}
-        for sf in files:
-            mapping[sf.path] = sf.chunks
-        return mapping
-
     def _prune_empty_dirs(self, node: TreeNode) -> bool:
         """
         Recursively prune directories that contain no files (or only empty directories).
@@ -323,3 +208,192 @@ class AnnotatedTreeGenerator:
         # But if root is strictly empty after filter, maybe we keep it to show "No results"?
         # Let's say we remove it if empty, but caller handles root.
         return len(node.children) > 0
+
+    async def _build_tree_structure(self) -> TreeNode:
+        from app.domain.codebase.filter import FileFilter
+
+        self.file_filter = FileFilter()
+        ignored_paths = await project_cache.get_ignored_paths()
+
+        # Try DB assembly first (no disk access). Fallback to physical walk if
+        # the project hasn't been indexed yet (scan_status != 'completed').
+        db_root = await self._build_tree_from_db(ignored_paths)
+        if db_root is not None:
+            return db_root
+
+        logger.info(
+            f"[TreeGenerator] DB assembly not available for {self.root_path}, "
+            "falling back to physical walk."
+        )
+
+        return await self._build_tree_from_disk(ignored_paths)
+
+    async def _build_tree_from_db(self, ignored_paths: set) -> TreeNode | None:
+        """Build the tree purely from SourceFile/CodeChunk in the DB."""
+
+        async with session_scope() as session:
+            repo = await self._find_repository_by_path(session, self.root_path)
+            if repo is None or not repo.local_path:
+                return None
+
+            repo_path = repo.local_path
+            stmt = (
+                select(SourceFile)
+                .where(
+                    SourceFile.repository_id == repo.id,
+                    SourceFile.scan_status == "completed",
+                )
+            )
+            if self.with_symbols:
+                stmt = stmt.options(selectinload(SourceFile.chunks))
+            result = await session.execute(stmt)
+            source_files = result.scalars().all()
+            if not source_files:
+                return None
+
+            root_node = TreeNode(
+                name=os.path.basename(self.root_path), type="dir"
+            )
+            nodes_map = {self.root_path: root_node}
+
+            for sf in source_files:
+                full_path = os.path.join(repo_path, sf.path)
+                if not full_path.startswith(self.root_path):
+                    continue
+                if self._is_path_ignored(full_path, ignored_paths):
+                    continue
+
+                rel_path = os.path.relpath(full_path, self.root_path)
+                parts = rel_path.split(os.sep)
+                if len(parts) > self.max_depth:
+                    continue
+
+                filename = os.path.basename(full_path)
+                if self.pattern and not fnmatch.fnmatch(filename, self.pattern):
+                    continue
+                if not self.file_filter.should_include(full_path):
+                    continue
+
+                current_node = root_node
+                current_abs = self.root_path
+                for i, part in enumerate(parts):
+                    is_last_part = i == len(parts) - 1
+                    current_abs = os.path.join(current_abs, part)
+                    if current_abs in nodes_map:
+                        current_node = nodes_map[current_abs]
+                    else:
+                        node_type = "file" if is_last_part else "dir"
+                        new_node = TreeNode(name=part, type=node_type)
+                        current_node.add_child(new_node)
+                        nodes_map[current_abs] = new_node
+                        current_node = new_node
+
+                file_node = current_node
+                if self.with_symbols:
+                    self._add_symbols_to_file_node(file_node, sf.chunks)
+
+            if self.pattern:
+                self._prune_empty_dirs(root_node)
+            root_node.sort_children()
+            return root_node
+
+    async def _find_repository_by_path(
+        self, session, root_path: str
+    ) -> Repository | None:
+        """Find the repository whose local_path matches or contains root_path."""
+
+        root_path = os.path.abspath(root_path)
+        stmt = select(Repository).where(Repository.local_path == root_path)
+        result = await session.execute(stmt)
+        repo = result.scalar_one_or_none()
+        if repo is not None:
+            return repo
+
+        stmt = select(Repository)
+        result = await session.execute(stmt)
+        for candidate in result.scalars().all():
+            if candidate.local_path and root_path.startswith(
+                candidate.local_path + os.sep
+            ):
+                return candidate
+        return None
+
+    async def _build_tree_from_disk(self, ignored_paths: set) -> TreeNode:
+        from app.core.file.service import walk_tree
+
+        if self._is_path_ignored(self.root_path, ignored_paths):
+            logger.warning(
+                f"[TreeGenerator] Root path is inside ignored project: {self.root_path}"
+            )
+            return TreeNode(name=os.path.basename(self.root_path), type="dir")
+
+        db_files_map: dict[str, list[CodeChunk]] = {}
+        if self.with_symbols:
+            db_files_map = await self._fetch_source_files_map_for_disk()
+
+        root_node = TreeNode(name=os.path.basename(self.root_path), type="dir")
+        nodes_map = {self.root_path: root_node}
+
+        def dir_filter(dir_path: str) -> bool:
+            return not self._is_path_ignored(dir_path, ignored_paths)
+
+        for full_path in walk_tree(
+            self.root_path,
+            filter_func=self.file_filter.should_include,
+            max_depth=self.max_depth,
+            dir_filter=dir_filter,
+        ):
+            filename = os.path.basename(full_path)
+            if self.pattern and not fnmatch.fnmatch(filename, self.pattern):
+                continue
+
+            rel_path = os.path.relpath(full_path, self.root_path)
+            parts = rel_path.split(os.sep)
+
+            current_node = root_node
+            current_abs = self.root_path
+            for i, part in enumerate(parts):
+                is_last_part = i == len(parts) - 1
+                current_abs = os.path.join(current_abs, part)
+
+                if current_abs in nodes_map:
+                    current_node = nodes_map[current_abs]
+                else:
+                    node_type = "file" if is_last_part else "dir"
+                    new_node = TreeNode(name=part, type=node_type)
+                    current_node.add_child(new_node)
+                    nodes_map[current_abs] = new_node
+                    current_node = new_node
+
+            file_node = current_node
+            chunks = db_files_map.get(rel_path, [])
+            self._add_symbols_to_file_node(file_node, chunks)
+
+        if self.pattern:
+            self._prune_empty_dirs(root_node)
+
+        root_node.sort_children()
+        return root_node
+
+    async def _fetch_source_files_map_for_disk(self) -> dict[str, list[CodeChunk]]:
+        async with session_scope() as session:
+            repo = await self._find_repository_by_path(session, self.root_path)
+            if repo is None or not repo.local_path:
+                return {}
+
+            repo_path = repo.local_path
+
+            stmt = (
+                select(SourceFile)
+                .where(SourceFile.repository_id == repo.id)
+                .options(selectinload(SourceFile.chunks))
+            )
+            result = await session.execute(stmt)
+            files = result.scalars().all()
+
+            mapping = {}
+            for sf in files:
+                full_path = os.path.join(repo_path, sf.path)
+                rel_path = os.path.relpath(full_path, self.root_path)
+                mapping[rel_path] = sf.chunks
+            return mapping

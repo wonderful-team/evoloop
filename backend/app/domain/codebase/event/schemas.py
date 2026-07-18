@@ -63,3 +63,44 @@ class IndexingStatusChangedEvent(BaseEvent):
             "repo_id": self.repo_id,
             "status": self.status,
         }
+
+
+class IndexingCompletedEvent(BaseEvent):
+    """
+    Event triggered when a project's full indexing completes successfully.
+    Subscribers can use this to trigger downstream tasks (wiki, appmap, summary).
+    """
+    event_type: str = IndexingEventType.INDEXING_COMPLETED
+    source: str = "indexing"
+    project_id: int
+    repo_id: int
+    is_public: bool = False
+
+    def model_post_init(self, __context: Any) -> None:
+        self.data = {
+            "project_id": self.project_id,
+            "repo_id": self.repo_id,
+        }
+
+
+class GenerationStatusChangedEvent(BaseEvent):
+    """
+    Public event triggered when a generation artifact status changes.
+    Bridged to the frontend via UniversalBridgeSubscriber.
+    """
+    event_type: str = IndexingEventType.GENERATION_STATUS_CHANGED
+    source: str = "generation"
+    project_id: int
+    item: str
+    status: str
+    error: str | None = None
+    is_public: bool = True
+    broadcast_channel: str = "system"
+
+    def model_post_init(self, __context: Any) -> None:
+        self.data = {
+            "project_id": self.project_id,
+            "item": self.item,
+            "status": self.status,
+            "error": self.error,
+        }

@@ -14,11 +14,12 @@ G5 security gate for the two escape-hatch macro step kinds (design doc G5):
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import os
 import re
+
+from app.core.file import compute_file_hash
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +71,7 @@ def check_native_allowed(command: str, script_path: str) -> None:
         expected_hash = entry.get("sha256")
         if expected_hash:
             try:
-                with open(script_path, "rb") as f:
-                    actual = hashlib.sha256(f.read()).hexdigest()
+                actual = compute_file_hash(script_path, algo="sha256")
             except OSError as e:
                 raise ScriptGateError(f"native 步骤脚本不可读: {script_path} ({e})") from e
             if actual != expected_hash:

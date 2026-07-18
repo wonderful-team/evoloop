@@ -11,6 +11,26 @@ from app.models.learning import LearnedSkill
 logger = logging.getLogger(__name__)
 
 
+def _extract_tools_required(metadata: dict) -> list[str]:
+    """Extract required tool names from SKILL.md frontmatter.
+
+    Supports the canonical layout:
+        requires:
+          tools: [tool_a, tool_b]
+
+    Returns an empty list when the field is missing or malformed.
+    """
+    requires = metadata.get("requires") or {}
+    if not isinstance(requires, dict):
+        return []
+    tools = requires.get("tools") or []
+    if isinstance(tools, str):
+        return [tools]
+    if isinstance(tools, list):
+        return [str(t) for t in tools if t]
+    return []
+
+
 class SkillImporter:
     """
     Service to import external skill packages (SKILL.md) into the Evoloop database.
@@ -72,13 +92,6 @@ class SkillImporter:
         # instructions are parsed inside SkillValidator's metadata-returning internal method, but SkillValidator also has _parse_skill_md
         _, instructions = SkillValidator._parse_skill_md(skill_folder / "SKILL.md")
 
-        # 2. Map Resources
-        resource_map = {
-            "scripts": [str(p.relative_to(skill_folder)) for p in (skill_folder / "scripts").glob("**/*") if p.is_file()] if (skill_folder / "scripts").exists() else [],
-            "references": [str(p.relative_to(skill_folder)) for p in (skill_folder / "references").glob("**/*") if p.is_file()] if (skill_folder / "references").exists() else [],
-            "assets": [str(p.relative_to(skill_folder)) for p in (skill_folder / "assets").glob("**/*") if p.is_file()] if (skill_folder / "assets").exists() else []
-        }
-
         async with session_scope() as db:
             # Check if skill already exists
             stmt = select(LearnedSkill).where(LearnedSkill.name == metadata["name"])
@@ -102,6 +115,7 @@ class SkillImporter:
                 existing.resource_path = str(skill_folder.absolute())
                 existing.trigger_patterns = [metadata["name"]] + (metadata.get("trigger_patterns", []))
                 existing.parameters = metadata.get("parameters", [])
+                existing.tools_used = _extract_tools_required(metadata)
                 existing.status = "verified" if validation.status == "healthy" else "candidate"
                 existing.is_active = True
                 existing.validation_report = validation.model_dump()
@@ -115,6 +129,7 @@ class SkillImporter:
                     resource_path=str(skill_folder.absolute()),
                     trigger_patterns=[metadata["name"]] + (metadata.get("trigger_patterns", [])),
                     parameters=metadata.get("parameters", []),
+                    tools_used=_extract_tools_required(metadata),
                     status="verified" if validation.status == "healthy" else "candidate",
                     is_active=True,
                     skill_source="imported",

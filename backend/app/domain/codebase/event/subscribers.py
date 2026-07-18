@@ -18,6 +18,7 @@ from app.core.project.event import (
     ProjectEventType,
     ProjectMovedEvent,
 )
+from app.domain.codebase.event.types import IndexingEventType
 
 logger = logging.getLogger(__name__)
 
@@ -222,3 +223,50 @@ class IndexingEventSubscriber:
             )
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[IndexingHandler] Failed to handle move: {e}")
+
+
+@event_register()
+class GenerationAutoDispatchSubscriber:
+    """
+    Listens for indexing completed events and auto-dispatches generation.
+
+    This is the bridge between the indexing domain and the generation domain.
+    When indexing finishes successfully for a project, this subscriber:
+    1. Dispatches wiki, appmap, and summary generation as background tasks
+    2. Tracks their status via the GenerationScheduler
+    """
+
+    @event_subscribe(IndexingEventType.INDEXING_COMPLETED)
+    async def on_indexing_completed(self, event: BaseEvent) -> None:
+        """Handle INDEXING_COMPLETED: auto-dispatch wiki/appmap/summary generation."""
+        project_id = event.data.get("project_id")
+        if not project_id:
+            logger.warning("[GenerationAutoDispatch] No project_id in event, skipping")
+            return
+
+        logger.info(
+            f"[GenerationAutoDispatch] Indexing completed for project {project_id}, "
+            f"dispatching generation..."
+        )
+
+        try:
+            from app.domain.codebase.generation.runner import run_generation_item
+            from app.domain.codebase.generation.scheduler import dispatch_generation
+
+            items = ["wiki", "appmap", "summary"]
+
+            # Mark them as pending in the scheduler
+            await dispatch_generation(project_id, items)
+
+            # Fire-and-forget: run each generation item in the background
+            for item in items:
+                asyncio.create_task(run_generation_item(project_id, item))
+
+            logger.info(
+                f"[GenerationAutoDispatch] Dispatched {items} for project {project_id}"
+            )
+        except Exception as e:
+            logger.error(
+                f"[GenerationAutoDispatch] Failed to dispatch generation "
+                f"for project {project_id}: {e}"
+            )

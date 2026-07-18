@@ -15,10 +15,10 @@ from typing import Any
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
+from app.core.file import is_code_file
 from app.core.file.filter import is_ignored_path
 from app.domain.codebase.filter import FileFilter
 from app.domain.codebase.ignore import NestedGitignoreMatcher
-from app.utils.detect import is_code_file
 
 logger = logging.getLogger(__name__)
 

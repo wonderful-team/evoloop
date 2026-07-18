@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable
 
-from sqlalchemy import select
+from sqlalchemy import Text, func, literal, or_, select
 
 from app.core.events.publishers import publish_macro_mutated
 from app.infrastructure.database import session_scope
@@ -62,6 +62,18 @@ async def persist_candidates(
     return ids
 
 
+async def deduplicate_macro_name(db, name: str) -> str:
+    """Counter-suffix dedup for macro names within the global scope."""
+    unique = name
+    counter = 1
+    while True:
+        stmt = select(Macro.id).where(Macro.name == unique)
+        if (await db.execute(stmt)).scalar_one_or_none() is None:
+            return unique
+        unique = f"{name}_{counter}"
+        counter += 1
+
+
 async def create_macro_from_synthesis(
     db,
     *,
@@ -70,6 +82,7 @@ async def create_macro_from_synthesis(
     trigger_patterns: list[str] | None = None,
     parameters: list[dict] | None = None,
     macro_script: str,
+    namespace: str | None = None,
     risk_tier: str = "ui",
     requires_confirmation: bool = False,
     fallback_skill_id: int | None = None,
@@ -84,14 +97,19 @@ async def create_macro_from_synthesis(
     re-surveys never obsolete them. The caller must publish_macro_mutated
     after commit.
     """
+    unique_name = await deduplicate_macro_name(db, name)
+    if unique_name != name:
+        logger.info("Macro name collision resolved: %s -> %s", name, unique_name)
+
     macro = Macro(
         app_map_id=None,
         entity=None,
-        name=name,
+        name=unique_name,
         description=description,
         trigger_patterns=trigger_patterns or [],
         parameters=parameters or [],
         macro_script=macro_script,
+        namespace=namespace,
         risk_tier=risk_tier,
         requires_confirmation=requires_confirmation,
         status="pending_review",
@@ -134,6 +152,11 @@ async def list_macros(
     project_id: int | None = None,
     app_map_id: int | None = None,
     status: str | None = None,
+    namespace: str | None = None,
+    entity: str | None = None,
+    query: str | None = None,
+    limit: int | None = None,
+    offset: int | None = None,
 ) -> list[Macro]:
     async with session_scope() as db:
         stmt = select(Macro)
@@ -143,6 +166,23 @@ async def list_macros(
             stmt = stmt.where(Macro.app_map_id == app_map_id)
         if status is not None:
             stmt = stmt.where(Macro.status == status)
+        if namespace is not None:
+            stmt = stmt.where(Macro.namespace == namespace)
+        if entity is not None:
+            stmt = stmt.where(Macro.entity == entity)
+        if query:
+            q = f"%{query}%"
+            stmt = stmt.where(
+                or_(
+                    Macro.name.ilike(q),
+                    Macro.description.ilike(q),
+                    func.coalesce(Macro.trigger_patterns, literal("[]")).cast(Text).ilike(q),
+                )
+            )
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        if offset is not None:
+            stmt = stmt.offset(offset)
         result = await db.execute(stmt)
         return list(result.scalars().all())
 

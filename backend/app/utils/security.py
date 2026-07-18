@@ -1,4 +1,3 @@
-import hashlib
 import hmac
 import os
 import re
@@ -52,7 +51,7 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
-def generate_hmac_signature(secret: str, message: str, hash_alg=hashlib.sha256) -> str:
+def generate_hmac_signature(secret: str, message: str, hash_alg: str = "sha256") -> str:
     """
     Generate HMAC signature for a message.
     Used for API request signing (e.g. EvoCloud).

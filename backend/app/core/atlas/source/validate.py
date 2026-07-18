@@ -1,6 +1,6 @@
-"""AppMap output validation: schema check + source spot-check (anti-hallucination).
+"""AppMap output validation: schema check + source spot-check + graph reachability.
 
-Both layers are deterministic, no LLM. Returns a list of problems; empty means
+All checks are deterministic and LLM-free. Returns a list of problems; empty means
 pass. write_app_map refuses to persist when problems are non-empty.
 """
 
@@ -9,25 +9,58 @@ from __future__ import annotations
 import logging
 import os
 
+from sqlalchemy import or_, select
+
 from app.core.atlas.source.schemas import (
     ACTION_KINDS,
     RISK_TIERS,
     SELECTOR_TYPES,
     AppMapPayload,
 )
+from app.core.file import FileStatus, read_file
+from app.infrastructure.database import session_scope
+from app.models import CodeEntity, CodeRelation, Repository, SourceFile
 
 logger = logging.getLogger(__name__)
 
 _LINE_WINDOW = 10
+_MAX_GRAPH_DEPTH = 5
+_GRAPH_CONFIDENCE = ("EXTRACTED", "INFERRED")
 
 
-def validate_app_map(
-    payload: AppMapPayload, project_path: str | None = None
+async def validate_app_map_via_graph(
+    payload: AppMapPayload, project_id: int
 ) -> list[str]:
+    """Validate AppMap route→table reachability via CodeRelation graph (BFS).
+
+    Design-doc name for the graph reachability check. Delegates to the internal
+    ``_validate_graph_reachability`` which performs a BFS up to ``_MAX_GRAPH_DEPTH``
+    hops, traversing only ``EXTRACTED`` / ``INFERRED`` edges.
+    """
+    return await _validate_graph_reachability(payload, project_id)
+
+
+async def validate_app_map(
+    payload: AppMapPayload,
+    project_path: str | None = None,
+    project_id: int | None = None,
+) -> list[str]:
+    """Validate an AppMap payload.
+
+    Args:
+        payload: AppMap payload to validate.
+        project_path: Optional local project path for source spot-checks.
+        project_id: Optional project ID for CodeRelation graph reachability checks.
+
+    Returns:
+        List of validation problems; empty means pass.
+    """
     problems: list[str] = []
     problems.extend(_validate_schema(payload))
     if project_path:
         problems.extend(_spot_check_source(payload, project_path))
+    if project_id:
+        problems.extend(await _validate_graph_reachability(payload, project_id))
     return problems
 
 
@@ -99,18 +132,14 @@ def _symbol_at_location(
     abs_path = _resolve_file(project_path, rel_file)
     if abs_path is None:
         return False
-    try:
-        with open(abs_path, encoding="utf-8", errors="ignore") as f:
-            lines = f.readlines()
-    except OSError:
+
+    start_line = max(1, line - _LINE_WINDOW)
+    end_line = line + _LINE_WINDOW
+    result = read_file(abs_path, start_line=start_line, end_line=end_line)
+    if result.status != FileStatus.SUCCESS:
         return False
-    lo = max(0, line - 1 - _LINE_WINDOW)
-    hi = min(len(lines), line + _LINE_WINDOW)
-    window = "".join(lines[lo:hi])
-    return symbol in window
 
-
-_SKIP_DIRS = {"node_modules", "vendor", ".git", "__pycache__", "dist", "build"}
+    return symbol in result.content
 
 
 def _resolve_file(project_path: str, rel_file: str) -> str | None:
@@ -118,8 +147,122 @@ def _resolve_file(project_path: str, rel_file: str) -> str | None:
     if os.path.isfile(direct):
         return direct
     basename = os.path.basename(rel_file)
-    for root, dirs, files in os.walk(project_path):
-        dirs[:] = [d for d in dirs if d not in _SKIP_DIRS]
-        if basename in files:
-            return os.path.join(root, basename)
+    from app.core.file import FileTraverser
+    for full_path in FileTraverser.walk(project_path):
+        if os.path.basename(full_path) == basename:
+            return full_path
     return None
+
+
+async def _validate_graph_reachability(
+    payload: AppMapPayload, project_id: int
+) -> list[str]:
+    """Verify each action can reach its claimed DB tables via CodeRelation."""
+    problems: list[str] = []
+    async with session_scope() as session:
+        for action in payload.actions:
+            if not action.controller or not action.touches_tables:
+                continue
+            controller_path = action.controller.replace("\\", "/")
+            start_ids = await _resolve_start_entity_ids(
+                session, project_id, action.name, controller_path
+            )
+            if not start_ids:
+                continue
+            for table in action.touches_tables:
+                target_ids = await _resolve_target_entity_ids(
+                    session, project_id, table
+                )
+                if not target_ids:
+                    continue
+                reachable = await _is_reachable_in_graph(
+                    session, start_ids, target_ids
+                )
+                if not reachable:
+                    problems.append(
+                        f"Action '{action.name}' → table '{table}': "
+                        f"no reachable path found in CodeRelation graph "
+                        f"(confidence: {', '.join(_GRAPH_CONFIDENCE)}). "
+                        f"Possible hallucination or missing extraction."
+                    )
+    return problems
+
+
+async def _resolve_start_entity_ids(
+    session, project_id: int, action_name: str, controller_path: str
+) -> set[int]:
+    """Find CodeEntity IDs for the action symbol inside its controller file."""
+    stmt = (
+        select(CodeEntity.id)
+        .join(SourceFile)
+        .join(Repository)
+        .where(
+            Repository.project_id == project_id,
+            SourceFile.path == controller_path,
+            _entity_name_matches(CodeEntity, action_name),
+        )
+    )
+    result = await session.execute(stmt)
+    return {row[0] for row in result.all()}
+
+
+async def _resolve_target_entity_ids(
+    session, project_id: int, table_name: str
+) -> set[int]:
+    """Find CodeEntity IDs that likely represent the named DB table/model."""
+    stmt = (
+        select(CodeEntity.id)
+        .join(SourceFile)
+        .join(Repository)
+        .where(
+            Repository.project_id == project_id,
+            _entity_name_matches(CodeEntity, table_name),
+        )
+    )
+    result = await session.execute(stmt)
+    return {row[0] for row in result.all()}
+
+
+def _entity_name_matches(entity_cls, name: str):
+    """SQL filter: entity.name or full_name matches the given symbol."""
+    return or_(
+        entity_cls.name == name,
+        entity_cls.full_name == name,
+        entity_cls.full_name.endswith(f".{name}"),
+    )
+
+
+async def _is_reachable_in_graph(
+    session, start_ids: set[int], target_ids: set[int]
+) -> bool:
+    """Breadth-first search in CodeRelation up to _MAX_GRAPH_DEPTH."""
+    if not start_ids or not target_ids:
+        return False
+    if start_ids & target_ids:
+        return True
+
+    visited = set(start_ids)
+    frontier = set(start_ids)
+    depth = 0
+
+    while frontier and depth < _MAX_GRAPH_DEPTH:
+        stmt = select(CodeRelation.target_entity_id).where(
+            CodeRelation.source_entity_id.in_(frontier),
+            CodeRelation.target_entity_id.is_not(None),
+            CodeRelation.confidence.in_(_GRAPH_CONFIDENCE),
+        )
+        result = await session.execute(stmt)
+        next_ids: set[int] = set()
+        for row in result.all():
+            tid = row[0]
+            if tid is None:
+                continue
+            if tid in target_ids:
+                return True
+            next_ids.add(tid)
+
+        frontier = next_ids - visited
+        visited.update(next_ids)
+        depth += 1
+
+    return False

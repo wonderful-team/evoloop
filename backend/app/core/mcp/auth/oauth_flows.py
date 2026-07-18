@@ -2,8 +2,9 @@
 
 import asyncio
 import base64
-import hashlib
 import json
+
+from app.core.file import sha256_digest
 import logging
 import secrets
 import time
@@ -44,7 +45,7 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
         ).decode("utf-8").rstrip("=")
 
         code_challenge = base64.urlsafe_b64encode(
-            hashlib.sha256(code_verifier.encode()).digest()
+            sha256_digest(code_verifier.encode())
         ).decode("utf-8").rstrip("=")
 
         return code_verifier, code_challenge

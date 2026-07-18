@@ -54,6 +54,9 @@ def detect_document_type(file_path: str) -> str:
 def is_code_file(file_path: str, _content: str | None = None) -> bool:
     """
     Check if the file is a code file based on extension or filename.
+
+    Deprecated: use ``app.core.file.is_code_file`` (re-export of is_code) instead.
+    Scheduled for removal in next refactor cycle.
     """
     filename = os.path.basename(file_path)
     if filename in EXTENSION_MAP:

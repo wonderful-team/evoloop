@@ -50,6 +50,7 @@ from .hash import (
     compute_sha256,
     compute_state_id,
     compute_version_hash,
+    sha256_digest,
 )
 
 # I/O Operations

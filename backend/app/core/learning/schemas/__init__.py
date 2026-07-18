@@ -13,7 +13,6 @@ from app.core.learning.schemas.migrated import (
     ActionRegistryItem,
     ActionSource,
     ActionTrace,
-    MacroVerificationResult,
     RecordingSession,
     SkillImportResult,
     SkillListItem,

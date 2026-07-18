@@ -87,13 +87,9 @@ class A2ACommandHandler:
                                     f.write(chunk)
 
                         # Verify MD5
-                        import hashlib
+                        from app.core.file import compute_file_hash
 
-                        hash_md5 = hashlib.md5()
-                        with open(dest_path, "rb") as f:
-                            for chunk in iter(lambda: f.read(4096), b""):
-                                hash_md5.update(chunk)
-                        actual_md5 = hash_md5.hexdigest()
+                        actual_md5 = compute_file_hash(dest_path)
 
                         if actual_md5 != att.md5:
                             logger.error(

@@ -66,3 +66,13 @@ def compute_state_id(*identifiers: str, length: int = 8) -> str:
 def compute_content_hash(content: str | bytes, length: int | None = None) -> str:
     """Compute a content hash with optional truncation."""
     return compute_hash(content, "md5", length)
+
+
+def sha256_digest(data: bytes) -> bytes:
+    """Compute raw SHA-256 digest (returns bytes, not hex).
+
+    For cryptographic uses such as key derivation and PKCE where the
+    raw binary digest is required instead of the hex string returned by
+    ``compute_sha256``.
+    """
+    return hashlib.sha256(data).digest()

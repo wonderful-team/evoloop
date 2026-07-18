@@ -100,6 +100,9 @@ class Settings(BaseSettings):
     AUTO_MEMORY_EXTRACTION: bool = True  # Enable automatic memory extraction at conversation end
     AUTO_MEMORY_EXTRACTION_INTERVAL: int = 1  # Extract every N turns (1 = every turn, 2 = every other turn, etc.)
 
+    # Macro Sedimentation Settings
+    AUTO_MACRO_SEDIMENTATION_ENABLED: bool = True  # Enable automatic macro sedimentation after successful sessions
+
     BACKEND_CORS_ORIGINS: Annotated[list[AnyUrl] | str, BeforeValidator(parse_cors)] = []
 
     @computed_field  # type: ignore[prop-decorator]
@@ -229,24 +232,14 @@ class Settings(BaseSettings):
     REDIS_URL: str | None = "redis://localhost:6379/0"
     REDIS_MAX_CONNECTIONS: int = Field(120, validation_alias="REDIS_MAX_CONNECTIONS")
 
-    # Voice/TTS Configuration
-    TTS_PROVIDER: str = "auto"  # auto | system-tts | edge-tts
-    TTS_DEFAULT_VOICE: str = "zh-CN-Tingting"  # macOS 系统语音: 婷婷
-    TTS_DEFAULT_SPEED: float = 1.0  # 0.5 - 2.0
-
-    # Voice/STT Configuration (FunASR - local, Chinese optimized)
-    FUNASR_MODEL: str = "paraformer-zh"  # paraformer-zh | paraformer-zh-plus | paraformer-zh-streaming
-    FUNASR_DEVICE: str = "cpu"  # cpu | cuda
-    STT_API_KEY: str | None = None  # OpenAI-compatible STT API key (Whisper)
-    TAURI_RESOURCE_DIR: str | None = None  # Tauri bundled resource directory for FunASR models
-
     # AI Models Storage Configuration
-    MODELS_DIR: Annotated[str | None, BeforeValidator(expand_path)] = None  # Directory for storing AI models (FunASR, embeddings, etc.)
+    MODELS_DIR: Annotated[str | None, BeforeValidator(expand_path)] = None  # Directory for storing AI models (embeddings, etc.)
 
     # Embedding Configuration
     EMBEDDING_DIMENSIONS: int = 768  # Nomic / Local Default
     EMBEDDING_ENABLED: bool = False  # Disable local embeddings by default to avoid CPU overload
-    HF_ENDPOINT: str = "https://huggingface.co"
+    # Lightning Channel default GGUF directory
+    LIGHTNING_GGUF_DIR: str = Field(default="")
 
     # Wiki Generation
     WIKI_EXTRACT_CONCEPTS: bool = True  # Extract and store concepts from Wiki pages to Agent memory
@@ -256,7 +249,6 @@ class Settings(BaseSettings):
 
     ENABLE_VISION_OCR: bool = True
     ENABLE_MACRO_SELF_HEALING: bool = True
-    SKILL_SEDIMENTATION_ENABLED: bool = False
     ROUTE_INDEX_REQUIRE_VERIFIED: bool = True
 
     # 是否启用本地环境控制工具（浏览器、桌面、手机）。可以根据实际需要开启或关闭。
@@ -474,14 +466,11 @@ class Settings(BaseSettings):
     def _setup_external_env(self) -> Self:
         """Set environment variables for external libraries (ModelScope, HuggingFace)."""
         os.environ["MODELSCOPE_CACHE"] = self.MODELS_DIR
-        os.environ["HF_ENDPOINT"] = self.HF_ENDPOINT
-        # Unify HuggingFace / sentence-transformers cache into MODELS_DIR
-        # to prevent re-downloading after system cache cleanup.
-        os.environ["HF_HOME"] = os.path.join(self.MODELS_DIR, "huggingface")
-        os.environ["SENTENCE_TRANSFORMERS_HOME"] = os.path.join(self.MODELS_DIR, "sentence_transformers")
-        # Force offline mode for HuggingFace Hub to guarantee zero network requests.
-        # Must be set before any module imports huggingface_hub.
-        os.environ["HF_HUB_OFFLINE"] = "1"
+        # Lightning GGUF models directory
+        if self.MODELS_DIR:
+            gguf_dir = os.path.join(self.MODELS_DIR, "gguf")
+            os.makedirs(gguf_dir, exist_ok=True)
+            os.environ["LIGHTNING_GGUF_DIR"] = gguf_dir
         return self
 
     # Logic Limits

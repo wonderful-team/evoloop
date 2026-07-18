@@ -13,13 +13,15 @@ import logging
 import time
 from collections import defaultdict
 
+from app.core.file import compute_md5
+
 logger = logging.getLogger(__name__)
 
 
 class MemoryStateTracker:
     """
     Track which memories have been surfaced to prevent repetition.
-    
+
     This is session-scoped tracking. Memories are tracked until the session
     expires (after inactivity timeout) or the thread is closed.
     """
@@ -36,7 +38,7 @@ class MemoryStateTracker:
     def mark_surfaced(self, thread_id: str, memory_ids: list[str]) -> None:
         """
         Mark memories as having been shown to the user.
-        
+
         Args:
             thread_id: The conversation thread ID
             memory_ids: List of memory IDs to mark
@@ -54,11 +56,11 @@ class MemoryStateTracker:
     def get_surfaced_ids(self, thread_id: str, max_age: float | None = None) -> set[str]:
         """
         Get IDs of memories already shown to the user.
-        
+
         Args:
             thread_id: The conversation thread ID
             max_age: Maximum age in seconds (default: DEFAULT_SURFACE_TTL)
-            
+
         Returns:
             Set of memory IDs that have been surfaced
         """
@@ -87,17 +89,17 @@ class MemoryStateTracker:
     ) -> list:
         """
         Filter out already-surfaced memories from a list.
-        
+
         Args:
             thread_id: The conversation thread ID
             entries: List of memory entry objects (must have .id attribute)
             max_age: Maximum age in seconds for considering "already shown"
-            
+
         Returns:
             List of entries that haven't been surfaced (or are expired)
         """
         surfaced_ids = self.get_surfaced_ids(thread_id, max_age)
-        return [e for e in entries if getattr(e, 'id', None) not in surfaced_ids]
+        return [e for e in entries if getattr(e, "id", None) not in surfaced_ids]
 
     def clear_thread(self, thread_id: str) -> None:
         """Clear tracking for a specific thread."""
@@ -145,7 +147,7 @@ memory_tracker = MemoryStateTracker()
 class PredictiveMemoryCache:
     """
     Cache for predictive memory loading (per-request scope).
-    
+
     Unlike MemoryStateTracker which is session-scoped, this is for
     single-request caching to avoid duplicate searches.
     """
@@ -157,9 +159,7 @@ class PredictiveMemoryCache:
 
     def get(self, thread_id: str, query: str) -> list | None:
         """Get cached results for a query."""
-        import hashlib
-
-        query_hash = hashlib.md5(query.encode()).hexdigest()[:16]
+        query_hash = compute_md5(query)[:16]
         thread_cache = self._cache.get(thread_id, {})
 
         if query_hash in thread_cache:
@@ -174,9 +174,7 @@ class PredictiveMemoryCache:
 
     def set(self, thread_id: str, query: str, results: list) -> None:
         """Cache results for a query."""
-        import hashlib
-
-        query_hash = hashlib.md5(query.encode()).hexdigest()[:16]
+        query_hash = compute_md5(query)[:16]
 
         if thread_id not in self._cache:
             self._cache[thread_id] = {}

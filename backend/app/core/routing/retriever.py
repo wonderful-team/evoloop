@@ -110,3 +110,57 @@ async def retrieve(text: str, top_k: int = 6) -> list[RouteCandidate]:
 
     rows = get_index().search(vector, top_k=top_k)
     return [RouteCandidate(**row) for row in _dedupe_by_id(rows)]
+
+
+# ---------------------------------------------------------------------------
+# ASR partial transcript preheat cache (full-duplex streaming design §8.3)
+# ---------------------------------------------------------------------------
+
+import asyncio  # noqa: E402
+
+_preheat_cache: dict[str, list[RouteCandidate]] = {}
+_preheat_lock = asyncio.Lock()
+
+_PREHEAT_TTL_SECONDS = 10.0
+
+
+async def preheat(thread_id: str, partial_text: str) -> None:
+    """Pre-embed partial ASR transcript and cache candidates for faster routing.
+
+    Called on voice.partial signals. The cached result is consumed by
+    ``retrieve_cached()`` in ``_handle_route`` to skip re-embedding.
+    """
+
+    text = partial_text.strip()
+    if len(text) < 2:
+        return
+
+    embedder = _get_embedder()
+    if embedder is None:
+        return
+
+    try:
+        vector = await embedder.embed_query(text)
+        rows = get_index().search(vector, top_k=20)
+        candidates = [RouteCandidate(**row) for row in _dedupe_by_id(rows)]
+        async with _preheat_lock:
+            _preheat_cache[thread_id] = candidates
+        logger.debug(
+            "[retriever] preheat for thread %s: %d candidates (text=%s)",
+            thread_id,
+            len(candidates),
+            text[:40],
+        )
+    except ROUTE_EXCEPTIONS as exc:
+        logger.debug("[retriever] preheat embed failed: %s", exc)
+
+
+async def retrieve_cached(thread_id: str) -> list[RouteCandidate] | None:
+    """Pop and return preheated candidates for thread_id, or None if no cache."""
+    async with _preheat_lock:
+        return _preheat_cache.pop(thread_id, None)
+
+
+async def clear_preheat(thread_id: str) -> None:
+    async with _preheat_lock:
+        _preheat_cache.pop(thread_id, None)

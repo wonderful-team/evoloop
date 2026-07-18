@@ -18,7 +18,13 @@ from app.constants import (
     SOURCE_MAP_EXTENSIONS,
     SUSPICIOUS_JS_PATTERNS,
 )
-from app.core.file import get_file_ext, is_encrypted_path, is_ignored_path
+from app.core.file import (
+    FileStatus,
+    get_file_ext,
+    is_encrypted_path,
+    is_ignored_path,
+    read_file,
+)
 from app.core.file.types import is_text as is_text_file
 
 
@@ -55,9 +61,11 @@ class FileFilter:
         file:my-file.py    for filenames
         dir:my-directory   for directories
         """
-        with open(file_path) as f:
-            lines = f.readlines()
+        result = read_file(file_path)
+        if result.status != FileStatus.SUCCESS:
+            return {"ext": [], "file": [], "dir": []}
 
+        lines = result.content.splitlines()
         parsed_data = {"ext": [], "file": [], "dir": []}
         for line in lines:
             if line.startswith("#"):
@@ -191,92 +199,89 @@ class FileFilter:
 
     def _check_compressed_content_sample(self, file_path: str) -> bool:
         """Simple sample check for compressed content."""
-        try:
-            with open(file_path, encoding="utf-8", errors="ignore") as f:
-                sample = f.read(1000)
-
-            if not sample:
-                return False
-
-            lines = sample.split("\n")
-
-            # 1. Single long line
-            if len(lines) > 0 and len(lines[0]) > 500:
-                return True
-
-            # 2. Lack of newlines
-            if len(lines) < 3 and len(sample) > 500:
-                return True
-
-            # 3. Low whitespace ratio
-            whitespace_ratio = sum(1 for c in sample if c.isspace()) / len(sample)
-            if whitespace_ratio < 0.1:
-                return True
-
+        result = read_file(file_path)
+        if result.status != FileStatus.SUCCESS:
             return False
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
+
+        sample = result.content[:1000]
+        if not sample:
             return False
+
+        lines = sample.split("\n")
+
+        # 1. Single long line
+        if len(lines) > 0 and len(lines[0]) > 500:
+            return True
+
+        # 2. Lack of newlines
+        if len(lines) < 3 and len(sample) > 500:
+            return True
+
+        # 3. Low whitespace ratio
+        whitespace_ratio = sum(1 for c in sample if c.isspace()) / len(sample)
+        if whitespace_ratio < 0.1:
+            return True
+
+        return False
 
     def _is_compressed_content(self, file_path: str) -> bool:
         """Detailed content analysis to identify compressed/obfuscated code."""
-        try:
-            sample_size = CODE_QUALITY_THRESHOLDS["sample_size"]
-            with open(file_path, encoding="utf-8", errors="ignore") as f:
-                content = f.read(sample_size)
-
-            if not content:
-                return False
-
-            # 1. Line length
-            lines = content.split("\n")
-            if lines:
-                max_line_length = max(len(line) for line in lines)
-                if max_line_length > CODE_QUALITY_THRESHOLDS["max_line_length"]:
-                    return True
-
-            # 2. Newline ratio
-            newline_ratio = content.count("\n") / max(len(content), 1)
-            if newline_ratio < CODE_QUALITY_THRESHOLDS["min_newline_ratio"] and len(content) > 1000:
-                return True
-
-            # 3. Whitespace ratio
-            whitespace_chars = sum(1 for c in content if c.isspace())
-            whitespace_ratio = whitespace_chars / max(len(content), 1)
-            if whitespace_ratio < CODE_QUALITY_THRESHOLDS["min_whitespace_ratio"]:
-                return True
-
-            # 4. Semicolon density (for JS)
-            ext = get_file_ext(file_path)
-            if ext in SEMANTIC_LANGUAGE_MAP["javascript"]:
-                semicolon_ratio = content.count(";") / max(len(content), 1)
-                if semicolon_ratio > CODE_QUALITY_THRESHOLDS["max_semicolon_ratio"]:
-                    return True
-
-            # 5. Character Entropy
-            char_counts = Counter(content)
-            total_chars = len(content)
-            entropy = -sum(
-                (count / total_chars) * math.log2(count / total_chars)
-                for count in char_counts.values()
-            )
-            if entropy > CODE_QUALITY_THRESHOLDS["max_char_entropy"]:
-                return True
-
-            # 6. Variable Name Analysis (Short vars)
-            if ext in SEMANTIC_LANGUAGE_MAP["javascript"] or ext in SEMANTIC_LANGUAGE_MAP["typescript"]:
-                short_vars = len(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]?\b", content))
-                total_words = len(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]*\b", content))
-
-                if total_words > 50 and short_vars / max(total_words, 1) > 0.7:
-                    return True
-
-            # 7. Pattern Matching
-            for pattern in SUSPICIOUS_JS_PATTERNS:
-                if re.search(pattern, content):
-                    return True
-
+        result = read_file(file_path)
+        if result.status != FileStatus.SUCCESS:
             return False
 
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-            logging.debug(f"Error analyzing file {file_path}: {str(e)}")
+        sample_size = int(CODE_QUALITY_THRESHOLDS["sample_size"])
+        content = result.content[:sample_size]
+
+        if not content:
             return False
+
+        # 1. Line length
+        lines = content.split("\n")
+        if lines:
+            max_line_length = max(len(line) for line in lines)
+            if max_line_length > CODE_QUALITY_THRESHOLDS["max_line_length"]:
+                return True
+
+        # 2. Newline ratio
+        newline_ratio = content.count("\n") / max(len(content), 1)
+        if newline_ratio < CODE_QUALITY_THRESHOLDS["min_newline_ratio"] and len(content) > 1000:
+            return True
+
+        # 3. Whitespace ratio
+        whitespace_chars = sum(1 for c in content if c.isspace())
+        whitespace_ratio = whitespace_chars / max(len(content), 1)
+        if whitespace_ratio < CODE_QUALITY_THRESHOLDS["min_whitespace_ratio"]:
+            return True
+
+        # 4. Semicolon density (for JS)
+        ext = get_file_ext(file_path)
+        if ext in SEMANTIC_LANGUAGE_MAP["javascript"]:
+            semicolon_ratio = content.count(";") / max(len(content), 1)
+            if semicolon_ratio > CODE_QUALITY_THRESHOLDS["max_semicolon_ratio"]:
+                return True
+
+        # 5. Character Entropy
+        char_counts = Counter(content)
+        total_chars = len(content)
+        entropy = -sum(
+            (count / total_chars) * math.log2(count / total_chars)
+            for count in char_counts.values()
+        )
+        if entropy > CODE_QUALITY_THRESHOLDS["max_char_entropy"]:
+            return True
+
+        # 6. Variable Name Analysis (Short vars)
+        if ext in SEMANTIC_LANGUAGE_MAP["javascript"] or ext in SEMANTIC_LANGUAGE_MAP["typescript"]:
+            short_vars = len(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]?\b", content))
+            total_words = len(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]*\b", content))
+
+            if total_words > 50 and short_vars / max(total_words, 1) > 0.7:
+                return True
+
+        # 7. Pattern Matching
+        for pattern in SUSPICIOUS_JS_PATTERNS:
+            if re.search(pattern, content):
+                return True
+
+        return False

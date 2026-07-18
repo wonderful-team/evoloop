@@ -12,6 +12,7 @@ from typing import Annotated
 import yaml
 
 from app.core.atlas.source import persistence
+from app.core.atlas.source.event import publish_app_map_generate_completed
 from app.core.atlas.source.schemas import AppMapPayload
 from app.core.atlas.source.validate import validate_app_map
 from app.core.context.manager import ContextManager
@@ -64,7 +65,11 @@ async def write_app_map(
     )
 
     project_path = get_working_directory(config)
-    problems = validate_app_map(payload, project_path=project_path or None)
+    problems = await validate_app_map(
+        payload,
+        project_path=project_path or None,
+        project_id=project_id,
+    )
     if problems:
         return ControllerResponse.error(
             "AppMap validation failed; map NOT saved.",
@@ -153,10 +158,11 @@ async def list_app_maps(project_id: int | None = None) -> str:
     is_state_mutating=True, summary_template="evoloop.tool_summary.generate_macros"
 )
 async def generate_macros_from_app_map(app_map_id: int) -> str:
-    """Trigger the template factory for one AppMap (background task).
+    """Request macro synthesis for one AppMap.
 
     Call this ONLY after self-reviewing that the AppMap is complete and
-    accurate. Produces pending_review macro candidates for user confirmation.
+    accurate. The macro module will pick up the request event and produce
+    pending_review macro candidates in the background.
     """
     app_map = await persistence.get_app_map(app_map_id)
     if app_map is None:
@@ -166,14 +172,12 @@ async def generate_macros_from_app_map(app_map_id: int) -> str:
             f"AppMap #{app_map_id} is {app_map.status}; only active maps can generate macros."
         )
 
-    from app.core.execution.macro.tasks import synthesize_macros_task
-
-    synthesize_macros_task.delay(
+    await publish_app_map_generate_completed(
         app_map_id=app_map_id,
         project_id=app_map.project_id,
         member_id=app_map.member_id,
     )
     return ControllerResponse.success(
-        f"Macro synthesis started for AppMap #{app_map_id} ({app_map.entity}).",
+        f"Macro generation requested for AppMap #{app_map_id} ({app_map.entity}).",
         note="Candidates will appear as pending_review in the macro library.",
     )

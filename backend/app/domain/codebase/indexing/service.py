@@ -238,7 +238,17 @@ class IndexingService:
 
             except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.error(f"Error indexing file {file_path}: {e}")
-                await session.rollback()
+                if prepared is not None:
+                    try:
+                        await self.file_preparer.mark_source_file_failed(
+                            prepared.source_file, session
+                        )
+                        await session.commit()
+                    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as mark_err:
+                        logger.error(f"Failed to mark source_file as failed: {mark_err}")
+                        await session.rollback()
+                else:
+                    await session.rollback()
 
     async def _prepare_and_extract(
         self,
@@ -394,26 +404,16 @@ class IndexingService:
 
         from app.constants import BLACKLIST_DIRS
         from app.core.file.service import walk_tree
-        from app.domain.codebase.ignore import NestedGitignoreMatcher
-
-        ignore_matcher = NestedGitignoreMatcher(repo_path)
-
-        def dir_filter(d_path: str) -> bool:
-            return not ignore_matcher.should_ignore(d_path, is_dir=True)
-
-        def file_check(f_path: str) -> bool:
-            if ignore_matcher.should_ignore(f_path, is_dir=False):
-                return False
-            return self.file_preparer.should_index(f_path)
 
         # Walk directory (offloaded to thread to avoid blocking the event loop)
+        # FileTraverser now handles .gitignore filtering internally via gitignore_root.
         filtered_files = await asyncio.to_thread(
             lambda: list(
                 walk_tree(
                     repo_path,
-                    filter_func=file_check,
-                    dir_filter=dir_filter,
+                    filter_func=self.file_preparer.should_index,
                     exclude_dirs=BLACKLIST_DIRS,
+                    gitignore_root=repo_path,
                 )
             )
         )

@@ -2,7 +2,6 @@
 InferenceEngine - Pure LLM execution logic.
 """
 
-import hashlib
 import json
 import logging
 import time
@@ -24,6 +23,7 @@ from app.core.engine.message.native_classes import (
 )
 from app.core.engine.message.reasoning import extract_reasoning_from_message
 from app.core.exceptions import InferenceError
+from app.core.file import compute_md5
 from app.infrastructure.llm.factory import LLMFactory
 
 logger = logging.getLogger(__name__)
@@ -427,7 +427,7 @@ class InferenceEngine:
             history_messages=history_messages,
             turn_id=0,
             is_single_shot=True,
-            sys_hash=hashlib.md5(system_prompt.encode()).hexdigest(),
+            sys_hash=compute_md5(system_prompt),
         )
 
         new_messages: list[BaseMessage] = [response]

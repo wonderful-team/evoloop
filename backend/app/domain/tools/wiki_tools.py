@@ -1,4 +1,3 @@
-import hashlib
 import logging
 import os
 import re
@@ -10,7 +9,12 @@ from sqlmodel import Session, select
 
 from app.core.context.manager import ContextManager
 from app.core.engine.message.native_classes import RunnableConfig
-from app.core.file import safe_read_with_hash, write_file_with_verification
+from app.core.file import (
+    FileTraverser,
+    compute_md5,
+    safe_read_with_hash,
+    write_file_with_verification,
+)
 from app.core.file.editor.engine import EditEngine
 from app.core.monitoring.ui_actions import (
     get_global_mode_message,
@@ -44,7 +48,7 @@ def _generate_slug(title: str) -> str:
     slug = re.sub(r"-+", "-", slug).strip("-")
 
     if not slug:
-        slug = hashlib.md5(title.encode("utf-8")).hexdigest()[:12]
+        slug = compute_md5(title)[:12]
 
     return slug
 
@@ -186,11 +190,14 @@ async def list_wiki_pages(config: Annotated[RunnableConfig, InjectedToolArg] = N
     # ------------------------------------------------------------------
     if os.path.isdir(wiki_dir):
         with Session(db_resource_manager.sync_engine) as session:
-            for filename in os.listdir(wiki_dir):
+            for entry in FileTraverser.list_entries(wiki_dir):
+                if entry.is_dir():
+                    continue
+                filename = entry.name
                 if not filename.endswith(".md"):
                     continue
                 slug = filename[:-3]
-                file_path = os.path.join(wiki_dir, filename)
+                file_path = str(entry.path)
                 try:
                     content, _, _ = safe_read_with_hash(file_path)
                     stmt = select(WikiPage).where(

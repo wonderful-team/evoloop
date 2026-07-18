@@ -11,6 +11,8 @@ from .schemas import (
     FileModifiedEvent,
     FileMovedEvent,
     FileRemovedEvent,
+    GenerationStatusChangedEvent,
+    IndexingCompletedEvent,
     IndexingStatusChangedEvent,
 )
 
@@ -37,5 +39,32 @@ async def publish_indexing_status_changed(project_id: int, status: str, repo_id:
             project_id=project_id,
             repo_id=repo_id,
             status=status,
+        )
+    )
+
+
+async def publish_indexing_completed(project_id: int, repo_id: int) -> None:
+    """Publish an indexing completed event (triggers downstream generation)."""
+    await system_bus.publish(
+        IndexingCompletedEvent(
+            project_id=project_id,
+            repo_id=repo_id,
+        )
+    )
+
+
+async def publish_generation_status_changed(
+    project_id: int,
+    item: str,
+    status: str,
+    error: str | None = None,
+) -> None:
+    """Publish a generation artifact status change event."""
+    await system_bus.publish(
+        GenerationStatusChangedEvent(
+            project_id=project_id,
+            item=item,
+            status=status,
+            error=error,
         )
     )

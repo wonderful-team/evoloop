@@ -6,3 +6,4 @@ from enum import Enum
 class AppMapEventType(str, Enum):
     CREATED = "atlas.app_map.created"
     SUPERSEDED = "atlas.app_map.superseded"
+    GENERATE_COMPLETED = "atlas.app_map.generate_completed"

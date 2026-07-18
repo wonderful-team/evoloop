@@ -1,4 +1,3 @@
-import hashlib
 import hmac
 import logging
 
@@ -93,7 +92,7 @@ async def handle_benefits_update_webhook(payload: BenefitsUpdateWebhook):
         expected_signature = hmac.new(
             webhook_secret.encode(),
             f"{payload.member_id}:{payload.event}:{payload.timestamp}".encode(),
-            hashlib.sha256
+            "sha256"
         ).hexdigest()
 
         if not hmac.compare_digest(payload.signature, expected_signature):

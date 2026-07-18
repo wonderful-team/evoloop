@@ -1,5 +1,7 @@
 """API schemas for projects routes."""
 
+from pydantic import Field
+
 from app.api.schemas.responses import BaseAPIResponse
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.schemas.base import ScopedRequest
@@ -60,6 +62,42 @@ class IndexingRunResponse(BaseAPIResponse):
     project_id: int
 
 
+class GenerationItemRequest(DynamicBaseModel):
+    project_id: int
+    artifact_names: list[str] = Field(alias="items")
+
+
+class GenerationRetryRequest(DynamicBaseModel):
+    project_id: int
+    artifact_name: str = Field(alias="item")
+
+
+class GenerationStatusRecord(DynamicBaseModel):
+    item: str
+    status: str
+    created_at: str | None = None
+    updated_at: str | None = None
+    error: str | None = None
+
+
+class GenerationDispatchResponse(BaseAPIResponse):
+    project_id: int
+    dispatched: list[str]
+    records: dict[str, GenerationStatusRecord] = Field(alias="items")
+
+
+class GenerationStatusResponse(BaseAPIResponse):
+    project_id: int
+    records: list[GenerationStatusRecord] = Field(alias="items")
+
+
+class GenerationContentResponse(BaseAPIResponse):
+    project_id: int
+    item: str
+    content: str | None = None
+    content_type: str = "markdown"
+
+
 __all__ = [
     "IndexingRequest",
     "CreateProjectRequest",
@@ -70,4 +108,10 @@ __all__ = [
     "ProjectStatusResponse",
     "ProjectDeleteResponse",
     "IndexingRunResponse",
+    "GenerationItemRequest",
+    "GenerationRetryRequest",
+    "GenerationStatusRecord",
+    "GenerationDispatchResponse",
+    "GenerationStatusResponse",
+    "GenerationContentResponse",
 ]

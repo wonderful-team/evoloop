@@ -3,6 +3,7 @@ import importlib.util
 import logging
 import os
 
+from app.core.file import write_file
 from app.core.tools import evoloop_tool
 from app.core.tools.base import StructuredTool
 from app.core.tools.registry import REGISTRY
@@ -15,9 +16,7 @@ DYNAMIC_TOOLS_DIR = os.path.join(os.path.dirname(__file__), "../../../tools/dyna
 # Ensure directory exists
 os.makedirs(DYNAMIC_TOOLS_DIR, exist_ok=True)
 init_file = os.path.join(DYNAMIC_TOOLS_DIR, "__init__.py")
-if not os.path.exists(init_file):
-    with open(init_file, "w") as f:
-        f.write("")
+write_file(init_file, "")
 
 
 class SafeASTVisitor(ast.NodeVisitor):
@@ -85,6 +84,8 @@ def create_python_tool(name: str, description: str, code: str, version: str = "1
     if not name.isidentifier():
         return f"Error: Tool name '{name}' is not a valid Python identifier."
 
+    logger.info(f"Creating dynamic tool '{name}' version {version}")
+
     # 1. Safety Check (AST Visitor)
     try:
         tree = ast.parse(code)
@@ -100,8 +101,9 @@ def create_python_tool(name: str, description: str, code: str, version: str = "1
     filepath = os.path.join(DYNAMIC_TOOLS_DIR, filename)
 
     try:
-        with open(filepath, "w") as f:
-            f.write(code)
+        write_result = write_file(filepath, code)
+        if not write_result.success:
+            return f"Error writing tool file: {write_result.error_message}"
     except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         return f"Error writing tool file: {e}"
 

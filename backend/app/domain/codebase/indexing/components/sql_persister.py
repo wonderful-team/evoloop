@@ -3,7 +3,7 @@ SQLPersister: Handles SQL database persistence for indexed content.
 """
 import logging
 
-from sqlalchemy import delete, insert
+from sqlalchemy import delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.codebase.indexing.components.content_indexer import IndexedContent
@@ -15,6 +15,16 @@ from app.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_simple_name(target_name: str | None) -> str | None:
+    """Return the simple symbol name from a possibly qualified target name."""
+    if not target_name:
+        return None
+    # Strip FQN prefix "path/to/file.py::Class.method" -> "Class.method"
+    name = target_name.split("::")[-1]
+    # "a.b.c" -> "c"
+    return name.split(".")[-1] or None
 
 
 class SQLPersister:
@@ -66,6 +76,81 @@ class SQLPersister:
         await session.execute(
             delete(CodeChunk).where(CodeChunk.source_file_id.in_(file_ids))
         )
+
+    async def _resolve_cross_file_targets(
+        self,
+        session: AsyncSession,
+        source_file_ids: list[int],
+    ):
+        """Resolve unresolved CodeRelation targets by searching CodeEntity names.
+
+        For each relation with ``target_entity_id IS NULL`` and a non-empty
+        ``target_name``, search the project's CodeEntity rows for a unique symbol
+        match. If exactly one match is found, the target_entity_id is filled and
+        confidence is set to ``INFERRED`` (graph-derived, not directly from AST).
+        Otherwise confidence is set to
+        ``AMBIGUOUS``.
+        """
+        if not source_file_ids:
+            return
+
+        # Build a repo-scoped entity lookup for all target names in this batch.
+        unresolved_stmt = (
+            select(CodeRelation, SourceFile.repository_id)
+            .join(CodeEntity, CodeRelation.source_entity_id == CodeEntity.id)
+            .join(SourceFile, CodeEntity.file_id == SourceFile.id)
+            .where(SourceFile.id.in_(source_file_ids))
+            .where(CodeRelation.target_entity_id.is_(None))
+            .where(CodeRelation.target_name.isnot(None))
+        )
+        unresolved_result = await session.execute(unresolved_stmt)
+        unresolved_rows = unresolved_result.all()
+        if not unresolved_rows:
+            return
+
+        # Collect repo IDs and simple target names.
+        repo_ids: set[int] = set()
+        target_names: set[str] = set()
+        for rel, repo_id in unresolved_rows:
+            repo_ids.add(repo_id)
+            simple_name = _extract_simple_name(rel.target_name)
+            if simple_name:
+                target_names.add(simple_name)
+
+        if not target_names:
+            # No resolvable names; mark all as AMBIGUOUS.
+            for rel, _repo_id in unresolved_rows:
+                rel.confidence = "AMBIGUOUS"
+            return
+
+        # Load candidate entities across the involved repos.
+        candidates_stmt = (
+            select(CodeEntity, SourceFile.repository_id)
+            .join(SourceFile, CodeEntity.file_id == SourceFile.id)
+            .where(SourceFile.repository_id.in_(repo_ids))
+            .where(CodeEntity.name.in_(list(target_names)))
+        )
+        candidates_result = await session.execute(candidates_stmt)
+        candidates = candidates_result.all()
+
+        # Build (repo_id, name) -> list[CodeEntity] index.
+        entity_index: dict[tuple[int, str], list[CodeEntity]] = {}
+        for entity, repo_id in candidates:
+            key = (repo_id, entity.name)
+            entity_index.setdefault(key, []).append(entity)
+
+        for rel, repo_id in unresolved_rows:
+            simple_name = _extract_simple_name(rel.target_name)
+            if not simple_name:
+                rel.confidence = "AMBIGUOUS"
+                continue
+
+            matches = entity_index.get((repo_id, simple_name), [])
+            if len(matches) == 1:
+                rel.target_entity_id = matches[0].id
+                rel.confidence = "INFERRED"
+            else:
+                rel.confidence = "AMBIGUOUS"
 
     async def persist(
         self,
@@ -153,5 +238,9 @@ class SQLPersister:
 
         if rel_dicts:
             await session.execute(insert(CodeRelation), rel_dicts)
+
+        # Resolve cross-file targets for the newly persisted relations.
+        source_file_ids = [sf.id for _, sf in items]
+        await self._resolve_cross_file_targets(session, source_file_ids)
 
         return all_name_to_ids

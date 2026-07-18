@@ -40,6 +40,7 @@ from app.infrastructure.database import session_scope
 from app.infrastructure.database.vector import get_vector_store
 from app.models import Repository
 
+from ._generations import router as generations_router
 from ._listing import router as listing_router
 from ._modules import router as modules_router  # noqa: F401 — re-export for main.py
 from ._profiles import router as profiles_router
@@ -50,6 +51,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 router.include_router(listing_router)
 router.include_router(profiles_router)
+router.include_router(generations_router)
 # fmt: on
 
 

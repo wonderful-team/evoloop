@@ -12,7 +12,7 @@ Previous standalone implementation was merged to eliminate redundancy.
 import logging
 from typing import Any
 
-from app.core.file import get_file_ext
+from app.core.file import FileStatus, get_file_ext, read_file
 from app.domain.codebase.indexing.extractors.treesitter_extractor import (
     TreeSitterExtractor,
 )
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class CodeAnalyzer:
     """
     Code Analyzer - Synchronous wrapper for TreeSitterExtractor.
-    
+
     Provides backward-compatible analyze_file() API while delegating
     actual extraction to TreeSitterExtractor.
     """
@@ -35,23 +35,22 @@ class CodeAnalyzer:
     def analyze_file(self, file_path: str, content: str = None) -> dict[str, Any]:
         """
         Analyze a file and return structural info and metrics.
-        
+
         Delegates to TreeSitterExtractor to avoid code duplication.
-        
+
         Args:
             file_path: Path to the file to analyze
             content: Optional file content (read from disk if not provided)
-            
+
         Returns:
             Dictionary with file_path, language, metrics, symbols, and imports
         """
         if content is None:
-            try:
-                with open(file_path, encoding="utf-8", errors="ignore") as f:
-                    content = f.read()
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-                logger.error(f"Error reading file {file_path}: {e}")
-                return {"file_path": file_path, "error": str(e)}
+            result = read_file(file_path)
+            if result.status != FileStatus.SUCCESS:
+                logger.error(f"Error reading file {file_path}: {result.error_message}")
+                return {"file_path": file_path, "error": result.error_message or "Read error"}
+            content = result.content
 
         if not content:
             return {

@@ -12,8 +12,10 @@ import json
 import logging
 import re
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
+from app.core.file import compute_md5, compute_sha256
 from app.core.memory.models import MemoryEntry, MemoryTier, MemoryType, PrivacyLevel
 from app.utils.template import render_template
 
@@ -66,18 +68,14 @@ class DeepDreamDistiller:
         # 2. Format for LLM
         episodes_text = self.replay.format_for_distillation(episodes)
 
-        # 2b. Deduplication Check
-        import hashlib
-        from pathlib import Path
-
         from app.core.config import settings
-        episodes_hash = hashlib.md5(episodes_text.encode("utf-8")).hexdigest()
-        
+        episodes_hash = compute_md5(episodes_text)
+
         # Resolve hash file path
         hash_file_name = f".last_dream_hash_{project_id or 'global'}"
         hash_file_dir = Path(settings.APP_DATA_DIR) / "memory"
         hash_file_path = hash_file_dir / hash_file_name
-        
+
         # Read last hash
         last_hash = ""
         if hash_file_path.exists():
@@ -127,8 +125,8 @@ class DeepDreamDistiller:
     ) -> list[DreamInsight]:
         """Invoke LLM to extract insights from formatted episodes."""
         try:
-            from app.infrastructure.llm import InternalLLMService
             from app.infrastructure.config.service import SystemConfigService
+            from app.infrastructure.llm import InternalLLMService
 
             # Build prompt via Jinja2 template
             prompt_text = render_template(
@@ -190,8 +188,7 @@ class DeepDreamDistiller:
     ) -> str | None:
         """Store a distilled insight as a strategic CONCEPT entry."""
         try:
-            import hashlib
-            content_hash = hashlib.sha256(insight.content.encode()).hexdigest()[:16]
+            content_hash = compute_sha256(insight.content)[:16]
             entry_id = f"dream_{content_hash}"
 
             # Dedup: skip if already exists
@@ -246,8 +243,8 @@ class DeepDreamDistiller:
         Returns:
             Number of concepts promoted to global.
         """
-        from app.core.memory.models import MemoryType
         from app.constants import DEFAULT_PROJECT_ID
+        from app.core.memory.models import MemoryType
 
         try:
             # Load all CONCEPT entries across all projects
@@ -287,7 +284,7 @@ class DeepDreamDistiller:
 
             # This concept appears in 2+ projects — promote to global
             source_entry = title_to_entry[title]
-            global_entry_id = f"global_concept_{hashlib.sha256(title.encode()).hexdigest()[:16]}"
+            global_entry_id = f"global_concept_{compute_sha256(title)[:16]}"
 
             existing = await self.manager.get_memory(global_entry_id)
             if existing:

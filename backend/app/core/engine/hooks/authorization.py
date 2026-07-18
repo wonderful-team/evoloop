@@ -10,6 +10,7 @@ import os
 from datetime import datetime, timezone
 
 from app.core.config import settings
+from app.core.context.thread_store import thread_context_store
 from app.core.engine.hooks.core import HookContext, HookEvent, HookResult, hook_system
 from app.core.engine.hooks.schemas import ToolInput
 from app.core.engine.state.sub_schemas import PendingApproval
@@ -51,11 +52,21 @@ def _extract_path_from_input(tool_name: str, tool_input: ToolInput | None) -> tu
     return None
 
 
-def _is_path_safe(path_str: str, project_path: str | None) -> bool:
+def _is_path_safe(
+    path_str: str, project_path: str | None, working_directory: str | None = None
+) -> bool:
+    # Resolve relative paths against the thread's working directory so that
+    # file tools and the authorization gate agree on what "." means.
+    if working_directory and not os.path.isabs(path_str):
+        base = os.path.expanduser(working_directory)
+        candidate = os.path.join(base, os.path.expanduser(path_str))
+    else:
+        candidate = os.path.expanduser(path_str)
+
     try:
-        resolved = os.path.realpath(os.path.expanduser(path_str))
+        resolved = os.path.realpath(candidate)
     except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
-        resolved = os.path.abspath(os.path.expanduser(path_str))
+        resolved = os.path.abspath(candidate)
 
     # Boundary 1: Active Project Workspace Root
     if project_path:
@@ -121,7 +132,14 @@ async def authorization_gate(context: HookContext) -> HookResult:
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
             project_path = None
 
-        if not _is_path_safe(resource_path, project_path):
+        try:
+            working_directory = thread_context_store.get_working_directory(
+                context.thread_id
+            )
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError):
+            working_directory = None
+
+        if not _is_path_safe(resource_path, project_path, working_directory):
             # Check if this permission was already granted previously
             is_already_granted = False
             now = datetime.now(timezone.utc)

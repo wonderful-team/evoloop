@@ -12,6 +12,8 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
+from app.core.file import FileStatus, read_file
+
 logger = logging.getLogger(__name__)
 
 
@@ -47,11 +49,11 @@ class LocalProjectIndex:
 
     def _read_project_meta(self, meta_path: str) -> dict | None:
         """Read and parse a project.json file. Return None on any error."""
-        try:
-            with open(meta_path, encoding="utf-8") as f:
-                return json.load(f)
-        except FileNotFoundError:
+        result = read_file(meta_path)
+        if result.status != FileStatus.SUCCESS:
             return None
+        try:
+            return json.loads(result.content) or None
         except json.JSONDecodeError as e:
             logger.warning(f"[LocalProjectIndex] Invalid JSON at {meta_path}: {e}")
             return None
@@ -81,7 +83,7 @@ class LocalProjectIndex:
         if not workspace_root or not os.path.isdir(workspace_root):
             return {}
 
-        from app.core.file import is_ignored_path
+        from app.core.file import FileTraverser, is_ignored_path
 
         def scan_dir(current_dir: str, depth: int):
             if depth > 3:  # limit depth to 3 layers
@@ -118,14 +120,14 @@ class LocalProjectIndex:
 
             # If not a project, scan subdirectories
             try:
-                entries = os.listdir(current_dir)
-            except Exception as e:
+                entries = list(FileTraverser.list_entries(current_dir))
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.warning(f"[LocalProjectIndex] Failed to list {current_dir}: {e}")
                 return
 
             for entry in entries:
-                sub_path = os.path.join(current_dir, entry)
-                if os.path.isdir(sub_path):
+                sub_path = str(entry.path)
+                if entry.is_dir():
                     scan_dir(sub_path, depth + 1)
 
         scan_dir(os.path.abspath(workspace_root), 0)

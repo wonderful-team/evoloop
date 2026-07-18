@@ -10,7 +10,7 @@ import os
 import shutil
 import tempfile
 import urllib.request
-from typing import Callable, Iterator, List, Optional
+from collections.abc import Callable, Iterator
 from urllib.parse import urlparse
 
 from .traverser import FileTraverser, TraverseOptions
@@ -23,11 +23,12 @@ logger = logging.getLogger(__name__)
 
 def walk_tree(
     root_path: str,
-    exclude_dirs: List[str] | None = None,
+    exclude_dirs: list[str] | None = None,
     max_depth: int | None = None,
     include_dirs: bool = False,
-    filter_func: Optional[Callable[[str], bool]] = None,
-    dir_filter: Optional[Callable[[str], bool]] = None,
+    filter_func: Callable[[str], bool] | None = None,
+    dir_filter: Callable[[str], bool] | None = None,
+    gitignore_root: str | None = None,
 ) -> Iterator[str]:
     """
     Standardized directory walker. Delegated to FileTraverser.
@@ -38,14 +39,15 @@ def walk_tree(
         include_dirs=include_dirs,
         filter_func=filter_func,
         dir_filter=dir_filter,
-        recursive=True
+        recursive=True,
+        gitignore_root=gitignore_root,
     )
     return FileTraverser.walk(root_path, options)
 
 
 def resolve_path(file_path: str, base_path: str | None = None) -> str | None:
     """
-    Smart path resolution. 
+    Smart path resolution.
     Handles:
     - URLs (downloads to local temp)
     - Absolute paths
@@ -65,11 +67,11 @@ def resolve_path(file_path: str, base_path: str | None = None) -> str | None:
 
     # 2. Expand user
     expanded = os.path.expanduser(file_path)
-    
+
     # 3. Handle Absolute Paths
     if os.path.isabs(expanded):
         return os.path.abspath(expanded)
-    
+
     # 4. Handle Relative Paths
     if base_path:
         full_path = os.path.abspath(os.path.join(base_path, expanded))
@@ -126,6 +128,6 @@ def ensure_local_path(file_path: str) -> str:
         raise ValueError(f"Failed to download remote file: {e}")
 
 
-def filter_code_files(paths: List[str]) -> List[str]:
+def filter_code_files(paths: list[str]) -> list[str]:
     """Filter list of paths to only include text/code files."""
     return [p for p in paths if is_text_file(p)]

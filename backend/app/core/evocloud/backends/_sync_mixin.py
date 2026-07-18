@@ -1,12 +1,12 @@
 """EvoCloud sync mixin: conversation sync, messages, upload."""
 
-import hashlib
 import logging
 import os
 
 import httpx
 
 from app.constants import DEFAULT_PROJECT_ID
+from app.core.file import compute_file_hash
 
 logger = logging.getLogger(__name__)
 
@@ -129,11 +129,8 @@ class SyncMixin:
         filename = os.path.basename(file_path)
         file_size = os.path.getsize(file_path)
 
-        hash_md5 = hashlib.md5()
-        with open(file_path, "rb") as f:
-            for chunk in iter(lambda: f.read(4096), b""):
-                hash_md5.update(chunk)
-        md5_val = hash_md5.hexdigest()
+        hash_md5 = compute_file_hash(file_path)
+        md5_val = hash_md5
 
         try:
             url = f"{self._get_base_url(is_gateway=False)}/api/upload/chatfile"

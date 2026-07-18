@@ -86,7 +86,7 @@
     "step_skipped": "Step {i} ({action}): Skipped - tool not found"
   },
   "learning": {
-    "synthesis_lang_constraint": "\n\nCRITICAL: The user's language is {lang}. Ensure the 'description' fields and any generated natural language text is written in {lang}."
+    "synthesis_lang_constraint": "\n\nCRITICAL: The user's language is English. ALL generated natural language text including 'name', 'description', and 'trigger_patterns' MUST ALL be written in English."
   },
   "memory": {
     "pruned_output": "[Pruned Tool Output: Old tool execution result removed to save context]",

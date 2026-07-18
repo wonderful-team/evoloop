@@ -1,7 +1,6 @@
 """Skills sub-router — skill CRUD, validation, YAML import/export, execution."""
 
 import logging
-import math
 from pathlib import Path
 
 from fastapi import (
@@ -21,6 +20,7 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.events.publishers import publish_skill_mutated
+from app.core.execution.macro.compiler import MacroScriptCompiler
 from app.core.execution.macro.lifecycle import create_macro_from_synthesis
 from app.core.execution.macro.runner import (
     WEB_POLICY,
@@ -53,9 +53,10 @@ from app.core.learning.skill_lifecycle import (
     create_from_synthesis,
     deduplicate_name,
 )
-from app.core.learning.skill_synthesizer import WorkflowSynthesizer
 from app.core.learning.skill_validator import SkillValidator
 from app.core.learning.skill_visibility import visible_filter
+from app.core.learning.trace_parser import TraceParser
+from app.core.learning.workflow_synthesizer import WorkflowSynthesizer
 from app.infrastructure.database import session_scope
 from app.models import LearnedSkill
 from app.utils.parameters import (
@@ -66,7 +67,7 @@ from app.utils.parameters import (
 from app.utils.template import render_template
 from app.utils.yaml import YAMLError, macro_from_yaml, validate_macro_yaml
 
-from ._shared import _normalize_json_list, _normalize_skill_params
+from ._shared import _member_id, _normalize_json_list, _normalize_skill_params
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -82,14 +83,19 @@ async def synthesize_skill(
 ):
     """Synthesize a new skill from a trace sequence."""
     try:
-        synthesizer = WorkflowSynthesizer(body.thread_id, body.session_id)
+        parser = TraceParser(body.thread_id, body.session_id)
+        sequence = await parser.parse()
+        synthesizer = WorkflowSynthesizer(body.thread_id, body.session_id, sequence=sequence)
         result = await synthesizer.synthesize()
         skill = result.skill
+        if skill is None:
+            raise ValueError("Skill synthesis did not produce a skill")
+        macro_script = MacroScriptCompiler().compile(sequence).to_yaml()
 
         async with session_scope() as db:
             db_skill = await create_from_synthesis(
                 db,
-                member_id=current_user.id if current_user else 0,
+                member_id=_member_id(current_user),
                 name=skill.name,
                 description=skill.description,
                 trigger_patterns=skill.trigger_patterns,
@@ -100,20 +106,19 @@ async def synthesize_skill(
                 source_session_id=skill.source_session_id,
                 instructions=skill.instructions,
             )
-            if result.macro_script:
-                new_macro = await create_macro_from_synthesis(
-                    db,
-                    name=db_skill.name,
-                    description=db_skill.description,
-                    trigger_patterns=db_skill.trigger_patterns,
-                    parameters=normalize_parameters(db_skill.parameters),
-                    macro_script=result.macro_script,
-                    fallback_skill_id=db_skill.id,
-                    source_thread_id=skill.source_thread_id,
-                    project_id=body.project_id,
-                    member_id=current_user.id if current_user else 0,
-                )
-                db_skill.macro_id = new_macro.id
+            new_macro = await create_macro_from_synthesis(
+                db,
+                name=db_skill.name,
+                description=db_skill.description,
+                trigger_patterns=db_skill.trigger_patterns,
+                parameters=normalize_parameters(db_skill.parameters),
+                macro_script=macro_script,
+                fallback_skill_id=db_skill.id,
+                source_thread_id=skill.source_thread_id,
+                project_id=body.project_id,
+                member_id=_member_id(current_user),
+            )
+            db_skill.macro_id = new_macro.id
 
         await publish_skill_mutated(skill_id=db_skill.id, action="create")
 
@@ -165,7 +170,7 @@ async def list_skills(
         stmt = select(LearnedSkill).where(
             or_(
                 LearnedSkill.member_id == 0,
-                LearnedSkill.member_id == (current_user.id if current_user else 0),
+                LearnedSkill.member_id == (_member_id(current_user)),
             )
         )
         if active_only:
@@ -179,8 +184,6 @@ async def list_skills(
 
         result = await db.execute(stmt)
         skills = result.scalars().all()
-
-        total_pages = math.ceil(total / page_size) if page_size > 0 else 0
 
         return PaginatedSkillsResponse(
             data=[
@@ -207,7 +210,6 @@ async def list_skills(
             total=total,
             page=page,
             page_size=page_size,
-            total_pages=total_pages,
         )
 
 
@@ -220,7 +222,7 @@ async def get_skill(skill_id: int, current_user: CurrentUserOptional = None):
             .where(
                 or_(
                     LearnedSkill.member_id == 0,
-                    LearnedSkill.member_id == (current_user.id if current_user else 0),
+                    LearnedSkill.member_id == (_member_id(current_user)),
                 )
             )
             .where(LearnedSkill.id == skill_id)
@@ -273,7 +275,7 @@ async def delete_skill(skill_id: int, current_user: CurrentUserOptional = None):
             stmt = (
                 select(LearnedSkill)
                 .where(
-                    LearnedSkill.member_id == (current_user.id if current_user else 0)
+                    LearnedSkill.member_id == (_member_id(current_user))
                 )
                 .where(LearnedSkill.id == skill_id)
             )
@@ -324,7 +326,7 @@ async def update_skill(
             stmt = (
                 select(LearnedSkill)
                 .where(
-                    LearnedSkill.member_id == (current_user.id if current_user else 0)
+                    LearnedSkill.member_id == (_member_id(current_user))
                 )
                 .where(LearnedSkill.id == skill_id)
             )
@@ -342,7 +344,7 @@ async def update_skill(
                             or_(
                                 LearnedSkill.member_id == 0,
                                 LearnedSkill.member_id
-                                == (current_user.id if current_user else 0),
+                                == (_member_id(current_user)),
                             )
                         )
                         .where(LearnedSkill.name == body.name)
@@ -416,7 +418,7 @@ async def execute_skill(
     skill_id: int,
     body: ExecuteSkillRequest,
     bg_tasks: BackgroundTasks,
-    current_user: CurrentUserOptional = None,
+    current_user: CurrentUserOptional = None,  # noqa: ARG001
 ):
     """Execute a skill by injecting a directive into the agent's conversation."""
     async with session_scope() as db:
@@ -490,6 +492,8 @@ async def execute_skill(
 
     if result.status == "failed":
         raise HTTPException(status_code=500, detail=result.error)
+    if result.inputs is None:
+        raise HTTPException(status_code=500, detail="Failed to prepare agent inputs")
 
     bg_tasks.add_task(run_agent_background, body.thread_id, result.inputs)
 
@@ -501,7 +505,7 @@ async def execute_skill(
 
 
 @router.get("/skills/{skill_id}/validate", response_model=ValidateSkillResponse)
-async def validate_skill(skill_id: int, current_user: CurrentUserOptional = None):
+async def validate_skill(skill_id: int, current_user: CurrentUserOptional = None):  # noqa: ARG001
     """Run the validator on a skill and return its health status."""
     async with session_scope() as db:
         skill = await db.get(LearnedSkill, skill_id)
@@ -529,7 +533,7 @@ async def confirm_learned_skill(
     async with session_scope() as db:
         stmt = (
             select(LearnedSkill)
-            .where(LearnedSkill.member_id == (current_user.id if current_user else 0))
+            .where(LearnedSkill.member_id == (_member_id(current_user)))
             .where(LearnedSkill.id == skill_id)
         )
         skill = (await db.execute(stmt)).scalar_one_or_none()
@@ -569,7 +573,7 @@ async def confirm_learned_skill(
 @router.post("/skills/from-yaml", response_model=CreateSkillFromYamlResponse)
 async def create_skill_from_yaml(
     body: CreateSkillFromYamlRequest,
-    bg_tasks: BackgroundTasks,
+    bg_tasks: BackgroundTasks,  # noqa: ARG001
     current_user: CurrentUserOptional = None,
 ):
     """Create a new skill from YAML macro definition."""
@@ -585,11 +589,11 @@ async def create_skill_from_yaml(
 
         async with session_scope() as db:
             unique_name = await deduplicate_name(
-                db, body.name, current_user.id if current_user else 0
+                db, body.name, _member_id(current_user)
             )
             skill = await create_from_synthesis(
                 db,
-                member_id=current_user.id if current_user else 0,
+                member_id=_member_id(current_user),
                 name=body.name,
                 description=body.description
                 or f"Created from YAML ({len(macro_steps)} steps)",
@@ -607,7 +611,7 @@ async def create_skill_from_yaml(
                 macro_script=body.yaml_content,
                 fallback_skill_id=skill.id,
                 project_id=body.project_id,
-                member_id=current_user.id if current_user else 0,
+                member_id=_member_id(current_user),
             )
             skill.macro_id = macro.id
 
@@ -628,7 +632,7 @@ async def create_skill_from_yaml(
 
 @router.post("/skills/validate-yaml", response_model=ValidateYamlResponse)
 async def validate_skill_yaml(
-    body: ValidateYamlRequest, current_user: CurrentUserOptional = None
+    body: ValidateYamlRequest, current_user: CurrentUserOptional = None  # noqa: ARG001
 ):
     """Validate YAML macro format without creating a skill."""
     try:
@@ -646,7 +650,7 @@ async def validate_skill_yaml(
 
 
 @router.get("/skills/{skill_id}/yaml")
-async def get_skill_yaml(skill_id: int, current_user: CurrentUserOptional = None):
+async def get_skill_yaml(skill_id: int, current_user: CurrentUserOptional = None):  # noqa: ARG001
     """Get skill macro as YAML format."""
     async with session_scope() as db:
         skill = await db.get(LearnedSkill, skill_id)
@@ -705,7 +709,7 @@ async def update_skill_yaml(
                     parameters=normalize_parameters(skill.parameters),
                     macro_script=yaml_content,
                     fallback_skill_id=skill.id,
-                    member_id=current_user.id if current_user else 0,
+                    member_id=_member_id(current_user),
                 )
                 skill.macro_id = macro.id
 

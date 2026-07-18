@@ -14,9 +14,11 @@ from pydantic import BaseModel
 
 from app.api.deps import CurrentUserOptional, TokenDep
 from app.core.atlas.source import persistence
+from app.core.atlas.source.event import publish_app_map_generate_completed
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
+from app.core.learning.discovery import skill_discovery
 from app.core.project.utils import get_project_path
 from app.core.tools.registry import get_tool_bundle
 
@@ -55,6 +57,16 @@ class TaskAcceptedResponse(BaseModel):
     task_id: str
 
 
+async def _ensure_app_map_analysis_skill():
+    """Fetch or import the 'AppMap Analysis' learned skill."""
+    await skill_discovery.ensure_system_skills_synced()
+    skills = await skill_discovery.get_active_skills_list()
+    for skill in skills:
+        if skill.name == "AppMap Analysis":
+            return await skill_discovery.get_skill_by_id(skill.id)
+    return None
+
+
 @router.post("/app-maps/generate", response_model=TaskAcceptedResponse)
 async def generate_app_map(
     req: AppMapGenerateRequest,
@@ -72,17 +84,14 @@ async def generate_app_map(
 
     thread_id = f"appmap-gen-{req.project_id}-{req.entity}-{int(time.time())}"
 
+    skill = await _ensure_app_map_analysis_skill()
+    if not skill:
+        logger.warning("[Atlas] AppMap Analysis skill not found; falling back to generic mission.")
+
     message = (
         f"**Mission Goal**: Survey the project at {path} and produce a complete "
-        f"AppMap for the '{req.entity}' entity.\n"
-        "You MUST:\n"
-        "1. Survey the project structure (list_dir, read route registrations, "
-        "controllers, views, and DB schema for this entity).\n"
-        "2. Identify every action the entity exposes, each with kind/risk_tier "
-        "and the controller+line it came from.\n"
-        "3. Catalog the UI elements (name/page/line/binds) and DB tables.\n"
-        "4. Call write_app_map once with the full five-layer payload.\n"
-        "5. Self-review completeness, then call generate_macros_from_app_map.\n"
+        f"AppMap for the '{req.entity}' entity. Follow the AppMap Analysis SOP, "
+        "then call write_app_map and generate_macros_from_app_map."
     )
 
     from app.core.context import thread_context_store
@@ -108,6 +117,7 @@ async def generate_app_map(
     ticket = ExecutionTicket(
         ticket_type="task",
         topic="AppMap Analysis",
+        skill_ids=[skill.id] if skill else None,
         agent_config=AgentRuntimeConfig(
             role_name="Worker",
             system_instructions=_OUTPUT_CONTRACT,
@@ -124,10 +134,11 @@ async def generate_app_map(
 
     bg_tasks.add_task(run_agent_background, thread_id, result.inputs)
     logger.info(
-        "[AtlasAPI] Dispatched AppMap survey: project=%s entity=%s thread=%s",
+        "[AtlasAPI] Dispatched AppMap survey: project=%s entity=%s thread=%s skill_ids=%s",
         req.project_id,
         req.entity,
         thread_id,
+        [skill.id] if skill else "None",
     )
     return TaskAcceptedResponse(status="accepted", task_id=thread_id)
 
@@ -143,9 +154,7 @@ async def generate_macros(
     if app_map.status != "active":
         raise HTTPException(400, f"AppMap #{app_map_id} is {app_map.status}")
 
-    from app.core.execution.macro.tasks import synthesize_macros_task
-
-    synthesize_macros_task.delay(
+    await publish_app_map_generate_completed(
         app_map_id=app_map_id,
         project_id=app_map.project_id,
         member_id=app_map.member_id,

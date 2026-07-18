@@ -153,27 +153,17 @@ _MAX_CANDIDATE_SCHEMA_CHARS = 100
 
 
 async def _create_route_llm():
-    from app.infrastructure.llm.factory import LLMFactory
-    from app.infrastructure.schemas import LLMConfig
+    from app.infrastructure.llm.lightning import get_lightning_service
 
-    base_url = (
-        _cfg("ROUTE_LLM_BASE_URL", "http://localhost:1234/v1")
-        or "http://localhost:1234/v1"
-    )
-    model = (
-        _cfg("ROUTE_LLM_MODEL", "qwen3-4b-instruct-2507") or "qwen3-4b-instruct-2507"
-    )
-    api_key = _cfg("ROUTE_LLM_API_KEY", "lm-studio") or "lm-studio"
-    cfg = LLMConfig(
-        model_name=model,
-        base_url=base_url,
-        api_key=api_key,
-        provider_type="openai",
-        temperature=0.0,
-        streaming=False,
-        max_tokens=256,
-    )
-    return await LLMFactory.create_llm(cfg)
+    service = get_lightning_service()
+    llm = await service.get_llm()
+    if llm is None:
+        raise RuntimeError(
+            "Lightning Channel not available. "
+            "Set LIGHTNING_MODE to 'llama.cpp', 'lm-studio', or 'ollama' "
+            "to enable local route LLM."
+        )
+    return llm
 
 
 def _compact_schema(schema: dict[str, Any]) -> str:

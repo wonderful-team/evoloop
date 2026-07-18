@@ -1,4 +1,3 @@
-import hashlib
 import re
 from datetime import datetime
 from enum import Enum
@@ -7,6 +6,7 @@ from typing import Any
 import yaml
 from pydantic import Field, model_validator
 
+from app.core.file import compute_sha256
 from app.core.memory.schemas import MemoryMetadata
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.id import gen_uuid_hex
@@ -98,7 +98,7 @@ class MemoryEntry(DynamicBaseModel):
             return ""
         # Normalize: lower case, strip, replace complex whitespace with single space
         normalized = re.sub(r'\s+', ' ', content.strip().lower())
-        return hashlib.sha256(normalized.encode('utf-8')).hexdigest()
+        return compute_sha256(normalized)
 
     def to_frontmatter(self) -> str:
         """Serialize to Markdown with YAML frontmatter."""

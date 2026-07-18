@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 
@@ -12,15 +11,117 @@ from app.core.atlas.source.event import (
     publish_app_map_created,
     publish_app_map_superseded,
 )
+from app.core.file import compute_sha256
 from app.infrastructure.database import session_scope
 from app.models.app_map import AppMap
+from app.models.codebase import AppMapRouteLink, CodeChunk, Repository, SourceFile
 
 logger = logging.getLogger(__name__)
 
 
 def compute_content_hash(payload: dict) -> str:
     stable = json.dumps(payload, sort_keys=True, ensure_ascii=False)
-    return hashlib.sha256(stable.encode("utf-8")).hexdigest()[:32]
+    return compute_sha256(stable)[:32]
+
+
+async def _create_app_map_route_links(
+    db,
+    app_map_id: int,
+    project_id: int,
+    routes: list[dict],
+    actions: list[dict],
+    db_tables: list[dict],
+) -> None:
+    """Link an AppMap's routes/actions/tables to backing CodeChunk rows.
+
+    Matching is best-effort: when a unique CodeChunk cannot be identified the
+    link is still created with ``code_chunk_id=None`` and ``is_verified=False``
+    so that consumers can surface unresolved entries.
+    """
+    stmt = (
+        select(CodeChunk, SourceFile.path)
+        .join(SourceFile, CodeChunk.source_file_id == SourceFile.id)
+        .join(Repository, SourceFile.repository_id == Repository.id)
+        .where(Repository.project_id == project_id)
+    )
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    api_routes: dict[tuple[str, str], list[tuple[int, str]]] = {}
+    db_models: dict[str, list[int]] = {}
+    identifier_index: dict[str, list[tuple[int, str]]] = {}
+
+    for chunk, file_path in rows:
+        if chunk.is_api_route and chunk.api_method and chunk.api_path:
+            key = (chunk.api_method.upper(), chunk.api_path)
+            api_routes.setdefault(key, []).append((chunk.id, file_path))
+        if chunk.is_db_model and chunk.db_table_name:
+            db_models.setdefault(chunk.db_table_name.lower(), []).append(chunk.id)
+        name = chunk.identifier.lower()
+        identifier_index.setdefault(name, []).append((chunk.id, file_path))
+        if "." in name:
+            short = name.rsplit(".", 1)[1]
+            identifier_index.setdefault(short, []).append((chunk.id, file_path))
+
+    links: list[AppMapRouteLink] = []
+
+    for route in routes or []:
+        method = (route.get("method") or "GET").upper()
+        url = route.get("url", "")
+        key = (method, url)
+        matches = api_routes.get(key, [])
+        chunk_id = matches[0][0] if matches else None
+        links.append(
+            AppMapRouteLink(
+                app_map_id=app_map_id,
+                code_chunk_id=chunk_id,
+                relation_kind="route",
+                logical_path=url,
+                logical_method=method,
+                is_verified=chunk_id is not None,
+            )
+        )
+
+    for table in db_tables or []:
+        table_name = table.get("table", "")
+        matches = db_models.get(table_name.lower(), [])
+        chunk_id = matches[0] if matches else None
+        links.append(
+            AppMapRouteLink(
+                app_map_id=app_map_id,
+                code_chunk_id=chunk_id,
+                relation_kind="db_table",
+                logical_path=table_name,
+                logical_method=None,
+                is_verified=chunk_id is not None,
+            )
+        )
+
+    for action in actions or []:
+        action_name = (action.get("name") or "").lower()
+        controller = action.get("controller") or ""
+        chunk_id = None
+        if action_name and action_name in identifier_index:
+            chunk_id = identifier_index[action_name][0][0]
+        elif controller:
+            controller_lower = controller.lower()
+            for chunk, file_path in rows:
+                if controller_lower in file_path.lower() and action_name in chunk.identifier.lower():
+                    chunk_id = chunk.id
+                    break
+        links.append(
+            AppMapRouteLink(
+                app_map_id=app_map_id,
+                code_chunk_id=chunk_id,
+                relation_kind="action",
+                logical_path=controller or None,
+                logical_method=None,
+                is_verified=chunk_id is not None,
+            )
+        )
+
+    if links:
+        db.add_all(links)
 
 
 async def save_app_map(
@@ -106,6 +207,10 @@ async def save_app_map(
                 old.map_version,
                 old.content_hash,
             )
+
+        await _create_app_map_route_links(
+            db, new_id, project_id, routes, actions, db_tables
+        )
 
     if old_snapshot is not None:
         old_id, old_pid, old_entity, old_ver, old_hash = old_snapshot

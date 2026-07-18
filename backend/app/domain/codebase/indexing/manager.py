@@ -1,15 +1,21 @@
 import asyncio
 import logging
 import os
+import re
 import threading
+from typing import Any
 
+from sqlalchemy import delete, select
+
+from app.core.file import read_file
 from app.core.project.utils import get_project_path, resolve_project_to_repo
 from app.domain.codebase.indexing.service import IndexingService
+from app.domain.codebase.security import scan_file
 from app.domain.watchers import RepoWatcher
 from app.infrastructure.cache import cache
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.database import session_scope
-from app.models import Repository
+from app.models import CodeChunk, Repository, SecurityFinding, SourceFile
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +38,7 @@ async def _set_indexing_status(repo_id: int, status: str, details: dict | None =
             import json
 
             for key, value in details.items():
-                mapping[key] = json.dumps(value) if isinstance(value, (dict, list)) else str(value)
+                mapping[key] = json.dumps(value) if isinstance(value, dict | list) else str(value)
         await cache.hset(_indexing_status_key(repo_id), mapping=mapping)
     except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.warning(f"[IndexingManager] Failed to write status cache for repo {repo_id}: {e}")
@@ -289,7 +295,7 @@ class IndexingManager:
                         logger.info(
                             "Project classified as SOFTWARE. Running Semantic Extraction (API/DB)..."
                         )
-                        await self._run_semantic_extraction(repo_path, project_id)
+                        await self._run_semantic_extraction(repo_id, repo_path, project_id)
                     else:
                         logger.info(
                             f"Project classified as {p_type}. Skipping Semantic Extraction."
@@ -303,6 +309,10 @@ class IndexingManager:
                 await _set_indexing_status(repo_id, "done")
                 await self._publish_status(project_id, repo_id, "done")
                 await self._update_indexing_status(repo_id, "completed")
+
+                if project_id is not None:
+                    from app.domain.codebase.event.publishers import publish_indexing_completed
+                    asyncio.create_task(publish_indexing_completed(project_id, repo_id))
 
         except asyncio.CancelledError:
             logger.info(f"Full Index Cancelled for Repo {repo_id}")
@@ -403,41 +413,410 @@ class IndexingManager:
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[IndexingManager] Failed to publish indexing status event: {e}")
 
-    async def _run_semantic_extraction(self, repo_path: str, project_id: int | None):
+    @staticmethod
+    def _infer_routes_by_convention(file_path: str, repo_path: str, content: str | None = None) -> list[Any]:
+        """Infer API routes by project conventions.
+
+        Works for any MVC-style project:
+        - Files in controllers/ / controller/ directories
+        - Files named *Controller.*
+        - Public methods extracted as potential route handlers
         """
-        Run semantic extractors for Software Projects (API endpoints, DB schemas).
+        from app.domain.codebase.schemas import APIEndpoint
+
+        rel_path = os.path.relpath(file_path, repo_path).replace("\\", "/")
+        parts = rel_path.split("/")
+        if len(parts) < 2:
+            return []
+
+        stem = os.path.splitext(parts[-1])[0]
+        if not stem:
+            return []
+
+        is_controller_by_name = stem.lower().endswith("controller") or stem.lower().endswith("_controller")
+        is_controller_by_dir = any(p.lower() in ("controllers", "controller") for p in parts)
+
+        if not (is_controller_by_name or is_controller_by_dir):
+            return []
+
+        if content:
+            methods = re.findall(
+                r"(?:(?:public|private|protected|async)\s+(?:\w+(?:\[\])?\s+)*(?:function\s+)?|function\s+)([a-zA-Z_]\w*)\s*\(",
+                content,
+            )
+            REST_ACTIONS = {"index", "show", "create", "store", "edit", "update", "destroy", "search", "list"}
+            methods = [
+                m for m in methods
+                if not m.startswith("_")
+                and not m[0].isupper()
+                and (
+                    bool(re.search(r"[a-z][A-Z]", m))
+                    or m in REST_ACTIONS
+                )
+            ]
+        else:
+            methods = [stem]
+
+        if not methods:
+            return [APIEndpoint(method="GET", path="/" + stem, handler_name=stem, file_path=rel_path, line_number=0)]
+
+        endpoints = []
+        for method in methods:
+            try:
+                ctrl_idx = next(i for i, p in enumerate(parts) if p.lower() in ("controllers", "controller"))
+                path_parts = parts[ctrl_idx + 1:-1] + [stem, method]
+            except StopIteration:
+                path_parts = parts[1:-1] + [stem, method]
+
+            route_path = "/" + "/".join(path_parts).replace("_", "/").lower()
+
+            endpoints.append(APIEndpoint(
+                method="GET",
+                path=route_path,
+                handler_name=method,
+                file_path=rel_path,
+                line_number=0,
+            ))
+
+        return endpoints
+
+    @staticmethod
+    def _infer_models_by_convention(file_path: str, repo_path: str, content: str | None = None) -> list[Any]:
+        """Infer DB models by project conventions.
+
+        Works for any ORM-style project:
+        - Files in models/ / model/ / Entities/ directories
+        - Files named *Model.* / *Entity.*
+        - Extracts table name and columns from class properties
         """
-        from app.constants import SEMANTIC_EXTENSIONS, SEMANTIC_LANGUAGE_MAP
+        from app.domain.codebase.schemas import DBTable
+
+        rel_path = os.path.relpath(file_path, repo_path).replace("\\", "/")
+        parts = rel_path.split("/")
+        if len(parts) < 2:
+            return []
+
+        stem = os.path.splitext(parts[-1])[0]
+        if not stem:
+            return []
+
+        is_model_by_name = any(
+            stem.lower().endswith(suffix) for suffix in ("model", "entity", "table", "schema")
+        )
+        is_model_by_dir = any(
+            p.lower() in ("models", "model", "entities", "tables", "schemas") for p in parts
+        )
+
+        if not (is_model_by_name or is_model_by_dir):
+            return []
+
+        table_name = None
+        pk_field = None
+        columns = []
+
+        if content:
+            lines = content.splitlines()
+            tablename_re = re.compile(r'(?:protected\s+\$table|__tablename__|Table\s*[:=])\s*["\']([^"\']+)["\']')
+            pk_re = re.compile(r'(?:protected\s+\$pk|__pk__|PrimaryKey|@Id)\s*["\']?([a-zA-Z_]\w*)["\']?')
+            col_re = re.compile(r'(?:protected|public|private)\s+\$([a-zA-Z_]\w*)\s*[=;]')
+            cls_re = re.compile(r"\bclass\s+([A-Za-z_]\w*)")
+
+            for line in lines:
+                m = tablename_re.search(line)
+                if m:
+                    table_name = m.group(1)
+                    continue
+                m = pk_re.search(line)
+                if m:
+                    pk_field = m.group(1)
+                    continue
+                m = col_re.search(line)
+                if m:
+                    col_name = m.group(1)
+                    if col_name not in ("table", "pk", "keyType", "incrementing", "timestamps", "fillable", "guarded"):
+                        columns.append(col_name)
+
+            if not table_name:
+                cls_match = cls_re.search(content)
+                if cls_match:
+                    class_name = cls_match.group(1)
+                    table_name = re.sub(r"(?<!^)(?=[A-Z])", "_", class_name).lower()
+                    for suffix in ("_model", "_entity", "_table"):
+                        if table_name.endswith(suffix):
+                            table_name = table_name[: -len(suffix)]
+                            break
+
+        if table_name:
+            if pk_field and pk_field not in columns:
+                columns.insert(0, pk_field)
+            return [DBTable(name=table_name, file_path=rel_path, columns=list(dict.fromkeys(columns)))]
+
+        return [DBTable(name=stem, file_path=rel_path, columns=[])]
+
+    async def _run_semantic_extraction(self, repo_id: int, repo_path: str, project_id: int | None):
+        """
+        Run convention-based API/DB extraction with Agent fallback.
+
+        Uses project conventions (file paths, naming patterns) to infer
+        API endpoints, DB models, and security vulnerabilities. If convention
+        inference yields nothing, dispatches an Agent to investigate.
+        """
+        from app.constants import SEMANTIC_EXTENSIONS
         from app.core.file.service import walk_tree
         from app.domain.codebase.filter import FileFilter
-        from app.domain.codebase.indexing.extractors.api_extractor import api_extractor
-        from app.domain.codebase.indexing.extractors.db_extractor import db_extractor
 
         file_filter = FileFilter()
+        has_routes = False
+        has_models = False
 
         try:
             file_paths = await asyncio.to_thread(
                 lambda: list(
-                    walk_tree(repo_path, filter_func=file_filter.should_include)
+                    walk_tree(
+                        repo_path,
+                        filter_func=file_filter.should_include,
+                        gitignore_root=repo_path,
+                    )
                 )
             )
             for full_path in file_paths:
                 ext = os.path.splitext(full_path)[1].lower()
-
                 if ext not in SEMANTIC_EXTENSIONS:
                     continue
 
-                entities = await api_extractor.extract(full_path)
-                if entities:
-                    await api_extractor.sync_to_graph(repo_path, project_id, entities)
+                rel_path = os.path.relpath(full_path, repo_path)
+                content = await self._read_file_for_scan(full_path)
+                if content is not None:
+                    await self._persist_security_findings(repo_id, rel_path, content)
 
-                if ext in SEMANTIC_LANGUAGE_MAP["python"]:
-                    tables = await db_extractor.extract(full_path)
-                    if tables:
-                        await db_extractor.sync_to_graph(repo_path, project_id, tables)
+                entities = self._infer_routes_by_convention(full_path, repo_path, content)
+                if entities:
+                    has_routes = True
+                    await self._update_api_chunk_flags(repo_id, rel_path, entities)
+
+                tables = self._infer_models_by_convention(full_path, repo_path, content)
+                if tables:
+                    has_models = True
+                    await self._update_db_chunk_flags(repo_id, rel_path, tables)
 
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Semantic Extraction Failed: {e}")
+            return
+
+        if not has_routes and not has_models:
+            logger.info("Convention inference returned nothing, dispatching Agent...")
+            await self._analyze_with_agent(repo_id, repo_path, project_id)
+
+    async def _read_file_for_scan(self, file_path: str) -> str | None:
+        """Read file content for the security scanner."""
+        try:
+            result = read_file(file_path)
+            return result.content if result.success else None
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.debug(f"Failed to read file for security scan {file_path}: {e}")
+            return None
+
+    async def _persist_security_findings(
+        self, repo_id: int, rel_path: str, content: str
+    ) -> None:
+        """Run security scan and persist findings. Failures are non-blocking."""
+        try:
+            findings = scan_file(rel_path, content)
+            async with session_scope() as session:
+                stmt = select(SourceFile).where(
+                    SourceFile.repository_id == repo_id,
+                    SourceFile.path == rel_path,
+                )
+                result = await session.execute(stmt)
+                source_file = result.scalars().first()
+                if source_file is None:
+                    return
+
+                await session.execute(
+                    delete(SecurityFinding).where(
+                        SecurityFinding.source_file_id == source_file.id
+                    )
+                )
+
+                if findings:
+                    for finding in findings:
+                        session.add(
+                            SecurityFinding(
+                                source_file_id=source_file.id,
+                                finding_type=finding.finding_type,
+                                severity=finding.severity,
+                                description=finding.description,
+                                line_start=finding.line_start,
+                                line_end=finding.line_end,
+                                code_snippet=finding.code_snippet,
+                            )
+                        )
+                source_file.security_scan_status = "completed"
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.error(f"Security scan failed for {rel_path}: {e}")
+            try:
+                async with session_scope() as session:
+                    stmt = select(SourceFile).where(
+                        SourceFile.repository_id == repo_id,
+                        SourceFile.path == rel_path,
+                    )
+                    result = await session.execute(stmt)
+                    source_file = result.scalars().first()
+                    if source_file is not None:
+                        source_file.security_scan_status = "failed"
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as mark_err:
+                logger.error(f"Failed to mark security_scan_status as failed: {mark_err}")
+
+    async def _analyze_with_agent(self, repo_id: int, repo_path: str, project_id: int | None) -> None:
+        """Dispatch an Agent to analyze project structure when convention inference fails.
+
+        The Agent uses existing file tools to:
+        1. Read project config files (composer.json, package.json, etc.)
+        2. Identify framework and routes
+        3. Extract DB models
+        4. Return structured data
+
+        Results are persisted as API endpoints and DB tables.
+        """
+        logger.info(f"Agent analysis dispatched for repo {repo_id} at {repo_path}")
+        try:
+            from app.core.engine.inference_engine import InferenceEngine
+            from app.domain.codebase.schemas import APIEndpoint, DBTable
+
+            engine = InferenceEngine()
+            agent_result = await engine.analyze_codebase(
+                repo_path=repo_path,
+                task="infer_api_and_db",
+                project_id=project_id,
+            )
+
+            if not agent_result:
+                logger.info(f"Agent returned no results for repo {repo_id}")
+                return
+
+            endpoints = agent_result.get("endpoints", [])
+            tables = agent_result.get("tables", [])
+
+            for ep_data in endpoints:
+                ep = APIEndpoint(**ep_data)
+                rel_path = ep.file_path
+                await self._update_api_chunk_flags(repo_id, rel_path, [ep])
+
+            for table_data in tables:
+                table = DBTable(**table_data)
+                rel_path = table.file_path
+                await self._update_db_chunk_flags(repo_id, rel_path, [table])
+
+            logger.info(
+                f"Agent analysis for repo {repo_id}: "
+                f"{len(endpoints)} endpoints, {len(tables)} tables"
+            )
+
+        except Exception as e:
+            logger.error(f"Agent analysis failed for repo {repo_id}: {e}")
+
+    async def _update_api_chunk_flags(
+        self, repo_id: int, rel_path: str, entities: list
+    ) -> None:
+        """Update CodeChunk rows from extracted API endpoints."""
+        try:
+            async with session_scope() as session:
+                stmt = select(SourceFile).where(
+                    SourceFile.repository_id == repo_id,
+                    SourceFile.path == rel_path,
+                )
+                result = await session.execute(stmt)
+                source_file = result.scalars().first()
+                if source_file is None:
+                    return
+
+                for ep in entities:
+                    handler_name = getattr(ep, "handler_name", "")
+                    if not handler_name:
+                        continue
+
+                    await self._apply_chunk_flag(
+                        session,
+                        source_file.id,
+                        handler_name,
+                        is_api_route=True,
+                        api_method=getattr(ep, "method", None),
+                        api_path=getattr(ep, "path", None),
+                    )
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.error(f"Failed to update API chunk flags: {e}")
+
+    async def _update_db_chunk_flags(
+        self, repo_id: int, rel_path: str, tables: list
+    ) -> None:
+        """Update CodeChunk rows from extracted DB tables."""
+        try:
+            async with session_scope() as session:
+                stmt = select(SourceFile).where(
+                    SourceFile.repository_id == repo_id,
+                    SourceFile.path == rel_path,
+                )
+                result = await session.execute(stmt)
+                source_file = result.scalars().first()
+                if source_file is None:
+                    return
+
+                for table in tables:
+                    table_name = getattr(table, "name", "")
+                    if not table_name:
+                        continue
+
+                    await self._apply_chunk_flag(
+                        session,
+                        source_file.id,
+                        table_name,
+                        is_db_model=True,
+                        db_table_name=table_name,
+                    )
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.error(f"Failed to update DB chunk flags: {e}")
+
+    async def _apply_chunk_flag(
+        self,
+        session,
+        source_file_id: int,
+        name: str,
+        *,
+        is_api_route: bool = False,
+        api_method: str | None = None,
+        api_path: str | None = None,
+        is_db_model: bool = False,
+        db_table_name: str | None = None,
+    ) -> None:
+        """Match a CodeChunk by source_file_id and identifier/name and update flags."""
+        # CodeChunk identifiers are FQNs like "path/to/file.py::Class.method".
+        # Match either the exact name or a suffix of the FQN.
+        suffix_dot = f".{name}"
+        suffix_colon = f"::{name}"
+
+        stmt = select(CodeChunk).where(
+            CodeChunk.source_file_id == source_file_id,
+            (
+                (CodeChunk.identifier == name)
+                | CodeChunk.identifier.endswith(suffix_dot)
+                | CodeChunk.identifier.endswith(suffix_colon)
+            ),
+        )
+        result = await session.execute(stmt)
+        chunk = result.scalars().first()
+        if chunk is None:
+            return
+
+        if is_api_route:
+            chunk.is_api_route = True
+            if api_method:
+                chunk.api_method = api_method.upper()
+            if api_path:
+                chunk.api_path = api_path
+        if is_db_model:
+            chunk.is_db_model = True
+            if db_table_name:
+                chunk.db_table_name = db_table_name
 
     async def _resolve_repo_path(self, repo: Repository) -> str | None:
         """Resolve the local filesystem path for a repository.

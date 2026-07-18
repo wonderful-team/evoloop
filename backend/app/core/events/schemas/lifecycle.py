@@ -20,11 +20,13 @@ class SessionCompletedData(BaseModel):
     project_id: int | None = None
     member_id: int | None = None
     messages: list[BaseMessage] = Field(default_factory=list)
-    blackboard_dict: dict = Field(default_factory=dict, description="Serialized blackboard state")
+    blackboard_dict: dict[str, Any] = Field(default_factory=dict, description="Serialized blackboard state")
     summary: str | None = None
     outcome: str | None = None
+    sedimentation_eligible: bool = False
     audit_tier: str | None = None
     duration_ms: float = 0.0
+    turn_summary_message_id: str | None = None
     # Extra context for learning and domain modules
     model: str | None = None
     source: str | None = None

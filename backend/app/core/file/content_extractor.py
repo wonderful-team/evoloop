@@ -7,6 +7,7 @@ from .media_reader import media_reader_service
 
 logger = logging.getLogger(__name__)
 
+
 class FileContentExtractor:
     """
     Unified entry point for extracting text content from any file type.

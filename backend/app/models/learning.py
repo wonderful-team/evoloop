@@ -60,6 +60,7 @@ class TraceEvent(Base):
 
     # Metadata
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    message_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
 
     # Window Context (Global only)
     window_title: Mapped[str | None] = mapped_column(Text, nullable=True)

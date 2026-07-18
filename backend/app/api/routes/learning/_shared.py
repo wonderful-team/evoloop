@@ -3,6 +3,9 @@ Shared imports and helpers for learning sub-routers.
 """
 import json
 import logging
+from typing import Any
+
+from app.core.learning.schemas import SkillParameter
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +30,14 @@ def _normalize_json_list(raw: str | list | None) -> list:
     return data if isinstance(data, list) else []
 
 
-def _normalize_skill_params(params_raw: str | list | dict | None) -> list[dict]:
+def _member_id(current_user: Any) -> int:
+    """Safely extract member_id from optional current user."""
+    if current_user is None:
+        return 0
+    return int(current_user.id)
+
+
+def _normalize_skill_params(params_raw: str | list | dict | None) -> list[SkillParameter]:
     """Normalize skill parameters from various formats to a standard list."""
     if not params_raw:
         return []
@@ -40,35 +50,40 @@ def _normalize_skill_params(params_raw: str | list | dict | None) -> list[dict]:
     except (json.JSONDecodeError, TypeError):
         return []
 
-    normalized = []
+    normalized: list[SkillParameter] = []
 
     if isinstance(data, dict):
         for name, info in data.items():
             if isinstance(info, dict):
-                normalized.append({
-                    "name": name,
-                    "type": info.get("type", "string"),
-                    "description": info.get("description", ""),
-                    "required": info.get("required", True),
-                    "default": info.get("default")
-                })
+                normalized.append(
+                    SkillParameter(
+                        name=name,
+                        type=info.get("type", "string"),
+                        description=info.get("description", ""),
+                        required=info.get("required", True),
+                        default=info.get("default"),
+                    )
+                )
             else:
-                normalized.append({
-                    "name": name,
-                    "type": "string",
-                    "description": str(info),
-                    "required": True,
-                    "default": None
-                })
+                normalized.append(
+                    SkillParameter(
+                        name=name,
+                        type="string",
+                        description=str(info),
+                        required=True,
+                    )
+                )
     elif isinstance(data, list):
         for item in data:
             if isinstance(item, dict) and "name" in item:
-                normalized.append({
-                    "name": item["name"],
-                    "type": item.get("type") or "string",
-                    "description": item.get("description", ""),
-                    "required": item.get("required", True),
-                    "default": item.get("default")
-                })
+                normalized.append(
+                    SkillParameter(
+                        name=item["name"],
+                        type=item.get("type") or "string",
+                        description=item.get("description", ""),
+                        required=item.get("required", True),
+                        default=item.get("default"),
+                    )
+                )
 
     return normalized

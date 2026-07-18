@@ -17,6 +17,7 @@ from typing import Any
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.engine.message.native_classes import BaseMessage
+from app.core.file import compute_sha256
 from app.core.memory.config import MemoryConfig
 from app.core.memory.interfaces import IShortTermMemory
 from app.core.memory.models import (
@@ -37,7 +38,7 @@ logger = logging.getLogger(__name__)
 class MemoryManager:
     """
     Unified facade for the memory system.
-    
+
     Provides a single entry point for all memory operations:
     - Short-term: Conversation history (SQL)
     - Long-term: Persistent knowledge (File or Neo4j)
@@ -49,7 +50,7 @@ class MemoryManager:
 
     def __init__(
         self,
-        config: 'MemoryConfig | None' = None,
+        config: "MemoryConfig | None" = None,
         storage: MemoryStore | None = None,
         short_term: IShortTermMemory | None = None,
     ):
@@ -98,7 +99,7 @@ class MemoryManager:
     async def flush(self) -> None:
         """Flush all memory components (for testing)."""
         await self.short_term.flush()
-        if hasattr(self._storage, 'flush'):
+        if hasattr(self._storage, "flush"):
             await self._storage.flush()
         logger.info("MemoryManager: All components flushed")
 
@@ -109,7 +110,7 @@ class MemoryManager:
     async def add_message(self, thread_id: str, message: BaseMessage) -> None:
         """
         Add a message to the conversation history.
-        
+
         Args:
             thread_id: Conversation thread identifier
             message: The message to store
@@ -123,11 +124,11 @@ class MemoryManager:
     ) -> list[BaseMessage]:
         """
         Retrieve recent conversation context.
-        
+
         Args:
             thread_id: Conversation thread identifier
             limit: Maximum number of messages to retrieve
-            
+
         Returns:
             List of messages in chronological order
         """
@@ -205,7 +206,7 @@ class MemoryManager:
                 name=concept,
                 description=description or "",
                 project_id=project_id,
-                related_files=related_files or []
+                related_files=related_files or [],
             )
         else:
             concept_obj = concept
@@ -228,7 +229,13 @@ class MemoryManager:
         await self.save_memory(entry)
         return entry
 
-    async def search_concepts(self, query: str, project_id: int | None = None, limit: int = 10, member_id: int = 0) -> list[Concept]:
+    async def search_concepts(
+        self,
+        query: str,
+        project_id: int | None = None,
+        limit: int = 10,
+        member_id: int = 0,
+    ) -> list[Concept]:
         """
         Search for domain concepts.
         """
@@ -239,21 +246,39 @@ class MemoryManager:
             member_id=member_id,
             limit=limit,
         )
-        return [Concept(name=e.title, description=e.content, related_files=e.tags) for e in entries]
+        return [
+            Concept(name=e.title, description=e.content, related_files=e.tags)
+            for e in entries
+        ]
 
-    async def search_concepts_data(self, query: str, project_id: int | None = None, limit: int = 10, member_id: int = 0) -> list[dict]:
+    async def search_concepts_data(
+        self,
+        query: str,
+        project_id: int | None = None,
+        limit: int = 10,
+        member_id: int = 0,
+    ) -> list[dict]:
         """
         Search for domain concepts and return raw data.
         """
         concepts = await self.search_concepts(query, project_id, limit, member_id)
-        return [{"name": c.name, "description": c.description, "project_id": c.project_id} for c in concepts]
+        return [
+            {"name": c.name, "description": c.description, "project_id": c.project_id}
+            for c in concepts
+        ]
 
     async def get_project_concepts(self, project_id: int) -> list[str]:
         """Get all concepts for a project as formatted strings."""
         results = await self.list_memories(type_filter=MemoryType.CONCEPT, limit=100)
         return [f"{m.title}: {m.description}" for m in results]
 
-    async def find_episodes_by_concept(self, concept_name: str, project_id: int | None = None, limit: int = 10, member_id: int = 0) -> list[dict]:
+    async def find_episodes_by_concept(
+        self,
+        concept_name: str,
+        project_id: int | None = None,
+        limit: int = 10,
+        member_id: int = 0,
+    ) -> list[dict]:
         """Find all episodes linked to a specific concept."""
         return []
 
@@ -293,7 +318,13 @@ class MemoryManager:
         await self.save_memory(entry)
         return entry_id
 
-    async def search_episodes(self, query: str, project_id: int | None = None, limit: int = 5, member_id: int = 0) -> list[dict]:
+    async def search_episodes(
+        self,
+        query: str,
+        project_id: int | None = None,
+        limit: int = 5,
+        member_id: int = 0,
+    ) -> list[dict]:
         """Search for execution episodes."""
         results = await self.search_memories(
             query=query,
@@ -302,12 +333,15 @@ class MemoryManager:
             member_id=member_id,
             limit=limit,
         )
-        return [{
-            'id': r.id,
-            'goal': r.title.replace("Episode: ", ""),
-            'result': r.content,
-            'timestamp': r.updated_at.isoformat() if r.updated_at else '',
-        } for r in results]
+        return [
+            {
+                "id": r.id,
+                "goal": r.title.replace("Episode: ", ""),
+                "result": r.content,
+                "timestamp": r.updated_at.isoformat() if r.updated_at else "",
+            }
+            for r in results
+        ]
 
     async def retrieve_experience(self, goal: str, project_id: int, top_k: int = 3, member_id: int = 0) -> str:
         """Find past episodes similar to the current goal."""
@@ -346,10 +380,8 @@ class MemoryManager:
         This makes the project's self-description searchable via search_memories/recall.
         Deduplicates by content_hash; updates existing entry if content changes.
         """
-        import hashlib
-
         entry_id = f"project_md_{project_id}"
-        content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        content_hash = compute_sha256(content)
 
         # Check if existing entry has same content (skip if unchanged)
         existing = await self.get_memory(entry_id)
@@ -381,10 +413,10 @@ class MemoryManager:
     async def get_memory(self, entry_id: str) -> MemoryEntry | None:
         """
         Get a memory entry by ID.
-        
+
         Args:
             entry_id: Memory entry ID
-            
+
         Returns:
             Memory entry or None if not found
         """
@@ -402,7 +434,7 @@ class MemoryManager:
     ) -> list[MemoryEntry]:
         """
         Search long-term memories.
-        
+
         Args:
             query: Search query text
             types: Filter by memory types
@@ -410,7 +442,7 @@ class MemoryManager:
             project_id: Filter by project ID
             filters: Structured metadata filters
             limit: Maximum number of results
-            
+
         Returns:
             List of matching memory entries
         """
@@ -427,11 +459,11 @@ class MemoryManager:
     async def find_by_hash(self, content_hash: str, project_id: int | None = None) -> MemoryEntry | None:
         """
         Find a memory entry by its content hash.
-        
+
         Args:
             content_hash: SHA-256 hash of the content
             project_id: Optional project scope
-            
+
         Returns:
             Matching MemoryEntry or None
         """
@@ -444,25 +476,34 @@ class MemoryManager:
     async def get_hot_memory(self, project_id: int | None = None) -> str:
         """
         Get Tier 1 hot memory (MEMORY.md).
-        
+
         This is always loaded at session start. Contains the most
         important project knowledge ranked by importance.
-        
+
         Returns:
             MEMORY.md content (truncated if exceeds limits)
         """
         memory_root = None
         if project_id:
             try:
-                from app.core.project.utils import get_project_path, get_memory_path
+                from app.core.project.utils import get_memory_path, get_project_path
+
                 project_path = await get_project_path(project_id)
                 if project_path:
                     memory_root = get_memory_path(project_path)
                     self._storage.project_roots[project_id] = str(memory_root)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (
+                ValueError,
+                OSError,
+                RuntimeError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ) as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
 
         from app.core.memory.two_tier import TwoTierMemoryManager
+
         two_tier = TwoTierMemoryManager(
             storage=self._storage,
             config=self.config,
@@ -479,44 +520,45 @@ class MemoryManager:
     ) -> list[MemoryEntry]:
         """
         Search Tier 2 cold memory (full storage).
-        
+
         This is searched on demand when hot memory is insufficient.
         Uses smart retrieval for semantic relevance.
-        
+
         Args:
             query: Search query
             max_results: Maximum number of results
-            
+
         Returns:
             List of relevant memory entries
         """
         from app.core.memory.two_tier import TwoTierMemoryManager
+
         two_tier = TwoTierMemoryManager(
-            storage=self._storage,
-            config=self.config,
-            analyzer=self.quality
+            storage=self._storage, config=self.config, analyzer=self.quality
         )
         return await two_tier.search_cold_memory(query, max_results)
 
     async def regenerate_memory_md(self, project_id: int | None = None) -> None:
         """
         Regenerate MEMORY.md from cold memory.
-        
+
         This updates the hot memory (Tier 1) based on the current
         state of cold memory (Tier 2), applying budgets and rankings.
         """
         memory_root = None
         if project_id:
             try:
-                from app.core.project.utils import get_project_path, get_memory_path
+                from app.core.project.utils import get_memory_path, get_project_path
+
                 project_path = await get_project_path(project_id)
                 if project_path:
                     memory_root = get_memory_path(project_path)
                     self._storage.project_roots[project_id] = str(memory_root)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
 
         from app.core.memory.two_tier import TwoTierMemoryManager
+
         two_tier = TwoTierMemoryManager(
             storage=self._storage,
             config=self.config,
@@ -551,7 +593,7 @@ class MemoryManager:
             privacy_filter=privacy_filter,
             project_id=project_id,
             limit=limit,
-            member_id=member_id
+            member_id=member_id,
         )
 
     async def get_recent_memories(
@@ -584,7 +626,7 @@ class MemoryManager:
         Returns:
             Dict with deduplication stats
         """
-        if hasattr(self._storage, 'deduplicate_checkpoints'):
+        if hasattr(self._storage, "deduplicate_checkpoints"):
             return await self._storage.deduplicate_checkpoints(dry_run)
         else:
             logger.warning("[MemoryManager] deduplicate_checkpoints not supported by current storage backend")
@@ -596,7 +638,7 @@ class MemoryManager:
                 duplicates_removed=0,
                 bytes_saved=0,
                 elapsed_ms=0,
-                error="Not supported for this storage backend"
+                error="Not supported for this storage backend",
             )
 
     # ========================================================================
@@ -609,7 +651,7 @@ class MemoryManager:
     async def run_maintenance(self, project_id: int | None = None, force: bool = False) -> dict:
         """
         Run system maintenance: Pruning and Consolidation.
-        
+
         Decision: Only runs when memory count exceeds threshold, or if forced.
         """
         from datetime import datetime
@@ -642,7 +684,7 @@ class MemoryManager:
             "low_quality_count": low_quality_count,
             "pruning_count": len(pruning_logs),
             "logs": pruning_logs,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
     async def find_relevant_memories(

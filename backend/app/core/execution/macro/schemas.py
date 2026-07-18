@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from enum import Enum
-from typing import Any, Union
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.yaml import macro_from_yaml, macro_to_yaml
+
 
 # === Classes migrated from schema.py (singular) ===
 
@@ -254,13 +255,13 @@ class ExtractionPayload(DynamicBaseModel):
 
 
 # Unified Payload Type
-MacroPayload = Union[
-    NavigationPayload,
-    InteractionPayload,
-    ControlPayload,
-    ExtractionPayload,
-    dict[str, Any]
-]
+MacroPayload = (
+    NavigationPayload
+    | InteractionPayload
+    | ControlPayload
+    | ExtractionPayload
+    | dict[str, Any]
+)
 
 
 class MacroCondition(DynamicBaseModel):
@@ -756,7 +757,8 @@ class OptimizationResult(DynamicBaseModel):
 
     @property
     def reduction_ratio(self) -> float:
-        if self.original_steps == 0: return 0.0
+        if self.original_steps == 0:
+            return 0.0
         return (self.original_steps - self.optimized_steps) / self.original_steps
 
 
@@ -796,6 +798,16 @@ class MacroRunResult(DynamicBaseModel):
     suggestions: list[str] | None = None
     status: str | None = None  # e.g. "fallback_required"
     fallback_context: dict[str, Any] | None = None
+
+
+class MacroVerificationResult(DynamicBaseModel):
+    """Lightweight dry-run verification result for a macro script."""
+
+    status: str
+    success: bool
+    missing_keys: list[str] = []
+    extracted_count: int = 0
+    error: str | None = None
 
 
 class VerificationSummary(DynamicBaseModel):

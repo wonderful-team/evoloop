@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 
 import psutil
@@ -10,7 +11,14 @@ from app.api.schemas.system import (
     EmbeddingApplyResponse,
     EmbeddingConfigRequest,
     EmbeddingTestResponse,
+    EmbeddingTierConfigRequest,
+    EmbeddingTierStatusResponse,
+    EmbeddingTierTestResponse,
     HealthCheckResponse,
+    LightningApplyResponse,
+    LightningConfigRequest,
+    LightningStatusResponse,
+    LightningTestResponse,
     LLMApplyResponse,
     LLMConfigRequest,
     LLMTestResponse,
@@ -25,6 +33,8 @@ from app.infrastructure.llm.platform_service import (
     get_available_llm_models,
 )
 from app.models.system import SystemConfig
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/system", tags=["system"])
 
@@ -54,6 +64,101 @@ def get_system_config() -> list[SystemConfig]:
     return SystemConfigService.get_all()
 
 
+# --- Lightning Channel Config ---
+
+@router.get("/lightning/status", dependencies=[Depends(get_current_user)])
+async def get_lightning_status() -> LightningStatusResponse:
+    """Return current Lightning Channel configuration and availability."""
+    from app.infrastructure.llm.lightning import get_lightning_service, _cfg
+
+    service = get_lightning_service()
+    mode = _cfg("LIGHTNING_MODE", "none")
+    llm_ok = False
+    try:
+        llm = await service.get_llm()
+        llm_ok = llm is not None
+    except Exception:
+        llm_ok = False
+
+    llama_cpp_available = False
+    try:
+        import llama_cpp  # noqa: F401
+        llama_cpp_available = True
+    except ImportError:
+        pass
+
+    return LightningStatusResponse(
+        mode=mode,
+        llm_available=llm_ok,
+        llama_cpp_available=llama_cpp_available,
+        llm_model=_cfg("LIGHTNING_LLM_MODEL", ""),
+        base_url=_cfg("LIGHTNING_BASE_URL", ""),
+        context_window=int(_cfg("LIGHTNING_CTX", "8192")),
+    )
+
+
+@router.post("/lightning/apply", dependencies=[Depends(get_current_user)])
+async def apply_lightning_config(req: LightningConfigRequest) -> LightningApplyResponse:
+    """Apply new Lightning Channel configuration (LLM only)."""
+    from app.infrastructure.llm.lightning import reset_lightning_service
+
+    SystemConfigService.set_value("LIGHTNING_MODE", req.mode)
+    SystemConfigService.set_value("LIGHTNING_LLM_MODEL", req.llm_model or "")
+    SystemConfigService.set_value("LIGHTNING_BASE_URL", req.base_url or "")
+    SystemConfigService.set_value("LIGHTNING_API_KEY", req.api_key or "")
+    SystemConfigService.set_value("LIGHTNING_CTX", str(req.context_window or 8192))
+
+    reset_lightning_service()
+    LLMFactory.clear_cache()
+
+    return LightningApplyResponse(status="applied", message="Lightning Channel configuration applied.")
+
+
+@router.post("/lightning/test", dependencies=[Depends(get_current_user)])
+async def test_lightning_connection(req: LightningConfigRequest) -> LightningTestResponse:
+    """Test Lightning Channel LLM connection."""
+    from app.infrastructure.llm.lightning import LightningService
+
+    import traceback
+
+    if req.mode == "none":
+        return LightningTestResponse(llm_ok=False, llm_reply="Lightning Channel is disabled")
+
+    temp_service = LightningService()
+    snap = {
+        "mode": req.mode,
+        "llm_model": req.llm_model or "",
+        "ctx": str(req.context_window or 8192),
+        "base_url": req.base_url or "",
+        "api_key": req.api_key or "",
+    }
+
+    llm_ok = False
+    llm_reply = None
+    try:
+        llm = await temp_service._build_llm(snap)
+        if llm is not None:
+            result = await llm.ainvoke(
+                messages=[{"role": "user", "content": "Respond with just: ok"}],
+                max_tokens=10,
+                temperature=0.0,
+            )
+            if hasattr(result, "content"):
+                llm_reply = result.content or ""
+            elif isinstance(result, dict):
+                llm_reply = (
+                    result.get("choices", [{}])[0]
+                    .get("message", {})
+                    .get("content", "")
+                )
+            llm_ok = True
+    except Exception as e:
+        logger.error("[LightningTest] LLM error:\n%s", traceback.format_exc())
+        llm_reply = str(e)
+
+    return LightningTestResponse(llm_ok=llm_ok, llm_reply=llm_reply)
+
+
 @router.get("/health")
 def health_check() -> HealthCheckResponse:
     """
@@ -66,6 +171,67 @@ def health_check() -> HealthCheckResponse:
 async def update_system_config(config: SystemConfig) -> SystemConfig:
     """Update system configuration and trigger side effects if needed."""
     return await SystemConfigService.set_value_async(config.key, config.value, config.description)
+
+# --- Embedding Channel (independent tier chain) ---
+
+@router.get("/embedding/tier-status", dependencies=[Depends(get_current_user)])
+async def get_embedding_tier_status() -> EmbeddingTierStatusResponse:
+    """Return availability of each embedding tier."""
+    tiers = SystemConfigService.get_value("EMBEDDING_TIERS") or "gguf,local,remote"
+    gguf = bool(SystemConfigService.get_value("EMBEDDING_GGUF_MODEL"))
+    local = bool(SystemConfigService.get_value("EMBEDDING_LOCAL_URL"))
+    remote = bool(SystemConfigService.get_value("EMBEDDING_PROVIDER"))
+    active = None
+    embedder = EmbedderFactory.get_embedder()
+    if embedder is not None:
+        if gguf:
+            active = "gguf"
+        elif local:
+            active = "local"
+        elif remote:
+            active = "remote"
+    return EmbeddingTierStatusResponse(
+        active_tier=active,
+        gguf_available=gguf,
+        local_available=local,
+        remote_available=remote,
+        tiers=tiers,
+    )
+
+
+@router.post("/embedding/tier-apply", dependencies=[Depends(get_current_user)])
+async def apply_embedding_tier_config(req: EmbeddingTierConfigRequest) -> EmbeddingApplyResponse:
+    """Apply embedding tier configuration."""
+    SystemConfigService.set_value("EMBEDDING_TIERS", req.tiers)
+    SystemConfigService.set_value("EMBEDDING_GGUF_MODEL", req.gguf_model or "")
+    SystemConfigService.set_value("EMBEDDING_LOCAL_URL", req.local_url or "")
+    SystemConfigService.set_value("EMBEDDING_LOCAL_API_KEY", req.local_api_key or "")
+    SystemConfigService.set_value("EMBEDDING_LOCAL_MODEL", req.local_model or "")
+    SystemConfigService.set_value("EMBEDDING_PROVIDER", req.provider or "")
+    SystemConfigService.set_value("EMBEDDING_BASE_URL", req.base_url or "")
+    SystemConfigService.set_value("EMBEDDING_MODEL", req.model or "")
+    SystemConfigService.set_value("EMBEDDING_API_KEY", req.api_key or "")
+    if req.dimensions:
+        SystemConfigService.set_value("EMBEDDING_DIMENSIONS", str(req.dimensions))
+    EmbedderFactory.reset_cache()
+    return EmbeddingApplyResponse(status="applied", message="Embedding tier configuration applied.")
+
+
+@router.post("/embedding/tier-test", dependencies=[Depends(get_current_user)])
+async def test_embedding_tier_connection(req: EmbeddingTierConfigRequest) -> EmbeddingTierTestResponse:
+    """Test the highest-priority available embedding tier."""
+    from app.infrastructure.embeddings.factory import EmbedderFactory
+
+    EmbedderFactory.reset_cache()
+    try:
+        embedder = EmbedderFactory.get_embedder()
+        if embedder is None:
+            return EmbeddingTierTestResponse(success=False, error="No embedding tier available")
+        emb = await embedder.embed_query("test")
+        dims = len(emb) if emb else 0
+        return EmbeddingTierTestResponse(success=dims > 0, dimensions=dims)
+    except Exception as e:
+        return EmbeddingTierTestResponse(success=False, error=str(e))
 
 
 @router.post("/embedding/test", dependencies=[Depends(get_current_user)])

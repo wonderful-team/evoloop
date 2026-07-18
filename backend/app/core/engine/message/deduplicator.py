@@ -4,11 +4,11 @@ MessageDeduplicator — Simple time-windowed content deduplication.
 Extracted from MessageHandler to separate deduplication concerns.
 """
 
-import hashlib
 import logging
 import time
 
 from app.core.engine.message.category import MessageCategory
+from app.core.file import compute_md5
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +33,7 @@ class MessageDeduplicator:
         Returns:
             True if duplicate (same hash within time window)
         """
-        content_hash = hashlib.md5(
-            f"{category.value}:{content}:{str(tool_calls)}".encode()
-        ).hexdigest()[:16]
+        content_hash = compute_md5(f"{category.value}:{content}:{str(tool_calls)}")[:16]
 
         current_time = time.time()
         if content_hash == self._last_hash and (current_time - self._last_time) < self._window_seconds:

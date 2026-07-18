@@ -37,3 +37,31 @@ class AppMapEvent(BaseEvent):
             "superseded_by": self.superseded_by,
             "action": self.action,
         }
+
+
+class AppMapGenerateCompletedEvent(BaseEvent):
+    """Published when an AppMap is ready for downstream macro synthesis.
+
+    Emitted after the Agent explicitly confirms the surveyed AppMap is complete
+    (via generate_macros_from_app_map) or when the AppMap generation workflow is
+    otherwise finished. The macro module subscribes to this event and schedules
+    synthesis independently.
+    """
+
+    source: str = "atlas.source"
+    event_type: str = AppMapEventType.GENERATE_COMPLETED.value
+
+    app_map_id: int = 0
+    project_id: int = 0
+    member_id: int = 0
+
+    # Internal command event: not surfaced to the frontend as a notification.
+    is_public: bool = False
+    broadcast_channel: str = "none"
+
+    def model_post_init(self, __context: Any) -> None:
+        self.data = {
+            "app_map_id": self.app_map_id,
+            "project_id": self.project_id,
+            "member_id": self.member_id,
+        }

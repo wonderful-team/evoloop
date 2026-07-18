@@ -14,6 +14,7 @@ from collections.abc import Callable
 from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
+from sqlalchemy import select
 
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate
@@ -23,7 +24,9 @@ from app.core.engine.state.config import (
     TicketParameters,
 )
 from app.core.engine.state.sub_schemas import SpawnPlan
+from app.infrastructure.database import session_scope
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models.learning import LearnedSkill
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +186,31 @@ async def intercept_decompose_task(tool_call: dict, config: dict) -> SpawnSubtas
     return None
 
 
+async def _resolve_skill_tool_allowlist(
+    skill_ids: list[int | str],
+) -> list[str]:
+    """Union tools_required from the given LearnedSkill IDs.
+
+    Returns an empty list when no skills match or the field is empty, so the
+    caller can fall back to the full YAML tool pool.
+    """
+    if not skill_ids:
+        return []
+    try:
+        async with session_scope() as session:
+            stmt = select(LearnedSkill).where(LearnedSkill.id.in_(skill_ids))
+            result = await session.execute(stmt)
+            skills = result.scalars().all()
+            tools: set[str] = set()
+            for skill in skills:
+                if skill.tools_used:
+                    tools.update(skill.tools_used)
+            return sorted(tools)
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+        logger.warning(f"[Signals] Failed to resolve skill tools: {e}")
+        return []
+
+
 # ───────────────────────── Handlers ─────────────────────────
 
 
@@ -219,6 +247,16 @@ async def handle_route_to(
         agent_config.namespace_context = inferred_namespace
     if not agent_config.role_name:
         agent_config.role_name = str(target).replace("_", " ").title()
+
+    # Enforce tool allowlist derived from skill requires.tools.
+    # Falls back to the full YAML pool when no skill context is present.
+    skill_ids = routing_context.skill_ids or signal.skill_ids
+    if skill_ids:
+        allowed_tools = await _resolve_skill_tool_allowlist(skill_ids)
+        if allowed_tools:
+            agent_config.tools = sorted(
+                set((agent_config.tools or []) + allowed_tools)
+            )
 
     parameters = routing_context.model_dump(
         include={"dependencies", "verbose_output"},

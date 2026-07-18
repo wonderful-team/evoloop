@@ -1,9 +1,10 @@
 import os
-import shutil
 from typing import Annotated
 
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.engine.tasks import persist_file_operation_task
+from app.core.file import delete_directory
+from app.core.file import delete_file as core_delete_file
 from app.core.file.verification import safe_read_with_hash
 from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
@@ -47,18 +48,20 @@ async def delete_file(
         # Record original contents for Rewind
         original_content = None
         is_file = os.path.isfile(absolute_path)
-        
+
         if is_file:
             try:
                 original_content, _, _ = safe_read_with_hash(absolute_path)
             except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
                 pass # Binary or unreadable files
 
-        # Perform deletion
+        # Perform deletion via the File Center
         if is_file:
-            os.remove(absolute_path)
+            result = core_delete_file(absolute_path)
         else:
-            shutil.rmtree(absolute_path)
+            result = delete_directory(absolute_path, recursive=True)
+        if not result.success:
+            return f"Error deleting file: {result.message}"
 
         # Record Rewind operation
         if is_file:

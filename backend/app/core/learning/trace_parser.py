@@ -192,14 +192,9 @@ class TraceParser:
             elif event.event_type in ["click", "input"]:
                 action_args = payload
             elif event.source == "mobile":
-                # Android mirror raw events: normalize into macro-executable
-                # actions. touch_down/touch_up are gesture boundaries already
-                # represented by the paired swipe/tap event — skip them.
-                normalized = self._normalize_mobile_event(event.event_type, payload)
-                if normalized is None:
-                    return None
-                action_name, action_args = normalized
-                action_type = action_name
+                # Android mirror raw events: keep them raw; MacroScriptCompiler
+                # will normalize them into macro-executable actions.
+                action_args = payload
 
             # Determine category
             category = self._categorize_action(event.event_type, action_name)
@@ -235,46 +230,6 @@ class TraceParser:
         except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(f"Failed to parse event {event.id}: {e}")
             return None
-
-    @staticmethod
-    def _normalize_mobile_event(event_type: str, payload: dict) -> tuple[str, dict] | None:
-        """Normalize raw Android mirror events into macro actions.
-
-        Returns (action_name, action_args) or None to drop the event.
-        The recorder emits touch_down/touch_up boundaries plus a composed
-        swipe event per gesture; a near-zero-distance swipe is a tap.
-        Mirror-window clicks arrive as mouse_click with device-pixel
-        coordinates (transformed client-side in GlobalRecorderManager).
-        """
-        if event_type in ("touch_down", "touch_up"):
-            return None
-        if event_type == "mouse_click":
-            # Mirror-window click: position already holds device pixels
-            pos = payload.get("position") or {}
-            if isinstance(pos, (list, tuple)) and len(pos) == 2:
-                return ("tap", {"x": pos[0], "y": pos[1]})
-            args = {k: v for k, v in {"x": payload.get("x"), "y": payload.get("y")}.items() if v is not None}
-            return ("tap", args)
-        if event_type == "swipe":
-            x, y = payload.get("x"), payload.get("y")
-            end_x = payload.get("swipe_end_x")
-            end_y = payload.get("swipe_end_y")
-            args = {k: v for k, v in {"x": x, "y": y}.items() if v is not None}
-            if end_x is None or end_y is None or x is None or y is None:
-                return ("tap", args)
-            distance = ((end_x - x) ** 2 + (end_y - y) ** 2) ** 0.5
-            if distance < 30:
-                return ("tap", args)
-            args["end_x"] = end_x
-            args["end_y"] = end_y
-            if payload.get("swipe_duration_ms") is not None:
-                args["duration_ms"] = payload["swipe_duration_ms"]
-            return ("swipe", args)
-        if event_type == "key":
-            # Mobile key executor reads payload["key"] / ["keycode"]
-            return ("key_press", {"key": payload.get("key_code")})
-        # region_extract and other annotated events pass through as-is
-        return (event_type, payload)
 
     def _categorize_action(self, event_type: str, action_name: str) -> ActionCategory:
         """Determine the category of an action."""

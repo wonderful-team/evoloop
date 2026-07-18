@@ -1,7 +1,6 @@
 """Schemas for learning module."""
 
 from enum import Enum
-from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -81,14 +80,6 @@ class ValidationResult(BaseModel):
     errors: list[str] = []
     warnings: list[str] = []
     metadata: ValidationMetadata | None = None
-
-
-class MacroVerificationResult(DynamicBaseModel):
-    status: str
-    success: bool
-    missing_keys: list[str] = []
-    extracted_count: int = 0
-    error: str | None = None
 
 
 class UIContext(DynamicBaseModel):

@@ -4,10 +4,12 @@ from .app_map import AppMap as AppMap
 from .atlas import AtlasApp as AtlasApp
 from .atlas import AtlasState as AtlasState
 from .atlas import AtlasTransition as AtlasTransition
+from .codebase import AppMapRouteLink as AppMapRouteLink
 from .codebase import CodeChunk as CodeChunk
 from .codebase import CodeEntity as CodeEntity
 from .codebase import CodeRelation as CodeRelation
 from .codebase import Repository as Repository
+from .codebase import SecurityFinding as SecurityFinding
 from .codebase import SourceFile as SourceFile
 from .conversation import AgentActivity as AgentActivity
 from .conversation import Conversation as Conversation
@@ -41,6 +43,7 @@ from .todo import TodoStatus as TodoStatus
 from .wiki import WikiPage as WikiPage
 
 __all__ = [
+    "AppMapRouteLink",
     "AtlasApp",
     "AtlasState",
     "AtlasTransition",
@@ -49,6 +52,7 @@ __all__ = [
     "AutonomousTask",
     "CodeRelation",
     "Repository",
+    "SecurityFinding",
     "SourceFile",
     "SystemConfig",
     "Conversation",

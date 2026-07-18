@@ -1,10 +1,10 @@
 import logging
 import os
-import shutil
 from typing import Annotated
 
 from app.core.engine.message.native_classes import RunnableConfig
 from app.core.engine.tasks import persist_file_operation_task
+from app.core.file import move_path
 from app.core.file.verification import safe_read_with_hash
 from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
@@ -57,7 +57,7 @@ async def move_file(
         # Record original contents for Rewind
         content = ""
         is_file = os.path.isfile(source_absolute)
-        
+
         if is_file:
             try:
                 content, _, _ = safe_read_with_hash(source_absolute)
@@ -71,10 +71,10 @@ async def move_file(
             except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
 
-        # Perform the move
-        # Create parent directories for destination if they don't exist
-        os.makedirs(os.path.dirname(dest_absolute), exist_ok=True)
-        shutil.move(source_absolute, dest_absolute)
+        # Perform the move via the File Center
+        result = move_path(source_absolute, dest_absolute)
+        if not result.success:
+            return f"Error moving file: {result.message}"
 
         # Record Rewind operation
         if is_file:

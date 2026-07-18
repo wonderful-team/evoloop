@@ -104,7 +104,7 @@ async def _persist_file_operation_task(
     )
 
 
-@shared_task(name="engine_persist_file_operation")
+@shared_task(name="engine_persist_file_operation")  # type: ignore[reportCallIssue]
 async def persist_file_operation_task(
     thread_id: str,
     message_id: str,
@@ -169,7 +169,7 @@ async def persist_file_operation_task(
         logger.warning(f"[Celery] Failed to publish changeset updated event: {e}")
 
 
-@shared_task(name="engine_harvest_concepts")
+@shared_task(name="engine_harvest_concepts")  # type: ignore[reportCallIssue]
 async def harvest_concepts_task(concepts_data: list[dict], project_id: int):
     """
     Background task to store harvested concepts into the memory system.
@@ -227,7 +227,7 @@ async def harvest_concepts_task(concepts_data: list[dict], project_id: int):
         logger.info(f"Harvested concept: {name}")
 
 
-@shared_task(name="engine_record_episode")
+@shared_task(name="engine_record_episode")  # type: ignore[reportCallIssue]
 async def record_episode_task(
     thread_id: str,
     project_id: int,
@@ -260,14 +260,14 @@ async def record_episode_task(
         logger.info(f"[Celery] Episode recorded for thread {thread_id}")
 
         if auto_synthesize:
-            from app.core.learning.skill_synthesizer import WorkflowSynthesizer
+            from app.core.execution.macro.compiler import MacroScriptCompiler
+            from app.core.learning.trace_parser import TraceParser
+            from app.core.learning.workflow_synthesizer import WorkflowSynthesizer
             from app.models.learning import TraceEvent
 
             # Check if there are meaningful events to synthesize
             async with session_scope() as db:
-                stmt = select(func.count(TraceEvent.id)).where(
-                    TraceEvent.thread_id == thread_id
-                )
+                stmt = select(func.count(TraceEvent.id)).where(TraceEvent.thread_id == thread_id)
                 count_res = await db.execute(stmt)
                 event_count = count_res.scalar()
 
@@ -275,7 +275,9 @@ async def record_episode_task(
                 logger.info(
                     f"[Celery] 🧬 Auto-triggering skill synthesis for thread {thread_id} ({event_count} events)"
                 )
-                synthesizer = WorkflowSynthesizer(thread_id=thread_id)
+                parser = TraceParser(thread_id=thread_id)
+                sequence = await parser.parse()
+                synthesizer = WorkflowSynthesizer(thread_id=thread_id, sequence=sequence)
                 result = await synthesizer.synthesize()
                 if result and result.skill:
                     # Persist through the single creation service so the skill
@@ -286,6 +288,8 @@ async def record_episode_task(
                         publish_skill_mutated,
                     )
                     from app.core.learning.skill_lifecycle import create_from_synthesis
+
+                    macro_script = MacroScriptCompiler().compile(sequence).to_yaml()
 
                     async with session_scope() as db:
                         db_skill = await create_from_synthesis(
@@ -301,29 +305,26 @@ async def record_episode_task(
                             source_session_id=result.skill.source_session_id,
                             instructions=result.skill.instructions,
                         )
-                        db_macro = None
-                        if result.macro_script:
-                            from app.core.execution.macro.lifecycle import (
-                                create_macro_from_synthesis,
-                            )
+                        from app.core.execution.macro.lifecycle import (
+                            create_macro_from_synthesis,
+                        )
 
-                            db_macro = await create_macro_from_synthesis(
-                                db,
-                                name=db_skill.name,
-                                description=db_skill.description,
-                                trigger_patterns=db_skill.trigger_patterns,
-                                parameters=normalize_parameters(
-                                    result.skill.parameters
-                                ),
-                                macro_script=result.macro_script,
-                                fallback_skill_id=db_skill.id,
-                                source_thread_id=result.skill.source_thread_id,
-                                project_id=project_id,
-                            )
-                            db_skill.macro_id = db_macro.id
+                        db_macro = await create_macro_from_synthesis(
+                            db,
+                            name=db_skill.name,
+                            description=db_skill.description,
+                            trigger_patterns=db_skill.trigger_patterns,
+                            parameters=normalize_parameters(
+                                result.skill.parameters
+                            ),
+                            macro_script=macro_script,
+                            fallback_skill_id=db_skill.id,
+                            source_thread_id=result.skill.source_thread_id,
+                            project_id=project_id,
+                        )
+                        db_skill.macro_id = db_macro.id
                     await publish_skill_mutated(skill_id=db_skill.id, action="create")
-                    if db_macro is not None:
-                        await publish_macro_mutated(db_macro.id, action="create")
+                    await publish_macro_mutated(db_macro.id, action="create")
                     logger.info(
                         f"[Celery] ✅ Skill synthesis complete: {result.skill.name} (pending_review)"
                     )
@@ -335,7 +336,7 @@ async def record_episode_task(
         ContextManager.reset(token)
 
 
-@shared_task(name="engine_cleanup_artifacts")
+@shared_task(name="engine_cleanup_artifacts")  # type: ignore[reportCallIssue]
 def cleanup_artifacts_task(max_age_days: int = 3):
     """
     Background task to cleanup old screenshots and temporary artifacts.
@@ -363,7 +364,7 @@ def cleanup_artifacts_task(max_age_days: int = 3):
                 logger.warning(f"Failed to delete artifact {entry.path}: {e}")
 
 
-@shared_task(name="engine_git_harvest")
+@shared_task(name="engine_git_harvest")  # type: ignore[reportCallIssue]
 async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
     """
     Background task to extract knowledge concepts from git diff.
@@ -441,7 +442,7 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
         ContextManager.reset(token)
 
 
-@shared_task(name="engine_reconcile_skill_macro")
+@shared_task(name="engine_reconcile_skill_macro")  # type: ignore[reportCallIssue]
 async def reconcile_skill_macro_task(
     skill_id: int, thread_id: str, model: str | None = None
 ):
@@ -449,7 +450,9 @@ async def reconcile_skill_macro_task(
     Background task to reconcile a broken skill macro.
     """
     from app.core.events.publishers import publish_skill_mutated
-    from app.core.learning.skill_synthesizer import WorkflowSynthesizer
+    from app.core.execution.macro.compiler import MacroScriptCompiler
+    from app.core.learning.trace_parser import TraceParser
+    from app.core.learning.workflow_synthesizer import WorkflowSynthesizer
     from app.models.learning import LearnedSkill, TraceEvent
 
     # Pre-check: ensure there are enough trace events to synthesize from
@@ -472,10 +475,13 @@ async def reconcile_skill_macro_task(
 
     try:
         logger.info(f"[Celery] Reconciling Skill {skill_id} from thread {thread_id}...")
-        synthesizer = WorkflowSynthesizer(thread_id)
+        parser = TraceParser(thread_id=thread_id)
+        sequence = await parser.parse()
+        synthesizer = WorkflowSynthesizer(thread_id=thread_id, sequence=sequence)
         repaired_skill = await synthesizer.synthesize()
+        macro_script = MacroScriptCompiler().compile(sequence).to_yaml()
 
-        if not repaired_skill.macro_script:
+        if not macro_script:
             logger.warning(
                 f"[Celery] No valid macro synthesized from recovery thread {thread_id}. Aborting patch."
             )
@@ -489,9 +495,9 @@ async def reconcile_skill_macro_task(
             original_skill = result.scalar_one_or_none()
 
             if original_skill:
-                if repaired_skill.skill.instructions:
-                    original_skill.instructions = repaired_skill.skill.instructions
                 healed = True
+                if repaired_skill.skill and repaired_skill.skill.instructions:
+                    original_skill.instructions = repaired_skill.skill.instructions
 
                 # Chain-heal paired flywheel macros (macros table is the
                 # authoritative store for deterministic scripts).
@@ -500,7 +506,7 @@ async def reconcile_skill_macro_task(
                 if original_skill.macro_id:
                     macro = await session.get(Macro, original_skill.macro_id)
                     if macro is not None:
-                        macro.macro_script = repaired_skill.macro_script
+                        macro.macro_script = macro_script
                         session.add(macro)
                         healed_macro_ids.append(macro.id)
                 else:
@@ -514,7 +520,7 @@ async def reconcile_skill_macro_task(
                         .first()
                     )
                     if existing is not None:
-                        existing.macro_script = repaired_skill.macro_script
+                        existing.macro_script = macro_script
                         session.add(existing)
                         original_skill.macro_id = existing.id
                         healed_macro_ids.append(existing.id)
@@ -526,7 +532,7 @@ async def reconcile_skill_macro_task(
                             description=original_skill.description or "",
                             trigger_patterns=original_skill.trigger_patterns or [],
                             parameters=original_skill.parameters or [],
-                            macro_script=repaired_skill.macro_script,
+                            macro_script=macro_script,
                             risk_tier="ui",
                             requires_confirmation=False,
                             status="pending_review",
@@ -554,7 +560,7 @@ async def reconcile_skill_macro_task(
         ContextManager.reset(token)
 
 
-@shared_task(name="engine_scheduler_tick")
+@shared_task(name="engine_scheduler_tick")  # type: ignore[reportCallIssue]
 async def engine_scheduler_tick():
     """
     Background task to poll for due autonomous tasks.
@@ -564,7 +570,7 @@ async def engine_scheduler_tick():
     await SchedulerService.tick()
 
 
-@shared_task(name="run_autonomous_task_execution")
+@shared_task(name="run_autonomous_task_execution")  # type: ignore[reportCallIssue]
 async def run_autonomous_task_execution(task_id: int, project_id: int | None = None):
     """
     Background task to execute an autonomous task.
@@ -650,7 +656,7 @@ async def run_engine_audit_structured_extraction(
     summary: str,
     messages_dicts: list[dict],
     collected_schemas: list[dict],
-    **kwargs,
+    **kwargs,  # noqa: ARG001
 ):
     """
     Heavy reasoning extraction implementation.
@@ -680,7 +686,9 @@ async def run_engine_audit_structured_extraction(
         return
 
     # Authoritatively repair the message history to ensure structural validity for strict LLM APIs
-    messages = EvoMessageConverter.repair(messages_dicts)
+    messages = [
+        m.model_dump() for m in EvoMessageConverter.repair(messages_dicts)
+    ]
 
     model_name = SystemConfigService.get_value("LLM_MODEL")
     schema_json = json.dumps(
@@ -696,7 +704,7 @@ async def run_engine_audit_structured_extraction(
     try:
         response = await asyncio.wait_for(
             InternalLLMService.invoke_structured(
-                messages=messages + [SystemMessage(content=extract_prompt)],
+                messages=messages + [SystemMessage(content=extract_prompt).model_dump()],
                 output_schema=DynamicVerdict,
                 purpose="audit_extraction",
                 temperature=0.1,
@@ -731,7 +739,7 @@ async def run_engine_audit_structured_extraction(
         raise
 
 
-@shared_task(name="engine_audit_structured_extraction")
+@shared_task(name="engine_audit_structured_extraction")  # type: ignore[reportCallIssue]
 async def engine_audit_structured_extraction(
     thread_id: str,
     project_id: int,
@@ -757,7 +765,7 @@ async def engine_audit_structured_extraction(
     )
 
 
-@shared_task(name="engine_run_agent_background")
+@shared_task(name="engine_run_agent_background")  # type: ignore[reportCallIssue]
 async def run_agent_background_task(thread_id: str, inputs: dict):
     """
     Execute an agent run in the background (within Celery/Huey worker).
@@ -767,7 +775,7 @@ async def run_agent_background_task(thread_id: str, inputs: dict):
     await run_agent_background(thread_id, inputs)
 
 
-@shared_task(name="engine_resume_graph_background")
+@shared_task(name="engine_resume_graph_background")  # type: ignore[reportCallIssue]
 async def resume_graph_background_task(
     thread_id: str,
     inputs: dict,

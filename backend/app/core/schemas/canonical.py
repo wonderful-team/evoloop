@@ -35,6 +35,13 @@ class MessageType(str, Enum):
     VOICE_ROUTE = "voice.route"
     VOICE_CANCEL = "voice.cancel"
     VOICE_ROUTE_RESULT = "voice.route_result"
+    # Full-duplex streaming extensions
+    VOICE_PARTIAL = "voice.partial"
+    VOICE_BARGE_IN = "voice.barge_in"
+    VOICE_TOKEN = "voice.token"
+    VOICE_TTS_BOUNDARY = "voice.tts_boundary"
+    VOICE_DICTATION_FINALIZE = "voice.dictation.finalize"
+    VOICE_DICTATION_POLISHED = "voice.dictation.polished"
 
 
 class EndpointKind(str, Enum):

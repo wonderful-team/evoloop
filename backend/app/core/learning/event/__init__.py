@@ -2,11 +2,17 @@
 Learning Event Package
 ======================
 
-Public exports for learning event schemas and subscribers.
+Public exports for learning event types and subscribers.
 """
 
-from .schemas import SkillMutatedEvent
+from app.core.learning.event.schemas import SkillMutatedEvent
+from app.core.learning.event.subscribers import (
+    LearningLifecycleSubscriber,
+    TraceRewindSubscriber,
+)
 
 __all__ = [
+    "LearningLifecycleSubscriber",
     "SkillMutatedEvent",
+    "TraceRewindSubscriber",
 ]

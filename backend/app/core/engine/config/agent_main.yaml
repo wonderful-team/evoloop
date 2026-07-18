@@ -111,6 +111,7 @@ nodes:
       - "list_skills"
       - "read_skill_sop"
       - "run_macro"
+      - "list_macros"
       - "reconcile_skill"
       - "query_app_atlas"
       - "list_app_atlas"
@@ -169,7 +170,6 @@ nodes:
       - "read_skill_sop"
       - "run_macro"
       - "synthesize_skill"
-      - "learn_from_trace"
       - "verify_ui_state"
 
   - id: "chat"

@@ -20,7 +20,6 @@ The ONLY function touching HIServices element objects is `dump_app_elements`
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import logging
 import re
 from dataclasses import dataclass, field
@@ -30,6 +29,7 @@ from app.core.atlas.ax_actions import activate_at_path
 from app.core.atlas.models import AtlasApp, AtlasElement, AtlasState, AtlasTransition
 from app.core.atlas.ports.store import IAtlasStore
 from app.core.atlas.schemas import MenuItem, MenuTree, Rect
+from app.core.file import compute_hash
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +157,7 @@ def element_signature(elements: list[dict]) -> frozenset:
 
 
 def signature_state_id(sig: frozenset) -> str:
-    h = hashlib.sha1("|".join(sorted(f"{r}|{n}|{p}" for r, n, p in sig)).encode()).hexdigest()[:10]
+    h = compute_hash("|".join(sorted(f"{r}|{n}|{p}" for r, n, p in sig)), algorithm="sha1", length=10)
     return f"sig_{h}"
 
 

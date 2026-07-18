@@ -63,65 +63,6 @@ class VoiceResultSubscriber:
             )
 
 
-_SEDIMENTATION_SOURCES = frozenset({"voice", "agent"})
-
-
-def _sedimentation_enabled() -> bool:
-    from app.core.config import settings
-
-    return bool(settings.SKILL_SEDIMENTATION_ENABLED)
-
-
-async def _resolve_sedimentation_source(event: SessionCompletedEvent) -> str | None:
-    data = getattr(event, "data", None)
-    if data is None:
-        return None
-    data_source = getattr(data, "source", None)
-    if data_source:
-        return str(data_source).lower()
-    blackboard = getattr(data, "blackboard_dict", None) or {}
-    if not isinstance(blackboard, dict):
-        blackboard = {}
-    metadata = blackboard.get("metadata")
-    if not isinstance(metadata, dict):
-        metadata = {}
-    source = (
-        metadata.get("source") or metadata.get("channel") or blackboard.get("source")
-    )
-    if source is None:
-        thread_id = getattr(data, "thread_id", "") or ""
-        voice_kind = await voice_executor.peek_voice(thread_id)
-        if voice_kind:
-            source = "voice"
-    if source is None:
-        return None
-    return str(source).lower()
-
-
-@event_register()
-class SkillSedimentationSubscriber:
-    @event_subscribe(SystemEventType.SESSION_COMPLETED)
-    async def on_session_completed(self, event: SessionCompletedEvent) -> None:
-        if not _sedimentation_enabled():
-            return
-        data = getattr(event, "data", None)
-        thread_id = ""
-        if data is not None:
-            thread_id = getattr(data, "thread_id", "") or ""
-        source = await _resolve_sedimentation_source(event)
-        would_sediment = source in _SEDIMENTATION_SOURCES
-        # Canonical M0 measurement line (plan D7): grep "sediment_decision"
-        # to aggregate would_sediment rates for the M1 go/no-go decision.
-        # Still judgment + log only — no persistence until M1.
-        logger.info(
-            "[SkillSedimentation] sediment_decision thread=%s source=%s would_sediment=%s reason=%s",
-            thread_id,
-            source,
-            would_sediment,
-            "source_ok" if would_sediment else "source_filtered",
-        )
-
-
 # ---- Init Spec event-triggered refresh (design §19.6) -----------------------
 #
 # Rebuild the VoiceInitSpec primarily on skill lifecycle events (created / updated

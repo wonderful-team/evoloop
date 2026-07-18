@@ -4,6 +4,7 @@ import os
 
 from sqlalchemy import select
 
+from app.core.file import FileStatus, read_file, write_file
 from app.infrastructure.database import session_scope
 from app.models.codebase import CodeChunk, Repository, SourceFile
 
@@ -34,21 +35,25 @@ class DirectorySummarizer:
 
         summary_text = await self.generate_summary(dir_path, children, model=model)
 
-        os.makedirs(os.path.join(project_path, _SUMMARY_DIR), exist_ok=True)
-        with open(self._summary_path(project_path, dir_path), "w") as f:
-            json.dump({"path": dir_path, "summary": summary_text}, f)
+        summary_path = self._summary_path(project_path, dir_path)
+        write_result = write_file(
+            summary_path,
+            json.dumps({"path": dir_path, "summary": summary_text}),
+        )
+        if not write_result.success:
+            logger.error(f"Failed to write summary to {summary_path}: {write_result.error_message}")
 
         return summary_text
 
     @staticmethod
     async def get_summary(project_path: str, dir_path: str = "") -> str | None:
         sp = DirectorySummarizer._summary_path(project_path, dir_path)
-        if os.path.exists(sp):
+        read_result = read_file(sp)
+        if read_result.status == FileStatus.SUCCESS:
             try:
-                with open(sp) as f:
-                    data = json.load(f)
-                    return data.get("summary")
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                data = json.loads(read_result.content)
+                return data.get("summary")
+            except (json.JSONDecodeError, TypeError, ValueError) as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
         return None
 
@@ -86,8 +91,8 @@ class DirectorySummarizer:
             directory_path=dir_path,
             child_summaries=child_summaries,
         )
-        from app.infrastructure.llm import InternalLLMService
         from app.infrastructure.config.service import SystemConfigService
+        from app.infrastructure.llm import InternalLLMService
         model_name = SystemConfigService.get_value("LLM_MODEL")
         response = await InternalLLMService.invoke(
             messages=[{"role": "user", "content": prompt_text}],

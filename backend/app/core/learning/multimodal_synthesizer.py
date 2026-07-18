@@ -30,18 +30,18 @@ from sqlalchemy import or_, select
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
+from app.core.execution.macro.compiler import MacroScriptCompiler
+from app.core.execution.macro.schemas import MacroVerificationResult
+from app.core.execution.macro.utils import cleanup_macro_steps, verify_macro_script
 from app.core.learning.prompts.builder import LearningPromptBuilder
 from app.core.learning.schemas import RecordingSession
-from app.core.learning.skill_synthesizer import SynthesisResult, SynthesizedSkill
 from app.core.learning.synthesizer_utils import (
-    MacroVerificationResult,
-    cleanup_macro_steps,
     describe_normalized_position,
     extract_instructions_section,
     extract_yaml_block,
     normalize_timestamp_to_seconds,
-    verify_macro_script,
 )
+from app.core.learning.workflow_synthesizer import SynthesizedSkill
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.database import session_scope
 from app.infrastructure.drivers.adb import adb_driver
@@ -183,13 +183,13 @@ class MultimodalSkillSynthesizer:
 
         # Step 8: 解析 LLM 输出
         parsed = self._parse_llm_response(llm_response, recording)
-        skill_data = parsed.skill
+        skill_data = parsed["skill"]
 
         # Step 9: 辅助生成确定性宏脚本 (Fallback/Verification Basis)
         compiled_macro = await self._compile_macro_from_events(events)
 
         # Step 10: 验证 Dry-run (优先验证实际要返回的宏)
-        target_macro = parsed.macro_script or compiled_macro
+        target_macro = parsed["macro_script"] or compiled_macro
 
         # 如果 LLM 返回的是字符串 JSON，尝试解析它
         if isinstance(target_macro, str):
@@ -254,8 +254,7 @@ class MultimodalSkillSynthesizer:
         }
 
     async def _compile_macro_from_events(self, events: list[TraceEvent]) -> list[dict]:
-        """从 TraceEvent 序列编译确定性宏脚本 (复用 WorkflowSynthesizer)"""
-        from app.core.learning.skill_synthesizer import WorkflowSynthesizer
+        """从 TraceEvent 序列编译确定性宏脚本 (使用 MacroScriptCompiler)"""
         from app.core.learning.trace_parser import TraceParser
 
         if not events:
@@ -268,9 +267,9 @@ class MultimodalSkillSynthesizer:
         # 转换为 TraceSequence
         sequence = parser._convert_to_sequence(events)
 
-        synth = WorkflowSynthesizer(thread_id=thread_id)
-        macro_script = synth._compile_macro_script(sequence)
-        # _compile_macro_script returns a MacroScript object
+        compiler = MacroScriptCompiler()
+        macro_script = compiler.compile(sequence)
+        # MacroScriptCompiler.compile returns a MacroScript object
         if hasattr(macro_script, "steps"):
             return [
                 s if isinstance(s, dict) else s.model_dump(exclude_none=True)
@@ -739,9 +738,7 @@ class MultimodalSkillSynthesizer:
         """将归一化坐标转换为精细的语义描述 (5x5 风格)"""
         return describe_normalized_position(norm_x, norm_y)
 
-    def _parse_llm_response(
-        self, response: str, recording: RecordingSession
-    ) -> SynthesisResult:
+    def _parse_llm_response(self, response: str, recording: RecordingSession) -> dict:
         """Parse LLM response into skill metadata and an optional raw macro."""
         yaml_content = self._extract_yaml(response)
         instructions = self._extract_instructions(response)
@@ -764,8 +761,8 @@ class MultimodalSkillSynthesizer:
         else:
             macro_value = raw_macro
 
-        return SynthesisResult(
-            skill=SynthesizedSkill(
+        return {
+            "skill": SynthesizedSkill(
                 name=metadata.get("name", "unnamed_skill"),
                 namespace=metadata.get("namespace", "misc"),
                 description=metadata.get("description", ""),
@@ -775,8 +772,8 @@ class MultimodalSkillSynthesizer:
                 source_session_id=recording.session_id,
                 source_thread_id=recording.thread_id,
             ),
-            macro_script=macro_value,
-        )
+            "macro_script": macro_value,
+        }
 
     def _extract_yaml(self, text: str) -> str | None:
         """提取 YAML 代码块"""

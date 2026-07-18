@@ -1,15 +1,15 @@
 import base64
-import hashlib
 
 from cryptography.fernet import Fernet
 
 from app.core.config import settings
+from app.core.file import sha256_digest
 
 
 def _get_fernet_key() -> bytes:
     # Derive a static 32-byte key from settings.SECRET_KEY
     key_material = settings.SECRET_KEY.encode("utf-8")
-    derived = hashlib.sha256(key_material).digest()
+    derived = sha256_digest(key_material)
     return base64.urlsafe_b64encode(derived)
 
 def encrypt_payload(data: str) -> str:

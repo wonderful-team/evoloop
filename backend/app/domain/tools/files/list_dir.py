@@ -1,22 +1,19 @@
-import logging
-
 """
 Directory listing and management tools - Thin wrapper over core.file operations.
 
 This module provides the tool interface for directory operations.
 All heavy lifting is done by app.core.file module.
 """
+
 import fnmatch
+import logging
 import os
 from typing import Annotated
 
 from app.core.engine.message.native_classes import RunnableConfig
-from app.core.file import (
-    generate_tree as core_generate_tree,
-)
-from app.core.file import (
-    list_directory as core_list_directory,
-)
+from app.core.file import generate_tree as core_generate_tree
+from app.core.file import get_file_info
+from app.core.file import list_directory as core_list_directory
 from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
 from app.infrastructure.config import SystemConfigService
@@ -41,14 +38,10 @@ def _format_size(size: int) -> str:
 def _get_line_count(file_path: str, max_size: int = 1024 * 1024) -> int | None:
     """Return line count for files under max_size, else None."""
     try:
-        size = os.path.getsize(file_path)
-        if size == 0 or size > max_size:
+        info = get_file_info(file_path)
+        if not info.exists or info.is_binary or info.size == 0 or info.size > max_size:
             return None
-        with open(file_path, "rb") as f:
-            if b"\x00" in f.read(4096):
-                return None
-        with open(file_path, "rb") as f:
-            return sum(1 for _ in f)
+        return info.total_lines
     except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
         logger.debug("Suppressed error: %s", e, exc_info=True)
         return None
@@ -102,7 +95,7 @@ async def handle_list(
                           (workspace_root and target_path == workspace_root) or
                           target_path == workspace_root)
 
-        if is_root_listing and not any(l.startswith("uploads/") for l in lines):
+        if is_root_listing and not any(line.startswith("uploads/") for line in lines):
             output = "uploads/\n" + output if output else "uploads/"
 
         if len(lines) > max_entries:
@@ -121,7 +114,7 @@ async def handle_list(
                     file_limit=50,
                 )
                 tree_output = await generator.generate()
-                tree_count = len([l for l in tree_output.splitlines() if l.strip()])
+                tree_count = len([line for line in tree_output.splitlines() if line.strip()])
                 return tree_output, {"count": tree_count, "recursive": True}
             except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                 return f"Error generating annotated tree: {e}"
@@ -133,7 +126,7 @@ async def handle_list(
                 max_entries=max_entries,
                 with_stats=stats,
             )
-            tree_count = len([l for l in tree_output.splitlines() if l.strip()])
+            tree_count = len([line for line in tree_output.splitlines() if line.strip()])
             return tree_output, {"count": tree_count, "recursive": max_depth > 1}
 
 

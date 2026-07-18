@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.file import compute_md5, get_file_ext
 from app.core.file.document_reader import document_reader_service
 from app.domain.codebase.filter import FileFilter
+from app.domain.codebase.indexing.dirty_check import is_file_changed_since_last_index
 from app.domain.codebase.schemas import PreparedFile
 from app.models import Repository, SourceFile
 
@@ -68,25 +69,18 @@ class FilePreparer:
 
         rel_path = os.path.relpath(file_path, root_path)
 
-        # Check existing SourceFile
+        # Delegate to the shared dirty-check utility.
+        if not await is_file_changed_since_last_index(
+            file_path, repo.id, session, force=force
+        ):
+            return None
+
+        # Look up existing SourceFile (may be None for new files).
         stmt = select(SourceFile).where(
             SourceFile.repository_id == repo.id, SourceFile.path == rel_path
         )
         result = await session.execute(stmt)
         source_file = result.scalars().first()
-
-        # mtime optimization
-        if not force and source_file:
-            try:
-                mtime_ts = os.path.getmtime(file_path)
-                file_mtime = datetime.fromtimestamp(mtime_ts, timezone.utc)
-                if (
-                    source_file.last_indexed_at
-                    and file_mtime < source_file.last_indexed_at
-                ):
-                    return None  # File unchanged
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
-                pass  # Fallback to checksum
 
         # Read content
         try:
@@ -97,16 +91,7 @@ class FilePreparer:
             logger.warning(f"Could not read {file_path}: {e}")
             return None
 
-        # Checksum
         new_checksum = compute_md5(content)
-
-        # Check if content changed
-        if not force and source_file and source_file.checksum == new_checksum:
-            # Update timestamp to avoid future mtime checks
-            source_file.last_indexed_at = datetime.now(timezone.utc)
-            session.add(source_file)
-            await session.commit()
-            return None
 
         logger.info(f"Indexing {rel_path} (Force={force}, Checksum mismatch or new)")
 
@@ -124,19 +109,38 @@ class FilePreparer:
         self, prepared: PreparedFile, session: AsyncSession
     ) -> SourceFile:
         """Create or update the SourceFile record."""
+        now = datetime.now(timezone.utc)
         if prepared.is_new:
             source_file = SourceFile(
                 repository_id=prepared.repo.id,
                 path=prepared.rel_path,
                 checksum=prepared.checksum,
+                scan_status="completed",
+                parsed_at=now,
             )
             session.add(source_file)
             await session.flush()
         else:
             source_file = prepared.source_file
             source_file.checksum = prepared.checksum
-            source_file.last_indexed_at = datetime.now(timezone.utc)
+            source_file.last_indexed_at = now
+            source_file.scan_status = "completed"
+            source_file.parsed_at = now
             session.add(source_file)
             await session.flush()
 
         return source_file
+
+    async def mark_source_file_failed(
+        self,
+        source_file: SourceFile | None,
+        session: AsyncSession,
+    ) -> None:
+        """Mark a SourceFile as failed when parsing/indexing fails."""
+        if source_file is None:
+            return
+        source_file.scan_status = "failed"
+        source_file.parsed_at = datetime.now(timezone.utc)
+        session.add(source_file)
+        await session.flush()
+

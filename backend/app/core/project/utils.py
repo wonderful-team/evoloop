@@ -6,6 +6,7 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.constants import DEFAULT_PROJECT_ID
+from app.core.file import FileStatus, read_file, write_file_with_verification
 from app.core.project.local_index import local_project_index
 from app.infrastructure.database import session_scope
 from app.models import Repository
@@ -63,14 +64,13 @@ def get_project_json_path(project_path: str) -> str:
 def read_project_json(project_path: str) -> dict:
     """Read {project_path}/.evoloop/project.json if it exists."""
     meta_file = get_project_json_path(project_path)
-    if not os.path.exists(meta_file):
-        return {}
-    try:
-        with open(meta_file, encoding="utf-8") as f:
-            return json.load(f) or {}
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-        logger.warning(f"[ProjectUtils] Failed to read {meta_file}: {e}")
-        return {}
+    result = read_file(meta_file)
+    if result.status == FileStatus.SUCCESS:
+        try:
+            return json.loads(result.content) or {}
+        except (json.JSONDecodeError, TypeError, ValueError) as e:
+            logger.warning(f"[ProjectUtils] Failed to parse {meta_file}: {e}")
+    return {}
 
 
 def write_project_json(project_path: str, data: dict) -> None:
@@ -81,14 +81,18 @@ def write_project_json(project_path: str, data: dict) -> None:
     callers to update specific fields (e.g. project_id, description).
     """
     meta_file = get_project_json_path(project_path)
+    read_result = read_file(meta_file)
     meta = read_project_json(project_path)
     meta.update(data)
-    try:
-        os.makedirs(os.path.dirname(meta_file), exist_ok=True)
-        with open(meta_file, "w", encoding="utf-8") as f:
-            json.dump(meta, f, indent=2, ensure_ascii=False)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-        logger.warning(f"[ProjectUtils] Failed to write {meta_file}: {e}")
+
+    expected_hash = read_result.metadata.content_hash if read_result.success else None
+    write_result = write_file_with_verification(
+        json.dumps(meta, indent=2, ensure_ascii=False),
+        meta_file,
+        expected_hash=expected_hash,
+    )
+    if not write_result.success:
+        logger.warning(f"[ProjectUtils] Failed to write {meta_file}: {write_result.message}")
 
 
 async def get_project_path(project_id: int) -> str:

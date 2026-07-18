@@ -5,8 +5,9 @@ Provides standardized response formatting for environment controllers.
 Eliminates repetitive render_template calls for report/response.prompt.j2
 """
 
-from typing import Any, Dict
+from typing import Any
 
+from app.utils.detect import detect_language
 from app.utils.template import render_template
 
 
@@ -118,7 +119,7 @@ class ControllerResponse:
             message = f"Action: {action} on '{target}'"
         else:
             message = f"Action: {action}"
-        
+
         return ControllerResponse.render(
             success=success, message=message, details=details, note=note
         )
@@ -136,7 +137,7 @@ class ControllerResponse:
             note = f"Page title: {title}"
         else:
             note = None
-        
+
         return ControllerResponse.render(
             success=success, message=message, details=details, note=note
         )
@@ -153,7 +154,7 @@ class ControllerResponse:
             message = f"Input '{value}' into '{field_name}'"
         else:
             message = f"Cleared input in '{field_name}'"
-        
+
         return ControllerResponse.render(
             success=success, message=message, details=details
         )
@@ -171,7 +172,7 @@ class ControllerResponse:
             details = f"From ({start[0]}, {start[1]}) to ({end[0]}, {end[1]})"
         else:
             details = None
-        
+
         return ControllerResponse.render(
             success=success, message=message, details=details
         )
@@ -189,7 +190,7 @@ class ControllerResponse:
             message = f"Tapped at ({x}, {y}) (resolved from '{element_name}')"
         else:
             message = f"Tapped at ({x}, {y})"
-        
+
         return ControllerResponse.render(
             success=success, message=message, details=details
         )
@@ -368,7 +369,7 @@ class SystemToolsFormatter:
     @staticmethod
     def rollback_preview(checkpoint_id: int, checkpoint_name: str) -> str:
         """Format rollback preview for display."""
-        return render_template("common/events/system_tools.prompt.j2", 
+        return render_template("common/events/system_tools.prompt.j2",
                                rollback_preview={"id": checkpoint_id, "name": checkpoint_name})
 
     @staticmethod
@@ -468,7 +469,7 @@ class ProjectManagementFormatter:
 class SkillResponse:
 
     @staticmethod
-    def success(skill_name: str, extracted_data: Dict[str, Any] | None = None) -> str:
+    def success(skill_name: str, extracted_data: dict[str, Any] | None = None) -> str:
         """Render a skill success response."""
         details = None
         if extracted_data:
@@ -476,7 +477,7 @@ class SkillResponse:
                 "core/vision/perceptions.prompt.j2",
                 extracted_data=extracted_data
             )
-        
+
         return ControllerResponse.success(
             message=f"Skill '{skill_name}' completed",
             details=details
@@ -486,7 +487,7 @@ class SkillResponse:
     def error(
         skill_name: str,
         message: str,
-        fallback_context: Dict[str, Any] | None = None,
+        fallback_context: dict[str, Any] | None = None,
         suggestions: list | None = None
     ) -> str:
         """Render a skill error response with optional fallback details."""
@@ -500,7 +501,7 @@ class SkillResponse:
                 error_message=error_message,
                 suggestions=suggestions or []
             )
-        
+
         return ControllerResponse.error(
             message=f"Skill '{skill_name}' failed: {message}",
             details=details
@@ -540,8 +541,8 @@ class ContentFormatter:
         """Format file content with optional syntax highlighting."""
         # Auto-detect language if not provided
         if not lang and filename:
-            lang = ContentFormatter._detect_language(filename)
-        
+            lang = detect_language(filename)
+
         return render_template(
             "domain/project/file_content.prompt.j2",
             filename=filename,
@@ -549,22 +550,6 @@ class ContentFormatter:
             lang=lang or "text",
             has_header=has_header
         )
-
-    @staticmethod
-    def _detect_language(filename: str) -> str:
-        """Detect programming language from filename."""
-        ext_map = {
-            '.py': 'python', '.js': 'javascript', '.ts': 'typescript',
-            '.c': 'c', '.cpp': 'cpp', '.h': 'c', '.hpp': 'cpp',
-            '.go': 'go', '.rs': 'rust', '.java': 'java',
-            '.rb': 'ruby', '.php': 'php', '.sh': 'bash',
-            '.sql': 'sql', '.yaml': 'yaml', '.yml': 'yaml',
-            '.json': 'json', '.xml': 'xml', '.html': 'html',
-            '.css': 'css', '.md': 'markdown'
-        }
-        import os
-        ext = os.path.splitext(filename)[1].lower()
-        return ext_map.get(ext)
 
     @staticmethod
     def spreadsheet(filename: str, sheets: list) -> str:
@@ -611,7 +596,7 @@ class ContentFormatter:
             content = msg.content
             preview = content[:200] + "..." if len(content) > 200 else content
             formatted_results.append({"role": role, "content": preview})
-        
+
         return render_template(
             "common/events/search_results.prompt.j2",
             query=query,
