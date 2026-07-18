@@ -2,14 +2,12 @@
 全链路回归测试 — 验证 Agent Graph 所有主要路由路径
 
 覆盖链路：
-1. Supervisor -> Chat -> Finish
-2. Supervisor -> Worker -> Finish
-3. Supervisor -> Worker -> Finish(失败) -> Supervisor -> Worker -> Finish
-4. Supervisor -> Worker(Subtask) -> Finish
-5. Supervisor -> Aggregator -> Supervisor
-6. Supervisor -> SequentialWorkflow -> Finish/Supervisor
-7. Supervisor -> Finish (直接结束)
-8. Chat -> Supervisor (已修复，防止循环)
+1. Supervisor -> Worker -> Finish
+2. Supervisor -> Worker -> Finish(失败) -> Supervisor -> Worker -> Finish
+3. Supervisor -> Worker(Subtask) -> Finish
+4. Supervisor -> Aggregator -> Supervisor
+5. Supervisor -> SequentialWorkflow -> Finish/Supervisor
+6. Supervisor -> Finish (直接结束)
 """
 
 import pytest
@@ -95,17 +93,6 @@ async def test_route_supervisor_respects_iteration_limit():
 
 
 @pytest.mark.asyncio
-async def test_route_supervisor_chat_target():
-    """Supervisor 路由到 chat"""
-    from app.core.engine.routers import route_supervisor
-    from app.core.engine.state import AgentState
-
-    state = AgentState(messages=[], next_node="chat")
-    result = route_supervisor(state)
-    assert result == "chat"
-
-
-@pytest.mark.asyncio
 async def test_route_supervisor_worker_target_with_ticket():
     """Supervisor 路由到 worker（有 ticket）"""
     from app.core.engine.routers import route_supervisor
@@ -131,21 +118,6 @@ async def test_signal_dispatcher_none():
     state = AgentState(messages=[])
     result = await SignalDispatcher.dispatch(state, None, RunnableConfig())
     assert result is None
-
-
-@pytest.mark.asyncio
-async def test_signal_dispatcher_route_to_chat():
-    """RouteToSignal -> chat 正常工作"""
-    from app.core.engine.signals.dispatcher import SignalDispatcher
-    from app.core.engine.signals.schemas import RouteToSignal
-    from app.core.engine.state import AgentState
-    from langchain_core.runnables import RunnableConfig
-
-    state = AgentState(messages=[])
-    signal = RouteToSignal(target="chat", reason="test routing")
-    result = await SignalDispatcher.dispatch(state, signal, RunnableConfig())
-    assert result is not None
-    assert result.next_node == "chat"
 
 
 @pytest.mark.asyncio
@@ -212,22 +184,6 @@ async def test_signal_dispatcher_terminate():
 # 节点 Fallback 路径测试
 # =============================================================================
 @pytest.mark.asyncio
-async def test_chat_node_fallback():
-    """Chat 节点 fallback 返回 FINISH"""
-    from app.core.engine.nodes.chat import ChatNode
-    from app.core.engine.engine import EngineResult
-    from app.core.engine.state import AgentState
-    from langchain_core.runnables import RunnableConfig
-
-    node = ChatNode()
-    state = AgentState(messages=[])
-    engine_result = EngineResult(messages=[])
-
-    outcome = await node._build_fallback_outcome(state, engine_result, RunnableConfig())
-    assert outcome.next_node == "finish"
-
-
-@pytest.mark.asyncio
 async def test_worker_node_fallback():
     """Worker 节点 fallback 不设 next_node（由 route_worker_by_outcome 决定路由）"""
     from app.core.engine.nodes.worker import WorkerNode
@@ -247,7 +203,7 @@ async def test_worker_node_fallback():
 
 @pytest.mark.asyncio
 async def test_supervisor_node_fallback():
-    """Supervisor 节点 fallback 返回 FINISH（兜底安全网）"""
+    """Supervisor 节点 fallback 返回 FINISH（无 AI 内容时兜底）"""
     from app.core.engine.nodes.supervisor import SupervisorNode
     from app.core.engine.engine import EngineResult
     from app.core.engine.state import AgentState

@@ -2,11 +2,10 @@
 端到端修复验证 — 验证多轮对话核心路径
 
 覆盖：
-1. SignalDispatcher: signal=None 时返回 None（防止 Supervisor→Chat 循环）
+1. SignalDispatcher: signal=None 时返回 None（防止循环）
 2. TokenFilter: 过滤 hidden audit tags
 3. DatabaseCallbackHandler: 提取原生 reasoning_content
-4. ChatNode: fallback 返回 FINISH
-5. MessageHandler.stream_token: TokenEvent 格式正确
+4. MessageHandler.stream_token: TokenEvent 格式正确
 """
 
 import pytest
@@ -84,26 +83,6 @@ def test_extract_thinking_native_reasoning():
     # None additional_kwargs
     thinking3 = extract_reasoning_from_kwargs(None)
     assert thinking3 is None
-
-
-# =============================================================================
-# 4. ChatNode — fallback 返回 FINISH
-# =============================================================================
-@pytest.mark.asyncio
-async def test_chat_node_fallback_returns_finish():
-    """Chat 节点完成后必须返回 FINISH，不能返回 supervisor"""
-    from app.core.engine.nodes.chat import ChatNode
-    from app.core.engine.engine import EngineResult
-    from app.core.engine.state import AgentState
-    from langchain_core.runnables import RunnableConfig
-
-    node = ChatNode()
-    state = AgentState(messages=[])
-    config = RunnableConfig()
-    engine_result = EngineResult(messages=[])
-
-    outcome = await node._build_fallback_outcome(state, engine_result, config)
-    assert outcome.next_node == "finish", f"Expected finish, got {outcome.next_node}"
 
 
 # =============================================================================
