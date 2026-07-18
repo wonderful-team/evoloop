@@ -45,21 +45,31 @@ class TestEmbedderFactoryFallback:
     def test_no_provider_falls_back_to_local_embedder(self):
         """No embedding provider configured → LocalEmbedder."""
         from app.infrastructure.embeddings.factory import EmbedderFactory
+        from app.infrastructure.embeddings.local import LocalEmbedder
         EmbedderFactory._instances.clear()
-        with patch("app.infrastructure.embeddings.factory.SystemConfigService.get_value", return_value=None):
+        with patch("app.infrastructure.embeddings.factory.SystemConfigService.get_value") as mock_get:
+            def side_effect(key, default=None):
+                if key == "EMBEDDING_TIERS":
+                    return "gguf"
+                if key == "EMBEDDING_GGUF_MODEL":
+                    return "/mock/model.gguf"
+                if key in ("EMBEDDING_PROVIDER", "EMBEDDING_MODEL"):
+                    return None
+                return default
+            mock_get.side_effect = side_effect
             with patch.object(settings, "EMBEDDED_MODE", True), patch.object(settings, "EMBEDDING_ENABLED", True):
-                # Patch the class reference bound in factory module
-                with patch("app.infrastructure.embeddings.factory.LocalEmbedder") as MockLocal:
-                    EmbedderFactory.get_embedder()
-                    MockLocal.assert_called_once()
+                with patch.dict("sys.modules", {"llama_cpp": MagicMock()}):
+                    with patch.object(LocalEmbedder, "_get_model", return_value=MagicMock()):
+                        embedder = EmbedderFactory.get_embedder()
+                        assert isinstance(embedder, LocalEmbedder)
 
-    def test_sentence_transformers_missing_raises_in_production(self):
-        """Production mode without sentence_transformers → returns None gracefully."""
+    def test_llama_cpp_missing_returns_none(self):
+        """When llama_cpp is not installed, local provider returns None gracefully."""
         from app.infrastructure.embeddings.factory import EmbedderFactory
         EmbedderFactory._instances.clear()
         with patch("app.infrastructure.embeddings.factory.SystemConfigService.get_value", return_value=None):
             with patch.object(settings, "EMBEDDED_MODE", False), patch.object(settings, "EMBEDDING_ENABLED", True):
-                with patch.dict("sys.modules", {"sentence_transformers": None}):
+                with patch.dict("sys.modules", {"llama_cpp": None}):
                     assert EmbedderFactory.get_embedder() is None
 
 

@@ -16,10 +16,12 @@ import threading
 import time
 from unittest.mock import MagicMock, patch
 
-import numpy as np
 import pytest
 
 from app.core.config import settings
+
+
+_MOCK_GGUF = "/mock/model.gguf"
 
 
 class TestLocalEmbedderThreadSafety:
@@ -37,12 +39,16 @@ class TestLocalEmbedderThreadSafety:
         LocalEmbedder._shared_model_cache.clear()
 
     def test_embedder_shared_across_threads_no_crash(self):
-        """Two threads with independent event loops embed using the same instance."""
         from app.infrastructure.embeddings.local import LocalEmbedder
 
         fake_model = MagicMock()
-        fake_model.encode = MagicMock(return_value=np.array([[0.1] * 768, [0.2] * 768]))
-        embedder = LocalEmbedder()
+        fake_model.create_embedding.return_value = {
+            "data": [
+                {"embedding": [0.1] * 768, "index": 0},
+                {"embedding": [0.2] * 768, "index": 1},
+            ]
+        }
+        embedder = LocalEmbedder(model_path=_MOCK_GGUF)
         embedder._model = fake_model
 
         results = []
@@ -72,12 +78,14 @@ class TestLocalEmbedderThreadSafety:
             assert len(r[0]) == 768
 
     def test_embedder_does_not_block_event_loop(self):
-        """The brief _get_model fast path must not stall the loop."""
         from app.infrastructure.embeddings.local import LocalEmbedder
 
-        embedder = LocalEmbedder()
-        embedder._model = MagicMock()
-        embedder._model.encode = MagicMock(return_value=np.array([[0.1] * 768]))
+        fake_model = MagicMock()
+        fake_model.create_embedding.return_value = {
+            "data": [{"embedding": [0.1] * 768, "index": 0}]
+        }
+        embedder = LocalEmbedder(model_path=_MOCK_GGUF)
+        embedder._model = fake_model
 
         async def background_ticker():
             ticks = 0
@@ -97,24 +105,21 @@ class TestLocalEmbedderThreadSafety:
         assert ticks >= 18, f"Event loop was blocked: only {ticks} ticks"
 
     def test_concurrent_model_load_within_loop_loads_once(self):
-        """Many coroutines racing to load the model must load it exactly once."""
         from app.infrastructure.embeddings.local import LocalEmbedder
 
         load_count = [0]
         fake_model = MagicMock()
-        fake_model.encode = MagicMock(return_value=np.array([[0.1] * 768]))
+        fake_model.create_embedding.return_value = {
+            "data": [{"embedding": [0.1] * 768, "index": 0}]
+        }
 
-        def slow_sentence_transformer(*_args, **_kwargs):
+        def slow_llama_cpp(*_args, **_kwargs):
             load_count[0] += 1
-            time.sleep(0.1)  # simulate slow load
+            time.sleep(0.1)
             return fake_model
 
-        embedder = LocalEmbedder()
-        with patch(
-            "sentence_transformers.SentenceTransformer",
-            side_effect=slow_sentence_transformer,
-        ):
-
+        embedder = LocalEmbedder(model_path=_MOCK_GGUF)
+        with patch("llama_cpp.Llama", side_effect=slow_llama_cpp):
             async def worker():
                 return await embedder.embed_documents(["test"])
 
@@ -142,16 +147,17 @@ class TestLocalEmbedderSingleFlightRegression:
         LocalEmbedder._loading_flags.clear()
 
     def test_many_threads_racing_load_model_once(self):
-        """Many worker threads racing to embed must construct the model only once."""
         from app.infrastructure.embeddings.local import LocalEmbedder
 
         load_count = [0]
         fake_model = MagicMock()
-        fake_model.encode = MagicMock(return_value=np.array([[0.1] * 768]))
+        fake_model.create_embedding.return_value = {
+            "data": [{"embedding": [0.1] * 768, "index": 0}]
+        }
 
-        def slow_sentence_transformer(*_args, **_kwargs):
+        def slow_llama_cpp(*_args, **_kwargs):
             load_count[0] += 1
-            time.sleep(0.3)  # simulate slow model construction
+            time.sleep(0.3)
             return fake_model
 
         results = []
@@ -161,12 +167,9 @@ class TestLocalEmbedderSingleFlightRegression:
             try:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-                with patch(
-                    "sentence_transformers.SentenceTransformer",
-                    side_effect=slow_sentence_transformer,
-                ):
+                with patch("llama_cpp.Llama", side_effect=slow_llama_cpp):
                     result = loop.run_until_complete(
-                        LocalEmbedder().embed_documents(["test"])
+                        LocalEmbedder(model_path=_MOCK_GGUF).embed_documents(["test"])
                     )
                     results.append(result)
             except Exception as e:
@@ -185,19 +188,20 @@ class TestLocalEmbedderSingleFlightRegression:
         )
 
     def test_cross_thread_model_load_loads_once(self):
-        """Worker threads sharing one embedder instance must load the model once."""
         from app.infrastructure.embeddings.local import LocalEmbedder
 
         load_count = [0]
         fake_model = MagicMock()
-        fake_model.encode = MagicMock(return_value=np.array([[0.1] * 768]))
+        fake_model.create_embedding.return_value = {
+            "data": [{"embedding": [0.1] * 768, "index": 0}]
+        }
 
-        def slow_sentence_transformer(*_args, **_kwargs):
+        def slow_llama_cpp(*_args, **_kwargs):
             load_count[0] += 1
-            time.sleep(0.2)  # simulate slow load
+            time.sleep(0.2)
             return fake_model
 
-        embedder = LocalEmbedder()
+        embedder = LocalEmbedder(model_path=_MOCK_GGUF)
         results = []
         errors = []
 
@@ -205,10 +209,7 @@ class TestLocalEmbedderSingleFlightRegression:
             try:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-                with patch(
-                    "sentence_transformers.SentenceTransformer",
-                    side_effect=slow_sentence_transformer,
-                ):
+                with patch("llama_cpp.Llama", side_effect=slow_llama_cpp):
                     result = loop.run_until_complete(embedder.embed_documents(["test"]))
                     results.append(result)
             except Exception as e:
@@ -295,19 +296,24 @@ class TestEmbedderFactoryCache:
 
         with patch.object(settings, "EMBEDDING_ENABLED", True):
             with patch(
-                "app.infrastructure.config.service.SystemConfigService.get_value",
-                return_value=None,
-            ):
-                with patch.object(
-                    LocalEmbedder, "_get_model", return_value=MagicMock()
-                ):
+                "app.infrastructure.config.service.SystemConfigService.get_value"
+            ) as mock_get:
+                def side_effect(key, default=None):
+                    if key == "EMBEDDING_TIERS":
+                        return "gguf"
+                    if key == "EMBEDDING_GGUF_MODEL":
+                        return _MOCK_GGUF
+                    return default
+
+                mock_get.side_effect = side_effect
+                with patch.dict("sys.modules", {"llama_cpp": MagicMock()}):
                     embedder = EmbedderFactory.get_embedder()
                     assert isinstance(embedder, LocalEmbedder), (
                         f"Expected LocalEmbedder when EMBEDDING_ENABLED=true, got {type(embedder).__name__}"
                     )
 
     def test_third_party_provider_ignores_enabled_flag(self):
-        """A configured third-party provider is always enabled regardless of the local flag."""
+        """A configured remote provider is resolved via the tier chain regardless of the local flag."""
         from app.infrastructure.embeddings.factory import EmbedderFactory
         from app.infrastructure.embeddings.openai import GenericOpenAIEmbedder
 
@@ -315,15 +321,19 @@ class TestEmbedderFactoryCache:
             with patch(
                 "app.infrastructure.config.service.SystemConfigService.get_value"
             ) as mock_get:
-                def side_effect(key):
+                def side_effect(key, default=None):
                     vals = {
+                        "EMBEDDING_TIERS": "gguf,local,remote",
+                        "EMBEDDING_GGUF_MODEL": None,
+                        "EMBEDDING_LOCAL_URL": None,
                         "EMBEDDING_PROVIDER": "openai",
-                        "EMBEDDING_MODEL": "text-embedding-3-small",
                         "EMBEDDING_BASE_URL": "https://api.openai.com/v1",
+                        "CUSTOM_EMBEDDING_MODEL": None,
+                        "EMBEDDING_MODEL": "text-embedding-3-small",
                         "EMBEDDING_API_KEY": "sk-test",
                         "EMBEDDING_DIMENSIONS": "1536",
                     }
-                    return vals.get(key)
+                    return vals.get(key, default)
 
                 mock_get.side_effect = side_effect
                 embedder = EmbedderFactory.get_embedder()

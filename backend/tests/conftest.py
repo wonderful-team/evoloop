@@ -328,16 +328,9 @@ def _create_mock_modules():
     # Mock neo4j
     mock_neo4j = MagicMock()
 
-    # Mock torch
-    mock_torch = MagicMock()
-    mock_torch.Tensor = MagicMock
-    mock_torch.tensor = MagicMock
-
-    # Mock transformers
-    mock_transformers = MagicMock()
-
-    # Mock sentence_transformers
-    mock_sentence_transformers = MagicMock()
+    # Mock llama_cpp
+    mock_llama_cpp = MagicMock()
+    mock_llama_cpp.Llama = MagicMock
 
     # Mock celery
     mock_celery = MagicMock()
@@ -404,9 +397,7 @@ def _create_mock_modules():
     sys.modules["pgvector"] = mock_pgvector
     sys.modules["pgvector.sqlalchemy"] = mock_pgvector_sqlalchemy
     sys.modules["neo4j"] = mock_neo4j
-    sys.modules["torch"] = mock_torch
-    sys.modules["transformers"] = mock_transformers
-    sys.modules["sentence_transformers"] = mock_sentence_transformers
+    sys.modules["llama_cpp"] = mock_llama_cpp
     sys.modules["jwt"] = mock_jwt
     sys.modules["PyJWT"] = mock_jwt
     sys.modules["tiktoken"] = mock_tiktoken

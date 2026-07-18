@@ -160,12 +160,20 @@ class TestEmbedderFactory:
 
     def test_embedded_fallback_to_local_embedder(self):
         with patch.object(settings, "EMBEDDED_MODE", True), patch.object(settings, "EMBEDDING_ENABLED", True):
-            with patch("app.infrastructure.embeddings.factory.LocalEmbedder") as MockLocal:
-                from app.infrastructure.embeddings.factory import EmbedderFactory
+            with patch("app.infrastructure.embeddings.factory.SystemConfigService.get_value") as mock_get:
+                def side_effect(key, default=None):
+                    if key == "EMBEDDING_TIERS":
+                        return "gguf"
+                    if key == "EMBEDDING_GGUF_MODEL":
+                        return "/mock/model.gguf"
+                    return default
+                mock_get.side_effect = side_effect
+                with patch("app.infrastructure.embeddings.factory.LocalEmbedder") as MockLocal:
+                    from app.infrastructure.embeddings.factory import EmbedderFactory
 
-                EmbedderFactory._instances.clear()
-                EmbedderFactory.get_embedder()
-                MockLocal.assert_called_once()
+                    EmbedderFactory._instances.clear()
+                    EmbedderFactory.get_embedder()
+                    MockLocal.assert_called_once()
 
     @pytest.mark.skip(reason="Requires external API configuration")
     def test_production_uses_configured_provider(self):
