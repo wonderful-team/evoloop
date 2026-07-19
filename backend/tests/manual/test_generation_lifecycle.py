@@ -225,6 +225,12 @@ async def _run_indexing(repo_id: int, project_path: str):
     await indexing_service.index_repository(project_path, repo_id, force=True)
     logger.info("[Test] Indexing complete.")
 
+    # Update the repository-level status (IndexingService does not do this;
+    # IndexingManager normally handles it in production).
+    from app.domain.codebase.indexing.manager import indexing_manager
+    await indexing_manager._update_indexing_status(repo_id, "completed")
+    logger.info("[Test] Repository indexing_status set to 'completed'")
+
 
 async def _ensure_wiki_skill():
     """Import the Wiki Generation skill and return it."""
