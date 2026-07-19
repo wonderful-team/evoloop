@@ -119,6 +119,25 @@ class ModuleGraphService:
         g = await self._get_or_refresh(project_id)
         return g.format_summary(include_graph=include_graph)
 
+    async def compute_impact(
+        self,
+        project_id: int,
+        changed_entities: set[str],
+    ) -> set[str]:
+        """Return all entities that need regeneration, given a set of changed ones."""
+        if not changed_entities:
+            return set()
+        affected_modules = await self.impact_set(project_id, changed_entities)
+        if not affected_modules:
+            return changed_entities
+        # Expand modules back to entities
+        all_modules = await self.get_modules(project_id)
+        result: set[str] = set(changed_entities)
+        for m in all_modules:
+            if m.name in affected_modules:
+                result.update(m.entities)
+        return result
+
     # -----------------------------------------------------------------
     # Internal
     # -----------------------------------------------------------------

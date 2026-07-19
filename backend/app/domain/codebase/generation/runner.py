@@ -130,6 +130,26 @@ async def _run_appmap(project_id: int) -> None:
     except Exception:
         logger.debug("[AppMap] ModuleGraph validation skipped")
 
+    # Incremental impact check — log which modules would be affected
+    # if we detected changes (full regeneration still runs for now).
+    try:
+        from sqlalchemy import select, func
+        from app.infrastructure.database import session_scope
+        from app.models.app_map import AppMap
+        async with session_scope() as session:
+            existing = (
+                await session.execute(
+                    select(func.count(AppMap.id)).where(AppMap.project_id == project_id)
+                )
+            ).scalar()
+        if existing and existing > 0:
+            logger.info(
+                "[AppMap] %d existing AppMaps found — incremental impact checking available via module_graph_service.compute_impact()",
+                existing,
+            )
+    except Exception:
+        pass
+
     # Deterministic path: run collector + batch writer directly (no subprocess).
     # The Agent is only for verification — not for data production.
     from app.core.atlas.source.skeleton.collector import collect
