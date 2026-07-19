@@ -1431,7 +1431,7 @@
       "vault": "Vault",
       "wiki": "Wiki",
       "generation": "Project Portrait",
-      "summary": "Summary"
+      "projectOverview": "Project Overview"
     },
     "tasks": {
       "assignee": "Assignee",
