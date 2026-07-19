@@ -22,6 +22,7 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { type GenerationStatusRecord, ProjectsService } from "@/client"
 import { ProjectProfilesService } from "@/client/sdk.gen"
+import { MarkdownRenderer } from "@/components/Common/MarkdownRenderer"
 import { systemSSEClient } from "@/lib/SystemSSEClient"
 
 interface ArtifactDef {
@@ -34,7 +35,6 @@ interface ArtifactDef {
 const ARTIFACTS: ArtifactDef[] = [
   { key: "wiki", labelKey: "generation.artifacts.wiki", icon: FileText, route: "/wiki" },
   { key: "appmap", labelKey: "generation.artifacts.macros", icon: Zap, route: "/macros" },
-  { key: "overview", labelKey: "generation.artifacts.overview", icon: FileText, route: "/overview" },
 ]
 
 export function GenerationPanel() {
@@ -43,6 +43,8 @@ export function GenerationPanel() {
   const [statuses, setStatuses] = useState<Record<string, GenerationStatusRecord>>({})
   const [generating, setGenerating] = useState<string | null>(null)
   const [initialLoading, setInitialLoading] = useState(true)
+  const [summaryData, setSummaryData] = useState<any>(null)
+  const [profileContent, setProfileContent] = useState<string | null>(null)
 
   const fetchStatus = async () => {
     if (!projectId) return
@@ -131,6 +133,25 @@ export function GenerationPanel() {
   }
 
   useEffect(() => { fetchStatus() }, [projectId])
+
+  useEffect(() => {
+    if (statuses.overview?.status !== "completed") return
+    const load = async () => {
+      try {
+        const [profileRes, summaryRes] = await Promise.all([
+          ProjectProfilesService.projectsGetProfile({ projectId: Number(projectId) }),
+          ProjectsService.getGenerationContentEndpoint({
+            projectId: Number(projectId), item: "summary",
+          }).catch(() => ({ content: null })),
+        ])
+        setProfileContent(profileRes.content ?? null)
+        if (summaryRes?.content) {
+          try { setSummaryData(JSON.parse(summaryRes.content)) } catch { setSummaryData(null) }
+        }
+      } catch { /* ignore */ }
+    }
+    load()
+  }, [statuses.overview?.status, projectId])
 
   useEffect(() => {
     const hasRunning = Object.values(statuses).some((s) => s.status === "running")
@@ -243,6 +264,60 @@ export function GenerationPanel() {
           )
         })}
       </div>
+
+      {(summaryData || profileContent || (!statuses.overview)) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t("generation.artifacts.overview")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!statuses.overview || statuses.overview?.status === "pending" ? (
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  {t("generation.notGenerated")}
+                </p>
+                <Button size="sm" onClick={() => handleGenerate("overview")}
+                        disabled={generating === "overview"}>
+                  {generating === "overview" ? (
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  ) : <Play className="h-3 w-3 mr-1" />}
+                  {t("generation.generate")}
+                </Button>
+              </div>
+            ) : generating === "overview" ? (
+              <div className="flex items-center gap-2 text-sm text-blue-600">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {t("generation.running")}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {summaryData && (
+                  <>
+                    <p className="text-sm">{summaryData.description}</p>
+                    {summaryData.technical_stack?.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {summaryData.technical_stack.map((s: string) => (
+                          <span key={s} className="text-xs bg-secondary text-secondary-foreground px-2 py-0.5 rounded">{s}</span>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+                {profileContent && (
+                  <details className="group">
+                    <summary className="text-sm font-medium cursor-pointer text-muted-foreground hover:text-foreground">
+                      {t("projects.profile.documentTitle")}
+                    </summary>
+                    <div className="mt-2 prose prose-sm max-w-none">
+                      <MarkdownRenderer content={profileContent} />
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

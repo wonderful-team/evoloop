@@ -696,6 +696,7 @@
     "generatedAt": "Generated {{time}}",
     "history": "Generation History",
     "noHistory": "No artifacts have been generated yet.",
+    "notGenerated": "Not yet generated. Click the button below to start.",
     "status": {
       "completed": "Completed",
       "running": "In Progress",
