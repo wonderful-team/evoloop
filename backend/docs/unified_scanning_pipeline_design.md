@@ -1,15 +1,9 @@
-# 统一项目扫描与理解管道 — 设计方案 v3.5
-## （v3.4 基础上：AppMap Agent 改为调研→写提取脚本→批量写脚本落库，避免逐实体 LLM 空耗）
+# 统一项目扫描与理解管道 — 设计方案 v3.6
+## （v3.5 基础上：前端简化，Summary 与 Overview 合并为一个用户入口，AppMap 对用户不可见）
 >
-> **v3.5 变更要点**：
-> - **AppMap Agent 策略重构**：不再逐实体调用 `write_app_map`（239 个实体 × N 次 LLM = 撑爆上下文/超时）。改为**调研 → 参考脚本提取 → 批量写入**：
->   1. 调研（≤10 次 LLM 读样本文件，摸清框架规律）
->   2. 使用 SKILL 自带的 `reference_collector.py` 参考脚本（已验证产出：109 实体、965 action、1922 element 全部含 page+line），复制到项目根目录配置后运行
->   3. 运行脚本 → 产出结构化 JSON 到 `/tmp/appmap_extracted.json`，STDOUT 仅一行摘要
->   4. 运行 `batch_write_app_maps.py` 批量落库 + 生成宏（自动 content_hash 去重，增量跳过未变更实体）
-> - **技能包脚本机制落地**：`app_map_analysis/SKILL.md` 新增 `scripts` 元数据字段，引用 `scripts/batch_write_app_maps.py` 和 `scripts/reference_collector.py`。Agent 通过 `execute_command` 调用脚本，避免超大 JSON 撑爆 LLM 上下文。
-> - **Agent 工具修正**：AppMap Agent 的 Worker ticket 新增 `execute_command` 权限，允许运行提取脚本和批量写入脚本。
-> - **验证结果**：mall-backend 项目实测 109 个实体全部落库，action 100% 含 controller+line，element 100% 含 page+line，routes 覆盖率 98%，db_tables 覆盖率 25%（表名匹配启发式待优化）。
+> **v3.6 变更要点**：
+> - **前端生成物精简**：用户可见的生成物从 4 项（Wiki/AppMap/Summary/Overview）减为 **3 项（Wiki/Macros/Overview）**。AppMap 对用户完全不可见（数据只供宏消费），Summary 合并到 Overview 中（一次勾选，后端同时产 summary + PROJECT.md）。
+> - **tab 栏同步精简**：移除独立的 Summary tab，其内容合并到 Overview tab 中展示。Macros tab 保留。
 
 > [!CAUTION]
 > **v1/v2 核心错误已修正**：原方案提议新建 `UnifiedScanCoordinator` 与现有 `IndexingManager` 存在严重功能重叠，已废弃。v3+ 的核心策略调整为：**增强现有管道的下游复用能力，而非造新轮子**。此外，对 `CodeRelation` 表误判、`FilePreparer` 增量能力低估、`NestedGitignoreMatcher` 覆盖范围不足等问题均已修正。
@@ -109,9 +103,8 @@ graph TD
 | 生成物 | 默认状态 | 费用预估（参考） | 作用说明 |
 | :--- | :--- | :--- | :--- |
 | ☐ Wiki 文档 | 关 | ~5K-50K tokens（按项目规模） | 为项目生成结构化技术文档，包含模块说明、API 路由、数据模型和架构图 |
-| ☐ 应用地图 (AppMap) | 关 | ~2K-20K tokens | 生成项目的实体-操作-页面-数据四层地图，用于驱动宏（Macro）的确定性操作生成。数据不直接面向用户展示，而是作为宏模板工厂的输入 |
-| ☐ 项目摘要 (Project Summary) | 关 | ~1K-5K tokens | 生成项目的一页纸概览：核心功能、技术栈、目录结构说明，适合新成员快速上手 |
-| ☐ 项目画像 / PROJECT.md (Project Profile) | 关 | ~3K-10K tokens | **复用现有 Project Discovery Skill**，生成并维护项目根目录 `PROJECT.md`，包含业务价值、系统架构决策和部署说明；额外可能执行环境安装/验证 |
+| ☐ 宏 (Macros) | 关 | ~2K-20K tokens | 生成项目的可执行宏，包含从 AppMap 模板工厂产出的确定性操作。**AppMap 数据作为宏的输入，对用户不可见** |
+| ☐ 项目描述 (Overview) | 关 | ~3K-10K tokens | 一次性生成**机器摘要**（`.evoloop/project.json`，供 Agent 上下文使用）和**人类文档**（`PROJECT.md`，供新成员和运维参考） |
 
 **交互逻辑**：
 - 每个生成物附带「生成」按钮，点击后异步执行，完成后通知用户；
@@ -124,9 +117,9 @@ graph TD
 | 改造项 | 调整 |
 | :--- | :--- |
 | P1.2 Wiki Skill 优化 | 仅优化提示词引导 Agent **优先消费索引**，不改变 Wiki 生成由用户触发的机制 |
-| Project Discovery / PROJECT.md | 将设计原稿的「项目总结 (Project Overview)」合并到现有 `project_profile` 流程：由 `/profile/discover` 触发，`GenerationScheduler` 不再包含 `overview` |
-| P2.3 AppMap Agent 调研 → 提取脚本 → 批量写入 | Agent 调研摸清框架规律 → 写一次性提取脚本机械扫描 ALL 实体 → 运行 `batch_write_app_maps.py` 批量落库。不再逐实体 LLM 操作。脚本存在 `app_map_analysis/scripts/` 目录中，属于技能包的一部分。 |
-| ProjectSummarizer / ProjectSummarizer | 当前实现可能随索引自动执行（消耗 Token），需改为仅当用户勾选「项目摘要」时才执行 |
+| Project Discovery / PROJECT.md | 将设计原稿的「项目摘要 (Summary)」和「项目画像 (Overview)」合并为一个生成项 `overview`：用户勾选一次，后端同时生成机器摘要（`project.json`）和人类文档（`PROJECT.md`）。`GenerationScheduler` 管理 `wiki` / `appmap` / `overview` 三项 |
+| P2.3 AppMap Agent 调研 → 提取脚本 → 批量写入 | Agent 调研摸清框架规律 → 写一次性提取脚本机械扫描 ALL 实体 → 运行 `batch_write_app_maps.py` 批量落库。不再逐实体 LLM 操作。脚本存在 `app/config/skills/app_map_analysis/scripts/` 目录中，属于技能包的一部分 |
+| ProjectSummarizer | 已融合到 Overview 生成中，不再单独展示给用户 |
 
 ### 3.4 分层后的执行流程
 
@@ -146,14 +139,11 @@ graph TD
     subgraph 用户勾选触发（生成层）
         I[用户在 UI 勾选生成项] --> J{勾选了?}
         J -->|Wiki| K[Wiki Agent ← 消费 DB 索引]
-        J -->|AppMap| L[Agent: 调研样本 → 写提取脚本 → 校验 JSON]
-        L --> M[Agent: 调用 batch_write_app_maps.py 批量落库 + 生成宏]
-        J -->|项目摘要| N[ProjectSummarizer ← 消费 DB 索引]
-        J -->|项目画像 / PROJECT.md| P[Project Discovery / PROJECT.md 现有流程]
+        J -->|宏| L[EntityGrouper → 分组 → collector → batch_write → 产宏]
+        J -->|Overview| N[生成机器摘要 + PROJECT.md ← 索引 + LLM]
         K --> Q[结果写入 DB / 前端展示]
-        M --> Q
+        L --> Q
         N --> Q
-        P --> Q
     end
 
     H -.->|索引就绪后可触发| I
@@ -181,22 +171,16 @@ graph TD
     end
 
     subgraph GenerationScheduler
-        S -->|wiki / appmap / summary| G[GenerationScheduler]
+        S -->|wiki / appmap / overview| G[GenerationScheduler]
         G -->|Phase 1| Q1[Wiki Agent]
-        G -->|Phase 1| Q2[AppMap Agent: 调研 → 写脚本 → 批量写入]
-        G -->|Phase 1| Q3[ProjectSummary Agent]
+        G -->|Phase 1| Q2[AppMap: 分组 → 提取 → 落库 → 产宏（确定性）]
+        G -->|Phase 1| Q3[Overview: 机器摘要 + PROJECT.md]
         Q1 --> DONE1[(完成)]
         Q2 --> DONE2[(完成)]
         Q3 --> DONE3[(完成)]
         DONE1 --> END([全部完成])
         DONE2 --> END
         DONE3 --> END
-    end
-
-    subgraph 项目画像
-        S -->|project_profile / overview| P[Project Discovery / PROJECT.md 现有流程]
-        P --> DONE4[(完成)]
-        DONE4 --> END
     end
 
     subgraph 限流
@@ -211,8 +195,8 @@ graph TD
 
 | 决策 | 理由 |
 | :--- | :--- |
-| **GenerationScheduler 仅管理 3 项** | `wiki`、`appmap`、`summary` 无外部依赖，结果写入 `GenerationScheduler` 状态文件。`project_profile`（原 `overview`）复用现有 Project Discovery 流程，不进入 `GenerationScheduler`。其中 `appmap` 任务：Agent 先调研样本（≤10 次 LLM）→ 写提取脚本 → 运行脚本产出 JSON → 调用 SKILL 的 `batch_write_app_maps.py` 批量落库 |
-| **project_profile 独立调度** | Project Discovery 通过 `POST /api/v1/projects/:id/profile/discover` 触发，异步写入 `PROJECT.md`，并在完成时通过 `SystemSSEClient` 或 `GET /profile` 状态反馈 |
+| **GenerationScheduler 管理 3 项** | `wiki`、`appmap`、`overview`。其中 `appmap` 任务是完全确定性的（分组→collector→batch_write），不依赖 Agent LLM。`overview` 一次生成包含机器摘要和 PROJECT.md |
+| **project_profile 独立调度** | - (已合并到 overview) |
 | **默认并行** | 3 个调度任务数据源均为已就绪的 DB 索引，无写冲突、无竞争条件，天然可并行；project_profile 可与其并行执行 |
 | **max_concurrency=2** | 防止 3 个任务同时触发 API 导致瞬时 Token 飙升触发 rate limit。2 个并发槽位将 3 任务的完成时间从 3 个串行周期压缩到约 2 个周期 |
 | **错误隔离** | 每个 Agent 独立捕获异常。Wiki 失败只标记 Wiki 为 `failed`，AppMap 和 Summary 不受影响；project_profile 失败不影响其余 3 项 |
@@ -224,12 +208,11 @@ graph TD
 
 | 页面 | 当前状态 | 改造内容 | 路由 |
 | :--- | :--- | :--- | :--- |
-| **项目 - 生成物面板** | ❌ 不存在 | 新增「生成物管理」tab，含 4 项 checkbox（Wiki / AppMap / Summary / Project Profile）+ 生成按钮 + 状态指示 + 费用预估 | `projects/$id/generation` |
-| **项目概览页** | ✅ 已有 (`ProjectOverview`) | 增加「最近生成物」区块，显示已生成的 Summary / Project Profile（PROJECT.md）摘要卡片，点击可展开全文 | `projects/$id/` |
-| **Wiki 页** | ✅ 已有 | 无需改造。Wiki 的触发在生成物面板中，生成后自动出现在 Wiki 页面 | `projects/$id/wiki` |
-| **AppMap** | — | AppMap 数据不直接面向用户展示，而是作为宏生成的内部数据。当前通过 `AtlasService` API 接口可查询实体列表和状态 | — |
-| **项目摘要页** | ❌ 不存在 | 新增只读展示页，渲染 `ProjectSummary` 生成结果（Markdown）。也可在概览页内联展示 | `projects/$id/summary` |
-| **项目画像 / PROJECT.md 页** | ✅ 已有 (`/profile`) | 新建 `/projects/$id/overview` 路由，内容直接复用 `GET /api/v1/projects/:id/profile` 返回的 `PROJECT.md`；也可在概览页内联展示 | `projects/$id/overview` |
+| **项目 - 生成物面板** | ✅ 已有 | 精简为 3 项 checkbox（Wiki / 宏(Macros) / 项目描述(Overview)）。AppMap 对用户不可见，Summary 合并到 Overview 中 | `projects/$id/generation` |
+| **项目概览页** | ✅ 已有 | 底部显示 Overview 摘要卡片（含机器摘要 + PROJECT.md 片段），点击可展开全文 | `projects/$id/` |
+| **Wiki 页** | ✅ 已有 | 不变 | `projects/$id/wiki` |
+| **Macros 页** | ✅ 已有 | 保留独立 tab（宏需要人审核才能执行） | `projects/$id/macros` |
+| **项目描述页 (Overview)** | ✅ 已有（原 Profile tab） | **合并内容**：同时展示机器摘要（技术栈、功能列表）和 `PROJECT.md` 完整文档。改名为 "Overview" | `projects/$id/overview` |
 
 #### 3.6.2 新增 API 端点（前端消费）
 
@@ -309,10 +292,10 @@ useEffect(() => {
 
 | 现有功能 | 集成方式 |
 | :--- | :--- |
-| **Wiki 页面** | 生成物面板中勾选 Wiki + 点「生成」→ 后台跑 Wiki Agent → 完成后 `generation.completed` → 前端跳转提示「Wiki 已生成，[前往查看]」→ Wiki 页面直接显示已落库的 wiki_page |
-| **AppMap** | 生成物面板勾选 AppMap + 点「生成」→ `GenerationScheduler` 派发 AppMap Agent → Agent 调研 → 写提取脚本 → 运行脚本 → 调用 `batch_write_app_maps.py` 批量落库 → 完成后 `generation.completed` → 宏模板工厂消费 AppMap 数据 |
-| **Project Profile / PROJECT.md** | 生成物面板中勾选「项目画像 / Overview」→ 调用 `POST /profile/discover` → Project Discovery Agent 运行 → 写入 `PROJECT.md` → `GET /profile` 读取并在 `/projects/$id/overview` 与 `/profile` 展示 |
-| **概览页已有区块** | 在 `ProjectOverview` 组件底部新增「项目摘要」(Summary) 和「项目画像 / PROJECT.md」(Overview) 卡片，若已生成则显示 Markdown 摘要，否则显示「尚未生成，[前往设置]」 |
+| **Wiki 页面** | 生成物面板勾选 Wiki + 点「生成」→ 后台跑 Wiki Agent → 完成后 SSE 推送 → 前端自动刷新 Wiki 页 |
+| **Macros 页面** | 生成物面板勾选「宏」→ 后台跑 EntityGrouper + collector + batch_write（完全确定性，0 LLM）→ 宏数据落库 → 完成后前端通知 → Macros 页展示待审核的宏 |
+| **Overview 页面** | 生成物面板勾选「项目描述」→ 后台同时生成机器摘要 + Project Discovery Agent 生成 PROJECT.md → 完成后 SSE 推送 → Overview 页同时展示摘要卡片和完整文档 |
+| **概览页已有区块** | 在项目概览页底部显示 Overview 摘要（技术栈、功能列表），点击「查看完整描述」跳转到 Overview 页 |
 
 #### 3.6.6 实施优先级
 
