@@ -678,8 +678,8 @@
     "testing": "测试中..."
   },
   "generation": {
-    "title": "生成物管理",
-    "description": "选择要生成的产物。根据项目规模，将消耗 AI Token。",
+    "title": "项目画像",
+    "description": "生成项目百科、自动化宏和项目描述等产物。根据项目规模，将消耗 AI Token。",
     "generate": "开始生成",
     "dispatched": "生成任务已分发",
     "dispatchFailed": "分发生成任务失败",
@@ -1420,7 +1420,7 @@
       "timesheet": "工时",
       "vault": "密码箱",
       "wiki": "百科",
-      "generation": "生成物",
+      "generation": "项目画像",
       "projectOverview": "项目描述"
     },
     "tasks": {

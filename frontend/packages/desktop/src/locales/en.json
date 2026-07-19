@@ -678,8 +678,8 @@
     "terminalPrompt": "$"
   },
   "generation": {
-    "title": "Generation Artifacts",
-    "description": "Select the artifacts you want to generate. This will consume AI tokens based on project size.",
+    "title": "Project Portrait",
+    "description": "Generate project artifacts such as wiki documentation, automated macros, and project overview. This will consume AI tokens based on project size.",
     "generate": "Generate Selected",
     "dispatched": "Generation tasks dispatched",
     "dispatchFailed": "Failed to dispatch generation tasks",
@@ -1420,7 +1420,7 @@
       "timesheet": "Timesheet",
       "vault": "Vault",
       "wiki": "Wiki",
-      "generation": "Generation",
+      "generation": "Project Portrait",
       "summary": "Summary"
     },
     "tasks": {
