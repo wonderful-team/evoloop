@@ -679,7 +679,7 @@
   },
   "generation": {
     "title": "Project Portrait",
-    "description": "Generate project artifacts such as wiki documentation, automated macros, and project overview. This will consume AI tokens based on project size.",
+    "description": "Generate project artifacts such as wiki documentation, macros, and project overview. This will consume AI tokens based on project size.",
     "generate": "Generate Selected",
     "dispatched": "Generation tasks dispatched",
     "dispatchFailed": "Failed to dispatch generation tasks",
@@ -689,7 +689,7 @@
     "retryFailed": "Failed to retry generation",
     "artifacts": {
       "wiki": "Wiki Documentation",
-      "macros": "Automated Macros",
+      "macros": "Macros",
       "overview": "Project Overview"
     },
     "running": "Generating...",

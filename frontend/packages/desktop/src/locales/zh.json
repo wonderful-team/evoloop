@@ -679,7 +679,7 @@
   },
   "generation": {
     "title": "项目画像",
-    "description": "生成项目百科、自动化宏和项目描述等产物。根据项目规模，将消耗 AI Token。",
+    "description": "生成项目百科、宏和项目描述等产物。根据项目规模，将消耗 AI Token。",
     "generate": "开始生成",
     "dispatched": "生成任务已分发",
     "dispatchFailed": "分发生成任务失败",
@@ -689,7 +689,7 @@
     "retryFailed": "重试失败",
     "artifacts": {
       "wiki": "Wiki 文档",
-      "macros": "自动化宏",
+      "macros": "宏",
       "overview": "项目描述"
     },
     "running": "生成中...",
