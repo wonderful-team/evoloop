@@ -8,12 +8,13 @@ import { createFileRoute, useParams } from "@tanstack/react-router"
 import { AlertCircle, FileText, Loader2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { ProjectProfilesService } from "@/client/sdk.gen"
+import { ProjectProfilesService, ProjectsService } from "@/client"
 import { MarkdownRenderer } from "@/components/Common/MarkdownRenderer"
 
-interface ProfileData {
-  content: string | null
-  exists: boolean
+interface SummaryData {
+  description: string
+  technical_stack: string[]
+  core_features: string[]
 }
 
 export const Route = createFileRoute("/_layout/projects/$projectId/overview")({
@@ -23,7 +24,8 @@ export const Route = createFileRoute("/_layout/projects/$projectId/overview")({
 function OverviewPage() {
   const { projectId } = useParams({ from: "/_layout/projects/$projectId" })
   const { t } = useTranslation()
-  const [profile, setProfile] = useState<ProfileData | null>(null)
+  const [summary, setSummary] = useState<SummaryData | null>(null)
+  const [profileContent, setProfileContent] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -31,16 +33,24 @@ function OverviewPage() {
       if (!projectId) return
       setLoading(true)
       try {
-        const data = await ProjectProfilesService.projectsGetProfile({
-          projectId: Number(projectId),
-        })
-        setProfile({
-          content: data.content ?? null,
-          exists: data.exists ?? false,
-        })
+        const [profileRes, summaryRes] = await Promise.all([
+          ProjectProfilesService.projectsGetProfile({ projectId: Number(projectId) }),
+          ProjectsService.getGenerationContentEndpoint({
+            projectId: Number(projectId),
+            item: "summary",
+          }).catch(() => ({ content: null })),
+        ])
+        setProfileContent(profileRes.content ?? null)
+
+        if (summaryRes?.content) {
+          try {
+            setSummary(JSON.parse(summaryRes.content))
+          } catch {
+            setSummary(null)
+          }
+        }
       } catch (err) {
-        console.error("Failed to load project profile", err)
-        setProfile({ content: null, exists: false })
+        console.error("Failed to load overview", err)
       } finally {
         setLoading(false)
       }
@@ -56,7 +66,7 @@ function OverviewPage() {
     )
   }
 
-  const hasProfile = profile?.exists && profile?.content
+  const hasAny = summary || profileContent
 
   return (
     <div className="h-full w-full overflow-auto p-6 space-y-6">
@@ -67,27 +77,68 @@ function OverviewPage() {
         </h2>
       </div>
 
-      {hasProfile ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              {t("projects.profile.documentTitle")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <MarkdownRenderer content={profile.content!} />
-          </CardContent>
-        </Card>
-      ) : (
+      {!hasAny ? (
         <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
           <AlertCircle className="h-12 w-12 mb-4 opacity-20" />
-          <h3 className="text-lg font-medium">
-            {t("projects.profile.notFound")}
-          </h3>
+          <h3 className="text-lg font-medium">{t("projects.profile.notFound")}</h3>
           <p className="text-sm max-w-md text-center mt-2">
             {t("projects.profile.notFoundDescription")}
           </p>
         </div>
+      ) : (
+        <>
+          {summary && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  {t("generation.summaryTitle", "项目摘要")}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm">{summary.description}</p>
+                {summary.technical_stack && summary.technical_stack.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">
+                      {t("generation.techStack", "技术栈")}
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {summary.technical_stack.map((s: string) => (
+                        <span key={s} className="text-xs bg-secondary text-secondary-foreground px-2 py-0.5 rounded">
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {summary.core_features && summary.core_features.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">
+                      {t("generation.coreFeatures", "核心功能")}
+                    </p>
+                    <ul className="list-disc list-inside text-sm space-y-0.5">
+                      {summary.core_features.map((f: string) => (
+                        <li key={f}>{f}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {profileContent && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {t("projects.profile.documentTitle")}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <MarkdownRenderer content={profileContent} />
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
     </div>
   )
