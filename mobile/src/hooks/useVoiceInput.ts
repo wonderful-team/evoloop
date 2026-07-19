@@ -65,6 +65,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
       sampleRate: 16000,
       numThreads: 2,
       vadThreshold: 0.7,
+      energyThreshold: 0.02,
       silenceTimeoutMs: 800,
     }).then(() => {
       console.log('[useVoiceInput] initialize done');

@@ -108,6 +108,7 @@ interface InitializeConfig {
   sampleRate?: number;
   numThreads?: number;
   vadThreshold?: number;
+  energyThreshold?: number;
   silenceTimeoutMs?: number;
 }
 
@@ -127,6 +128,7 @@ export class RNVoiceEngineTurboModule extends TurboModule implements RNVoiceEngi
   private capturer: audio.AudioCapturer | null = null;
   private isRecording: boolean = false;
   private sampleRate: number = 16000;
+  private energyThreshold: number = 0.02;
   private accumulatedBuffer: Int16Array = new Int16Array(0);
 
   // Sherpa-ONNX ASR (running on main thread; Workers cannot load native modules)
@@ -179,6 +181,7 @@ export class RNVoiceEngineTurboModule extends TurboModule implements RNVoiceEngi
   public initialize(config: InitializeConfig): Promise<void> {
     console.info('[RNVoiceEngine] initialize on HarmonyOS (Sherpa-ONNX local ASR on main thread)');
     this.sampleRate = config.sampleRate ?? 16000;
+    this.energyThreshold = config.energyThreshold ?? 0.02;
 
     return new Promise((resolve, reject) => {
       try {
@@ -354,6 +357,11 @@ export class RNVoiceEngineTurboModule extends TurboModule implements RNVoiceEngi
       energy = Math.sqrt(energy / chunk.length);
       const volume = Math.min(1, energy / 10000);
       this.ctx.rnInstance.emitDeviceEvent('voiceEngine:volume', { value: volume });
+
+      // 能量门限：过低则跳过 ASR（过滤噪音底噪）
+      if ((energy / 32768.0) < this.energyThreshold) {
+        continue;
+      }
 
       // 转 Float32Array 送入 recognizer
       const floatSamples = new Float32Array(chunk.length);

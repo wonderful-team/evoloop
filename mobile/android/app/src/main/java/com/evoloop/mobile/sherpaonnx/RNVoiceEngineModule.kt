@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
+import android.media.audiofx.NoiseSuppressor
 import android.media.MediaRecorder
 import android.util.Log
 import androidx.core.app.ActivityCompat
@@ -103,6 +104,7 @@ class RNVoiceEngineModule(reactContext: ReactApplicationContext) :
   private var offlineTts: OfflineTts? = null
   private val pitchFilter = BiquadFilter()
   private var vadThreshold = VAD_ENERGY_THRESHOLD
+  private var energyThreshold = 0.02f
 
   private fun copyAssetsFolder(srcFolder: String, destFolder: File) {
     val assetManager = reactApplicationContext.assets
@@ -173,6 +175,7 @@ class RNVoiceEngineModule(reactContext: ReactApplicationContext) :
       val assetManager = reactApplicationContext.assets
       val modelDir = configMap.getString("modelDir") ?: ""
       val numThreads = if (configMap.hasKey("numThreads")) configMap.getInt("numThreads") else 2
+      energyThreshold = if (configMap.hasKey("energyThreshold")) configMap.getDouble("energyThreshold").toFloat() else 0.02f
 
       // 验证模型文件
       try {
@@ -263,6 +266,8 @@ class RNVoiceEngineModule(reactContext: ReactApplicationContext) :
         recorder.release()
         return
       }
+
+      NoiseSuppressor.create(recorder.audioSessionId)
 
       audioRecord = recorder
       recorder.startRecording()
@@ -430,6 +435,9 @@ class RNVoiceEngineModule(reactContext: ReactApplicationContext) :
         val rms = sqrt(totalSum / read)
         val filteredRms = sqrt(pitchSum / read)
         val pitchRatio = if (rms > 1e-6f) (filteredRms / rms).toFloat() else 0.0f
+
+        // Energy gate: skip VAD/ASR for low-energy noise floor
+        if (rms < energyThreshold) continue
 
         var speechDetected = energy > vadThreshold
         if (speechDetected && pitchRatio < 0.15f) {

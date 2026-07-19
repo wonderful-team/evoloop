@@ -68,6 +68,7 @@ public:
   const SherpaOnnxOfflineTts *_tts;
   BiquadFilter _pitchFilter;
   float _vadThreshold;
+  float _energyThreshold;
   int _silenceTimeoutMs;
 }
 @end
@@ -130,6 +131,7 @@ RCT_EXPORT_METHOD(initialize:(NSDictionary *)config
     NSString *modelDir = config[@"modelDir"] ?: @"";
     int numThreads = config[@"numThreads"] != nil ? [config[@"numThreads"] intValue] : 2;
     float vadThreshold = config[@"vadThreshold"] != nil ? [config[@"vadThreshold"] floatValue] : 0.5f;
+    float energyThreshold = config[@"energyThreshold"] != nil ? [config[@"energyThreshold"] floatValue] : 0.02f;
     int silenceTimeoutMs = config[@"silenceTimeoutMs"] != nil ? [config[@"silenceTimeoutMs"] intValue] : 800;
 
     NSBundle *bundle = [NSBundle mainBundle];
@@ -187,6 +189,7 @@ RCT_EXPORT_METHOD(initialize:(NSDictionary *)config
     int32_t vadWindowSize = 512;  // samples at 16kHz ~= 32ms
     float vadSilenceThreshold = 0.04f;
     _vadThreshold = vadThreshold;
+    _energyThreshold = energyThreshold;
     _silenceTimeoutMs = silenceTimeoutMs;
 
     NSString *vadModelPath = [bundle pathForResource:@"silero_vad" ofType:@"onnx" inDirectory:@"sherpa-vad"];
@@ -244,7 +247,7 @@ RCT_EXPORT_METHOD(start:(RCTPromiseResolveBlock)resolve
     AVAudioSession *session = [AVAudioSession sharedInstance];
     NSError *error = nil;
     [session setCategory:AVAudioSessionCategoryPlayAndRecord
-                    mode:AVAudioSessionModeDefault
+                    mode:AVAudioSessionModeVoiceChat
                  options:AVAudioSessionCategoryOptionDefaultToSpeaker
                    error:&error];
     if (error) {
@@ -363,6 +366,9 @@ RCT_EXPORT_METHOD(release:(RCTPromiseResolveBlock)resolve
   static BOOL wasSpeech = NO;
 
   [self sendEventWithName:@"voiceEngine:volume" body:@{ @"value": @(MIN(1.0f, rms * 5.0f)) }];
+
+  // Energy gate: skip VAD/ASR for low-energy noise floor
+  if (rms < _energyThreshold) { return; }
 
   if (isSpeech && !wasSpeech) {
     wasSpeech = YES;
