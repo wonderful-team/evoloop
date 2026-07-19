@@ -5,51 +5,54 @@ import {
   CardHeader,
   CardTitle,
 } from "@evoloop/shared/components/ui/card"
-import { Checkbox } from "@evoloop/shared/components/ui/checkbox"
 import { Link, useParams } from "@tanstack/react-router"
-import { Eye, Loader2, Play, RefreshCw } from "lucide-react"
+import {
+  FileText,
+  Loader2,
+  Play,
+  RefreshCw,
+  Zap,
+  ExternalLink,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+} from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { type GenerationStatusRecord, ProjectsService } from "@/client"
 import { ProjectProfilesService } from "@/client/sdk.gen"
 import { systemSSEClient } from "@/lib/SystemSSEClient"
-import { GenerationStatusBadge } from "./GenerationStatusBadge"
-import { GenerationHistoryList } from "./GenerationHistoryList"
 
-const ARTIFACTS = [
-  { key: "wiki", labelKey: "generation.artifacts.wiki", route: "wiki" },
-  { key: "appmap", labelKey: "generation.artifacts.macros", route: "macros" },
-  { key: "overview", labelKey: "generation.artifacts.overview", route: "overview" },
+interface ArtifactDef {
+  key: string
+  labelKey: string
+  icon: typeof FileText
+  route: string
+}
+
+const ARTIFACTS: ArtifactDef[] = [
+  { key: "wiki", labelKey: "generation.artifacts.wiki", icon: FileText, route: "/wiki" },
+  { key: "appmap", labelKey: "generation.artifacts.macros", icon: Zap, route: "/macros" },
+  { key: "overview", labelKey: "generation.artifacts.overview", icon: FileText, route: "/overview" },
 ]
-
-const SCHEDULER_ITEMS = new Set(["wiki", "appmap", "overview"])
 
 export function GenerationPanel() {
   const { projectId } = useParams({ from: "/_layout/projects/$projectId" })
   const { t } = useTranslation()
-  const [statuses, setStatuses] = useState<
-    Record<string, GenerationStatusRecord>
-  >({})
-  const [selected, setSelected] = useState<string[]>([])
-  const [loading, setLoading] = useState(false)
+  const [statuses, setStatuses] = useState<Record<string, GenerationStatusRecord>>({})
+  const [generating, setGenerating] = useState<string | null>(null)
   const [initialLoading, setInitialLoading] = useState(true)
 
   const fetchStatus = async () => {
     if (!projectId) return
     try {
       const [res, profile] = await Promise.all([
-        ProjectsService.listGenerationStatusEndpoint({
-          projectId: Number(projectId),
-        }),
-        ProjectProfilesService.projectsGetProfile({
-          projectId: Number(projectId),
-        }),
+        ProjectsService.listGenerationStatusEndpoint({ projectId: Number(projectId) }),
+        ProjectProfilesService.projectsGetProfile({ projectId: Number(projectId) }),
       ])
       const map: Record<string, GenerationStatusRecord> = {}
-      for (const item of res.items) {
-        map[item.item] = item
-      }
+      for (const item of res.items) map[item.item] = item
       map.overview = {
         item: "overview",
         status: profile.exists ? "completed" : "pending",
@@ -66,99 +69,73 @@ export function GenerationPanel() {
     }
   }
 
-  const handleGenerate = async () => {
-    if (selected.length === 0 || !projectId) return
-    setLoading(true)
+  const handleGenerate = async (key: string) => {
+    if (!projectId) return
+    setGenerating(key)
     try {
-      // "overview" triggers both machine summary (via scheduler) and PROJECT.md
-      const mappedItems = selected.flatMap((i) =>
-        i === "overview" ? ["summary", "overview"] : [i],
-      )
-      const schedulerItems = mappedItems.filter((i) => SCHEDULER_ITEMS.has(i))
-      const profileSelected = mappedItems.includes("overview")
-
-      if (schedulerItems.length > 0) {
+      if (key === "overview") {
         await ProjectsService.dispatchGenerationEndpoint({
           projectId: Number(projectId),
-          requestBody: {
-            project_id: Number(projectId),
-            items: schedulerItems,
-          },
+          requestBody: { project_id: Number(projectId), items: ["summary"] },
         })
-      }
-
-      if (profileSelected) {
         await ProjectProfilesService.projectsDiscoverProfile({
           projectId: Number(projectId),
           requestBody: { project_id: Number(projectId), record_secrets: false },
         })
-        setStatuses((prev) => ({
-          ...prev,
-          overview: {
-            ...prev.overview,
-            item: "overview",
-            status: "running",
-          },
-        }))
+      } else {
+        await ProjectsService.dispatchGenerationEndpoint({
+          projectId: Number(projectId),
+          requestBody: { project_id: Number(projectId), items: [key] },
+        })
       }
-
+      setStatuses((prev) => ({
+        ...prev,
+        [key]: { ...prev[key], item: key, status: "running" },
+      }))
       toast.success(t("generation.dispatched"))
-      setSelected([])
-      await fetchStatus()
     } catch (err) {
-      console.error("Failed to dispatch generation", err)
+      console.error("Failed to dispatch", err)
       toast.error(t("generation.dispatchFailed"))
     } finally {
-      setLoading(false)
+      setGenerating(null)
     }
   }
 
-  const handleRetry = async (item: string) => {
+  const handleRetry = async (key: string) => {
     if (!projectId) return
+    setGenerating(key)
     try {
-      if (item === "overview") {
+      if (key === "overview") {
         await ProjectProfilesService.projectsDiscoverProfile({
           projectId: Number(projectId),
           requestBody: { project_id: Number(projectId), record_secrets: false },
         })
-        setStatuses((prev) => ({
-          ...prev,
-          overview: {
-            ...prev.overview,
-            item: "overview",
-            status: "running",
-          },
-        }))
       } else {
         await ProjectsService.retryGenerationEndpoint({
           projectId: Number(projectId),
-          item,
-          requestBody: {
-            project_id: Number(projectId),
-            item,
-          },
+          item: key,
+          requestBody: { project_id: Number(projectId), item: key },
         })
       }
-      toast.success(t("generation.retried", { item }))
-      await fetchStatus()
+      setStatuses((prev) => ({
+        ...prev,
+        [key]: { ...prev[key], status: "running" },
+      }))
+      toast.success(t("generation.retried", { item: key }))
     } catch (err) {
-      console.error("Failed to retry generation", err)
+      console.error("Failed to retry", err)
       toast.error(t("generation.retryFailed"))
+    } finally {
+      setGenerating(null)
     }
   }
 
-  useEffect(() => {
-    fetchStatus()
-  }, [projectId])
+  useEffect(() => { fetchStatus() }, [projectId])
 
   useEffect(() => {
-    const hasRunning = Object.values(statuses).some(
-      (s) => s.status === "running",
-    )
+    const hasRunning = Object.values(statuses).some((s) => s.status === "running")
     if (!hasRunning) return
-    const interval = setInterval(() => {
-      fetchStatus()
-    }, 5000)
+    const interval = setInterval(fetchStatus, 5000)
     return () => clearInterval(interval)
   }, [statuses])
 
@@ -166,10 +143,7 @@ export function GenerationPanel() {
     if (!projectId) return
     const pid = Number(projectId)
     const handler = (event: any) => {
-      const data = event?.data
-      if (data?.project_id === pid) {
-        fetchStatus()
-      }
+      if (event?.data?.project_id === pid) fetchStatus()
     }
     systemSSEClient.on("generation.status", handler)
     return () => systemSSEClient.off("generation.status", handler)
@@ -185,89 +159,116 @@ export function GenerationPanel() {
 
   return (
     <div className="space-y-6 p-6">
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight">{t("generation.title")}</h2>
+        <p className="text-muted-foreground mt-1">{t("generation.description")}</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {ARTIFACTS.map((artifact) => {
+          const s = statuses[artifact.key]
+          const isRunning = s?.status === "running" || generating === artifact.key
+          const isCompleted = s?.status === "completed"
+          const isFailed = s?.status === "failed"
+          const Icon = artifact.icon
+
+          return (
+            <Card key={artifact.key} className={`relative ${isRunning ? "border-blue-300" : ""}`}>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Icon className="h-5 w-5 text-muted-foreground" />
+                    <CardTitle className="text-base">{t(artifact.labelKey)}</CardTitle>
+                  </div>
+                  {isCompleted && <CheckCircle2 className="h-5 w-5 text-green-500" />}
+                  {isFailed && <AlertCircle className="h-5 w-5 text-red-500" />}
+                  {isRunning && <Loader2 className="h-5 w-5 animate-spin text-blue-500" />}
+                  {!s && <Clock className="h-5 w-5 text-muted-foreground" />}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {isFailed && s?.error && (
+                  <p className="text-xs text-red-600 mb-3 truncate">{s.error}</p>
+                )}
+
+                <div className="flex gap-2">
+                  {(isCompleted || isFailed) && (
+                    <Link
+                      to={`/projects/$projectId${artifact.route}` as any}
+                      params={{ projectId: projectId! } as any}
+                    >
+                      <Button variant="outline" size="sm">
+                        <ExternalLink className="h-3 w-3 mr-1" />
+                        {t("common.preview")}
+                      </Button>
+                    </Link>
+                  )}
+
+                  {isFailed && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRetry(artifact.key)}
+                      disabled={isRunning}
+                    >
+                      <RefreshCw className="h-3 w-3 mr-1" />
+                      {t("generation.retry")}
+                    </Button>
+                  )}
+
+                  {(!s || isFailed) && !isRunning && (
+                    <Button
+                      size="sm"
+                      onClick={() => handleGenerate(artifact.key)}
+                    >
+                      <Play className="h-3 w-3 mr-1" />
+                      {t("generation.generate")}
+                    </Button>
+                  )}
+
+                  {isRunning && (
+                    <span className="text-xs text-blue-600 self-center ml-1">
+                      {t("generation.running")}
+                    </span>
+                  )}
+                </div>
+
+                {isCompleted && s?.created_at && (
+                  <p className="text-xs text-muted-foreground mt-3">
+                    {t("generation.generatedAt", { time: new Date(s.created_at).toLocaleString() })}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+
       <Card>
         <CardHeader>
-          <CardTitle>{t("generation.title")}</CardTitle>
+          <CardTitle className="text-sm">{t("generation.history")}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-muted-foreground">{t("generation.description")}</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {ARTIFACTS.map((artifact) => {
-              const status = statuses[artifact.key]
-              const checked = selected.includes(artifact.key)
-              const disabled = status?.status === "running" || loading
-              const completed = status?.status === "completed"
-              return (
-                <div
-                  key={artifact.key}
-                  className="flex items-center justify-between border rounded-lg p-4"
-                >
-                  <div className="flex items-center gap-3">
-                    <Checkbox
-                      id={artifact.key}
-                      checked={checked}
-                      disabled={disabled}
-                      onCheckedChange={(checkedValue) => {
-                        setSelected((prev) =>
-                          checkedValue
-                            ? [...prev, artifact.key]
-                            : prev.filter((k) => k !== artifact.key),
-                        )
-                      }}
-                    />
-                    <label
-                      htmlFor={artifact.key}
-                      className="text-sm font-medium"
-                    >
-                      {t(artifact.labelKey)}
-                    </label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {status && <GenerationStatusBadge status={status.status} />}
-                    {completed && (
-                      <Link
-                        to={`/projects/$projectId/${artifact.route}` as any}
-                        params={{ projectId: projectId! } as any}
-                      >
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title={t("common.preview")}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </Link>
-                    )}
-                    {status?.status === "failed" && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleRetry(artifact.key)}
-                        title={t("generation.retry")}
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
+        <CardContent>
+          {Object.entries(statuses).filter(([k]) => k !== "appmap" || k).length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("generation.noHistory")}</p>
+          ) : (
+            <div className="space-y-1">
+              {Object.entries(statuses).map(([key, s]) => (
+                <div key={key} className="flex items-center justify-between text-sm py-1">
+                  <span>{t(`generation.artifacts.${key}`, key)}</span>
+                  <span className="text-muted-foreground">
+                    {s.status === "completed" && t("generation.status.completed")}
+                    {s.status === "running" && t("generation.status.running")}
+                    {s.status === "failed" && t("generation.status.failed")}
+                    {s.status === "pending" && t("generation.status.pending")}
+                    {!s && t("generation.status.pending")}
+                  </span>
                 </div>
-              )
-            })}
-          </div>
-          <Button
-            onClick={handleGenerate}
-            disabled={selected.length === 0 || loading}
-            className="w-full sm:w-auto"
-          >
-            {loading ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Play className="h-4 w-4 mr-2" />
-            )}
-            {t("generation.generate")}
-          </Button>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
-      <GenerationHistoryList statuses={statuses} onRetry={handleRetry} />
     </div>
   )
 }

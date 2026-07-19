@@ -691,6 +691,16 @@
       "wiki": "Wiki 文档",
       "macros": "自动化宏",
       "overview": "项目描述"
+    },
+    "running": "生成中...",
+    "generatedAt": "生成于 {{time}}",
+    "history": "生成历史",
+    "noHistory": "暂未生成任何产物。",
+    "status": {
+      "completed": "已完成",
+      "running": "生成中",
+      "failed": "失败",
+      "pending": "未生成"
     }
   },
   "context": {

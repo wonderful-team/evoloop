@@ -691,6 +691,16 @@
       "wiki": "Wiki Documentation",
       "macros": "Automated Macros",
       "overview": "Project Overview"
+    },
+    "running": "Generating...",
+    "generatedAt": "Generated {{time}}",
+    "history": "Generation History",
+    "noHistory": "No artifacts have been generated yet.",
+    "status": {
+      "completed": "Completed",
+      "running": "In Progress",
+      "failed": "Failed",
+      "pending": "Not Generated"
     }
   },
   "context": {
