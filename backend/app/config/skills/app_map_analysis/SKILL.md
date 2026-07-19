@@ -14,6 +14,19 @@ parameters:
   working_directory:
     type: string
     description: The root directory of the project to survey.
+requires:
+  tools:
+    - query_code_chunks
+    - query_code_relations
+    - get_directory_summaries
+    - read_app_map
+    - write_app_map
+    - list_app_maps
+    - generate_macros_from_app_map
+    - read_file
+    - write_file
+    - execute_command
+    - grep_search
 scripts:
   batch_write:
     path: app/core/atlas/source/skeleton/batch_writer.py
