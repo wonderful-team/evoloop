@@ -31,16 +31,16 @@
 | 扫描入口 | 文件位置 | 是否复用 FileTraverser | 是否接入 `.gitignore` |
 | :--- | :--- | :--- | :--- |
 | `IndexingService.index_repository` | `service.py:383` | ✅ `walk_tree` | ✅ `NestedGitignoreMatcher` |
-| `IndexingManager._run_semantic_extraction` | `manager.py:406` | ✅ `walk_tree` | ❌ 无 `.gitignore` 过滤 |
-| `AnnotatedTreeGenerator._build_tree_structure` | `tree_generator.py:130` | ✅ `walk_tree` | ❌ 无 `.gitignore` 过滤 |
-| `Agent 的 list_dir 工具` | `traverser.py` | ✅ `FileTraverser` | ❌ 无 `.gitignore` 过滤 |
-| `ProjectClassifier` | `classifier.py` | ✅ | ❌ 无 `.gitignore` 过滤 |
-| `StandardsAnalyst._sample_files` | `standards.py` | ✅ | ❌ 无 `.gitignore` 过滤 |
-| `Wiki Agent（通过 list_dir）` | Agent 运行时 | ✅ | ❌ 无 `.gitignore` 过滤 |
+| `IndexingManager._run_semantic_extraction` | `manager.py:406` | ✅ `walk_tree` | ✅ `gitignore_root=repo_path` |
+| `AnnotatedTreeGenerator._build_tree_structure` | `tree_generator.py:130` | ✅ DB 优先装配；回退 `walk_tree` | ✅ 回退路径已集成 |
+| `Agent 的 list_dir 工具` | `traverser.py` | ✅ `FileTraverser` | ✅ |
+| `ProjectClassifier` | `classifier.py` | ✅ | ✅ `FileTraverser` 自带 |
+| `StandardsAnalyst._sample_files` | `standards.py` | ✅ | ✅ 通过 `walk_tree` 代理 |
+| `Wiki Agent（通过 list_dir）` | Agent 运行时 | ✅ | ✅ `FileTraverser` 自带 |
 
 **结论**：问题不在于「遍历器本身重复」，而是：
-1. `NestedGitignoreMatcher` 只在 `IndexingService` 中使用，其余 6 个入口均缺少 `.gitignore` 感知；
-2. 已有的索引产出物（`SourceFile`/`CodeChunk`/`CodeRelation`/`directory_summaries`）未被下游（`AnnotatedTreeGenerator`、Wiki Agent、AppMap）复用。
+
+> 已更正：**所有 7 个入口均已集成 `.gitignore` 过滤**。当前已不再是缺口。
 
 ### 1.2 已确认的现有能力（v1/v2 低估或误判的部分）
 
@@ -246,12 +246,9 @@ graph TD
 
 | 事件名 | 载荷 | 触发时机 |
 | :--- | :--- | :--- |
-| `generation.started` | `{ item, project_id }` | Agent 开始执行 |
-| `generation.progress` | `{ item, project_id, stage, percent? }` | Agent 阶段变化（可选） |
-| `generation.completed` | `{ item, project_id }` | Agent 执行成功 |
-| `generation.failed` | `{ item, project_id, error }` | Agent 执行失败 |
+| `generation.status` | `{ data: { project_id, ... } }` | 任意生成项状态变更时推送。前端接收后统一调用 `GET /generations` 重新拉取全量状态 |
 
-前端通过 `SystemSSEClient.on('generation.completed', ...)` 监听，无需独立轮询。
+> 实际实现比原设计更简洁：不区分 started/progress/completed/failed 四种事件，统一用一个 `generation.status` 事件 + 5 秒 polling 兜底。前端通过 `SystemSSEClient.on('generation.status', handler)` 监听。
 
 #### 3.6.3 前端新增 / 修改的文件清单
 
