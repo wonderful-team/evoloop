@@ -18,7 +18,6 @@ requires:
   tools:
     - query_code_chunks
     - query_code_relations
-    - get_directory_summaries
     - read_app_map
     - write_app_map
     - list_app_maps

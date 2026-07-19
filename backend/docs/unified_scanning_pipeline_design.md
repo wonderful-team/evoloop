@@ -729,7 +729,6 @@ async def is_file_changed_since_last_index(
 | `query_security_findings` | `(project_id, finding_type?, severity?) → List[SecurityFinding]` | 查询安全扫描结果中的漏洞清单 | Wiki |
 
 已存在但需在 SKILL.md 中显式声明使用的工具：
-- `get_directory_summaries` — 查询目录级 LLM 摘要（已存在，未被现有 SKILL.md 调用）
 - `read_wiki_page` / `write_wiki_page` — Wiki CRUD（已存在）
 - `read_app_map` / `write_app_map` / `list_app_maps` — AppMap CRUD（已存在）
 
@@ -737,10 +736,10 @@ async def is_file_changed_since_last_index(
 
 | Agent | 读索引（新） | 读索引（已有） | 写产出 | 辅助工具 |
 | :--- | :--- | :--- | :--- | :--- |
-| **Wiki** | `query_code_chunks`, `query_code_relations`, `query_source_files`, `query_security_findings` | `get_directory_summaries` | `write_wiki_page`, `edit_wiki_page` | `create_plan`, `save_concepts` |
-| **AppMap** | `query_code_chunks`, `query_code_relations` | `get_directory_summaries`, `list_app_maps`, `read_app_map` | `write_app_map` | — |
-| **ProjectSummary** | `query_code_chunks`, `query_source_files` | `get_directory_summaries` | `write_file` | `create_plan` |
-| **Project Profile / PROJECT.md** | `query_code_chunks`, `query_source_files` | `get_directory_summaries`, `read_wiki_page`, `read_app_map`, `query_concepts` | `write_file`（写入 `PROJECT.md`） | — |
+| **Wiki** | `query_code_chunks`, `query_code_relations`, `query_source_files`, `query_security_findings` | — | `write_wiki_page`, `edit_wiki_page` | `create_plan`, `save_concepts` |
+| **AppMap** | `query_code_chunks`, `query_code_relations` | `list_app_maps`, `read_app_map` | `write_app_map` | — |
+| **ProjectSummary** | `query_code_chunks`, `query_source_files` | — | `write_file` | `create_plan` |
+| **Project Profile / PROJECT.md** | `query_code_chunks`, `query_source_files` | `read_wiki_page`, `read_app_map`, `query_concepts` | `write_file`（写入 `PROJECT.md`） | — |
 
 ### 10.3 当前机制的问题
 
@@ -795,7 +794,6 @@ requires:
     - query_code_relations
     - query_source_files
     - query_security_findings
-    - get_directory_summaries
     - write_wiki_page
     - edit_wiki_page
     - create_plan
