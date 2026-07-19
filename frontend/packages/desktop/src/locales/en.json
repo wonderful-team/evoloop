@@ -689,9 +689,8 @@
     "retryFailed": "Failed to retry generation",
     "artifacts": {
       "wiki": "Wiki Documentation",
-      "appmap": "AppMap (Application Map)",
-      "summary": "Project Summary",
-      "overview": "Project Profile / PROJECT.md"
+      "macros": "Automated Macros",
+      "overview": "Project Overview"
     }
   },
   "context": {
@@ -974,8 +973,8 @@
     "tray": {
       "quit": "Quit",
       "show": "Show Main Interface",
-      "startRecording": "Start Recording (⌘R)",
-      "stopRecording": "Stop Recording (⌘R)"
+      "startRecording": "Start Recording",
+      "stopRecording": "Stop Recording"
     },
     "triggerPatterns": "Trigger Patterns",
     "uses": "uses",

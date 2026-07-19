@@ -19,12 +19,11 @@ import { GenerationHistoryList } from "./GenerationHistoryList"
 
 const ARTIFACTS = [
   { key: "wiki", labelKey: "generation.artifacts.wiki", route: "wiki" },
-  { key: "appmap", labelKey: "generation.artifacts.appmap", route: "appmap" },
-  { key: "summary", labelKey: "generation.artifacts.summary", route: "summary" },
+  { key: "appmap", labelKey: "generation.artifacts.macros", route: "macros" },
   { key: "overview", labelKey: "generation.artifacts.overview", route: "overview" },
 ]
 
-const SCHEDULER_ITEMS = new Set(["wiki", "appmap", "summary"])
+const SCHEDULER_ITEMS = new Set(["wiki", "appmap", "overview"])
 
 export function GenerationPanel() {
   const { projectId } = useParams({ from: "/_layout/projects/$projectId" })
@@ -71,8 +70,12 @@ export function GenerationPanel() {
     if (selected.length === 0 || !projectId) return
     setLoading(true)
     try {
-      const schedulerItems = selected.filter((i) => SCHEDULER_ITEMS.has(i))
-      const profileSelected = selected.includes("overview")
+      // "overview" triggers both machine summary (via scheduler) and PROJECT.md
+      const mappedItems = selected.flatMap((i) =>
+        i === "overview" ? ["summary", "overview"] : [i],
+      )
+      const schedulerItems = mappedItems.filter((i) => SCHEDULER_ITEMS.has(i))
+      const profileSelected = mappedItems.includes("overview")
 
       if (schedulerItems.length > 0) {
         await ProjectsService.dispatchGenerationEndpoint({
