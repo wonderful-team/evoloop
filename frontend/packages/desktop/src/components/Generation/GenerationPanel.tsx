@@ -324,13 +324,13 @@ export function GenerationPanel() {
           <CardTitle className="text-sm">{t("generation.history")}</CardTitle>
         </CardHeader>
         <CardContent>
-          {Object.entries(statuses).filter(([k]) => k !== "appmap" || k).length === 0 ? (
+              {Object.entries(statuses).filter(([k]) => k !== "overview").length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("generation.noHistory")}</p>
           ) : (
             <div className="space-y-1">
               {Object.entries(statuses).map(([key, s]) => (
                 <div key={key} className="flex items-center justify-between text-sm py-1">
-                  <span>{t(`generation.artifacts.${key}`, key)}</span>
+                  <span>{key === "appmap" ? t("generation.artifacts.macros") : key === "summary" ? t("generation.artifacts.overview") : t(`generation.artifacts.${key}`, key)}</span>
                   <span className="text-muted-foreground">
                     {s.status === "completed" && t("generation.status.completed")}
                     {s.status === "running" && t("generation.status.running")}
