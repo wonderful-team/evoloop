@@ -103,7 +103,7 @@ Do NOT survey entity-by-entity with manual grep/read loops (too slow, burns the 
 - Use ABSOLUTE paths for all tool calls. Collector scripts and their JSON output live at the project root — NEVER inside `.evoloop/`.
 - Element coverage stays MANDATORY: 列表页搜索框、列表页结果表格、表单页保存/提交按钮、写操作涉及的输入字段。缺少它们对应 action 无法产宏。If the collector cannot find them, leave them out (never fabricate).
 
-## Output Contract (via batch_write_app_maps.py)
+## Output Contract (via batch_writer.py)
 
 ```
 entity, platform, aliases
