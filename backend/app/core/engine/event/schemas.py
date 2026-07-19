@@ -45,6 +45,7 @@ class AgentRunCompletedEvent(AgentEvent):
     project_id: int = DEFAULT_PROJECT_ID
     goal: str = ""
     status: str = "done"
+    source: str = ""
     payload: dict[str, Any] = Field(default_factory=dict)
 
     # Governance: Map to frontend RunEndEvent

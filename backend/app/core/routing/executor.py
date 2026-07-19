@@ -5,10 +5,10 @@
   sources) → push ``voice.route_result(done|failed)`` synchronously (short,
   no finish hook).
 - ``skill`` / agentic and ``agent``: ``dispatch_agent_run`` + ``run_agent_background``;
-  the terminal ``done|failed`` is pushed by ``VoiceResultSubscriber`` (subscribes
-  to ``system.session_completed`` / ``agent.run_completed(failed)``, filtered via
-  ``_voice_registry`` below). Local targets are a no-op here (the client already
-  executed them, §8.2).
+  the terminal ``done|failed`` is pushed by ``VoiceChannel`` (handles
+  ``SessionCompletedEvent`` / ``AgentRunCompletedEvent`` via ``UniversalBridgeSubscriber``,
+  filtered by ``source == "voice"``). Local targets are a no-op here (the client
+  already executed them, §8.2).
 
 Default policy (§16.5): deterministic failure does NOT fall back to agentic;
 voice skills only allow DESKTOP macros (DOM/MOBILE → ``failed``).
@@ -33,7 +33,7 @@ from app.utils.parameters import missing_required_params
 logger = logging.getLogger(__name__)
 
 # thread_id -> "skill" | "agent". Authoritative voice-source marker consumed by
-# VoiceResultSubscriber to push the terminal result. In-memory only: a restart
+# VoiceChannel to push the terminal result. In-memory only: a restart
 # mid-run loses it, but the WS is gone too, so the client's 60s timeout covers
 # it (§9.2).
 _voice_registry: dict[str, str] = {}
@@ -54,11 +54,6 @@ async def consume_voice(thread_id: str) -> str | None:
     """Pop and return the voice-source kind for `thread_id` (finish.py hook)."""
     async with _voice_lock:
         return _voice_registry.pop(thread_id, None)
-
-
-async def peek_voice(thread_id: str) -> str | None:
-    async with _voice_lock:
-        return _voice_registry.get(thread_id)
 
 
 async def push_voice_result(thread_id: str, status: str, summary: str) -> None:
@@ -112,11 +107,6 @@ async def cancel_voice_task(thread_id: str) -> bool:
     return False
 
 
-async def _unregister_voice_task(thread_id: str) -> None:
-    async with _voice_task_lock:
-        _voice_tasks.pop(thread_id, None)
-
-
 # ---------------------------------------------------------------------------
 # Streaming LLM output — token-by-token push via voice.token / voice.tts_boundary
 # ---------------------------------------------------------------------------
@@ -145,6 +135,8 @@ async def stream_llm_response(
     *,
     temperature: float = 0.7,
     max_tokens: int = 1024,
+    base_url: str | None = None,
+    api_key: str | None = None,
 ) -> str:
     """Stream LLM output token-by-token, pushing voice.token and voice.tts_boundary.
 
@@ -158,6 +150,8 @@ async def stream_llm_response(
         temperature=temperature,
         max_tokens=max_tokens,
         streaming=True,
+        base_url=base_url,
+        api_key=api_key,
     )
     llm = await LLMFactory.create_llm(config)
 
@@ -592,70 +586,3 @@ async def execute(thread_id: str, decision: RouteDecision) -> dict | None:
     return None
 
 
-async def execute_many(
-    thread_id: str, decisions: list[RouteDecision], message_id: str | None = None
-) -> None:
-    """Multi-intent orchestration: run decisions in order, feeding each
-    intent's extracted_data into the deterministic resolver for dependent
-    params (方案甲). A resolve failure hands THAT intent — with all prior
-    results — to the Agent (方案乙 fallback); later independent intents
-    still run. Single-decision lists are byte-identical to `execute`.
-    """
-    token = _current_message_id.set(message_id)
-    try:
-        if len(decisions) <= 1:
-            for decision in decisions:
-                await execute(thread_id, decision)
-            return
-
-        from app.constants import DEFAULT_PROJECT_ID
-        from app.core.routing.resolver import ResolveError, resolve_params
-
-        prior_results: dict[int, dict[str, Any]] = {}
-        total = len(decisions)
-
-        for i, decision in enumerate(decisions, 1):
-            params = dict(decision.params or {})
-            exprs = params.pop("_param_exprs", None) or None
-            params.pop("_depends_on", None)
-            intent_text = params.pop("_intent_text", "") or ""
-
-            if exprs:
-                try:
-                    params.update(resolve_params(exprs, prior_results))
-                except ResolveError as exc:
-                    logger.info(
-                        "[voice-executor] intent %d/%d resolve failed: %s", i, total, exc
-                    )
-                    brief = "\n".join(
-                        [
-                            f"[多步指令：第 {i}/{total} 步的参数无法确定，请接力完成]",
-                            f"该步指令：{intent_text or decision.raw or decision.target}",
-                            f"已完成步骤的产出：{json.dumps(prior_results, ensure_ascii=False)[:800]}",
-                            f"参数表达式：{json.dumps(exprs, ensure_ascii=False)}",
-                            f"失败原因：{exc}",
-                            "请根据已有产出算出该步所需的绝对值参数并执行；"
-                            "信息不足时向用户确认，完成后正常汇报。",
-                        ]
-                    )
-                    await _run_agent(
-                        thread_id,
-                        message_content=brief,
-                        project_id=DEFAULT_PROJECT_ID,
-                        metadata={
-                            "source": "voice",
-                            "voice_thread_id": thread_id,
-                            "macro_relay": "resolve_failed",
-                            "intent_index": i,
-                        },
-                        kind="macro",
-                    )
-                    prior_results[i] = {}
-                    continue
-
-            decision.params = params
-            logger.info("[voice-executor] running intent %d/%d: %s", i, total, intent_text)
-            extracted = await execute(thread_id, decision)
-            prior_results[i] = extracted or {}
-    finally:
-        _current_message_id.reset(token)

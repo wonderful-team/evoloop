@@ -96,7 +96,7 @@ class AiMessageMixin:
                     category=category.value,
                     status="completed",
                     sequence_number=seq,
-                    channels={"mobile"},
+                    channels={"mobile", "voice"},
                     parent_id=effective_parent_id,
                     message_id=msg_id,
                 )
@@ -112,7 +112,7 @@ class AiMessageMixin:
                 sequence_number=seq if persist_data.should_persist else 0,
                 status="streaming" if persist_data.should_persist else "completed",
                 references=extracted_refs if persist_data.should_persist else None,
-                channels={"sse"},
+                channels={"sse", "voice"},
                 parent_id=effective_parent_id,
                 message_id=msg_id,
             )

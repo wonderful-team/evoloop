@@ -51,6 +51,12 @@ class MessagePublisher:
                 channels = {"sse"}
             else:
                 channels = {"sse", "mobile"}
+        else:
+            channels = set(channels)
+
+        from app.core.routing.executor import _voice_registry
+        if self.thread_id in _voice_registry:
+            channels.add("voice")
 
         ctx = ChannelContext(
             thread_id=self.thread_id,

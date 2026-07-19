@@ -13,6 +13,7 @@ use tauri_plugin_shell::process::CommandChild;
 
 use crate::sidecar::SidecarClient;
 use crate::voice::event::VoiceEventBus;
+use crate::voice::wake_word::WakeWordDetector;
 
 // Marker overlay window management
 #[cfg(desktop)]
@@ -38,6 +39,14 @@ mod global_shortcut;
 
 #[cfg(desktop)]
 use global_shortcut::GLOBAL_SHORTCUT_MANAGER;
+
+#[cfg(desktop)]
+use std::sync::LazyLock;
+#[cfg(desktop)]
+static WAK_WORD_DETECTOR: LazyLock<Mutex<WakeWordDetector>> = LazyLock::new(|| {
+    // LazyLock requires the closure to be Send. WakeWordDetector::new() is Send.
+    Mutex::new(WakeWordDetector::new())
+});
 
 // ===== App State =====
 
@@ -65,6 +74,26 @@ pub struct AppServiceState {
     pub sidecar_client: Arc<Mutex<Option<SidecarClient>>>,
     // Full-duplex voice manager
     pub voice_manager: VoiceManagerHandle,
+}
+
+/// Find the voice models directory by searching common paths.
+#[cfg(desktop)]
+fn find_models_dir() -> Option<std::path::PathBuf> {
+    let home = dirs::home_dir()?;
+    let candidates = [
+        home.join(".evoloop/models"),
+        home.join(".config/models/sherpa-onnx/model"),
+    ];
+    for dir in &candidates {
+        if dir.join("encoder.int8.onnx").exists() && dir.join("silero_vad.onnx").exists() {
+            return Some(dir.clone());
+        }
+        // also check parent for VAD
+        if dir.join("encoder.int8.onnx").exists() && dir.parent().map(|p| p.join("silero_vad.onnx")).as_ref().map(|p| p.exists()).unwrap_or(false) {
+            return Some(dir.clone());
+        }
+    }
+    None
 }
 
 // ===== Global Recording Commands =====
@@ -598,6 +627,40 @@ async fn list_system_voices() -> Result<Vec<serde_json::Value>, String> {
     Err("TTS not supported on mobile".to_string())
 }
 
+// ===== Wake Word Commands =====
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn start_wake_word_listener(app: tauri::AppHandle, word: String) -> Result<(), String> {
+    use crate::voice::asr_engine::AsrEngine;
+
+    let models_dir = find_models_dir().ok_or("Voice models not found. Run deploy/download_models.sh --all")?;
+    let asr = Arc::new(AsrEngine::new(models_dir.to_str().ok_or("Invalid path")?)?);
+
+    let mut detector = WAK_WORD_DETECTOR.lock().map_err(|e| format!("Lock error: {}", e))?;
+    detector.start(app, word, asr)
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn stop_wake_word_listener() -> Result<(), String> {
+    let mut detector = WAK_WORD_DETECTOR.lock().map_err(|e| format!("Lock error: {}", e))?;
+    detector.stop();
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn start_wake_word_listener(_app: tauri::AppHandle, _word: String) -> Result<(), String> {
+    Err("Wake word not supported on mobile".to_string())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn stop_wake_word_listener() -> Result<(), String> {
+    Ok(())
+}
+
 // ===== TTS Engine Selection =====
 
 #[tauri::command]
@@ -858,7 +921,9 @@ pub fn run() {
         {
             let quit_i = MenuItem::with_id(_app, "quit", "退出", true, Some("CmdOrCtrl+Q"))?;
             let show_i = MenuItem::with_id(_app, "show", "显示主界面", true, None::<&str>)?;
-            let record_i = MenuItem::with_id(_app, "record", "技能录制", true, Some("CmdOrCtrl+R"))?;
+            let record_i = MenuItem::with_id(_app, "record", "技能录制", true, None::<&str>)?;
+            let voice_dictation_i = MenuItem::with_id(_app, "voice_dictation", "语音听写", true, Some("F12"))?;
+            let voice_dialogue_i = MenuItem::with_id(_app, "voice_dialogue", "语音对话", true, Some("F12"))?;
 
             let service_state = AppServiceState {
                 children: Arc::new(Mutex::new(Vec::new())),
@@ -895,7 +960,7 @@ pub fn run() {
             _app.manage(service_state);
 
             // Build system tray
-            let tray = tray::setup_tray(_app, &show_i, &record_i, &quit_i)?;
+            let tray = tray::setup_tray(_app, &show_i, &record_i, &voice_dictation_i, &voice_dialogue_i, &quit_i)?;
 
             let state = _app.state::<AppServiceState>();
             *state.tray.lock().unwrap() = Some(tray);
@@ -1001,6 +1066,9 @@ pub fn run() {
             trigger_voice_barge_in,
             get_voice_state,
             start_dictation,
+            // Wake word commands
+            start_wake_word_listener,
+            stop_wake_word_listener,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

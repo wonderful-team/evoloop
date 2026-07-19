@@ -21,7 +21,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.core.context import ContextManager, EvoContext
 from app.core.routing.connection import manager
 from app.core.routing.deps import enforce_loopback_ws
-from app.core.routing.idempotency import _ttl_seconds, is_duplicate
+from app.core.routing.idempotency import is_duplicate
 from app.core.schemas.canonical import (
     MessageType,
     create_envelope,
@@ -32,26 +32,6 @@ from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/voice", tags=["voice"])
-
-# message_id -> (monotonic expiry, routed body) so duplicate route requests can
-# be answered with the cached result instead of silently hanging.
-_DUPLICATE_ROUTE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
-_DUPLICATE_ROUTE_LOCK = asyncio.Lock()
-
-
-def _store_routed_body(message_id: str | None, body: dict[str, Any]) -> None:
-    if not message_id:
-        return
-    _DUPLICATE_ROUTE_CACHE[message_id] = (time.monotonic() + _ttl_seconds(), body)
-
-
-async def _cached_routed_body(message_id: str) -> dict[str, Any] | None:
-    async with _DUPLICATE_ROUTE_LOCK:
-        exp, body = _DUPLICATE_ROUTE_CACHE.get(message_id, (0.0, None))
-        if exp > time.monotonic():
-            return body
-        _DUPLICATE_ROUTE_CACHE.pop(message_id, None)
-    return None
 
 
 def _envelope(mtype: MessageType | str, body: dict[str, Any]) -> dict[str, Any]:
@@ -86,10 +66,7 @@ async def _handle_partial(body: dict[str, Any]) -> None:
 
 
 async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
-    from app.core.routing import executor, retriever
-    from app.core.routing import router as route_router
-    from app.core.routing.router import _top_k as _route_top_k
-    from app.core.routing.schemas import RouteRequest
+    from app.core.routing import executor
 
     text = str(body.get("text", "")).strip()
     thread_id = str(body.get("thread_id", "")).strip()
@@ -97,6 +74,7 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
     if not text or not thread_id:
         return
 
+    t_total_start = time.time()
     lock = await executor.get_thread_lock(thread_id)
     async with lock:
         ctx = EvoContext(thread_id=thread_id, request_id=message_id or gen_uuid())
@@ -111,12 +89,6 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
                 if terminal is not None:
                     await manager.push(
                         thread_id, _envelope(MessageType.VOICE_ROUTE_RESULT, terminal)
-                    )
-                    return
-                cached = await _cached_routed_body(str(message_id))
-                if cached is not None:
-                    await manager.push(
-                        thread_id, _envelope(MessageType.VOICE_ROUTE_RESULT, cached)
                     )
                 else:
                     await manager.push(
@@ -134,42 +106,53 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
                     )
                 return
 
-            req = RouteRequest(text=text, thread_id=thread_id, message_id=message_id)
-
-            # Use preheated candidates if available, otherwise retrieve fresh.
-            preheated = await retriever.retrieve_cached(thread_id)
-            if preheated is not None:
-                candidates = preheated[: _route_top_k()]
-                logger.debug("[voice] using preheated candidates for %s", thread_id)
-            else:
-                candidates = await retriever.retrieve(text, top_k=_route_top_k())
-            decisions = await route_router.route_many(req, candidates)
-
-            decision = decisions[0]
-            routed_body = {
-                "thread_id": thread_id,
-                "status": decision.status,
-                "target": decision.target or {"type": decision.target_type},
-                "params": {
-                    k: v for k, v in (decision.params or {}).items() if not k.startswith("_")
-                },
-                "candidates": [c.model_dump() for c in decision.candidates],
-            }
-            if len(decisions) > 1:
-                routed_body["intents"] = len(decisions)
-            _store_routed_body(message_id, routed_body)
-            await manager.push(
-                thread_id, _envelope(MessageType.VOICE_ROUTE_RESULT, routed_body)
-            )
-
-            if decision.target_type in ("skill", "macro", "agent"):
+            # Fast path: pre-check L0 before expensive LLM routing
+            from app.core.routing.router import _get_local_matcher
+            matcher = await _get_local_matcher()
+            l0_hit = matcher.match(text) is not None
+            if not l0_hit:
+                # L0 miss → skip LLM route, dispatch to agent directly
+                logger.info("[voice-perf] %s L0 miss → agent fast path (saved ~1-2s)", thread_id)
+                # Dispatch agent directly
+                from app.core.engine.dispatch import dispatch_agent_run
+                from app.core.engine.background_agent import run_agent_background
+                from app.constants import DEFAULT_PROJECT_ID
                 await voice_state_machine.set(thread_id, VoiceSessionState.SPEAKING)
-                task = asyncio.create_task(
-                    executor.execute_many(thread_id, decisions, message_id)
+                await executor._mark_voice(thread_id, "agent")
+                result = await dispatch_agent_run(
+                    thread_id=thread_id, message_content=text,
+                    project_id=DEFAULT_PROJECT_ID,
+                    metadata={"source": "voice", "voice_thread_id": thread_id},
                 )
-                await executor.register_voice_task(thread_id, task)
-            else:
-                await voice_state_machine.set(thread_id, VoiceSessionState.IDLE)
+                if result.status == "failed":
+                    await executor.consume_voice(thread_id)
+                    await executor.push_voice_result(thread_id, "failed",
+                        getattr(result, "error", "") or "dispatch failed")
+                else:
+                    task = asyncio.create_task(
+                        run_agent_background(thread_id, result.inputs)
+                    )
+                    await executor.register_voice_task(thread_id, task)
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        logger.info("[voice] agent task cancelled for thread %s", thread_id)
+                        await executor.consume_voice(thread_id)
+                        await executor.push_voice_result(thread_id, "cancelled", "")
+                total_ms = (time.time() - t_total_start) * 1000
+                logger.info("[voice-perf] %s agent fast path total=%.0fms", thread_id, total_ms)
+                return
+
+            # L0 hit: push local result directly
+            action, args = matcher.match(text)
+            routed_body = {
+                "thread_id": thread_id, "status": "routed",
+                "target": {"type": "local", "action": action},
+                "params": args or {}, "candidates": [],
+            }
+            await manager.push(thread_id, _envelope(MessageType.VOICE_ROUTE_RESULT, routed_body))
+            await voice_state_machine.set(thread_id, VoiceSessionState.IDLE)
+
         finally:
             ContextManager.reset(token)
 

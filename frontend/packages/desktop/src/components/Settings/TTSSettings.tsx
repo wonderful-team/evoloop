@@ -49,32 +49,45 @@ export function TTSSettings() {
   } = useSettings()
   const [initialState, setInitialState] = useState<any>(null)
 
-  useEffect(() => {
-    fetchVoices(tempTtsEngine)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const fetchConfig = () => {
+  const fetchConfig = async () => {
+    let savedEngine = localStorage.getItem("evoloop_tts_engine") || "edge-tts"
+    if (isTauri()) {
+      try {
+        const backendEngine = await safeInvoke<string>("get_tts_engine")
+        if (backendEngine) {
+          savedEngine = backendEngine
+        }
+      } catch (e) {
+        console.error("Failed to get TTS engine:", e)
+      }
+    }
+    const savedVoice = localStorage.getItem("evoloop_tts_voice") || currentVoice
     const savedSpeed = parseFloat(
       localStorage.getItem("evoloop_tts_speed") || "1.0",
     )
     const savedKey = localStorage.getItem("evoloop_qwen_tts_key") || ""
+
+    setTempTtsEngine(savedEngine)
+    setTempCurrentVoice(savedVoice)
+    originalSetCurrentVoice(savedVoice)
     setTempSpeed(savedSpeed)
     setTempAutoSpeak(autoSpeak)
-    setTempCurrentVoice(currentVoice)
     setTempQwenTtsApiKey(savedKey)
+
+    fetchVoices(savedEngine, savedVoice)
 
     setInitialState({
       autoSpeak,
-      currentVoice,
+      currentVoice: savedVoice,
       speed: savedSpeed,
-      ttsEngine: tempTtsEngine,
+      ttsEngine: savedEngine,
       qwenTtsApiKey: savedKey,
     })
   }
 
   useEffect(() => {
     fetchConfig()
-  }, [autoSpeak, currentVoice])
+  }, [])
 
   // Track dirty
   useEffect(() => {
@@ -109,6 +122,8 @@ export function TTSSettings() {
 
   useEffect(() => {
     registerSaveHandler("tts", async () => {
+      localStorage.setItem("evoloop_tts_engine", tempTtsEngine)
+      localStorage.setItem("evoloop_tts_voice", tempCurrentVoice)
       localStorage.setItem("evoloop_tts_speed", String(tempSpeed))
       localStorage.setItem("evoloop_qwen_tts_key", tempQwenTtsApiKey)
       originalSetCurrentVoice(tempCurrentVoice)
@@ -213,45 +228,42 @@ export function TTSSettings() {
           </div>
         )}
 
-        {/* Voice selection dropdown */}
-        <div className="space-y-3">
+        {/* Voice selection dropdown & Preview button on the same row */}
+        <div className="space-y-2">
           <Label className="text-sm font-medium">{t("settings.tts.voice")}</Label>
-          <Select value={tempCurrentVoice} onValueChange={setTempCurrentVoice}>
-            <SelectTrigger className="h-10">
-              <SelectValue placeholder={t("settings.tts.voice")} />
-            </SelectTrigger>
-            <SelectContent className="max-h-72">
-              {voices.map((voice) => (
-                <SelectItem key={voice.id} value={voice.id}>
-                  <span className="flex items-center gap-2">
-                    <span>{voice.name}</span>
-                    <span className="text-xs text-muted-foreground">({voice.gender})</span>
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <Select value={tempCurrentVoice} onValueChange={setTempCurrentVoice}>
+              <SelectTrigger className="h-10 flex-1">
+                <SelectValue placeholder={t("settings.tts.voice")} />
+              </SelectTrigger>
+              <SelectContent className="max-h-72">
+                {voices.map((voice) => (
+                  <SelectItem key={voice.id} value={voice.id}>
+                    <span className="flex items-center gap-2">
+                      <span>{voice.name}</span>
+                      <span className="text-xs text-muted-foreground">({voice.gender})</span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          {currentVoiceObj && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handlePreview(currentVoiceObj)}
-              disabled={isPlaying !== null}
-              className="w-full h-9"
-            >
-              {isPlaying !== null ? (
-                <Volume2 className="mr-2 h-4 w-4 animate-pulse" />
-              ) : (
-                <Play className="mr-2 h-4 w-4" />
-              )}
-              {t("chat.tts.preview")}
-            </Button>
-          )}
-
-          <div className="flex items-start gap-3 p-4 bg-blue-500/5 border border-blue-500/10 rounded-xl text-sm text-blue-700/80 dark:text-blue-300/80">
-            <Volume2 className="h-5 w-5 shrink-0 mt-0.5 text-blue-500" />
-            <p className="leading-relaxed italic">{t("settings.tts.note")}</p>
+            {currentVoiceObj && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePreview(currentVoiceObj)}
+                disabled={isPlaying !== null}
+                className="h-10 px-3 shrink-0"
+              >
+                {isPlaying !== null ? (
+                  <Volume2 className="mr-1.5 h-4 w-4 animate-pulse" />
+                ) : (
+                  <Play className="mr-1.5 h-4 w-4" />
+                )}
+                {t("chat.tts.preview")}
+              </Button>
+            )}
           </div>
         </div>
 

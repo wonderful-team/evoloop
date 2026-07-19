@@ -1,11 +1,12 @@
+import { invoke } from "@tauri-apps/api/core"
+import { listen } from "@tauri-apps/api/event"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { useTranslation } from "react-i18next"
+import { isTauri } from "@/lib/tauri"
 
 interface UseWakeWordOptions {
   wakeWord?: string
   onWake?: () => void
   enabled?: boolean
-  language?: string
 }
 
 interface UseWakeWordReturn {
@@ -20,154 +21,72 @@ interface UseWakeWordReturn {
 export function useWakeWord(
   options: UseWakeWordOptions = {},
 ): UseWakeWordReturn {
-  const { t } = useTranslation()
   const {
     wakeWord = "你好 Evo",
     onWake,
-    enabled = false,
-    language = "zh-CN",
   } = options
 
   const [isListening, setIsListening] = useState(false)
   const [isWakeWordDetected, setIsWakeWordDetected] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [transcript, setTranscript] = useState("")
-
-  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const unlistenRef = useRef<(() => void) | null>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Initialize speech recognition
+  // Listen for wake-word-detected Tauri event
   useEffect(() => {
-    if (!enabled || typeof window === "undefined") return
-
-    // Check browser support
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SpeechRecognition) {
-      setError(t("voice.notSupported"))
+    if (!isTauri()) {
+      setError("Wake word requires the desktop app")
       return
     }
 
-    // Use any type to avoid TypeScript issues with SpeechRecognition
-    const recognition: any = new SpeechRecognition()
-    recognition.continuous = true
-    recognition.interimResults = true
-    recognition.lang = language
+    const setup = async () => {
+      const unlisten = await listen<{ word: string; transcript: string }>(
+        "wake-word-detected",
+        (event) => {
+          setTranscript(event.payload.transcript)
+          setIsWakeWordDetected(true)
+          onWake?.()
 
-    recognition.onstart = () => {
-      setIsListening(true)
-      setError(null)
-    }
-
-    recognition.onend = () => {
-      setIsListening(false)
-      // Auto-restart if enabled
-      if (enabled && !isWakeWordDetected) {
-        setTimeout(() => {
-          try {
-            recognition.start()
-          } catch (_e) {
-            // Already started
-          }
-        }, 100)
-      }
-    }
-
-    recognition.onerror = (event: any) => {
-      if (event.error === "no-speech") {
-        // Ignore no-speech errors
-        return
-      }
-      setError(
-        t("voice.recognitionErrorWithDetail", {
-          message: t("voice.recognitionError"),
-          detail: event.error,
-        }),
+          if (timeoutRef.current) clearTimeout(timeoutRef.current)
+          timeoutRef.current = setTimeout(() => {
+            setIsWakeWordDetected(false)
+            setTranscript("")
+          }, 3000)
+        },
       )
-      setIsListening(false)
+      unlistenRef.current = unlisten
     }
-
-    recognition.onresult = (event: any) => {
-      let finalTranscript = ""
-      let interimTranscript = ""
-
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript
-        if (event.results[i].isFinal) {
-          finalTranscript += transcript
-        } else {
-          interimTranscript += transcript
-        }
-      }
-
-      const currentTranscript = finalTranscript || interimTranscript
-      setTranscript(currentTranscript)
-
-      // Check for wake word (case-insensitive)
-      const normalizedTranscript = currentTranscript
-        .toLowerCase()
-        .replace(/\s+/g, " ")
-        .trim()
-      const normalizedWakeWord = wakeWord
-        .toLowerCase()
-        .replace(/\s+/g, " ")
-        .trim()
-
-      // Also check partial matches
-      const wakeWordParts = normalizedWakeWord.split(" ")
-      const transcriptParts = normalizedTranscript.split(" ")
-
-      // Check if wake word is in transcript
-      const isMatch =
-        normalizedTranscript.includes(normalizedWakeWord) ||
-        wakeWordParts.every((part) =>
-          transcriptParts.some((tp) => tp.includes(part) || part.includes(tp)),
-        )
-
-      if (isMatch && !isWakeWordDetected) {
-        setIsWakeWordDetected(true)
-        onWake?.()
-
-        // Reset after 3 seconds
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current)
-        }
-        timeoutRef.current = setTimeout(() => {
-          setIsWakeWordDetected(false)
-          setTranscript("")
-        }, 3000)
-      }
-    }
-
-    recognitionRef.current = recognition
+    setup()
 
     return () => {
-      recognition.stop()
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-      }
+      unlistenRef.current?.()
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
     }
-  }, [wakeWord, enabled, language, onWake, isWakeWordDetected])
+  }, [onWake])
 
-  const startListening = useCallback(() => {
-    if (recognitionRef.current && !isListening) {
-      try {
-        recognitionRef.current.start()
-      } catch (e) {
-        console.error("Failed to start recognition:", e)
-      }
+  const startListening = useCallback(async () => {
+    if (!isTauri()) return
+    try {
+      await invoke("start_wake_word_listener", { word: wakeWord })
+      setIsListening(true)
+      setError(null)
+    } catch (e: any) {
+      setError(e.message || String(e))
+      setIsListening(false)
     }
-  }, [isListening])
+  }, [wakeWord])
 
-  const stopListening = useCallback(() => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop()
+  const stopListening = useCallback(async () => {
+    if (!isTauri()) return
+    try {
+      await invoke("stop_wake_word_listener")
+    } catch {
+      // ignore
     }
     setIsListening(false)
     setIsWakeWordDetected(false)
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current)
-    }
+    if (timeoutRef.current) clearTimeout(timeoutRef.current)
   }, [])
 
   return {
@@ -180,7 +99,6 @@ export function useWakeWord(
   }
 }
 
-// Hook for managing wake word settings
 export function useWakeWordSettings() {
   const [wakeWord, setWakeWord] = useState(() => {
     if (typeof window !== "undefined") {

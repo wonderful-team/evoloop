@@ -168,43 +168,10 @@ impl VoiceSession {
 
                 match msg_type {
                     "voice.route_result" => {
-                        let status = body.get("status")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("");
-                        info!("[voice-session] route_result: {}", status);
-
                         event_bus.emit("voice:route_result", body.clone());
-
-                        if status == "routed" {
-                            // Agent dispatched: TTS "好的，我来处理"
-                            let is_agent = body.get("target")
-                                .and_then(|t| t.get("type"))
-                                .and_then(|v| v.as_str())
-                                .map(|t| t == "agent")
-                                .unwrap_or(false);
-                            if is_agent {
-                                let lang = session_lang.read().await.clone();
-                                session_tts.queue_sentence("好的，我来处理".to_string());
-                                session_tts.speak_next(&lang);
-                            }
-                        } else if status == "done" || status == "failed" || status == "cancelled" {
-                            // Terminal result: speak summary via TTS
-                            if status == "done" {
-                                if let Some(summary) = body.get("summary").and_then(|v| v.as_str()) {
-                                    let s = summary.trim();
-                                    if !s.is_empty() {
-                                        session_tts.queue_sentence(s.to_string());
-                                        let lang = session_lang.read().await.clone();
-                                        session_tts.speak_next(&lang);
-                                    }
-                                }
-                            }
-
-                            // Move to idle only when TTS has finished
-                            if !session_tts.has_queued() && !session_tts.is_speaking() {
-                                let _ = session_state.set(VoiceState::Idle).await;
-                            }
-                        }
+                        handle_route_result(
+                            &body, &session_tts, &session_state, &session_lang
+                        ).await;
                     }
 
                     "voice.token" => {
@@ -554,6 +521,250 @@ impl VoiceSession {
     pub async fn disconnect_backend(&self) {
         if let Some(ws) = self.ws_client.write().await.take() {
             ws.disconnect().await;
+        }
+    }
+}
+
+/// Resolve the spoken confirmation text for a L0 local action.
+pub(crate) fn resolve_confirmation(action: &str) -> &'static str {
+    match action {
+        "mute" => "已静音",
+        "unmute" => "已恢复",
+        "lock_screen" => "已锁屏",
+        "screenshot" => "已截图",
+        "end" => "再见",
+        _ => "好的",
+    }
+}
+
+/// Handle a `voice.route_result` message: decide what to speak via TTS.
+pub(crate) async fn handle_route_result(
+    body: &serde_json::Value,
+    session_tts: &TtsEngine,
+    session_state: &VoiceStateMachine,
+    session_lang: &RwLock<String>,
+) {
+    let status = body.get("status")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    if status == "routed" {
+        let target_type = body.get("target")
+            .and_then(|t| t.get("type"))
+            .and_then(|v| v.as_str());
+        let lang = session_lang.read().await.clone();
+        match target_type {
+            Some("local") => {
+                // L0 hit: speak action-specific confirmation
+                let confirmation = body.get("target")
+                    .and_then(|t| t.get("action"))
+                    .and_then(|v| v.as_str())
+                    .map(resolve_confirmation)
+                    .unwrap_or("好的");
+                session_tts.queue_sentence(confirmation.to_string());
+                session_tts.speak_next(&lang);
+            }
+            _ => {
+                // Agent ack from VoiceChannel or old-style agent routed:
+                // speak the summary content directly (Supervisor's natural language)
+                if let Some(text) = body.get("summary").and_then(|v| v.as_str()) {
+                    let s = text.trim();
+                    if !s.is_empty() {
+                        session_tts.queue_sentence(s.to_string());
+                        session_tts.speak_next(&lang);
+                    }
+                }
+            }
+        }
+    } else if status == "done" || status == "failed" || status == "cancelled" {
+        let lang = session_lang.read().await.clone();
+        if status == "done" {
+            if let Some(summary) = body.get("summary").and_then(|v| v.as_str()) {
+                let s = summary.trim();
+                if !s.is_empty() {
+                    session_tts.queue_sentence(s.to_string());
+                    session_tts.speak_next(&lang);
+                }
+            }
+        } else if status == "failed" {
+            session_tts.queue_sentence("抱歉，处理出错了".to_string());
+            session_tts.speak_next(&lang);
+        }
+
+        if !session_tts.has_queued() && !session_tts.is_speaking() {
+            let _ = session_state.set(VoiceState::Idle).await;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resolve_confirmation_mute() {
+        assert_eq!(resolve_confirmation("mute"), "已静音");
+    }
+
+    #[test]
+    fn test_resolve_confirmation_unmute() {
+        assert_eq!(resolve_confirmation("unmute"), "已恢复");
+    }
+
+    #[test]
+    fn test_resolve_confirmation_screenshot() {
+        assert_eq!(resolve_confirmation("screenshot"), "已截图");
+    }
+
+    #[test]
+    fn test_resolve_confirmation_lock_screen() {
+        assert_eq!(resolve_confirmation("lock_screen"), "已锁屏");
+    }
+
+    #[test]
+    fn test_resolve_confirmation_end() {
+        assert_eq!(resolve_confirmation("end"), "再见");
+    }
+
+    #[test]
+    fn test_resolve_confirmation_default() {
+        assert_eq!(resolve_confirmation("open_app"), "好的");
+        assert_eq!(resolve_confirmation("play_pause"), "好的");
+        assert_eq!(resolve_confirmation("unknown_action"), "好的");
+    }
+
+    mod handler {
+        use super::*;
+        use std::collections::VecDeque;
+        use std::sync::{Arc, Mutex};
+        use tokio::sync::RwLock;
+
+        fn make_body(status: &str, target_type: &str, action: &str) -> serde_json::Value {
+            serde_json::json!({
+                "thread_id": "test-tid",
+                "status": status,
+                "target": {"type": target_type, "action": action},
+                "params": {},
+                "candidates": [],
+            })
+        }
+
+        fn make_done_body(summary: &str) -> serde_json::Value {
+            serde_json::json!({
+                "thread_id": "test-tid",
+                "status": "done",
+                "summary": summary,
+            })
+        }
+
+        #[tokio::test]
+        async fn test_l0_local_hit_triggers_speak() {
+            let tts = TtsEngine::new_with_queue(Arc::new(Mutex::new(VecDeque::new()))).unwrap();
+            let sm = VoiceStateMachine::new();
+            let lang = RwLock::new("zh-CN".to_string());
+
+            let body = make_body("routed", "local", "mute");
+            handle_route_result(&body, &tts, &sm, &lang).await;
+
+            assert!(tts.is_speaking(), "L0 local hit should trigger TTS");
+        }
+
+        #[tokio::test]
+        async fn test_agent_routed_triggers_speak() {
+            let tts = TtsEngine::new_with_queue(Arc::new(Mutex::new(VecDeque::new()))).unwrap();
+            let sm = VoiceStateMachine::new();
+            let lang = RwLock::new("zh-CN".to_string());
+
+            let body = serde_json::json!({
+                "thread_id": "test-tid",
+                "status": "routed",
+                "summary": "正在为你查询，请稍候",
+            });
+            handle_route_result(&body, &tts, &sm, &lang).await;
+
+            assert!(tts.is_speaking(), "agent routed should trigger TTS");
+        }
+
+        #[tokio::test]
+        async fn test_done_speaks_summary() {
+            let tts = TtsEngine::new_with_queue(Arc::new(Mutex::new(VecDeque::new()))).unwrap();
+            let sm = VoiceStateMachine::new();
+            let lang = RwLock::new("zh-CN".to_string());
+
+            let body = make_done_body("已为你完成操作");
+            handle_route_result(&body, &tts, &sm, &lang).await;
+
+            assert!(tts.is_speaking());
+        }
+
+        #[tokio::test]
+        async fn test_done_empty_summary_no_speak() {
+            let tts = TtsEngine::new_with_queue(Arc::new(Mutex::new(VecDeque::new()))).unwrap();
+            let sm = VoiceStateMachine::new();
+            let lang = RwLock::new("zh-CN".to_string());
+
+            let body = make_done_body("");
+            handle_route_result(&body, &tts, &sm, &lang).await;
+
+            assert!(!tts.is_speaking(), "empty summary should not speak");
+        }
+
+        #[tokio::test]
+        async fn test_empty_summary_transitions_idle() {
+            let tts = TtsEngine::new_with_queue(Arc::new(Mutex::new(VecDeque::new()))).unwrap();
+            let sm = VoiceStateMachine::new();
+            let lang = RwLock::new("zh-CN".to_string());
+
+            let body = make_done_body("");
+            handle_route_result(&body, &tts, &sm, &lang).await;
+
+            assert_eq!(sm.get().await, VoiceState::Idle);
+        }
+
+        #[tokio::test]
+        async fn test_failed_speaks_error() {
+            let tts = TtsEngine::new_with_queue(Arc::new(Mutex::new(VecDeque::new()))).unwrap();
+            let sm = VoiceStateMachine::new();
+            let lang = RwLock::new("zh-CN".to_string());
+
+            let body = serde_json::json!({
+                "thread_id": "test-tid",
+                "status": "failed",
+                "summary": "something broke",
+            });
+            handle_route_result(&body, &tts, &sm, &lang).await;
+
+            assert!(tts.is_speaking(), "failed should speak error");
+        }
+
+        #[tokio::test]
+        async fn test_cancelled_no_speak() {
+            let tts = TtsEngine::new_with_queue(Arc::new(Mutex::new(VecDeque::new()))).unwrap();
+            let sm = VoiceStateMachine::new();
+            let lang = RwLock::new("zh-CN".to_string());
+
+            let body = serde_json::json!({
+                "thread_id": "test-tid",
+                "status": "cancelled",
+            });
+            handle_route_result(&body, &tts, &sm, &lang).await;
+
+            assert!(!tts.is_speaking(), "cancelled should not speak");
+        }
+
+        #[tokio::test]
+        async fn test_cancelled_transitions_idle() {
+            let tts = TtsEngine::new_with_queue(Arc::new(Mutex::new(VecDeque::new()))).unwrap();
+            let sm = VoiceStateMachine::new();
+            let lang = RwLock::new("zh-CN".to_string());
+
+            let body = serde_json::json!({
+                "thread_id": "test-tid",
+                "status": "cancelled",
+            });
+            handle_route_result(&body, &tts, &sm, &lang).await;
+
+            assert_eq!(sm.get().await, VoiceState::Idle);
         }
     }
 }

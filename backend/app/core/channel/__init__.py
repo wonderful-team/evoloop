@@ -13,6 +13,7 @@ with the registry — no changes to MessagePublisher needed.
 from .base import Channel, ChannelContext
 from .mobile_channel import MobileChannel
 from .registry import ChannelRegistry, channel_registry, register_default_channels
+from .voice_channel import VoiceChannel
 from .web_channel import WebChannel
 
 __all__ = [
@@ -21,6 +22,7 @@ __all__ = [
     "ChannelRegistry",
     "channel_registry",
     "register_default_channels",
+    "VoiceChannel",
     "WebChannel",
     "MobileChannel",
 ]

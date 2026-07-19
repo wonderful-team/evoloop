@@ -172,15 +172,6 @@ nodes:
       - "synthesize_skill"
       - "verify_ui_state"
 
-  - id: "chat"
-    path: "app.core.engine.nodes.chat.ChatNode"
-    tools:
-      # Chat Node: Lightweight memory tools only
-      # NO file operations, browser, desktop, or command execution
-      - "recall"           # Search long-term memory
-      - "remember"         # Save information to memory
-      - "search_history"   # Search current conversation history
-
   - id: "aggregator"
     path: "app.core.engine.nodes.aggregator.AggregatorNode"
 
@@ -193,7 +184,6 @@ edges:
     type: "conditional"
     router: "app.core.engine.routers.route_supervisor"
     map:
-      chat: "chat"
       supervisor: "supervisor"
       finish: "finish"
       worker: "worker"
@@ -221,15 +211,7 @@ edges:
       finish: "finish"
       supervisor: "supervisor"
 
-  # 4. Chat -> Finish/End (Conditional — ensures audit lifecycle runs for chat too)
-  - from: "chat"
-    type: "conditional"
-    router: "app.core.engine.routers.route_by_next_node"
-    map:
-      finish: "finish"
-      END: "END"
-
-  # 5. Finish -> Supervisor/End (Conditional Loopback)
+  # 4. Finish -> Supervisor/End (Conditional Loopback)
   - from: "finish"
     type: "conditional"
     router: "app.core.engine.routers.route_finish"
@@ -237,7 +219,7 @@ edges:
       supervisor: "supervisor"
       END: "END"
 
-  # 6. Aggregator -> Supervisor (Aggregator reports merged results back)
+  # 5. Aggregator -> Supervisor (Aggregator reports merged results back)
   - from: "aggregator"
     to: "supervisor"
     type: "simple"

@@ -484,13 +484,17 @@ export const ChatInputArea = memo(
         setShowPicker(false)
       }
 
-      // Wake word detection
+      // Wake word detection — auto-starts dictation session
       const handleWakeWordDetected = useCallback(() => {
         setShowWakeWordIndicator(true)
-        // Auto-hide after 3 seconds
         setTimeout(() => setShowWakeWordIndicator(false), 3000)
         toast.success(t("chat.voice.wakeWordDetected"))
-      }, [t])
+
+        // Auto-start dictation mode
+        if (voiceMode === "off" && isTauri()) {
+          setVoiceMode("dictation")
+        }
+      }, [t, voiceMode])
 
       useWakeWord({
         wakeWord,
@@ -580,6 +584,45 @@ export const ChatInputArea = memo(
         enabled: shortcutEnabled,
         ...voiceShortcutHandlers,
       })
+
+      // Tray voice menu item toggle handlers
+      useEffect(() => {
+        if (!isTauri()) return
+
+        let unlistenDictation: (() => void) | undefined
+        let unlistenDialogue: (() => void) | undefined
+
+        const setupTrayListeners = async () => {
+          try {
+            unlistenDictation = await safeListen("tray-voice-dictation-toggle", () => {
+              const current = voiceModeRef.current
+              if (current === "dictation") {
+                setVoiceMode("off")
+              } else {
+                setVoiceMode("dictation")
+              }
+            })
+
+            unlistenDialogue = await safeListen("tray-voice-dialogue-toggle", () => {
+              const current = voiceModeRef.current
+              if (current === "dialogue") {
+                setVoiceMode("off")
+              } else {
+                setVoiceMode("dialogue")
+              }
+            })
+          } catch (e) {
+            console.error("Failed to setup tray voice listeners:", e)
+          }
+        }
+
+        setupTrayListeners()
+
+        return () => {
+          unlistenDictation?.()
+          unlistenDialogue?.()
+        }
+      }, [])
 
       // Voice mode: start/stop session when mode changes
       const prevVoiceModeRef = useRef(voiceMode)

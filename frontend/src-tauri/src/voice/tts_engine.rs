@@ -31,10 +31,11 @@ impl TtsEngineKind {
     }
 }
 
+#[derive(Clone)]
 pub struct TtsEngine {
-    speaking: Arc<AtomicBool>,
-    sentence_queue: Arc<Mutex<Vec<String>>>,
-    audio_queue: Arc<Mutex<VecDeque<f32>>>,
+    pub(crate) speaking: Arc<AtomicBool>,
+    pub(crate) sentence_queue: Arc<Mutex<Vec<String>>>,
+    pub(crate) audio_queue: Arc<Mutex<VecDeque<f32>>>,
     stop_signal: Arc<AtomicBool>,
     lang: Arc<Mutex<String>>,
     engine: Arc<Mutex<TtsEngineKind>>,
@@ -95,9 +96,10 @@ impl TtsEngine {
         let speed = self.get_speed();
         let speaking = self.speaking.clone();
         let text = text.to_string();
-        let lang = lang.to_string();
+        let lang_str = lang.to_string();
+        let engine_clone = self.clone();
         std::thread::spawn(move || {
-            let voice = if lang.starts_with("zh") { "Ting-Ting" } else { "Samantha" };
+            let voice = if lang_str.starts_with("zh") { "Ting-Ting" } else { "Samantha" };
             let rate = (speed * 200.0) as i32;
             let status = std::process::Command::new("say")
                 .arg("-v").arg(voice)
@@ -110,6 +112,7 @@ impl TtsEngine {
                 }
             }
             speaking.store(false, Ordering::SeqCst);
+            engine_clone.speak_next(&lang_str);
         });
     }
 
@@ -118,23 +121,17 @@ impl TtsEngine {
         info!("[tts] edge-tts: {}...", &text[..text.len().min(50)]);
         let speaking = self.speaking.clone();
         let text = text.to_string();
+        let lang_str = _lang.to_string();
         let voice_name = self.get_voice();
         let final_voice = if voice_name.is_empty() { "zh-CN-XiaoxiaoNeural".to_string() } else { voice_name };
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build();
-            match rt {
-                Ok(rt) => {
-                    rt.block_on(async {
-                        speak_edge_tts(&text, &final_voice, true).await;
-                    });
-                }
-                Err(e) => {
-                    warn!("[tts] failed to create tokio runtime for edge-tts: {}", e);
-                }
+        let engine_clone = self.clone();
+        tokio::spawn(async move {
+            let res = speak_edge_tts(&text, &final_voice, true).await;
+            if let Err(e) = res {
+                warn!("[tts] Edge-TTS failed: {}", e);
             }
             speaking.store(false, Ordering::SeqCst);
+            engine_clone.speak_next(&lang_str);
         });
     }
 
@@ -143,20 +140,16 @@ impl TtsEngine {
         info!("[tts] qwen-tts: {}...", &text[..text.len().min(50)]);
         let speaking = self.speaking.clone();
         let text = text.to_string();
+        let lang_str = _lang.to_string();
         let voice_name = self.get_voice();
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build();
-            match rt {
-                Ok(rt) => {
-                    rt.block_on(async {
-                        let _ = speak_qwen_tts(&text, &voice_name).await;
-                    });
-                }
-                Err(e) => warn!("[tts] failed to create runtime: {}", e),
+        let engine_clone = self.clone();
+        tokio::spawn(async move {
+            let res = speak_qwen_tts(&text, &voice_name).await;
+            if let Err(e) = res {
+                warn!("[tts] Qwen-TTS failed: {}", e);
             }
             speaking.store(false, Ordering::SeqCst);
+            engine_clone.speak_next(&lang_str);
         });
     }
 
@@ -183,6 +176,9 @@ impl TtsEngine {
 
     /// Speak the next queued sentence.
     pub fn speak_next(&self, lang: &str) {
+        if self.is_speaking() {
+            return;
+        }
         if let Ok(mut q) = self.sentence_queue.lock() {
             if let Some(sentence) = q.first().cloned() {
                 q.remove(0);
@@ -402,4 +398,165 @@ async fn speak_qwen_tts(text: &str, voice: &str) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::VecDeque;
+
+    #[test]
+    fn test_queue_sentence_empty_is_noop() {
+        let tts = TtsEngine::new_with_queue(Arc::new(Mutex::new(VecDeque::new()))).unwrap();
+        tts.queue_sentence("".to_string());
+        assert!(!tts.has_queued());
+    }
+
+    #[test]
+    fn test_queue_and_check_state() {
+        let tts = TtsEngine::new_with_queue(Arc::new(Mutex::new(VecDeque::new()))).unwrap();
+        assert!(!tts.has_queued());
+        assert!(!tts.is_speaking());
+        assert!(!tts.has_audio());
+
+        tts.queue_sentence("你好".to_string());
+        assert!(tts.has_queued());
+    }
+
+    #[test]
+    fn test_speak_next_dequeues_and_sets_speaking() {
+        let tts = TtsEngine::new_with_queue(Arc::new(Mutex::new(VecDeque::new()))).unwrap();
+        tts.queue_sentence("测试".to_string());
+        assert!(tts.has_queued());
+
+        tts.speak_next("zh-CN");
+        assert!(!tts.has_queued());
+        assert!(tts.is_speaking());
+    }
+
+    #[test]
+    fn test_stop_clears_queues_and_speaking() {
+        let tts = TtsEngine::new_with_queue(Arc::new(Mutex::new(VecDeque::new()))).unwrap();
+        tts.queue_sentence("你好".to_string());
+        tts.queue_sentence("世界".to_string());
+        assert!(tts.has_queued());
+
+        tts.stop();
+        assert!(!tts.has_queued());
+        assert!(!tts.has_audio());
+        assert!(!tts.is_speaking());
+    }
+
+    #[test]
+    fn test_resume_clears_stop_signal() {
+        let tts = TtsEngine::new_with_queue(Arc::new(Mutex::new(VecDeque::new()))).unwrap();
+        tts.stop();
+        tts.resume();
+        assert!(!tts.has_queued());
+    }
+
+    #[test]
+    fn test_engine_kind_from_str() {
+        assert_eq!(TtsEngineKind::from_str("system"), TtsEngineKind::System);
+        assert_eq!(TtsEngineKind::from_str("edge"), TtsEngineKind::EdgeTts);
+        assert_eq!(TtsEngineKind::from_str("edge-tts"), TtsEngineKind::EdgeTts);
+        assert_eq!(TtsEngineKind::from_str("qwen"), TtsEngineKind::QwenTts);
+        assert_eq!(TtsEngineKind::from_str("unknown"), TtsEngineKind::System);
+    }
+
+    #[test]
+    fn test_set_and_get_engine() {
+        let tts = TtsEngine::new_with_queue(Arc::new(Mutex::new(VecDeque::new()))).unwrap();
+        assert_eq!(tts.get_engine(), TtsEngineKind::System);
+        tts.set_engine(TtsEngineKind::EdgeTts);
+        assert_eq!(tts.get_engine(), TtsEngineKind::EdgeTts);
+    }
+
+    #[test]
+    fn test_set_and_get_voice() {
+        let tts = TtsEngine::new_with_queue(Arc::new(Mutex::new(VecDeque::new()))).unwrap();
+        tts.set_voice("zh-CN-XiaoxiaoNeural".to_string());
+        assert_eq!(tts.get_voice(), "zh-CN-XiaoxiaoNeural");
+    }
+
+    #[test]
+    fn test_set_and_get_speed() {
+        let tts = TtsEngine::new_with_queue(Arc::new(Mutex::new(VecDeque::new()))).unwrap();
+        assert_eq!(tts.get_speed(), 1.0);
+        tts.set_speed(1.5);
+        assert!((tts.get_speed() - 1.5).abs() < 0.01);
+        tts.set_speed(3.0);
+        assert!((tts.get_speed() - 2.0).abs() < 0.01);
+    }
+
+    /// Verify the system `say` command is available and produces valid audio output.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_say_command_produces_audio() {
+        let out_path = "/tmp/evoloop_test_say.aiff";
+        let _ = std::fs::remove_file(out_path);
+
+        let status = std::process::Command::new("say")
+            .arg("-v")
+            .arg("Ting-Ting")
+            .arg("-o")
+            .arg(out_path)
+            .arg("测试语音")
+            .status()
+            .expect("say command not found");
+        assert!(status.success(), "say command exited with failure");
+
+        let meta = std::fs::metadata(out_path)
+            .expect("say command did not produce output file");
+        assert!(meta.len() > 1024, "audio file too small: {} bytes", meta.len());
+
+        let _ = std::fs::remove_file(out_path);
+    }
+
+    /// Verify `say` with different rate settings works.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_say_command_different_rates() {
+        for rate in [100, 200, 300] {
+            let out_path = format!("/tmp/evoloop_test_say_rate_{}.aiff", rate);
+            let _ = std::fs::remove_file(&out_path);
+
+            let status = std::process::Command::new("say")
+                .arg("-v").arg("Ting-Ting")
+                .arg("-r").arg(rate.to_string())
+                .arg("-o").arg(&out_path)
+                .arg("速度测试")
+                .status()
+                .expect("say command not found");
+            assert!(status.success(), "say failed at rate {}", rate);
+
+            let meta = std::fs::metadata(&out_path)
+                .unwrap_or_else(|_| panic!("no output at rate {}", rate));
+            assert!(meta.len() > 500, "rate {}: audio too small", rate);
+
+            let _ = std::fs::remove_file(&out_path);
+        }
+    }
+
+    /// Verify the full TtsEngine speak lifecycle works end-to-end with System backend.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_tts_engine_system_backend() {
+        let tts = TtsEngine::new_with_queue(Arc::new(Mutex::new(VecDeque::new()))).unwrap();
+        tts.set_engine(TtsEngineKind::System);
+        tts.set_voice("Ting-Ting".to_string());
+        tts.set_speed(1.0);
+
+        tts.queue_sentence("你好".to_string());
+        assert!(tts.has_queued());
+
+        tts.speak_next("zh-CN");
+        assert!(tts.is_speaking());
+        assert!(!tts.has_queued());
+
+        // Wait for the say process to finish
+        std::thread::sleep(std::time::Duration::from_secs(3));
+
+        assert!(!tts.is_speaking(), "say should have completed within 3s");
+    }
 }

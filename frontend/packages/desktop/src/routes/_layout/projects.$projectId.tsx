@@ -100,12 +100,6 @@ function ProjectLayout() {
       path: "/generation",
     },
     {
-      id: "project-overview",
-      label: t("projects.tabs.projectOverview"),
-      icon: FileText,
-      path: "/overview",
-    },
-    {
       id: "vault",
       label: t("projects.tabs.vault"),
       icon: Key,

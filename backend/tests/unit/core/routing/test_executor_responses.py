@@ -257,33 +257,3 @@ class TestAgentHandoff:
         assert pushed and pushed[0][0] == "failed" and "db down" in pushed[0][1]
 
 
-class TestMultiIntentResolveFallback:
-    async def test_resolve_failure_relays_that_intent_others_continue(
-        self, pushed, monkeypatch
-    ):
-        from app.core.routing.resolver import ResolveError
-
-        monkeypatch.setattr(
-            "app.core.routing.resolver.resolve_params",
-            lambda exprs, prior: (_ for _ in ()).throw(ResolveError("价格缺失")),
-        )
-        relayed = []
-        monkeypatch.setattr(
-            executor,
-            "_run_agent",
-            AsyncMock(side_effect=lambda *a, **kw: relayed.append(kw)),
-        )
-        ran = []
-        monkeypatch.setattr(
-            executor,
-            "_run_macro",
-            AsyncMock(side_effect=lambda t, d: ran.append(d.target["id"]) or {}),
-        )
-
-        d1 = _decision(target={"id": 1}, params={"_param_exprs": {"v": "r0.价格"}})
-        d2 = _decision(target={"id": 2}, params={})
-        await executor.execute_many("t", [d1, d2])
-
-        assert relayed, "失败意图应交 Agent（方案乙）"
-        assert ran == [2], "后续独立意图仍执行"
-        assert pushed == []

@@ -34,6 +34,7 @@ async def publish_agent_run_completed(
     project_id: int = DEFAULT_PROJECT_ID,
     goal: str = "",
     status: str = "done",
+    source: str = "",
     payload: dict | None = None,
 ) -> None:
     """Publish an event when an agent run completes."""
@@ -44,6 +45,7 @@ async def publish_agent_run_completed(
             project_id=project_id,
             goal=goal,
             status=status,
+            source=source,
             payload=event_payload,
         )
     )

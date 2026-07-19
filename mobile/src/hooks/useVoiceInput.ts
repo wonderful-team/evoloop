@@ -45,6 +45,8 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
   const pendingFinalRef = useRef(false);
   const isContinuousRef = useRef(false);
   const pendingPeriodRef = useRef(false);
+  const vadConfirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const speechConfirmedRef = useRef(false);
 
   // 连续对话模式设置函数定义前置以在 useEffect 中安全引用
   const setContinuous = useCallback((enabled: boolean) => {
@@ -62,7 +64,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
       modelDir: 'sherpa-asr/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23',
       sampleRate: 16000,
       numThreads: 2,
-      vadThreshold: 0.5,
+      vadThreshold: 0.7,
       silenceTimeoutMs: 800,
     }).then(() => {
       console.log('[useVoiceInput] initialize done');
@@ -102,28 +104,51 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
   callbacksRef.current = {
     onVadStart: () => {
       if (!isRunningRef.current) return;
+      // 噪音抑制：VAD 激活后等 150ms 确认真是人声再改变状态
+      if (!speechConfirmedRef.current) {
+        if (vadConfirmTimerRef.current) return;
+        vadConfirmTimerRef.current = setTimeout(() => {
+          vadConfirmTimerRef.current = null;
+          speechConfirmedRef.current = true;
+          if (!isRunningRef.current) return;
+          setState('speaking');
+          onInterrupt?.();
+        }, 150);
+        return;
+      }
       setState('speaking');
-      // VAD 检测到人声，触发打断 (Barge-in)
       onInterrupt?.();
     },
     onVadEnd: () => {
       if (!isRunningRef.current) return;
+      // 尚未确认的语音（<150ms 瞬态噪音）直接忽略
+      if (!speechConfirmedRef.current) {
+        if (vadConfirmTimerRef.current) {
+          clearTimeout(vadConfirmTimerRef.current);
+          vadConfirmTimerRef.current = null;
+        }
+        return;
+      }
       setState('recognizing');
       pendingFinalRef.current = true;
-      // VAD 静音超时，标记下一句前加句号
       pendingPeriodRef.current = true;
-      // 用户停止说话瞬间，提前预热云端 TTS 的 TCP/SSL 连接（省去 ~200ms 握手延迟）
       onVadEndPrewarm?.();
     },
     onPartial: (text) => {
+      // 语音未确认前不展示转写文字（过滤噪音导致的伪识别）
+      if (!speechConfirmedRef.current && !pendingFinalRef.current) return;
       setPartialText(text);
     },
     onFinal: (text) => {
+      // 未经过 onVadEnd 的 final 结果（噪音瞬态残留）直接丢弃
+      if (!pendingFinalRef.current) {
+        return;
+      }
+
       // ① 本地意图拦截：识别到控制指令则直接执行，不发给云端 LLM
       const intent = parseLocalIntent(text, uiStateRef.current);
       if (intent) {
         onLocalIntent?.(intent);
-        // 清空本次录音缓冲，不累积到 sessionText
         clearFinalText();
         sessionTextRef.current = '';
         pendingFinalRef.current = false;
@@ -131,7 +156,6 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
       }
 
       // ② 非本地指令：累积到 sessionText，但不自动发送
-      // VAD 断句后如果有下一句，句首加句号
       let prefix = '';
       if (pendingPeriodRef.current && sessionTextRef.current) {
         prefix = '，';
@@ -140,8 +164,6 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
       sessionTextRef.current += prefix + text;
       appendFinalText(text);
       pendingFinalRef.current = false;
-
-      // 手动触发结束（pressOut/toggle）时才发送；VAD 仅做断句积累
     },
     onVolume: (value) => {
       setVolume(value);
@@ -165,6 +187,11 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
       await stop();
     }
 
+    if (vadConfirmTimerRef.current) {
+      clearTimeout(vadConfirmTimerRef.current);
+      vadConfirmTimerRef.current = null;
+    }
+    speechConfirmedRef.current = false;
     isRunningRef.current = true;
     sessionTextRef.current = '';
     pendingPeriodRef.current = false;
@@ -196,6 +223,12 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
 
   const stop = useCallback(async () => {
     if (!isRunningRef.current) {return;}
+    // 清理噪音抑制状态
+    if (vadConfirmTimerRef.current) {
+      clearTimeout(vadConfirmTimerRef.current);
+      vadConfirmTimerRef.current = null;
+    }
+    speechConfirmedRef.current = false;
     isRunningRef.current = false;
 
     try {

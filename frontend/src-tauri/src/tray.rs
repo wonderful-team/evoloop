@@ -164,12 +164,16 @@ pub fn setup_tray(
     app: &mut tauri::App,
     show_i: &MenuItem<tauri::Wry>,
     record_i: &MenuItem<tauri::Wry>,
+    voice_dictation_i: &MenuItem<tauri::Wry>,
+    voice_dialogue_i: &MenuItem<tauri::Wry>,
     quit_i: &MenuItem<tauri::Wry>,
 ) -> tauri::Result<TrayIcon<tauri::Wry>> {
     use tauri::image::Image;
 
     let menu = Menu::with_items(app, &[
         show_i,
+        voice_dictation_i,
+        voice_dialogue_i,
         record_i,
         &PredefinedMenuItem::separator(app)?,
         quit_i,
@@ -248,6 +252,12 @@ pub fn setup_tray(
                     }
                 }
                 let _ = app.emit("tray-record-toggle", ());
+            }
+            "voice_dictation" => {
+                let _ = app.emit("tray-voice-dictation-toggle", ());
+            }
+            "voice_dialogue" => {
+                let _ = app.emit("tray-voice-dialogue-toggle", ());
             }
             _ => {}
         })

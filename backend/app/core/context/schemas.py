@@ -21,6 +21,7 @@ class DynamicContextLayer(DynamicBaseModel):
 class ContextMetadata(DynamicBaseModel):
     """Dynamic metadata attached to an EvoContext."""
 
+    source: str | None = None
     has_android: bool | None = None
     has_macos: bool | None = None
     user_preferences: Any | None = None

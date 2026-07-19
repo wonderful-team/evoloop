@@ -64,6 +64,8 @@ async def run_agent_background(
                     except (ValueError, TypeError):
                         pass
 
+                ctx.metadata.source = inputs.metadata.get("source", "")
+
                 ContextManager.set(ctx)
 
                 ctx = ContextManager.current()
@@ -96,7 +98,36 @@ async def run_agent_background(
                 from app.core.engine.state import AgentState
 
                 raw_data = inputs.model_dump(exclude={"blackboard"})
-                raw_data["messages"] = EvoMessageConverter.repair(raw_data.get("messages", []))
+                current_messages = EvoMessageConverter.repair(raw_data.get("messages", []))
+
+                # Load historical messages from DB for multi-turn context
+                try:
+                    from app.infrastructure.database import session_scope
+                    from app.models import Message as MessageModel
+                    from sqlalchemy import select
+                    from app.core.engine.message.converter import EvoMessageConverter
+                    async with session_scope() as db:
+                        stmt = (
+                            select(MessageModel)
+                            .where(MessageModel.thread_id == thread_id)
+                            .order_by(MessageModel.sequence_number)
+                        )
+                        result = await db.execute(stmt)
+                        db_messages = result.scalars().all()
+                        if db_messages and len(db_messages) > len(current_messages):
+                            # Only include human/assistant messages (skip tool messages that need special fields)
+                            history_dicts = []
+                            for m in db_messages:
+                                if m.role in ("human", "assistant", "user", "ai"):
+                                    history_dicts.append({"role": m.role, "content": m.content or ""})
+                            if history_dicts:
+                                history = EvoMessageConverter.repair(history_dicts)
+                                current_messages = history + current_messages
+                                logger.info("loaded %d history msgs for thread %s", len(history_dicts), thread_id)
+                except Exception as e:
+                    logger.debug("history load skipped: %s", e)
+
+                raw_data["messages"] = current_messages
                 agent_state = AgentState.model_validate(raw_data)
                 last_human_msg = inputs.session_goal or ""
 
@@ -173,6 +204,7 @@ async def run_agent_background(
                         thread_id=thread_id,
                         project_id=project_id,
                         status="failed",
+                        source=inputs.metadata.get("source", ""),
                         payload={"summary": str(e)[:300]},
                     )
                 return

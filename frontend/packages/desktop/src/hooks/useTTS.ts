@@ -67,37 +67,71 @@ export function useTTS(): UseTTSReturn {
   }
 
   const [voices, setVoices] = useState<TTSVoice[]>(edgeTtsVoices)
-  const [currentVoice, setCurrentVoice] = useState("zh-CN-XiaoxiaoNeural")
+  const [currentVoice, setCurrentVoiceState] = useState(() => {
+    return localStorage.getItem("evoloop_tts_voice") || "zh-CN-XiaoxiaoNeural"
+  })
+
+  const setCurrentVoice = useCallback((voice: string) => {
+    setCurrentVoiceState(voice)
+    localStorage.setItem("evoloop_tts_voice", voice)
+  }, [])
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
-  // Cleanup on unmount & sync Qwen key on mount
+  const fetchVoices = useCallback(async (engine?: string, targetVoice?: string) => {
+    const eng = engine || localStorage.getItem("evoloop_tts_engine") || "edge-tts"
+    const list = engineVoices[eng] || edgeTtsVoices
+    setVoices(list)
+    if (list.length > 0) {
+      const voiceToMatch = targetVoice || currentVoice
+      const exists = list.some(v => v.id === voiceToMatch)
+      if (exists) {
+        setCurrentVoiceState(voiceToMatch)
+      } else {
+        setCurrentVoiceState(list[0].id)
+      }
+    }
+  }, [currentVoice])
+
+  // Cleanup on unmount & sync engine / voice / Qwen key on mount
   useEffect(() => {
+    const savedEngine = localStorage.getItem("evoloop_tts_engine")
+    const savedVoice = localStorage.getItem("evoloop_tts_voice")
+    if (savedVoice) {
+      setCurrentVoiceState(savedVoice)
+    }
     if (isTauri()) {
       const key = localStorage.getItem("evoloop_qwen_tts_key") || ""
       if (key) {
         invoke("set_qwen_api_key", { key }).catch(console.error)
       }
+      if (savedEngine) {
+        invoke("set_tts_engine", { engine: savedEngine }).catch(console.error)
+      }
+      if (savedVoice) {
+        invoke("set_tts_voice", { voice: savedVoice }).catch(console.error)
+      }
+      const savedSpeed = localStorage.getItem("evoloop_tts_speed")
+      if (savedSpeed) {
+        invoke("set_tts_speed", { speed: parseFloat(savedSpeed) }).catch(console.error)
+      }
+
+      invoke<string>("get_tts_engine").then(eng => {
+        const activeEngine = eng || savedEngine || "edge-tts"
+        fetchVoices(activeEngine, savedVoice || undefined)
+      }).catch(() => {
+        if (savedEngine) {
+          fetchVoices(savedEngine, savedVoice || undefined)
+        }
+      })
+    } else if (savedEngine) {
+      fetchVoices(savedEngine, savedVoice || undefined)
     }
     return () => {
       stop()
     }
   }, [])
-
-  const fetchVoices = useCallback(async (engine?: string) => {
-    const eng = engine || "edge-tts"
-    const list = engineVoices[eng] || edgeTtsVoices
-    setVoices(list)
-    // Auto-select first voice for the new engine
-    if (list.length > 0) {
-      const current = currentVoice
-      const exists = list.some(v => v.id === current)
-      if (!exists) {
-        setCurrentVoice(list[0].id)
-      }
-    }
-  }, [currentVoice])
 
   const stop = useCallback(async () => {
     if (isTauri()) {

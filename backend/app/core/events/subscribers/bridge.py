@@ -45,11 +45,11 @@ class UniversalBridgeSubscriber:
         )
 
         try:
-            # Forward the public system event to Web UI via ChannelRegistry (sse)
-            selected = channel_registry.select({"sse"}, payload_is_block=False)
+            # Forward the public system event to Web UI via ChannelRegistry (sse) and voice
+            selected = channel_registry.select({"sse", "voice"}, payload_is_block=False)
             for ch in selected:
                 await ch.send(event, ctx)
 
-            logger.debug(f"[UniversalBridge] Bridged {event_type} to ChannelRegistry (sse)")
+            logger.debug(f"[UniversalBridge] Bridged {event_type} to ChannelRegistry (sse, voice)")
         except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.warning(f"[UniversalBridge] Failed to bridge event {event_type}: {e}")

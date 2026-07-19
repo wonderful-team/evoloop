@@ -5,8 +5,7 @@ from fastapi import FastAPI  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app.api.routes import voice_ws  # noqa: E402
-from app.core.routing import executor, retriever  # noqa: E402
-from app.core.routing import router as route_router  # noqa: E402
+from app.core.routing import executor  # noqa: E402
 from app.core.routing.schemas import RouteDecision  # noqa: E402
 from app.core.schemas.canonical import create_envelope  # noqa: E402
 
@@ -25,17 +24,9 @@ class _FakeManager:
 
 
 def _patch_route(monkeypatch, decision):
-    async def _retrieve(_text, **_kwargs):
-        return []
-
-    async def _route(_req, _candidates):
-        return decision
-
     async def _nodup(_message_id, _ttl=300):
         return False
 
-    monkeypatch.setattr(retriever, "retrieve", _retrieve)
-    monkeypatch.setattr(route_router, "route", _route)
     monkeypatch.setattr(voice_ws, "is_duplicate", _nodup)
 
 
@@ -43,15 +34,7 @@ def _patch_route(monkeypatch, decision):
 async def test_handle_route_local(monkeypatch):
     fake = _FakeManager()
     monkeypatch.setattr(voice_ws, "manager", fake)
-    _patch_route(
-        monkeypatch,
-        RouteDecision(
-            status="routed",
-            target_type="local",
-            target={"type": "local", "id": "open_app"},
-            params={"app": "微信"},
-        ),
-    )
+    _patch_route(monkeypatch, None)
 
     await voice_ws._handle_route(
         {"text": "打开微信", "thread_id": "t1", "message_id": "m1"}, "c1"
@@ -63,31 +46,40 @@ async def test_handle_route_local(monkeypatch):
     assert tid == "t1"
     assert env["type"] == "voice.route_result"
     assert env["body"]["target"]["type"] == "local"
-    assert env["body"]["target"]["id"] == "open_app"
+    assert env["body"]["target"]["action"] == "open_app"
+    assert env["body"]["params"]["app"] in ("微信", "WeChat")
 
 
 @pytest.mark.asyncio
-async def test_handle_route_skill_pushes_routed(monkeypatch):
+async def test_handle_route_l0_mute(monkeypatch):
     fake = _FakeManager()
     monkeypatch.setattr(voice_ws, "manager", fake)
-    _patch_route(
-        monkeypatch,
-        RouteDecision(
-            status="routed",
-            target_type="skill",
-            target={"type": "skill", "id": 42},
-            params={"song": "晴天"},
-        ),
-    )
+    _patch_route(monkeypatch, None)
 
     await voice_ws._handle_route(
-        {"text": "播放晴天", "thread_id": "t2", "message_id": "m2"}, "c2"
+        {"text": "静音", "thread_id": "t3", "message_id": "m3"}, "c3"
     )
 
     assert len(fake.pushes) == 1
     _, env = fake.pushes[0]
-    assert env["body"]["target"]["type"] == "skill"
-    assert env["body"]["target"]["id"] == 42
+    assert env["body"]["target"]["type"] == "local"
+    assert env["body"]["target"]["action"] == "mute"
+
+
+@pytest.mark.asyncio
+async def test_handle_route_l0_screenshot(monkeypatch):
+    fake = _FakeManager()
+    monkeypatch.setattr(voice_ws, "manager", fake)
+    _patch_route(monkeypatch, None)
+
+    await voice_ws._handle_route(
+        {"text": "截图", "thread_id": "t4", "message_id": "m4"}, "c4"
+    )
+
+    assert len(fake.pushes) == 1
+    _, env = fake.pushes[0]
+    assert env["body"]["status"] == "routed"
+    assert env["body"]["target"]["action"] == "screenshot"
 
 
 @pytest.mark.asyncio

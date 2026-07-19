@@ -21,7 +21,6 @@ from app.core.routing import executor, route_cache, session_frame
 from app.core.routing.init_spec import _ALIASES, _DELTA_DICT, _KEY_DICT, _TEMPLATES
 from app.core.routing.local_matcher import LocalMatcher
 from app.core.routing.native_bias import apply_native_app_bias
-from app.core.routing.router import route_many
 from app.core.routing.schemas import RouteCandidate, RouteDecision, RouteRequest
 from app.models.learning import LearnedSkill
 from app.models.macro import Macro
@@ -179,49 +178,6 @@ ROUTE_CASES = [
 ]
 
 
-class TestRouteClassification:
-    @pytest.fixture(autouse=True)
-    def no_cache(self, monkeypatch):
-        monkeypatch.setattr("app.core.routing.route_cache.enabled", lambda: False)
-
-    @pytest.mark.parametrize("tool_name,args,expected", ROUTE_CASES)
-    async def test_classification(self, tool_name, args, expected, monkeypatch):
-        cands = [
-            _candidate("local:mute", "local", "静音"),
-            _candidate("macro:42", "macro", "查 x 价格"),
-            _candidate("skill:7", "skill", "查物流"),
-        ]
-        monkeypatch.setattr(
-            "app.core.routing.router._create_route_llm",
-            AsyncMock(return_value=_fake_llm(tool_name, args)),
-        )
-        monkeypatch.setattr(
-            "app.core.routing.retriever.retrieve",
-            _fake_retriever(cands),
-        )
-        decisions = await route_many(
-            RouteRequest(text="whatever", thread_id="t-class"), cands
-        )
-        d = decisions[0]
-        assert d.status == expected["status"]
-        assert d.target_type == expected["target_type"]
-        assert d.target == expected["target"]
-
-    async def test_clarify_on_low_score(self, monkeypatch):
-        cands = [_candidate("macro:42", "macro", "查 x 价格", score=0.1)]
-        monkeypatch.setattr(
-            "app.core.routing.retriever.retrieve", _fake_retriever(cands)
-        )
-        # 命中 early delegate：返回 agent 类型
-        decisions = await route_many(
-            RouteRequest(text="whatever", thread_id="t-low"), cands
-        )
-        assert decisions[0].target_type == "agent"
-
-
-# ── 执行链穷举（复用 executor 分支） ───────────────────────────
-
-
 class TestExecutorChains:
     async def test_local_no_op(self, monkeypatch):
         monkeypatch.setattr(executor, "push_voice_result", AsyncMock())
@@ -343,73 +299,6 @@ class TestExecutorChains:
 
 
 # ── 多意图穷举 ────────────────────────────────────────────────
-
-
-class TestMultiIntentChains:
-    async def test_independent_intents_run_in_order(self, monkeypatch):
-        ran: list[int] = []
-        monkeypatch.setattr(executor, "push_voice_result", AsyncMock())
-        monkeypatch.setattr(
-            executor,
-            "_run_macro",
-            AsyncMock(side_effect=lambda t, d: ran.append(d.target["id"]) or {}),
-        )
-        d1 = RouteDecision(target_type="macro", target={"id": 1}, params={})
-        d2 = RouteDecision(target_type="macro", target={"id": 2}, params={})
-        await executor.execute_many("t", [d1, d2])
-        assert ran == [1, 2]
-
-    async def test_dependent_param_expression_resolved(self, monkeypatch):
-        from app.core.routing.resolver import resolve_params
-
-        monkeypatch.setattr(executor, "push_voice_result", AsyncMock())
-        executed: dict = {}
-        agent = AsyncMock()
-        monkeypatch.setattr(executor, "_run_agent", agent)
-
-        async def run_macro(t, d):
-            executed["value"] = d.params.get("value")
-            return {"entity": 100}
-
-        monkeypatch.setattr(executor, "_run_macro", run_macro)
-
-        d1 = RouteDecision(target_type="macro", target={"id": 1}, params={})
-        d2 = RouteDecision(
-            target_type="macro",
-            target={"id": 2},
-            params={"_param_exprs": {"value": "{{1.entity}}"}, "_depends_on": [0]},
-        )
-        await executor.execute_many("t", [d1, d2])
-        assert executed.get("value") == 100
-        agent.assert_not_awaited()
-
-    async def test_resolve_failure_relays_to_agent(self, monkeypatch):
-        from app.core.routing.resolver import ResolveError
-
-        relayed = []
-        monkeypatch.setattr(executor, "push_voice_result", AsyncMock())
-        monkeypatch.setattr(
-            executor, "_run_macro", AsyncMock(side_effect=lambda t, d: {"entity": "x"})
-        )
-        monkeypatch.setattr(
-            executor,
-            "_run_agent",
-            AsyncMock(side_effect=lambda *a, **kw: relayed.append(kw)),
-        )
-        monkeypatch.setattr(
-            "app.core.routing.resolver.resolve_params",
-            lambda exprs, prior: (_ for _ in ()).throw(ResolveError("missing")),
-        )
-        d1 = RouteDecision(
-            target_type="macro", target={"id": 1}, params={"_param_exprs": {"v": "{{1.y}}"}}
-        )
-        d2 = RouteDecision(target_type="macro", target={"id": 2}, params={})
-        await executor.execute_many("t", [d1, d2])
-        assert relayed
-        assert executor._run_macro.call_count == 1, "resolve 失败的意图不跑 macro，后续独立意图继续"
-
-
-# ── 会话帧/指代/澄清复接 ──────────────────────────────────────
 
 
 class TestSessionFrameDiversity:

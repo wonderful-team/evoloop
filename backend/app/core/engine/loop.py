@@ -34,7 +34,6 @@ async def run_node_loop(
     Raises ``AgentCancelledException`` / ``AgentHumanInterruptException``
     if the activity monitor signals cancellation or HITL interrupt.
     """
-    from app.core.engine.nodes.chat import ChatNode
     from app.core.engine.nodes.finish import FinishNode
     from app.core.engine.nodes.sequential_workflow import SequentialWorkflowNode
     from app.core.engine.nodes.supervisor import SupervisorNode
@@ -50,7 +49,6 @@ async def run_node_loop(
     supervisor_node = SupervisorNode()
     worker_node = WorkerNode()
     finish_node = FinishNode()
-    chat_node = ChatNode()
     sequential_workflow_node = SequentialWorkflowNode()
 
     step_count = 0
@@ -74,18 +72,15 @@ async def run_node_loop(
             update = await finish_node(state, config)
             merge_state_update(state, update)
             state.next_node = route_finish(state)
-        elif current_node == RoutingTarget.CHAT:
-            update = await chat_node(state, config)
-            merge_state_update(state, update)
-            state.next_node = route_finish(state)
         elif current_node == RoutingTarget.SEQUENTIAL_WORKFLOW:
             update = await sequential_workflow_node(state, config)
             merge_state_update(state, update)
             if not state.next_node or state.next_node == RoutingTarget.SEQUENTIAL_WORKFLOW:
                 state.next_node = RoutingTarget.SUPERVISOR
         else:
-            logger.warning(f"[{log_prefix}] Unknown node {current_node}, terminating.")
-            state.next_node = RoutingTarget.END
+            # Unknown node (e.g. legacy "chat" signal) → route to Supervisor for graceful handling
+            logger.warning(f"[{log_prefix}] Unknown node {current_node}, routing to Supervisor.")
+            state.next_node = RoutingTarget.SUPERVISOR
 
     if state.next_node != RoutingTarget.END and step_count >= max_loop_steps:
         logger.warning(f"[{log_prefix}] Hit max_loop_steps ({max_loop_steps}) for thread {thread_id}")

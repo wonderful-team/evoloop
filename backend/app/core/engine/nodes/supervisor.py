@@ -206,16 +206,45 @@ class SupervisorNode(BaseAgentNode):
                     next_node=RoutingTarget.WORKER,
                     iteration_count=new_iter_count,
                 )
+
+            # Direct response without tool calls — Supervisor answers directly.
+            # For voice: self-publish completion event so VoiceChannel
+            # pushes the result immediately without going through Finish.
+            source = config.get("metadata", {}).get("source", "")
+            if source == "voice":
+                from app.core.context.manager import ContextManager
+                from app.core.events.publishers import publish_session_completed
+                from app.core.events.schemas import SessionCompletedData
+
+                ctx = ContextManager.current()
+                metadata = config.get("metadata", {})
+                event_data = SessionCompletedData(
+                    thread_id=original_state.thread_id or config.get("configurable", {}).get("thread_id") or "unknown",
+                    summary=ai_content,
+                    outcome="completed",
+                    source="voice",
+                    model=ctx.active_model,
+                )
+                logger.info("[Supervisor] Direct response (voice) → self-publishing SessionCompletedEvent")
+                await publish_session_completed(data=event_data)
+                return StateUpdate(
+                    messages=new_messages,
+                    next_node=RoutingTarget.END,
+                    summary=ai_content,
+                )
+
+            # Text chat: existing path through Finish for audit
             return StateUpdate(
                 messages=new_messages,
                 next_node=RoutingTarget.FINISH,
                 iteration_count=new_iter_count,
             )
 
+        # Empty response (no AI content, no error) → safe fallback
         return StateUpdate(
             messages=new_messages,
             next_node=RoutingTarget.FINISH,
-            iteration_count=new_iter_count
+            iteration_count=new_iter_count,
         )
 
     async def _sync_db_plan_step_on_signal_consume(

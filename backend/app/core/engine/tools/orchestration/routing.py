@@ -24,16 +24,17 @@ def route_to(
     """
     [MANDATORY] Hand off the current task to a specialist node.
 
-    ⚠️ CRITICAL: This tool MUST be called in EVERY Supervisor response.
-    Outputting plain text without calling route_to will cause system failure.
+    ⚠️ CRITICAL: This tool MUST be called when a task requires specialist
+    execution (coding, file operations, system control, web search).
+    You may also respond directly in plain text for simple greetings,
+    Q&A, status checks, or cancellations.
 
     Available targets:
     - "worker": Universal executor for coding, file operations, and system control.
     - "deep_researcher": Web search and information gathering.
     - "documenter": Generate documentation, wiki, or README.
-    - "chat": Ask questions or provide a direct response to the user.
     - "finish": Task completion or question fully answered.
-
+    
     Args:
         target: The target specialist node. REQUIRED.
         reason: Why this handoff is occurring. REQUIRED.

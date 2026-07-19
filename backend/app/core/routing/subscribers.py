@@ -1,16 +1,13 @@
-"""Voice result pushback subscriber (design §16.4).
+"""Init Spec event-triggered refresh (design §19.6).
 
-Decoupled from ``finish.py``: the agent graph already emits terminal lifecycle
-events, so voice pushback subscribes to them instead of hooking the finish node.
+Rebuild the VoiceInitSpec primarily on skill lifecycle events (created / updated
+/ deleted change the ``actions`` list), coalescing bursts into a single rebuild.
+ActionRegistry / installed-apps / app_usage_rank have no change events, so a
+long-period periodic task (see tasks.py) remains as the fallback. Clients still
+PULL via GET /route/init — there is no server-side push (§6.4.2).
 
-- Success  -> ``system.session_completed`` (published by ``FinishNode``).
-- Failure  -> ``agent.run_completed(status="failed")`` (published once by the
-  background runner after ``handle_task_exception``).
-
-Both are filtered through ``executor._voice_registry`` so only threads that
-originated from the voice channel get a ``voice.route_result`` pushed back;
-non-voice threads are a no-op. ``consume_voice`` pops the mark, so a terminal
-event is delivered exactly once.
+Voice terminal result pushback is now handled by ``VoiceChannel``
+(``app/core/channel/voice_channel.py``) via the ``UniversalBridgeSubscriber``.
 """
 
 from __future__ import annotations
@@ -18,52 +15,10 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from app.core.engine.event import AgentEventType, AgentRunCompletedEvent
 from app.core.events import SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
-from app.core.events.schemas.lifecycle import SessionCompletedEvent
-from app.core.routing import executor as voice_executor
 
 logger = logging.getLogger(__name__)
-
-_PUSH_EXCEPTIONS = (ValueError, OSError, RuntimeError, TypeError, KeyError)
-
-
-@event_register()
-class VoiceResultSubscriber:
-    """Relay agent terminal events to the voice WebSocket (§16.4)."""
-
-    @event_subscribe(SystemEventType.SESSION_COMPLETED)
-    async def on_session_completed(self, event: SessionCompletedEvent) -> None:
-        thread_id = getattr(event, "thread_id", "") or ""
-        kind = await voice_executor.consume_voice(thread_id)
-        if not kind:
-            return
-        summary = getattr(getattr(event, "data", None), "summary", None) or ""
-        try:
-            await voice_executor.push_voice_result(thread_id, "done", summary)
-        except _PUSH_EXCEPTIONS as exc:
-            logger.warning("[VoiceResult] done push failed for %s: %s", thread_id, exc)
-
-    @event_subscribe(AgentEventType.RUN_COMPLETED)
-    async def on_run_completed(self, event: AgentRunCompletedEvent) -> None:
-        if getattr(event, "status", "done") == "done":
-            return
-        thread_id = getattr(event, "thread_id", "") or ""
-        kind = await voice_executor.consume_voice(thread_id)
-        if not kind:
-            return
-        payload = getattr(event, "payload", None) or {}
-        summary = payload.get("summary") or payload.get("outcome") or ""
-        try:
-            await voice_executor.push_voice_result(thread_id, "failed", summary)
-        except _PUSH_EXCEPTIONS as exc:
-            logger.warning(
-                "[VoiceResult] failed push failed for %s: %s", thread_id, exc
-            )
-
-
-# ---- Init Spec event-triggered refresh (design §19.6) -----------------------
 #
 # Rebuild the VoiceInitSpec primarily on skill lifecycle events (created / updated
 # / deleted change the `actions` list), coalescing bursts into a single rebuild.

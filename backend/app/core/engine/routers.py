@@ -18,7 +18,6 @@ class RoutingTarget(str, Enum):
     OPERATOR = "operator"
     DEEP_RESEARCHER = "deep_researcher"
     DOCUMENTER = "documenter"
-    CHAT = "chat"
     FINISH = "finish"
     WORKER = "worker"
     FLASH_BRAIN = "flash_brain"
@@ -69,7 +68,6 @@ def route_supervisor(state: AgentState) -> str:
     # These nodes can be reached directly from Supervisor without an execution ticket wrapper
     if next_node:
         terminal_targets = {
-            RoutingTarget.CHAT,
             RoutingTarget.FINISH,
             RoutingTarget.SUPERVISOR,
             RoutingTarget.AGGREGATOR,

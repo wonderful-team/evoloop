@@ -49,15 +49,11 @@ class SupervisorPromptBuilder(BasePromptBuilder):
         ctx = ContextManager.current()
         plugin_registry.hydrate_context(ctx)
         user_lang = self.get_user_lang()
-        actual_cwd = self.get_mapped_cwd(
-            ctx.working_directory or ctx.metadata.get("cwd", "")
-        )
+        actual_cwd = self.get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", ""))
         mode = self.get_sandbox_mode()
 
         # 2. Protocol & Sys Info Prep (STATIC parts only)
-        project_profile = self.read_project_profile(
-            ctx.working_directory, "[SupervisorPrompt]"
-        )
+        project_profile = self.read_project_profile(ctx.working_directory, "[SupervisorPrompt]")
 
         # Read wiki index for prompt injection (project mode only)
         from app.core.engine.nodes.utils.node_utils import read_wiki_index
@@ -65,6 +61,7 @@ class SupervisorPromptBuilder(BasePromptBuilder):
         wiki_index = await read_wiki_index(ctx.project_id)
 
         # 3. Prepare Template Variables (STATIC only — no blackboard/memory/telemetry)
+        is_voice = ctx.metadata.get("source") == "voice"
         template_vars = {
             "project_id": self.project_id,
             "user_lang": user_lang,
@@ -77,6 +74,7 @@ class SupervisorPromptBuilder(BasePromptBuilder):
             },
             "project_concepts": ctx.metadata.get("project_concepts", ""),
             "is_supervisor": True,
+            "is_voice": is_voice,
             "has_file_operations": False,
             "agent_name": SystemConfigService.get_value("AGENT_NAME", "EvoLoop"),
             "agent_company": SystemConfigService.get_value("AGENT_COMPANY", "上海方天画戟信息技术有限公司"),
@@ -99,6 +97,7 @@ class SupervisorPromptBuilder(BasePromptBuilder):
             rendered = base_prompt
 
         logger.info(f"[SupervisorPrompt] 📝 Static prompt length: {len(rendered)} chars (skills index: {len(skills_index)} entries)")
+
         return rendered
 
     def _extract_skills_index(self, ctx: Any) -> list[dict]:
