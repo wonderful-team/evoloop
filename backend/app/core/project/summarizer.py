@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 # --- Helper Logic for Summarization (Async) ---
-async def _summarize_project_logic(name: str, path: str):
+async def _summarize_project_logic(name: str, path: str, module_graph: str = ""):
     """
     Core logic to summarize a project using LLM.
     Functionally equivalent to the old _summarize_project method.
@@ -86,7 +86,8 @@ async def _summarize_project_logic(name: str, path: str):
             project_name=name,
             files=files,
             readme_content=readme_content,
-            arch_summary=arch_summary
+            arch_summary=arch_summary,
+            module_graph=module_graph,
         )
 
         from app.infrastructure.llm import InternalLLMService
@@ -176,14 +177,14 @@ async def _summarize_project_logic(name: str, path: str):
 
 # --- Celery Task ---
 @shared_task(name="summarize_project")
-def summarize_project_task(name: str, path: str):
+def summarize_project_task(name: str, path: str, module_graph: str = ""):
     """
     Celery task wrapper for project summarization.
     """
 
     async def _run_with_flush():
         try:
-            await _summarize_project_logic(name, path)
+            await _summarize_project_logic(name, path, module_graph=module_graph)
         finally:
             await flush_loop_bound_resources()
 

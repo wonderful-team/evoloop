@@ -5,6 +5,10 @@ Name: {{ project_name }}
 Files: {{ files | truncate_list(20) | join(', ') }}
 README: {{ readme_content | truncate(1000) }}
 Architecture: {{ arch_summary | truncate(2000) }}
+{% if module_graph %}
+Project Module Structure:
+{{ module_graph }}
+{% endif %}
 
 Return a JSON object with:
 {

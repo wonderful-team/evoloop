@@ -201,7 +201,15 @@ async def _run_summary(project_id: int) -> None:
         raise FileNotFoundError(f"Project path not found: {path}")
     project_name = os.path.basename(path)
 
-    summarize_project_task(project_name, path)
+    # Inject module structure context for richer summaries
+    module_graph = ""
+    try:
+        from app.domain.codebase.generation.module_graph import module_graph_service
+        module_graph = await module_graph_service.format_summary(project_id, include_graph=True)
+    except Exception:
+        pass
+
+    summarize_project_task(project_name, path, module_graph=module_graph)
 
     meta_file = os.path.join(path, ".evoloop", "project.json")
     if os.path.exists(meta_file):
