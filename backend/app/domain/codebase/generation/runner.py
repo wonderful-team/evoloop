@@ -46,19 +46,30 @@ async def _run_wiki(project_id: int) -> None:
     if not path or not os.path.isdir(path):
         raise FileNotFoundError(f"Project path not found: {path}")
 
+    # Inject module graph summary so the Agent knows the project structure upfront
+    from app.domain.codebase.generation.module_graph import module_graph_service
+    try:
+        module_summary = await module_graph_service.format_summary(project_id)
+    except Exception:
+        module_summary = ""
+
     thread_id = f"wiki-gen-{project_id}-{int(time.time())}"
     from app.core.context import thread_context_store
     thread_context_store.set_working_directory(thread_id, path)
 
+    msg = (
+        f"**Mission Goal**: Generate a comprehensive Wiki documentation "
+        f"for the project at {path}.\n\n"
+        "Use `query_code_chunks(is_api_route=true)` to discover API routes, "
+        "and `query_source_files(scan_status='completed')` for the file list. "
+        "Write pages via `write_wiki_page`."
+    )
+    if module_summary:
+        msg += f"\n\nThe project structure has been analyzed into the following modules:\n{module_summary}\n\nPlan your wiki outline around these modules rather than discovering the structure from scratch."
+
     result = await dispatch_agent_run(
         thread_id=thread_id,
-        message_content=(
-            f"**Mission Goal**: Generate a comprehensive Wiki documentation "
-            f"for the project at {path}.\n\n"
-            "Use `query_code_chunks(is_api_route=true)` to discover API routes, "
-            "and `query_source_files(scan_status='completed')` for the file list. "
-            "Write pages via `write_wiki_page`."
-        ),
+        message_content=msg,
         project_id=project_id,
         skip_message_persistence=True,
         metadata={"goal_prefix": "[Wiki Generation] "},
@@ -101,6 +112,23 @@ async def _run_appmap(project_id: int) -> None:
     if not groups:
         logger.info("[AppMap] No entity groups found for project %s", project_id)
         return
+
+    # Validate groupings against ModuleGraph — log cross-module entities
+    from app.domain.codebase.generation.module_graph import module_graph_service
+    try:
+        cross_module = []
+        for entity_name in groups:
+            expected_module = await module_graph_service.get_module_of(project_id, entity_name)
+            if expected_module:
+                cross_module.append((entity_name, expected_module))
+        if cross_module:
+            logger.info(
+                "[AppMap] %d entities validated against ModuleGraph (first cross-module: %s)",
+                len(cross_module),
+                cross_module[0],
+            )
+    except Exception:
+        logger.debug("[AppMap] ModuleGraph validation skipped")
 
     # Deterministic path: run collector + batch writer directly (no subprocess).
     # The Agent is only for verification — not for data production.
