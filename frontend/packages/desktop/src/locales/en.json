@@ -1432,8 +1432,7 @@
       "vault": "Vault",
       "wiki": "Wiki",
       "generation": "Project Portrait",
-      "macros": "Macros",
-      "projectOverview": "Project Overview"
+      "macros": "Macros"
     },
     "tasks": {
       "assignee": "Assignee",
