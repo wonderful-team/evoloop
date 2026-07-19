@@ -1,12 +1,10 @@
-# 统一项目扫描与理解管道 — 设计方案 v3.6
-## （v3.5 基础上：前端简化，Summary 与 Overview 合并为一个用户入口，AppMap 对用户不可见）
+# 统一项目扫描与理解管道 — 设计方案 v3.7
+## （v3.6 基础上：Leiden 聚类从孤立算法重构为 ModuleGraphService，所有消费方统一接入）
 >
-> **v3.6 变更要点**：
-> - **前端项目画像重构**：「项目画像」tab 从 checkbox 列表改为**画像概览面板**：已生成的 Wiki/宏展示预览卡片，**项目描述（摘要 + PROJECT.md）内联展示**，未生成的显示「生成」按钮。用户无需离开画像页即可看到项目全貌。
-> - **生成项精简为 2 项 + 内联展示**：Wiki / 宏作为独立卡片可生成/链接；项目描述直接内联在画像面板中，不占独立 tab。
-> - **移除独立「项目描述」tab**：其内容直接嵌入项目画像面板。
-> - **AppMap 对用户完全不可见**。
-> - **子页面关系明确**：画像页是唯一入口，Wiki 详情、宏管理作为子页面从画像页跳转进入。
+> **v3.7 变更要点**：
+> - **ModuleGraphService**：将 `leiden_clustering.py` 从一次性函数重构为**带缓存的基础服务层**，提供 `get_modules()`、`get_module_of(entity)`、`impact_set(entities)`、`format_summary()` 等接口。
+> - **消费方统一接入**：Wiki Agent prompt 注入模块摘要、AppMap 分组验证、宏管理按模块分组、项目描述展示模块结构图、增量生成通过 `impact_set` 计算最小影响集。
+> - **§6 全面重写**：从"Wiki 大纲单一用途"升级为"项目模块图基础设施"。
 
 > [!CAUTION]
 > **v1/v2 核心错误已修正**：原方案提议新建 `UnifiedScanCoordinator` 与现有 `IndexingManager` 存在严重功能重叠，已废弃。v3+ 的核心策略调整为：**增强现有管道的下游复用能力，而非造新轮子**。此外，对 `CodeRelation` 表误判、`FilePreparer` 增量能力低估、`NestedGitignoreMatcher` 覆盖范围不足等问题均已修正。
@@ -173,9 +171,9 @@ graph TD
 
     subgraph 用户勾选触发（生成层）
         I[用户在 UI 勾选生成项] --> J{勾选了?}
-        J -->|Wiki| K[Wiki Agent ← 消费 DB 索引]
-        J -->|宏| L[EntityGrouper → 分组 → collector → batch_write → 产宏]
-        J -->|Overview| N[生成机器摘要 + PROJECT.md ← 索引 + LLM]
+        J -->|Wiki| K[Wiki Agent ← 消费 DB 索引 + ModuleGraph 摘要]
+        J -->|宏| L[EntityGrouper → ModuleGraph 验证分组 → collector → batch_write → 产宏]
+        J -->|Overview| N[生成机器摘要 + PROJECT.md ← 索引 + ModuleGraph + LLM]
         K --> Q[结果写入 DB / 前端展示]
         L --> Q
         N --> Q
@@ -549,54 +547,95 @@ async def validate_app_map_via_graph(
 
 ---
 
-## 6. Leiden 图社区聚类 + LLM 命名层（Wiki 大纲规划）
+## 6. ModuleGraphService — 项目模块图基础设施（v3.7 重构）
 
-> [!NOTE]
-> 评审确认这是全方案中唯一一个系统**完全不存在**的新能力，值得引入。
-> v3.1 补充：LLM 命名层应注入项目已有元数据以保术语一致。
+> **v3.6 及之前**：Leiden 聚类仅用于 Wiki 大纲推荐，`recommend_wiki_outline()` 是一次性函数，无缓存、无复用。
+> **v3.7 重构**：将 Leiden 聚类结果抽象为 **`ModuleGraphService`**，作为全系统查询项目模块结构的统一入口。
 
 ### 6.1 为什么选 Leiden 而非 Louvain
 
-- graphify 实践中已验证 Leiden（`graspologic` 库）在模块化质量和稳定性上优于 Louvain，且避免了 Louvain 算法的随机收敛问题。
-- 依赖：`pip install graspologic`（已在 graphify 中验证可用）。
+同 v3.6：Leiden（`graspologic` 库）在模块化质量和稳定性上优于 Louvain，且避免了随机收敛问题。
 
-### 6.2 三步流程
+### 6.2 架构
 
-```mermaid
-graph LR
-    A[CodeRelation 图数据] --> B[Leiden 聚类]
-    B --> C[社区 0: 25 nodes\n社区 1: 18 nodes\n社区 2: 12 nodes]
-    C --> D[LLM 命名层\n输入: 社区内 entity 名称列表 + 项目元数据\n输出: 文档模块名称]
-    D --> E[推荐大纲\n- 用户认证与权限模块\n- 支付与账单模块\n- 项目管理模块]
-    E --> F[Wiki Agent 基于推荐大纲规划页面]
+```
+                    ┌────────────────────────────┐
+                    │     ModuleGraphService       │
+                    │  refresh(project_id)         │  ← 异步刷新缓存
+                    │  get_modules(id)            │  → [Module]
+                    │  get_module_of(entity, id)  │  → module_name
+                    │  impact_set(entities, id)   │  → {module_names}
+                    │  format_summary(id)         │  → "商品(12) 订单(8)..."
+                    └────────┬──────────┬─────────┘
+                             │          │
+          ┌──────────────────┤          ├──────────────────┐
+          ↓                  ↓          ↓                  ↓
+    Wiki Agent          AppMap 分组   宏管理前端      项目描述(Overview)
+    (推荐大纲)          (验证分组)    (模块树替代平铺)  (模块结构图)
+
+          ↓
+     增量生成引擎
+    (最小影响集)
 ```
 
-### 6.3 LLM 命名层提示词规范（v3.1 增强：注入项目上下文）
+### 6.3 数据模型
 
-```markdown
-You are a software documentation architect.
+```python
+@dataclass
+class Module:
+    name: str              # LLM 命名（如"订单管理"）
+    entities: list[str]    # 包含的实体名（order, order_goods, order_refund...）
+    entity_count: int      # CodeRelation 节点数
+    summary: str           # LLM 一句话描述
 
-Given a cluster of tightly coupled code entities from the same software project,
-infer the most likely **human-readable documentation module name** for this cluster.
+class ModuleGraph:
+    modules: list[Module]
+    entity_to_module: dict[str, str]  # "order" → "订单管理"
+    adjacency: list[tuple[str, str]]  # 跨模块调用边
 
-## Project Context (for terminology consistency):
-{{ project_summary }}  {# 来自 ProjectSummarizer 的输出，含 core_features #}
-{{ directory_summaries }}  {# 已有目录摘要，确保术语与现有 Wiki 一致 #}
-
-## Code Entities in this Cluster:
-{% for entity in entities %}
-- {{ entity.name }} ({{ entity.type }}, file: {{ entity.file }})
-{% endfor %}
-
-## Rules:
-- Return exactly one short module name (3-6 words max).
-- Use the project's domain language, not implementation jargon.
-- Cross-reference the Project Context above — use the same terminology already established.
-- Examples: "User Authentication & Permissions", "Payment Processing", "Project File Management"
-- Do NOT return a cluster number or generic label like "Module A".
-
-Return only the module name string, nothing else.
+    def impact_set(self, changed: set[str]) -> set[str]:
+        """变更实体 → 沿跨模块调用边扩散 → 最小影响模块集"""
+        direct = {self.entity_to_module[e] for e in changed if e in self.entity_to_module}
+        return self._bfs(direct, self.adjacency)
 ```
+
+### 6.4 缓存策略
+
+| 维度 | 策略 |
+|:---|:---|
+| **全量刷新** | 索引完成后自动触发；用户手动触发生成时检查是否过期 |
+| **增量** | 缓存 24h 或直到有新的 CodeRelation 变更 |
+| **存储** | Redis（生产）/ 本地 LRU（embedded 模式） |
+
+### 6.5 消费方集成
+
+| 消费方 | 接口 | 效果 |
+|:---|:---|:---|
+| **Wiki Agent prompt** | `format_summary()` | prompt 注入"项目划分为以下模块：商品管理(12 实体)、订单处理(8 实体)..." Agent 按此规划大纲，不需要从零发现模块边界 |
+| **AppMap 分组验证** | `get_module_of(entity)` | EntityGrouper 分组后，用模块归属验证实体是否跨模块；跨模块实体标记"待审"，避免错误归属 |
+| **宏管理前端** | `get_modules()` | 左侧模块树，点击展开该模块的宏列表。替代 109 实体平铺 |
+| **项目描述 (Overview)** | `format_summary(include_graph=True)` | 在技术栈下方生成"项目模块结构"卡片，含模块列表和依赖关系 |
+| **增量生成引擎** | `impact_set(changed_entities)` | 只重新生成受影响的模块中实体的 AppMap 和宏。未影响的实体跳过，不做无效变更 |
+
+### 6.6 与增量生成的关系
+
+```
+用户修改了 goods 实体
+         ↓
+impact_set({"goods"})
+         ↓ 沿跨模块调用边 BFS
+{"商品管理", "订单处理"}
+         ↓
+只刷新这两个模块的 AppMap → 宏
+         ↓
+其他模块（会员、门店...）不变
+```
+
+这正是 §4.3 增量生成的核心——**没有模块图，增量生成不知道影响范围，只能全量重算。**
+
+### 6.7 LLM 命名层提示词
+
+复用 v3.6 的设计，但输入增加 `project_summary`（已有）和项目已有的 Wiki 术语以保证命名一致性。
 
 ---
 
@@ -834,7 +873,7 @@ requires:
 | §3.2 生成物 API | ✅ 已完成 | `app/api/routes/projects/_generations.py` | 4 个 REST 端点 |
 | §3.6 前端生成物面板 | ✅ 已完成 | `frontend/.../Generation/` | 面板 UI + 路由完整。AppMap 不面向用户展示，无需可视化组件 |
 | §5.3 AppMap 图连通性反幻觉 | ✅ 已完成 | `app/core/atlas/source/validate.py` | BFS + 源码抽检 |
-| §6 Leiden 聚类 + LLM 命名层 | ✅ 已完成 | `app/domain/codebase/generation/leiden_clustering.py` | `graspologic` 已安装（本次），5 项单元测试通过 |
+| §6 ModuleGraphService 项目模块图 | 🔄 **v3.7 重构中** | `app/domain/codebase/generation/module_graph.py` | `recommend_wiki_outline` → 重构为带缓存的基础服务，统一接入 Wiki/AppMap/宏/增量生成 |
 | §10 DB 查询工具（4 个） | ✅ 已完成 | `app/domain/codebase/tools/query_tools.py` | |
 | §10 requires.tools 解析+白名单 | ✅ 已完成 | `app/core/learning/skill_importer.py` + `signals.py` | |
 ---
@@ -853,7 +892,7 @@ requires:
 | P2.4 跨文件符号解析 | `target_entity_id` 解析率 ≥ 90% | ✅ 通过 |
 | P2.5 安全扫描 | 已知漏洞模式召回率 ≥ 85% | ✅ 通过 |
 | §3.6 前端生成物面板 | `POST/GET /generations` 正常工作，SSE 事件驱动状态更新 | ✅ 通过 |
-| §6 Leiden 聚类 + LLM 命名 | `graspologic` 已安装，5 项单元测试通过 | ✅ 通过 |
+| §6 ModuleGraphService | ModuleGraph 5 项单元测试通过；Wiki prompt 注入模块摘要后大纲准确率提升；`impact_set` 计算最小影响集正确 | 🔄 重构中 |
 | §10 requires.tools 解析 | SkillImporter 成功将 frontmatter.requires.tools 写入 tools_required | ✅ 通过 |
 | §10 工具隔离 | Supervisor 按技能 tools_required 自动生成白名单 | ✅ 通过 |
 | §10 DB 查询工具 | 4 个查询工具在集成测试中返回正确数据 | ✅ 通过 |
