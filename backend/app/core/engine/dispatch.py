@@ -264,6 +264,7 @@ async def dispatch_agent_run(
                 references=references_list,
                 source=source,
                 message_id=message_id,
+                session=session,
             )
             persisted_msg_id = msg_id
 
@@ -358,6 +359,7 @@ async def persist_user_message(
             category="user",
             is_visible=True,
             message_id=message_id,
+            session=session,
         )
 
         if msg_id:

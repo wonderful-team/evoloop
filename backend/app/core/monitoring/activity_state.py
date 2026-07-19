@@ -59,41 +59,55 @@ class ActivityStateService:
         from app.infrastructure.database import session_scope
         return session_scope
 
-    async def start_run(self, thread_id: str, main_goal: str = "") -> bool:
+    async def start_run(self, thread_id: str, main_goal: str = "", session=None) -> bool:
         """Initialize activity state for a new run."""
-        async with self._get_session_scope()() as session:
-            activity = await session.get(AgentActivity, thread_id)
-            if activity is None:
-                activity = AgentActivity(thread_id=thread_id)
-                session.add(activity)
+        if session:
+            return await self._start_run_with_session(thread_id, main_goal, session)
+        async with self._get_session_scope()() as s:
+            return await self._start_run_with_session(thread_id, main_goal, s)
 
-            activity.status = "running"
-            activity.main_goal = main_goal
-            activity.artifacts_json = json.dumps([])
-            activity.agent_state_json = json.dumps({})
-            activity.active_memories_json = json.dumps([])
-            activity.human_request_json = None
-            activity.final_outcome = ""
+    async def _start_run_with_session(self, thread_id: str, main_goal: str, session) -> bool:
+        activity = await session.get(AgentActivity, thread_id)
+        if activity is None:
+            activity = AgentActivity(thread_id=thread_id)
+            session.add(activity)
+
+        activity.status = "running"
+        activity.main_goal = main_goal
+        activity.artifacts_json = json.dumps([])
+        activity.agent_state_json = json.dumps({})
+        activity.active_memories_json = json.dumps([])
+        activity.human_request_json = None
+        activity.final_outcome = ""
         return True
 
-    async def end_run(self, thread_id: str, status: str = "done", final_outcome: str | None = None) -> ActivityState:
+    async def end_run(self, thread_id: str, status: str = "done", final_outcome: str | None = None, session=None) -> ActivityState:
         """Mark run as ended and return final state."""
-        async with self._get_session_scope()() as session:
-            activity = await session.get(AgentActivity, thread_id)
-            if activity is None:
-                return ActivityState(status=status)
+        if session:
+            return await self._end_run_with_session(thread_id, status, final_outcome, session)
+        async with self._get_session_scope()() as s:
+            return await self._end_run_with_session(thread_id, status, final_outcome, s)
 
-            if activity.status in ("quota_exhausted", "cancelled", "failed"):
-                final_status = activity.status
-            elif activity.status == "stopping":
-                final_status = "cancelled"
-            else:
-                final_status = status
-            activity.status = final_status
-            if final_outcome:
-                activity.final_outcome = final_outcome
+    async def _end_run_with_session(self, thread_id: str, status: str, final_outcome: str | None, session) -> ActivityState:
+        activity = await session.get(AgentActivity, thread_id)
+        if activity is None:
+            return ActivityState(status=status)
 
-        return await self.get_state(thread_id)
+        # Idempotent: skip if already in a terminal state
+        if activity.status in ("done", "cancelled", "failed", "quota_exhausted"):
+            return ActivityState(status=activity.status)
+
+        if activity.status in ("quota_exhausted", "cancelled", "failed"):
+            final_status = activity.status
+        elif activity.status == "stopping":
+            final_status = "cancelled"
+        else:
+            final_status = status
+        activity.status = final_status
+        if final_outcome:
+            activity.final_outcome = final_outcome
+
+        return ActivityState(status=final_status)
 
     async def get_state(self, thread_id: str) -> ActivityState:
         """Get lightweight activity state."""
@@ -193,7 +207,7 @@ class ActivityStateService:
         _CANCELLATION_CACHE.pop(thread_id, None)
         return True
 
-    async def check_cancellation(self, thread_id: str) -> bool:
+    async def check_cancellation(self, thread_id: str, session=None) -> bool:
         """Check if run is marked for stopping."""
         now = time.time()
         cached = _CANCELLATION_CACHE.get(thread_id)
@@ -202,13 +216,18 @@ class ActivityStateService:
             if now < expires_at:
                 return is_cancelled
 
-        async with self._get_session_scope()() as session:
-            result = await session.execute(
-                select(AgentActivity.status).where(AgentActivity.thread_id == thread_id)
-            )
-            status = result.scalar_one_or_none()
-            is_cancelled = status == "stopping"
+        if session:
+            return await self._check_cancellation_with_session(thread_id, now, session)
 
+        async with self._get_session_scope()() as s:
+            return await self._check_cancellation_with_session(thread_id, now, s)
+
+    async def _check_cancellation_with_session(self, thread_id: str, now: float, session) -> bool:
+        result = await session.execute(
+            select(AgentActivity.status).where(AgentActivity.thread_id == thread_id)
+        )
+        status = result.scalar_one_or_none()
+        is_cancelled = status == "stopping"
         _CANCELLATION_CACHE[thread_id] = (is_cancelled, now + _CANCELLATION_CACHE_TTL_SECONDS)
         return is_cancelled
 

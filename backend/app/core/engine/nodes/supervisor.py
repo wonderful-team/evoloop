@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from typing import Any
 
 from pydantic import ValidationError
@@ -176,6 +177,7 @@ class SupervisorNode(BaseAgentNode):
         engine_result: EngineResult,
         config: dict,
     ) -> StateUpdate:
+        _direct_start = time.time()
         new_iter_count = (original_state.iteration_count or 0) + 1
         new_messages = [
             m for m in (engine_result.messages or [])
@@ -207,37 +209,28 @@ class SupervisorNode(BaseAgentNode):
                     iteration_count=new_iter_count,
                 )
 
-            # Direct response without tool calls — Supervisor answers directly.
-            # For voice: self-publish completion event so VoiceChannel
-            # pushes the result immediately without going through Finish.
+            # Direct response without tool calls — no need for Finish audit.
+            # Self-publish completion event so the result is pushed immediately.
+            from app.core.context.manager import ContextManager
+            from app.core.events.publishers import publish_session_completed
+            from app.core.events.schemas import SessionCompletedData
+
+            ctx = ContextManager.current()
             source = config.get("metadata", {}).get("source", "")
-            if source == "voice":
-                from app.core.context.manager import ContextManager
-                from app.core.events.publishers import publish_session_completed
-                from app.core.events.schemas import SessionCompletedData
-
-                ctx = ContextManager.current()
-                metadata = config.get("metadata", {})
-                event_data = SessionCompletedData(
-                    thread_id=original_state.thread_id or config.get("configurable", {}).get("thread_id") or "unknown",
-                    summary=ai_content,
-                    outcome="completed",
-                    source="voice",
-                    model=ctx.active_model,
-                )
-                logger.info("[Supervisor] Direct response (voice) → self-publishing SessionCompletedEvent")
-                await publish_session_completed(data=event_data)
-                return StateUpdate(
-                    messages=new_messages,
-                    next_node=RoutingTarget.END,
-                    summary=ai_content,
-                )
-
-            # Text chat: existing path through Finish for audit
+            event_data = SessionCompletedData(
+                thread_id=original_state.thread_id or config.get("configurable", {}).get("thread_id") or "unknown",
+                summary=ai_content,
+                outcome="completed",
+                source=source,
+                model=ctx.active_model,
+                duration_ms=(time.time() - _direct_start) * 1000,
+            )
+            logger.info("[Supervisor] Direct response → self-publishing SessionCompletedEvent")
+            await publish_session_completed(data=event_data)
             return StateUpdate(
                 messages=new_messages,
-                next_node=RoutingTarget.FINISH,
-                iteration_count=new_iter_count,
+                next_node=RoutingTarget.END,
+                summary=ai_content,
             )
 
         # Empty response (no AI content, no error) → safe fallback

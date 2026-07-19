@@ -160,6 +160,7 @@ class ConversationSyncManager:
                 thread_ids = list(pending_thread_ids | msg_thread_ids)
 
                 if not thread_ids:
+                    logger.debug("[ConversationSync] Incremental sync skipped: no pending data")
                     return
 
                 # 分批提交（每批100个会话）

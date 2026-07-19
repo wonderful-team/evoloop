@@ -113,6 +113,11 @@ class LLMErrorHandler:
             error_type = "recursion_limit"
             is_terminal = True
 
+        # [Context] Context length exceeded
+        elif "n_keep" in error_str or "context length" in error_str or "n_ctx" in error_str:
+            error_type = "context_limit"
+            is_terminal = True
+
         # 2. Localized Content Retrieval
         # Use a unified core_engine namespace for all agent-related infrastructure errors
         prefix = "core_engine"

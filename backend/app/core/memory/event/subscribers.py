@@ -162,11 +162,12 @@ class MemoryRewind:
             # Get message IDs to clean up
             # Prefer pre-computed affected_message_ids to avoid execution-order
             # dependency with MessageRewind (which may have already deleted rows).
-            message_ids = event.affected_message_ids or await self._find_message_ids(
+            message_ids = (event.affected_message_ids if event.affected_message_ids is not None
+                           else await self._find_message_ids(
                 thread_id=event.thread_id,
                 target_message_id=event.target_message_id,
                 include_target=event.include_target
-            )
+            ))
 
             if message_ids or event.affected_run_ids:
                 logger.info(f"[MemoryRewind] Identified {len(message_ids)} affected messages and {len(event.affected_run_ids)} run_ids for thread {event.thread_id}")

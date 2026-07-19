@@ -346,6 +346,8 @@ class _FileEngine:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
 
         if query:
+            if types and len(types) == 1:
+                sql_filters["type"] = types[0].value
             rows = await self._db_search(sql_filters, query=query, limit=limit * 5)
         else:
             if types:

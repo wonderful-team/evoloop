@@ -198,7 +198,6 @@ class EvoCloudHTTPClient(
         current_base = self._get_base_url(is_gateway)
 
         url = f"{current_base}{endpoint}"
-        logger.info(f"[EvoCloud] Requesting API: {method} {url}")
         timestamp = int(time.time())
         body_str = dumps(data) if data else ""
 
@@ -217,42 +216,28 @@ class EvoCloudHTTPClient(
 
         if active_token:
             request_params["token"] = active_token
-            logger.info(
-                f"[EvoCloud] Request {method} {endpoint}: token_prefix={active_token[:8]}..."
-            )
-        else:
-            logger.info(f"[EvoCloud] Request {method} {endpoint}: no active token")
 
         log_params = {
             k: ("***" if k == "token" and v else v) for k, v in request_params.items()
         }
-        logger.info(f"[EvoCloud] Request {method} {endpoint} params: {log_params}")
+        logger.info(f"[EvoCloud] {method} {endpoint} token={active_token[:8] if active_token else 'none'} params={log_params}")
 
         try:
             resp = await client.request(
                 method, url, params=request_params, json=data, headers=req_headers
             )
             raw_text = resp.text
-            logger.info(
-                f"[EvoCloud] Response {method} {endpoint}: status={resp.status_code}, body={raw_text[:1000]!r}"
-            )
             resp_json = (resp.json() if resp.status_code == 200 else None) or {}
-            logger.info(
-                f"[EvoCloud] Parsed response for {endpoint}: "
-                f"status={resp.status_code}, "
-                f"code={resp_json.get('code')}, "
-                f"message={resp_json.get('message')!r}, "
-                f"data={resp_json.get('data')!r}"
-            )
             is_token_expired = (
                 resp.status_code == 401
                 or resp_json.get("code") in [-10009, -10010]
                 or resp_json.get("message") == "TOKEN_EXPIRE"
             )
             logger.info(
-                f"[EvoCloud] Token expiry check for {endpoint}: "
-                f"is_token_expired={is_token_expired}, "
-                f"retry_count={_retry_count}"
+                f"[EvoCloud] {method} {endpoint} → {resp.status_code} "
+                f"code={resp_json.get('code')} "
+                f"msg={resp_json.get('message')!r} "
+                f"expired={is_token_expired}"
             )
             if is_token_expired and _retry_count < 1:
                 stored_token = await self.get_token()
@@ -279,9 +264,7 @@ class EvoCloudHTTPClient(
                         )
 
             if resp.status_code >= 400:
-                logger.error(f"API Error {resp.status_code}: {resp.text[:500]}")
-            else:
-                logger.info(f"[EvoCloud] Response: {resp.status_code} OK from {url}")
+                logger.error(f"[EvoCloud] {method} {endpoint} → {resp.status_code}: {resp.text[:200]}")
 
             try:
                 result = resp.json()

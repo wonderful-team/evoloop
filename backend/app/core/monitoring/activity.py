@@ -65,72 +65,70 @@ class ActivityMonitor:
         task_type: str = None,
         project_id: int | None = None,
     ) -> AsyncGenerator[str, None]:
-        """
-        Unified Agent Lifecycle Context Manager.
-
-        Handles:
-        - start_run / end_run
-        - run_id generation and context injection
-        - Early cancellation check
-        - Global exception handling and status reporting
-
-        Yields:
-            run_id (str): The unique ID for this execution attempt.
-        """
         from app.core.context.manager import ContextManager
-        from app.core.exceptions import (
-            AgentCancelledException,
-            AgentHumanInterruptException,
-        )
+        from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
+        from app.infrastructure.database import session_scope
         from app.utils.id import gen_uuid
 
         run_id = f"run-{gen_uuid()[:8]}"
 
-        # 1. Start Run
-        await self.start_run(thread_id, main_goal, run_id=run_id, project_id=project_id)
-        logger.info(
-            f"[ActivityMonitor] 🚀 Starting lifecycle for thread {thread_id} (Run: {run_id})"
-        )
+        # Share one DB session for start (start_run + check_cancellation)
+        async with session_scope() as session:
+            await self._state_service.start_run(thread_id, main_goal, session=session)
+            logger.info(f"[ActivityMonitor] 🚀 Starting lifecycle for thread {thread_id} (Run: {run_id})")
+            await self._publish_session_started(thread_id, project_id)
+            await self.check_cancellation(thread_id, session=session)
 
-        # 2. Sync Metadata to Context
         ctx = ContextManager.current()
         if ctx and ctx.thread_id == thread_id:
             ctx.run_id = run_id
 
         try:
-            # 3. Pre-run cancellation check
-            await self.check_cancellation(thread_id)
-
             yield run_id
 
-            # 4. Success End
-            await self.end_run(
-                thread_id, status="done", run_id=run_id, task_type=task_type
-            )
+            # End phase: skip if monitoring subscriber already terminated
+            async with session_scope() as session:
+                activity = await session.get(AgentActivity, thread_id)
+                if activity and activity.status in ("done", "failed", "cancelled", "quota_exhausted"):
+                    logger.debug(f"[ActivityMonitor] Skipping end_run for {thread_id}: already {activity.status}")
+                else:
+                    result = await self._state_service.end_run(thread_id, "done", session=session)
+                    await self._publish_run_completed(thread_id, result, run_id, task_type)
 
         except AgentCancelledException:
             logger.info(f"[ActivityMonitor] 🛑 Run {run_id} cancelled by user")
-            await self.end_run(
-                thread_id, status="cancelled", run_id=run_id, task_type=task_type
-            )
-            raise  # Re-raise for upper layers if needed (BackgroundAgent handles it)
+            async with session_scope() as session:
+                result = await self._state_service.end_run(thread_id, "cancelled", session=session)
+            await self._publish_run_completed(thread_id, result, run_id, task_type)
+            raise
 
         except AgentHumanInterruptException:
             logger.info(f"[ActivityMonitor] ⏸️ Run {run_id} interrupted for human input")
-            await self.end_run(
-                thread_id, status="interrupted", run_id=run_id, task_type=task_type
-            )
             raise
 
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-            logger.error(
-                f"[ActivityMonitor] ❌ Run {run_id} failed with error: {e}",
-                exc_info=True,
-            )
-            await self.end_run(
-                thread_id, status="failed", run_id=run_id, task_type=task_type
-            )
+            logger.error(f"[ActivityMonitor] ❌ Run {run_id} failed with error: {e}")
+            async with session_scope() as session:
+                result = await self._state_service.end_run(thread_id, "failed", session=session)
+            await self._publish_run_completed(thread_id, result, run_id, task_type)
             raise
+
+    async def _publish_session_started(self, thread_id: str, project_id: int | None = None):
+        from app.core.engine.event.publishers import publish_agent_session_started
+        await publish_agent_session_started(thread_id=thread_id, project_id=project_id)
+
+    async def _publish_run_completed(self, thread_id: str, result, run_id: str, task_type: str | None):
+        from app.core.engine.event.publishers import publish_agent_run_completed
+        await publish_agent_run_completed(
+            thread_id=thread_id,
+            status=result.status,
+            payload={"run_id": run_id, "task_type": task_type},
+        )
+        from app.core.events.publishers import system_bus
+        from app.core.monitoring.event import SystemStatusEvent
+        await system_bus.publish(
+            SystemStatusEvent(thread_id=thread_id, status=result.status)
+        )
 
     async def start_run(
         self,
@@ -182,16 +180,14 @@ class ActivityMonitor:
         """Signal a run to stop."""
         await self._state_service.signal_stop(thread_id)
 
-    async def check_cancellation(self, thread_id: str):
+    async def check_cancellation(self, thread_id: str, session=None):
         """Check if run is marked for stopping and raise exception if so."""
         from app.core.exceptions import AgentCancelledException
 
-        if await self._state_service.check_cancellation(thread_id):
+        if await self._state_service.check_cancellation(thread_id, session=session):
             raise AgentCancelledException(f"Run {thread_id} cancelled by user")
 
-    async def set_interrupted(
-        self, thread_id: str, reason: str = "awaiting_human_input"
-    ):
+    async def set_interrupted(self, thread_id: str, reason: str = "awaiting_human_input"):
         """Mark a run as interrupted (paused for human input)."""
         await self._state_service.set_interrupted(thread_id, reason)
 
@@ -275,9 +271,7 @@ class ActivityMonitor:
             payload=payload or {},
         )
 
-        success = await self._state_service.set_human_request(
-            thread_id, request_data.model_dump()
-        )
+        success = await self._state_service.set_human_request(thread_id, request_data.model_dump())
 
         if success:
             await system_bus.publish(

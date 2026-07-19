@@ -103,7 +103,16 @@ class BaseAgentNode(BaseNode, ABC):
             # 3. Engine Execution
             engine = get_default_engine()
             is_subtask = resolve_is_subtask(state)
-            model = config.get("configurable", {}).get("model")
+
+            # Two-tier LLM: Supervisor uses lightning (local), Worker/Finish use default (cloud)
+            cfg = config.get("configurable", {})
+            model = cfg.get("model")
+            node_name = self.node_name.lower()
+            if cfg.get("lightning_model") and node_name == "supervisor":
+                logger.info(f"[{self.node_name}] Using lightning model: {cfg['lightning_model']}")
+                model = cfg["lightning_model"]
+            elif cfg.get("worker_model") and node_name in ("worker", "finish"):
+                model = cfg["worker_model"]
 
             logger.info(
                 f"[{self.node_name}] 🚀 Engine.run_node | model={model} | is_subtask={is_subtask} | "

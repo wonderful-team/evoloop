@@ -9,6 +9,7 @@ Embedding is handled independently by EmbedderFactory (see
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from enum import Enum
 from typing import Any
@@ -88,7 +89,22 @@ class LightningService:
 
         self._llm = await self._build_llm(snap)
         self._config_snapshot = snap
+        await self._warmup_if_llamacpp()
         return self._llm
+
+    async def _warmup_if_llamacpp(self):
+        """Preload the llama.cpp model and warm up Metal JIT."""
+        if not isinstance(self._llm, LlamaCppChatModel):
+            return
+        try:
+            await self._llm._ensure_loaded()
+            # Tiny inference to warm Metal shader cache
+            await asyncio.to_thread(
+                lambda: self._llm._llm.create_completion("Hi", max_tokens=1, temperature=0)
+            )
+            logger.info("[Lightning] llama.cpp model warmed up (Metal JIT compiled)")
+        except Exception as e:
+            logger.warning("[Lightning] llama.cpp warmup failed: %s", e)
 
     def flush(self):
         """Drop the cached LLM instance so it is re-created on next access."""

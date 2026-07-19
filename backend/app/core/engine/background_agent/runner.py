@@ -85,6 +85,21 @@ async def run_agent_background(
                     },
                 }
 
+                # Two-tier LLM: when lightning mode is active, Supervisor uses the
+                # local fast model, Worker/Finish keep the default model.
+                from app.infrastructure.config.service import SystemConfigService
+                lightning_mode = SystemConfigService.get_value("LIGHTNING_MODE", "none")
+                lightning_base = SystemConfigService.get_value("LIGHTNING_BASE_URL", "")
+                if lightning_mode not in ("none", ""):
+                    lightning_model = SystemConfigService.get_value("LIGHTNING_LLM_MODEL", "")
+                    lightning_ctx = SystemConfigService.get_value("LIGHTNING_CTX", "8192")
+                    if lightning_model:
+                        config["configurable"]["lightning_model"] = lightning_model
+                        config["configurable"]["lightning_base_url"] = lightning_base
+                        config["configurable"]["lightning_api_key"] = SystemConfigService.get_value("LIGHTNING_API_KEY", "")
+                        config["configurable"]["lightning_ctx"] = lightning_ctx
+                        config["configurable"]["worker_model"] = inputs.model
+
                 callback = TransparentCallbackHandler(thread_id=thread_id)
                 db_callback = DatabaseCallbackHandler(
                     thread_id=thread_id,

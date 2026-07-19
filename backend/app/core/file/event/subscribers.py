@@ -34,7 +34,7 @@ class FileRewind:
             return
 
         target_ids = event.affected_message_ids
-        if target_ids:
+        if target_ids is not None:
             file_ops = await self._find_file_operations_by_message_ids(
                 thread_id=event.thread_id,
                 message_ids=target_ids,

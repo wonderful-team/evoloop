@@ -213,19 +213,49 @@ class LLMFactory:
             config_type = "direct"
             base_url = config.base_url or ""
         else:
-            # Fallback: check if custom LLM is configured in the database.
-            # If LLM_BASE_URL is set, treat as direct mode with DB values.
-            db_base_url = SystemConfigService.get_value("LLM_BASE_URL")
-            db_api_key = SystemConfigService.get_value("LLM_API_KEY")
-            if db_base_url:
-                config_type = "direct"
-                base_url = db_base_url
-                db_provider_type = SystemConfigService.get_value("LLM_PROVIDER_TYPE") or "openai"
-                provider = db_provider_type
-                # Inject DB values into config so _create_direct_llm uses them
-                config.base_url = db_base_url
-                config.api_key = config.api_key or db_api_key
-                config.provider_type = db_provider_type
+            # Check if this model is a lightning (local) model
+            lightning_mode = SystemConfigService.get_value("LIGHTNING_MODE", "none")
+            if lightning_mode not in ("none", "") and \
+               SystemConfigService.get_value("LIGHTNING_LLM_MODEL", ""):
+                lightning_base = SystemConfigService.get_value("LIGHTNING_BASE_URL", "")
+                use_lightning = lightning_mode == "llama.cpp" or \
+                    (lightning_base and config.model_name ==
+                     SystemConfigService.get_value("LIGHTNING_LLM_MODEL", ""))
+                if use_lightning:
+                    if lightning_mode == "llama.cpp":
+                        # llama.cpp mode: use LlamaCppChatModel directly
+                        from app.infrastructure.llm.lightning import get_lightning_service
+                        llm = await get_lightning_service().get_llm()
+                        if llm is not None:
+                            logger.info(f"[LLMFactory] Llama.cpp model from LightningService")
+                            return llm
+                    if not lightning_base:
+                        from app.infrastructure.llm.lightning import _LIGHTNING_DEFAULTS
+                        defaults = _LIGHTNING_DEFAULTS.get(lightning_mode, {})
+                        lightning_base = defaults.get("base_url", "http://localhost:1234/v1")
+                        lightning_api_key = defaults.get("api_key", "lm-studio")
+                    else:
+                        lightning_api_key = SystemConfigService.get_value("LIGHTNING_API_KEY", "")
+                    config.base_url = lightning_base
+                    config.api_key = lightning_api_key or "lm-studio"
+                    config_type = "direct"
+                    base_url = lightning_base
+                    logger.info(
+                        f"[LLMFactory] Lightning model auto-detected: "
+                        f"model={config.model_name}, mode={lightning_mode}"
+                    )
+                else:
+                    # Fallback: check if custom LLM is configured in the database.
+                    db_base_url = SystemConfigService.get_value("LLM_BASE_URL")
+                    db_api_key = SystemConfigService.get_value("LLM_API_KEY")
+                    if db_base_url:
+                        config_type = "direct"
+                        base_url = db_base_url
+                        db_provider_type = SystemConfigService.get_value("LLM_PROVIDER_TYPE") or "openai"
+                        provider = db_provider_type
+                        config.base_url = db_base_url
+                        config.api_key = config.api_key or db_api_key
+                        config.provider_type = db_provider_type
 
         # Generate cache key
         cache_key = LLMFactory._generate_cache_key(

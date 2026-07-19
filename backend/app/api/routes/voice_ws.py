@@ -77,6 +77,12 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
     t_total_start = time.time()
     lock = await executor.get_thread_lock(thread_id)
     async with lock:
+        # Auto barge-in: if TTS is still playing, cancel current task first
+        if not await voice_state_machine.can_accept_route(thread_id):
+            cancelled = await executor.cancel_voice_task(thread_id)
+            await voice_state_machine.force_set(thread_id, VoiceSessionState.INTERRUPTED)
+            logger.info("[voice] barge_in for thread %s, cancelled=%s", thread_id, cancelled)
+
         ctx = EvoContext(thread_id=thread_id, request_id=message_id or gen_uuid())
         token = ContextManager.set(ctx)
         try:
@@ -265,6 +271,8 @@ async def voice_ws(websocket: WebSocket) -> None:
                 thread_id = str(body.get("thread_id", "")).strip()
                 if thread_id:
                     await manager.bind_thread(thread_id, conn_id)
+                    if not await voice_state_machine.can_accept_route(thread_id):
+                        await _handle_barge_in(thread_id)
                     await voice_state_machine.set(thread_id, VoiceSessionState.LISTENING)
             elif mtype in ("voice.stop",):
                 thread_id = str(body.get("thread_id", "")).strip()

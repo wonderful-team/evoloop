@@ -8,6 +8,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from app.core.engine.callbacks.database_logger import current_node_source
 from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
 from app.core.engine.error_handler import (
     LLM_EXCEPTIONS,
@@ -24,7 +25,8 @@ from app.core.engine.message.native_classes import (
 from app.core.engine.message.reasoning import extract_reasoning_from_message
 from app.core.exceptions import InferenceError
 from app.core.file import compute_md5
-from app.infrastructure.llm.factory import LLMFactory
+from app.core.exceptions import InferenceError
+from app.infrastructure.llm.factory import LLMConfig, LLMFactory
 
 logger = logging.getLogger(__name__)
 
@@ -175,6 +177,20 @@ class InferenceEngine:
     def _format_llm_endpoint(llm) -> str:
         return f"model={llm.model or '?'}"
 
+    @staticmethod
+    async def _handle_ai_response(response: BaseMessage, handler) -> None:
+        if not handler or not response.content:
+            return
+        from app.core.engine.message.reasoning import extract_reasoning_from_message
+        node_source = current_node_source.get()
+        await handler.handle_ai_message(
+            content=response.content,
+            tool_calls=response.tool_calls,
+            thinking=extract_reasoning_from_message(response),
+            metadata=response.metadata,
+            node_source=node_source,
+        )
+
     async def _execute_llm_call(
         self,
         llm_with_tools,
@@ -198,13 +214,37 @@ class InferenceEngine:
             latency = time.perf_counter() - start_perf
             logger.info(f"[{name}] LLM Latency: {latency:.2f}s")
         except LLM_EXCEPTIONS as e:
-            LLMErrorHandler.raise_inference_error(e)
+            err_str = str(e)
+            cfg = config.get("configurable", {})
+            lightning_base = cfg.get("lightning_base_url", "")
+            # Lightning model context limit — fall back to platform model
+            if lightning_base and ("n_ctx" in err_str or "context length" in err_str.lower()):
+                logger.warning(
+                    f"[{name}] Lightning model context limit ({err_str[:100]}), "
+                    f"falling back to default model"
+                )
+                default_model = cfg.get("model", "")
+                if default_model:
+                    fallback_llm = await self._llm_factory.create_llm(
+                        LLMConfig(model_name=default_model, temperature=0.7, streaming=True),
+                    )
+                    response = await self._stream_llm_response(
+                        fallback_llm, loop_messages, config
+                    )
+                    latency = time.perf_counter() - start_perf
+                    logger.info(f"[{name}] Fallback LLM Latency: {latency:.2f}s")
+                else:
+                    LLMErrorHandler.raise_inference_error(e)
+            else:
+                LLMErrorHandler.raise_inference_error(e)
 
         run_id = config.get("configurable", {}).get("run_id")
         if run_id:
             response.additional_kwargs["run_id"] = run_id
 
         handler = config.get("configurable", {}).get("message_handler")
+        if handler:
+            await self._handle_ai_response(response, handler)
         if handler and handler.last_persisted_message_id:
             response.id = handler.last_persisted_message_id
             response.additional_kwargs["sequence_number"] = handler.last_persisted_sequence

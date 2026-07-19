@@ -16,7 +16,6 @@ from uuid import UUID, uuid4
 
 from app.core.engine.callbacks.base import AsyncCallbackHandler, LLMResult
 from app.core.engine.message import MessageHandler
-from app.core.engine.message.reasoning import extract_reasoning_from_message
 from app.core.engine.message.utils import parse_tool_input
 
 current_node_source: contextvars.ContextVar[str | None] = contextvars.ContextVar("db_node_source", default=None)
@@ -113,10 +112,8 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         """
         LLM 响应结束时调用
 
-        处理 AI 消息：
-        1. 提取内容和元数据
-        2. 委托给 MessageHandler
-        3. Handler 会自动分类并应用策略
+        AI 消息的持久化和推送已迁移到 InferenceEngine._handle_ai_response()
+        （引擎层统一后处理，不依赖 LangChain 回调，cloud/local 模型统一）。
         """
         if not response.generations:
             return
@@ -126,68 +123,12 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         if not message:
             return
 
-        # 提取内容
-        content = self._extract_content(message.content)
-        if not content:
-            content = ""
-
-        # 提取工具调用
-        tool_calls = None
-        if message.tool_calls:
-            tool_calls = message.tool_calls
-        elif message.additional_kwargs:
-            tool_calls = message.additional_kwargs.get("tool_calls")
-
-        # 提取元数据
-        metadata = message.metadata or {}
-
-        # 提取思考内容（native reasoning_content）
-        additional_kwargs = message.additional_kwargs or {}
-        thinking = extract_reasoning_from_message(message)
-        # 传递 reasoning_content 信息，供 handler 正确标记 thinking_type
-        if additional_kwargs.get("reasoning_content"):
-            metadata = {
-                **metadata,
-                "reasoning_content": additional_kwargs["reasoning_content"],
-            }
-
-        # 提取 node_source（优先从 ContextVar，兜底从 additional_kwargs）
-        node_source = current_node_source.get()
-        if not node_source:
-            node_source = additional_kwargs.get("node_source")
-
-        # 委托给统一处理器
-        result = await self._handler.handle_ai_message(
-            content=content,
-            tool_calls=tool_calls,
-            thinking=thinking,
-            metadata=metadata,
-            node_source=node_source,
-            parent_id=None, # AI messages usually parents of previous turn's last message (resolved in repo)
-            message_id=self._last_ai_message_id,
-        )
-
-        # Store the message_id for subsequent tools/HITL in this turn
-        if result.get("message_id"):
-            self._last_ai_message_id = result["message_id"]
-            from app.core.context.manager import ContextManager
-
-            ctx = ContextManager.current()
-            ctx.last_ai_message_id = result.message_id
-
-        # 重要：将持久化后的 ID 和序列号回填给消息对象，供后续环节（如 MemoryExtractor）使用
-        if result.get("message_id"):
-            message.id = str(result["message_id"])
-            # 同时回填 sequence_number 到 additional_kwargs，确保 ID 构造的一致性
-            if message.additional_kwargs is None:
-                message.additional_kwargs = {}
-            message.additional_kwargs["sequence_number"] = result.get("sequence_number", 0)
-
+        # 保留 _last_ai_message_id 追踪，供 on_tool_start 的 parent_id 使用
+        # 实际值由 on_llm_start 预分配，与引擎层 handle_ai_message 结果一致
         logger.debug(
-            f"[DatabaseCallback] AI message handled: "
-            f"category={result['category']}, "
-            f"persisted={result['persisted']}, "
-            f"id={message.id}, seq={result.get('sequence_number')}"
+            f"[DatabaseCallback] AI message tracked: "
+            f"content_len={len(str(message.content))}, "
+            f"tool_calls={bool(message.tool_calls)}"
         )
 
     async def on_tool_end(
@@ -232,24 +173,6 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             f"persisted={result['persisted']}, "
             f"id={result.get('message_id')}"
         )
-
-    def _extract_content(self, content: Any) -> str:
-        """提取文本内容，处理多模态格式"""
-        if not content:
-            return ""
-
-        # 处理列表格式（Anthropic/Zhipu 结构化输出）
-        if isinstance(content, list):
-            text_parts = []
-            for item in content:
-                if isinstance(item, dict):
-                    if item.get("type") == "text":
-                        text_parts.append(item.get("text", ""))
-                elif isinstance(item, str):
-                    text_parts.append(item)
-            return "".join(text_parts)
-
-        return str(content)
 
     async def on_tool_start(
         self,

@@ -51,6 +51,7 @@ class MessageRepository:
         source: str | None = None,
         executor_device_key: str | None = None,
         executor_device_name: str | None = None,
+        session=None,
     ) -> tuple[str | None, int]:
         """
         Persist a message to the database.
@@ -64,6 +65,14 @@ class MessageRepository:
             return None, 0
 
         try:
+            if session is not None:
+                return await self._persist_with_session(
+                    role, content, thinking, tool_calls, category, action_type, status,
+                    is_visible, tool_call_id, tool_name, content_type, metadata,
+                    parent_id, references, message_id, node_source, source,
+                    executor_device_key, executor_device_name, session,
+                )
+
             seq = await SequenceService.next_sequence(self.thread_id)
 
             # Resolve parent_id if not provided
@@ -133,6 +142,76 @@ class MessageRepository:
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[MessageRepository] Failed to persist message: {e}")
             raise
+
+    async def _persist_with_session(
+        self,
+        role, content, thinking, tool_calls, category, action_type, status,
+        is_visible, tool_call_id, tool_name, content_type, metadata,
+        parent_id, references, message_id, node_source, source,
+        executor_device_key, executor_device_name, session,
+    ) -> tuple[str | None, int]:
+        seq = await SequenceService.next_sequence(self.thread_id, session=session)
+
+        effective_parent_id = parent_id
+        if not effective_parent_id:
+                effective_parent_id = await self.get_last_message_id(session=session)
+
+        logger.info(f"[MessageRepository] Persisting {role} message (seq={seq}, cat={category}, parent={effective_parent_id})")
+
+        log = Message(
+            id=message_id or gen_uuid(),
+            thread_id=self.thread_id,
+            project_id=self.project_id,
+            member_id=self.member_id,
+            role=role,
+            content=content or "",
+            thinking=thinking,
+            sequence_number=seq,
+            run_id=self.run_id,
+            status=status,
+            category=category,
+            content_type=content_type,
+            action_type=action_type,
+            is_visible=is_visible,
+            tool_calls=tool_calls,
+            tool_call_id=tool_call_id,
+            tool_name=tool_name,
+            meta_data=metadata,
+            node_source=node_source,
+            source=source,
+            parent_id=effective_parent_id,
+            executor_device_key=executor_device_key,
+            executor_device_name=executor_device_name,
+        )
+        session.add(log)
+
+        if references:
+            for ref_data in references:
+                if isinstance(ref_data, dict):
+                    ref_id = ref_data.get("id") or gen_uuid()
+                    ref_type = ref_data.get("type") or "file"
+                    ref_target_id = ref_data.get("target_id") or ""
+                    ref_target_name = ref_data.get("target_name") or "Unnamed Reference"
+                    ref_meta = ref_data.get("metadata") or ref_data.get("meta_data") or {}
+                else:
+                    ref_id = getattr(ref_data, "id", None) or gen_uuid()
+                    ref_type = getattr(ref_data, "type", None) or "file"
+                    ref_target_id = getattr(ref_data, "target_id", None) or ""
+                    ref_target_name = getattr(ref_data, "target_name", None) or "Unnamed Reference"
+                    ref_meta = getattr(ref_data, "metadata", None) or getattr(ref_data, "meta_data", None) or {}
+
+                ref = MessageReference(
+                    id=ref_id,
+                    message_id=log.id,
+                    type=ref_type,
+                    target_id=ref_target_id,
+                    target_name=ref_target_name,
+                    meta_data=ref_meta,
+                )
+                session.add(ref)
+
+        await session.flush()
+        return log.id, seq
 
     async def update(self, sequence_number: int, **fields) -> str | None:
         """
@@ -328,21 +407,26 @@ class MessageRepository:
             logger.error(f"[MessageRepository] Failed to update status by tool_call_id {tool_call_id}: {e}")
             raise
 
-    async def get_last_message_id(self) -> str | None:
+    async def get_last_message_id(self, session=None) -> str | None:
         """Get the ID of the most recent message in the thread."""
         try:
-            async with session_scope() as session:
-                stmt = (
-                    select(Message.id)
-                    .where(Message.thread_id == self.thread_id)
-                    .order_by(desc(Message.sequence_number))
-                    .limit(1)
-                )
-                result = await session.execute(stmt)
-                return result.scalar_one_or_none()
+            if session is None:
+                async with session_scope() as s:
+                    return await self._get_last_message_id(s)
+            return await self._get_last_message_id(session)
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[MessageRepository] Failed to get last message id: {e}")
             return None
+
+    async def _get_last_message_id(self, session) -> str | None:
+        stmt = (
+            select(Message.id)
+            .where(Message.thread_id == self.thread_id)
+            .order_by(desc(Message.sequence_number))
+            .limit(1)
+        )
+        result = await session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_full_history(self, limit: int = 50, before_id: str | None = None, include_invisible: bool = True) -> tuple[list[Message], bool, int | None]:
         """

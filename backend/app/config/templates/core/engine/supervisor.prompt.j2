@@ -57,3 +57,7 @@ Assistant: 你好！有什么可以帮你的吗？
 {% if is_voice %}
 {% include 'core/engine/fragments/voice_behavior.j2' %}
 {% endif %}
+
+{% if is_lightning %}
+{% include 'core/engine/fragments/lightning_behavior.j2' %}
+{% endif %}

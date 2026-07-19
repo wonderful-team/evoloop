@@ -62,6 +62,8 @@ class SupervisorPromptBuilder(BasePromptBuilder):
 
         # 3. Prepare Template Variables (STATIC only — no blackboard/memory/telemetry)
         is_voice = ctx.metadata.get("source") == "voice"
+        lightning_mode = SystemConfigService.get_value("LIGHTNING_MODE", "none")
+        is_lightning = lightning_mode not in ("none", "")
         template_vars = {
             "project_id": self.project_id,
             "user_lang": user_lang,
@@ -75,14 +77,16 @@ class SupervisorPromptBuilder(BasePromptBuilder):
             "project_concepts": ctx.metadata.get("project_concepts", ""),
             "is_supervisor": True,
             "is_voice": is_voice,
+            "is_lightning": is_lightning,
             "has_file_operations": False,
             "agent_name": SystemConfigService.get_value("AGENT_NAME", "EvoLoop"),
             "agent_company": SystemConfigService.get_value("AGENT_COMPANY", "上海方天画戟信息技术有限公司"),
             "agent_website": SystemConfigService.get_value("AGENT_WEBSITE", "https://evoloop.cn"),
         }
 
-        # 4. Render Core Template
-        base_prompt = render_template("core/engine/supervisor.prompt.j2", **template_vars)
+        # 4. Render Core Template (lightning or standard)
+        template = "core/engine/supervisor_lightning.prompt.j2" if is_lightning else "core/engine/supervisor.prompt.j2"
+        base_prompt = render_template(template, **template_vars)
 
         # 5. Append lightweight skills index via PromptAssemblyBuilder
         # Supervisor owns routing — it only needs name+desc to decide which skill
