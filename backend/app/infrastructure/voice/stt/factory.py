@@ -3,7 +3,8 @@ STT Provider Factory
 语音识别提供商工厂
 
 支持:
-- FunASR (本地，中文优化，推荐)
+- Qwen3-ASR (本地，高精度离线，推荐)
+- Aliyun SenseVoice (云端，中英混合推荐)
 - OpenAI Whisper (云端，备选)
 """
 
@@ -15,7 +16,7 @@ from app.infrastructure.voice.stt.base import (
     STTResult,
     VoiceLocale,
 )
-from app.infrastructure.voice.stt.funasr import FunASRManager, FunASRProvider
+from app.infrastructure.voice.stt.qwen3_asr import Qwen3ASRProvider
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
 class STTFactory:
     """STT 提供商工厂"""
 
+    _qwen3_provider = None
     _whisper_provider = None  # 延迟导入
     _aliyun_provider = None  # 延迟导入
 
@@ -41,9 +43,9 @@ class STTFactory:
         provider_name = SystemConfigService.get_value("STT_PROVIDER")
 
         # 1. 尝试数据库配置的 Provider
-        if provider_name == "funasr":
+        if provider_name in ("qwen3-asr", "qwen3", "funasr"):
             try:
-                provider = cls.get_funasr_provider()
+                provider = cls.get_qwen3_provider()
                 if provider.is_available():
                     return provider
             except Exception as e:
@@ -55,7 +57,7 @@ class STTFactory:
                     return provider
             except Exception as e:
                 logger.warning(f"Configured STT provider '{provider_name}' not available: {e}, falling back...")
-        elif provider_name == "openai-whisper":
+        elif provider_name in ("openai-whisper", "whisper"):
             try:
                 provider = cls.get_whisper_provider()
                 if provider.is_available():
@@ -63,16 +65,16 @@ class STTFactory:
             except Exception as e:
                 logger.warning(f"Configured STT provider '{provider_name}' not available: {e}, falling back...")
 
-        # 2. 备选方案：无配置或配置的 Provider 不可用时，按原逻辑回退
+        # 2. 备选方案：无配置或配置的 Provider 不可用时，优先回退到 Qwen3-ASR 本地模型
         if prefer_local:
             try:
-                provider = cls.get_funasr_provider()
+                provider = cls.get_qwen3_provider()
                 if provider.is_available():
                     return provider
             except Exception as e:
-                logger.warning(f"FunASR fallback not available: {e}")
+                logger.warning(f"Qwen3-ASR fallback not available: {e}")
 
-        # 3. 最终回退到 Whisper/或者尝试阿里云
+        # 3. 最终回退到阿里云/Whisper
         try:
             provider = cls.get_aliyun_provider()
             if provider.is_available():
@@ -83,20 +85,17 @@ class STTFactory:
         return cls.get_whisper_provider()
 
     @classmethod
-    def get_funasr_provider(cls, model_name: str = "paraformer-zh") -> FunASRProvider:
+    def get_qwen3_provider(cls, model_dir: str | None = None) -> Qwen3ASRProvider:
         """
-        获取 FunASR 提供商
+        获取 Qwen3-ASR 提供商
         
-        Args:
-            model_name: 模型名称，默认 paraformer-zh
-            
         Returns:
-            FunASRProvider: FunASR 提供商
+            Qwen3ASRProvider: Qwen3-ASR 提供商
         """
-        # 优先读取系统配置中的本地模型配置
-        from app.infrastructure.config.service import SystemConfigService
-        db_model = SystemConfigService.get_value("FUNASR_MODEL")
-        return FunASRManager.get_provider(db_model or model_name)
+        if cls._qwen3_provider is None:
+            cls._qwen3_provider = Qwen3ASRProvider(model_dir=model_dir)
+            logger.info("Qwen3-ASR provider initialized")
+        return cls._qwen3_provider
 
     @classmethod
     def get_aliyun_provider(cls):
@@ -137,18 +136,18 @@ class STTFactory:
         """
         providers = []
 
-        # 检查 FunASR
+        # 检查 Qwen3-ASR
         try:
-            funasr = FunASRProvider()
+            qwen3 = cls.get_qwen3_provider()
             providers.append({
-                "name": "funasr",
-                "available": funasr.is_available(),
-                "description": "本地语音识别，中文优化，免费",
-                "models": funasr.list_models(),
+                "name": "qwen3-asr",
+                "available": qwen3.is_available(),
+                "description": "本地语音识别，高精度离线，免费",
+                "models": qwen3.list_models(),
             })
         except Exception as e:
             providers.append({
-                "name": "funasr",
+                "name": "qwen3-asr",
                 "available": False,
                 "description": f"不可用: {e}",
             })
@@ -190,22 +189,11 @@ class STTFactory:
         return providers
 
     @classmethod
-    def preload_funasr(cls, model_name: str = "paraformer-zh"):
-        """预加载 FunASR 模型"""
-        try:
-            from app.infrastructure.config.service import SystemConfigService
-            db_model = SystemConfigService.get_value("FUNASR_MODEL")
-            FunASRManager.preload_model(db_model or model_name)
-        except Exception as e:
-            logger.error(f"Failed to preload FunASR: {e}")
-
-    @classmethod
     def clear_cache(cls):
         """清除缓存"""
-        cls._funasr_provider = None
+        cls._qwen3_provider = None
         cls._aliyun_provider = None
         cls._whisper_provider = None
-        FunASRManager.clear_cache()
         logger.info("STT provider cache cleared")
 
 
@@ -279,8 +267,6 @@ try:
     from app.infrastructure.config.service import SystemConfigService
     SystemConfigService.register_change_handler("STT_PROVIDER", _on_stt_config_changed)
     SystemConfigService.register_change_handler("STT_API_KEY", _on_stt_config_changed)
-    SystemConfigService.register_change_handler("FUNASR_MODEL", _on_stt_config_changed)
-    SystemConfigService.register_change_handler("FUNASR_DEVICE", _on_stt_config_changed)
+    SystemConfigService.register_change_handler("QWEN3_ASR_MODEL_DIR", _on_stt_config_changed)
 except Exception as e:
     logger.error(f"Failed to register STT config change handlers: {e}")
-

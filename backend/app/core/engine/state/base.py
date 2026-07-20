@@ -24,32 +24,6 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.learning import LearnedSkill
 
 
-def merge_dicts(old: dict | None, new: dict | None) -> dict:
-    res = dict(old or {})
-    res.update(new or {})
-    return res
-
-
-def add_unique_items(old: list | None, new: list | None) -> list:
-    old_list = list(old or [])
-    seen = set(old_list)
-    return old_list + [item for item in (new or []) if item not in seen]
-
-
-def add_unique_subtasks(old: list[SubtaskResult] | None, new: list[SubtaskResult] | None) -> list[SubtaskResult]:
-    old_list = list(old or [])
-    seen_ids = {r.subtask_id for r in old_list if hasattr(r, "subtask_id")}
-    delta = []
-    for r in (new or []):
-        if isinstance(r, dict):
-            r = SubtaskResult.model_validate(r)
-        sid = r.subtask_id
-        if sid not in seen_ids:
-            delta.append(r)
-            seen_ids.add(sid)
-    return old_list + delta
-
-
 class AgentStateBase(DynamicBaseModel):
     # --- 1. Conversation ---
     messages: list[BaseMessage] = Field(default_factory=list)

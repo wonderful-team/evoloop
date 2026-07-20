@@ -47,7 +47,7 @@ function ProfilePage() {
     if (!projectId) return
     setLoading(true)
     try {
-      const data = await ProjectProfilesService.getProfile({
+      const data = await ProjectProfilesService.projectsGetProfile({
         projectId: Number(projectId),
       })
       setProfile({
@@ -66,7 +66,7 @@ function ProfilePage() {
     if (!projectId) return
     setIsSaving(true)
     try {
-      const data = await ProjectProfilesService.updateProfile({
+      const data = await ProjectProfilesService.projectsUpdateProfile({
         projectId: Number(projectId),
         requestBody: { content: editContent },
       })

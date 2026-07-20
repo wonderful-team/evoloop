@@ -94,24 +94,6 @@ def _dedupe_by_id(rows: list[dict]) -> list[dict]:
     return out
 
 
-async def retrieve(text: str, top_k: int = 6) -> list[RouteCandidate]:
-    """Embed `text` and return the top-K route candidates (may be empty)."""
-    embedder = _get_embedder()
-    if embedder is None:
-        logger.warning(
-            "[retriever] no embedding provider configured; returning no candidates"
-        )
-        return []
-    try:
-        vector = await embedder.embed_query(text)
-    except ROUTE_EXCEPTIONS as exc:
-        logger.warning("[retriever] embed_query failed: %s", exc)
-        return []
-
-    rows = get_index().search(vector, top_k=top_k)
-    return [RouteCandidate(**row) for row in _dedupe_by_id(rows)]
-
-
 # ---------------------------------------------------------------------------
 # ASR partial transcript preheat cache (full-duplex streaming design §8.3)
 # ---------------------------------------------------------------------------

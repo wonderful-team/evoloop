@@ -1,6 +1,6 @@
 use sherpa_onnx::{OnlineRecognizer, OnlineRecognizerConfig, OnlineParaformerModelConfig, OnlineModelConfig};
 use std::sync::Arc;
-use log::{info, error};
+use log::info;
 
 #[derive(Clone)]
 pub struct AsrEngine {
@@ -9,13 +9,28 @@ pub struct AsrEngine {
 
 impl AsrEngine {
     pub fn new(model_dir: &str) -> Result<Self, String> {
+        // Try non-quantized Paraformer first (encoder.onnx), fall back to int8
+        let encoder = format!("{}/encoder.onnx", model_dir);
+        let encoder_int8 = format!("{}/encoder.int8.onnx", model_dir);
+        let decoder = format!("{}/decoder.onnx", model_dir);
+        let decoder_int8 = format!("{}/decoder.int8.onnx", model_dir);
+        let tokens = format!("{}/tokens.txt", model_dir);
+
+        let (enc_path, dec_path) = if std::path::Path::new(&encoder).exists() {
+            info!("[asr] using non-quantized Paraformer model from {}", model_dir);
+            (encoder, decoder)
+        } else {
+            info!("[asr] using int8 quantized Paraformer model from {}", model_dir);
+            (encoder_int8, decoder_int8)
+        };
+
         let config = OnlineRecognizerConfig {
             model_config: OnlineModelConfig {
                 paraformer: OnlineParaformerModelConfig {
-                    encoder: Some(format!("{}/encoder.int8.onnx", model_dir)),
-                    decoder: Some(format!("{}/decoder.int8.onnx", model_dir)),
+                    encoder: Some(enc_path),
+                    decoder: Some(dec_path),
                 },
-                tokens: Some(format!("{}/tokens.txt", model_dir)),
+                tokens: Some(tokens),
                 num_threads: 4,
                 ..Default::default()
             },
@@ -27,21 +42,14 @@ impl AsrEngine {
         };
 
         let recognizer = OnlineRecognizer::create(&config)
-            .ok_or_else(|| "Failed to create OnlineRecognizer".to_string())?;
+            .ok_or_else(|| format!("Failed to create OnlineRecognizer from {}", model_dir))?;
 
-        info!("[asr] recognizer created from {}", model_dir);
-
-        Ok(Self {
-            recognizer: Arc::new(recognizer),
-        })
+        info!("[asr] recognizer created");
+        Ok(Self { recognizer: Arc::new(recognizer) })
     }
 
-    /// Process a chunk of audio samples (f32, 16kHz mono).
-    /// Returns (partial_text, is_endpoint) where is_endpoint indicates
-    /// the VAD/endpoint detector believes the utterance is complete.
     pub fn process(&self, stream: &sherpa_onnx::OnlineStream, samples: &[f32]) -> (String, bool) {
         stream.accept_waveform(16000, samples);
-
         let mut partial = String::new();
         if self.recognizer.is_ready(stream) {
             self.recognizer.decode(stream);
@@ -49,12 +57,10 @@ impl AsrEngine {
                 partial = result.text;
             }
         }
-
         let is_endpoint = self.recognizer.is_endpoint(stream);
         if is_endpoint {
             self.recognizer.reset(stream);
         }
-
         (partial, is_endpoint)
     }
 

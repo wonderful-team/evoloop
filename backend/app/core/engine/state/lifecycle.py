@@ -60,25 +60,6 @@ class StateLifecycleManager:
             logger.debug(f"[Lifecycle] Cleared aggregation state: {cleared}")
 
     @staticmethod
-    def clear_workflow_state(state: AgentState) -> None:
-        """Clear sequential workflow state from state."""
-        cleared = []
-        for field in ("workflow_plan", "workflow_step_index", "workflow_results"):
-            if getattr(state, field) is not None:
-                setattr(state, field, None)
-                cleared.append(field)
-        if cleared:
-            logger.debug(f"[Lifecycle] Cleared workflow state: {cleared}")
-
-    @staticmethod
-    def reset_terminal_metadata(state: AgentState) -> None:
-        """Reset terminal metadata fields that should not persist across runs."""
-        for field in ("final_outcome", "shadow_audit", "blocked_by_hook"):
-            if getattr(state, field) is not None:
-                setattr(state, field, None)
-                logger.debug(f"[Lifecycle] Reset metadata.{field}")
-
-    @staticmethod
     def consume_blocked_by_hook(state: AgentState) -> bool:
         """Consume and clear blocked_by_hook flag."""
         blocked = state.blocked_by_hook or False

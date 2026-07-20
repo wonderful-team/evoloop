@@ -5,6 +5,7 @@ import logging
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.engine.callbacks.database_logger import DatabaseCallbackHandler
 from app.core.engine.callbacks.transparent import TransparentCallbackHandler
+from app.core.engine.state import AgentState
 from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
 from app.core.monitoring.activity import activity_monitor
 
@@ -75,7 +76,7 @@ async def resume_graph_background(
         await activity_monitor.end_run(thread_id, "failed")
 
 
-async def _restore_resume_context(thread_id: str, state: "AgentState", config: dict) -> None:
+async def _restore_resume_context(thread_id: str, state: AgentState, config: dict) -> None:
     """Restore context (skills, telemetry, memory) for a resumed agent session.
 
     During resume the AgentState is created fresh from the resume ToolMessage

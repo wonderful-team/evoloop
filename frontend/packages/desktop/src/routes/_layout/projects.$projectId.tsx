@@ -1,17 +1,8 @@
-import { createFileRoute, Link, Outlet, redirect } from "@tanstack/react-router"
-import {
-  AlertCircle,
-  CheckSquare,
-  ChevronLeft,
-  FileCode,
-  FileText,
-  Key,
-  LayoutDashboard,
-  Sparkles,
-  Zap,
-} from "lucide-react"
+import { createFileRoute, Outlet, redirect } from "@tanstack/react-router"
+import { AlertCircle } from "lucide-react"
 import { useEffect } from "react"
 import { useTranslation } from "react-i18next"
+import { ProjectSidebar } from "@/components/Projects/Redesign/Sidebar/ProjectSidebar"
 import { isLoggedIn } from "@/hooks/useAuth"
 import { useProjectStore } from "@/stores/projectStore"
 
@@ -28,15 +19,12 @@ function ProjectLayout() {
   const { projectId } = Route.useParams()
   const { currentProject, projects, fetchProjects, setProject } =
     useProjectStore()
-  // location unused
-  // const location = useLocation()
   const { t } = useTranslation()
 
   // Sync params with store on mount or update
   useEffect(() => {
     if (!projectId) return
 
-    // If we have projects but current doesn't match, find and set
     if (projects.length > 0) {
       const p = projects.find((p) => p.id === Number(projectId))
       if (p) {
@@ -44,11 +32,9 @@ function ProjectLayout() {
           setProject(p)
         }
       } else {
-        // Not found in local store, maybe fetch fresh?
         fetchProjects()
       }
     } else {
-      // If no projects loaded (e.g. refresh), fetch them
       fetchProjects()
     }
   }, [projectId, projects, currentProject, fetchProjects, setProject])
@@ -68,95 +54,17 @@ function ProjectLayout() {
     )
   }
 
-  const tabs = [
-    {
-      id: "overview",
-      label: t("projects.tabs.overview"),
-      icon: LayoutDashboard,
-      path: "",
-    },
-    {
-      id: "files",
-      label: t("projects.tabs.files"),
-      icon: FileCode,
-      path: "/files",
-    },
-    {
-      id: "tasks",
-      label: t("projects.tabs.tasks"),
-      icon: CheckSquare,
-      path: "/tasks",
-    },
-    {
-      id: "wiki",
-      label: t("projects.tabs.wiki"),
-      icon: FileText,
-      path: "/wiki",
-    },
-    {
-      id: "generation",
-      label: t("projects.tabs.generation"),
-      icon: Sparkles,
-      path: "/generation",
-    },
-    {
-      id: "vault",
-      label: t("projects.tabs.vault"),
-      icon: Key,
-      path: "/vault",
-    },
-    {
-      id: "macros",
-      label: t("projects.tabs.macros", { defaultValue: "宏" }),
-      icon: Zap,
-      path: "/macros",
-    },
-  ]
-
   return (
-    <div className="flex h-full w-full">
-      {/* Project Sidebar */}
-      <aside className="w-60 border-r border-border bg-muted/10 flex flex-col shrink-0">
-        <div className="h-14 flex items-center gap-2 px-4 border-b border-border">
-          <Link
-            to="/projects"
-            className="p-1.5 -ml-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-            title={t("projects.backToList")}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Link>
-          <span
-            className="font-semibold text-sm truncate"
-            title={displayProject?.name}
-          >
-            {displayProject?.name ||
-              t("projects.projectNameFallback", { id: projectId })}
-          </span>
-        </div>
+    <div className="flex h-full w-full overflow-hidden bg-background">
+      {/* Project Redesigned Sidebar */}
+      <ProjectSidebar
+        currentProject={displayProject}
+        projects={projects}
+        indexingStatus={displayProject?.indexing_status || "synced"}
+      />
 
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {tabs.map((tab) => {
-            const fullPath = `/projects/${projectId}${tab.path}`
-            return (
-              <Link
-                key={tab.id}
-                to={fullPath}
-                className="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-muted data-[status=active]:bg-primary data-[status=active]:text-primary-foreground"
-                activeProps={{
-                  "data-status": "active",
-                }}
-                activeOptions={{ exact: true }}
-              >
-                <tab.icon className="h-4 w-4" />
-                {tab.label}
-              </Link>
-            )
-          })}
-        </nav>
-      </aside>
-
-      {/* Content Outlet */}
-      <main className="flex-1 overflow-hidden relative bg-background">
+      {/* Main Content Workspace Outlet */}
+      <main className="flex-1 overflow-hidden relative bg-background flex flex-col">
         <Outlet />
       </main>
     </div>

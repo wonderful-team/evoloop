@@ -60,31 +60,62 @@ class LlamaCppChatModel:
             verbose=False,
         )
 
-    async def ainvoke(self, messages: list[dict], **kwargs) -> dict:
-        """Non-streaming chat completion (matches AdaptiveChatOpenAI interface).
+    async def ainvoke(self, messages: list[dict], **kwargs) -> "AIMessage":
+        """Non-streaming chat completion.
 
-        Returns an OpenAI-compatible dict (``{"choices": [...], ...}``).
+        Returns an ``AIMessage`` (same interface as ``AdaptiveChatOpenAI.ainvoke``)
+        so that callers don't need to handle two different return types.
         """
+        from app.core.engine.message.native_classes import AIMessage
+
         await self._ensure_loaded()
         kwargs.pop("config", None)
-        return await asyncio.to_thread(
+        result: dict = await asyncio.to_thread(
             lambda: self._llm.create_chat_completion(
                 messages=messages,
                 **kwargs,
             )
         )
+        choice = result.get("choices", [{}])[0]
+        msg = choice.get("message", {})
+        return AIMessage(
+            content=msg.get("content", "") or "",
+            tool_calls=[
+                {
+                    "id": tc.get("id", ""),
+                    "name": tc.get("function", {}).get("name", ""),
+                    "args": tc.get("function", {}).get("arguments", "{}"),
+                }
+                for tc in msg.get("tool_calls", [])
+            ] or None,
+            response_metadata={
+                "finish_reason": choice.get("finish_reason", ""),
+                "model": result.get("model", ""),
+                "usage": result.get("usage", {}),
+            },
+        )
 
     async def astream(
         self, messages: list[dict], **kwargs
     ) -> AsyncGenerator[Any, None]:
-        """Streaming chat completion (matches AdaptiveChatOpenAI interface).
+        """Streaming chat completion.
 
-        Yields AIMessageChunk objects compatible with the inference engine.
+        Also triggers LangChain-style callbacks (on_llm_start, on_llm_new_token, on_llm_end)
+        for token streaming (TransparentCallbackHandler → SSE token events).
         """
+        from app.core.engine.callbacks.base import LLMResult
         from app.core.engine.message.native_classes import AIMessageChunk
 
         await self._ensure_loaded()
-        kwargs.pop("config", None)
+        lc_config = kwargs.pop("config", None) or {}
+        callbacks = lc_config.get("callbacks") or []
+
+        for cb in callbacks:
+            try:
+                await cb.on_llm_start({}, prompts=[], run_id=None)
+            except Exception:
+                pass
+
         stream = await asyncio.to_thread(
             lambda: self._llm.create_chat_completion(
                 messages=messages,
@@ -97,15 +128,26 @@ class LlamaCppChatModel:
             content = delta.get("content", "")
             if content:
                 yield AIMessageChunk(content=content)
+                for cb in callbacks:
+                    try:
+                        await cb.on_llm_new_token(content, run_id=None, chunk=chunk)
+                    except Exception:
+                        pass
             elif delta.get("role") == "assistant":
-                # First chunk with role only — yield empty to signal start
                 yield AIMessageChunk(content="")
             await asyncio.sleep(0)
 
-    # Alias for backward compatibility
+        for cb in callbacks:
+            try:
+                result = LLMResult(generations=[[type('Gen', (), {'message': type('Msg', (), {
+                    'content': '', 'tool_calls': [], 'additional_kwargs': {}, 'metadata': {},
+                })()})()]])
+                await cb.on_llm_end(result, run_id=None)
+            except Exception:
+                pass
+
     chat = ainvoke
     stream = astream
 
     def bind_tools(self, tools: list[Any]) -> "LlamaCppChatModel":
-        """Compatibility with InferenceEngine.bind_tools."""
         return self

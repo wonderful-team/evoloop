@@ -8,6 +8,7 @@ pub mod mic_capture;
 pub mod aec_engine;
 pub mod state_machine;
 pub mod voice_session;
+pub mod offline_asr;
 pub mod dictation;
 pub mod event;
 

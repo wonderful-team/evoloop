@@ -64,10 +64,10 @@ export function VoiceControlSettings() {
 
   const [isSupported, setIsSupported] = useState(true)
   const [isTauri, setIsTauri] = useState(false)
-  const [sttModel, setSttModel] = useState("paraformer-zh")
+  const [sttModel, setSttModel] = useState("qwen3-asr-int8")
   const [sttDevice, setSttDevice] = useState("cpu")
-  const [_sttProvider, setSttProvider] = useState("funasr")
-  const [tempSttProvider, setTempSttProvider] = useState("funasr")
+  const [_sttProvider, setSttProvider] = useState("qwen3-asr")
+  const [tempSttProvider, setTempSttProvider] = useState("qwen3-asr")
   const [_sttApiKey, setSttApiKey] = useState("")
   const [tempSttApiKey, setTempSttApiKey] = useState("")
   const [showApiKey, setShowApiKey] = useState(false)
@@ -85,16 +85,16 @@ export function VoiceControlSettings() {
     try {
       const { SystemService } = await import("@/client")
       const config: any = await SystemService.getSystemConfig()
-      let model = "paraformer-zh"
+      let model = "qwen3-asr-int8"
       let device = "cpu"
-      let provider = "funasr"
+      let provider = "qwen3-asr"
       let apiKey = ""
       if (Array.isArray(config)) {
         const modelItem = config.find(
-          (item: any) => item.key === "FUNASR_MODEL",
+          (item: any) => item.key === "QWEN3_ASR_MODEL_DIR" || item.key === "FUNASR_MODEL",
         )
         const deviceItem = config.find(
-          (item: any) => item.key === "FUNASR_DEVICE",
+          (item: any) => item.key === "QWEN3_ASR_DEVICE" || item.key === "FUNASR_DEVICE",
         )
         const providerItem = config.find(
           (item: any) => item.key === "STT_PROVIDER",
@@ -349,8 +349,8 @@ export function VoiceControlSettings() {
                 <SelectValue placeholder="选择语音识别提供商" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="funasr">
-                  本地自研引擎 (FunASR - 离线中文)
+                <SelectItem value="qwen3-asr">
+                  本地自研引擎 (Qwen3-ASR - 高精度离线)
                 </SelectItem>
                 <SelectItem value="aliyun-sensevoice">
                   阿里云百炼通义语音 (云端推荐 - 高精度)
@@ -363,7 +363,7 @@ export function VoiceControlSettings() {
           </div>
 
           {/* Conditional panels */}
-          {tempSttProvider === "funasr" && (
+          {(tempSttProvider === "qwen3-asr" || tempSttProvider === "funasr") && (
             <div className="grid gap-6 md:grid-cols-2 p-4 bg-muted/10 border border-border/50 rounded-xl animate-in fade-in duration-200">
               <div className="space-y-2">
                 <Label htmlFor="stt-model" className="text-sm font-medium">

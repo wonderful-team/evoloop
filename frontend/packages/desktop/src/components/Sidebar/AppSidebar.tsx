@@ -27,10 +27,8 @@ import { useTranslation } from "react-i18next"
 import { DebugManagerPanel } from "@/components/Chat/DebugManager"
 import { SidebarAppearance } from "@/components/Common/Appearance"
 import useAuth from "@/hooks/useAuth"
-// 注意：Sidebar 不再根据权限过滤菜单，所有功能都显示
-// 权限控制统一由后端处理，前端捕获错误后提示升级
+
 import { type Item, Main } from "./Main"
-import { User } from "./User"
 
 export function AppSidebar() {
   const { t } = useTranslation()
@@ -79,19 +77,24 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader>
+      <SidebarHeader
+        data-tauri-drag-region
+        style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+        className="pt-6 select-none"
+      >
         <div
           className="flex h-12 cursor-pointer items-center justify-center py-2 transition-opacity hover:opacity-80"
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
           data-tour="sidebar-logo"
           onClick={toggleSidebar}
         >
           <Logo variant="responsive" />
         </div>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
         <Main items={items} />
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
         <SidebarAppearance />
         {isDev && (
           <SidebarMenu>
@@ -110,8 +113,7 @@ export function AppSidebar() {
                 <PopoverContent
                   side="right"
                   align="end"
-                  sideOffset={8}
-                  className="w-auto p-0 bg-zinc-900/95 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl"
+                  className="w-[600px] h-[500px] p-0"
                 >
                   <DebugManagerPanel onClose={() => setDebugOpen(false)} />
                 </PopoverContent>
@@ -119,7 +121,6 @@ export function AppSidebar() {
             </SidebarMenuItem>
           </SidebarMenu>
         )}
-        <User user={currentUser} />
       </SidebarFooter>
     </Sidebar>
   )

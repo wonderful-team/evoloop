@@ -126,8 +126,11 @@ impl DictationEngine {
                             .and_then(|c| c.as_str())
                         {
                             if !delta.is_empty() {
-                                full_text.push_str(delta);
-                                on_token(delta);
+                                let cleaned = delta.replace("</s>", "").replace("<|im_end|>", "").replace("<|endoftext|>", "");
+                                if !cleaned.is_empty() {
+                                    full_text.push_str(&cleaned);
+                                    on_token(&cleaned);
+                                }
                             }
                         }
                     }

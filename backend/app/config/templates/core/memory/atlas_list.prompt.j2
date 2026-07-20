@@ -1,0 +1,7 @@
+Your Atlas contains the following registered apps:
+
+{% for app in apps %}
+- {{ app.name }} ({{ app.bundle_id }}) — {{ app.platform }}
+{% endfor %}
+
+Use `describe_atlas(bundle_id="...")` to inspect a specific app's UI structure.

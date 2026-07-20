@@ -187,9 +187,27 @@ impl VoiceManagerHandle {
         rx.await.map_err(|e| e.to_string())?
     }
 
+    pub async fn get_tts_voice(&self) -> String {
+        let (tx, rx) = oneshot::channel();
+        let _ = self.send(VoiceCommand::GetTtsVoice { respond: tx }).await;
+        rx.await.unwrap_or_default()
+    }
+
     pub async fn set_tts_speed(&self, speed: f32) -> Result<(), String> {
         let (tx, rx) = oneshot::channel();
         self.send(VoiceCommand::SetTtsSpeed { speed, respond: tx }).await?;
+        rx.await.map_err(|e| e.to_string())?
+    }
+
+    pub async fn get_tts_speed(&self) -> f32 {
+        let (tx, rx) = oneshot::channel();
+        let _ = self.send(VoiceCommand::GetTtsSpeed { respond: tx }).await;
+        rx.await.unwrap_or(1.0)
+    }
+
+    pub async fn speak(&self, text: String, engine: Option<String>, voice: Option<String>) -> Result<(), String> {
+        let (tx, rx) = oneshot::channel();
+        self.send(VoiceCommand::Speak { text, engine, voice, respond: tx }).await?;
         rx.await.map_err(|e| e.to_string())?
     }
 }
@@ -210,6 +228,8 @@ enum VoiceCommand {
         thread_id: String,
         lang: String,
         mode: String,
+        tts_engine: Option<String>,
+        tts_voice: Option<String>,
         respond: oneshot::Sender<Result<(), String>>,
     },
     Stop,
@@ -228,8 +248,20 @@ enum VoiceCommand {
         voice: String,
         respond: oneshot::Sender<Result<(), String>>,
     },
+    GetTtsVoice {
+        respond: oneshot::Sender<String>,
+    },
     SetTtsSpeed {
         speed: f32,
+        respond: oneshot::Sender<Result<(), String>>,
+    },
+    GetTtsSpeed {
+        respond: oneshot::Sender<f32>,
+    },
+    Speak {
+        text: String,
+        engine: Option<String>,
+        voice: Option<String>,
         respond: oneshot::Sender<Result<(), String>>,
     },
 }
@@ -264,18 +296,61 @@ fn spawn_voice_manager(model_search_paths: Vec<std::path::PathBuf>) -> VoiceMana
             }
         };
         rt.block_on(async {
+            use crate::voice::tts_engine::TtsEngineKind;
             let session = VoiceSession::new(model_search_paths);
+            let mut current_engine = TtsEngineKind::EdgeTts;
+            let mut current_voice = String::new();
+            let mut current_speed = 1.0;
+
             while let Some(cmd) = rx.recv().await {
                 match cmd {
-                    VoiceCommand::InitEngines { asr_model_dir, vad_model_path, vad_silence_ms, respond } => {
-                        let res = session.init_engines(&asr_model_dir, &vad_model_path, vad_silence_ms).await;
+                    VoiceCommand::InitEngines { asr_model_dir: _, vad_model_path, vad_silence_ms, respond } => {
+                        // find Qwen3 model dir next to VAD
+                        let qwen3_name = "sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25";
+                        let qwen3_dir = std::path::Path::new(&vad_model_path)
+                            .parent()
+                            .and_then(|p| {
+                                let d = p.join(qwen3_name);
+                                if d.join("encoder.int8.onnx").exists() { Some(d) } else { None }
+                            })
+                            .or_else(|| {
+                                std::path::Path::new(&vad_model_path)
+                                    .parent()
+                                    .and_then(|p| p.parent())
+                                    .map(|p| p.join(qwen3_name))
+                                    .filter(|d| d.join("encoder.int8.onnx").exists())
+                            });
+                        let res = match qwen3_dir {
+                            Some(dir) => session.init_engines(
+                                &vad_model_path, vad_silence_ms,
+                                &dir.to_string_lossy(),
+                            ).await,
+                            None => Err("Qwen3 ASR model not found".to_string()),
+                        };
                         let _ = respond.send(res);
                     }
                     VoiceCommand::ConnectBackend { ws_url, respond } => {
                         let res = session.connect_backend(&ws_url).await;
                         let _ = respond.send(res);
                     }
-                    VoiceCommand::Start { app_handle, thread_id, lang, mode, respond } => {
+                    VoiceCommand::Start { app_handle, thread_id, lang, mode, tts_engine, tts_voice, respond } => {
+                        let engine = tts_engine
+                            .as_deref()
+                            .map(TtsEngineKind::from_str)
+                            .unwrap_or(current_engine);
+                        current_engine = engine;
+                        session.set_tts_engine(engine);
+
+                        if let Some(ref voice) = tts_voice {
+                            if !voice.is_empty() {
+                                current_voice = voice.clone();
+                                session.set_tts_voice(current_voice.clone());
+                            }
+                        } else if !current_voice.is_empty() {
+                            session.set_tts_voice(current_voice.clone());
+                        }
+
+                        session.set_tts_speed(current_speed);
                         let bus = Arc::new(TauriEventBus { handle: app_handle }) as Arc<dyn VoiceEventBus>;
                         session.set_event_bus(bus);
                         let res = session.start(thread_id, lang, mode).await;
@@ -292,7 +367,8 @@ fn spawn_voice_manager(model_search_paths: Vec<std::path::PathBuf>) -> VoiceMana
                         let _ = respond.send(state);
                     }
                     VoiceCommand::SetTtsEngine { kind, respond } => {
-                        session.set_tts_engine(kind);
+                        current_engine = kind;
+                        session.set_tts_engine(current_engine);
                         let _ = respond.send(Ok(()));
                     }
                     VoiceCommand::GetTtsEngine { respond } => {
@@ -300,11 +376,41 @@ fn spawn_voice_manager(model_search_paths: Vec<std::path::PathBuf>) -> VoiceMana
                         let _ = respond.send(engine.as_str().to_string());
                     }
                     VoiceCommand::SetTtsVoice { voice, respond } => {
-                        session.set_tts_voice(voice);
+                        current_voice = voice;
+                        session.set_tts_voice(current_voice.clone());
                         let _ = respond.send(Ok(()));
                     }
+                    VoiceCommand::GetTtsVoice { respond } => {
+                        let voice = session.get_tts_voice();
+                        let _ = respond.send(voice);
+                    }
                     VoiceCommand::SetTtsSpeed { speed, respond } => {
-                        session.set_tts_speed(speed);
+                        current_speed = speed;
+                        session.set_tts_speed(current_speed);
+                        let _ = respond.send(Ok(()));
+                    }
+                    VoiceCommand::GetTtsSpeed { respond } => {
+                        let speed = session.get_tts_speed();
+                        let _ = respond.send(speed);
+                    }
+                    VoiceCommand::Speak { text, engine, voice, respond } => {
+                        if let Some(ref eng) = engine {
+                            let kind = TtsEngineKind::from_str(eng);
+                            current_engine = kind;
+                            session.set_tts_engine(kind);
+                        } else {
+                            session.set_tts_engine(current_engine);
+                        }
+                        if let Some(ref v) = voice {
+                            if !v.is_empty() {
+                                current_voice = v.clone();
+                                session.set_tts_voice(v.clone());
+                            }
+                        } else if !current_voice.is_empty() {
+                            session.set_tts_voice(current_voice.clone());
+                        }
+                        session.set_tts_speed(current_speed);
+                        session.speak_sentence(&text);
                         let _ = respond.send(Ok(()));
                     }
                 }
@@ -357,6 +463,8 @@ async fn start_voice_session(
     thread_id: String,
     lang: String,
     mode: String,
+    tts_engine: Option<String>,
+    tts_voice: Option<String>,
 ) -> Result<(), String> {
     let (tx, rx) = oneshot::channel();
     state.voice_manager.send(VoiceCommand::Start {
@@ -364,6 +472,8 @@ async fn start_voice_session(
         thread_id,
         lang,
         mode,
+        tts_engine,
+        tts_voice,
         respond: tx,
     }).await?;
     rx.await.map_err(|e| e.to_string())?
@@ -405,24 +515,44 @@ async fn start_dictation(
     raw_text: String,
     target_locale: String,
 ) -> Result<String, String> {
-    use crate::voice::DictationEngine;
+    // Call Python backend's dictation endpoint (follows two-tier LLM strategy)
+    let client = reqwest::Client::new();
+    let payload = serde_json::json!({
+        "raw_text": raw_text,
+        "target_locale": target_locale,
+    });
+    let resp = client.post("http://127.0.0.1:20160/api/v1/voice/dictation")
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Dictation request failed: {}", e))?;
+    let result: serde_json::Value = resp.json().await
+        .map_err(|e| format!("Dictation response parse failed: {}", e))?;
 
-    let lm_url = "http://127.0.0.1:1234".to_string();
-    let model = "Qwen3-4B-Instruct-2507".to_string();
-    let engine = DictationEngine::new(lm_url, model);
+    let polished = result.get("polished_text")
+        .and_then(|v| v.as_str())
+        .unwrap_or(&raw_text)
+        .to_string();
 
-    let polished_ref = Arc::new(Mutex::new(String::new()));
-    let polished_clone = polished_ref.clone();
-    let app_clone = app.clone();
+    // Check for CLARIFY: LLM couldn't understand, don't paste
+    let is_clarify = result.get("changes")
+        .and_then(|c| c.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|c| c.get("clarify"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
 
-    engine.polish_stream(&raw_text, &target_locale, move |token: &str| {
-        let mut buf = polished_clone.lock().unwrap();
-        buf.push_str(token);
-        let _ = app_clone.emit("voice:dictation_token", serde_json::json!({"token": token}));
-    }).await?;
-
-    let polished = polished_ref.lock().unwrap().clone();
-    let _ = app.emit("voice:dictation_polished", serde_json::json!({"polished_text": &polished}));
+    if let Some(msg) = is_clarify {
+        // Don't paste, emit clarify event (frontend will speak it)
+        let _ = app.emit("voice:dictation_polished", serde_json::json!({
+            "polished_text": &raw_text,
+            "changes": [{"clarify": msg}],
+        }));
+    } else {
+        // Normal: paste to target window
+        crate::voice::voice_session::dictation_paste(&polished);
+        let _ = app.emit("voice:dictation_polished", serde_json::json!({"polished_text": &polished}));
+    }
     Ok(polished)
 }
 
@@ -484,75 +614,20 @@ pub fn safe_killpg(pgid: i32) {
 
 #[tauri::command]
 #[cfg(desktop)]
-async fn speak_text(
+async fn speak(
     state: tauri::State<'_, AppServiceState>,
     text: String,
-    voice: String,
-    rate: i32,
     engine: Option<String>,
-    api_key: Option<String>,
+    voice: Option<String>,
 ) -> Result<(), String> {
-    if let Some(ref key) = api_key {
-        if !key.is_empty() {
-            unsafe {
-                std::env::set_var("EVOLOOP_QWEN_TTS_KEY", key);
-            }
-        }
-    }
-    let engine_kind = match engine {
-        Some(e) => e,
-        None => state.voice_manager.get_tts_engine().await,
-    };
-    match engine_kind.as_str() {
-        "edge-tts" => {
-            let voice_name = if voice.is_empty() { "zh-CN-XiaoxiaoNeural".to_string() } else { voice };
-            let text_clone = text.clone();
-            let res = tokio::task::spawn_blocking(move || {
-                let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-                rt.block_on(async {
-                    crate::voice::tts_engine::speak_edge_tts_for_preview(&text_clone, &voice_name).await
-                })
-            }).await.map_err(|e| format!("Edge TTS task join error: {}", e))?;
-            res?;
-            Ok(())
-        }
-        "qwen-tts" => {
-            let voice_name = if voice.is_empty() { "standard_voice".to_string() } else { voice };
-            let text_clone = text.clone();
-            let res = tokio::task::spawn_blocking(move || {
-                let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-                rt.block_on(async {
-                    crate::voice::tts_engine::speak_qwen_tts_for_preview(&text_clone, &voice_name).await
-                })
-            }).await.map_err(|e| format!("Qwen TTS task join error: {}", e))?;
-            res?;
-            Ok(())
-        }
-        _ => {
-            use std::process::Command;
-            let sys_voice = if voice.starts_with("zh") { "Ting-Ting".to_string() }
-                else if voice.starts_with("en") { "Samantha".to_string() }
-                else if voice.is_empty() { "Ting-Ting".to_string() }
-                else { voice.clone() };
-            eprintln!("[tts] speak_text: engine=system voice={} sys_voice={} rate={} text=\"{}\"", voice, sys_voice, rate, text);
-            // Spawn say in a background thread and wait for completion
-            let text_clone = text.clone();
-            std::thread::spawn(move || {
-                let status = Command::new("say")
-                    .arg("-v").arg(&sys_voice)
-                    .arg("-r").arg(rate.to_string())
-                    .arg(&text_clone)
-                    .status();
-                match status {
-                    Ok(s) => eprintln!("[tts] say exited: {:?}", s.code()),
-                    Err(e) => eprintln!("[tts] say failed: {}", e),
-                }
-            });
-            Ok(())
-        }
-    }
+    state.voice_manager.speak(text, engine, voice).await
 }
 
+#[tauri::command]
+#[cfg(mobile)]
+async fn speak(_text: String, _engine: Option<String>, _voice: Option<String>) -> Result<(), String> {
+    Ok(())
+}
 #[tauri::command]
 #[cfg(desktop)]
 async fn set_qwen_api_key(key: String) -> Result<(), String> {
@@ -577,7 +652,12 @@ async fn stop_speaking() -> Result<(), String> {
         .arg("-x")
         .arg("say")
         .output()
-        .map_err(|e| format!("Failed to stop TTS: {}", e))?;
+        .ok();
+    Command::new("pkill")
+        .arg("-x")
+        .arg("afplay")
+        .output()
+        .ok();
     Ok(())
 }
 
@@ -611,9 +691,6 @@ async fn list_system_voices() -> Result<Vec<serde_json::Value>, String> {
 
 #[tauri::command]
 #[cfg(mobile)]
-async fn speak_text(_text: String, _voice: String, _rate: i32, _engine: Option<String>) -> Result<(), String> {
-    Err("TTS not supported on mobile".to_string())
-}
 
 #[tauri::command]
 #[cfg(mobile)]
@@ -921,7 +998,7 @@ pub fn run() {
         {
             let quit_i = MenuItem::with_id(_app, "quit", "退出", true, Some("CmdOrCtrl+Q"))?;
             let show_i = MenuItem::with_id(_app, "show", "显示主界面", true, None::<&str>)?;
-            let record_i = MenuItem::with_id(_app, "record", "技能录制", true, None::<&str>)?;
+            let record_i = MenuItem::with_id(_app, "record", "技能录制", true, Some("CmdOrCtrl+Shift+R"))?;
             let voice_dictation_i = MenuItem::with_id(_app, "voice_dictation", "语音听写", true, Some("F12"))?;
             let voice_dialogue_i = MenuItem::with_id(_app, "voice_dialogue", "语音对话", true, Some("F12"))?;
 
@@ -1039,7 +1116,7 @@ pub fn run() {
             commands::sidecar::sidecar_get_status,
             commands::sidecar::sidecar_restart,
     // TTS commands
-    speak_text,
+    speak,
     stop_speaking,
     list_system_voices,
     set_tts_engine,

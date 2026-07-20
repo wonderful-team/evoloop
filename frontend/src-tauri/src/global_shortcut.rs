@@ -1,15 +1,17 @@
+use std::str::FromStr;
 use std::sync::LazyLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::Emitter;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
-/// Global shortcut manager for voice input.
+/// Global shortcut manager for voice input & skill recording.
 ///
 /// Uses Tauri's official global-shortcut plugin.
 pub struct GlobalShortcutManager {
     is_registered: AtomicBool,
     target_key: Arc<Mutex<String>>,
+    record_key: Arc<Mutex<String>>,
     app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
 }
 
@@ -18,6 +20,7 @@ impl GlobalShortcutManager {
         Self {
             is_registered: AtomicBool::new(false),
             target_key: Arc::new(Mutex::new("F12".to_string())),
+            record_key: Arc::new(Mutex::new("CmdOrCtrl+Shift+R".to_string())),
             app_handle: Arc::new(Mutex::new(None)),
         }
     }
@@ -28,6 +31,10 @@ impl GlobalShortcutManager {
 
     pub fn set_target_key(&self, key: String) {
         *self.target_key.lock().unwrap() = key;
+    }
+
+    pub fn set_record_key(&self, key: String) {
+        *self.record_key.lock().unwrap() = key;
     }
 
     pub fn set_long_press_threshold(&self, _ms: u64) {}
@@ -46,27 +53,41 @@ impl GlobalShortcutManager {
             return;
         };
 
+        // 1. Voice shortcut
         let key = self.target_key.lock().unwrap().clone();
-        let code = key_to_code(&key).unwrap_or(Code::F12);
-        let shortcut = Shortcut::new(Some(Modifiers::empty()), code);
-
-        let app_clone = app.clone();
-        if let Err(e) = app.global_shortcut().on_shortcut(shortcut, move |_app, _event, state| {
-            if state.state == ShortcutState::Pressed {
-                let _ = app_clone.emit("voice-shortcut-press", ());
+        if let Some(code) = key_to_code(&key) {
+            let shortcut = Shortcut::new(Some(Modifiers::empty()), code);
+            let app_clone = app.clone();
+            if let Err(e) = app.global_shortcut().on_shortcut(shortcut, move |_app, _event, state| {
+                if state.state == ShortcutState::Pressed {
+                    let _ = app_clone.emit("voice-shortcut-press", ());
+                }
+            }) {
+                log::error!("[shortcut] failed to register voice handler: {:?}", e);
             }
-        }) {
-            log::error!("[shortcut] failed to register handler: {:?}", e);
-            return;
+            if let Err(e) = app.global_shortcut().register(shortcut) {
+                log::error!("[shortcut] failed to register voice key: {:?}", e);
+            }
         }
 
-        if let Err(e) = app.global_shortcut().register(shortcut) {
-            log::error!("[shortcut] failed to register key: {:?}", e);
-            return;
+        // 2. Skill recording global shortcut
+        let rec_key_str = self.record_key.lock().unwrap().clone();
+        if let Ok(rec_shortcut) = Shortcut::from_str(&rec_key_str) {
+            let app_clone = app.clone();
+            if let Err(e) = app.global_shortcut().on_shortcut(rec_shortcut, move |_app, _event, state| {
+                if state.state == ShortcutState::Pressed {
+                    let _ = app_clone.emit("tray-record-toggle", ());
+                }
+            }) {
+                log::error!("[shortcut] failed to register record handler: {:?}", e);
+            }
+            if let Err(e) = app.global_shortcut().register(rec_shortcut) {
+                log::error!("[shortcut] failed to register record key: {:?}", e);
+            }
         }
 
         self.is_registered.store(true, Ordering::SeqCst);
-        log::info!("[shortcut] global shortcut {} registered", key);
+        log::info!("[shortcut] global shortcuts registered");
     }
 
     pub fn stop_listening(&self) {
@@ -80,10 +101,14 @@ impl GlobalShortcutManager {
                     let shortcut = Shortcut::new(Some(Modifiers::empty()), code);
                     let _ = app.global_shortcut().unregister(shortcut);
                 }
+                let rec_key_str = self.record_key.lock().unwrap().clone();
+                if let Ok(rec_shortcut) = Shortcut::from_str(&rec_key_str) {
+                    let _ = app.global_shortcut().unregister(rec_shortcut);
+                }
             }
         }
         self.is_registered.store(false, Ordering::SeqCst);
-        log::info!("[shortcut] global shortcut unregistered");
+        log::info!("[shortcut] global shortcuts unregistered");
     }
 
     pub fn is_recording(&self) -> bool {

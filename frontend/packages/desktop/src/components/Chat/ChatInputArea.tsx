@@ -51,7 +51,7 @@ import {
 import { useVoiceStore } from "@/stores/voiceStore"
 import { useAutoSpeak } from "@/hooks/useTTS"
 import { useWakeWord, useWakeWordSettings } from "@/hooks/useWakeWord"
-import { isTauri, safeInvoke } from "@/lib/tauri"
+import { isTauri, safeInvoke, safeListen } from "@/lib/tauri"
 import type { ActiveTaskInfo } from "@/stores/chat/types"
 import { useChatStore } from "@/stores/chatStore"
 import { FilePreview, type PickedFile } from "./FilePreview"
@@ -178,8 +178,9 @@ export const ChatInputArea = memo(
       const [history, setHistory] = useState<string[]>([])
       const [historyIndex, setHistoryIndex] = useState(-1) // -1: New Input, 0: Most recent history
 
-      // Voice mode: off | dictation | dialogue
-      const [voiceMode, setVoiceMode] = useState<"off" | "dictation" | "dialogue">("off")
+      // Voice mode: off | dictation | dialogue (shared globally via voiceStore)
+      const voiceMode = useVoiceStore((s) => s.voiceMode)
+      const setVoiceMode = useVoiceStore((s) => s.setVoiceMode)
       const { autoSpeak, toggleAutoSpeak } = useAutoSpeak()
       const voiceState = useVoiceStore((s) => s.voiceState)
 
@@ -502,155 +503,9 @@ export const ChatInputArea = memo(
         onWake: handleWakeWordDetected,
       })
 
-      // Show/Hide voice-hud window helpers
-      const showHudWindow = useCallback(async () => {
-        try {
-          const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow")
-          const win = await WebviewWindow.getByLabel("voice-hud")
-          if (win) {
-            await win.show()
-            await win.setAlwaysOnTop(true)
-          }
-        } catch (e) {
-          console.error("Failed to show HUD window:", e)
-        }
-      }, [])
 
-      const hideHudWindow = useCallback(async () => {
-        try {
-          const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow")
-          const win = await WebviewWindow.getByLabel("voice-hud")
-          if (win) {
-            await win.hide()
-          }
-        } catch (e) {
-          console.error("Failed to hide HUD window:", e)
-        }
-      }, [])
 
-      // Sync voice HUD state
-      const partialText = useVoiceStore((s) => s.partialText)
-      const ttsSentence = useVoiceStore((s) => s.ttsSentence)
 
-      useEffect(() => {
-        if (!isTauri()) return
-
-        const updateHud = async () => {
-          const { emit } = await import("@tauri-apps/api/event")
-          
-          if (voiceMode === "off") {
-            await emit("hud-update", { mode: "off", state: "idle", text: "" })
-            await hideHudWindow()
-            return
-          }
-
-          await showHudWindow()
-
-          let displayText = ""
-          if (voiceMode === "dictation") {
-            displayText = partialText
-          } else if (voiceMode === "dialogue") {
-            displayText = voiceState === "speaking" ? ttsSentence : partialText
-          }
-
-          await emit("hud-update", {
-            mode: voiceMode,
-            state: voiceState,
-            text: displayText,
-          })
-        }
-
-        updateHud().catch(console.error)
-      }, [voiceMode, voiceState, partialText, ttsSentence, showHudWindow, hideHudWindow])
-
-      // Tauri voice shortcut: off -> dictation -> dialogue -> off cycle
-      const voiceShortcutHandlers = useMemo(
-        () => ({
-          onPress: () => {
-            const currentMode = voiceModeRef.current
-            if (currentMode === "off") {
-              setVoiceMode("dictation")
-            } else if (currentMode === "dictation") {
-              setVoiceMode("dialogue")
-            } else {
-              setVoiceMode("off")
-            }
-          },
-        }),
-        [],
-      )
-
-      useTauriVoiceShortcut({
-        enabled: shortcutEnabled,
-        ...voiceShortcutHandlers,
-      })
-
-      // Tray voice menu item toggle handlers
-      useEffect(() => {
-        if (!isTauri()) return
-
-        let unlistenDictation: (() => void) | undefined
-        let unlistenDialogue: (() => void) | undefined
-
-        const setupTrayListeners = async () => {
-          try {
-            unlistenDictation = await safeListen("tray-voice-dictation-toggle", () => {
-              const current = voiceModeRef.current
-              if (current === "dictation") {
-                setVoiceMode("off")
-              } else {
-                setVoiceMode("dictation")
-              }
-            })
-
-            unlistenDialogue = await safeListen("tray-voice-dialogue-toggle", () => {
-              const current = voiceModeRef.current
-              if (current === "dialogue") {
-                setVoiceMode("off")
-              } else {
-                setVoiceMode("dialogue")
-              }
-            })
-          } catch (e) {
-            console.error("Failed to setup tray voice listeners:", e)
-          }
-        }
-
-        setupTrayListeners()
-
-        return () => {
-          unlistenDictation?.()
-          unlistenDialogue?.()
-        }
-      }, [])
-
-      // Voice mode: start/stop session when mode changes
-      const prevVoiceModeRef = useRef(voiceMode)
-      useEffect(() => {
-        const prev = prevVoiceModeRef.current
-        prevVoiceModeRef.current = voiceMode
-
-        if (prev === voiceMode) return
-
-        // Stop previous session if any
-        if (prev !== "off") {
-          safeInvoke("stop_voice_session").catch(console.error)
-        }
-
-        // Start new session if not off
-        if (voiceMode !== "off") {
-          const threadId = crypto.randomUUID()
-          safeInvoke("start_voice_session", {
-            threadId,
-            lang: "zh-CN",
-            mode: voiceMode,
-          }).catch((e) => {
-            console.error("[voice] start failed:", e)
-            setVoiceMode("off")
-            toast.error(String(e))
-          })
-        }
-      }, [voiceMode])
 
       // Dictation result: auto-insert into textarea, keep listening
       const dictationResult = useVoiceStore((s) => s.dictationResult)

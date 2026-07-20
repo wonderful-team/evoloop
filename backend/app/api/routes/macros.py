@@ -111,11 +111,15 @@ async def list_macros(
     project_id: int | None = Query(default=None),
     app_map_id: int | None = Query(default=None),
     status: str | None = Query(default=None),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
 ):
     macros = await lifecycle.list_macros(
         project_id=project_id,
         app_map_id=app_map_id,
         status=status,
+        offset=skip,
+        limit=limit,
     )
     return [_to_dto(m) for m in macros]
 

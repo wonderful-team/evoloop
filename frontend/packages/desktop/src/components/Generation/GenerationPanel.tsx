@@ -141,21 +141,24 @@ export function GenerationPanel() {
     const st = status(k)
     const busy = generating === k || st === "running"
 
+    const targetRoute =
+      route.includes("macros") || route.includes("tasks")
+        ? "/projects/$projectId/workflows"
+        : "/projects/$projectId/knowledge"
+
     return (
-      <Card className={busy ? "border-primary/50" : ""}>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Icon className="h-5 w-5 text-muted-foreground" />
-              <CardTitle className="text-sm font-semibold">{label}</CardTitle>
-            </div>
-            <Badge variant={st === "completed" ? "default" : st === "failed" ? "destructive" : "secondary"}>
-              {st === "completed" && t("generation.status.completed")}
-              {st === "running" && t("generation.status.running")}
-              {st === "failed" && t("generation.status.failed")}
-              {st === "pending" && t("generation.status.pending")}
-            </Badge>
+      <Card className={`transition-all hover:border-primary/40 ${busy ? "border-primary/50 shadow-sm" : ""}`}>
+        <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
+          <div className="flex items-center gap-2">
+            <Icon className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-sm font-semibold">{label}</CardTitle>
           </div>
+          <Badge variant={st === "completed" ? "default" : st === "failed" ? "destructive" : "secondary"}>
+            {st === "completed" && t("generation.status.completed")}
+            {st === "running" && t("generation.status.running")}
+            {st === "failed" && t("generation.status.failed")}
+            {st === "pending" && t("generation.status.pending")}
+          </Badge>
         </CardHeader>
         <CardContent>
           {st === "failed" && statuses[k]?.error && (
@@ -164,7 +167,7 @@ export function GenerationPanel() {
           <div className="flex gap-2">
             {(st === "completed" || st === "failed") && (
               <Button variant="outline" size="sm" asChild>
-                <Link to={`/projects/$projectId${route}` as any} params={{ projectId: projectId! } as any}>
+                <Link to={targetRoute as any} params={{ projectId: projectId! } as any}>
                   <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
                   {st === "completed" ? t("common.preview") : t("common.view")}
                 </Link>
@@ -195,10 +198,17 @@ export function GenerationPanel() {
   }
 
   return (
-    <div className="space-y-6 p-6 max-w-5xl">
+    <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">{t("generation.title")}</h2>
-        <p className="text-sm text-muted-foreground mt-1">{t("generation.description")}</p>
+        <h2 className="text-xl font-semibold tracking-tight">
+          {t("generation.title", { defaultValue: "项目 AI 产物与知识库" })}
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          {t("generation.subtitle", {
+            defaultValue:
+              "AI 自动基于代码库构建的结构化知识产物（包含 Wiki 架构文档、SOP 流程宏与全局概览）",
+          })}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

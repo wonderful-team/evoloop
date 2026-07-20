@@ -229,9 +229,3 @@ class AuthorizationService:
             granted_by=granted_by,
         )
         return await PolicyLoader.save_granted_permission(self.project_id, permission)
-
-    async def revoke_permission(self, resource_path: str, action: str) -> bool:
-        """Revoke a previously granted permission."""
-        if not self.project_id:
-            return False
-        return await PolicyLoader.revoke_permission(self.project_id, resource_path, action)

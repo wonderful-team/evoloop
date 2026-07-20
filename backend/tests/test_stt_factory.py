@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from app.infrastructure.voice.stt.factory import STTFactory
 from app.infrastructure.voice.stt.aliyun import AliyunProvider
-from app.infrastructure.voice.stt.funasr import FunASRProvider
+from app.infrastructure.voice.stt.qwen3_asr import Qwen3ASRProvider
 from app.infrastructure.voice.stt.whisper import WhisperProvider
 
 
@@ -11,20 +11,20 @@ def test_stt_factory_list_providers():
     """测试 STTFactory 列出所有可用的 Provider"""
     providers = STTFactory.list_available_providers()
     provider_names = [p["name"] for p in providers]
-    assert "funasr" in provider_names
+    assert "qwen3-asr" in provider_names
     assert "aliyun-sensevoice" in provider_names
     assert "whisper" in provider_names
 
 
 @patch("app.infrastructure.config.service.SystemConfigService.get_value")
-def test_stt_factory_resolve_funasr(mock_get_value):
-    """测试当数据库配置为 funasr 时，Factory 返回 FunASRProvider"""
-    mock_get_value.side_effect = lambda key, default=None: "funasr" if key == "STT_PROVIDER" else None
+def test_stt_factory_resolve_qwen3(mock_get_value):
+    """测试当数据库配置为 qwen3-asr 时，Factory 返回 Qwen3ASRProvider"""
+    mock_get_value.side_effect = lambda key, default=None: "qwen3-asr" if key == "STT_PROVIDER" else None
     
     provider = STTFactory.get_provider()
-    # 视乎本地 FunASR 是否可用，可能返回 FunASRProvider 或回退
+    # 视乎本地 Qwen3-ASR 是否可用，可能返回 Qwen3ASRProvider 或回退
     if provider.is_available():
-        assert provider.name == "funasr"
+        assert provider.name == "qwen3-asr"
     else:
         assert provider.name in ["openai-whisper", "aliyun-sensevoice"]
 

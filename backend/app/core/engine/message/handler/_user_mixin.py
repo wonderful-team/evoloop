@@ -9,33 +9,6 @@ logger = logging.getLogger(__name__)
 
 
 class UserMessageMixin:
-    async def handle_user_message(
-        self, content: str, metadata: dict | None = None
-    ) -> MessageHandlerResult:
-        category = MessageCategory.USER
-        message_id, seq = await self._repository.persist(
-            role="human",
-            content=content,
-            category=category.value,
-            is_visible=True,
-            content_type="text",
-            metadata=metadata,
-            parent_id=None,
-        )
-        await self._dispatch_block(
-            role="human",
-            content=content,
-            category=category.value,
-            sequence_number=seq,
-            channels={"sse"},
-        )
-        return MessageHandlerResult(
-            category=category.value,
-            persisted=True,
-            streamed=True,
-            message_id=message_id,
-            sequence_number=seq,
-        )
 
     async def handle_hitl_request(
         self,

@@ -21,25 +21,6 @@ from app.infrastructure.database import session_scope
 logger = logging.getLogger(__name__)
 
 
-def _plan_has_pending_steps(plan: str | dict | None) -> bool:
-    if not plan:
-        return False
-    try:
-        if isinstance(plan, str):
-            plan_data = json.loads(plan)
-        else:
-            plan_data = plan
-        steps = plan_data.get("steps") or plan_data.get("plan", {}).get("steps") or []
-        for step in steps:
-            status = step.get("status", "").lower()
-            if status not in ("done", "completed", "success", "finished"):
-                return True
-        return False
-    except (json.JSONDecodeError, AttributeError, TypeError, KeyError):
-        return False
-
-
-
 class SupervisorNode(BaseAgentNode):
     """
     Supervisor Node - Decision-making hub for the EvoLoop Agent.

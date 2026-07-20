@@ -46,7 +46,7 @@ class AliyunProvider(BaseSTTProvider):
         """获取或创建 OpenAI 兼容的 Aliyun 客户端"""
         if not self._client:
             # 优先从数据库中获取 API Key，如果没有则读取系统配置
-            api_key = SystemConfigService.get_value("STT_API_KEY") or settings.STT_API_KEY
+            api_key = SystemConfigService.get_value("STT_API_KEY") or getattr(settings, "STT_API_KEY", None)
             if not api_key:
                 raise RuntimeError(
                     "Aliyun API key not configured. "
@@ -62,7 +62,7 @@ class AliyunProvider(BaseSTTProvider):
 
     def is_available(self) -> bool:
         """检查 Aliyun STT 是否可用"""
-        api_key = SystemConfigService.get_value("STT_API_KEY") or settings.STT_API_KEY
+        api_key = SystemConfigService.get_value("STT_API_KEY") or getattr(settings, "STT_API_KEY", None)
         return api_key is not None
 
     def list_models(self, language: VoiceLocale | None = None) -> list[str]:

@@ -680,13 +680,15 @@ export const useChatStore = create<ChatState>((set, get) => {
     },
 
     _appendMessage: (raw) => {
+      // SSE "message" events wrap MessageBlock in {type, action, data: MessageBlock}
+      const payload = raw && raw.data ? raw.data : raw
       const { threadId, messages } = get()
       set((state) => {
         useAgentStore.setState({ streamingThinking: "" })
         return commitThinkingBuffer(state)
       })
-      const humanReq = tryParseHumanRequest(raw)
-      if (!threadId || (raw.role === "system" && !humanReq)) return
+      const humanReq = tryParseHumanRequest(payload)
+      if (!threadId || (payload.role === "system" && !humanReq)) return
 
       if (humanReq) {
         set((state) => {
@@ -699,7 +701,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         return
       }
 
-      const msg = normalizeMessage(raw)
+      const msg = normalizeMessage(payload)
 
       // Replace optimistic human message (temp-*) with real backend ID
       if (msg.role === "human" && !msg.id.toString().startsWith("temp-")) {

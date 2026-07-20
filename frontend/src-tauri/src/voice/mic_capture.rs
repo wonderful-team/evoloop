@@ -27,6 +27,30 @@ impl MicCapture {
         }
     }
 
+    fn find_config(device: &Device) -> Result<cpal::SupportedStreamConfigRange, String> {
+        let mut last_err = String::new();
+
+        for attempt in 1..=3 {
+            match device.supported_input_configs() {
+                Ok(mut configs) => {
+                    if let Some(cfg) = configs
+                        .find(|c| c.channels() >= 1 && c.min_sample_rate().0 <= TARGET_SAMPLE_RATE)
+                    {
+                        return Ok(cfg);
+                    }
+                    return Err("No suitable input config found".to_string());
+                }
+                Err(e) => {
+                    last_err = format!("{}", e);
+                    warn!("[mic] failed to enumerate configs (attempt {}): {}", attempt, last_err);
+                    std::thread::sleep(std::time::Duration::from_millis(200));
+                }
+            }
+        }
+
+        Err(format!("Failed to get input configs after 3 retries: {}", last_err))
+    }
+
     /// Start capturing audio. The callback receives f32 samples at 16kHz mono.
     pub fn start<F>(&mut self, callback: F) -> Result<(), String>
     where
@@ -35,11 +59,7 @@ impl MicCapture {
         let device = self.device.as_ref()
             .ok_or("No input device available")?;
 
-        let supported_config = device
-            .supported_input_configs()
-            .map_err(|e| format!("Failed to get input configs: {}", e))?
-            .find(|c| c.channels() >= 1 && c.min_sample_rate().0 <= TARGET_SAMPLE_RATE)
-            .ok_or("No suitable input config found")?;
+        let supported_config = Self::find_config(device)?;
 
         let sample_rate = supported_config.min_sample_rate().0.max(TARGET_SAMPLE_RATE);
         let channels = supported_config.channels();

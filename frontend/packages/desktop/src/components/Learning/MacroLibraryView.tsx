@@ -89,12 +89,17 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
   }
 
 
+  const [page, setPage] = useState(1)
+  const pageSize = 50
+
   const { data: macros, isLoading } = useQuery({
-    queryKey: ["macros", projectId ?? "all"],
+    queryKey: ["macros", projectId ?? "all", page],
     queryFn: () =>
-      MacrosService.listMacros(
-        projectId != null ? { projectId } : {},
-      ) as unknown as Promise<MacroDTO[]>,
+      MacrosService.listMacros({
+        ...(projectId != null ? { projectId } : {}),
+        skip: (page - 1) * pageSize,
+        limit: pageSize,
+      } as any) as unknown as Promise<MacroDTO[]>,
   })
 
   const invalidate = () =>
@@ -294,8 +299,14 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
 
   const statusBadge = (status: string) => (
     <Badge
-      variant={status === "verified" ? "default" : "secondary"}
-      className="text-[10px] px-1.5 py-0 font-medium"
+      variant="outline"
+      className={`text-[10px] font-medium border px-1.5 py-0.5 ${
+        status === "verified"
+          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+          : status === "pending_review"
+          ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+          : "bg-muted/50 text-muted-foreground border-border"
+      }`}
     >
       {t(`learning.statusBadge.${status}`, { defaultValue: status })}
     </Badge>
@@ -309,7 +320,7 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={t("learning.macros.searchPlaceholder")}
-            className="pl-10"
+            className="pl-10 h-9 text-sm"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -319,7 +330,7 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
             <Button
               variant="destructive"
               size="sm"
-              className="h-10 text-xs gap-1.5 animate-in fade-in zoom-in-95 duration-200"
+              className="h-9 text-sm gap-1.5 animate-in fade-in zoom-in-95 duration-200"
               disabled={bulkDeleteMutation.isPending}
               onClick={() => {
                 if (
@@ -334,7 +345,7 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
                 }
               }}
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 className="h-4 w-4" />
               {t("learning.macros.deleteSelected", {
                 defaultValue: "删除选中 ({{count}})",
                 count: selected.size,
@@ -344,13 +355,13 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
           <Button
             variant="default"
             size="sm"
-            className="h-10 text-xs gap-1.5"
+            className="h-9 text-sm px-3 gap-1.5"
             disabled={pendingSelected.length === 0 || confirmMutation.isPending}
             onClick={() =>
               confirmMutation.mutate(pendingSelected.map((m) => m.id))
             }
           >
-            <CheckCheck className="h-3.5 w-3.5" />
+            <CheckCheck className="h-4 w-4" />
             {t("learning.macros.confirmSelected", {
               count: pendingSelected.length,
             })}
@@ -358,16 +369,37 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
           <Button
             variant="outline"
             size="sm"
-            className="h-10 text-xs gap-1.5 border-primary/20 text-primary hover:bg-primary/5 hover:text-primary"
+            className="h-9 text-sm px-3 gap-1.5"
             disabled={createMutation.isPending}
             onClick={() => createMutation.mutate(projectId || null)}
           >
-            <Plus className="h-3.5 w-3.5" />
+            <Plus className="h-4 w-4" />
             {t("learning.macros.createMacro", { defaultValue: "新建宏" })}
           </Button>
-          <Badge variant="outline" className="px-3 py-1 font-bold h-10 flex items-center justify-center">
-            {macros?.length || 0} {t("learning.macros.total")}
+          <Badge variant="outline" className="px-3 py-1 font-bold h-9 flex items-center justify-center">
+            第 {page} 页 (本页 {macros?.length || 0} 条)
           </Badge>
+
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 text-sm px-3"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              上一页
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 text-sm px-3"
+              disabled={!macros || macros.length < pageSize}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              下一页
+            </Button>
+          </div>
         </div>
       </div>
 

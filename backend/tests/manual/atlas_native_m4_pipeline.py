@@ -43,8 +43,7 @@ async def main() -> None:
     from app.core.execution.macro.schemas import MacroScript
     from app.core.execution.macro.engine import MacroEngine
     from app.core.routing import retriever
-    from app.core.routing.router import route_many
-    from app.core.routing.schemas import RouteRequest
+    # NOTE: route_many removed in dead code cleanup
     from app.core.routing.sync import rebuild_route_index
     from app.infrastructure.database import session_scope
     from app.infrastructure.database.resource_manager import db_resource_manager

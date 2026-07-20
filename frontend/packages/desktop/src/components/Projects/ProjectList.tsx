@@ -37,7 +37,7 @@ function getIndexingStatusDisplay(
     return {
       icon: <RefreshCw className="h-3 w-3 animate-spin" />,
       text: t("projects.status.indexing"),
-      className: "bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-200",
+      className: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
     }
   }
 
@@ -49,27 +49,27 @@ function getIndexingStatusDisplay(
         icon: <RefreshCw className="h-3 w-3 animate-spin" />,
         text: t("projects.status.indexing"),
         className:
-          "bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-200",
+          "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
       }
     case "completed":
       return {
         icon: <CheckCircle2 className="h-3 w-3" />,
         text: t("projects.status.indexed"),
         className:
-          "bg-green-100 text-green-700 hover:bg-green-200 border-green-200",
+          "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
       }
     case "failed":
       return {
         icon: <XCircle className="h-3 w-3" />,
         text: t("projects.status.indexFailed"),
-        className: "bg-red-100 text-red-700 hover:bg-red-200 border-red-200",
+        className: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20",
       }
     case "pending":
       return {
         icon: <Clock className="h-3 w-3" />,
         text: t("projects.status.indexPending"),
         className:
-          "bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border-yellow-200",
+          "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
       }
     default:
       return null
@@ -170,7 +170,7 @@ export function ProjectList() {
                   proj.summarization_status === "summarizing") && (
                   <Badge
                     variant="secondary"
-                    className="bg-purple-100 text-purple-700 hover:bg-purple-200 border-purple-200 gap-1"
+                    className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20 gap-1"
                   >
                     <ListTodo className="h-3 w-3 animate-pulse" />{" "}
                     {t("projects.status.analyzing")}
@@ -179,7 +179,7 @@ export function ProjectList() {
                 {proj.wiki_status === "running" && (
                   <Badge
                     variant="secondary"
-                    className="bg-green-100 text-green-700 hover:bg-green-200 border-green-200 gap-1"
+                    className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 gap-1"
                   >
                     <BookOpen className="h-3 w-3 animate-pulse" />{" "}
                     {t("wiki.nav")}

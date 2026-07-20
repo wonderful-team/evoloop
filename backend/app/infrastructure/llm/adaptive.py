@@ -231,7 +231,7 @@ class AdaptiveChatOpenAI:
                     if not chunk.choices:
                         continue
                     delta = chunk.choices[0].delta
-                    content = getattr(delta, "content", None) or ""
+                    content = (getattr(delta, "content", None) or "").replace("</s>", "").replace("<|im_end|>", "").replace("<|endoftext|>", "")
                     reasoning = getattr(delta, "reasoning_content", None) or ""
 
                     additional_kwargs = {}

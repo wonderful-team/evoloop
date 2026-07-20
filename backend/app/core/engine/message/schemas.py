@@ -65,25 +65,6 @@ class ToolCall(DynamicBaseModel):
     index: int | None = None
 
 
-class ToolBlock(DynamicBaseModel):
-    """
-    工具执行块 —— 全链路标准化。
-    """
-
-    id: str
-    tool_call_id: str
-    tool: str  # 原始标识符，如 "read_file"
-    tool_name: str | None = None  # 显示名回退（当前与 tool 相同）
-    name: str | None = None  # 人类可读显示名（来自 tool_meta 或 i18n）
-    input: dict[str, Any] = Field(default_factory=dict)
-    output: str = ""
-    status: Literal["pending", "running", "done", "failed"] = "pending"
-    duration_ms: int | None = None
-    started_at: datetime | None = None
-    finished_at: datetime | None = None
-    tool_meta: dict[str, Any] | None = None
-
-
 class MessageBlock(DynamicBaseModel):
     """
     消息块 —— 全链路标准化消息结构。
@@ -172,15 +153,6 @@ class HITLBlock(DynamicBaseModel):
     result: dict[str, Any] | None = None
     created_at: str = ""  # ISO 8601
     resolved_at: str | None = None
-
-
-class HistoryBlock(MessageBlock):
-    """
-    API 历史记录响应块 —— 继承 MessageBlock，扩展展示层字段。
-    """
-
-    has_file_operations: bool = False
-    changeset_count: int = 0
 
 
 class MessageHandlerResult(DynamicBaseModel):

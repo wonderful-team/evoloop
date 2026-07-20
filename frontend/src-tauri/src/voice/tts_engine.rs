@@ -272,20 +272,13 @@ async fn speak_edge_tts(text: &str, voice_name: &str, _is_zh: bool) -> Result<()
 
     let _ = std::fs::remove_file(&path);
 
-    if !status.success() {
+    if !status.success() && status.code() != None {
         return Err(format!("afplay exited with status: {:?}", status.code()));
     }
 
     Ok(())
 }
 
-pub async fn speak_edge_tts_for_preview(text: &str, voice_name: &str) -> Result<(), String> {
-    speak_edge_tts(text, voice_name, false).await
-}
-
-pub async fn speak_qwen_tts_for_preview(text: &str, voice_name: &str) -> Result<(), String> {
-    speak_qwen_tts(text, voice_name).await
-}
 
 async fn speak_qwen_tts(text: &str, voice: &str) -> Result<(), String> {
     // Qwen-TTS via DashScope API (Alibaba Cloud)
@@ -393,7 +386,7 @@ async fn speak_qwen_tts(text: &str, voice: &str) -> Result<(), String> {
 
     let _ = std::fs::remove_file(&path);
 
-    if !status.success() {
+    if !status.success() && status.code() != None {
         return Err(format!("afplay exited with error: {:?}", status.code()));
     }
 

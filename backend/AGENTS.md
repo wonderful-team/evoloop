@@ -52,14 +52,22 @@ pytest tests/unit/core/engine/ -v  # 仅测试引擎模块
 ## 代码风格与命名约定
 
 - **Python 版本**：3.11+（`pyproject.toml` 中限制 `>=3.11,<3.13`）
-- **格式化与 Lint**：使用 Ruff（`ruff check` + `ruff format`），目标版本 `py310`
-- **类型检查**：mypy strict 模式（排除 `venv`、`alembic`）
+- **格式化与 Lint**：使用 Ruff（`ruff check` + `ruff format`），目标版本 `py311`
+- **类型检查**：渐进式引入 mypy/pyright 强类型检查（优先覆盖 Pydantic 模型与核心 Service）
 - **命名规范**：
   - 模块/文件名：`snake_case`（如 `context_trimmer.py`）
   - 类名：`PascalCase`（如 `AgentEngine`、`EvoMessageConverter`）
   - 常量：`UPPER_SNAKE_CASE`
-- **导入规范**：使用 lazy imports 避免重型模块过早加载（参见 `app/core/engine/__init__.py`）
-- **禁止事项**：不允许 `print` 语句（Ruff T201 规则），测试和脚本目录除外
+- **导入规范**：统一使用顶层导入（Top-level imports）。**严禁**在函数体内使用 `from app.xxx import yyy` 掩盖模块间的循环依赖；如遇循环依赖应重构模块层次或使用 `typing.TYPE_CHECKING`。仅限第三方重型 C 扩展（如 `llama_cpp`）允许懒加载。
+- **禁止事项**：
+  - **禁止静默吞掉异常**：严禁使用 `except Exception: pass` 或静默返回假数据/`None`。严禁使用 `logger.error(f"{e}")` 丢弃 Traceback 堆栈，必须使用 `logger.exception(...)` 或 `exc_info=True`。
+  - **禁止 6 元组伪捕获**：严禁复制粘贴 `except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError)` 通配绝大多数异常。代码 Bug（如 `TypeError` / `AttributeError` / `KeyError`）必须遵循 **Fail-Fast** 原则直接暴露。
+  - **禁止滥用动态反射**：已有明确 Pydantic Model / Dataclass / Domain 实体时，严禁使用 `getattr` / `hasattr` / `setattr`。模型访问统一采用点语法 (`obj.attr`)。
+  - **禁止 async 函数中的同步阻塞**：`async def` 中严禁直接调用同步 `open()`、`subprocess.run()` 或同步 `requests`。必须使用 `asyncio.to_thread()` 或 `aiofiles` / 异步子进程。
+  - **禁止无锁修改全局状态**：严禁使用 `global` 关键字在并发请求路径中修改全局可变状态，避免 Race Condition。
+  - **禁止无意义的对象与 Dict 频繁倒腾**：核心业务、Service 层与函数调用之间，必须全程保持强类型对象（Pydantic Model / Dataclass / ORM 实体）透传。**严禁**把对象 `model_dump()` 转成 `dict` 传给下一级、下一级再 `model_validate()` 转回对象的冗余倒腾。**严禁**先手动组装 `{"a": x}` 字典再调用 `Model.model_validate(...)` 实例化，必须直接使用类构造器 `Model(a=x)` 或 `model.model_copy(update={...})`。仅在 FastAPI Response 返回、数据库 JSON 存储或外部 API 请求边界才允许进行序列化。
+  - **禁止重型/无状态服务在函数内重复实例化**：严禁在函数/方法体内随手 `service = ServiceClass()` 重复创建无状态或重型服务实例。无状态服务、工具管理器与共享组件必须统一定义为 **模块级单例（Module Singleton）**（如 `message_publisher = MessagePublisher()`）或通过 **FastAPI `Depends()` 依赖注入** 传递，避免频繁 GC 损耗与连接池/缓存失效。
+  - **禁止 print 语句**：不允许 `print` 语句（Ruff T201 规则），测试和脚本目录除外。
 - **模板文件**：提示词模板使用 Jinja2，存放于 `app/config/templates/core/`，按功能分目录（`memory/`、`learning/`、`engine/` 等）
 
 ## 测试指南

@@ -77,19 +77,6 @@ class ContextTrimmer:
     Unified message trimming entry point using native BaseMessage objects.
     """
 
-    def truncate_tool_output(self, content: str, model: str) -> str:
-        if not content:
-            return ""
-        profile = llm_platform_service.get_profile(model)
-        token_limit = profile.truncate_limit_tokens
-        char_limit = token_limit * 4
-
-        if len(content) <= char_limit:
-            return content
-
-        truncated_msg = f"\n\n[TRIMMED: Tool output of {len(content)} characters truncated to {char_limit} characters to fit context limits.]"
-        return content[:char_limit] + truncated_msg
-
     def trim(
         self,
         messages: list[Any],

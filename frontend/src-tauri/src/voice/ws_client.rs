@@ -16,6 +16,8 @@ pub struct VoiceEnvelope {
     pub message_id: Option<String>,
 }
 
+const RECONNECT_DELAY_SECS: u64 = 3;
+
 pub struct VoiceWsClient {
     tx: Arc<Mutex<Option<mpsc::UnboundedSender<String>>>>,
     handler: EnvelopeHandler,
@@ -37,56 +39,75 @@ impl VoiceWsClient {
         *self.connected.blocking_read()
     }
 
+    /// Connect and auto-reconnect on disconnect.
+    /// The returned task runs forever (or until the client is dropped).
     pub async fn connect(&self) -> Result<(), String> {
-        let (ws_stream, _) = tokio_tungstenite::connect_async(&self.url)
-            .await
-            .map_err(|e| format!("WS connect failed: {}", e))?;
-
-        let (mut ws_sender, mut ws_receiver) = ws_stream.split();
-        let (tx, mut rx) = mpsc::unbounded_channel::<String>();
-
-        *self.tx.lock().await = Some(tx);
-        *self.connected.write().await = true;
-        info!("[voice-ws] connected to {}", self.url);
-
+        let url = self.url.clone();
         let handler = self.handler.clone();
+        let tx_state = self.tx.clone();
         let connected = self.connected.clone();
 
-        // Spawn receive loop
         tokio::spawn(async move {
-            while let Some(msg_result) = ws_receiver.next().await {
-                match msg_result {
-                    Ok(Message::Text(text)) => {
-                        if let Ok(envelope) = serde_json::from_str::<VoiceEnvelope>(&text) {
-                            handler(envelope);
-                        } else {
-                            warn!("[voice-ws] failed to parse envelope: {}", &text[..text.len().min(200)]);
+            loop {
+                match tokio_tungstenite::connect_async(&url).await {
+                    Ok((ws_stream, _)) => {
+                        info!("[voice-ws] connected to {}", url);
+                        let (mut ws_sender, mut ws_receiver) = ws_stream.split();
+                        let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+
+                        *tx_state.lock().await = Some(tx);
+                        *connected.write().await = true;
+
+                        let handler = handler.clone();
+                        let connected_clone = connected.clone();
+                        let tx_state_clone = tx_state.clone();
+
+                        // Receive loop
+                        let recv = tokio::spawn(async move {
+                            while let Some(msg_result) = ws_receiver.next().await {
+                                match msg_result {
+                                    Ok(Message::Text(text)) => {
+                                        if let Ok(envelope) = serde_json::from_str::<VoiceEnvelope>(&text) {
+                                            handler(envelope);
+                                        } else {
+                                            warn!("[voice-ws] failed to parse envelope: {}",
+                                                &text[..text.len().min(200)]);
+                                        }
+                                    }
+                                    Ok(Message::Frame(_)) | Ok(Message::Binary(_)) => {}
+                                    Ok(Message::Ping(_)) | Ok(Message::Pong(_)) => {}
+                                    Ok(Message::Close(_)) => {
+                                        info!("[voice-ws] server closed connection");
+                                        break;
+                                    }
+                                    Err(e) => {
+                                        error!("[voice-ws] receive error: {}", e);
+                                        break;
+                                    }
+                                }
+                            }
+                            *connected_clone.write().await = false;
+                            *tx_state_clone.lock().await = None;
+                        });
+
+                        // Send loop
+                        while let Some(text) = rx.recv().await {
+                            if ws_sender.send(Message::Text(text)).await.is_err() {
+                                error!("[voice-ws] send failed");
+                                break;
+                            }
                         }
-                    }
-                    Ok(Message::Frame(_)) | Ok(Message::Binary(_)) => {
-                        // Binary/raw frames not expected in normal path
-                    }
-                    Ok(Message::Ping(_)) | Ok(Message::Pong(_)) => {}
-                    Ok(Message::Close(_)) => {
-                        info!("[voice-ws] server closed connection");
-                        break;
+
+                        recv.abort();
+                        *connected.write().await = false;
+                        *tx_state.lock().await = None;
                     }
                     Err(e) => {
-                        error!("[voice-ws] receive error: {}", e);
-                        break;
+                        error!("[voice-ws] connect failed: {} (retry in {}s)", e, RECONNECT_DELAY_SECS);
                     }
                 }
-            }
-            *connected.write().await = false;
-        });
 
-        // Spawn send loop
-        tokio::spawn(async move {
-            while let Some(text) = rx.recv().await {
-                if ws_sender.send(Message::Text(text)).await.is_err() {
-                    error!("[voice-ws] send failed");
-                    break;
-                }
+                tokio::time::sleep(std::time::Duration::from_secs(RECONNECT_DELAY_SECS)).await;
             }
         });
 

@@ -100,21 +100,6 @@ class ContextPluginRegistry:
                            key=lambda k: self._hydration_cache[k][1])
             del self._hydration_cache[oldest_key]
 
-    def get_stats(self) -> dict:
-        """Get cache statistics for monitoring."""
-        total = self._stats["hits"] + self._stats["misses"] + self._stats["expired"]
-        hit_rate = (self._stats["hits"] / total * 100) if total > 0 else 0
-        return {
-            **self._stats,
-            "total_requests": total,
-            "hit_rate": f"{hit_rate:.1f}%",
-            "cache_size": len(self._hydration_cache),
-        }
-
-    def reset_stats(self) -> None:
-        """Reset cache statistics."""
-        self._stats = {"hits": 0, "misses": 0, "expired": 0}
-
 
 # Global registry instance
 plugin_registry = ContextPluginRegistry()

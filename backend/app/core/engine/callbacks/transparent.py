@@ -394,32 +394,3 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 message=i18n.get("common.tool_execution_error", name=tool_name, error=str(error)),
                 status="failed"
             )
-
-    async def on_chain_start(self, serialized: dict[str, Any], inputs: dict[str, Any], **kwargs: Any) -> None:
-        """Run when chain (node) starts running.
-
-        Note: We no longer record Phase headers ("► Supervisor Phase", etc.) to reduce noise.
-        Only actual tool executions are tracked.
-        """
-        run_id = str(kwargs.get("run_id", ""))
-        self._run_metadata[run_id] = kwargs.get("metadata", {})
-
-    async def on_chain_end(self, outputs: dict[str, Any], **kwargs: Any) -> None:
-        """Run when chain ends running.
-
-        Note: Phase headers tracking removed, this is now a no-op.
-        """
-        run_id = str(kwargs.get("run_id", ""))
-        self._run_metadata.pop(run_id, None)
-
-    async def on_chain_error(self, error: BaseException, **kwargs: Any) -> None:
-        """Run when chain errors.
-
-        Note: Phase headers tracking removed, this is now a no-op.
-        """
-        run_id = str(kwargs.get("run_id", ""))
-        self._run_metadata.pop(run_id, None)
-
-    async def on_text(self, text: str, **kwargs: Any) -> None:
-        """Run on arbitrary text."""
-        logger.info(f"[Text] {text}")

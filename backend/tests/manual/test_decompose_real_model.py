@@ -11,8 +11,7 @@ import sys
 
 sys.path.insert(0, "/Users/huangjinhuan/Projects/develop-assistant.cn/evoloop/backend")
 
-from app.core.routing.decompose import decompose
-from app.core.routing.resolver import resolve_expression
+# NOTE: decompose and resolver modules have been removed (dead code after voice architecture refactor)
 
 CASES = [
     # (text, expect_intents, expect_dep, note)

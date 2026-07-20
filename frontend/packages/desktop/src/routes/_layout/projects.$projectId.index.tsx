@@ -1,6 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router"
-import { ProjectOverview } from "@/components/Projects/Modules/Overview/ProjectOverview"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
 export const Route = createFileRoute("/_layout/projects/$projectId/")({
-  component: ProjectOverview,
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: "/projects/$projectId/assets",
+      params: { projectId: params.projectId },
+    })
+  },
 })

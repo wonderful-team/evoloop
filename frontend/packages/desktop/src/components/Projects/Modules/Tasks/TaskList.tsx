@@ -71,38 +71,36 @@ export const TaskList: React.FC = () => {
   }, [fetchTasks])
 
   return (
-    <div className="h-full w-full overflow-auto p-6 space-y-6">
-      <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold tracking-tight">
-            {t("projects.tasks.title")}
-          </h2>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchTasks}
-              disabled={isLoading}
-            >
-              <RefreshCw
-                className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
-              />
-              {t("projects.tasks.refresh")}
-            </Button>
-            <Button size="sm" onClick={() => setIsCreateOpen(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              {t("projects.tasks.create")}
-            </Button>
-          </div>
+    <div className="w-full space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold tracking-tight">
+          {t("projects.tasks.title")}
+        </h3>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchTasks}
+            disabled={isLoading}
+          >
+            <RefreshCw
+              className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
+            />
+            {t("projects.tasks.refresh")}
+          </Button>
+          <Button size="sm" onClick={() => setIsCreateOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            {t("projects.tasks.create")}
+          </Button>
         </div>
+      </div>
 
-        <div className="bg-background rounded-md">
-          <DataTable
-            columns={columns}
-            data={tasks}
-            onRowClick={handleRowClick}
-          />
-        </div>
+      <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+        <DataTable
+          columns={columns}
+          data={tasks}
+          onRowClick={handleRowClick}
+        />
       </div>
 
       <TaskDetail

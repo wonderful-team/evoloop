@@ -4,6 +4,7 @@ import {
 } from "@evoloop/shared/components/ui/sidebar"
 import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router"
 import { useEffect, useState } from "react"
+import { AppTitleBar } from "@/components/Common/AppTitleBar"
 import { Footer } from "@/components/Common/Footer"
 import {
   SpotlightTourProvider,
@@ -72,9 +73,10 @@ function Layout() {
         className={isFullWidth ? "h-svh overflow-hidden" : ""}
       >
         <AppSidebar />
-        <SidebarInset className="min-w-0 overflow-hidden">
+        <SidebarInset className="min-w-0 overflow-hidden flex flex-col h-full">
+          <AppTitleBar />
           <main
-            className={`flex-1 min-w-0 ${isFullWidth ? "overflow-hidden" : "p-6 md:p-8"}`}
+            className={`flex-1 min-w-0 ${isFullWidth ? "overflow-hidden" : "p-6 md:p-8 overflow-auto"}`}
           >
             <div
               className={
@@ -86,8 +88,6 @@ function Layout() {
               <Outlet />
             </div>
           </main>
-
-          {!isFullWidth && <Footer />}
         </SidebarInset>
       </SidebarProvider>
 

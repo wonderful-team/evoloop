@@ -49,13 +49,13 @@ function VoiceHUD() {
         const scaleFactor = monitor.scaleFactor || 1
         const monitorWidth = monitor.size.width / scaleFactor
         const monitorHeight = monitor.size.height / scaleFactor
-        
+
         const hudWidth = 300
         const hudHeight = 70
-        
+
         const x = Math.round((monitorWidth - hudWidth) / 2)
         const y = Math.round(monitorHeight * 0.85 - hudHeight) // 15% from bottom
-        
+
         win.setPosition(new LogicalPosition(x, y)).catch(console.error)
       }
     }).catch(console.error)
@@ -135,13 +135,13 @@ function VoiceHUD() {
 
   return (
     <div className="flex items-center justify-center w-full h-full p-2 select-none pointer-events-none bg-transparent">
-      <div 
+      <div
         className="pointer-events-auto cursor-move"
         data-tauri-drag-region
       >
         <AnimatePresence mode="wait">
           <motion.div
-            key={`${mode}-${state}-${text}`}
+            key={`${mode}-${state}`}
             initial={{ opacity: 0, y: 15, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -15, scale: 0.95 }}

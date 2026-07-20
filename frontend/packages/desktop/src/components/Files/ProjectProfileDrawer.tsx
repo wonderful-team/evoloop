@@ -41,7 +41,7 @@ export function ProjectProfileDrawer({
     if (projectId === undefined || projectId === null || !open) return
     setLoading(true)
     try {
-      const data = await ProjectProfilesService.getProfile({
+      const data = await ProjectProfilesService.projectsGetProfile({
         projectId: Number(projectId),
       })
       setProfile({
@@ -61,7 +61,7 @@ export function ProjectProfileDrawer({
     setIsSaving(true)
     try {
       // Use SDK method
-      const data = await ProjectProfilesService.updateProfile({
+      const data = await ProjectProfilesService.projectsUpdateProfile({
         projectId: Number(projectId),
         requestBody: { content: editContent },
       })

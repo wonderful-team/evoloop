@@ -7,7 +7,7 @@ use tokio::sync::RwLock;
 use log::{info, warn, error};
 use uuid::Uuid;
 
-use super::asr_engine::AsrEngine;
+use super::offline_asr::OfflineAsrEngine;
 use super::vad_engine::VadEngine;
 use super::tts_engine::{TtsEngine, TtsEngineKind};
 use super::aec_engine::AecMicCapture;
@@ -19,7 +19,7 @@ use crate::sidecar::BACKEND_PORT;
 
 /// Copy text to clipboard and simulate Cmd+V to paste into the frontmost app.
 #[cfg(target_os = "macos")]
-fn dictation_paste(text: &str) {
+pub fn dictation_paste(text: &str) {
     // 1. Set clipboard
     if let Ok(mut clipboard) = arboard::Clipboard::new() {
         let _ = clipboard.set_text(text);
@@ -60,12 +60,12 @@ fn dictation_paste(text: &str) {
 }
 
 #[cfg(not(target_os = "macos"))]
-fn dictation_paste(_text: &str) {
+pub fn dictation_paste(_text: &str) {
     warn!("[dictation] paste not supported on this platform");
 }
 
 pub struct VoiceSession {
-    asr: Arc<RwLock<Option<AsrEngine>>>,
+    offline_asr: Arc<RwLock<Option<OfflineAsrEngine>>>,
     vad: Arc<RwLock<Option<VadEngine>>>,
     tts: Arc<TtsEngine>,
     mic: Arc<RwLock<AecMicCapture>>,
@@ -79,6 +79,7 @@ pub struct VoiceSession {
     audio_queue: Arc<Mutex<VecDeque<f32>>>,
     event_bus: Arc<Mutex<Option<Arc<dyn VoiceEventBus>>>>,
     model_search_paths: Vec<PathBuf>,
+    llm_polish_enabled: Arc<AtomicBool>,
 }
 
 impl VoiceSession {
@@ -90,7 +91,7 @@ impl VoiceSession {
         }));
 
         Self {
-            asr: Arc::new(RwLock::new(None)),
+            offline_asr: Arc::new(RwLock::new(None)),
             vad: Arc::new(RwLock::new(None)),
             tts,
             mic: Arc::new(RwLock::new(AecMicCapture::new())),
@@ -104,6 +105,10 @@ impl VoiceSession {
             audio_queue,
             event_bus: Arc::new(Mutex::new(None)),
             model_search_paths,
+            llm_polish_enabled: Arc::new(AtomicBool::new(
+                std::env::var("EVOLOOP_DICTATION_LLM_POLISH").as_deref() == Ok("true")
+                    || std::env::var("DICTATION_LLM_POLISH").as_deref() == Ok("true")
+            )),
         }
     }
 
@@ -126,18 +131,27 @@ impl VoiceSession {
         self.emit_event("voice:log", serde_json::json!({"message": message}));
     }
 
-    /// Initialize ASR and VAD engines with model paths.
+    /// Initialize VAD and Qwen3-ASR engines with model paths.
     pub async fn init_engines(
         &self,
-        asr_model_dir: &str,
         vad_model_path: &str,
         vad_silence_ms: f32,
+        qwen3_model_dir: &str,
     ) -> Result<(), String> {
-        let asr = AsrEngine::new(asr_model_dir)?;
         let vad = VadEngine::new(vad_model_path, vad_silence_ms)?;
-
-        *self.asr.write().await = Some(asr);
         *self.vad.write().await = Some(vad);
+
+        match OfflineAsrEngine::new(qwen3_model_dir) {
+            Ok(engine) => {
+                *self.offline_asr.write().await = Some(engine);
+                info!("[voice-session] Qwen3 ASR loaded");
+            }
+            Err(e) => {
+                let err = format!("Qwen3 ASR init failed: {}", e);
+                error!("[voice-session] {}", err);
+                return Err(err);
+            }
+        }
 
         info!("[voice-session] engines initialized");
         Ok(())
@@ -183,6 +197,7 @@ impl VoiceSession {
 
                     "voice.tts_boundary" => {
                         let sentence = body.get("sentence")
+                            .or_else(|| body.get("text"))
                             .and_then(|v| v.as_str())
                             .unwrap_or("");
 
@@ -199,9 +214,16 @@ impl VoiceSession {
                     }
 
                     "voice.dictation.polished" => {
-                        // Paste globally to the frontmost application
-                        if let Some(text) = body.get("polished_text").and_then(|v| v.as_str()) {
-                            dictation_paste(text);
+                        // Check for CLARIFY: don't paste, just emit
+                        let is_clarify = body.get("changes")
+                            .and_then(|c| c.as_array())
+                            .and_then(|arr| arr.first())
+                            .and_then(|c| c.get("clarify"))
+                            .and_then(|v| v.as_str());
+                        if is_clarify.is_none() {
+                            if let Some(text) = body.get("polished_text").and_then(|v| v.as_str()) {
+                                dictation_paste(text);
+                            }
                         }
                         event_bus.emit("voice:dictation_polished", body.clone());
                     }
@@ -232,7 +254,7 @@ impl VoiceSession {
     }
 
     pub async fn ensure_initialized(&self) -> Result<(), String> {
-        if self.asr.read().await.is_some()
+        if self.offline_asr.read().await.is_some()
             && self.vad.read().await.is_some()
             && self.ws_client.read().await.is_some()
         {
@@ -242,17 +264,20 @@ impl VoiceSession {
         // Search: configured paths + hardcoded fallbacks
         let home = dirs::home_dir();
         let evoloop_models = home.as_ref().map(|p| p.join(".evoloop/models"));
-        let prototype_asr = home.as_ref().map(|p| p.join(".config/models/sherpa-onnx/model"));
         let model_dirs: Vec<_> = self.model_search_paths.iter().cloned().map(Some)
-            .chain([evoloop_models.clone(), prototype_asr.clone()])
+            .chain([evoloop_models.clone()])
             .collect();
 
         let mut found = false;
+
         for dir in model_dirs.iter().flatten() {
-            if !dir.join("encoder.int8.onnx").exists() {
-                self.emit_log(&format!("no models at {}", dir.display()));
+            let qwen3_dir = find_qwen3_model_dir(dir);
+            if qwen3_dir.is_none() {
+                self.emit_log(&format!("no Qwen3 model at {}", dir.display()));
                 continue;
             }
+            let qwen3_dir = qwen3_dir.unwrap();
+
             // Try VAD in same dir, then in parent dir (prototype layout)
             let vad_candidates = [
                 Some(dir.join("silero_vad.onnx")),
@@ -264,14 +289,12 @@ impl VoiceSession {
             });
 
             if let Some(vad_path) = vad_path {
-                self.emit_log(&format!("models found at {}, VAD at {}", dir.display(), vad_path.display()));
-
+                self.emit_log(&format!("models found at {}, VAD at {}", qwen3_dir.display(), vad_path.display()));
                 self.init_engines(
-                    &dir.to_string_lossy(),
                     &vad_path.to_string_lossy(),
-                    400.0,
-                )
-                .await?;
+                    800.0,
+                    &qwen3_dir.to_string_lossy(),
+                ).await?;
 
                 let ws_url = format!("ws://127.0.0.1:{}/api/v1/voice/ws", BACKEND_PORT);
                 self.connect_backend(&ws_url).await?;
@@ -292,12 +315,11 @@ impl VoiceSession {
     }
 
     /// Start a voice session.
-    /// Begins microphone capture, ASR processing, and VAD detection.
+    /// Begins microphone capture, VAD detection, and Qwen3-ASR recognition.
     pub async fn start(&self, thread_id: String, lang: String, mode: String) -> Result<(), String> {
         // Auto-initialize if not ready
         self.ensure_initialized().await?;
 
-        let asr = self.asr.read().await.as_ref().cloned().ok_or("ASR not initialized".to_string())?;
         let vad = self.vad.read().await.as_ref().cloned().ok_or("VAD not initialized".to_string())?;
         let ws_client = self.ws_client.read().await.as_ref().cloned().ok_or("WS not connected".to_string())?;
 
@@ -328,22 +350,18 @@ impl VoiceSession {
                 None => panic!("Event bus not set"),
             }
         };
-        
-        let stream = Arc::new(Mutex::new(asr.create_stream()));
-        let last_partial = Arc::new(Mutex::new(String::new()));
-        
+
         let mut mic = self.mic.write().await;
         let tid_clone = tid.clone();
         let ws_clone = ws_client.clone();
         let vad_clone = vad.clone();
-        let asr_clone = asr.clone();
-        let stream_clone = stream.clone();
-        let last_partial_clone = last_partial.clone();
         let sm_clone = sm.clone();
         let tts_clone = tts.clone();
         let event_bus_clone = event_bus.clone();
         let mode_clone = self.mode.clone();
         let lang_clone = self.lang.clone();
+        let offline_asr_clone = self.offline_asr.clone();
+        let llm_polish_clone = self.llm_polish_enabled.clone();
         let rt_handle = tokio::runtime::Handle::current();
 
         mic.start(audio_queue, move |samples: &[f32]| {
@@ -379,78 +397,66 @@ impl VoiceSession {
                     }
                 }
 
-                // Feed to ASR and decode (no endpoint detection, rely on VAD).
-                let mut partial = String::new();
-                if let Ok(mut s) = stream_clone.lock() {
-                    s.accept_waveform(16000, samples);
-                    let recognizer = asr_clone.recognizer();
-                    if recognizer.is_ready(&*s) {
-                        recognizer.decode(&*s);
-                        if let Some(result) = recognizer.get_result(&*s) {
-                            partial = result.text;
-                        }
-                    }
-                }
-
-                // Send partial transcript if it changed and is non-empty.
-                if !partial.is_empty() {
-                    let mut last = last_partial_clone.lock().unwrap();
-                    if partial != *last {
-                        *last = partial.clone();
-                        let ws = ws_clone.clone();
-                        let tid = tid_clone.clone();
-                        let bus = event_bus_clone.clone();
-                        rt.spawn(async move {
-                            ws.send_partial(&tid, &partial).await.ok();
-                            bus.emit("voice:log", serde_json::json!({"message": format!("ASR partial: {}", partial)}));
-                            bus.emit("voice:partial", serde_json::json!({"text": partial}));
-                        });
-                    }
-                }
-
                 // Endpoint: finalize the utterance when VAD detects a speech segment end.
                 if !segments.is_empty() {
-                    let final_text = {
-                        let last = last_partial_clone.lock().unwrap();
-                        last.clone()
-                    };
-                    if !final_text.is_empty() {
-                        // Clear the partial buffer for the next utterance.
-                        {
-                            let mut last = last_partial_clone.lock().unwrap();
-                            last.clear();
-                        }
-
-                        // Reset ASR stream for the next utterance
-                        if let Ok(mut s) = stream_clone.lock() {
-                            let recognizer = asr_clone.recognizer();
-                            recognizer.reset(&*s);
-                        }
-
-                        let ws = ws_clone.clone();
-                        let tid = tid_clone.clone();
-                        let sm = sm_clone.clone();
-                        let bus = event_bus_clone.clone();
-                        let mode_for_task = mode_clone.clone();
-                        let lang_for_task = lang_clone.clone();
-                        rt.spawn(async move {
-                            let mode = mode_for_task.read().await.clone();
-                            if mode == "dictation" {
-                                if final_text.chars().count() <= 5 {
-                                    bus.emit("voice:log", serde_json::json!({"message": format!("短文本跳过 LLM: {}", final_text)}));
-                                    dictation_paste(&final_text);
-                                } else {
-                                    let target_locale = lang_for_task.read().await.clone();
-                                    ws.send_dictation_finalize(&tid, &final_text, &target_locale).await.ok();
+                    let ws = ws_clone.clone();
+                    let tid = tid_clone.clone();
+                    let sm = sm_clone.clone();
+                    let bus = event_bus_clone.clone();
+                    let mode_for_task = mode_clone.clone();
+                    let lang_for_task = lang_clone.clone();
+                    let offline = offline_asr_clone.clone();
+                    let audio_segments = segments.clone();
+                    let llm_flag = llm_polish_clone.clone();
+                    rt.spawn(async move {
+                        // Run Qwen3 offline ASR on the VAD segment audio
+                        let recognized = if let Some(ref engine) = *offline.read().await {
+                            let mut full_audio: Vec<f32> = Vec::new();
+                            for seg in &audio_segments {
+                                full_audio.extend_from_slice(seg);
+                            }
+                            if !full_audio.is_empty() {
+                                match engine.recognize(&full_audio) {
+                                    Ok(text) => {
+                                        let t = text.trim().to_string();
+                                        bus.emit("voice:log", serde_json::json!({"message": format!("Qwen3 ASR: {}", t)}));
+                                        t
+                                    }
+                                    Err(e) => {
+                                        bus.emit("voice:log", serde_json::json!({"message": format!("Qwen3 ASR failed: {}", e)}));
+                                        String::new()
+                                    }
                                 }
                             } else {
-                                let msg_id = Uuid::new_v4().to_string();
-                                ws.send_route(&tid, &final_text, &msg_id).await.ok();
-                                let _ = sm.set(VoiceState::Processing).await;
-                                bus.emit("voice:state", serde_json::json!({"state": "processing"}));
+                                String::new()
                             }
-                        });
-                    }
+                        } else {
+                            String::new()
+                        };
+
+                        if recognized.is_empty() {
+                            return;
+                        }
+
+                        let mode = mode_for_task.read().await.clone();
+                        if mode == "dictation" {
+                            if recognized.chars().count() <= 5 {
+                                bus.emit("voice:log", serde_json::json!({"message": format!("短文本跳过 LLM: {}", recognized)}));
+                                dictation_paste(&recognized);
+                            } else if llm_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                                let target_locale = lang_for_task.read().await.clone();
+                                ws.send_dictation_finalize(&tid, &recognized, &target_locale).await.ok();
+                            } else {
+                                bus.emit("voice:log", serde_json::json!({"message": format!("LLM 润色已关闭，直接粘贴: {}", recognized)}));
+                                dictation_paste(&recognized);
+                            }
+                        } else {
+                            let msg_id = Uuid::new_v4().to_string();
+                            ws.send_route(&tid, &recognized, &msg_id).await.ok();
+                            let _ = sm.set(VoiceState::Processing).await;
+                            bus.emit("voice:state", serde_json::json!({"state": "processing"}));
+                        }
+                    });
                 }
             }).map_err(|e| e)?;
 
@@ -510,8 +516,22 @@ impl VoiceSession {
         self.tts.set_voice(voice);
     }
 
+    pub fn get_tts_voice(&self) -> String {
+        self.tts.get_voice()
+    }
+
     pub fn set_tts_speed(&self, speed: f32) {
         self.tts.set_speed(speed);
+    }
+
+    pub fn get_tts_speed(&self) -> f32 {
+        self.tts.get_speed()
+    }
+
+    /// Speak a single sentence through the TTS engine (queued, non-blocking).
+    pub fn speak_sentence(&self, text: &str) {
+        self.tts.queue_sentence(text.to_string());
+        self.tts.speak_next("zh-CN");
     }
 
     pub async fn is_running(&self) -> bool {
@@ -523,6 +543,38 @@ impl VoiceSession {
             ws.disconnect().await;
         }
     }
+}
+
+/// Find Qwen3 model directory inside parent_dir (direct match or dynamic scan).
+fn find_qwen3_model_dir(parent_dir: &std::path::Path) -> Option<PathBuf> {
+    // 1. Direct match: parent_dir / "qwen3-asr"
+    let direct = parent_dir.join("qwen3-asr");
+    if direct.join("encoder.int8.onnx").exists() || direct.join("encoder.onnx").exists() {
+        return Some(direct);
+    }
+
+    // 2. Direct match: parent_dir / "sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25"
+    let direct_named = parent_dir.join("sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25");
+    if direct_named.join("encoder.int8.onnx").exists() || direct_named.join("encoder.onnx").exists() {
+        return Some(direct_named);
+    }
+
+    // 3. Dynamic scan: read_dir for any subdirectory containing "qwen3" and encoder model
+    if let Ok(entries) = std::fs::read_dir(parent_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
+                if name.contains("qwen3") {
+                    if path.join("encoder.int8.onnx").exists() || path.join("encoder.onnx").exists() {
+                        return Some(path);
+                    }
+                }
+            }
+        }
+    }
+
+    None
 }
 
 /// Resolve the spoken confirmation text for a L0 local action.
@@ -578,18 +630,11 @@ pub(crate) async fn handle_route_result(
         }
     } else if status == "done" || status == "failed" || status == "cancelled" {
         let lang = session_lang.read().await.clone();
-        if status == "done" {
-            if let Some(summary) = body.get("summary").and_then(|v| v.as_str()) {
-                let s = summary.trim();
-                if !s.is_empty() {
-                    session_tts.queue_sentence(s.to_string());
-                    session_tts.speak_next(&lang);
-                }
-            }
-        } else if status == "failed" {
+        if status == "failed" {
             session_tts.queue_sentence("抱歉，处理出错了".to_string());
             session_tts.speak_next(&lang);
         }
+        // "done" TTS is handled by voice.tts_boundary, not here
 
         if !session_tts.has_queued() && !session_tts.is_speaking() {
             let _ = session_state.set(VoiceState::Idle).await;

@@ -25,15 +25,6 @@ class AsyncCallbackHandler:
     async def on_tool_error(self, *args, **kwargs) -> None:
         pass
 
-    async def on_chain_start(self, *args, **kwargs) -> None:
-        pass
-
-    async def on_chain_end(self, *args, **kwargs) -> None:
-        pass
-
-    async def on_chain_error(self, *args, **kwargs) -> None:
-        pass
-
 
 class LLMResult:
     """Mock/Stub class providing a native LLMResult."""

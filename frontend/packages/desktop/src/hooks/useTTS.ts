@@ -3,6 +3,33 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { isTauri } from "@/lib/tauri"
 import { toast } from "sonner"
+import { useVoiceStore } from "@/stores/voiceStore"
+
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, "")           // 代码块
+    .replace(/`([^`]+)`/g, "$1")                // 行内代码
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")     // 链接 [text](url) → text
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")    // 图片 ![alt](url) → alt
+    .replace(/[*_]{1,3}([^*_]+)[*_]{1,3}/g, "$1") // 加粗/斜体 **text** *text*
+    .replace(/~~(.+?)~~/g, "$1")                 // 删除线
+    .replace(/^#{1,6}\s+/gm, "")                 // 标题
+    .replace(/^>\s+/gm, "")                      // 引用
+    .replace(/^[-*+]\s+/gm, "")                  // 无序列表
+    .replace(/^\d+\.\s+/gm, "")                  // 有序列表
+    .replace(/^\s*[-*_]\s*[-*_]\s*[-*_]*\s*$/gm, "") // 分隔线
+    .replace(/\|/g, "")                          // 表格
+    .replace(/[\u{1F600}-\u{1F64F}]/gu, "")      // Emoji: 表情
+    .replace(/[\u{1F300}-\u{1F5FF}]/gu, "")      // Emoji: 符号
+    .replace(/[\u{1F680}-\u{1F6FF}]/gu, "")      // Emoji: 交通
+    .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, "")      // Emoji: 国旗
+    .replace(/[\u{2600}-\u{26FF}]/gu, "")         // Emoji: 杂项
+    .replace(/[\u{2700}-\u{27BF}]/gu, "")         // Emoji: 装饰
+    .replace(/[\u{FE00}-\u{FE0F}]/gu, "")         // 变体选择器
+    .replace(/\u{200D}/gu, "")                    // 零宽连接符
+    .replace(/\n{3,}/g, "\n\n")                  // 多余空行
+    .trim()
+}
 
 export interface TTSOptions {
   voiceId?: string
@@ -33,9 +60,11 @@ interface UseTTSReturn {
 
 export function useTTS(): UseTTSReturn {
   const { t } = useTranslation()
-  const [isSpeaking, setIsSpeaking] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const isSpeaking = useVoiceStore((s) => s.ttsSpeaking)
+  const isLoading = useVoiceStore((s) => s.ttsLoading)
+  const { setTtsSpeaking, setTtsLoading } = useVoiceStore()
   const [error, setError] = useState<string | null>(null)
+  const speakLockRef = useRef(false)
 
   const systemVoices: TTSVoice[] = [
     { id: "Ting-Ting", name: "Ting-Ting", gender: "female", description: "macOS 中文语音" },
@@ -134,6 +163,7 @@ export function useTTS(): UseTTSReturn {
   }, [])
 
   const stop = useCallback(async () => {
+    speakLockRef.current = false
     if (isTauri()) {
       try {
         await invoke("stop_speaking")
@@ -153,40 +183,47 @@ export function useTTS(): UseTTSReturn {
       abortControllerRef.current = null
     }
 
-    setIsSpeaking(false)
-    setIsLoading(false)
-  }, [])
+    setTtsSpeaking(false)
+    setTtsLoading(false)
+  }, [setTtsSpeaking, setTtsLoading])
 
   const speak = useCallback(
     async (text: string, options: TTSOptions = {}) => {
-      await stop()
-      if (!text.trim()) return
-
-      if (!isTauri()) {
-        setError("TTS is only available in the desktop app")
-        return
-      }
-
-      setIsLoading(true)
-      setError(null)
-
+      if (speakLockRef.current) return
+      speakLockRef.current = true
       try {
-        const voiceId = options.voiceId || currentVoice
-        const speed = options.speed ?? 1.0
-        const rate = Math.round(speed * 200) // convert 0.5-2.0 to say's rate
-        await invoke("speak_text", { text, voice: voiceId, rate, engine: options.engine })
-        setIsSpeaking(false)
-        setIsLoading(false)
+        await stop()
+        const clean = stripMarkdown(text)
+        if (!clean.trim()) return
+
+        if (!isTauri()) {
+          setError("TTS is only available in the desktop app")
+          return
+        }
+
+        setTtsLoading(true)
+        setError(null)
+
+        setTtsSpeaking(true)
+        await invoke("speak", {
+          text: clean,
+          engine: options.engine || null,
+          voice: options.voiceId || null,
+        })
+        setTtsSpeaking(false)
+        setTtsLoading(false)
       } catch (err: any) {
         console.error("TTS error:", err)
         const errMsg = err.message || err.toString() || t("chat.tts.error")
         setError(errMsg)
-        setIsSpeaking(false)
-        setIsLoading(false)
+        setTtsSpeaking(false)
+        setTtsLoading(false)
         toast.error(t("chat.tts.error") + ": " + errMsg)
+      } finally {
+        speakLockRef.current = false
       }
     },
-    [currentVoice, stop, t],
+    [stop, t, setTtsSpeaking, setTtsLoading],
   )
 
   return {

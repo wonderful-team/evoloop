@@ -31,7 +31,3 @@ class ContextCacheService:
     async def load_context(self, thread_id: str) -> dict | None:
         """Load context data."""
         return await self._cache.hgetall(self._key(thread_id))
-
-    async def delete_context(self, thread_id: str) -> bool:
-        """Delete cached context."""
-        return await self._cache.delete(self._key(thread_id)) > 0

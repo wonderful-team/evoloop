@@ -28,11 +28,6 @@ class RoutingTarget(str, Enum):
     END = "END"
 
 
-def route_by_next_node(state: AgentState) -> str:
-    """Pure mapper: reads state.next_node, falls back to finish."""
-    return state.next_node or "finish"
-
-
 def route_worker_by_outcome(state: AgentState) -> str:
     """Worker 的路由由执行结果决定，LLM 不参与。"""
     outcome = state.worker_outcome

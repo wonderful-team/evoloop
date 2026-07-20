@@ -111,38 +111,37 @@ export const GanttChart: React.FC = () => {
   }
 
   return (
-    <div className="h-full w-full overflow-auto p-6 space-y-6">
-      <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold tracking-tight">
-            {t("projects.gantt.title")}
-          </h2>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handlePrev}>
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <span className="flex items-center text-sm font-medium px-2">
-              {format(viewStartDate, "MMM d", { locale: getDateLocale() })} -{" "}
-              {format(addDays(viewStartDate, daysToShow - 1), "MMM d", {
-                locale: getDateLocale(),
-              })}
-            </span>
-            <Button variant="outline" size="sm" onClick={handleNext}>
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchTasks}
-              disabled={isLoading}
-            >
-              <RefreshCw
-                className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
-              />
-              {t("projects.gantt.refresh")}
-            </Button>
-          </div>
+    <div className="w-full space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold tracking-tight">
+          {t("projects.gantt.title")}
+        </h3>
+        <div className="flex gap-2 items-center">
+          <Button variant="outline" size="sm" onClick={handlePrev}>
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <span className="flex items-center text-sm font-medium px-2">
+            {format(viewStartDate, "MMM d", { locale: getDateLocale() })} -{" "}
+            {format(addDays(viewStartDate, daysToShow - 1), "MMM d", {
+              locale: getDateLocale(),
+            })}
+          </span>
+          <Button variant="outline" size="sm" onClick={handleNext}>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchTasks}
+            disabled={isLoading}
+          >
+            <RefreshCw
+              className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
+            />
+            {t("projects.gantt.refresh")}
+          </Button>
         </div>
+      </div>
 
         <Card className="overflow-hidden">
           <CardHeader className="border-b py-3 px-4 bg-muted/20">
@@ -218,7 +217,6 @@ export const GanttChart: React.FC = () => {
             )}
           </CardContent>
         </Card>
-      </div>
     </div>
   )
 }

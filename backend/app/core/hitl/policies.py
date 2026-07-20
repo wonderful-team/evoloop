@@ -15,9 +15,6 @@ from app.core.project.utils import get_project_path
 
 logger = logging.getLogger(__name__)
 
-# Default lifetime of a granted permission.
-DEFAULT_PERMISSION_TTL_DAYS = 7
-
 
 # ============ Data Models ============
 
@@ -249,16 +246,6 @@ class PolicyLoader:
             if not (item.get("path") == path and item.get("action") == action)
         ]
         return await PolicyLoader._write_meta(project_id, meta)
-
-    @staticmethod
-    async def ensure_defaults(project_id: int) -> bool:
-        """If project.json has no sensitive_patterns, write the defaults."""
-        meta = await PolicyLoader._read_meta(project_id)
-        if "sensitive_patterns" not in meta:
-            meta["sensitive_patterns"] = DEFAULT_SENSITIVE_PATTERNS
-            meta.setdefault("authorized_paths", [])
-            return await PolicyLoader._write_meta(project_id, meta)
-        return True
 
     @staticmethod
     def match_path(path: str, patterns: list[str]) -> bool:

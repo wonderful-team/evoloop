@@ -250,30 +250,9 @@ async def rebuild_route_index() -> int:
     return written
 
 
-def _skill_to_entry(s: Any) -> dict[str, Any]:
-    """Project a `LearnedSkill` row into a route_index entry dict."""
-    sid = getattr(s, "id", None)
-    name = getattr(s, "name", "") or ""
-    desc = getattr(s, "description", "") or name
-    mode = "deterministic" if getattr(s, "macro_id", None) else "agentic"
-    return {
-        "id": f"skill:{sid}",
-        "type": "skill",
-        "name": name,
-        "description": desc,
-        "triggers": _trigger_text(s),
-        "params_schema": _params_to_schema(getattr(s, "parameters", None)),
-        "execution_mode": mode,
-        "target": str(sid),
-    }
-
-
 def _trigger_text(s: Any) -> str:
-    """Flatten a skill's trigger_patterns into embeddable text.
-
-    trigger_patterns is stored as a JSON list (sometimes a raw string);
-    templates like {{target_app}} are embedded as-is — harmless noise.
-    """
+    """Flatten a skill\'s trigger_patterns into embeddable text."""
+    import json
     raw = getattr(s, "trigger_patterns", None) or []
     if isinstance(raw, str):
         try:
@@ -289,65 +268,5 @@ _PLACEHOLDER_RE = re.compile(r"\{\{?\s*[a-zA-Z0-9_\-]+\s*\}?\}")
 
 
 def _entry_embed_text(e: dict[str, Any]) -> str:
-    """Text embedded for a route entry: name + description + trigger phrases.
-
-    Users speak the trigger phrases, so they must be part of the embedded
-    text — embedding only name/description left natural phrasings scoring
-    ~0.24 (below any sensible router gate) while self-match ceilings sit at
-    ~0.70. Template placeholders ({{query}} / {query}) are stripped: bge
-    treats them as literal tokens, and measured scores for the CORRECT macro
-    collapsed below the router gate (0.03 vs 0.15) when they were embedded.
-    """
     text = f"{e.get('name', '')} {e.get('description', '')} {e.get('triggers', '')}"
     return _PLACEHOLDER_RE.sub(" ", text).strip()
-
-
-async def upsert_skill(skill_id: int) -> bool:
-    """Incrementally (re)embed and upsert a single skill; inactive -> delete."""
-    embedder = _get_embedder()
-    if embedder is None:
-        return False
-    try:
-        from app.core.learning.skill_visibility import is_routable
-        from app.infrastructure.database.sql.database import sync_session_scope
-        from app.models.learning import LearnedSkill
-
-        with sync_session_scope() as session:
-            s = session.get(LearnedSkill, skill_id)
-            # Read attributes inside the scope: sync_session_scope expires
-            # instances on commit, so attribute access after the `with` would
-            # raise DetachedInstanceError.
-            entry = None if s is None or not is_routable(s) else _skill_to_entry(s)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
-        logger.debug("[route-sync] upsert_skill %s load skipped: %s", skill_id, exc)
-        return False
-
-    if entry is None:
-        return await delete_skill(skill_id)
-
-    text = _entry_embed_text(entry)
-    try:
-        vector = await embedder.embed_query(text)
-    except ROUTE_EXCEPTIONS as exc:
-        logger.warning("[route-sync] upsert_skill %s embed failed: %s", skill_id, exc)
-        return False
-    get_index().upsert([entry], [vector])
-    return True
-
-
-async def delete_skill(skill_id: int) -> bool:
-    """Remove a single skill from the route index (best-effort)."""
-    try:
-        get_index().delete([f"skill:{skill_id}"])
-        return True
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
-        logger.debug("[route-sync] delete_skill %s skipped: %s", skill_id, exc)
-        return False
-
-
-async def on_skill_mutated(skill_id: int, action: str) -> None:
-    """Hook for skill-mutated events: action in {create, update, delete}."""
-    if action == "delete":
-        await delete_skill(skill_id)
-    else:
-        await upsert_skill(skill_id)

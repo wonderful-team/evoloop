@@ -17,6 +17,7 @@ import time
 from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
 
 from app.core.context import ContextManager, EvoContext
 from app.core.routing.connection import manager
@@ -51,6 +52,11 @@ async def _handle_barge_in(thread_id: str) -> None:
         logger.info("[voice] barge_in for thread %s, cancelled=%s", thread_id, cancelled)
 
 
+# Throttle: only preheat when partial text has grown by ≥2 chars, max once per 500ms
+_partial_last_text: dict[str, str] = {}
+_partial_last_time: dict[str, float] = {}
+
+
 async def _handle_partial(body: dict[str, Any]) -> None:
     """Handle voice.partial: preheat retrieval with partial transcript."""
     from app.core.routing import retriever as retriever_mod
@@ -59,6 +65,18 @@ async def _handle_partial(body: dict[str, Any]) -> None:
     thread_id = str(body.get("thread_id", "")).strip()
     if not text or not thread_id:
         return
+
+    # Throttle: only preheat on significant progress
+    last_text = _partial_last_text.get(thread_id, "")
+    last_time = _partial_last_time.get(thread_id, 0.0)
+    now = time.time()
+    if len(text) - len(last_text) < 2 and now - last_time < 0.5:
+        _partial_last_text[thread_id] = text
+        _partial_last_time[thread_id] = now
+        return
+
+    _partial_last_text[thread_id] = text
+    _partial_last_time[thread_id] = now
     try:
         await retriever_mod.preheat(thread_id, text)
     except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
@@ -164,9 +182,9 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
 
 
 async def _handle_dictation_finalize(body: dict[str, Any], conn_id: str) -> None:
-    """Handle voice.dictation.finalize: cloud LLM polish fallback."""
-    from app.core.routing.executor import stream_llm_response
+    """Handle voice.dictation.finalize: LLM polish fallback (via ainvoke, no streaming)."""
     from app.infrastructure.config.service import SystemConfigService
+    from app.infrastructure.llm.factory import LLMConfig, LLMFactory
     from app.utils.template import render_template
 
     raw_text = str(body.get("raw_text", "")).strip()
@@ -179,42 +197,118 @@ async def _handle_dictation_finalize(body: dict[str, Any], conn_id: str) -> None
 
     model_name = SystemConfigService.get_value("LLM_MODEL")
     if not model_name:
-        await manager.push(
-            thread_id,
-            _envelope(
-                MessageType.VOICE_DICTATION_POLISHED,
-                {"polished_text": raw_text, "changes": [], "error": "no model configured"},
-            ),
-        )
+        await manager.push(thread_id, _envelope(
+            MessageType.VOICE_DICTATION_POLISHED,
+            {"polished_text": raw_text, "changes": [], "error": "no model configured"},
+        ))
         return
 
     system_prompt = render_template("core/voice/dictation.md")
-
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": raw_text},
     ]
 
     try:
-        polished = await stream_llm_response(
-            thread_id, messages, model_name, temperature=0.3, max_tokens=512
-        )
-        await manager.push(
-            thread_id,
-            _envelope(
+        config = LLMConfig(model_name=model_name, temperature=0.3, max_tokens=512)
+        llm = await LLMFactory.create_llm(config)
+        result = await llm.ainvoke(messages)
+        content = ""
+        if isinstance(result, dict):
+            content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+        elif hasattr(result, "content"):
+            content = result.content
+
+        polished = content.strip() or raw_text
+        for tag in ("</s>", "<|im_end|>", "<|endoftext|>"):
+            polished = polished.replace(tag, "")
+
+        clarify_tag = "<CLARIFY>"
+        if clarify_tag in polished:
+            start = polished.find(clarify_tag) + len(clarify_tag)
+            end = polished.find("</CLARIFY>", start)
+            msg = polished[start:end] if end > start else polished[start:]
+            await manager.push(thread_id, _envelope(
+                MessageType.VOICE_DICTATION_POLISHED,
+                {"polished_text": raw_text, "changes": [{"clarify": msg}], "error": "clarify"},
+            ))
+        else:
+            await manager.push(thread_id, _envelope(
                 MessageType.VOICE_DICTATION_POLISHED,
                 {"polished_text": polished.strip(), "raw_text": raw_text, "changes": []},
-            ),
-        )
+            ))
     except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as exc:
         logger.warning("[voice] dictation polish failed: %s", exc)
-        await manager.push(
-            thread_id,
-            _envelope(
-                MessageType.VOICE_DICTATION_POLISHED,
-                {"polished_text": raw_text, "changes": [], "error": str(exc)[:200]},
-            ),
+        await manager.push(thread_id, _envelope(
+            MessageType.VOICE_DICTATION_POLISHED,
+            {"polished_text": raw_text, "changes": [], "error": str(exc)[:200]},
+        ))
+
+
+class DictationRequest(BaseModel):
+    raw_text: str
+    target_locale: str = "zh"
+
+
+class DictationResponse(BaseModel):
+    polished_text: str
+    raw_text: str
+    changes: list = []
+
+
+@router.post("/dictation")
+async def dictation_polish(req: DictationRequest) -> DictationResponse:
+    """HTTP endpoint for dictation text polishing.
+
+    Uses LLMFactory (two-tier: local lightning model if available, else cloud)
+    to polish ASR output, following the same strategy as Supervisor.
+    """
+    from app.infrastructure.config.service import SystemConfigService
+    from app.infrastructure.llm.factory import LLMConfig, LLMFactory
+    from app.utils.template import render_template
+
+    model_name = SystemConfigService.get_value("LLM_MODEL")
+    if not model_name:
+        return DictationResponse(
+            polished_text=req.raw_text,
+            raw_text=req.raw_text,
+            changes=[{"error": "LLM_MODEL not configured"}],
         )
+
+    system_prompt = render_template("core/voice/dictation.md")
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": req.raw_text},
+    ]
+
+    config = LLMConfig(model_name=model_name, temperature=0.3, max_tokens=512)
+    llm = await LLMFactory.create_llm(config)
+    result = await llm.ainvoke(messages)
+    content = ""
+    if isinstance(result, dict):
+        content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+    elif hasattr(result, "content"):
+        content = result.content
+
+    polished = content.strip() or req.raw_text
+    # Strip LLM artifacts
+    for tag in ("</s>", "<|im_end|>", "<|endoftext|>"):
+        polished = polished.replace(tag, "")
+    # Handle CLARIFY: unable to understand
+    clarify_tag = "<CLARIFY>"
+    if clarify_tag in polished:
+        start = polished.find(clarify_tag) + len(clarify_tag)
+        end = polished.find("</CLARIFY>", start)
+        msg = polished[start:end] if end > start else polished[start:]
+        return DictationResponse(
+            polished_text=req.raw_text,
+            raw_text=req.raw_text,
+            changes=[{"clarify": msg}],
+        )
+    return DictationResponse(
+        polished_text=polished.strip(),
+        raw_text=req.raw_text,
+    )
 
 
 @router.websocket("/ws")

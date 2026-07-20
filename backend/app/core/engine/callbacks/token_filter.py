@@ -20,7 +20,10 @@ HIDDEN_TAGS_END = [
     "</evoloop_audit_reason>", "</evoloop_audit_proof>",
 ]
 
-STRIP_TAGS = ["<evoloop_final_report>", "</evoloop_final_report>"]
+STRIP_TAGS = [
+    "<evoloop_final_report>", "</evoloop_final_report>",
+    "</s>", "<|im_end|>", "<|endoftext|>",
+]
 
 
 class TokenFilter:

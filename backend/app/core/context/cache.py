@@ -17,7 +17,6 @@ import time
 from pydantic import Field
 
 from app.core.context.schemas import DynamicContextLayer
-from app.core.engine.state import AgentState
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.constants import DEFAULT_PROJECT_ID
 
@@ -120,29 +119,6 @@ class LayeredContextCache:
         return layer
 
     @classmethod
-    def get_dynamic_layer(cls, state: "AgentState") -> DynamicContextLayer:
-        """
-        Get dynamic context layer - always fresh, never cached.
-        """
-        cls._stats["dynamic_loads"] += 1
-
-        # Extract last human message
-        messages = list(state.messages) if state else []
-        last_human_msg = ""
-        for msg in reversed(messages):
-            if msg.type == "human":
-                last_human_msg = msg.content
-                break
-
-        return DynamicContextLayer(
-            shared_context=state.shared_context or {},
-            tool_memory=state.tool_memory,
-            execution_ticket=state.ticket,
-            messages=messages,
-            iteration_count=state.iteration_count,
-        )
-
-    @classmethod
     def invalidate_static(cls, session_id: str, project_id: int | None = None):
         """Invalidate static cache for a session or project."""
         if project_id is not None:
@@ -176,20 +152,3 @@ class LayeredContextCache:
             "estimated_time_saved_ms": cls._stats["static_hits"] * 200,  # Approx 200ms per hit
         }
 
-    @classmethod
-    async def cleanup_expired(cls, max_age: int = 600):
-        """Clean up expired cache entries."""
-        now = time.time()
-        expired = [
-            k for k, v in cls._static_cache.items() if (now - v.cached_at) > max_age
-        ]
-        for key in expired:
-            del cls._static_cache[key]
-
-        if expired:
-            logger.info(f"[ContextCache] Cleaned up {len(expired)} expired entries")
-
-
-# Convenience function for health checks
-def get_context_cache_stats() -> dict:
-    return LayeredContextCache.get_stats()
