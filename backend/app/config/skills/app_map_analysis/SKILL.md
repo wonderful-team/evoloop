@@ -28,14 +28,16 @@ requires:
     - grep_search
 scripts:
   batch_write:
-    path: app/core/atlas/source/skeleton/batch_writer.py
+    path: scripts/batch_writer.py
     description: Batch-write all AppMap records from a collector JSON file.
     usage: |
-      uv run python app/core/atlas/source/skeleton/batch_writer.py \
+      uv run python app/config/skills/app_map_analysis/scripts/batch_writer.py \
         --project-id {project_id} --input {json_path}
   reference_collector:
-    path: app/core/atlas/source/skeleton/collector.py
-    description: Reference collector script. Copy to project root and adapt FRAMEWORK CONFIG, then run.
+    path: scripts/collector.py
+    description: Reference collector script. Copy to project root, adapt FRAMEWORK CONFIG, then run.
+    usage: |
+      cp app/config/skills/app_map_analysis/scripts/collector.py {project_root}/collect_appmaps.py
     usage: |
       cp app/core/atlas/source/skeleton/collector.py {project_root}/collect_appmaps.py
 ---
@@ -85,7 +87,7 @@ Do NOT survey entity-by-entity with manual grep/read loops (too slow, burns the 
 4. ⚠️ **CRITICAL — Batch write** ⚠️ Do NOT stop after the script runs. Immediately proceed to batch-write:
 
    ```bash
-   uv run python app/core/atlas/source/skeleton/batch_writer.py \
+   uv run python app/config/skills/app_map_analysis/scripts/batch_writer.py \
      --project-id {project_id} --input /tmp/appmap_extracted.json
    ```
 
