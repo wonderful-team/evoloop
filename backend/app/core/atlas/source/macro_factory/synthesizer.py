@@ -74,9 +74,14 @@ def synthesize(entity_map: dict) -> SynthesisResult:
                 result.validation_errors.extend(problems)
                 continue
             if candidate.name in seen_names:
-                # Two actions sharing the same set_fields[0] produce identical
-                # names — suffix the source action to keep both addressable.
+                # Two actions sharing the same name — suffix source_action.
                 candidate.name = f"{candidate.name}（{candidate.source_action}）"
+            if candidate.name in seen_names:
+                # Still a duplicate — same source_action from different
+                # controllers in the same entity.  Disambiguate by the
+                # controller filename (basename, no path).
+                ctrl = (action.get("controller") or "").rsplit("/", 1)[-1]
+                candidate.name = f"{candidate.name}（{ctrl}）"
             seen_names.add(candidate.name)
             result.candidates.append(candidate)
             produced = True
