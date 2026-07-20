@@ -93,13 +93,21 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
         return
 
     t_total_start = time.time()
+
+    # Lock phase: L0 check + dispatch (fast, no Worker execution)
     lock = await executor.get_thread_lock(thread_id)
     async with lock:
-        # Auto barge-in: if TTS is still playing, cancel current task first
+        # Check if a Worker is currently running
+        from app.core.engine.worker_registry import worker_registry
+        running_worker = await worker_registry.get_worker(thread_id)
+
         if not await voice_state_machine.can_accept_route(thread_id):
-            cancelled = await executor.cancel_voice_task(thread_id)
-            await voice_state_machine.force_set(thread_id, VoiceSessionState.INTERRUPTED)
-            logger.info("[voice] barge_in for thread %s, cancelled=%s", thread_id, cancelled)
+            if not running_worker:
+                # No worker running, just barge-in the TTS
+                await voice_state_machine.force_set(thread_id, VoiceSessionState.INTERRUPTED)
+                logger.info("[voice] barge_in for thread %s", thread_id)
+            # If a worker is running, don't cancel — Supervisor will decide
+            # query vs new command in the agent context
 
         ctx = EvoContext(thread_id=thread_id, request_id=message_id or gen_uuid())
         token = ContextManager.set(ctx)
@@ -133,20 +141,29 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
             # Fast path: pre-check L0 before expensive LLM routing
             from app.core.routing.router import _get_local_matcher
             matcher = await _get_local_matcher()
-            l0_hit = matcher.match(text) is not None
+            l0_match = matcher.match(text)
+            l0_hit = l0_match is not None
             if not l0_hit:
-                # L0 miss → skip LLM route, dispatch to agent directly
+                # L0 miss → dispatch to agent
                 logger.info("[voice-perf] %s L0 miss → agent fast path (saved ~1-2s)", thread_id)
-                # Dispatch agent directly
                 from app.core.engine.dispatch import dispatch_agent_run
                 from app.core.engine.background_agent import run_agent_background
                 from app.constants import DEFAULT_PROJECT_ID
+
+                # If a worker is running, inject its info into metadata
+                meta = {"source": "voice", "voice_thread_id": thread_id}
+                old_worker_task = None
+                if running_worker and running_worker.status == "running":
+                    meta["has_running_worker"] = "true"
+                    meta["running_worker_desc"] = running_worker.description
+                    old_worker_task = running_worker.task
+
                 await voice_state_machine.set(thread_id, VoiceSessionState.SPEAKING)
                 await executor._mark_voice(thread_id, "agent")
                 result = await dispatch_agent_run(
                     thread_id=thread_id, message_content=text,
                     project_id=DEFAULT_PROJECT_ID,
-                    metadata={"source": "voice", "voice_thread_id": thread_id},
+                    metadata=meta,
                 )
                 if result.status == "failed":
                     await executor.consume_voice(thread_id)
@@ -156,29 +173,42 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
                     task = asyncio.create_task(
                         run_agent_background(thread_id, result.inputs)
                     )
-                    await executor.register_voice_task(thread_id, task)
-                    try:
-                        await task
-                    except asyncio.CancelledError:
-                        logger.info("[voice] agent task cancelled for thread %s", thread_id)
-                        await executor.consume_voice(thread_id)
-                        await executor.push_voice_result(thread_id, "cancelled", "")
-                total_ms = (time.time() - t_total_start) * 1000
-                logger.info("[voice-perf] %s agent fast path total=%.0fms", thread_id, total_ms)
-                return
-
-            # L0 hit: push local result directly
-            action, args = matcher.match(text)
-            routed_body = {
-                "thread_id": thread_id, "status": "routed",
-                "target": {"type": "local", "action": action},
-                "params": args or {}, "candidates": [],
-            }
-            await manager.push(thread_id, _envelope(MessageType.VOICE_ROUTE_RESULT, routed_body))
-            await voice_state_machine.set(thread_id, VoiceSessionState.IDLE)
-
+                    await worker_registry.register_worker(thread_id, task,
+                        description=running_worker.description if running_worker else "")
+                    # Release lock before awaiting the long-running task
+                # Lock released here via end of `async with lock`
+            else:
+                # L0 hit: push local result directly
+                action, args = l0_match
+                routed_body = {
+                    "thread_id": thread_id, "status": "routed",
+                    "target": {"type": "local", "action": action},
+                    "params": args or {}, "candidates": [],
+                }
+                await manager.push(thread_id, _envelope(MessageType.VOICE_ROUTE_RESULT, routed_body))
+                await voice_state_machine.set(thread_id, VoiceSessionState.IDLE)
         finally:
             ContextManager.reset(token)
+    # Lock released — await Worker outside lock
+    if not l0_hit and result and result.status != "failed":
+        try:
+            await task
+        except asyncio.CancelledError:
+            logger.info("[voice] agent task cancelled for thread %s", thread_id)
+            await executor.consume_voice(thread_id)
+            await executor.push_voice_result(thread_id, "cancelled", "")
+        else:
+            # Check if the new task cancelled the old worker or kept it running
+            if old_worker_task is not None and not old_worker_task.done():
+                # The old worker is still running — Supervisor decided QUERY
+                # Re-register it so subsequent requests can see it
+                await worker_registry.register_worker(
+                    thread_id,
+                    old_worker_task,
+                    description=running_worker.description if running_worker else ""
+                )
+        total_ms = (time.time() - t_total_start) * 1000
+        logger.info("[voice-perf] %s agent fast path total=%.0fms", thread_id, total_ms)
 
 
 async def _handle_dictation_finalize(body: dict[str, Any], conn_id: str) -> None:
@@ -311,6 +341,56 @@ async def dictation_polish(req: DictationRequest) -> DictationResponse:
     )
 
 
+from app.core.events import system_bus
+from app.core.events.registry import SystemEventType
+from app.core.events.schemas.lifecycle import ConfigChangedEvent
+from app.infrastructure.config.service import SystemConfigService
+
+
+async def _on_config_changed_event(event: Any) -> None:
+    try:
+        if isinstance(event, ConfigChangedEvent):
+            key = event.key
+            old_val = event.old_value
+            new_val = event.new_value
+        else:
+            data = getattr(event, "data", {}) or {}
+            key = data.get("key", "")
+            old_val = data.get("old_value", "")
+            new_val = data.get("new_value", "")
+
+        if key:
+            await manager.broadcast(
+                _envelope("system.config_changed", {
+                    "key": str(key),
+                    "old_value": str(old_val or ""),
+                    "new_value": str(new_val or ""),
+                })
+            )
+    except Exception as exc:
+        logger.error("[voice_ws] failed to broadcast config change: %s", exc)
+
+
+system_bus.subscribe(SystemEventType.CONFIG_CHANGED, _on_config_changed_event)
+
+
+class TTSRequest(BaseModel):
+    text: str
+    engine: str = "cosyvoice"
+    voice: str = "中文女"
+
+
+@router.post("/tts")
+async def generate_tts(req: TTSRequest) -> Any:
+    from fastapi.responses import Response
+    from app.infrastructure.voice.tts.factory import get_tts_provider
+    from app.infrastructure.voice.tts.base import TTSOptions
+
+    provider = await get_tts_provider(req.engine)
+    result = await provider.generate(TTSOptions(text=req.text, voice=req.voice))
+    return Response(content=result.audio_bytes, media_type="audio/wav")
+
+
 @router.websocket("/ws")
 async def voice_ws(websocket: WebSocket) -> None:
     await websocket.accept()
@@ -319,10 +399,16 @@ async def voice_ws(websocket: WebSocket) -> None:
 
     conn_id = gen_uuid()
     await manager.register(conn_id, websocket)
+    
+    configs = {cfg.key: cfg.value for cfg in SystemConfigService.get_all()}
     await websocket.send_json(
-        _envelope(MessageType.SYSTEM_INIT, {"client_id": conn_id, "device_key": ""})
+        _envelope(MessageType.SYSTEM_INIT, {
+            "client_id": conn_id,
+            "device_key": "",
+            "configs": configs,
+        })
     )
-    logger.info("[voice] client connected: %s", conn_id)
+    logger.info("[voice] client connected: %s (sent %d config keys)", conn_id, len(configs))
 
     try:
         while True:
@@ -340,9 +426,14 @@ async def voice_ws(websocket: WebSocket) -> None:
             body = data.get("body") or {}
 
             if mtype in ("connect", MessageType.SYSTEM_INIT):
+                configs = {cfg.key: cfg.value for cfg in SystemConfigService.get_all()}
                 await websocket.send_json(
                     _envelope(
-                        MessageType.SYSTEM_INIT, {"client_id": conn_id, "ack": True}
+                        MessageType.SYSTEM_INIT, {
+                            "client_id": conn_id,
+                            "ack": True,
+                            "configs": configs,
+                        }
                     )
                 )
             elif mtype in (MessageType.VOICE_ROUTE, "voice.route"):

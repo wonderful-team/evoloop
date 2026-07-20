@@ -1,0 +1,47 @@
+✅ L0暂停     ws=0ms route=13ms agent=0ms total=13ms target=local  
+✅ L0停一下    ws=0ms route=1ms agent=0ms total=1ms target=local  
+✅ L0别放了    ws=0ms route=1ms agent=0ms total=1ms target=local  
+✅ L0继续     ws=0ms route=3ms agent=0ms total=3ms target=local  
+✅ L0继续播放   ws=0ms route=2ms agent=0ms total=2ms target=local  
+✅ L0接着放    ws=0ms route=1ms agent=0ms total=1ms target=local  
+✅ L0下一首    ws=0ms route=1ms agent=0ms total=1ms target=local  
+✅ L0下一曲    ws=0ms route=1ms agent=0ms total=1ms target=local  
+✅ L0切歌     ws=0ms route=1ms agent=0ms total=1ms target=local  
+✅ L0上一首    ws=0ms route=2ms agent=0ms total=2ms target=local  
+✅ L0上一曲    ws=0ms route=2ms agent=0ms total=2ms target=local  
+✅ L0静音     ws=0ms route=1ms agent=0ms total=1ms target=local  
+✅ L0取消静音   ws=0ms route=1ms agent=0ms total=1ms target=local  
+✅ L0恢复声音   ws=0ms route=1ms agent=0ms total=1ms target=local  
+✅ L0音量大    ws=0ms route=2ms agent=0ms total=2ms target=local  
+✅ L0音量小    ws=0ms route=1ms agent=0ms total=1ms target=local  
+✅ L0最大     ws=0ms route=1ms agent=0ms total=1ms target=local  
+✅ L0一半     ws=0ms route=2ms agent=0ms total=2ms target=local  
+✅ L0最小     ws=0ms route=2ms agent=0ms total=2ms target=local  
+✅ L0声音大    ws=0ms route=1ms agent=0ms total=1ms target=local  
+✅ L0打开微信   ws=0ms route=1ms agent=0ms total=1ms target=local  
+✅ L0切微信    ws=0ms route=1ms agent=0ms total=1ms target=local  
+✅ L0退出微信   ws=0ms route=2ms agent=0ms total=2ms target=local  
+✅ L0按回车    ws=0ms route=2ms agent=0ms total=2ms target=local  
+✅ L0按空格    ws=0ms route=1ms agent=0ms total=1ms target=local  
+✅ L0按Tab   ws=0ms route=1ms agent=0ms total=1ms target=local  
+✅ L0按删除    ws=0ms route=1ms agent=0ms total=1ms target=local  
+✅ L0截图     ws=0ms route=2ms agent=0ms total=2ms target=local  
+✅ L0截屏     ws=0ms route=1ms agent=0ms total=1ms target=local  
+✅ L0锁屏     ws=0ms route=1ms agent=0ms total=1ms target=local  
+✅ L0再说     ws=0ms route=1ms agent=0ms total=1ms target=local  
+✅ L0再见     ws=0ms route=2ms agent=0ms total=2ms target=local  
+✅ L0结束     ws=0ms route=1ms agent=0ms total=1ms target=local  
+✅ L0拜拜     ws=0ms route=2ms agent=0ms total=2ms target=local  
+✅ 问候       ws=0ms route=2ms agent=1809ms total=1811ms target=agent  你好。
+✅ 查日期      ws=0ms route=1ms agent=1569ms total=1570ms target=agent  今天是 2026 年 7 月 19 日，星期日。
+✅ 数学       ws=0ms route=1ms agent=1521ms total=1522ms target=agent  1+1等于2。
+✅ 逻辑       ws=0ms route=1ms agent=1619ms total=1621ms target=agent  苹果和香蕉都是水果，都富含维生素和膳食纤维，而且都可以直接剥皮吃。
+✅ 翻译       ws=0ms route=1ms agent=1255ms total=1257ms target=agent  "Hello World" 翻译成中文是「你好，世界」。
+✅ 推荐       ws=0ms route=2ms agent=5374ms total=5375ms target=agent  根据你的使用场景，我推荐几个：
+
+**VS Code** — 目前最主流，插件生态丰富，适合前端、Python、全栈开发，免费轻量。
+✅ 解释       ws=0ms route=1ms agent=1819ms total=1820ms target=agent  微服务是一种软件架构模式，把一个大应用拆分成多个独立的小服务，每个服务负责单一功能，可以独立开发、部署和扩展，服务之间通过轻量级API通信。
+✅ 写代码      ws=0ms route=1ms agent=12770ms total=12771ms target=agent  任务已完成。
+
+======================================================================
+总计: 42  通过: 42  失败: 0

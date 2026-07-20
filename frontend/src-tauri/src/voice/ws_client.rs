@@ -131,10 +131,9 @@ impl VoiceWsClient {
         }
     }
 
-    pub async fn send_partial(&self, thread_id: &str, text: &str) -> Result<(), String> {
-        self.send("voice.partial", serde_json::json!({
+    pub async fn send_barge_in(&self, thread_id: &str) -> Result<(), String> {
+        self.send("voice.barge_in", serde_json::json!({
             "thread_id": thread_id,
-            "text": text,
         })).await
     }
 
@@ -146,15 +145,11 @@ impl VoiceWsClient {
         })).await
     }
 
-    pub async fn send_barge_in(&self, thread_id: &str) -> Result<(), String> {
-        self.send("voice.barge_in", serde_json::json!({
+    pub async fn send_dictation_finalize(&self, thread_id: &str, raw_text: &str, target_locale: &str) -> Result<(), String> {
+        self.send("voice.dictation.finalize", serde_json::json!({
             "thread_id": thread_id,
-        })).await
-    }
-
-    pub async fn send_cancel(&self, thread_id: &str) -> Result<(), String> {
-        self.send("voice.cancel", serde_json::json!({
-            "thread_id": thread_id,
+            "raw_text": raw_text,
+            "target_locale": target_locale,
         })).await
     }
 
@@ -170,13 +165,6 @@ impl VoiceWsClient {
         })).await
     }
 
-    pub async fn send_dictation_finalize(&self, thread_id: &str, raw_text: &str, target_locale: &str) -> Result<(), String> {
-        self.send("voice.dictation.finalize", serde_json::json!({
-            "thread_id": thread_id,
-            "raw_text": raw_text,
-            "target_locale": target_locale,
-        })).await
-    }
 
     pub async fn disconnect(&self) {
         *self.tx.lock().await = None;

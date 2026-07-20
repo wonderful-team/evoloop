@@ -57,6 +57,8 @@ pub struct AppServiceState {
     pub record_item: Arc<Mutex<Option<MenuItem<tauri::Wry>>>>,
     pub show_item: Arc<Mutex<Option<MenuItem<tauri::Wry>>>>,
     pub quit_item: Arc<Mutex<Option<MenuItem<tauri::Wry>>>>,
+    pub voice_dictation_item: Arc<Mutex<Option<MenuItem<tauri::Wry>>>>,
+    pub voice_dialogue_item: Arc<Mutex<Option<MenuItem<tauri::Wry>>>>,
     pub global_observer: Arc<GlobalObserver>,
     // Screen recording (Two-Track Architecture)
     pub recording_process: Arc<Mutex<Option<std::process::Child>>>,
@@ -394,13 +396,12 @@ fn spawn_voice_manager(model_search_paths: Vec<std::path::PathBuf>) -> VoiceMana
                         let _ = respond.send(speed);
                     }
                     VoiceCommand::Speak { text, engine, voice, respond } => {
-                        if let Some(ref eng) = engine {
-                            let kind = TtsEngineKind::from_str(eng);
-                            current_engine = kind;
-                            session.set_tts_engine(kind);
-                        } else {
-                            session.set_tts_engine(current_engine);
+                        let eng = engine.as_deref().map(TtsEngineKind::from_str).unwrap_or(current_engine);
+                        if engine.is_some() {
+                            current_engine = eng;
                         }
+                        session.set_tts_engine(current_engine);
+
                         if let Some(ref v) = voice {
                             if !v.is_empty() {
                                 current_voice = v.clone();
@@ -410,8 +411,19 @@ fn spawn_voice_manager(model_search_paths: Vec<std::path::PathBuf>) -> VoiceMana
                             session.set_tts_voice(current_voice.clone());
                         }
                         session.set_tts_speed(current_speed);
-                        session.speak_sentence(&text);
-                        let _ = respond.send(Ok(()));
+
+                        // Direct TTS call (block until playback finishes)
+                        let engine_str = eng.as_str().to_string();
+                        let voice_str = session.get_tts_voice();
+                        let text_c = text.clone();
+                        let result = match tokio::task::spawn_blocking(move || {
+                            let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+                            rt.block_on(speak_direct(&text_c, &engine_str, &voice_str))
+                        }).await {
+                            Ok(r) => r,
+                            Err(e) => Err(format!("spawn error: {}", e)),
+                        };
+                        let _ = respond.send(result);
                     }
                 }
             }
@@ -611,6 +623,61 @@ pub fn safe_killpg(pgid: i32) {
 }
 
 // ===== TTS Commands =====
+
+/// Direct TTS call: dispatches to the correct backend and waits for playback.
+async fn speak_direct(text: &str, engine: &str, voice: &str) -> Result<(), String> {
+    match engine {
+        "edge-tts" => {
+            let voice_name = if voice.is_empty() { "zh-CN-XiaoxiaoNeural" } else { voice };
+            crate::voice::tts_engine::speak_edge_tts(text, voice_name, true).await
+        }
+        "qwen-tts" => {
+            let voice_name = if voice.is_empty() { "Cherry" } else { voice };
+            crate::voice::tts_engine::speak_qwen_tts(text, &voice_name).await
+        }
+        "kokoro" | "cosyvoice" => {
+            let backend_port = crate::sidecar::BACKEND_PORT;
+            let url = format!("http://127.0.0.1:{}/api/v1/voice/tts", backend_port);
+            let client = reqwest::Client::new();
+            let resp = client
+                .post(&url)
+                .json(&serde_json::json!({"text": text, "engine": engine, "voice": voice}))
+                .send()
+                .await
+                .map_err(|e| format!("{} request failed: {}", engine, e))?;
+            if !resp.status().is_success() {
+                let err_body = resp.text().await.unwrap_or_default();
+                return Err(format!("{} API error: {}", engine, err_body));
+            }
+            let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
+            let path = std::env::temp_dir().join(format!("evoloop_{}_{}.wav", engine, uuid::Uuid::new_v4()));
+            std::fs::write(&path, &bytes).map_err(|e| e.to_string())?;
+            let status = std::process::Command::new("afplay").arg(&path).status().map_err(|e| {
+                let _ = std::fs::remove_file(&path);
+                e.to_string()
+            })?;
+            let _ = std::fs::remove_file(&path);
+            if !status.success() && status.code() != None {
+                return Err(format!("{} playback failed", engine));
+            }
+            Ok(())
+        }
+        _ => {
+            use std::process::Command;
+            let is_chinese = voice.starts_with("zh") || voice == "中文女" || voice == "中文男";
+            let sys_voice = if !voice.is_empty() && !is_chinese {
+                voice
+            } else {
+                "Ting-Ting"
+            };
+            let status = Command::new("say").arg("-v").arg(sys_voice).arg(text).status().map_err(|e| e.to_string())?;
+            if !status.success() {
+                return Err("say failed".to_string());
+            }
+            Ok(())
+        }
+    }
+}
 
 #[tauri::command]
 #[cfg(desktop)]
@@ -1008,6 +1075,8 @@ pub fn run() {
                 record_item: Arc::new(Mutex::new(Some(record_i.clone()))),
                 show_item: Arc::new(Mutex::new(Some(show_i.clone()))),
                 quit_item: Arc::new(Mutex::new(Some(quit_i.clone()))),
+                voice_dictation_item: Arc::new(Mutex::new(Some(voice_dictation_i.clone()))),
+                voice_dialogue_item: Arc::new(Mutex::new(Some(voice_dialogue_i.clone()))),
                 global_observer: Arc::new(GlobalObserver::new()),
                 // Screen recording (Two-Track Architecture)
                 recording_process: Arc::new(Mutex::new(None)),

@@ -254,8 +254,8 @@ async def verify_guest_access(
 
     # Check Guest Limits via cache
     try:
-        # 1. Guest daily limit (hardcoded until DB config is available)
-        limit = 10
+        # 1. Guest daily limit (from settings, configurable via env)
+        limit = settings.GUEST_DAILY_LIMIT
 
         if limit <= 0:
             raise HTTPException(status_code=403, detail="Guest chat disabled")

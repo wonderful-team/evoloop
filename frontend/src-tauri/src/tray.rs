@@ -134,8 +134,23 @@ pub fn sync_tray_voice_state(
     state: tauri::State<'_, AppServiceState>,
     mode: String,
     voice_state: String,
+    models_ready: Option<bool>,
 ) {
     state.voice_active.store(mode != "off", Ordering::Relaxed);
+
+    if let Some(ready) = models_ready {
+        if let Ok(lock) = state.voice_dictation_item.lock() {
+            if let Some(item) = lock.as_ref() {
+                let _ = item.set_enabled(ready);
+            }
+        }
+        if let Ok(lock) = state.voice_dialogue_item.lock() {
+            if let Some(item) = lock.as_ref() {
+                let _ = item.set_enabled(ready);
+            }
+        }
+    }
+
     let tray_opt = {
         let lock = state.tray.lock().unwrap();
         lock.clone()

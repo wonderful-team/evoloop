@@ -12,9 +12,11 @@ from starlette.middleware.cors import CORSMiddleware
 from app.api.main import api_router
 from app.core.config import settings
 from app.core.context.middleware import ContextMiddleware
+from app.core.routing.deps import is_loopback_host
 from app.infrastructure.database.resource_manager import db_resource_manager
 
 logging.basicConfig(level=logging.INFO)
+logging.getLogger("sqlalchemy.engine.Engine").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # Global app reference for lifespan access
@@ -25,6 +27,14 @@ _app = None
 async def lifespan(app: FastAPI):
     global _app
     _app = app
+
+    # Voice channel requires loopback binding (defence in depth lives in deps.py).
+    _host = os.getenv("HOST", "127.0.0.1")
+    if not is_loopback_host(_host):
+        raise RuntimeError(
+            f"Voice channel requires loopback binding; got HOST={_host}. "
+            "Run with HOST=127.0.0.1 (e.g. HOST=127.0.0.1 bin/evo dev)."
+        )
 
     # --- Startup ---
     startup_time = time.time()
@@ -39,14 +49,6 @@ async def lifespan(app: FastAPI):
         logger.info("Channel registry initialized (SSE + Mobile).")
     except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.warning(f"Failed to initialize Channel registry: {e}")
-
-    # Godcmd - register built-in admin commands
-    try:
-        from app.core.godcmd import register_builtin_commands
-        register_builtin_commands()
-        logger.info("Godcmd admin commands registered.")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
-        logger.warning(f"Failed to initialize Godcmd: {e}")
 
     # Memory System Init
     try:
@@ -69,6 +71,29 @@ async def lifespan(app: FastAPI):
     from app.core.events.publishers import publish_app_started
     await publish_app_started(startup_time)
     logger.info("[Startup] APP_STARTED event published")
+
+    # Voice assistant: dispatch Init Spec build (clients pull via GET /route/init).
+    try:
+        from app.core.routing import tasks as _voice_tasks
+        _voice_tasks.build_voice_init_spec.delay()
+        logger.info("[Startup] Voice Init Spec build dispatched")
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        logger.warning(f"[Startup] Voice Init Spec dispatch failed (non-critical): {e}")
+
+    # Migrate legacy deterministic LearnedSkill rows -> macros table (idempotent).
+    # Runs after DB init so the macros table exists. Non-fatal: migration errors
+    # are logged but do not prevent the server from starting.
+    try:
+        from app.core.execution.macro.migration import migrate_deterministic_skills
+        stats = await migrate_deterministic_skills()
+        logger.info(
+            "[Startup] Macro migration complete: migrated=%d skipped=%d failed=%d",
+            stats.get("migrated", 0),
+            stats.get("skipped", 0),
+            stats.get("failed", 0),
+        )
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        logger.warning(f"[Startup] Macro migration failed (non-critical): {e}")
 
     yield
 

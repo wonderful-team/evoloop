@@ -89,15 +89,31 @@ export function useTTS(): UseTTSReturn {
     { id: "Eric", name: "Eric", gender: "male", description: "埃里克 (英文男声)" },
   ]
 
+  const cosyVoiceVoices: TTSVoice[] = [
+    { id: "中文女", name: "中文女", gender: "female", description: "CosyVoice 默认中文女声" },
+    { id: "中文男", name: "中文男", gender: "male", description: "CosyVoice 默认中文男声" },
+  ]
+
+  const kokoroVoices: TTSVoice[] = [
+    { id: "zf_xiaobei", name: "Xiaobei", gender: "female", description: "晓北 (Kokoro 中文)" },
+    { id: "zf_xiaoni", name: "Xiaoni", gender: "female", description: "晓妮 (Kokoro 中文)" },
+    { id: "zf_xiaoxiao", name: "Xiaoxiao", gender: "female", description: "晓晓 (Kokoro 中文)" },
+    { id: "zf_xiaoyi", name: "Xiaoyi", gender: "female", description: "晓艺 (Kokoro 中文)" },
+  ]
+
   const engineVoices: Record<string, TTSVoice[]> = {
     "system": systemVoices,
     "edge-tts": edgeTtsVoices,
     "qwen-tts": qwenVoices,
+    "cosyvoice": cosyVoiceVoices,
+    "kokoro": kokoroVoices,
   }
 
   const [voices, setVoices] = useState<TTSVoice[]>(edgeTtsVoices)
   const [currentVoice, setCurrentVoiceState] = useState(() => {
-    return localStorage.getItem("evoloop_tts_voice") || "zh-CN-XiaoxiaoNeural"
+    const saved = localStorage.getItem("evoloop_tts_voice")
+    if (saved) return saved
+    return "zh-CN-XiaoxiaoNeural"
   })
 
   const setCurrentVoice = useCallback((voice: string) => {

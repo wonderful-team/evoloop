@@ -500,6 +500,7 @@
       "speed": "Speed",
       "stop": "Stop",
       "voice": "Voice",
+      "previewText": "Hello, I am an intelligent voice assistant. I can answer questions, read text aloud, process documents, and communicate with you in multiple languages and voices.",
       "gender": {
         "female": "Female",
         "male": "Male"
@@ -534,7 +535,17 @@
       "notRecording": "Not recording",
       "dictationMode": "Dictation",
       "dialogueMode": "Dialogue",
-      "voiceOff": "Disable voice"
+      "voiceOff": "Disable voice",
+      "models": "Voice Models",
+      "modelDownloaded": "Downloaded",
+      "modelDownloadFailed": "Download failed",
+      "modelDownloading": "Downloading",
+      "modelNotDownloaded": "Not downloaded",
+      "modelDownloadBtn": "Download model",
+      "modelReady": "Ready",
+      "modelNotAvailable": "Download model first",
+      "sttTitle": "Speech Recognition",
+      "sttDesc": "Speech Recognition Engine"
     },
     "waitingForSteps": "Waiting for agent to start...",
     "welcome": {

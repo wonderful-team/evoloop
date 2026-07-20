@@ -21,7 +21,7 @@ class SystemConfigService:
 
         with Session(db_resource_manager.sync_engine) as session:
             config = session.get(SystemConfig, key)
-            if config:
+            if config and config.value:
                 return config.value
             return default
 
@@ -85,6 +85,8 @@ class SystemConfigService:
 
     @staticmethod
     def get_all() -> list[SystemConfig]:
+        if not db_resource_manager.sync_engine:
+            return []
         with Session(db_resource_manager.sync_engine) as session:
             statement = select(SystemConfig)
             return session.exec(statement).all()

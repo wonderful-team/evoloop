@@ -11,6 +11,8 @@ pub enum TtsEngineKind {
     System,
     EdgeTts,
     QwenTts,
+    CosyVoice,
+    Kokoro,
 }
 
 impl TtsEngineKind {
@@ -18,6 +20,8 @@ impl TtsEngineKind {
         match s.to_lowercase().as_str() {
             "edge" | "edge-tts" | "edgetts" => TtsEngineKind::EdgeTts,
             "qwen" | "qwen-tts" | "qwents" => TtsEngineKind::QwenTts,
+            "cosyvoice" | "cosy-voice" | "cosy" => TtsEngineKind::CosyVoice,
+            "kokoro" => TtsEngineKind::Kokoro,
             _ => TtsEngineKind::System,
         }
     }
@@ -27,6 +31,8 @@ impl TtsEngineKind {
             TtsEngineKind::System => "system",
             TtsEngineKind::EdgeTts => "edge-tts",
             TtsEngineKind::QwenTts => "qwen-tts",
+            TtsEngineKind::CosyVoice => "cosyvoice",
+            TtsEngineKind::Kokoro => "kokoro",
         }
     }
 }
@@ -153,6 +159,41 @@ impl TtsEngine {
         });
     }
 
+    fn speak_cosyvoice(&self, text: &str, _lang: &str) {
+        self.speaking.store(true, Ordering::SeqCst);
+        info!("[tts] cosyvoice: {}...", &text[..text.len().min(50)]);
+        let speaking = self.speaking.clone();
+        let text = text.to_string();
+        let lang_str = _lang.to_string();
+        let engine_clone = self.clone();
+        tokio::spawn(async move {
+            let res = speak_cosyvoice_tts(&text).await;
+            if let Err(e) = res {
+                warn!("[tts] CosyVoice failed: {}", e);
+            }
+            speaking.store(false, Ordering::SeqCst);
+            engine_clone.speak_next(&lang_str);
+        });
+    }
+
+    fn speak_kokoro(&self, text: &str, _lang: &str) {
+        self.speaking.store(true, Ordering::SeqCst);
+        info!("[tts] kokoro: {}...", &text[..text.len().min(50)]);
+        let speaking = self.speaking.clone();
+        let text = text.to_string();
+        let lang_str = _lang.to_string();
+        let engine_clone = self.clone();
+        let voice = self.get_voice();
+        tokio::spawn(async move {
+            let res = speak_kokoro_tts(&text, &voice).await;
+            if let Err(e) = res {
+                warn!("[tts] Kokoro failed: {}", e);
+            }
+            speaking.store(false, Ordering::SeqCst);
+            engine_clone.speak_next(&lang_str);
+        });
+    }
+
     #[cfg(target_os = "macos")]
     pub fn speak(&self, text: &str, lang: &str) {
         if text.is_empty() { return; }
@@ -161,6 +202,8 @@ impl TtsEngine {
             TtsEngineKind::System => self.speak_system(text, lang),
             TtsEngineKind::EdgeTts => self.speak_edge(text, lang),
             TtsEngineKind::QwenTts => self.speak_qwen(text, lang),
+            TtsEngineKind::CosyVoice => self.speak_cosyvoice(text, lang),
+            TtsEngineKind::Kokoro => self.speak_kokoro(text, lang),
         }
     }
 
@@ -226,7 +269,7 @@ impl TtsEngine {
     }
 }
 
-async fn speak_edge_tts(text: &str, voice_name: &str, _is_zh: bool) -> Result<(), String> {
+pub async fn speak_edge_tts(text: &str, voice_name: &str, _is_zh: bool) -> Result<(), String> {
     use msedge_tts::tts::{client::tokio_runtime::connect_async, SpeechConfig};
 
     let config = SpeechConfig {
@@ -280,7 +323,7 @@ async fn speak_edge_tts(text: &str, voice_name: &str, _is_zh: bool) -> Result<()
 }
 
 
-async fn speak_qwen_tts(text: &str, voice: &str) -> Result<(), String> {
+pub async fn speak_qwen_tts(text: &str, voice: &str) -> Result<(), String> {
     // Qwen-TTS via DashScope API (Alibaba Cloud)
     // Requires API key from env: EVOLOOP_QWEN_TTS_KEY or config
     let api_key = std::env::var("EVOLOOP_QWEN_TTS_KEY").unwrap_or_default();
@@ -382,6 +425,108 @@ async fn speak_qwen_tts(text: &str, voice: &str) -> Result<(), String> {
             warn!("[tts] {}", err);
             let _ = std::fs::remove_file(&path);
             err
+        })?;
+
+    let _ = std::fs::remove_file(&path);
+
+    if !status.success() && status.code() != None {
+        return Err(format!("afplay exited with error: {:?}", status.code()));
+    }
+
+    Ok(())
+}
+
+async fn speak_cosyvoice_tts(text: &str) -> Result<(), String> {
+    let backend_port = crate::sidecar::BACKEND_PORT;
+    let url = format!("http://127.0.0.1:{}/api/v1/voice/tts", backend_port);
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(&url)
+        .json(&serde_json::json!({
+            "text": text,
+            "engine": "cosyvoice",
+            "voice": "中文女",
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("CosyVoice request failed: {}", e))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let err_body = resp.text().await.unwrap_or_default();
+        return Err(format!("CosyVoice API error status {}: {}", status, err_body));
+    }
+
+    let bytes = resp.bytes().await
+        .map_err(|e| format!("CosyVoice read response failed: {}", e))?;
+
+    if bytes.len() < 100 {
+        return Err(format!("CosyVoice audio too small: {} bytes", bytes.len()));
+    }
+
+    let path = std::env::temp_dir().join(format!("evoloop_cosyvoice_{}.wav", uuid::Uuid::new_v4()));
+    std::fs::write(&path, &bytes)
+        .map_err(|e| format!("CosyVoice write failed: {}", e))?;
+
+    let status = std::process::Command::new("afplay")
+        .arg(&path)
+        .status()
+        .map_err(|e| {
+            let _ = std::fs::remove_file(&path);
+            format!("afplay failed: {}", e)
+        })?;
+
+    let _ = std::fs::remove_file(&path);
+
+    if !status.success() && status.code() != None {
+        return Err(format!("afplay exited with error: {:?}", status.code()));
+    }
+
+    Ok(())
+}
+
+async fn speak_kokoro_tts(text: &str, voice: &str) -> Result<(), String> {
+    let backend_port = crate::sidecar::BACKEND_PORT;
+    let url = format!("http://127.0.0.1:{}/api/v1/voice/tts", backend_port);
+
+    let final_voice = if voice.is_empty() { "zf_xiaobei" } else { voice };
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(&url)
+        .json(&serde_json::json!({
+            "text": text,
+            "engine": "kokoro",
+            "voice": final_voice,
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Kokoro request failed: {}", e))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let err_body = resp.text().await.unwrap_or_default();
+        return Err(format!("Kokoro API error status {}: {}", status, err_body));
+    }
+
+    let bytes = resp.bytes().await
+        .map_err(|e| format!("Kokoro read response failed: {}", e))?;
+
+    if bytes.len() < 100 {
+        return Err(format!("Kokoro audio too small: {} bytes", bytes.len()));
+    }
+
+    let path = std::env::temp_dir().join(format!("evoloop_kokoro_{}.wav", uuid::Uuid::new_v4()));
+    std::fs::write(&path, &bytes)
+        .map_err(|e| format!("Kokoro write failed: {}", e))?;
+
+    let status = std::process::Command::new("afplay")
+        .arg(&path)
+        .status()
+        .map_err(|e| {
+            let _ = std::fs::remove_file(&path);
+            format!("afplay failed: {}", e)
         })?;
 
     let _ = std::fs::remove_file(&path);

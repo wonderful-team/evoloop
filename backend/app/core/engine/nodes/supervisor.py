@@ -201,6 +201,7 @@ class SupervisorNode(BaseAgentNode):
             event_data = SessionCompletedData(
                 thread_id=original_state.thread_id or config.get("configurable", {}).get("thread_id") or "unknown",
                 summary=ai_content,
+                tts_summary=ai_content if source == "voice" else "",
                 outcome="completed",
                 source=source,
                 model=ctx.active_model,

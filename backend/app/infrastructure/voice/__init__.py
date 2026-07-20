@@ -1,8 +1,6 @@
 """
 EvoLoop Voice Module
-语音模块 - 提供标准化的语音识别(STT)服务
-
-TTS (Text-to-Speech) 已迁移到 Tauri 原生，不再由后端处理。
+语音模块 - 提供标准化的语音识别(STT)和语音合成(TTS)服务
 """
 
 from app.infrastructure.voice.base import (

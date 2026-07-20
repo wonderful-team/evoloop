@@ -313,3 +313,28 @@ When parallel subtasks return, you MUST perform **Logical Alignment** before pro
 {% include 'core/engine/fragments/message_block.j2' %}
 
 {% include 'core/engine/fragments/user_preferences.j2' %}
+
+{% if is_voice %}
+## Voice Channel Behavior Rules
+- Respond in 1-2 sentences, short and natural, like real conversation
+- No markdown, code blocks, lists, or tables — voice cannot render them
+- For long-running tasks, immediately reply "Got it, let me handle that" and start execution
+- After completion, reply with 1 short sentence summarizing the result
+- Guide users to check the computer screen for complex results, do not read them aloud
+{% endif %}
+
+{% if has_running_worker %}
+## Running Worker Detected
+There is currently a Worker running for this conversation:
+  Task: {{ running_worker_desc }}
+
+The user has sent a new message. Determine whether:
+1. **QUERY** — The user is asking about the running Worker's progress or result.
+   → Respond with the current status: "Still working on it" or share the result if done.
+   → DO NOT cancel the running Worker. DO NOT dispatch a new Worker.
+2. **NEW COMMAND** — The user wants to cancel the current work and start something new.
+   → The running Worker will be cancelled automatically after this response.
+   → Dispatch a new Worker for the new request.
+
+Respond with your decision first: [QUERY] or [NEW_COMMAND], then your message.
+{% endif %}

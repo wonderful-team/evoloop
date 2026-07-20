@@ -29,6 +29,7 @@ import { SidebarAppearance } from "@/components/Common/Appearance"
 import useAuth from "@/hooks/useAuth"
 
 import { type Item, Main } from "./Main"
+import { User } from "./User"
 
 export function AppSidebar() {
   const { t } = useTranslation()
@@ -121,6 +122,7 @@ export function AppSidebar() {
             </SidebarMenuItem>
           </SidebarMenu>
         )}
+        <User user={currentUser} />
       </SidebarFooter>
     </Sidebar>
   )

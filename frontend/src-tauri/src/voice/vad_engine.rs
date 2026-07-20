@@ -17,7 +17,7 @@ impl VadEngine {
                 threshold: 0.5,
                 min_silence_duration: silence_duration_ms / 1000.0,
                 min_speech_duration: 0.25,
-                max_speech_duration: 5.0,
+                max_speech_duration: 30.0,
                 window_size: 512,
             },
             ..Default::default()

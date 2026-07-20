@@ -500,6 +500,7 @@
       "speed": "语速",
       "stop": "停止",
       "voice": "语音",
+      "previewText": "您好，我是一个智能语音助手。我可以帮你回答问题、朗读文字、处理文档，还能用多种语言和声音与你交流。",
       "gender": {
         "female": "女声",
         "male": "男声"
@@ -534,7 +535,17 @@
       "notRecording": "未在录音",
       "dictationMode": "听写模式",
       "dialogueMode": "对话模式",
-      "voiceOff": "关闭语音"
+      "voiceOff": "关闭语音",
+      "models": "语音模型",
+      "modelDownloaded": "已下载",
+      "modelDownloadFailed": "下载失败",
+      "modelDownloading": "下载中",
+      "modelNotDownloaded": "未下载",
+      "modelDownloadBtn": "下载模型",
+      "modelReady": "已就绪",
+      "modelNotAvailable": "请先下载模型",
+      "sttTitle": "语音识别引擎",
+      "sttDesc": "语音识别引擎"
     },
     "waitingForSteps": "等待 Agent 开始执行...",
     "welcome": {

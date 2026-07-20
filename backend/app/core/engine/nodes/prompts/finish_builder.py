@@ -53,6 +53,8 @@ class FinishPromptBuilder(BasePromptBuilder):
                 "cwd": self.get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", "")),
             }
             
+            is_voice = ctx.metadata.get("source") == "voice"
+            
             template_vars = {
                 "user_lang": self.get_user_lang(),
                 "project_id": self.project_id,
@@ -60,6 +62,7 @@ class FinishPromptBuilder(BasePromptBuilder):
                 "audit_context": self.action_context,
                 "sys_info": sys_info,
                 "sandbox_mode": mode,
+                "is_voice": is_voice,
             }
 
             return render_template("core/engine/finish.prompt.j2", **template_vars)

@@ -58,9 +58,6 @@ async def push_voice_result(thread_id: str, status: str, summary: str) -> None:
 # VoiceTaskRegistry — register / cancel active voice tasks per thread
 # ---------------------------------------------------------------------------
 
-_voice_tasks: dict[str, asyncio.Task[Any]] = {}
-_voice_task_lock = asyncio.Lock()
-
 # Per-thread locks to prevent overlapping route execution (barge-in safety).
 _thread_locks: dict[str, asyncio.Lock] = {}
 _thread_locks_lock = asyncio.Lock()
@@ -74,21 +71,13 @@ async def get_thread_lock(thread_id: str) -> asyncio.Lock:
 
 
 async def register_voice_task(thread_id: str, task: asyncio.Task[Any]) -> None:
-    async with _voice_task_lock:
-        old = _voice_tasks.get(thread_id)
-        if old is not None and not old.done():
-            old.cancel()
-        _voice_tasks[thread_id] = task
+    from app.core.engine.worker_registry import worker_registry
+    await worker_registry.register_worker(thread_id, task)
 
 
 async def cancel_voice_task(thread_id: str) -> bool:
-    async with _voice_task_lock:
-        task = _voice_tasks.pop(thread_id, None)
-    if task is not None and not task.done():
-        task.cancel()
-        logger.info("[voice-executor] cancelled task for thread %s", thread_id)
-        return True
-    return False
+    from app.core.engine.worker_registry import worker_registry
+    return await worker_registry.cancel_worker(thread_id)
 
 
 # ---------------------------------------------------------------------------

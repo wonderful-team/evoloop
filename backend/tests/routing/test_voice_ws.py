@@ -84,28 +84,10 @@ async def test_handle_route_l0_screenshot(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_executor_pushes_done(monkeypatch):
-    # Contract-level: a skill decision makes executor.execute push a terminal
-    # `done`. Branch-level executor logic is covered by test_executor.py.
     fake = _FakeManager()
     monkeypatch.setattr(executor, "manager", fake)
 
-    async def _fake_execute(tid, _decision):
-        from app.core.schemas.canonical import MessageType, create_envelope
-
-        await executor.manager.push(
-            tid,
-            create_envelope(
-                MessageType.VOICE_ROUTE_RESULT,
-                {"thread_id": tid, "status": "done", "summary": "已为你执行技能"},
-            ).model_dump(),
-        )
-
-    monkeypatch.setattr(executor, "execute", _fake_execute)
-    decision = RouteDecision(
-        status="routed", target_type="skill", target={"type": "skill", "id": 7}
-    )
-
-    await executor.execute("t3", decision)
+    await executor.push_voice_result("t3", "done", "已为你执行技能")
 
     assert len(fake.pushes) == 1
     tid, env = fake.pushes[0]

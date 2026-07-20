@@ -273,6 +273,7 @@ class FinishNode(BaseNode):
 
         # Clean session audit messages from message history
         messages_to_return = []
+        tts_summary = ""
         for msg in messages:
             role = msg.type
             content = msg.content or ""
@@ -280,6 +281,12 @@ class FinishNode(BaseNode):
                     and "<evoloop_session_audit>" in str(content)
                     and "<evoloop_final_report>" in str(content)):
                 messages_to_return.append(msg)
+            # Extract tts_summary from voice responses
+            if "<evoloop_tts_summary>" in str(content):
+                import re as _re
+                m = _re.search(r'<evoloop_tts_summary>(.*?)</evoloop_tts_summary>', str(content), _re.DOTALL)
+                if m:
+                    tts_summary = m.group(1).strip()
 
         # Convert native dict messages back to native list of dicts for event schema if needed,
         # but since SessionCompletedData expects standard messages list, we can just pass dict list.
@@ -291,6 +298,7 @@ class FinishNode(BaseNode):
             messages=messages_to_return,
             blackboard_dict=blackboard_dict,
             summary=summary,
+            tts_summary=tts_summary,
             outcome=final_outcome,
             sedimentation_eligible=sedimentation_eligible,
             audit_tier="unified",

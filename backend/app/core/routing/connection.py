@@ -92,5 +92,15 @@ class VoiceConnectionManager:
             logger.warning("[voice] push to thread %s failed: %s", thread_id, exc)
             return False
 
+    async def broadcast(self, envelope: dict[str, Any]) -> None:
+        """Broadcast an envelope to all connected WebSocket clients."""
+        async with self._lock:
+            connections = list(self._conns.values())
+        for ws in connections:
+            try:
+                await ws.send_json(envelope)
+            except Exception as exc:
+                logger.warning("[voice] broadcast failed: %s", exc)
+
 
 manager = VoiceConnectionManager()

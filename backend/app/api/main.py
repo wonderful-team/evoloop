@@ -27,6 +27,7 @@ from app.api.routes import (
     tools,
     utils,
     vault,
+    models,
     voice_ws,
     wiki,
 )
@@ -75,6 +76,7 @@ api_router.include_router(wiki.router, prefix="/wiki", tags=["wiki"])
 
 # Voice assistant (thin-client VLA): WebSocket + Init Spec / diagnostics
 api_router.include_router(voice_ws.router)
+api_router.include_router(models.router)
 api_router.include_router(route.router, prefix="/route", tags=["route"])
 
 # Atlas AppMap + Macro library

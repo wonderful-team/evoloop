@@ -22,6 +22,7 @@ class SessionCompletedData(BaseModel):
     messages: list[BaseMessage] = Field(default_factory=list)
     blackboard_dict: dict[str, Any] = Field(default_factory=dict, description="Serialized blackboard state")
     summary: str | None = None
+    tts_summary: str = ""
     outcome: str | None = None
     sedimentation_eligible: bool = False
     audit_tier: str | None = None

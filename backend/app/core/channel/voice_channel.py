@@ -19,6 +19,7 @@ tracking). Subsequent blocks (Worker messages) are ignored.
 
 import logging
 import re
+import time
 from typing import Any
 
 from app.core.engine.message.schemas import MessageBlock
@@ -53,11 +54,7 @@ class VoiceChannel(Channel):
     _streamed_texts: dict[str, str] = {}
     _SENTENCE_BOUNDARIES = "。！？.!?\n…"
 
-    async def send(
-        self,
-        payload: Any,
-        ctx: ChannelContext,
-    ) -> None:
+    async def send(self, payload: Any, ctx: ChannelContext) -> None:
         from app.core.events.schemas.lifecycle import SessionCompletedEvent
         from app.core.engine.event.schemas import AgentRunCompletedEvent
         from app.models.schemas.events import TokenEvent
@@ -112,17 +109,15 @@ class VoiceChannel(Channel):
                 summary = "" if streamed else _md_clean(payload.content)
 
                 try:
-                    await voice_executor.push_voice_result(
-                        tid, "routed", summary,
-                    )
+                    await voice_executor.push_voice_result(tid, "routed", summary)
                 except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
                     logger.warning("[VoiceChannel] ack push failed for %s: %s", tid, exc)
             return
 
         # ── Terminal success ──────────────────────────────────────────
         if isinstance(payload, SessionCompletedEvent):
-            source = getattr(getattr(payload, "data", None), "source", None) or ""
-            if source != "voice":
+            data = payload.data
+            if not data or data.source != "voice":
                 return
             thread_id = payload.thread_id
             self._voice_ack_sent.pop(thread_id, None)  # reset turn tracking
@@ -135,22 +130,23 @@ class VoiceChannel(Channel):
                 except Exception as exc:
                     logger.debug("[VoiceChannel] flush tts_boundary failed: %s", exc)
 
-            summary = getattr(getattr(payload, "data", None), "summary", None) or ""
+            # Use tts_summary for TTS if available, fall back to summary
+            push_text = data.tts_summary if data.tts_summary else (data.summary or "")
 
-            # Check if this summary was already streamed and spoken
+            # Check if this text was already streamed and spoken
             streamed_text = self._streamed_texts.pop(thread_id, "")
-            clean_summary = summary.strip().replace(" ", "").replace("\n", "")
+            clean_push = push_text.strip().replace(" ", "").replace("\n", "")
             clean_streamed = streamed_text.strip().replace(" ", "").replace("\n", "")
-            already_spoken = clean_summary and clean_summary in clean_streamed
+            if clean_push and clean_push in clean_streamed:
+                push_text = ""
 
-            push_summary = "" if already_spoken else _md_clean(summary)
+            final_text = _md_clean(push_text)
 
-            import time as _time
-            t0 = _time.time()
-            started_at = getattr(getattr(payload, "data", None), "duration_ms", 0) or 0
+            t0 = time.time()
+            started_at = data.duration_ms or 0
             try:
-                await voice_executor.push_voice_result(thread_id, "done", push_summary)
-                elapsed = (_time.time() - t0) * 1000
+                await voice_executor.push_voice_result(thread_id, "done", final_text)
+                elapsed = (time.time() - t0) * 1000
                 logger.info(
                     "[voice-perf] %s agent_done push=%.0fms agent_duration=%.0fms",
                     thread_id, elapsed, started_at,
@@ -161,10 +157,9 @@ class VoiceChannel(Channel):
 
         # ── Terminal failure ──────────────────────────────────────────
         if isinstance(payload, AgentRunCompletedEvent):
-            if getattr(payload, "status", "done") == "done":
+            if payload.status == "done":
                 return
-            source = getattr(payload, "source", "") or ""
-            if source != "voice":
+            if payload.source != "voice":
                 return
             thread_id = payload.thread_id
             self._voice_ack_sent.pop(thread_id, None)

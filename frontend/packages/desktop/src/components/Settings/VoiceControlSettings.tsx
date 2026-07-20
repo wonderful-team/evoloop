@@ -5,22 +5,16 @@ import {
   CollapsibleTrigger,
 } from "@evoloop/shared/components/ui/collapsible"
 import { Label } from "@evoloop/shared/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@evoloop/shared/components/ui/select"
 import { Switch } from "@evoloop/shared/components/ui/switch"
 import { cn } from "@evoloop/shared/lib/utils"
 import {
   AlertCircle,
+  CheckCircle2,
   ChevronDown,
   Cpu,
-  Eye,
-  EyeOff,
+  Download,
   Keyboard,
+  Loader2,
   Mic,
   MousePointerClick,
   Power,
@@ -37,7 +31,9 @@ import { useWakeWord, useWakeWordSettings } from "@/hooks/useWakeWord"
 import { isTauri as checkIsTauri } from "@/lib/tauri"
 import { SettingsCard } from "./SettingsCard"
 import { useSettings } from "./SettingsContext"
+import { ModelManager } from "./ModelManager"
 import { TTSSettings } from "./TTSSettings"
+import { useModelManager } from "@/hooks/useModelManager"
 
 export function VoiceControlSettings() {
   const { t } = useTranslation()
@@ -64,14 +60,7 @@ export function VoiceControlSettings() {
 
   const [isSupported, setIsSupported] = useState(true)
   const [isTauri, setIsTauri] = useState(false)
-  const [sttModel, setSttModel] = useState("qwen3-asr-int8")
-  const [sttDevice, setSttDevice] = useState("cpu")
-  const [_sttProvider, setSttProvider] = useState("qwen3-asr")
-  const [tempSttProvider, setTempSttProvider] = useState("qwen3-asr")
-  const [_sttApiKey, setSttApiKey] = useState("")
-  const [tempSttApiKey, setTempSttApiKey] = useState("")
-  const [showApiKey, setShowApiKey] = useState(false)
-  const [sttLoading, setSttLoading] = useState(false)
+  const { models, startDownload } = useModelManager()
   const {
     setComponentDirty,
     registerSaveHandler,
@@ -83,42 +72,7 @@ export function VoiceControlSettings() {
 
   const fetchSTTConfig = async () => {
     try {
-      const { SystemService } = await import("@/client")
-      const config: any = await SystemService.getSystemConfig()
-      let model = "qwen3-asr-int8"
-      let device = "cpu"
-      let provider = "qwen3-asr"
-      let apiKey = ""
-      if (Array.isArray(config)) {
-        const modelItem = config.find(
-          (item: any) => item.key === "QWEN3_ASR_MODEL_DIR" || item.key === "FUNASR_MODEL",
-        )
-        const deviceItem = config.find(
-          (item: any) => item.key === "QWEN3_ASR_DEVICE" || item.key === "FUNASR_DEVICE",
-        )
-        const providerItem = config.find(
-          (item: any) => item.key === "STT_PROVIDER",
-        )
-        const apiKeyItem = config.find(
-          (item: any) => item.key === "STT_API_KEY",
-        )
-        if (modelItem) model = modelItem.value
-        if (deviceItem) device = deviceItem.value
-        if (providerItem) provider = providerItem.value
-        if (apiKeyItem) apiKey = apiKeyItem.value
-      }
-      setSttModel(model)
-      setSttDevice(device)
-      setSttProvider(provider)
-      setSttApiKey(apiKey)
-      setTempSttProvider(provider)
-      setTempSttApiKey(apiKey)
-
       const state = {
-        sttModel: model,
-        sttDevice: device,
-        sttProvider: provider,
-        sttApiKey: apiKey,
         wakeWord,
         wakeWordEnabled,
         shortcutKey: sk,
@@ -152,10 +106,6 @@ export function VoiceControlSettings() {
   useEffect(() => {
     if (!initialState) return
     const isDirty =
-      sttModel !== initialState.sttModel ||
-      sttDevice !== initialState.sttDevice ||
-      tempSttProvider !== initialState.sttProvider ||
-      tempSttApiKey !== initialState.sttApiKey ||
       tempWakeWord !== initialState.wakeWord ||
       tempWakeWordEnabled !== initialState.wakeWordEnabled ||
       tempShortcutKey !== initialState.shortcutKey ||
@@ -164,10 +114,6 @@ export function VoiceControlSettings() {
 
     setComponentDirty("voice", isDirty)
   }, [
-    sttModel,
-    sttDevice,
-    tempSttProvider,
-    tempSttApiKey,
     tempWakeWord,
     tempWakeWordEnabled,
     tempShortcutKey,
@@ -189,72 +135,16 @@ export function VoiceControlSettings() {
     }
   }, [])
 
-  const handleSave = async () => {
-    setSttLoading(true)
-    try {
-      const { SystemService } = await import("@/client")
-      // 1. Save STT to backend
-      await Promise.all([
-        SystemService.updateSystemConfig({
-          requestBody: { key: "FUNASR_MODEL", value: sttModel },
-        }),
-        SystemService.updateSystemConfig({
-          requestBody: { key: "FUNASR_DEVICE", value: sttDevice },
-        }),
-        SystemService.updateSystemConfig({
-          requestBody: { key: "STT_PROVIDER", value: tempSttProvider },
-        }),
-        SystemService.updateSystemConfig({
-          requestBody: { key: "STT_API_KEY", value: tempSttApiKey },
-        }),
-      ])
-
-      setSttProvider(tempSttProvider)
-      setSttApiKey(tempSttApiKey)
-
-      // 2. Save Wake Word (localStorage via hook)
-      if (tempWakeWord !== wakeWord) updateWakeWord(tempWakeWord)
-      if (tempWakeWordEnabled !== wakeWordEnabled) toggleWakeWord()
-
-      // 3. Save Shortcut (localStorage + Tauri via hook)
-      if (tempShortcutKey !== sk)
-        await updateShortcutKey(tempShortcutKey)
-      if (tempLongPressThreshold !== longPressThreshold)
-        await updateLongPressThreshold(tempLongPressThreshold)
-      if (tempShortcutEnabled !== se) await toggleShortcut()
-
-      setInitialState({
-        sttModel,
-        sttDevice,
-        sttProvider: tempSttProvider,
-        sttApiKey: tempSttApiKey,
-        wakeWord: tempWakeWord,
-        wakeWordEnabled: tempWakeWordEnabled,
-        shortcutKey: tempShortcutKey,
-        longPressThreshold: tempLongPressThreshold,
-        shortcutEnabled: tempShortcutEnabled,
-      })
-    } catch (error) {
-      toast.error(t("settings.voice.sttConfigError"))
-      throw error
-    } finally {
-      setSttLoading(false)
-    }
-  }
-
   // Register handlers
   useEffect(() => {
-    registerSaveHandler("voice", handleSave)
+    registerSaveHandler("voice", () => Promise.resolve())
     registerResetHandler("voice", () => fetchSTTConfig())
     return () => unregisterSaveHandler("voice")
   }, [
     registerSaveHandler,
     unregisterSaveHandler,
     registerResetHandler,
-    sttModel,
-    sttDevice,
-    tempSttProvider,
-    tempSttApiKey,
+    tempWakeWord,
     tempWakeWord,
     tempWakeWordEnabled,
     tempShortcutKey,
@@ -284,14 +174,8 @@ export function VoiceControlSettings() {
     setShortcutKey: setTauriShortcutKey,
   } = useTauriVoiceShortcut({
     enabled: tempShortcutEnabled && isTauri,
-    onTap: () => {
+    onPress: () => {
       toast.success(t("settings.voice.shortcutStarted"))
-    },
-    onHold: () => {
-      toast.info(t("settings.voice.holdDetected"))
-    },
-    onRelease: () => {
-      toast.info(t("settings.voice.shortcutEnded"))
     },
   })
 
@@ -311,6 +195,7 @@ export function VoiceControlSettings() {
   return (
     <div className="space-y-6">
       <TTSSettings />
+      <ModelManager />
 
       <Collapsible className="border rounded-lg">
         <CollapsibleTrigger className="flex w-full items-center justify-between p-4 text-sm font-medium hover:bg-muted/20 transition-colors">
@@ -322,167 +207,53 @@ export function VoiceControlSettings() {
       {/* STT Engine Section */}
       <SettingsCard
         icon={Cpu}
-        title={t("settings.voice.sttTitle")}
-        description={t("settings.voice.sttDesc")}
-        headerExtra={
-          sttLoading && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
-              <div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              {t("common.processing")}
-            </div>
-          )
-        }
+        title={t("settings.voice.sttTitle") || "语音识别引擎"}
+        description={t("settings.voice.sttDesc") || "语音识别引擎"}
       >
-        <div className="space-y-6">
-          {/* Provider Selection */}
-          <div className="space-y-2">
-            <Label htmlFor="stt-provider" className="text-sm font-medium">
-              {t("settings.voice.sttProvider") || "语音识别服务提供商"}
-            </Label>
-            <Select
-              value={tempSttProvider}
-              onValueChange={(val) => {
-                setTempSttProvider(val)
-              }}
-            >
-              <SelectTrigger id="stt-provider" className="h-10">
-                <SelectValue placeholder="选择语音识别提供商" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="qwen3-asr">
-                  本地自研引擎 (Qwen3-ASR - 高精度离线)
-                </SelectItem>
-                <SelectItem value="aliyun-sensevoice">
-                  阿里云百炼通义语音 (云端推荐 - 高精度)
-                </SelectItem>
-                <SelectItem value="openai-whisper">
-                  OpenAI Whisper (云端通用 - 需要 API Key)
-                </SelectItem>
-              </SelectContent>
-            </Select>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium">Qwen3-ASR</div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                {t("settings.voice.sttDesc") || "本地离线识别，VAD 断句后触发"}
+              </div>
+            </div>
+            <div className="shrink-0 ml-3">
+              {(() => {
+                const qwen = models.find((m) => m.id === "qwen3_asr")
+                if (!qwen) return null
+                if (qwen.downloaded)
+                  return (
+                    <span className="flex items-center gap-1 text-xs text-green-600">
+                      <CheckCircle2 className="h-3 w-3" />
+                      {t("settings.voice.modelDownloaded")}
+                    </span>
+                  )
+                if (qwen.status === "downloading")
+                  return (
+                    <span className="flex items-center gap-1 text-xs text-blue-600">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      {t("settings.voice.modelDownloading")} {qwen.progress != null ? `${Math.round(qwen.progress * 100)}%` : ""}
+                    </span>
+                  )
+                return (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => startDownload("qwen3_asr")}
+                  >
+                    <Download className="h-3.5 w-3.5 mr-1" />
+                    {t("settings.voice.modelDownloadBtn")} (954MB)
+                  </Button>
+                )
+              })()}
+            </div>
           </div>
-
-          {/* Conditional panels */}
-          {(tempSttProvider === "qwen3-asr" || tempSttProvider === "funasr") && (
-            <div className="grid gap-6 md:grid-cols-2 p-4 bg-muted/10 border border-border/50 rounded-xl animate-in fade-in duration-200">
-              <div className="space-y-2">
-                <Label htmlFor="stt-model" className="text-sm font-medium">
-                  {t("settings.voice.sttModel")}
-                </Label>
-                <Select
-                  value={sttModel}
-                  onValueChange={(val) => {
-                    setSttModel(val)
-                  }}
-                >
-                  <SelectTrigger id="stt-model" className="h-10">
-                    <SelectValue
-                      placeholder={t("settings.voice.selectSttModel")}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="paraformer-zh">
-                      {t("settings.voice.sttModels.paraformer-zh")}
-                    </SelectItem>
-                    <SelectItem value="paraformer-zh-plus">
-                      {t("settings.voice.sttModels.paraformer-zh-plus")}
-                    </SelectItem>
-                    <SelectItem value="paraformer-zh-streaming">
-                      {t("settings.voice.sttModels.paraformer-zh-streaming")}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="stt-device" className="text-sm font-medium">
-                  {t("settings.voice.sttDevice")}
-                </Label>
-                <Select
-                  value={sttDevice}
-                  onValueChange={(val) => {
-                    setSttDevice(val)
-                  }}
-                >
-                  <SelectTrigger id="stt-device" className="h-10">
-                    <SelectValue
-                      placeholder={t("settings.voice.selectSttDevice")}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cpu">
-                      <div className="flex items-center gap-2">
-                        <Cpu className="h-4 w-4" />
-                        <span>{t("settings.voice.device.cpu")}</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="cuda">
-                      <div className="flex items-center gap-2">
-                        <Zap className="h-4 w-4 text-amber-500" />
-                        <span>{t("settings.voice.device.cuda")}</span>
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-
-          {(tempSttProvider === "aliyun-sensevoice" ||
-            tempSttProvider === "openai-whisper") && (
-            <div className="space-y-3 p-4 bg-muted/10 border border-border/50 rounded-xl animate-in fade-in duration-200">
-              <Label
-                htmlFor="stt-api-key"
-                className="text-sm font-medium flex items-center justify-between"
-              >
-                <span>
-                  {tempSttProvider === "aliyun-sensevoice"
-                    ? "阿里云百炼 API Key"
-                    : "OpenAI API Key"}
-                </span>
-                <span className="text-xs text-muted-foreground font-normal">
-                  {tempSttProvider === "aliyun-sensevoice"
-                    ? "通过百炼控制台获取"
-                    : "通过 OpenAI Platform 获取"}
-                </span>
-              </Label>
-              <div className="relative flex items-center">
-                <input
-                  id="stt-api-key"
-                  type={showApiKey ? "text" : "password"}
-                  value={tempSttApiKey}
-                  onChange={(e) => setTempSttApiKey(e.target.value)}
-                  className="flex-1 pl-3 pr-10 py-2 bg-background border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all focus:border-primary font-mono"
-                  placeholder={
-                    tempSttProvider === "aliyun-sensevoice"
-                      ? "sk-..."
-                      : "sk-proj-..."
-                  }
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute right-3 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {showApiKey ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {tempSttProvider === "aliyun-sensevoice"
-                  ? "配置后将激活通义语音识别大模型（qwen-audio-turbo），在混合中英文、开发口语场景具备行业级极高精确度。"
-                  : "配置后将激活 OpenAI 官方的 Whisper API 云端转写服务。"}
-              </p>
-            </div>
-          )}
         </div>
       </SettingsCard>
 
       {/* Wake Word Section */}
-      <SettingsCard
+      {false && <SettingsCard
         icon={Mic}
         title={t("settings.voice.wakeWordTitle")}
         description={t("settings.voice.wakeWordDesc")}
@@ -593,10 +364,10 @@ export function VoiceControlSettings() {
             </div>
           )}
         </div>
-      </SettingsCard>
+      </SettingsCard>}
 
       {/* Shortcut Section */}
-      <SettingsCard
+      {false && <SettingsCard
         icon={MousePointerClick}
         title={t("settings.voice.shortcutTitle")}
         description={t("settings.voice.shortcutDesc")}
@@ -727,7 +498,7 @@ export function VoiceControlSettings() {
             </div>
           )}
         </div>
-      </SettingsCard>
+      </SettingsCard>}
           </div>{/* end advanced content */}
         </CollapsibleContent>
       </Collapsible>

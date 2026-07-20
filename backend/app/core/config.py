@@ -90,6 +90,9 @@ class Settings(BaseSettings):
     # Embedded Mode (No external dependencies)
     EMBEDDED_MODE: bool = False  # True: Use SQLite + LanceDB + Huey, False: Use Postgres + Neo4j + Celery
 
+    # Guest Access Limits
+    GUEST_DAILY_LIMIT: int = 10  # Max daily messages for unauthenticated guest users
+
     # SaaS / Multi-tenant Mode
     MULTI_TENANT_MODE: bool = False  # True: Strict token isolation, no global session cache. False: Single-user mode (safe for global cache)
 

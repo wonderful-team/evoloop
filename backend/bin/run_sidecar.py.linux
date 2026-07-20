@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+"""
+EvoLoop Backend Entry Point
+============================
+
+PyInstaller 打包入口，支持启动服务、数据库迁移、建表初始化。
+"""
+
+import argparse
+import os
+import sys
+from pathlib import Path
+
+VERSION = "0.1.0"
+
+
+def _get_version() -> str:
+    try:
+        import tomllib
+        meipass = getattr(sys, "_MEIPASS", Path(__file__).parent.parent)
+        pyproject = Path(meipass) / "pyproject.toml"
+        if pyproject.exists():
+            data = tomllib.loads(pyproject.read_text())
+            return data.get("project", {}).get("version", VERSION)
+    except Exception:
+        pass
+    return VERSION
+
+
+def _load_env_file(path: str | None):
+    """Load .env file into os.environ before app imports happen."""
+    from dotenv import load_dotenv
+
+    if path:
+        abs_path = os.path.abspath(path)
+        if not os.path.exists(abs_path):
+            print(f"[EvoLoop] Warning: env file not found: {abs_path}", file=sys.stderr)
+            return
+        load_dotenv(abs_path, override=True)
+        print(f"[EvoLoop] Loaded env file: {abs_path}")
+        return
+
+    # Auto-detect .env in current working directory
+    cwd_env = os.path.join(os.getcwd(), ".env")
+    if os.path.exists(cwd_env):
+        load_dotenv(cwd_env, override=True)
+        print(f"[EvoLoop] Loaded env file: {cwd_env}")
+
+
+def _run_migrations():
+    """Run Alembic migrations (alembic upgrade head)."""
+    import alembic.config
+    import alembic.command
+
+    _meipass = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    ini_path = os.path.join(_meipass, "alembic.ini")
+
+    if not os.path.exists(ini_path):
+        print("[EvoLoop] alembic.ini not found, skipping migrations", file=sys.stderr)
+        return
+
+    # Alembic resolves script_location relative to the config file directory
+    cfg = alembic.config.Config(ini_path)
+    os.chdir(_meipass)
+    alembic.command.upgrade(cfg, "head")
+    print("[EvoLoop] Database migrations applied successfully")
+
+
+def _init_database():
+    """Initialize database tables and seed data."""
+    import app.main  # noqa: F401
+    from app.infrastructure.database.resource_manager import db_resource_manager
+
+    import asyncio
+    asyncio.run(db_resource_manager.initialize(create_tables=True, seed_data=True))
+    print("[EvoLoop] Database tables created and seeded")
+
+
+def _start_server(host: str, port: int):
+    """Start the API server."""
+    import app.main  # noqa: F401
+    import uvicorn
+
+    print(f"[EvoLoop] Starting server on {host}:{port}")
+    try:
+        uvicorn.run(
+            "app.main:app",
+            host=host,
+            port=port,
+            reload=False,
+            workers=1,
+            log_level="info",
+        )
+    except KeyboardInterrupt:
+        print("\n[EvoLoop] Shutting down...")
+        sys.exit(0)
+    except SystemExit as e:
+        print(f"[EvoLoop] Server exited with code {e.code}", file=sys.stderr)
+        sys.exit(e.code)
+    except Exception as e:
+        import traceback
+        print(f"[EvoLoop] Error: {e}", file=sys.stderr)
+        traceback.print_exc()
+        sys.exit(1)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="EvoLoop Backend",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  ./evoloop-backend                          Start server (127.0.0.1:20160)
+  ./evoloop-backend --host 0.0.0.0 --port 8080
+  ./evoloop-backend --env-file ./.env        Load config from .env file
+  ./evoloop-backend --version                Show version
+  ./evoloop-backend --migrate                Run database migrations
+  ./evoloop-backend --init-db                Initialize tables and seed data
+        """,
+    )
+
+    parser.add_argument("--host", default="127.0.0.1", help="Host to bind to (default: 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=int(os.environ.get("EVOLOOP_BACKEND_PORT", "20160")),
+                        help="Port to bind to (default: 20160)")
+    parser.add_argument("--env-file", default=None, metavar="PATH",
+                        help="Path to .env file (default: .env in current directory)")
+    parser.add_argument("--migrate", action="store_true", help="Run database migrations (alembic upgrade head)")
+    parser.add_argument("--init-db", action="store_true", help="Initialize database tables and seed data")
+    parser.add_argument("--version", action="store_true", help="Show version and exit")
+
+    args = parser.parse_args()
+
+    # Load .env file BEFORE importing app modules (pydantic settings must see env vars)
+    _load_env_file(args.env_file)
+
+    if args.version:
+        print(f"evoloop-backend {_get_version()}")
+        return
+
+    # Set default mode for packaged binary
+    if "PYTHON_ENV" in os.environ and os.environ["PYTHON_ENV"] == "embedded":
+        os.environ.setdefault("EMBEDDED_MODE", "true")
+
+    if args.migrate:
+        _run_migrations()
+        return
+
+    if args.init_db:
+        _init_database()
+        return
+
+    _start_server(args.host, args.port)
+
+
+if __name__ == "__main__":
+    main()

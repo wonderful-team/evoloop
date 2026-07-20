@@ -218,6 +218,46 @@ export function useVoiceEvents() {
     )
 
     unlisteners.push(
+      await safeListen<Record<string, string>>("system:config_snapshot", (event) => {
+        const configs = event.payload || {}
+        console.log("[system-sync] Config snapshot received from backend:", Object.keys(configs).length, "keys")
+        if (configs.TTS_ENGINE) {
+          localStorage.setItem("evoloop_tts_engine", configs.TTS_ENGINE)
+          safeInvoke("set_tts_engine", { engine: configs.TTS_ENGINE }).catch(console.error)
+        }
+        if (configs.TTS_VOICE) {
+          localStorage.setItem("evoloop_tts_voice", configs.TTS_VOICE)
+          safeInvoke("set_tts_voice", { voice: configs.TTS_VOICE }).catch(console.error)
+        }
+        if (configs.TTS_SPEED) {
+          localStorage.setItem("evoloop_tts_speed", configs.TTS_SPEED)
+          safeInvoke("set_tts_speed", { speed: parseFloat(configs.TTS_SPEED) || 1.0 }).catch(console.error)
+        }
+        if (configs.QWEN_TTS_API_KEY) localStorage.setItem("evoloop_qwen_tts_key", configs.QWEN_TTS_API_KEY)
+      }),
+    )
+
+    unlisteners.push(
+      await safeListen<{ key: string; old_value: string; new_value: string }>(
+        "system:config_changed",
+        (event) => {
+          const { key, new_value } = event.payload || {}
+          console.log("[system-sync] Real-time config change pushed:", key, "->", new_value)
+          if (key === "TTS_ENGINE") {
+            localStorage.setItem("evoloop_tts_engine", new_value)
+            safeInvoke("set_tts_engine", { engine: new_value }).catch(console.error)
+          } else if (key === "TTS_VOICE") {
+            localStorage.setItem("evoloop_tts_voice", new_value)
+            safeInvoke("set_tts_voice", { voice: new_value }).catch(console.error)
+          } else if (key === "TTS_SPEED") {
+            localStorage.setItem("evoloop_tts_speed", new_value)
+            safeInvoke("set_tts_speed", { speed: parseFloat(new_value) || 1.0 }).catch(console.error)
+          }
+        },
+      ),
+    )
+
+    unlisteners.push(
       await safeListen<{ message: string }>("voice:log", (event) => {
         toast.info(event.payload.message, { duration: 3000 })
       }),
@@ -232,6 +272,7 @@ export function useVoiceEvents() {
     safeInvoke("sync_tray_voice_state", {
       mode: voiceState === "idle" ? "off" : voiceState,
       voiceState,
+      modelsReady: null, // set by ModelManager when model status loaded
     }).catch(() => {})
   }, [voiceState])
 

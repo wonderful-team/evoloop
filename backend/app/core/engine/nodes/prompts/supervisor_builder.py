@@ -62,6 +62,8 @@ class SupervisorPromptBuilder(BasePromptBuilder):
 
         # 3. Prepare Template Variables (STATIC only — no blackboard/memory/telemetry)
         is_voice = ctx.metadata.get("source") == "voice"
+        has_running_worker = ctx.metadata.get("has_running_worker") == "true"
+        running_worker_desc = ctx.metadata.get("running_worker_desc", "")
         lightning_mode = SystemConfigService.get_value("LIGHTNING_MODE", "none")
         is_lightning = lightning_mode not in ("none", "")
         template_vars = {
@@ -78,6 +80,8 @@ class SupervisorPromptBuilder(BasePromptBuilder):
             "is_supervisor": True,
             "is_voice": is_voice,
             "is_lightning": is_lightning,
+            "has_running_worker": has_running_worker,
+            "running_worker_desc": running_worker_desc,
             "has_file_operations": False,
             "agent_name": SystemConfigService.get_value("AGENT_NAME", "EvoLoop"),
             "agent_company": SystemConfigService.get_value("AGENT_COMPANY", "上海方天画戟信息技术有限公司"),

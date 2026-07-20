@@ -43,7 +43,7 @@ class STTFactory:
         provider_name = SystemConfigService.get_value("STT_PROVIDER")
 
         # 1. 尝试数据库配置的 Provider
-        if provider_name in ("qwen3-asr", "qwen3", "funasr"):
+        if provider_name in ("qwen3-asr", "qwen3"):
             try:
                 provider = cls.get_qwen3_provider()
                 if provider.is_available():

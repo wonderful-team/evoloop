@@ -230,6 +230,17 @@ impl VoiceSession {
 
                     "system.init" => {
                         info!("[voice-session] backend handshake received");
+                        if let Some(configs) = body.get("configs").and_then(|v| v.as_object()) {
+                            info!("[voice-session] received {} synced config keys from backend", configs.len());
+                            event_bus.emit("system:config_snapshot", serde_json::to_value(configs).unwrap_or_default());
+                        }
+                    }
+
+                    "system.config_changed" => {
+                        let key = body.get("key").and_then(|v| v.as_str()).unwrap_or("");
+                        let new_val = body.get("new_value").and_then(|v| v.as_str()).unwrap_or("");
+                        info!("[voice-session] config changed: {} -> {}", key, new_val);
+                        event_bus.emit("system:config_changed", body.clone());
                     }
 
                     "system.error" => {
@@ -578,15 +589,14 @@ fn find_qwen3_model_dir(parent_dir: &std::path::Path) -> Option<PathBuf> {
 }
 
 /// Resolve the spoken confirmation text for a L0 local action.
-pub(crate) fn resolve_confirmation(action: &str) -> &'static str {
-    match action {
-        "mute" => "已静音",
-        "unmute" => "已恢复",
-        "lock_screen" => "已锁屏",
-        "screenshot" => "已截图",
-        "end" => "再见",
-        _ => "好的",
-    }
+pub(crate) fn resolve_confirmation(action: &str, lang: &str) -> &'static str {
+    let confirmations: &[&str] = if lang.starts_with("zh") {
+        &["好的", "搞定了", "嗯哼", "没问题", "好嘞", "收到", "可以了", "行", "OK", "没问题了"]
+    } else {
+        &["OK", "Got it", "Done", "Sure", "Alright", "No problem", "Gotcha", "All set", "Done deal", "Easy"]
+    };
+    let idx = action.bytes().fold(0u64, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u64));
+    confirmations[(idx % confirmations.len() as u64) as usize]
 }
 
 /// Handle a `voice.route_result` message: decide what to speak via TTS.
@@ -607,11 +617,11 @@ pub(crate) async fn handle_route_result(
         let lang = session_lang.read().await.clone();
         match target_type {
             Some("local") => {
-                // L0 hit: speak action-specific confirmation
+                // L0 hit: speak action confirmation
                 let confirmation = body.get("target")
                     .and_then(|t| t.get("action"))
                     .and_then(|v| v.as_str())
-                    .map(resolve_confirmation)
+                    .map(|a| resolve_confirmation(a, &lang))
                     .unwrap_or("好的");
                 session_tts.queue_sentence(confirmation.to_string());
                 session_tts.speak_next(&lang);
@@ -647,35 +657,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_resolve_confirmation_mute() {
-        assert_eq!(resolve_confirmation("mute"), "已静音");
+    fn test_resolve_confirmation_returns_valid_phrase() {
+        let result = resolve_confirmation("mute", "zh-CN");
+        let valid = ["好的", "搞定了", "嗯哼", "没问题", "好嘞", "收到", "可以了", "行", "OK", "没问题了"];
+        assert!(valid.contains(&result), "unexpected: {}", result);
     }
 
     #[test]
-    fn test_resolve_confirmation_unmute() {
-        assert_eq!(resolve_confirmation("unmute"), "已恢复");
+    fn test_resolve_confirmation_english() {
+        let result = resolve_confirmation("mute", "en-US");
+        let valid = ["OK", "Got it", "Done", "Sure", "Alright", "No problem", "Gotcha", "All set", "Done deal", "Easy"];
+        assert!(valid.contains(&result), "unexpected: {}", result);
     }
 
     #[test]
-    fn test_resolve_confirmation_screenshot() {
-        assert_eq!(resolve_confirmation("screenshot"), "已截图");
-    }
-
-    #[test]
-    fn test_resolve_confirmation_lock_screen() {
-        assert_eq!(resolve_confirmation("lock_screen"), "已锁屏");
-    }
-
-    #[test]
-    fn test_resolve_confirmation_end() {
-        assert_eq!(resolve_confirmation("end"), "再见");
-    }
-
-    #[test]
-    fn test_resolve_confirmation_default() {
-        assert_eq!(resolve_confirmation("open_app"), "好的");
-        assert_eq!(resolve_confirmation("play_pause"), "好的");
-        assert_eq!(resolve_confirmation("unknown_action"), "好的");
+    fn test_resolve_confirmation_consistent_per_action() {
+        assert_eq!(resolve_confirmation("mute", "zh"), resolve_confirmation("mute", "zh"));
+        assert_eq!(resolve_confirmation("screenshot", "en"), resolve_confirmation("screenshot", "en"));
     }
 
     mod handler {
@@ -731,7 +729,7 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn test_done_speaks_summary() {
+        async fn test_done_does_not_speak() {
             let tts = TtsEngine::new_with_queue(Arc::new(Mutex::new(VecDeque::new()))).unwrap();
             let sm = VoiceStateMachine::new();
             let lang = RwLock::new("zh-CN".to_string());
@@ -739,7 +737,8 @@ mod tests {
             let body = make_done_body("已为你完成操作");
             handle_route_result(&body, &tts, &sm, &lang).await;
 
-            assert!(tts.is_speaking());
+            // TTS for "done" is handled by voice.tts_boundary, not route_result
+            assert!(!tts.is_speaking());
         }
 
         #[tokio::test]

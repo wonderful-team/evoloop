@@ -27,3 +27,16 @@ Your task is to verify if the worker agent has successfully completed the object
 {% include 'core/engine/fragments/environment_context.j2' %}
 
 {% include 'core/engine/fragments/user_preferences.j2' %}
+
+{% if is_voice %}
+## Voice Channel Output Requirements
+Your final response MUST include two additional output blocks:
+
+1. **`<evoloop_final_report>`** — Full detailed response for the chat UI. Can include thorough analysis and complete results.
+2. **`<evoloop_tts_summary>`** — Only 1-2 short conversational sentences for TTS playback. Examples:
+   - "The analysis is ready, please check the details on your computer."
+   - "The document is done, take a look."
+   - "Task complete, let me know if you need anything else."
+
+Both XML blocks are required — one for text display, one for voice broadcast.
+{% endif %}
