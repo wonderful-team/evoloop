@@ -122,7 +122,9 @@ class TestPickTemplate:
         assert pick_template({"kind": "write", "risk_tier": "money"}) is not None
 
     def test_unmatched_returns_none(self):
-        assert pick_template({"kind": "write", "risk_tier": "ui"}) is None
+        from app.core.atlas.source.macro_factory.templates import basic_navigate
+        # write/ui now maps to basic_navigate (v3.5 change)
+        assert pick_template({"kind": "write", "risk_tier": "ui"}) is basic_navigate
         assert pick_template({"kind": "read", "risk_tier": "money"}) is None
 
 
