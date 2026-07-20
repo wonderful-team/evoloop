@@ -85,6 +85,15 @@ MONEY_KEYWORDS = ["price", "stock", "balance", "refund", "amount", "money",
 DATA_KEYWORDS = ["save", "update", "delete", "remove", "create", "add", "edit",
                  "set", "change", "status"]
 
+# Menu config files for Chinese business name extraction.
+# For each file, the collector looks for patterns like:
+#   'title' => '中文名称'
+#   'url'   => 'module/controller/action'
+# Set to an empty list if your project has no such config, or adapt
+# the paths to match your framework (Rails routes.rb, Django urls.py,
+# Spring RequestMapping, etc.).
+MENU_CONFIGS = []
+
 # ═══════════════════════════════════════════════════════════
 # COLLECTOR LOGIC  —  normally does not need editing
 # ═══════════════════════════════════════════════════════════
@@ -270,6 +279,53 @@ def build_routes(entity: str, actions: list[dict]) -> list[dict]:
     return routes
 
 
+def parse_menu_titles(project_root: str) -> dict[str, str]:
+    """Extract ``url → Chinese title`` mapping from PHP menu config files.
+
+    Parses files listed in ``MENU_CONFIGS`` using regex (no PHP dependency).
+    Returns ``{"controller/action": "中文标题"}``.
+    """
+    titles: dict[str, str] = {}
+    url_re = re.compile(r"""['"]url['"]\s*=>\s*['"]([^'"]+)['"]""")
+    title_re = re.compile(r"""['"]title['"]\s*=>\s*['"]([^'"]+)['"]""")
+
+    for rel_path in MENU_CONFIGS:
+        full = os.path.join(project_root, rel_path)
+        if not os.path.isfile(full):
+            continue
+        try:
+            with open(full, encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+        except OSError:
+            continue
+
+        # Find matching title/url pairs by scanning for sequential patterns
+        # title = /.*/ url = /.*/  or  url = /.*/ title = /.*/
+        for m_url in url_re.finditer(content):
+            url = m_url.group(1)
+            # Normalise: strip module prefix, keep controller/action
+            parts = url.split("/")
+            if len(parts) >= 2:
+                key = "/".join(parts[-2:])  # "goods/lists"
+                # Look for the nearest title before or after this URL
+                title = None
+                # Search backward for title
+                before = content[max(0, m_url.start() - 200):m_url.start()]
+                tm = list(title_re.finditer(before))
+                if tm:
+                    title = tm[-1].group(1)
+                # Search forward for title
+                if not title:
+                    after = content[m_url.end():m_url.end() + 200]
+                    tm = title_re.search(after)
+                    if tm:
+                        title = tm.group(1)
+                if title and key not in titles:
+                    titles[key] = title
+
+    return titles
+
+
 def guess_entity(filepath: str) -> str | None:
     """Guess entity name from controller file path."""
     basename = os.path.splitext(os.path.basename(filepath))[0]
@@ -340,6 +396,25 @@ async def collect(project_root: str, sql_path: str | None = None, output_path: s
         actions = extract_actions(cf, entity)
         entities[entity]["actions"].extend(actions)
         entities[entity]["routes"].extend(build_routes(entity, actions))
+
+    # Enrich actions with Chinese business names from menu configs
+    menu_titles = parse_menu_titles(project_root)
+    if menu_titles:
+        for ename, edata in entities.items():
+            route_by_action = {r.get("source_action"): r.get("url", "") for r in edata.get("routes", [])}
+            for a in edata["actions"]:
+                action_name = a["name"]
+                url = route_by_action.get(action_name, "")
+                # Try exact match, then partial match
+                title = menu_titles.get(f"{ename}/{action_name}")
+                if not title and url:
+                    parts = url.strip("/").split("/")
+                    if len(parts) >= 2:
+                        title = menu_titles.get(f"{parts[-2]}/{parts[-1]}")
+                if title:
+                    a["business_rule"] = title
+                    if title not in edata["aliases"]:
+                        edata["aliases"].append(title)
 
     # Attach view elements to entities based on view directory structure.
     for vf in view_files:
