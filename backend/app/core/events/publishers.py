@@ -72,6 +72,20 @@ async def publish_config_changed(key: str, old_value: str, new_value: str) -> No
     )
 
 
+async def publish_state_changed(key: str, old_value: str, new_value: str) -> None:
+    """Publish a system event when a shared state value changes."""
+    from app.core.events.schemas.lifecycle import StateChangedEvent
+
+    await system_bus.publish(
+        StateChangedEvent(
+            source="SharedState",
+            key=key,
+            old_value=old_value,
+            new_value=new_value,
+        )
+    )
+
+
 async def publish_embedding_updated(repo_id: int, project_id: int) -> None:
     """Publish a system event when embeddings are updated for a project."""
     from app.infrastructure.embeddings.event import EmbeddingUpdatedEvent

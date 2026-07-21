@@ -42,6 +42,7 @@ class AiMessageMixin:
         )
 
         _is_finish_message = node_source == "finish"
+        _is_supervisor_message = node_source == "supervisor"
 
         if self._deduplicator.is_duplicate(category, content, tool_calls):
             logger.debug("[MessageHandler] Duplicate message detected, skipping")
@@ -96,7 +97,7 @@ class AiMessageMixin:
                     category=category.value,
                     status="completed",
                     sequence_number=seq,
-                    channels={"mobile", "voice"},
+                    channels={"mobile", "voice"} if _is_supervisor_message else {"mobile"},
                     parent_id=effective_parent_id,
                     message_id=msg_id,
                 )
@@ -112,7 +113,7 @@ class AiMessageMixin:
                 sequence_number=seq if persist_data.should_persist else 0,
                 status="streaming" if persist_data.should_persist else "completed",
                 references=extracted_refs if persist_data.should_persist else None,
-                channels={"sse", "voice"},
+                channels={"sse", "voice"} if _is_supervisor_message else {"sse"},
                 parent_id=effective_parent_id,
                 message_id=msg_id,
             )

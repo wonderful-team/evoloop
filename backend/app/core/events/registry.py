@@ -32,6 +32,7 @@ class SystemEventType(str, Enum):
 
     # Configuration Handlers
     CONFIG_CHANGED = "system.config_changed"
+    STATE_CHANGED = "system.state_changed"
 
     # Awakening / Environment Events
     AWAKENING_COMPLETE = "system.awakening_complete"

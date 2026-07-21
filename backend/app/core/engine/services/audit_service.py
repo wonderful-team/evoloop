@@ -168,9 +168,7 @@ class AuditService:
 
         # Build structured audit input to inject into audit ticket
         audit_input = _build_audit_input(state)
-        has_structured_input = bool(
-            state.audit_input_data
-        )
+        has_structured_input = bool(state.audit_input_data)
         if has_structured_input and audit_ticket:
             audit_input_json = json.dumps(audit_input, indent=2, ensure_ascii=False)
             audit_ticket = f"{audit_ticket}\n\n---\n📊 Structured Audit Input:\n{audit_input_json}"
@@ -304,7 +302,6 @@ class AuditService:
         member_id = int(member_id_val) if member_id_val is not None else None
 
         msg_dicts = [m.model_dump() for m in messages]
-
         schema_dicts = [req.model_dump() for req in req_event.requests]
 
         engine_audit_structured_extraction.delay(

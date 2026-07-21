@@ -3,6 +3,7 @@ FinishNode — Final session node with quality gating and lifecycle events.
 """
 
 import logging
+import re
 import time
 
 from app.core.config import settings
@@ -98,9 +99,7 @@ class FinishNode(BaseNode):
 
     async def _has_replayable_steps(self, thread_id: str) -> bool:
         """Return True if the thread contains at least one deterministic replayable step."""
-        from app.core.execution.macro.sedimentation_service import (
-            MacroSedimentationService,
-        )
+        from app.core.execution.macro.sedimentation_service import MacroSedimentationService
 
         try:
             return await MacroSedimentationService.is_eligible(thread_id)
@@ -120,9 +119,7 @@ class FinishNode(BaseNode):
             async with session_scope() as session:
                 activity = await session.get(AgentActivity, thread_id)
                 if activity is None:
-                    logger.debug(
-                        f"[Finish] No AgentActivity record for {thread_id}; skipping sedimentation flag."
-                    )
+                    logger.debug(f"[Finish] No AgentActivity record for {thread_id}; skipping sedimentation flag.")
                     return
                 activity.summary = summary
                 activity.final_outcome = final_outcome
@@ -150,9 +147,7 @@ class FinishNode(BaseNode):
         if messages:
             model = config.get("configurable", {}).get("model")
             if not model:
-                raise ValueError(
-                    "[FinishNode] No model provided in config."
-                )
+                raise ValueError("[FinishNode] No model provided in config.")
             trim_result = _trimmer.trim(
                 messages=messages,
                 model=model,
@@ -173,9 +168,7 @@ class FinishNode(BaseNode):
                     )
                 )
 
-                logger.info(
-                    f"[Finish] Soft trim before audit: {trim_result.before_count} -> {trim_result.after_count} msgs"
-                )
+                logger.info(f"[Finish] Soft trim before audit: {trim_result.before_count} -> {trim_result.after_count} msgs")
             messages = trim_result.messages
 
         iteration_count = (state.iteration_count or 0)
@@ -277,14 +270,11 @@ class FinishNode(BaseNode):
         for msg in messages:
             role = msg.type
             content = msg.content or ""
-            if not (role == "assistant" and content
-                    and "<evoloop_session_audit>" in str(content)
-                    and "<evoloop_final_report>" in str(content)):
+            if not (role == "assistant" and content and "<evoloop_session_audit>" in str(content) and "<evoloop_final_report>" in str(content)):
                 messages_to_return.append(msg)
             # Extract tts_summary from voice responses
             if "<evoloop_tts_summary>" in str(content):
-                import re as _re
-                m = _re.search(r'<evoloop_tts_summary>(.*?)</evoloop_tts_summary>', str(content), _re.DOTALL)
+                m = re.search(r'<evoloop_tts_summary>(.*?)</evoloop_tts_summary>', str(content), re.DOTALL)
                 if m:
                     tts_summary = m.group(1).strip()
 

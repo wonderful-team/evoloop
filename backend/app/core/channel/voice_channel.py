@@ -45,10 +45,6 @@ class VoiceChannel(Channel):
     accepts_blocks = True
     accepts_stream_events = True
 
-    # Per-thread tracking: only push the first ai+tool_calls block per turn.
-    # Reset when SessionCompletedEvent is received.
-    _voice_ack_sent: dict[str, bool] = {}
-
     # Per-thread token buffer for sentence-level segmenting
     _token_buffers: dict[str, str] = {}
     _streamed_texts: dict[str, str] = {}
@@ -100,9 +96,6 @@ class VoiceChannel(Channel):
                 from app.core.routing.executor import _voice_registry
                 if tid not in _voice_registry:
                     return
-                if self._voice_ack_sent.get(tid):
-                    return
-                self._voice_ack_sent[tid] = True
 
                 # Avoid double-speaking streamed ack sentences
                 streamed = self._streamed_texts.get(tid, "").strip()
@@ -120,7 +113,6 @@ class VoiceChannel(Channel):
             if not data or data.source != "voice":
                 return
             thread_id = payload.thread_id
-            self._voice_ack_sent.pop(thread_id, None)  # reset turn tracking
 
             # Flush remaining tokens in buffer
             remaining_buf = _md_clean(self._token_buffers.pop(thread_id, "").strip())
@@ -130,8 +122,12 @@ class VoiceChannel(Channel):
                 except Exception as exc:
                     logger.debug("[VoiceChannel] flush tts_boundary failed: %s", exc)
 
-            # Use tts_summary for TTS if available, fall back to summary
-            push_text = data.tts_summary if data.tts_summary else (data.summary or "")
+            # Use tts_summary for TTS. Fallback: first sentence of summary only.
+            push_text = data.tts_summary if data.tts_summary else ""
+            if not push_text and data.summary:
+                first = re.split(r"[。！？.!?\n]", data.summary)[0].strip()
+                if first:
+                    push_text = first + "。"
 
             # Check if this text was already streamed and spoken
             streamed_text = self._streamed_texts.pop(thread_id, "")
@@ -162,7 +158,6 @@ class VoiceChannel(Channel):
             if payload.source != "voice":
                 return
             thread_id = payload.thread_id
-            self._voice_ack_sent.pop(thread_id, None)
             self._token_buffers.pop(thread_id, None)
             self._streamed_texts.pop(thread_id, None)
             summary = payload.payload.get("summary") or payload.payload.get("outcome") or ""

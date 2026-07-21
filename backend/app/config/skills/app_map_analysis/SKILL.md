@@ -38,8 +38,6 @@ scripts:
     description: Reference collector script. Copy to project root, adapt FRAMEWORK CONFIG, then run.
     usage: |
       cp app/config/skills/app_map_analysis/scripts/collector.py {project_root}/collect_appmaps.py
-    usage: |
-      cp app/core/atlas/source/skeleton/collector.py {project_root}/collect_appmaps.py
 ---
 
 # AppMap Analysis

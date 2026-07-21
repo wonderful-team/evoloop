@@ -103,7 +103,6 @@ class LlamaCppChatModel:
         Also triggers LangChain-style callbacks (on_llm_start, on_llm_new_token, on_llm_end)
         for token streaming (TransparentCallbackHandler → SSE token events).
         """
-        from app.core.engine.callbacks.base import LLMResult
         from app.core.engine.message.native_classes import AIMessageChunk
 
         await self._ensure_loaded()
@@ -137,12 +136,11 @@ class LlamaCppChatModel:
                 yield AIMessageChunk(content="")
             await asyncio.sleep(0)
 
-        for cb in callbacks:
+        if callbacks:
             try:
-                result = LLMResult(generations=[[type('Gen', (), {'message': type('Msg', (), {
-                    'content': '', 'tool_calls': [], 'additional_kwargs': {}, 'metadata': {},
-                })()})()]])
-                await cb.on_llm_end(result, run_id=None)
+                from app.core.engine.callbacks.bridge import emit_llm_end
+                from app.core.engine.message.native_classes import AIMessage
+                await emit_llm_end(callbacks, AIMessage(content=""), run_id=None)
             except Exception:
                 pass
 

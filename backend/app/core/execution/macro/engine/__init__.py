@@ -190,7 +190,14 @@ class MacroEngine(
                 if event_type == "navigate":
                     nav_url = payload.get("url")
                     if isinstance(nav_url, str) and "{{" in nav_url:
-                        unresolved = f"navigate url 含未解析参数: {nav_url}"
+                        if "base_url" in nav_url:
+                            unresolved = (
+                                f"宏需要后台站点地址（url）才能执行。"
+                                f"请在项目详情页 → Profile 中设置「部署 URL」。"
+                                f"未解析 URL: {nav_url}"
+                            )
+                        else:
+                            unresolved = f"导航 URL 含未解析参数: {nav_url}"
                         await cls._handle_action_error(thread_id, step_num, event_type, unresolved)
                         return (
                             False,
@@ -266,8 +273,10 @@ class MacroEngine(
 
     @classmethod
     def _inject_params(cls, value: str | None, params: dict | None) -> str | None:
-        if not value or not params:
+        if not value:
             return value
+        if not params:
+            params = {}
 
         def _get_nested(data: dict, path: str):
             parts = path.split(".")

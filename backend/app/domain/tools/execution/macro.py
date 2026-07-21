@@ -118,6 +118,19 @@ async def _run_macro_row(macro_id, macro_name, params, thread_id, macro_service)
     execution_params["_macro_id"] = macro.id
     execution_params["_macro_name"] = macro.name
 
+    # Inject project url as base_url for {{base_url}} substitutions
+    if "base_url" not in execution_params:
+        try:
+            from app.core.project.utils import get_project_path, read_project_json
+            proj_path = await get_project_path(macro.project_id)
+            if proj_path:
+                pj = read_project_json(proj_path)
+                project_url = pj.get("url")
+                if project_url:
+                    execution_params["base_url"] = project_url
+        except Exception:
+            pass
+
     result = await macro_service.run(
         thread_id=thread_id,
         script_input=steps,

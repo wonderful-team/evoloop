@@ -38,6 +38,7 @@ class ProjectsMixin:
         name: str = None,
         path: str = None,
         source: str = None,
+        url: str = None,
         token: str | None = None,
     ) -> dict:
         data = {"project_id": project_id}
@@ -49,6 +50,8 @@ class ProjectsMixin:
             data["path"] = path
         if source is not None:
             data["source"] = source
+        if url is not None:
+            data["url"] = url
         return await self.request(
             "POST", "/projectmanage/api/projectOpen/updateProject",
             data=data, token=token,

@@ -16,6 +16,15 @@ from app.domain.codebase.generation.scheduler import (
     mark_generation_failed,
 )
 
+_MONEY_KEYWORDS = frozenset({
+    "price", "stock", "balance", "refund", "amount", "money",
+    "salary", "payment", "withdraw", "recharge",
+})
+_DATA_KEYWORDS = frozenset({
+    "save", "update", "delete", "remove", "create", "add", "edit",
+    "set", "change", "status",
+})
+
 logger = logging.getLogger(__name__)
 
 
@@ -150,23 +159,21 @@ async def _run_appmap(project_id: int) -> None:
     except Exception:
         pass
 
-    # Deterministic path: run collector + batch writer directly (no subprocess).
-    # The Agent is only for verification — not for data production.
-    from app.core.atlas.source.skeleton.collector import collect
-    from app.core.atlas.source.skeleton.batch_writer import batch_write
-
-    logger.info("[AppMap] Running collector...")
-    entities = await collect(project_root=path)
+    # Deterministic path: build entities from indexed source files, then
+    # write AppMaps and generate macros.  The Agent is only for verification.
+    entities = await build_entities_from_index(project_id, groups)
     if entities:
-        logger.info("[AppMap] Collector found %d entities", len(entities))
-        logger.info("[AppMap] Running batch writer...")
-        result = await batch_write(project_id=project_id, entities=entities, member_id=0)
+        logger.info("[AppMap] Index-based builder found %d entities", len(entities))
+        logger.info("[AppMap] Writing AppMaps and generating macros...")
+        result = await batch_write_appmaps(
+            project_id=project_id, entities=entities, member_id=0
+        )
         logger.info(
             "[AppMap] Batch write: %d written, %d skipped, %d failed, %d macros",
             result["written"], result["skipped"], result["failed"], result["macros_generated"],
         )
     else:
-        logger.info("[AppMap] Collector returned no entities, skipping batch write")
+        logger.info("[AppMap] Index-based builder returned no entities, skipping batch write")
 
     thread_id = f"appmap-gen-{project_id}-{int(time.time())}"
     from app.core.context import thread_context_store
@@ -209,7 +216,206 @@ async def _run_appmap(project_id: int) -> None:
     result.inputs["ticket"] = ticket.model_dump(mode="json")
     result.inputs.setdefault("metadata", {})["skip_persistence"] = True
     result.inputs["metadata"]["task_type"] = "app_map_generation"
+    result.inputs["metadata"]["initial_node"] = "worker"
     await run_agent_background(thread_id, result.inputs)
+
+    # After Agent verification, regenerate macros for active AppMaps to pick up
+    # any Chinese aliases / elements / db_tables the Agent's collector added.
+    await _regenerate_macros(project_id)
+
+
+async def _regenerate_macros(project_id: int) -> None:
+    """Regenerate macros for all active AppMaps that have Chinese aliases."""
+    from sqlalchemy import select
+    from app.infrastructure.database import session_scope
+    from app.models.app_map import AppMap
+    from app.core.execution.macro.tasks import synthesize_macros_task as _wrapped
+
+    _raw = getattr(_wrapped, "func", _wrapped)
+    import inspect
+    if not inspect.iscoroutinefunction(_raw):
+        for _cell in getattr(_raw, "__closure__", None) or []:
+            if inspect.iscoroutinefunction(_cell.cell_contents):
+                _raw = _cell.cell_contents
+                break
+
+    async with session_scope() as session:
+        result = await session.execute(
+            select(AppMap).where(
+                AppMap.project_id == project_id,
+                AppMap.status == "active",
+            )
+        )
+        app_maps = list(result.scalars().all())
+
+    for am in app_maps:
+        has_cn = any(("\u4e00" <= c <= "\u9fff") for alias in (am.aliases or []) for c in alias) if am.aliases else False
+        if not has_cn:
+            continue
+        try:
+            await _raw(app_map_id=am.id, project_id=project_id, member_id=0)
+        except Exception:
+            logger.debug("[Macro] regenerate failed for app_map %s", am.id)
+
+
+def _classify_action(name: str) -> tuple[str, str]:
+    """Classify an action by kind (read/write) and risk_tier (ui/data/money)."""
+    lower = name.lower()
+    if any(kw in lower for kw in _MONEY_KEYWORDS):
+        return "write", "money"
+    if any(kw in lower for kw in ("list", "page", "index", "get", "search", "find")):
+        return "read", "ui"
+    if any(kw in lower for kw in _DATA_KEYWORDS):
+        return "write", "data"
+    return "write", "ui"
+
+
+async def build_entities_from_index(
+    project_id: int, groups: dict,
+) -> dict:
+    """Build AppMap entities dict from Tree-sitter parsed code chunks."""
+    from app.core.atlas.source.skeleton.generator import APPMAP_ACTION_CATEGORIES
+
+    all_ids = set()
+    for cf_list in groups.values():
+        for cf in cf_list:
+            all_ids.add(cf.source_file.id)
+
+    from sqlalchemy import select
+    from app.infrastructure.database import session_scope
+    from app.models.codebase import SourceFile, CodeChunk
+
+    async with session_scope() as session:
+        sf_result = await session.execute(
+            select(SourceFile).where(SourceFile.id.in_(all_ids))
+        )
+        source_files = {sf.id: sf for sf in sf_result.scalars().all()}
+
+        chunk_result = await session.execute(
+            select(CodeChunk).where(
+                CodeChunk.source_file_id.in_(all_ids),
+                CodeChunk.chunk_type.in_(["function", "method"]),
+            )
+        )
+        chunks_by_file: dict[int, list[CodeChunk]] = {}
+        for c in chunk_result.scalars().all():
+            chunks_by_file.setdefault(c.source_file_id, []).append(c)
+
+    entities = {}
+    for entity_name, classified_files in groups.items():
+        controller_files = [
+            cf for cf in classified_files
+            if cf.category in APPMAP_ACTION_CATEGORIES
+        ]
+        if not controller_files:
+            continue
+
+        actions = []
+        routes = []
+        for cf in controller_files:
+            sf = source_files.get(cf.source_file.id)
+            if not sf:
+                continue
+            for chunk in chunks_by_file.get(sf.id, []):
+                name = chunk.identifier.split(".")[-1].split("::")[-1]
+                if name.startswith("_") or name in ("__construct", "__destruct", "__init"):
+                    continue
+                kind, risk = _classify_action(name)
+                actions.append({
+                    "name": name,
+                    "kind": kind,
+                    "risk_tier": risk,
+                    "business_rule": "",
+                    "controller": sf.path,
+                    "line": chunk.start_line,
+                    "touches_tables": [],
+                    "set_fields": [],
+                    "pk": "",
+                })
+                routes.append({
+                    "name": f"{entity_name}.{name}",
+                    "url": f"/{entity_name}/{name}",
+                    "method": "POST" if kind == "write" else "GET",
+                    "source_action": name,
+                })
+
+        if not actions:
+            continue
+
+        entities[entity_name] = {
+            "aliases": [entity_name],
+            "platform": "web",
+            "routes": routes,
+            "actions": actions,
+            "elements": [],
+            "db_tables": [],
+            "extra": {},
+        }
+
+    return entities
+
+
+async def batch_write_appmaps(
+    project_id: int, entities: dict, member_id: int = 0,
+) -> dict:
+    """Batch-write AppMap records and generate macros."""
+    import inspect
+
+    from app.core.atlas.source.persistence import save_app_map
+
+    from app.core.execution.macro.tasks import synthesize_macros_task as _raw_sync
+    _raw = getattr(_raw_sync, "func", _raw_sync)
+    if not inspect.iscoroutinefunction(_raw):
+        for _cell in getattr(_raw, "__closure__", None) or []:
+            if inspect.iscoroutinefunction(_cell.cell_contents):
+                _raw = _cell.cell_contents
+                break
+
+    written = skipped = failed = macros_generated = 0
+
+    for entity_name, data in sorted(entities.items()):
+        try:
+            app_map_id, version, created = await save_app_map(
+                project_id=project_id,
+                entity=entity_name,
+                platform=data.get("platform", "web"),
+                aliases=data.get("aliases", [entity_name]),
+                routes=data.get("routes", []),
+                actions=data.get("actions", []),
+                elements=data.get("elements", []),
+                db_tables=data.get("db_tables", []),
+                extra=data.get("extra"),
+                member_id=member_id,
+            )
+
+            if created:
+                written += 1
+            else:
+                skipped += 1
+
+            if _raw is not None:
+                try:
+                    result = await _raw(
+                        app_map_id=app_map_id,
+                        project_id=project_id,
+                        member_id=member_id,
+                    )
+                    macros_generated += result.get("candidates", 0)
+                except Exception as exc:
+                    logger.warning("[MACRO] %s macro generation failed: %s", entity_name, exc)
+
+        except Exception as exc:
+            failed += 1
+            logger.error("[FAIL] %s: %s", entity_name, exc)
+
+    logger.info(
+        "Batch complete: %d written, %d skipped, %d failed, %d macros",
+        written, skipped, failed, macros_generated,
+    )
+    return {
+        "written": written, "skipped": skipped,
+        "failed": failed, "macros_generated": macros_generated,
+    }
 
 
 async def _run_summary(project_id: int) -> None:

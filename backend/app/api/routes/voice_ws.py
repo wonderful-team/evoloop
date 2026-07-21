@@ -19,6 +19,7 @@ from typing import Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.context import ContextManager, EvoContext
 from app.core.routing.connection import manager
 from app.core.routing.deps import enforce_loopback_ws
@@ -92,6 +93,8 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
     if not text or not thread_id:
         return
 
+    project_id = int(body.get("project_id", DEFAULT_PROJECT_ID))
+
     t_total_start = time.time()
 
     # Lock phase: L0 check + dispatch (fast, no Worker execution)
@@ -148,7 +151,6 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
                 logger.info("[voice-perf] %s L0 miss → agent fast path (saved ~1-2s)", thread_id)
                 from app.core.engine.dispatch import dispatch_agent_run
                 from app.core.engine.background_agent import run_agent_background
-                from app.constants import DEFAULT_PROJECT_ID
 
                 # If a worker is running, inject its info into metadata
                 meta = {"source": "voice", "voice_thread_id": thread_id}
@@ -162,7 +164,7 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
                 await executor._mark_voice(thread_id, "agent")
                 result = await dispatch_agent_run(
                     thread_id=thread_id, message_content=text,
-                    project_id=DEFAULT_PROJECT_ID,
+                    project_id=project_id,
                     metadata=meta,
                 )
                 if result.status == "failed":
@@ -374,6 +376,34 @@ async def _on_config_changed_event(event: Any) -> None:
 system_bus.subscribe(SystemEventType.CONFIG_CHANGED, _on_config_changed_event)
 
 
+async def _on_state_changed_event(event: Any) -> None:
+    try:
+        if hasattr(event, "key") and hasattr(event, "new_value"):
+            await manager.broadcast(
+                _envelope("system.state_changed", {
+                    "key": str(event.key),
+                    "value": str(event.new_value),
+                })
+            )
+    except Exception as exc:
+        logger.error("[voice_ws] failed to broadcast state change: %s", exc)
+
+
+system_bus.subscribe(SystemEventType.STATE_CHANGED, _on_state_changed_event)
+
+
+class StateUpdateRequest(BaseModel):
+    key: str
+    value: str
+
+
+@router.post("/shared/state")
+async def update_shared_state(req: StateUpdateRequest) -> dict:
+    from app.core.shared_state import shared_state
+    old, new = await shared_state.set(req.key, req.value)
+    return {"ok": True, "key": req.key, "old": old, "new": new}
+
+
 class TTSRequest(BaseModel):
     text: str
     engine: str = "cosyvoice"
@@ -401,14 +431,17 @@ async def voice_ws(websocket: WebSocket) -> None:
     await manager.register(conn_id, websocket)
     
     configs = {cfg.key: cfg.value for cfg in SystemConfigService.get_all()}
+    from app.core.shared_state import shared_state
+    state = await shared_state.get_all()
     await websocket.send_json(
         _envelope(MessageType.SYSTEM_INIT, {
             "client_id": conn_id,
             "device_key": "",
             "configs": configs,
+            "state": state,
         })
     )
-    logger.info("[voice] client connected: %s (sent %d config keys)", conn_id, len(configs))
+    logger.info("[voice] client connected: %s (sent %d config keys, %d state keys)", conn_id, len(configs), len(state))
 
     try:
         while True:

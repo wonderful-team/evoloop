@@ -27,6 +27,7 @@ MODEL_DEFS: dict[str, dict[str, Any]] = {
         "name": "Qwen3-ASR",
         "size_gb": 0.954,
         "size_label": "954MB",
+        "total_bytes": 954_000_000,
         "sub_dir": "sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25",
         "check_file": "encoder.int8.onnx",
         "source": "modelscope",
@@ -37,16 +38,17 @@ MODEL_DEFS: dict[str, dict[str, Any]] = {
         "name": "Kokoro-82M",
         "size_gb": 0.082,
         "size_label": "82MB",
-        "sub_dir": None,
+        "total_bytes": 82_000_000,
+        "sub_dir": "kokoro",
         "check_file": None,
         "source": "huggingface",
         "source_id": "hexgrad/Kokoro-82M",
-        "url": None,
     },
     "cosyvoice": {
         "name": "CosyVoice-300M",
         "size_gb": 2.1,
         "size_label": "2.1GB",
+        "total_bytes": 2_100_000_000,
         "sub_dir": "cosyvoice-300m-instruct",
         "check_file": "llm.pt",
         "source": "modelscope",
@@ -64,6 +66,22 @@ class DownloadProgress:
     eta: str = ""
     status: str = "idle"  # idle | downloading | completed | failed
     error: str = ""
+
+
+def _get_dir_size(path: str) -> float:
+    """Get total size of all files in a directory tree, in bytes."""
+    total = 0.0
+    try:
+        for dirpath, dirnames, filenames in os.walk(path):
+            for f in filenames:
+                fp = os.path.join(dirpath, f)
+                try:
+                    total += os.path.getsize(fp)
+                except OSError:
+                    pass
+    except OSError:
+        pass
+    return total
 
 
 class ModelManager:
@@ -86,7 +104,7 @@ class ModelManager:
             "size": model_def["size_label"],
             "size_gb": model_def["size_gb"],
             "downloaded": downloaded,
-            "available": downloaded or model_id == "kokoro",  # kokoro downloads on first use
+            "available": downloaded or model_id == "kokoro",
             "status": progress.status,
             "progress": progress.progress if progress.status == "downloading" else None,
         }
@@ -105,11 +123,29 @@ class ModelManager:
             return False
         sub_dir = model_def.get("sub_dir")
         check_file = model_def.get("check_file")
-        if not sub_dir or not check_file:
-            return False
-        return os.path.isfile(os.path.join(self._get_models_dir(), sub_dir, check_file))
+        if sub_dir:
+            expected = os.path.join(self._get_models_dir(), sub_dir)
+            if check_file:
+                if os.path.isfile(os.path.join(expected, check_file)):
+                    return True
+            elif os.path.isdir(expected) and bool(os.listdir(expected)):
+                return True
+        # For huggingface models, also check HF cache
+        src = model_def.get("source_id")
+        if src:
+            hf_dir = os.path.join(os.path.expanduser("~/.cache/huggingface/hub"), f"models--{src.replace('/', '--')}", "snapshots")
+            if os.path.isdir(hf_dir):
+                for s in os.listdir(hf_dir):
+                    sp = os.path.join(hf_dir, s)
+                    if os.path.isdir(sp) and bool(os.listdir(sp)):
+                        return True
+        return False
 
     async def start_download(self, model_id: str) -> None:
+        if self._check_downloaded(model_id):
+            self._progress[model_id] = DownloadProgress(model_id=model_id, progress=1.0, status="completed")
+            return
+
         if model_id in self._download_tasks and not self._download_tasks[model_id].done():
             raise RuntimeError(f"Download already in progress for {model_id}")
 
@@ -128,6 +164,8 @@ class ModelManager:
         try:
             if model_def["source"] == "modelscope":
                 await self._download_from_modelscope(model_id, model_def)
+            elif model_def["source"] == "huggingface":
+                await self._download_from_huggingface(model_id, model_def)
             else:
                 self._fail(model_id, f"Unsupported source: {model_def['source']}")
         except Exception as e:
@@ -149,12 +187,33 @@ class ModelManager:
             import shutil
             shutil.rmtree(target_dir)
 
+        # Estimate total download size for progress tracking
+        # CosyVoice-300M is ~5.4GB but compressed; Qwen3-ASR is ~954MB
+        total_bytes: float = model_def.get("total_bytes", model_def["size_gb"] * 1_000_000_000)
+
+        async def _track_progress():
+            """Periodically check directory size to estimate download progress."""
+            while True:
+                await asyncio.sleep(2)
+                size = _get_dir_size(target_dir)
+                p = min(size / total_bytes, 0.99)
+                self._progress[model_id] = DownloadProgress(
+                    model_id=model_id, status="downloading", progress=p
+                )
+                if os.path.isfile(target_path):
+                    return
+
         def _do_snapshot():
-            os.makedirs(MODELS_DIR, exist_ok=True)
+            os.makedirs(self._get_models_dir(), exist_ok=True)
             snapshot_download(source_id, local_dir=target_dir)
 
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, _do_snapshot)
+        # Start progress tracker in background
+        tracker = asyncio.create_task(_track_progress())
+        try:
+            await loop.run_in_executor(None, _do_snapshot)
+        finally:
+            tracker.cancel()
 
         if os.path.isfile(target_path):
             self._progress[model_id] = DownloadProgress(
@@ -162,6 +221,45 @@ class ModelManager:
             )
         else:
             self._fail(model_id, f"Download completed but {check_file} not found")
+
+        loop = asyncio.get_running_loop()
+        tracker = asyncio.create_task(_track_progress())
+        try:
+            await loop.run_in_executor(None, _do_snapshot)
+        finally:
+            tracker.cancel()
+
+        if target_path and os.path.isfile(target_path):
+            self._progress[model_id] = DownloadProgress(
+                model_id=model_id, progress=1.0, status="completed"
+            )
+        else:
+            self._progress[model_id] = DownloadProgress(
+                model_id=model_id, progress=1.0, status="completed"
+            )
+
+    async def _download_from_huggingface(self, model_id: str, model_def: dict) -> None:
+        from huggingface_hub import snapshot_download as hf_sd
+        src = model_def["source_id"]
+        total = model_def.get("total_bytes", model_def["size_gb"] * 1_000_000_000)
+        hf_cache = os.path.join(os.path.expanduser("~/.cache/huggingface/hub"), f"models--{src.replace('/', '--')}")
+
+        async def _track():
+            while True:
+                await asyncio.sleep(2)
+                sz = _get_dir_size(hf_cache)
+                self._progress[model_id] = DownloadProgress(model_id=model_id, status="downloading", progress=min(sz / total, 0.99))
+
+        def _do():
+            hf_sd(src)
+
+        loop = asyncio.get_running_loop()
+        t = asyncio.create_task(_track())
+        try:
+            await loop.run_in_executor(None, _do)
+        finally:
+            t.cancel()
+        self._progress[model_id] = DownloadProgress(model_id=model_id, progress=1.0, status="completed")
 
     def _fail(self, model_id: str, error: str) -> None:
         self._progress[model_id] = DownloadProgress(

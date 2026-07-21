@@ -112,3 +112,19 @@ class ConfigChangedEvent(BaseEvent):
             "old_value": self.old_value,
             "new_value": self.new_value,
         }
+
+
+class StateChangedEvent(BaseEvent):
+    """Event published when a shared state value changes."""
+    event_type: str = SystemEventType.STATE_CHANGED
+    is_public: bool = True
+    key: str = ""
+    old_value: str = ""
+    new_value: str = ""
+
+    def model_post_init(self, __context: Any) -> None:
+        self.data = {
+            "key": self.key,
+            "old_value": self.old_value,
+            "new_value": self.new_value,
+        }

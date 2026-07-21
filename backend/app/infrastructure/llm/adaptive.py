@@ -54,14 +54,18 @@ def _to_openai_tool_call(tc: dict) -> dict:
     """
     if "function" in tc:
         return tc
+    tc_id = tc.get("id") or ""
+    tc_name = tc.get("name") or ""
     args = tc.get("args")
     if isinstance(args, (dict, list)):
         args = json.dumps(args, ensure_ascii=False)
+    if not tc_id and not tc_name:
+        return None
     return {
-        "id": tc.get("id") or "",
+        "id": tc_id,
         "type": "function",
         "function": {
-            "name": tc.get("name") or "",
+            "name": tc_name,
             "arguments": args or "",
         },
     }
@@ -191,14 +195,24 @@ class AdaptiveChatOpenAI:
         api_messages = []
         for m in messages:
             if isinstance(m, dict):
+                # model_dump() from BaseMessage subclasses includes "type" but not "role"
+                if "role" not in m:
+                    role_map = {"ai": "assistant", "human": "user", "system": "system", "tool": "tool"}
+                    m = {**m, "role": role_map.get(m.get("type", ""), "user")}
                 api_messages.append(m)
             else:
                 role = "assistant" if m.type == "ai" else (m.type if m.type in ("system", "tool") else "user")
                 msg_dict = {"role": role, "content": m.content}
                 if role == "tool" and m.tool_call_id:
                     msg_dict["tool_call_id"] = m.tool_call_id
-                elif role == "assistant" and m.tool_calls:
-                    msg_dict["tool_calls"] = [_to_openai_tool_call(tc) for tc in m.tool_calls]
+                elif role == "assistant":
+                    if m.tool_calls:
+                        calls = [_to_openai_tool_call(tc) for tc in m.tool_calls]
+                        msg_dict["tool_calls"] = [c for c in calls if c is not None]
+                    # DeepSeek reasoning API: must pass reasoning_content back
+                    rc = (m.additional_kwargs or {}).get("reasoning_content")
+                    if rc:
+                        msg_dict["reasoning_content"] = rc
                 api_messages.append(msg_dict)
 
         if callbacks:

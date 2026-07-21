@@ -2,7 +2,7 @@
 Browser controller mixin — perception actions (screenshot, wait_for, check_element).
 """
 import logging
-import re as _re
+import re
 
 from app.utils.controller_response import ControllerResponse
 
@@ -48,7 +48,7 @@ class BrowserPerceptionMixin:
         elif action == "wait_for":
             if url_pattern:
                 await page.wait_for_url(
-                    _re.compile(url_pattern) if not url_pattern.startswith("http") else url_pattern,
+                    re.compile(url_pattern) if not url_pattern.startswith("http") else url_pattern,
                     timeout=timeout_ms,
                 )
                 return ControllerResponse.success(

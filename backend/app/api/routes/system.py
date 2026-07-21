@@ -27,8 +27,10 @@ from app.api.schemas.system import (
     ModelsListResponse,
     SystemStatusResponse,
 )
+from app.core.config import settings
 from app.infrastructure.config import EmbeddingConfigService
 from app.infrastructure.config.service import SystemConfigService
+from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.infrastructure.llm import LLMConfigService, LLMFactory
 from app.infrastructure.llm.platform_service import (
     get_available_embedding_models,
@@ -40,8 +42,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/system", tags=["system"])
 
-
-from app.core.config import settings
 
 @router.get("/status", dependencies=[Depends(get_current_user)])
 def get_system_status() -> SystemStatusResponse:
@@ -254,8 +254,6 @@ async def apply_embedding_tier_config(req: EmbeddingTierConfigRequest) -> Embedd
 @router.post("/embedding/tier-test", dependencies=[Depends(get_current_user)])
 async def test_embedding_tier_connection(req: EmbeddingTierConfigRequest) -> EmbeddingTierTestResponse:
     """Test the highest-priority available embedding tier."""
-    from app.infrastructure.embeddings.factory import EmbedderFactory
-
     EmbedderFactory.reset_cache()
     try:
         embedder = EmbedderFactory.get_embedder()

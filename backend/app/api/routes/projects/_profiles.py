@@ -21,7 +21,7 @@ from app.core import file as file_utils
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
-from app.core.project.utils import get_project_path
+from app.core.project.utils import get_project_path, read_project_json, write_project_json
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.database import session_scope
 from app.models.learning import LearnedSkill
@@ -159,6 +159,11 @@ async def get_profile(
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning("Failed to read PROJECT.md: %s", e)
 
+    # Read project.json for name/url
+    pj = read_project_json(path)
+    name = pj.get("name")
+    url = pj.get("url")
+
     # Lazy ingest: ensure PROJECT.md is in the memory system (idempotent via content_hash)
     if project_id > 0 and content:
         try:
@@ -176,6 +181,8 @@ async def get_profile(
     return ProfileContentResponse(
         content=content,
         exists=content is not None,
+        url=url,
+        name=name,
     )
 
 
@@ -189,6 +196,7 @@ async def update_profile(
     if not path:
         raise HTTPException(404, "Project not found or has no local path")
 
+    # Write PROJECT.md (existing behavior)
     file_path = os.path.join(path, "PROJECT.md")
     try:
         file_utils.write_file(file_path, req.content)
@@ -196,7 +204,26 @@ async def update_profile(
         logger.error("Failed to write PROJECT.md: %s", e)
         raise HTTPException(500, f"Failed to update profile: {e}")
 
-    # Ingest PROJECT.md into memory system so it's searchable via recall/search_memories
+    # Write name/url to project.json
+    pj_update = {}
+    if req.name is not None:
+        pj_update["name"] = req.name
+    if req.url is not None:
+        pj_update["url"] = req.url
+    if pj_update:
+        write_project_json(path, pj_update)
+
+    # Sync url to EvoCloud
+    if req.url is not None:
+        try:
+            from app.core.evocloud import evocloud_manager
+            await evocloud_manager.api.update_project(
+                project_id=project_id, url=req.url
+            )
+        except Exception as e:
+            logger.warning("[ProjectProfiles] Failed to sync url to cloud: %s", e)
+
+    # Ingest PROJECT.md into memory system
     if project_id > 0 and req.content:
         try:
             from app.core.memory.lifespan import MemoryLifespanManager
@@ -210,7 +237,14 @@ async def update_profile(
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning("[ProjectProfiles] Failed to ingest PROJECT.md into memory: %s", e)
 
+    # Read project.json for return
+    pj = read_project_json(path)
+    name = pj.get("name")
+    url = pj.get("url")
+
     return ProfileContentResponse(
         content=req.content,
         exists=True,
+        url=url,
+        name=name,
     )

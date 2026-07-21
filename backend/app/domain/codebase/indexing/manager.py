@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import os
-import re
 import threading
 from typing import Any
 
@@ -413,163 +412,32 @@ class IndexingManager:
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning(f"[IndexingManager] Failed to publish indexing status event: {e}")
 
-    @staticmethod
-    def _infer_routes_by_convention(file_path: str, repo_path: str, content: str | None = None) -> list[Any]:
-        """Infer API routes by project conventions.
-
-        Works for any MVC-style project:
-        - Files in controllers/ / controller/ directories
-        - Files named *Controller.*
-        - Public methods extracted as potential route handlers
-        """
-        from app.domain.codebase.schemas import APIEndpoint
-
-        rel_path = os.path.relpath(file_path, repo_path).replace("\\", "/")
-        parts = rel_path.split("/")
-        if len(parts) < 2:
-            return []
-
-        stem = os.path.splitext(parts[-1])[0]
-        if not stem:
-            return []
-
-        is_controller_by_name = stem.lower().endswith("controller") or stem.lower().endswith("_controller")
-        is_controller_by_dir = any(p.lower() in ("controllers", "controller") for p in parts)
-
-        if not (is_controller_by_name or is_controller_by_dir):
-            return []
-
-        if content:
-            methods = re.findall(
-                r"(?:(?:public|private|protected|async)\s+(?:\w+(?:\[\])?\s+)*(?:function\s+)?|function\s+)([a-zA-Z_]\w*)\s*\(",
-                content,
-            )
-            REST_ACTIONS = {"index", "show", "create", "store", "edit", "update", "destroy", "search", "list"}
-            methods = [
-                m for m in methods
-                if not m.startswith("_")
-                and not m[0].isupper()
-                and (
-                    bool(re.search(r"[a-z][A-Z]", m))
-                    or m in REST_ACTIONS
-                )
-            ]
-        else:
-            methods = [stem]
-
-        if not methods:
-            return [APIEndpoint(method="GET", path="/" + stem, handler_name=stem, file_path=rel_path, line_number=0)]
-
-        endpoints = []
-        for method in methods:
-            try:
-                ctrl_idx = next(i for i, p in enumerate(parts) if p.lower() in ("controllers", "controller"))
-                path_parts = parts[ctrl_idx + 1:-1] + [stem, method]
-            except StopIteration:
-                path_parts = parts[1:-1] + [stem, method]
-
-            route_path = "/" + "/".join(path_parts).replace("_", "/").lower()
-
-            endpoints.append(APIEndpoint(
-                method="GET",
-                path=route_path,
-                handler_name=method,
-                file_path=rel_path,
-                line_number=0,
-            ))
-
-        return endpoints
-
-    @staticmethod
-    def _infer_models_by_convention(file_path: str, repo_path: str, content: str | None = None) -> list[Any]:
-        """Infer DB models by project conventions.
-
-        Works for any ORM-style project:
-        - Files in models/ / model/ / Entities/ directories
-        - Files named *Model.* / *Entity.*
-        - Extracts table name and columns from class properties
-        """
-        from app.domain.codebase.schemas import DBTable
-
-        rel_path = os.path.relpath(file_path, repo_path).replace("\\", "/")
-        parts = rel_path.split("/")
-        if len(parts) < 2:
-            return []
-
-        stem = os.path.splitext(parts[-1])[0]
-        if not stem:
-            return []
-
-        is_model_by_name = any(
-            stem.lower().endswith(suffix) for suffix in ("model", "entity", "table", "schema")
-        )
-        is_model_by_dir = any(
-            p.lower() in ("models", "model", "entities", "tables", "schemas") for p in parts
-        )
-
-        if not (is_model_by_name or is_model_by_dir):
-            return []
-
-        table_name = None
-        pk_field = None
-        columns = []
-
-        if content:
-            lines = content.splitlines()
-            tablename_re = re.compile(r'(?:protected\s+\$table|__tablename__|Table\s*[:=])\s*["\']([^"\']+)["\']')
-            pk_re = re.compile(r'(?:protected\s+\$pk|__pk__|PrimaryKey|@Id)\s*["\']?([a-zA-Z_]\w*)["\']?')
-            col_re = re.compile(r'(?:protected|public|private)\s+\$([a-zA-Z_]\w*)\s*[=;]')
-            cls_re = re.compile(r"\bclass\s+([A-Za-z_]\w*)")
-
-            for line in lines:
-                m = tablename_re.search(line)
-                if m:
-                    table_name = m.group(1)
-                    continue
-                m = pk_re.search(line)
-                if m:
-                    pk_field = m.group(1)
-                    continue
-                m = col_re.search(line)
-                if m:
-                    col_name = m.group(1)
-                    if col_name not in ("table", "pk", "keyType", "incrementing", "timestamps", "fillable", "guarded"):
-                        columns.append(col_name)
-
-            if not table_name:
-                cls_match = cls_re.search(content)
-                if cls_match:
-                    class_name = cls_match.group(1)
-                    table_name = re.sub(r"(?<!^)(?=[A-Z])", "_", class_name).lower()
-                    for suffix in ("_model", "_entity", "_table"):
-                        if table_name.endswith(suffix):
-                            table_name = table_name[: -len(suffix)]
-                            break
-
-        if table_name:
-            if pk_field and pk_field not in columns:
-                columns.insert(0, pk_field)
-            return [DBTable(name=table_name, file_path=rel_path, columns=list(dict.fromkeys(columns)))]
-
-        return [DBTable(name=stem, file_path=rel_path, columns=[])]
-
     async def _run_semantic_extraction(self, repo_id: int, repo_path: str, project_id: int | None):
         """
-        Run convention-based API/DB extraction with Agent fallback.
-
-        Uses project conventions (file paths, naming patterns) to infer
-        API endpoints, DB models, and security vulnerabilities. If convention
-        inference yields nothing, dispatches an Agent to investigate.
+        Security scan + mark code chunks as API routes / DB models using
+        Tree-sitter parsed data — no language-specific regex.
         """
         from app.constants import SEMANTIC_EXTENSIONS
         from app.core.file.service import walk_tree
         from app.domain.codebase.filter import FileFilter
+        from app.models.codebase import SourceFile, CodeChunk
+        from sqlalchemy import select
+
+        controller_patterns = {
+            "controller", "controllers", "handler", "handlers",
+            "action", "actions", "resource", "endpoint", "api",
+        }
+        model_patterns = {
+            "model", "models", "entity", "entities", "bean", "beans",
+            "domain", "dto", "vo", "bo", "table", "tables", "po", "persistence",
+        }
 
         file_filter = FileFilter()
         has_routes = False
         has_models = False
 
         try:
+            # Walk files for security scanning (still needed)
             file_paths = await asyncio.to_thread(
                 lambda: list(
                     walk_tree(
@@ -579,25 +447,71 @@ class IndexingManager:
                     )
                 )
             )
+
+            # Collect source file IDs by type via path conventions
+            file_ids_by_type: dict[str, list[int]] = {"controller": [], "model": []}
+            source_files_map: dict[str, SourceFile] = {}
+
             for full_path in file_paths:
                 ext = os.path.splitext(full_path)[1].lower()
                 if ext not in SEMANTIC_EXTENSIONS:
                     continue
 
                 rel_path = os.path.relpath(full_path, repo_path)
+
+                # Security scan (reads file content — unavoidable)
                 content = await self._read_file_for_scan(full_path)
                 if content is not None:
                     await self._persist_security_findings(repo_id, rel_path, content)
 
-                entities = self._infer_routes_by_convention(full_path, repo_path, content)
-                if entities:
-                    has_routes = True
-                    await self._update_api_chunk_flags(repo_id, rel_path, entities)
+            # Now classify via DB — no regex, no file re-reading
+            async with session_scope() as session:
+                result = await session.execute(
+                    select(SourceFile).where(
+                        SourceFile.repository_id == repo_id,
+                        SourceFile.scan_status == "completed",
+                    )
+                )
+                for sf in result.scalars().all():
+                    ext = os.path.splitext(sf.path)[1].lower()
+                    if ext not in SEMANTIC_EXTENSIONS:
+                        continue
+                    parts = sf.path.lower().split("/")
+                    stem = os.path.splitext(parts[-1])[0]
+                    if any(p in controller_patterns for p in parts) \
+                       or any(stem.endswith(s) for s in ("controller", "handler", "action", "resource")):
+                        file_ids_by_type["controller"].append(sf.id)
+                    if any(p in model_patterns for p in parts) \
+                       or any(stem.endswith(s) for s in ("model", "entity", "bean")):
+                        file_ids_by_type["model"].append(sf.id)
 
-                tables = self._infer_models_by_convention(full_path, repo_path, content)
-                if tables:
-                    has_models = True
-                    await self._update_db_chunk_flags(repo_id, rel_path, tables)
+                if file_ids_by_type["controller"]:
+                    cr = await session.execute(
+                        select(CodeChunk).where(
+                            CodeChunk.source_file_id.in_(file_ids_by_type["controller"]),
+                            CodeChunk.chunk_type.in_(["function", "method"]),
+                        )
+                    )
+                    for chunk in cr.scalars().all():
+                        name = chunk.identifier.split(".")[-1].split("::")[-1]
+                        if not name.startswith("_") and name not in ("__construct", "__destruct", "__init"):
+                            chunk.is_api_route = True
+                            has_routes = True
+
+                if file_ids_by_type["model"]:
+                    mr = await session.execute(
+                        select(CodeChunk).where(
+                            CodeChunk.source_file_id.in_(file_ids_by_type["model"]),
+                            CodeChunk.chunk_type == "class",
+                        )
+                    )
+                    for chunk in mr.scalars().all():
+                        chunk.is_db_model = True
+                        chunk.db_table_name = chunk.identifier.split(".")[-1].split("::")[-1]
+                        has_models = True
+
+                if has_routes or has_models:
+                    await session.commit()
 
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Semantic Extraction Failed: {e}")

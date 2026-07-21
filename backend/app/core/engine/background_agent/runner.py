@@ -195,7 +195,7 @@ async def run_agent_background(
                 callbacks.append(TraceCallbackHandler(thread_id=thread_id, run_id=run_id))
                 config["callbacks"] = callbacks
 
-                agent_state.next_node = "supervisor"
+                agent_state.next_node = inputs.metadata.get("initial_node", "supervisor")
                 agent_state.session_goal = inputs.session_goal or inputs.goal
 
                 from app.core.engine.loop import run_node_loop
