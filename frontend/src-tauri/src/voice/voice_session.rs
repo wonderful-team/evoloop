@@ -184,7 +184,7 @@ impl VoiceSession {
                     "voice.route_result" => {
                         event_bus.emit("voice:route_result", body.clone());
                         handle_route_result(
-                            &body, &session_tts, &session_state, &session_lang
+                            &body, &session_tts, &session_state, &session_lang, &event_bus
                         ).await;
                     }
 
@@ -204,6 +204,7 @@ impl VoiceSession {
                         if !sentence.is_empty() {
                             info!("[voice-session] tts_boundary: {}...", &sentence[..sentence.len().min(40)]);
                             let _ = session_state.set(VoiceState::Speaking).await;
+                            event_bus.emit("voice:state", serde_json::json!({"state": "speaking"}));
 
                             let lang = session_lang.read().await.clone();
                             session_tts.queue_sentence(sentence.to_string());
@@ -475,6 +476,20 @@ impl VoiceSession {
         Ok(())
     }
 
+    /// Switch voice mode without restarting mic/capture.
+    pub async fn switch_mode(&self, mode: String) -> Result<(), String> {
+        if !self.running.load(Ordering::SeqCst) {
+            return Err("Voice session not running".to_string());
+        }
+
+        *self.mode.write().await = mode.clone();
+        self.state_machine.set(VoiceState::Listening).await;
+        self.emit_event("voice:state", serde_json::json!({"state": "listening"}));
+
+        info!("[voice-session] switched mode to {}", mode);
+        Ok(())
+    }
+
     /// Stop the voice dialogue session.
     pub async fn stop(&self) {
         self.dialogue_active.store(false, Ordering::SeqCst);
@@ -605,6 +620,7 @@ pub(crate) async fn handle_route_result(
     session_tts: &TtsEngine,
     session_state: &VoiceStateMachine,
     session_lang: &RwLock<String>,
+    event_bus: &Arc<dyn VoiceEventBus>,
 ) {
     let status = body.get("status")
         .and_then(|v| v.as_str())
@@ -644,11 +660,10 @@ pub(crate) async fn handle_route_result(
             session_tts.queue_sentence("抱歉，处理出错了".to_string());
             session_tts.speak_next(&lang);
         }
-        // "done" TTS is handled by voice.tts_boundary, not here
-
-        if !session_tts.has_queued() && !session_tts.is_speaking() {
-            let _ = session_state.set(VoiceState::Idle).await;
-        }
+        // "done" TTS is handled by voice.tts_boundary, not here.
+        // Return to listening — session is still active, mic is still capturing.
+        session_state.force_set(VoiceState::Listening).await;
+        event_bus.emit("voice:state", serde_json::json!({"state": "listening"}));
     }
 }
 
@@ -682,6 +697,12 @@ mod tests {
         use std::sync::{Arc, Mutex};
         use tokio::sync::RwLock;
 
+        struct NoopEventBus;
+        impl VoiceEventBus for NoopEventBus {
+            fn emit(&self, _event: &str, _payload: serde_json::Value) {}
+        }
+        fn noop_bus() -> Arc<dyn VoiceEventBus> { Arc::new(NoopEventBus) }
+
         fn make_body(status: &str, target_type: &str, action: &str) -> serde_json::Value {
             serde_json::json!({
                 "thread_id": "test-tid",
@@ -707,7 +728,8 @@ mod tests {
             let lang = RwLock::new("zh-CN".to_string());
 
             let body = make_body("routed", "local", "mute");
-            handle_route_result(&body, &tts, &sm, &lang).await;
+            let bus = noop_bus();
+            handle_route_result(&body, &tts, &sm, &lang, &bus).await;
 
             assert!(tts.is_speaking(), "L0 local hit should trigger TTS");
         }
@@ -723,7 +745,8 @@ mod tests {
                 "status": "routed",
                 "summary": "正在为你查询，请稍候",
             });
-            handle_route_result(&body, &tts, &sm, &lang).await;
+            let bus = noop_bus();
+            handle_route_result(&body, &tts, &sm, &lang, &bus).await;
 
             assert!(tts.is_speaking(), "agent routed should trigger TTS");
         }
@@ -735,7 +758,8 @@ mod tests {
             let lang = RwLock::new("zh-CN".to_string());
 
             let body = make_done_body("已为你完成操作");
-            handle_route_result(&body, &tts, &sm, &lang).await;
+            let bus = noop_bus();
+            handle_route_result(&body, &tts, &sm, &lang, &bus).await;
 
             // TTS for "done" is handled by voice.tts_boundary, not route_result
             assert!(!tts.is_speaking());
@@ -748,7 +772,8 @@ mod tests {
             let lang = RwLock::new("zh-CN".to_string());
 
             let body = make_done_body("");
-            handle_route_result(&body, &tts, &sm, &lang).await;
+            let bus = noop_bus();
+            handle_route_result(&body, &tts, &sm, &lang, &bus).await;
 
             assert!(!tts.is_speaking(), "empty summary should not speak");
         }
@@ -760,9 +785,10 @@ mod tests {
             let lang = RwLock::new("zh-CN".to_string());
 
             let body = make_done_body("");
-            handle_route_result(&body, &tts, &sm, &lang).await;
+            let bus = noop_bus();
+            handle_route_result(&body, &tts, &sm, &lang, &bus).await;
 
-            assert_eq!(sm.get().await, VoiceState::Idle);
+            assert_eq!(sm.get().await, VoiceState::Listening);
         }
 
         #[tokio::test]
@@ -776,7 +802,8 @@ mod tests {
                 "status": "failed",
                 "summary": "something broke",
             });
-            handle_route_result(&body, &tts, &sm, &lang).await;
+            let bus = noop_bus();
+            handle_route_result(&body, &tts, &sm, &lang, &bus).await;
 
             assert!(tts.is_speaking(), "failed should speak error");
         }
@@ -791,7 +818,8 @@ mod tests {
                 "thread_id": "test-tid",
                 "status": "cancelled",
             });
-            handle_route_result(&body, &tts, &sm, &lang).await;
+            let bus = noop_bus();
+            handle_route_result(&body, &tts, &sm, &lang, &bus).await;
 
             assert!(!tts.is_speaking(), "cancelled should not speak");
         }
@@ -806,9 +834,10 @@ mod tests {
                 "thread_id": "test-tid",
                 "status": "cancelled",
             });
-            handle_route_result(&body, &tts, &sm, &lang).await;
+            let bus = noop_bus();
+            handle_route_result(&body, &tts, &sm, &lang, &bus).await;
 
-            assert_eq!(sm.get().await, VoiceState::Idle);
+            assert_eq!(sm.get().await, VoiceState::Listening);
         }
     }
 }

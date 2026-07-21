@@ -34,7 +34,7 @@ export function ModelManager() {
 
   if (models.length === 0) return null
 
-  // Only show TTS models (ASR has its own section)
+  // Only show models that need manual download (ASR has its own section)
   const ttsModels = models.filter((m) => m.id !== "qwen3_asr")
   if (ttsModels.length === 0) return null
 

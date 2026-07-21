@@ -19,7 +19,7 @@ impl GlobalShortcutManager {
     pub fn new() -> Self {
         Self {
             is_registered: AtomicBool::new(false),
-            target_key: Arc::new(Mutex::new("F12".to_string())),
+            target_key: Arc::new(Mutex::new("Alt+F12".to_string())),
             record_key: Arc::new(Mutex::new("CmdOrCtrl+Shift+R".to_string())),
             app_handle: Arc::new(Mutex::new(None)),
         }
@@ -53,10 +53,9 @@ impl GlobalShortcutManager {
             return;
         };
 
-        // 1. Voice shortcut
+        // 1. Voice shortcut (e.g. "Alt+F12" = Option+F12 on macOS)
         let key = self.target_key.lock().unwrap().clone();
-        if let Some(code) = key_to_code(&key) {
-            let shortcut = Shortcut::new(Some(Modifiers::empty()), code);
+        if let Ok(shortcut) = Shortcut::from_str(&key) {
             let app_clone = app.clone();
             if let Err(e) = app.global_shortcut().on_shortcut(shortcut, move |_app, _event, state| {
                 if state.state == ShortcutState::Pressed {
@@ -97,8 +96,7 @@ impl GlobalShortcutManager {
         if let Ok(handle) = self.app_handle.lock() {
             if let Some(ref app) = *handle {
                 let key = self.target_key.lock().unwrap().clone();
-                if let Some(code) = key_to_code(&key) {
-                    let shortcut = Shortcut::new(Some(Modifiers::empty()), code);
+                if let Ok(shortcut) = Shortcut::from_str(&key) {
                     let _ = app.global_shortcut().unregister(shortcut);
                 }
                 let rec_key_str = self.record_key.lock().unwrap().clone();

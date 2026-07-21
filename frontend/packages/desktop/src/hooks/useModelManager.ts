@@ -34,6 +34,10 @@ export function useModelManager() {
   }, [fetchStatus])
 
   const startDownload = useCallback(async (modelId: string) => {
+    // Immediately set downloading state for responsive UI
+    setModels((prev) =>
+      prev.map((m) => (m.id === modelId ? { ...m, status: "downloading", progress: 0 } : m)),
+    )
     try {
       const res = await fetch(`${backendUrl}/api/v1/models/download`, {
         method: "POST",
@@ -42,6 +46,9 @@ export function useModelManager() {
       })
       if (!res.ok) {
         const err = await res.json()
+        setModels((prev) =>
+          prev.map((m) => (m.id === modelId ? { ...m, status: "failed" } : m)),
+        )
         throw new Error(err.error || "Download failed")
       }
 

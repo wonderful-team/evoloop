@@ -77,23 +77,30 @@ export function useVoiceEvents() {
 
     if (prev === voiceMode) return
 
-    if (prev !== "off") {
-      safeInvoke("stop_voice_session").catch(console.error)
-    }
-
-    if (voiceMode !== "off") {
-      const threadId = crypto.randomUUID()
-      safeInvoke("start_voice_session", {
-        threadId,
-        lang: "zh-CN",
-        mode: voiceMode,
-        ttsEngine: localStorage.getItem("evoloop_tts_engine") || "edge-tts",
-        ttsVoice: localStorage.getItem("evoloop_tts_voice") || undefined,
-      }).catch((e) => {
-        console.error("[voice] start failed:", e)
+    if (prev !== "off" && voiceMode !== "off") {
+      // Switching between modes — no stop/start, just tell Rust to swap mode
+      safeInvoke("switch_voice_mode", { mode: voiceMode }).catch((e) => {
+        console.error("[voice] switch_mode failed:", e)
         setVoiceMode("off")
-        toast.error(String(e))
       })
+    } else {
+      if (prev !== "off") {
+        safeInvoke("stop_voice_session").catch(console.error)
+      }
+      if (voiceMode !== "off") {
+        const threadId = crypto.randomUUID()
+        safeInvoke("start_voice_session", {
+          threadId,
+          lang: "zh-CN",
+          mode: voiceMode,
+          ttsEngine: localStorage.getItem("evoloop_tts_engine") || "edge-tts",
+          ttsVoice: localStorage.getItem("evoloop_tts_voice") || undefined,
+        }).catch((e) => {
+          console.error("[voice] start failed:", e)
+          setVoiceMode("off")
+          toast.error(String(e))
+        })
+      }
     }
   }, [voiceMode, setVoiceMode])
 

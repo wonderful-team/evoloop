@@ -1,26 +1,19 @@
-import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Input } from "@evoloop/shared/components/ui/input"
 import { Label } from "@evoloop/shared/components/ui/label"
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
-  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@evoloop/shared/components/ui/select"
 import {
-  Brain,
   CheckCircle2,
   Eye,
   EyeOff,
-  Globe,
   Loader2,
   Network,
-  Settings2,
   Shield,
   XCircle,
   Zap,
@@ -31,20 +24,6 @@ import { toast } from "sonner"
 import { SystemService } from "@/client"
 import { SettingsCard } from "./SettingsCard"
 import { useSettings } from "./SettingsContext"
-
-// Preset model type from backend
-interface PresetModel {
-  id: string
-  name: string
-  type: "platform" | "custom"
-  provider: string
-  provider_type: "openai" | "anthropic"
-  base_url: string
-  model: string
-  vision_model: string
-  description?: string
-  icon?: string
-}
 
 export function LLMSettings() {
   const { t } = useTranslation()
@@ -62,11 +41,7 @@ export function LLMSettings() {
     registerResetHandler,
   } = useSettings()
 
-  const [presetModels, setPresetModels] = useState<PresetModel[]>([])
-  const [_isLoadingModels, setIsLoadingModels] = useState(true)
-
   // Form states
-  const [defaultModelId, setDefaultModelId] = useState("")
   const [provider, setProvider] = useState("openai")
   const [providerType, setProviderType] = useState("openai")
   const [baseUrl, setBaseUrl] = useState("")
@@ -79,13 +54,7 @@ export function LLMSettings() {
 
   const fetchConfig = async () => {
     try {
-      setIsLoadingModels(true)
-      const [modelsRes, configRes] = await Promise.all([
-        SystemService.getLlmModels(),
-        SystemService.getSystemConfig(),
-      ])
-
-      setPresetModels((modelsRes as any)?.models || [])
+      const configRes = await SystemService.getSystemConfig()
 
       const configMap: Record<string, string> = {}
       if (Array.isArray(configRes)) {
@@ -95,7 +64,6 @@ export function LLMSettings() {
       }
 
       const state = {
-        defaultModelId: configMap.LLM_MODEL || "",
         provider: configMap.LLM_PROVIDER || "openai",
         providerType: configMap.LLM_PROVIDER_TYPE || "openai",
         baseUrl: configMap.LLM_BASE_URL || "",
@@ -105,7 +73,6 @@ export function LLMSettings() {
         headers: configMap.LLM_HEADERS || "{}",
       }
 
-      setDefaultModelId(state.defaultModelId)
       setProvider(state.provider)
       setProviderType(state.providerType)
       setBaseUrl(state.baseUrl)
@@ -116,8 +83,6 @@ export function LLMSettings() {
       setInitialState(state)
     } catch (_error) {
       toast.error(t("settings.llm.loadError"))
-    } finally {
-      setIsLoadingModels(false)
     }
   }
 
@@ -125,7 +90,6 @@ export function LLMSettings() {
   useEffect(() => {
     if (!initialState) return
     const isDirty =
-      defaultModelId !== initialState.defaultModelId ||
       provider !== initialState.provider ||
       providerType !== initialState.providerType ||
       baseUrl !== initialState.baseUrl ||
@@ -136,7 +100,6 @@ export function LLMSettings() {
 
     setComponentDirty("llm", isDirty)
   }, [
-    defaultModelId,
     provider,
     providerType,
     baseUrl,
@@ -243,13 +206,11 @@ export function LLMSettings() {
           model,
           vision_model: visionModel,
           api_key: apiKey,
-          default_model_id: defaultModelId,
           headers: parsedHeaders,
         },
       })
       // Update initial state to current values
       setInitialState({
-        defaultModelId,
         provider,
         providerType,
         baseUrl,
@@ -282,82 +243,12 @@ export function LLMSettings() {
     model,
     visionModel,
     apiKey,
-    defaultModelId,
     headers,
     initialState,
   ])
 
   return (
     <div className="space-y-4">
-      {/* Default Model Card */}
-      <SettingsCard
-        icon={Brain}
-        title={t("settings.llm.default_model")}
-        description={t("settings.llm.default_model_desc")}
-        headerExtra={
-          loading && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              {t("common.processing")}
-            </div>
-          )
-        }
-      >
-        <div className="space-y-3">
-          <Label className="text-sm font-medium">
-            {t("settings.llm.select_active_model")}
-          </Label>
-          <Select value={defaultModelId} onValueChange={setDefaultModelId}>
-            <SelectTrigger className="w-full h-12">
-              <SelectValue
-                placeholder={t("settings.llm.select_model_placeholder")}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectLabel className="flex items-center gap-2">
-                  <Globe className="h-3.5 w-3.5" />
-                  {t("chat.modelSelector.platformModels")}
-                </SelectLabel>
-                {presetModels
-                  .filter((m) => m.type === "platform")
-                  .map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      <div className="flex items-center gap-2">
-                        <span>{m.name}</span>
-                        <Badge
-                          variant="secondary"
-                          className="text-[10px] h-4 rounded-none"
-                        >
-                          {t("chat.modelSelector.platformBadge")}
-                        </Badge>
-                      </div>
-                    </SelectItem>
-                  ))}
-              </SelectGroup>
-              <SelectSeparator />
-              <SelectGroup>
-                <SelectLabel className="flex items-center gap-2">
-                  <Settings2 className="h-3.5 w-3.5" />
-                  {t("chat.modelSelector.customModels")}
-                </SelectLabel>
-                <SelectItem value={`custom-${provider}-${model}`}>
-                  <div className="flex items-center gap-2">
-                    <span>{model || t("settings.llm.custom")}</span>
-                    <Badge
-                      variant="outline"
-                      className="text-[10px] h-4 border-amber-500/30 text-amber-600 rounded-none"
-                    >
-                      {t("chat.modelSelector.customBadge")}
-                    </Badge>
-                  </div>
-                </SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-      </SettingsCard>
-
       {/* Provider Config Card */}
       <SettingsCard
         icon={Network}

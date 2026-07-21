@@ -48,19 +48,29 @@ impl AecMicCapture {
         let callback = Arc::new(Mutex::new(callback));
 
         #[cfg(target_os = "macos")]
-        if let Some(mac) = self.mac.as_mut() {
-            match mac.start(audio_queue.clone(), callback.clone()) {
-                Ok(()) => {
-                    info!("[aec] VoiceProcessingIO capture started with AEC");
-                    return Ok(());
-                }
-                Err(e) => {
-                    warn!("[aec] VoiceProcessingIO failed to start ({}), disabling it", e);
-                    self.mac = None;
+        {
+            // Try VoiceProcessingIO. If it fails, log but don't disable permanently,
+        // so subsequent starts can retry. Fall back to MicCapture regardless.
+            if self.mac.is_none() {
+                self.mac = MacAecCapture::new().ok();
+            }
+            if let Some(mac) = self.mac.as_mut() {
+                match mac.start(audio_queue.clone(), callback.clone()) {
+                    Ok(()) => {
+                        info!("[aec] VoiceProcessingIO capture started with AEC");
+                        // Success with AEC - skip fallback
+                        self.fallback.stop();
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        warn!("[aec] VoiceProcessingIO failed to start ({}), falling back to MicCapture", e);
+                        mac.stop();
+                    }
                 }
             }
         }
 
+        info!("[aec] using fallback MicCapture (no AEC)");
         self.fallback.start(move |samples: &[f32]| {
             if let Ok(mut cb) = callback.lock() {
                 cb(samples);

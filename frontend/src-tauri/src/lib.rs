@@ -234,6 +234,10 @@ enum VoiceCommand {
         tts_voice: Option<String>,
         respond: oneshot::Sender<Result<(), String>>,
     },
+    SwitchMode {
+        mode: String,
+        respond: oneshot::Sender<Result<(), String>>,
+    },
     Stop,
     BargeIn,
     GetState {
@@ -356,6 +360,10 @@ fn spawn_voice_manager(model_search_paths: Vec<std::path::PathBuf>) -> VoiceMana
                         let bus = Arc::new(TauriEventBus { handle: app_handle }) as Arc<dyn VoiceEventBus>;
                         session.set_event_bus(bus);
                         let res = session.start(thread_id, lang, mode).await;
+                        let _ = respond.send(res);
+                    }
+                    VoiceCommand::SwitchMode { mode, respond } => {
+                        let res = session.switch_mode(mode).await;
                         let _ = respond.send(res);
                     }
                     VoiceCommand::Stop => {
@@ -493,6 +501,20 @@ async fn start_voice_session(
 
 #[tauri::command]
 #[cfg(desktop)]
+async fn switch_voice_mode(
+    state: tauri::State<'_, AppServiceState>,
+    mode: String,
+) -> Result<(), String> {
+    let (tx, rx) = oneshot::channel();
+    state.voice_manager.send(VoiceCommand::SwitchMode {
+        mode,
+        respond: tx,
+    }).await?;
+    rx.await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+#[cfg(desktop)]
 async fn stop_voice_session(
     state: tauri::State<'_, AppServiceState>,
 ) -> Result<(), String> {
@@ -578,6 +600,12 @@ async fn init_voice_engines(_: String, _: String, _: f32) -> Result<(), String> 
 #[cfg(mobile)]
 async fn connect_voice_backend(_: String) -> Result<(), String> {
     Err("Voice backend not supported on mobile".to_string())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn switch_voice_mode() -> Result<(), String> {
+    Ok(())
 }
 
 #[tauri::command]
@@ -1066,8 +1094,8 @@ pub fn run() {
             let quit_i = MenuItem::with_id(_app, "quit", "退出", true, Some("CmdOrCtrl+Q"))?;
             let show_i = MenuItem::with_id(_app, "show", "显示主界面", true, None::<&str>)?;
             let record_i = MenuItem::with_id(_app, "record", "技能录制", true, Some("CmdOrCtrl+Shift+R"))?;
-            let voice_dictation_i = MenuItem::with_id(_app, "voice_dictation", "语音听写", true, Some("F12"))?;
-            let voice_dialogue_i = MenuItem::with_id(_app, "voice_dialogue", "语音对话", true, Some("F12"))?;
+            let voice_dictation_i = MenuItem::with_id(_app, "voice_dictation", "语音听写", true, Some("Alt+F12"))?;
+            let voice_dialogue_i = MenuItem::with_id(_app, "voice_dialogue", "语音对话", true, Some("Alt+F12"))?;
 
             let service_state = AppServiceState {
                 children: Arc::new(Mutex::new(Vec::new())),
@@ -1209,6 +1237,7 @@ pub fn run() {
             connect_voice_backend,
             start_voice_session,
             stop_voice_session,
+            switch_voice_mode,
             trigger_voice_barge_in,
             get_voice_state,
             start_dictation,

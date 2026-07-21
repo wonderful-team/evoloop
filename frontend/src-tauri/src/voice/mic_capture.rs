@@ -27,16 +27,36 @@ impl MicCapture {
         }
     }
 
-    fn find_config(device: &Device) -> Result<cpal::SupportedStreamConfigRange, String> {
-        let mut last_err = String::new();
+    fn find_config(device: &Device) -> Result<(cpal::StreamConfig, u32), String> {
+        // First try default_input_config (simpler, less likely to trigger CoreAudio errors)
+        if let Ok(default_config) = device.default_input_config() {
+            let sample_rate = default_config.sample_rate().0.max(TARGET_SAMPLE_RATE);
+            let channels = default_config.channels();
+            info!("[mic] using default config: {}Hz {}ch", sample_rate, channels);
+            let config = cpal::StreamConfig {
+                channels,
+                sample_rate: cpal::SampleRate(sample_rate),
+                buffer_size: cpal::BufferSize::Default,
+            };
+            return Ok((config, sample_rate));
+        }
 
+        // Fallback: enumerate supported configs (may fail on some CoreAudio states)
+        let mut last_err = String::new();
         for attempt in 1..=3 {
             match device.supported_input_configs() {
                 Ok(mut configs) => {
                     if let Some(cfg) = configs
                         .find(|c| c.channels() >= 1 && c.min_sample_rate().0 <= TARGET_SAMPLE_RATE)
                     {
-                        return Ok(cfg);
+                        let sample_rate = cfg.min_sample_rate().0.max(TARGET_SAMPLE_RATE);
+                        let channels = cfg.channels();
+                        let config = cpal::StreamConfig {
+                            channels,
+                            sample_rate: cpal::SampleRate(sample_rate),
+                            buffer_size: cpal::BufferSize::Default,
+                        };
+                        return Ok((config, sample_rate));
                     }
                     return Err("No suitable input config found".to_string());
                 }
@@ -47,7 +67,6 @@ impl MicCapture {
                 }
             }
         }
-
         Err(format!("Failed to get input configs after 3 retries: {}", last_err))
     }
 
@@ -59,16 +78,8 @@ impl MicCapture {
         let device = self.device.as_ref()
             .ok_or("No input device available")?;
 
-        let supported_config = Self::find_config(device)?;
-
-        let sample_rate = supported_config.min_sample_rate().0.max(TARGET_SAMPLE_RATE);
-        let channels = supported_config.channels();
-
-        let config = StreamConfig {
-            channels,
-            sample_rate: cpal::SampleRate(sample_rate),
-            buffer_size: cpal::BufferSize::Default,
-        };
+        let (config, sample_rate) = Self::find_config(device)?;
+        let channels = config.channels;
 
         info!(
             "[mic] starting capture: {}Hz, {}ch (target {}Hz)",

@@ -69,6 +69,25 @@ export function ModelSettings() {
     loadModels()
   }, [])
 
+  const saveModel = async (modelId: string) => {
+    const model = models.find((m) => m.id === modelId)
+    if (!model) return
+    // Save the selected model as the default LLM model
+    try {
+      await SystemService.applyLlmConfig({
+        requestBody: {
+          provider: model.source,
+          provider_type: "openai",
+          base_url: model.base_url || null,
+          model: model.model_name,
+          api_key: model.source === "lm-studio" ? "lm-studio" : null,
+        },
+      })
+    } catch (e) {
+      console.error("Failed to save model selection:", e)
+    }
+  }
+
   const loadModels = async () => {
     setLoading(true)
     try {
@@ -178,7 +197,7 @@ export function ModelSettings() {
           ) : (
             <>
               <div className="space-y-3">
-                <Select value={selectedId} onValueChange={setSelectedId}>
+                <Select value={selectedId} onValueChange={(id) => { setSelectedId(id); saveModel(id); }}>
                   <SelectTrigger className="h-12 text-base">
                     <SelectValue placeholder={t("settings.models.default_view.select_placeholder")} />
                   </SelectTrigger>
