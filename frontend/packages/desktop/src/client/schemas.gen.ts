@@ -513,96 +513,6 @@ export const Body_account_login_access_tokenSchema = {
     title: 'Body_account-login_access_token'
 } as const;
 
-export const Body_audio_text_to_speech_streamSchema = {
-    properties: {
-        text: {
-            type: 'string',
-            title: 'Text'
-        },
-        voice_id: {
-            type: 'string',
-            title: 'Voice Id',
-            default: 'zh-CN-XiaoxiaoNeural'
-        },
-        speed: {
-            type: 'number',
-            title: 'Speed',
-            default: 1
-        },
-        format: {
-            type: 'string',
-            title: 'Format',
-            default: 'mp3'
-        }
-    },
-    type: 'object',
-    required: ['text'],
-    title: 'Body_audio-text_to_speech_stream'
-} as const;
-
-export const Body_audio_transcribe_audioSchema = {
-    properties: {
-        file: {
-            type: 'string',
-            format: 'binary',
-            title: 'File'
-        },
-        language: {
-            type: 'string',
-            title: 'Language',
-            default: 'auto'
-        },
-        model: {
-            type: 'string',
-            title: 'Model',
-            default: 'auto'
-        },
-        prompt: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Prompt'
-        },
-        provider: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Provider'
-        }
-    },
-    type: 'object',
-    required: ['file'],
-    title: 'Body_audio-transcribe_audio'
-} as const;
-
-export const Body_audio_transcribe_streamSchema = {
-    properties: {
-        file: {
-            type: 'string',
-            format: 'binary',
-            title: 'File'
-        },
-        language: {
-            type: 'string',
-            title: 'Language',
-            default: 'auto'
-        }
-    },
-    type: 'object',
-    required: ['file'],
-    title: 'Body_audio-transcribe_stream'
-} as const;
-
 export const Body_files_upload_fileSchema = {
     properties: {
         file: {
@@ -1812,6 +1722,45 @@ export const DeviceResolutionResponseSchema = {
     title: 'DeviceResolutionResponse'
 } as const;
 
+export const DictationRequestSchema = {
+    properties: {
+        raw_text: {
+            type: 'string',
+            title: 'Raw Text'
+        },
+        target_locale: {
+            type: 'string',
+            title: 'Target Locale',
+            default: 'zh'
+        }
+    },
+    type: 'object',
+    required: ['raw_text'],
+    title: 'DictationRequest'
+} as const;
+
+export const DictationResponseSchema = {
+    properties: {
+        polished_text: {
+            type: 'string',
+            title: 'Polished Text'
+        },
+        raw_text: {
+            type: 'string',
+            title: 'Raw Text'
+        },
+        changes: {
+            items: {},
+            type: 'array',
+            title: 'Changes',
+            default: []
+        }
+    },
+    type: 'object',
+    required: ['polished_text', 'raw_text'],
+    title: 'DictationResponse'
+} as const;
+
 export const DiscoverRequestSchema = {
     properties: {
         record_secrets: {
@@ -1854,6 +1803,77 @@ export const DiscoverResponseSchema = {
     type: 'object',
     required: ['status', 'project_id', 'thread_id'],
     title: 'DiscoverResponse'
+} as const;
+
+export const DiscoveredModelResponseSchema = {
+    properties: {
+        id: {
+            type: 'string',
+            title: 'Id'
+        },
+        name: {
+            type: 'string',
+            title: 'Name'
+        },
+        source: {
+            type: 'string',
+            title: 'Source'
+        },
+        model_name: {
+            type: 'string',
+            title: 'Model Name'
+        },
+        base_url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Base Url'
+        },
+        capabilities: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Capabilities',
+            default: ['chat']
+        },
+        status: {
+            type: 'string',
+            title: 'Status',
+            default: 'unknown'
+        },
+        context_window: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Context Window'
+        },
+        error: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Error'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['id', 'name', 'source', 'model_name'],
+    title: 'DiscoveredModelResponse'
 } as const;
 
 export const DomEventDataSchema = {
@@ -1988,6 +2008,18 @@ export const DownloadFileRequestSchema = {
     title: 'DownloadFileRequest'
 } as const;
 
+export const DownloadRequestSchema = {
+    properties: {
+        model_id: {
+            type: 'string',
+            title: 'Model Id'
+        }
+    },
+    type: 'object',
+    required: ['model_id'],
+    title: 'DownloadRequest'
+} as const;
+
 export const EmbeddingApplyResponseSchema = {
     properties: {
         success: {
@@ -2117,6 +2149,217 @@ export const EmbeddingTestResponseSchema = {
     additionalProperties: true,
     type: 'object',
     title: 'EmbeddingTestResponse'
+} as const;
+
+export const EmbeddingTierConfigRequestSchema = {
+    properties: {
+        tiers: {
+            type: 'string',
+            title: 'Tiers',
+            description: 'Comma-separated tier priority',
+            default: 'gguf,local,remote'
+        },
+        gguf_model: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Gguf Model',
+            description: 'Tier 1: GGUF file path'
+        },
+        local_url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Local Url',
+            description: 'Tier 2: Local HTTP URL'
+        },
+        local_api_key: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Local Api Key',
+            description: 'Tier 2: API key'
+        },
+        local_model: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Local Model',
+            description: 'Tier 2: model name'
+        },
+        provider: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Provider',
+            description: 'Tier 3: provider type (openai/ollama/lm-studio)'
+        },
+        base_url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Base Url',
+            description: 'Tier 3: API base URL'
+        },
+        model: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Model',
+            description: 'Tier 3: model name'
+        },
+        api_key: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Api Key',
+            description: 'Tier 3: API key'
+        },
+        dimensions: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Dimensions',
+            description: 'Tier 3: embedding dimensions'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    title: 'EmbeddingTierConfigRequest'
+} as const;
+
+export const EmbeddingTierStatusResponseSchema = {
+    properties: {
+        success: {
+            type: 'boolean',
+            title: 'Success',
+            default: true
+        },
+        message: {
+            type: 'string',
+            title: 'Message',
+            default: ''
+        },
+        active_tier: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Active Tier'
+        },
+        gguf_available: {
+            type: 'boolean',
+            title: 'Gguf Available',
+            default: false
+        },
+        local_available: {
+            type: 'boolean',
+            title: 'Local Available',
+            default: false
+        },
+        remote_available: {
+            type: 'boolean',
+            title: 'Remote Available',
+            default: false
+        },
+        tiers: {
+            type: 'string',
+            title: 'Tiers',
+            default: 'gguf,local,remote'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    title: 'EmbeddingTierStatusResponse'
+} as const;
+
+export const EmbeddingTierTestResponseSchema = {
+    properties: {
+        success: {
+            type: 'boolean',
+            title: 'Success',
+            default: false
+        },
+        message: {
+            type: 'string',
+            title: 'Message',
+            default: ''
+        },
+        dimensions: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Dimensions'
+        },
+        error: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Error'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    title: 'EmbeddingTierTestResponse'
 } as const;
 
 export const EpisodeResponseSchema = {
@@ -3262,6 +3505,173 @@ export const LLMTestResponseSchema = {
     additionalProperties: true,
     type: 'object',
     title: 'LLMTestResponse'
+} as const;
+
+export const LightningApplyResponseSchema = {
+    properties: {
+        success: {
+            type: 'boolean',
+            title: 'Success',
+            default: true
+        },
+        message: {
+            type: 'string',
+            title: 'Message',
+            default: ''
+        },
+        status: {
+            type: 'string',
+            title: 'Status',
+            default: 'applied'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    title: 'LightningApplyResponse'
+} as const;
+
+export const LightningConfigRequestSchema = {
+    properties: {
+        mode: {
+            type: 'string',
+            title: 'Mode',
+            description: 'Lightning mode: none, llama.cpp, lm-studio, ollama',
+            default: 'none'
+        },
+        llm_model: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Llm Model',
+            description: 'LLM model name or GGUF path'
+        },
+        base_url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Base Url',
+            description: 'Base URL for lm-studio/ollama'
+        },
+        api_key: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Api Key',
+            description: 'API key for local endpoint'
+        },
+        context_window: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Context Window',
+            description: 'Max context tokens'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    title: 'LightningConfigRequest'
+} as const;
+
+export const LightningStatusResponseSchema = {
+    properties: {
+        success: {
+            type: 'boolean',
+            title: 'Success',
+            default: true
+        },
+        message: {
+            type: 'string',
+            title: 'Message',
+            default: ''
+        },
+        mode: {
+            type: 'string',
+            title: 'Mode',
+            default: 'none'
+        },
+        llm_available: {
+            type: 'boolean',
+            title: 'Llm Available',
+            default: false
+        },
+        llama_cpp_available: {
+            type: 'boolean',
+            title: 'Llama Cpp Available',
+            default: false
+        },
+        llm_model: {
+            type: 'string',
+            title: 'Llm Model',
+            default: ''
+        },
+        base_url: {
+            type: 'string',
+            title: 'Base Url',
+            default: ''
+        },
+        context_window: {
+            type: 'integer',
+            title: 'Context Window',
+            default: 8192
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    title: 'LightningStatusResponse'
+} as const;
+
+export const LightningTestResponseSchema = {
+    properties: {
+        success: {
+            type: 'boolean',
+            title: 'Success',
+            default: true
+        },
+        message: {
+            type: 'string',
+            title: 'Message',
+            default: ''
+        },
+        llm_ok: {
+            type: 'boolean',
+            title: 'Llm Ok',
+            default: false
+        },
+        llm_reply: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Llm Reply'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    title: 'LightningTestResponse'
 } as const;
 
 export const LoginResultSchema = {
@@ -4477,6 +4887,32 @@ export const MobileLoginRequestSchema = {
     title: 'MobileLoginRequest'
 } as const;
 
+export const ModelDiscoveryResponseSchema = {
+    properties: {
+        success: {
+            type: 'boolean',
+            title: 'Success',
+            default: true
+        },
+        message: {
+            type: 'string',
+            title: 'Message',
+            default: ''
+        },
+        models: {
+            items: {
+                '$ref': '#/components/schemas/DiscoveredModelResponse'
+            },
+            type: 'array',
+            title: 'Models',
+            default: []
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    title: 'ModelDiscoveryResponse'
+} as const;
+
 export const ModelsListResponseSchema = {
     properties: {
         success: {
@@ -4934,6 +5370,28 @@ export const ProfileContentResponseSchema = {
             type: 'boolean',
             title: 'Exists',
             default: false
+        },
+        url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Url'
+        },
+        name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Name'
         }
     },
     additionalProperties: true,
@@ -5544,34 +6002,6 @@ export const RewindResponseSchema = {
     title: 'RewindResponse'
 } as const;
 
-export const STTProvidersResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        providers: {
-            items: {
-                additionalProperties: true,
-                type: 'object'
-            },
-            type: 'array',
-            title: 'Providers'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['providers'],
-    title: 'STTProvidersResponse',
-    description: 'STT 提供商列表响应'
-} as const;
-
 export const SendCommandRequestSchema = {
     properties: {
         command_type: {
@@ -6139,6 +6569,23 @@ export const SubtaskCreateSchema = {
     description: 'Subtask creation request.'
 } as const;
 
+export const SwitchProjectRequestSchema = {
+    properties: {
+        project_id: {
+            type: 'integer',
+            title: 'Project Id'
+        },
+        project_name: {
+            type: 'string',
+            title: 'Project Name',
+            default: ''
+        }
+    },
+    type: 'object',
+    required: ['project_id'],
+    title: 'SwitchProjectRequest'
+} as const;
+
 export const SymbolResponseSchema = {
     properties: {
         success: {
@@ -6468,6 +6915,28 @@ export const SystemStatusResponseSchema = {
     type: 'object',
     required: ['cpu_percent', 'ram_percent', 'ram_used_gb', 'ram_total_gb'],
     title: 'SystemStatusResponse'
+} as const;
+
+export const TTSRequestSchema = {
+    properties: {
+        text: {
+            type: 'string',
+            title: 'Text'
+        },
+        engine: {
+            type: 'string',
+            title: 'Engine',
+            default: 'cosyvoice'
+        },
+        voice: {
+            type: 'string',
+            title: 'Voice',
+            default: '中文女'
+        }
+    },
+    type: 'object',
+    required: ['text'],
+    title: 'TTSRequest'
 } as const;
 
 export const TaskAcceptedResponseSchema = {
@@ -7524,54 +7993,33 @@ export const ToolInfoSchema = {
     title: 'ToolInfo'
 } as const;
 
-export const TranscriptionResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        text: {
-            type: 'string',
-            title: 'Text'
-        },
-        duration: {
-            type: 'number',
-            title: 'Duration'
-        },
-        language: {
-            type: 'string',
-            title: 'Language'
-        },
-        confidence: {
-            anyOf: [
-                {
-                    type: 'number'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Confidence'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['text', 'duration', 'language'],
-    title: 'TranscriptionResponse',
-    description: '语音识别响应'
-} as const;
-
 export const UpdateProfileRequestSchema = {
     properties: {
         content: {
             type: 'string',
             title: 'Content'
+        },
+        name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Name'
+        },
+        url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Url'
         }
     },
     additionalProperties: true,

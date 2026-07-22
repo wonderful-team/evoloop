@@ -105,6 +105,17 @@
     "todos": "待办",
     "toggle": "切换侧边栏"
   },
+  "projects": {
+    "tabs": {
+      "overview": "概览",
+      "files": "文件",
+      "tasks": "任务",
+      "wiki": "Wiki",
+      "generation": "生成",
+      "vault": "密钥",
+      "macros": "宏"
+    }
+  },
   "toast": {
     "error": "出错了!",
     "success": "成功!"

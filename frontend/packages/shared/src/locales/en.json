@@ -105,6 +105,17 @@
     "todos": "Todos",
     "toggle": "Toggle Sidebar"
   },
+  "projects": {
+    "tabs": {
+      "overview": "Overview",
+      "files": "Files",
+      "tasks": "Tasks",
+      "wiki": "Wiki",
+      "generation": "Generation",
+      "vault": "Vault",
+      "macros": "Macros"
+    }
+  },
   "toast": {
     "error": "Something went wrong!",
     "success": "Success!"
