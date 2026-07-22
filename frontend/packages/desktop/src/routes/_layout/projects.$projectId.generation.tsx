@@ -1,13 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { GenerationPanel } from "@/components/Generation/GenerationPanel"
-
-export const Route = createFileRoute("/_layout/projects/$projectId/generation")(
-  {
-    component: GenerationPage,
+export const Route = createFileRoute("/_layout/projects/$projectId/generation")({
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: "/projects/$projectId",
+      params: { projectId: params.projectId },
+    })
   },
-)
-
-function GenerationPage() {
-  return <GenerationPanel />
-}
+})

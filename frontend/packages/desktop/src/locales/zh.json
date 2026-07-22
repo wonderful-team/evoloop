@@ -679,7 +679,7 @@
     "testing": "测试中..."
   },
   "generation": {
-    "title": "项目画像",
+    "title": "生成产物",
     "description": "生成项目百科、宏和项目描述等产物。根据项目规模，将消耗 AI Token。",
     "generate": "开始生成",
     "dispatched": "生成任务已分发",
@@ -703,6 +703,27 @@
       "running": "生成中",
       "failed": "失败",
       "pending": "未生成"
+    },
+    "dialog": {
+      "title": "项目分析初始化",
+      "description": "选择需要生成的分析产物，提交后将后台执行，可关闭弹窗稍后回来看状态。",
+      "items": {
+        "overview": "项目画像",
+        "overviewDesc": "项目简介、技术栈、功能描述",
+        "wiki": "Wiki 文档",
+        "wikiDesc": "项目架构文档、模块说明",
+        "appmap": "SOP 自动化宏",
+        "appmapDesc": "界面操作流程、自动化脚本"
+      },
+      "recordSecrets": "记录密钥",
+      "recordSecretsWarning": "注意",
+      "recordSecretsDesc": "勾选后，项目代码中的 API Token、数据库密码等敏感信息将被识别并写入生成的项目画像文档中。如果不勾选，这些信息会被自动过滤替换，不会出现在生成的文档里。",
+      "selectAtLeastOne": "请至少勾选一项",
+      "submitted": "已提交 {{count}} 项生成任务",
+      "submitFailed": "提交生成任务失败",
+      "generate": "开始生成 ({{count}} 项)",
+      "cancel": "取消",
+      "close": "关闭"
     }
   },
   "context": {
@@ -1364,6 +1385,10 @@
       "discoveryCompleted": "发现完成",
       "discoveryFailed": "发现失败",
       "editPlaceholder": "输入 Markdown 格式的项目简介...",
+      "infoTitle": "项目信息",
+      "projectName": "名称",
+      "projectPath": "路径",
+      "deployUrl": "URL",
       "notFound": "未找到配置",
       "notFoundDescription": "此项目还没有 PROJECT.md。点击「发现」按钮生成一个。",
       "phase": {
@@ -1432,7 +1457,7 @@
       "timesheet": "工时",
       "vault": "密码箱",
       "wiki": "百科",
-      "generation": "项目画像",
+      "generation": "生成产物",
       "macros": "宏"
     },
     "tasks": {

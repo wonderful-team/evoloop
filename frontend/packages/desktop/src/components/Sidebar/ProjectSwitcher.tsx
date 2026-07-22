@@ -136,6 +136,15 @@ export function ProjectSwitcher({
     // (global project is also allowed)
     setProject(project)
     setOpen(false)
+
+    // Sync project selection to backend via ProjectSwitchedEvent
+    if (project && project.id) {
+      import("@/client").then(({ ProjectsService }) => {
+        ProjectsService.switchProject({
+          requestBody: { project_id: project.id!, project_name: project.name || "" },
+        }).catch(() => {})
+      }).catch(() => {})
+    }
   }
 
   return (

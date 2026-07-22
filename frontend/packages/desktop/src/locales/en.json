@@ -703,6 +703,27 @@
       "running": "In Progress",
       "failed": "Failed",
       "pending": "Not Generated"
+    },
+    "dialog": {
+      "title": "Project Analysis",
+      "description": "Select the artifacts to generate. Tasks will run in the background after submission. You can close this dialog and check back later.",
+      "items": {
+        "overview": "Project Profile",
+        "overviewDesc": "Description, tech stack, core features",
+        "wiki": "Wiki Documentation",
+        "wikiDesc": "Architecture docs, module guides",
+        "appmap": "SOP Automation Macros",
+        "appmapDesc": "UI workflows, automation scripts"
+      },
+      "recordSecrets": "Record Secrets",
+      "recordSecretsWarning": "Caution",
+      "recordSecretsDesc": "When checked, sensitive information such as API tokens and database passwords found in the code will be included in the generated project profile. When unchecked, such information will be automatically redacted and will not appear in any generated documents.",
+      "selectAtLeastOne": "Please select at least one item",
+      "submitted": "Submitted {{count}} generation task(s)",
+      "submitFailed": "Failed to submit generation tasks",
+      "generate": "Generate ({{count}} item(s))",
+      "cancel": "Cancel",
+      "close": "Close"
     }
   },
   "context": {
@@ -1364,6 +1385,10 @@
       "discoveryCompleted": "Discovery completed",
       "discoveryFailed": "Discovery failed",
       "editPlaceholder": "Enter project profile in Markdown...",
+      "infoTitle": "Project Info",
+      "projectName": "Name",
+      "projectPath": "Path",
+      "deployUrl": "URL",
       "notFound": "No profile found",
       "notFoundDescription": "This project doesn't have a PROJECT.md yet. Click Discover to generate one.",
       "phase": {

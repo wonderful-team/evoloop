@@ -4,7 +4,7 @@ import { useState } from "react"
 import { MacroLibraryView } from "@/components/Learning/MacroLibraryView"
 import { TaskList } from "@/components/Projects/Modules/Tasks/TaskList"
 
-export const Route = createFileRoute("/_layout/projects/$projectId/workflows")({
+export const Route = createFileRoute("/_layout/projects/$projectId/v2/workflows")({
   component: WorkflowsPage,
 })
 

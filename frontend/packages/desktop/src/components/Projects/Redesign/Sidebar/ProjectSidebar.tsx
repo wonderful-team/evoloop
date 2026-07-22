@@ -1,15 +1,11 @@
 import { Link, useNavigate, useParams } from "@tanstack/react-router"
 import {
-  BrainCircuit,
-  Briefcase,
+  BookOpen,
   ChevronDown,
   ChevronLeft,
-  Code2,
-  FileBox,
+  FileText,
   FolderTree,
-  GraduationCap,
   KeyRound,
-  Palette,
   PanelLeft,
   PanelLeftClose,
   Zap,
@@ -31,9 +27,6 @@ import {
   TooltipTrigger,
 } from "@evoloop/shared/components/ui/tooltip"
 
-import { domainAdapters, getDomainAdapter } from "@/adapters/domainAdapterRegistry"
-import type { ProjectDomainMode } from "@/types/domain"
-
 interface ProjectSidebarProps {
   currentProject: any
   projects: any[]
@@ -50,11 +43,7 @@ export function ProjectSidebar({
   const { t } = useTranslation()
 
   const [collapsed, setCollapsed] = useState(false)
-  const [selectedDomain, setSelectedDomain] = useState<ProjectDomainMode>("software")
 
-  const adapter = getDomainAdapter(selectedDomain)
-
-  // Keyboard shortcut Cmd+B / Ctrl+B toggle
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
@@ -68,40 +57,36 @@ export function ProjectSidebar({
 
   const topLevelEntrances = [
     {
-      id: "assets",
-      label: adapter.labels.assetsTab,
+      id: "overview",
+      label: "项目概览",
+      icon: FileText,
+      path: `/projects/${projectId}/overview`,
+    },
+    {
+      id: "wiki",
+      label: "Wiki 文档",
+      icon: BookOpen,
+      path: `/projects/${projectId}/wiki`,
+    },
+    {
+      id: "files",
+      label: "文件浏览",
       icon: FolderTree,
-      path: `/projects/${projectId}/assets`,
+      path: `/projects/${projectId}/files`,
     },
     {
-      id: "knowledge",
-      label: adapter.labels.knowledgeTab,
-      icon: BrainCircuit,
-      path: `/projects/${projectId}/knowledge`,
-    },
-    {
-      id: "workflows",
-      label: adapter.labels.workflowsTab,
+      id: "macros",
+      label: "宏管理",
       icon: Zap,
-      path: `/projects/${projectId}/workflows`,
+      path: `/projects/${projectId}/macros`,
     },
     {
       id: "vault",
-      label: adapter.labels.vaultTab,
+      label: "密钥保险箱",
       icon: KeyRound,
       path: `/projects/${projectId}/vault`,
     },
   ]
-
-  const domainIcons: Record<ProjectDomainMode, any> = {
-    software: Code2,
-    research: GraduationCap,
-    design: Palette,
-    business: Briefcase,
-    general: FileBox,
-  }
-
-  const DomainIcon = domainIcons[selectedDomain] || Code2
 
   return (
     <aside
@@ -109,7 +94,7 @@ export function ProjectSidebar({
         collapsed ? "w-14" : "w-64"
       } border-r border-border bg-card flex flex-col shrink-0 transition-all duration-200 select-none`}
     >
-      {/* Settings-style Header Zone: Project Switcher */}
+      {/* Header: Project Switcher */}
       <div
         data-tauri-drag-region
         style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
@@ -128,7 +113,6 @@ export function ProjectSidebar({
               <ChevronLeft className="h-4 w-4" />
             </Link>
 
-            {/* Quick Project Switcher Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger className="flex items-center gap-1.5 font-bold text-sm truncate hover:text-primary transition-colors text-left flex-1 min-w-0 outline-none">
                 <span className="truncate">
@@ -144,7 +128,7 @@ export function ProjectSidebar({
                 {projects.map((p) => (
                   <DropdownMenuItem
                     key={p.id}
-                    onClick={() => navigate({ to: `/projects/${p.id}/assets` })}
+                    onClick={() => navigate({ to: `/projects/${p.id}/overview` })}
                     className="flex items-center justify-between text-xs"
                   >
                     <span className="truncate">{p.name}</span>
@@ -155,36 +139,6 @@ export function ProjectSidebar({
                     )}
                   </DropdownMenuItem>
                 ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Domain Mode Selector Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground shrink-0 outline-none"
-                title={`当前模式: ${adapter.meta.name}`}
-              >
-                <DomainIcon className="h-4 w-4 text-primary" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuLabel className="text-xs text-muted-foreground">
-                  领域工作区模式
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {(Object.keys(domainAdapters) as ProjectDomainMode[]).map((modeKey) => {
-                  const item = domainAdapters[modeKey]
-                  const IconComp = domainIcons[modeKey]
-                  return (
-                    <DropdownMenuItem
-                      key={modeKey}
-                      onClick={() => setSelectedDomain(modeKey)}
-                      className="flex items-center gap-2 text-xs"
-                    >
-                      <IconComp className="h-3.5 w-3.5 text-primary" />
-                      <span>{item.meta.name}</span>
-                    </DropdownMenuItem>
-                  )
-                })}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -199,7 +153,7 @@ export function ProjectSidebar({
         )}
       </div>
 
-      {/* Settings-style Nav Zone: Clean vertical buttons */}
+      {/* Navigation */}
       <TooltipProvider delayDuration={200}>
         <nav className="flex-1 p-3 flex flex-col gap-1 overflow-y-auto">
           {topLevelEntrances.map((entrance) => {
@@ -237,7 +191,7 @@ export function ProjectSidebar({
         </nav>
       </TooltipProvider>
 
-      {/* Footer Zone: Collapse Control & SSE Status Dot */}
+      {/* Footer */}
       <div className="p-3 border-t border-border flex items-center justify-between">
         {!collapsed ? (
           <div className="flex items-center justify-between w-full text-xs text-muted-foreground">
@@ -248,7 +202,6 @@ export function ProjectSidebar({
               <PanelLeftClose className="h-4 w-4" />
               <span>折叠 (Cmd+B)</span>
             </button>
-            {/* Status Indicator Dot */}
             <div className="flex items-center gap-1.5 px-2" title={`管道状态: ${indexingStatus}`}>
               <span
                 className={`h-2 w-2 rounded-full ${
