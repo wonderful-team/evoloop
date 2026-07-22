@@ -486,33 +486,10 @@ async def _run_appmap(project_id: int, timeout: int = 3600):
     groups = await get_entity_groups(project_id)
     logger.info(f"[Test] {len(groups)} entity group(s) identified (for reference)")
 
-    import subprocess, shutil
-    for old in ["collect_appmaps.py", "appmap_collected.json", "/tmp/appmap_extracted.json"]:
-        subprocess.run(["rm", "-f", os.path.join(TEST_PROJECT_PATH, old) if not old.startswith("/tmp") else old],
-                       capture_output=True)
-
-    # Pre-copy the reference collector script so the agent can use it immediately
-    ref_src = os.path.join(os.path.dirname(__file__), "../../app/core/atlas/source/skeleton/collector.py")
-    ref_src = os.path.abspath(ref_src)
-    ref_dst = os.path.join(TEST_PROJECT_PATH, "collect_appmaps.py")
-    if os.path.isfile(ref_src):
-        shutil.copy(ref_src, ref_dst)
-        logger.info(f"[Test] Pre-copied collector.py to project root")
-
-    # Pre-run the collector + batch writer so we always have AppMap data
-    from app.core.atlas.source.skeleton.collector import collect
-    from app.core.atlas.source.skeleton.batch_writer import batch_write
-
-    logger.info("[Test] Running collector...")
-    entities = await collect(project_root=TEST_PROJECT_PATH)
-    if entities:
-        logger.info("[Test] Collector found %d entities", len(entities))
-        logger.info("[Test] Running batch writer...")
-        r = await batch_write(project_id=project_id, entities=entities, member_id=0)
-        logger.info("[Test] Batch write: %d written, %d skipped, %d failed, %d macros",
-                    r["written"], r["skipped"], r["failed"], r["macros_generated"])
-
-    path = TEST_PROJECT_PATH
+    # Delegate AppMap generation to the production runner (deterministic path
+    # builds entities from indexed source files, writes AppMaps + macros).
+    from app.domain.codebase.generation.runner import run_generation_item
+    await run_generation_item(project_id, "appmap")
 
     path = TEST_PROJECT_PATH
     thread_id = f"appmap-gen-{project_id}-{int(time.time())}"
@@ -560,6 +537,7 @@ async def _run_appmap(project_id: int, timeout: int = 3600):
     result.inputs["ticket"] = ticket.model_dump(mode="json")
     result.inputs.setdefault("metadata", {})["skip_persistence"] = True
     result.inputs["metadata"]["task_type"] = "app_map_generation"
+    result.inputs["metadata"]["initial_node"] = "worker"
 
     from app.core.engine.background_agent import run_agent_background
 

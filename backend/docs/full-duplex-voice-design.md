@@ -36,7 +36,7 @@
 
 2. **全双工语音交流**——TTS 播放时麦克风同时录制（AEC 消除回音），用户随时可以插话。Rust VAD 检测到用户说话 → 停 TTS → 发 barge-in → Python 取消当前 Agent → 进入下一轮。用户不需要等机器说完。
 
-3. **能即时响应的交流**——用户说话后 500ms-2s 内要让用户知道 Agent 收到了。L0 匹配的指令（音量、截图等）< 50ms 播确认语。L0 未命中的交给 Agent：Supervisor 决定直接回答还是派 Worker。派 Worker 时 Supervisor 自己回复"好的，我来处理"并立即 TTS 播出去——用户听到的不是预设，是 Agent 在对用户说话。
+3. **能即时响应的交流**——用户说话后 500ms-2s 内要让用户知道 Agent 收到了。L0 匹配的指令（音量、截图等）< 50ms 播确认语。L0 未命中的交给 Agent：Supervisor 判断能否直接回答，若能则回复结果并立即 TTS 播报；若需要长时间执行则告知用户并派 Worker——确认语由 LLM 根据上下文生成（如"这个问题我需要查一下资料"），不是预设模板。用户听到的是 Agent 在对用户说话。
 
 4. **能判断什么时候该向用户说明或汇报**——Agent 自主决定要不要汇报、什么时候汇报、汇报多少。不需要汇报的不打扰。需要长时间执行时先告知再动手。完成后 1 句话通知结果。复杂结果引导去电脑上查看。这由 Supervisor 提示词的语音行为规则约束，但判断由 LLM 根据上下文自主决定。
 
@@ -220,7 +220,7 @@ voice.route → L0 检查
       │
       └── route_to(worker) → Worker（云端 LLM）
           → Finish（云端 LLM）→ SessionCompletedEvent
-          → VoiceChannel → TTS（tts_summary 或 summary）
+          → VoiceChannel → TTS（tts_summary）
 ```
 
 闪电模式下 Supervisor 用本地模型快速响应，复杂任务路由到 Worker 时仍由云端模型保证质量。详见 `docs/two-tier-llm-strategy.md`。
@@ -684,11 +684,13 @@ processing ──dictation.polished──► idle
 4. Agent 收到：「用户说：分析项目 A 的代码结构」
    Agent 看历史（可能是空或已有上下文）
    Agent 开始 Supervisor → Worker → ... → 执行工具 → 生成回复
-5. Agent 回复文本 → TTS 播报
+5. Agent 回复文本 → TTS 播报（若是直接回答则播报回答内容；若是派 Worker 则播放 Supervisor 说的确认语）
 6. Agent 长任务（如分析代码需要几分钟）：
-   → Agent 回复「好的，让我来分析一下项目 A 的结构」
-   → TTS 播报「好的，我来处理」
-   → Agent 后台继续跑
+   → Supervisor 根据语音行为规则告诉用户需要时间（如"这个问题需要查一下，请稍等"）
+   → TTS 播报确认语
+   → Agent 后台继续跑（Worker 执行 + Finish 审计）
+   → Worker 执行过程中产生的 AI/TOOL/SYSTEM 消息落库、推 SSE 显示在聊天界面，但不会被 TTS 朗诵
+   → 完成后 SessionCompletedEvent 推语音消息 → TTS 播报短摘要（tts_summary）
    → 完成后推消息到对话历史
    → 语音收到通知 → TTS「分析结果已出，请在电脑上查看」
 7. 用户继续说「再看看项目 B」
@@ -702,13 +704,14 @@ processing ──dictation.polished──► idle
 
 ### 10.5 Agent 长任务通知
 
-语音只做简短通知，不播报 Agent 的长篇回复：
+语音只做简短通知，不播报 Agent 的长篇回复。播报内容由 LLM 根据语音行为规则生成，不是预设模板：
 
 | 阶段 | 语音行为 |
 |------|---------|
-| Agent 拉起时 | TTS「好的，我来处理」 |
-| Agent 执行中 | 不打扰用户 |
-| Agent 完成后 | TTS「X 的结果已出，请在电脑上查看」 |
+| Supervisor 直接回答 | TTS 播报回答内容 |
+| Supervisor 认为需要派 Worker | TTS 播报确认语（如"这个问题需要查一下，请稍等"） |
+| Agent 执行中（Worker） | 不打扰用户。Worker 产出的 AI/TOOL/SYSTEM 消息落库并推送到聊天界面，但不 TTS 朗诵 |
+| Agent 完成后（Finish） | TTS 播报短摘要（tts_summary，如"分析结果已出，请在电脑上查看"） |
 | 用户问「结果呢」 | Agent 看历史回答 |
 
 ### 10.6 实现变更
@@ -721,9 +724,9 @@ processing ──dictation.polished──► idle
 | **后端** | 删 `VoiceResultSubscriber`，改由 `VoiceChannel` 通过 channel 架构接收事件 |
 | **后端** | `voice_ws.py` 不再硬编码 routed 推送，由 Supervisor AI 消息自然下发 |
 | **Backend** | `finish.prompt.j2` 去掉 `is_voice`，始终生成完整报告 |
-| **Rust** | 收到 `voice.route_result {routed, content}` 时 TTS 播报 Agent 内容 |
-| **Rust** | 收到 `voice.route_result {done, summary}` 时 TTS 播报最终摘要 |
-| **Rust** | 收到 `voice.route_result {failed, summary}` 时 TTS 播报错误提示 |
+| **Rust** | Supervisor 直接回答：`voice.route_result {done}` 时 TTS 播报 summary（即 tts_summary） |
+| **Rust** | Supervisor route_to Worker：`voice.route_result {routed}` 时 TTS 播报确认语 |
+| **Rust** | Finish 完成后：`voice.route_result {done}` 时 TTS 播报 tts_summary |
 | **Rust** | L0 命中时按 action 播确认语音（已静音/已截图等） |
 | **Rust** | TTS 三引擎（System/Edge-TTS/Qwen-TTS），前端设置可切换 |
 
@@ -808,52 +811,47 @@ Rust 原生层                         Python 后端
                                                               │ LLM: EvoLoop Gateway
                                                               │ deepseek-chat
                                                               │
-                                                       Supervisor（第 1 次 LLM 调用）
-                                                          │
-                                                          ├── 直接回答
-                                                          │   → SessionCompletedEvent
-                                                          │   → VoiceChannel → {done, summary}
-                                                          │
-                                                          └── route_to(worker)
-                                                              → AI 消息 "好的，我来处理"
-                                                              → MessagePublisher
-                                                                ├── WebChannel → SSE（聊天 UI）
-                                                                └── VoiceChannel
-                                                                      → 累积 token
-                                                                      → 检测句子边界（。！？）
-                                                                      → strip markdown
-                                                                      → push_voice_tts_boundary
-                                                                      → WS voice.tts_boundary
-
-                                                                        voice.tts_boundary ◄──── WS
-                                                                        voice.token ◄──── WS
-                                                                           │
-                                                                           ▼
-                                                                TtsEngine.queue_sentence()
-                                                                TtsEngine.speak_next()
-                                                                   │
-                                                                   ├── Edge-TTS（msedge-tts crate）
-                                                                   ├── Qwen-TTS（DashScope HTTP）
-                                                                   ├── System（macOS say）
-                                                                   ├── Kokoro（Python PyTorch）
-                                                                   └── CosyVoice（Python PyTorch）
-                                                                           │
-                                                                           ▼
-                                                                     扬声器播报
-
-                                                              Worker 执行
-                                                              Finish 审计（第 2 次 LLM 调用）
-                                                              SessionCompletedEvent
-                                                              → VoiceChannel → {done, summary}
-                                                              → {summary: 详细文字, tts_summary: 短摘要}
-                                                              → VoiceChannel 用 tts_summary 做 TTS
-
-                               voice.route_result ◄──── WS
-                               {done|failed, summary, tts_summary}
-                                   │
-                                   ▼
-                              TTS 播报 tts_summary（短摘要）
-                              前端显示 summary（详细文字）
+                                                        Supervisor（第 1 次 LLM 调用）
+                                                           │
+                                                           ├── 直接回答
+                                                           │   → SessionCompletedEvent
+                                                           │   → VoiceChannel → push_voice_result(done, tts_summary)
+                                                           │   → WS voice.route_result {done, summary: tts_summary}
+                                                           │   → Rust 收到 → TTS 播报 tts_summary
+                                                           │
+                                                           └── route_to(worker)
+                                                               → AI 消息（由 LLM 生成确认语，非预设模板，
+                                                                  如"这个问题需要查一下资料，请稍等"）
+                                                               → MessagePublisher
+                                                                 ├── 落库 + 同步移动端
+                                                                 ├── WebChannel → SSE（聊天 UI）
+                                                                 └── VoiceChannel
+                                                                       → push_voice_result(routed, summary)
+                                                                       → WS voice.route_result
+                                                                       → Rust 收到 → TTS 播报确认语
+                                                               │
+                                                               ▼
+                                                         Worker 执行（云端 LLM）
+                                                           │
+                                                           ├── AI/TOOL/SYSTEM 消息
+                                                           │   → 落库（对话历史）
+                                                           │   → SSE 推送到聊天界面
+                                                           │   → 同步移动端
+                                                           │   → 不 TTS 朗诵（Worker 干活不打扰用户）
+                                                           │
+                                                           └── LLM 流式 token → TokenEvent → SSE 仅
+                                                               （不进 VoiceChannel，不触发 TTS）
+                                                               │
+                                                               ▼
+                                                         Finish 审计（第 2 次 LLM 调用）
+                                                           │
+                                                           ├── AI 消息 → 落库 + 同步移动端 + SSE
+                                                           └── SessionCompletedEvent → system_bus
+                                                               → VoiceChannel
+                                                                 → push_voice_tts_boundary(tts_summary)
+                                                                 → push_voice_result(done, tts_summary)
+                                                                 → WS voice.route_result {done}
+                                                                 → Rust 收到 → TTS 播报 tts_summary
 
 用户可在任何时刻说话：
   VAD 检测 → 停 TTS → voice.barge_in ──────► cancel_voice_task → 新一轮
@@ -2032,7 +2030,227 @@ data: {"model_id": "qwen3_asr", "progress": 1.0, "status": "completed"}
 7. ✅ 新请求可检查 WorkerRegistry → Supervisor 判断 query/new，不误杀旧任务。
 8. ⏳ 集成测试验证（待执行）。
 
-## 19. 风险与依赖 — ✅ 已完成
+## 20. 三端共享状态（SSOT）设计
+
+### 20.1 背景
+
+voice.route / voice.dictation.finalize 等信令需要带上 `project_id` 等全局上下文，但当前 Rust 端没有可靠途径获取这些值——`send_route()` 只发了 `thread_id`、`text`、`message_id`，`project_id` 缺省导致 Python 始终使用默认值 0。
+
+同时 TTS 配置（TTS_ENGINE / TTS_VOICE / TTS_SPEED / QWEN_TTS_API_KEY）在 React localStorage、Rust 内存、Python DB 三处分别存储，没有单一权威源，存在写冲突风险。
+
+### 20.2 架构：Python 为 SSOT，WS 推 Rust，SSE 推 React
+
+```
+Python SharedState (进程内 dict) ← authoritative
+  │
+  ├── WS system:state_snapshot ───→ Rust 本地缓存 (Arc<RwLock<HashMap>>)
+  │   (system.init 握手时全量)        │
+  │   (system.state_changed 增量)     ├── send_route() 读 project_id
+  │                                  ├── send_dictation_finalize() 读 project_id
+  │                                  └── TTS 引擎读 engine/voice/speed/key
+  │
+  ├── SSE system:state_snapshot ──→ React zustand store
+  │   (UniversalBridgeSubscriber)     (useSharedStore)
+  │
+  └── POST /api/v1/shared/state ← React 写入
+      (桌面端/移动端切 project 等)
+```
+
+**关键原则**：所有写入都经 Python（桌面端切 project 也 POST 到 Python，不直写 Rust），Python 再通过 WS 推 Rust、SSE 推 React，保证最终一致性。
+
+### 20.3 SharedState 初始结构
+
+```python
+# backend/app/core/shared_state.py
+class SharedState:
+    _store: dict[str, str] = {
+        "project_id": "0",
+        "thread_id": "",
+        "TTS_ENGINE": "edge-tts",
+        "TTS_VOICE": "zh-CN-XiaoxiaoNeural",
+        "TTS_SPEED": "1.0",
+        "QWEN_TTS_API_KEY": "",
+    }
+```
+
+### 20.4 三端行为
+
+| 端 | 初始化 | 读取 | 写入 |
+|---|--------|------|------|
+| **Python (SSOT)** | `_store` 默认值 | 任意模块 `SharedState.get("key")` | `SharedState.set("key", "val")` → publish event |
+| **Rust (缓存)** | WS `system.init` 握手时写入 `shared_state: Arc<RwLock<HashMap>>` | `send_route()` 前 `self.shared_state.read()["project_id"]` | 仅被动接收 Python 推送，不主动写 |
+| **React (缓存)** | `system:state_snapshot` event → `useSharedStore` zustand | UI 显示、调用 API 时读取 | `POST /api/v1/shared/state` + 乐观更新本地 store |
+
+### 20.5 WS 信令扩展
+
+现有 `system.init` 握手扩展 `state` 字段：
+
+```json
+// Python → Rust (system.init 握手)
+{
+  "type": "system.init",
+  "body": {
+    "client_id": "...",
+    "device_key": "",
+    "configs": { "TTS_ENGINE": "...", ... },
+    "state": {                          // ← 新增
+      "project_id": "123",
+      "thread_id": "voice-abc"
+    }
+  }
+}
+```
+
+新增 `system.state_changed` 增量推送：
+
+```json
+// Python → Rust (增量更新)
+{
+  "type": "system.state_changed",
+  "body": {
+    "key": "project_id",
+    "value": "456"
+  }
+}
+```
+
+### 20.6 Rust 端实现要点
+
+- `voice_session.rs` 的 `system.init` 处理器：除了转发 `configs`，也写入 `shared_state` 本地缓存
+- 新增 `system.state_changed` 处理器：更新缓存中的对应 key
+- `ws_client.rs` 的 `send_route()` 和 `send_dictation_finalize()`：从缓存读 `project_id` 塞进 body
+
+### 20.7 变更清单
+
+| 文件 | 改动 |
+|------|------|
+| `backend/app/core/shared_state.py` | **新建**：SharedState 类（进程内 dict + asyncio.Lock + publish_event） |
+| `backend/app/core/events/publishers.py` | 新增 `publish_state_changed(key, value)` |
+| `backend/app/core/events/schemas/lifecycle.py` | 新增 `StateChangedEvent` |
+| `backend/app/api/routes/voice_ws.py` | `system.init` 增加 `state` 字段；新增 `system.state_changed` 广播 handler；新增 `POST /api/v1/shared/state` |
+| `backend/app/core/events/subscribers/bridge.py` | `UniversalBridgeSubscriber` 增加 `StateChangedEvent` → SSE 推送 |
+| `frontend/src-tauri/src/voice/voice_session.rs` | `system.init` 处理器写入 `shared_state` 缓存；新增 `system.state_changed` 处理器 |
+| `frontend/src-tauri/src/voice/ws_client.rs` | `send_route()` 读缓存塞 `project_id`；`send_dictation_finalize()` 同 |
+| `frontend/src-tauri/src/voice/mod.rs` 或 `lib.rs` | 新增 `VoiceSession.shared_state` 字段声明 |
+| `frontend/packages/desktop/src/hooks/useVoiceEvents.ts` | 新增 `system:state_snapshot` 监听 → 更新 zustand store |
+| `frontend/packages/desktop/src/stores/sharedStore.ts` | **新建**或扩展 `voiceStore`：`sharedState` 字段 |
+
+### 20.8 不涉及的模块
+
+- `voice_channel.py`：不变
+- `MessagePublisher`：不变
+- `WorkerRegistry` / `VoiceTaskRegistry`：不变
+- `voice.start` / `voice.stop` / `voice.barge_in` 信令：不变
+- `voice.route` 信令格式：不变（`send_route` 内部只多了 `project_id` 字段）
+
+## 20. 三端共享状态（SSOT）设计
+
+### 20.1 背景
+
+## 21. 输入通道（InputChannel）设计
+
+### 21.1 背景
+
+当前系统有对称的输出通道抽象（`Channel` + `ChannelRegistry`），但输入侧没有统一抽象。三个消息来源各自硬编码：
+
+| 输入来源 | 当前入口 |
+|---------|---------|
+| 语音 | `voice_ws.py` 直接调 `dispatch_agent_run()` |
+| 移动端 | `EngineCommandSubscriber` 直接调 `dispatch_agent_run()` |
+| 网页聊天 | `_chat.py` 直接调 `dispatch_agent_run()` |
+
+所有路径汇聚于 `dispatch_agent_run()`，但参数格式、source 标记、前处理逻辑分散在三处。
+
+### 21.2 架构
+
+```
+channel/
+├── base.py              ← output Channel + input InputChannel 抽象基类 + IncomingMessage
+├── input/
+│   ├── __init__.py
+│   ├── base.py          ← 重导出 IncomingMessage/InputChannel（防循环引用）
+│   ├── voice_input.py   ← VoiceInputChannel: voice.route 消息 → IncomingMessage
+│   ├── mobile_input.py  ← MobileInputChannel: mobile chat 消息 → IncomingMessage
+│   └── web_input.py     ← WebInputChannel: web chat 消息 → IncomingMessage
+├── output/
+│   ├── voice_channel.py ← VoiceChannel（从 channel/ 移入）
+│   ├── web_channel.py   ← WebChannel（从 channel/ 移入）
+│   └── mobile_channel.py← MobileChannel（从 channel/ 移入）
+└── registry.py
+```
+
+核心抽象（`base.py`）：
+
+```python
+@dataclass
+class IncomingMessage:
+    source: str           # "voice" | "mobile" | "web"
+    thread_id: str
+    text: str
+    project_id: int = 0
+    references: list | None = None
+    metadata: dict | None = None
+    member_id: int = 0
+    command_id: int | None = None
+    message_id: str | None = None
+    checkpoint_id: str | None = None
+    model: str | None = None
+    context: Any = None
+    is_retry: bool = False
+    skip_message_persistence: bool = False
+
+class InputChannel(ABC):
+    name: str
+
+    @abstractmethod
+    async def receive(self, raw: Any, **kwargs) -> IncomingMessage | None: ...
+
+    async def dispatch(self, msg: IncomingMessage) -> DispatchResult:
+        # 内部调 dispatch_agent_run()
+```
+
+### 21.3 各 InputChannel 实现
+
+| InputChannel | receive 输入 | 位置 |
+|-------------|------------|------|
+| `voice_input` | `voice.route` body dict + `metadata` kwargs | `channel/input/voice_input.py` |
+| `mobile_input` | `command.relay/chat` body dict + `member_id` kwargs | `channel/input/mobile_input.py` |
+| `web_input` | 请求体 dict + `context`/`member_id` kwargs | `channel/input/web_input.py` |
+
+### 21.4 调用点迁移
+
+| 调用点 | 旧代码 | 新代码 |
+|--------|-------|-------|
+| `voice_ws.py:165` | `dispatch_agent_run(thread_id, ...)` | `voice_input.receive(body) → voice_input.dispatch(msg)` |
+| `subscribers.py:412` | `dispatch_agent_run(thread_id, source="mobile", ...)` | `mobile_input.receive(command, ...) → mobile_input.dispatch(msg)` |
+| `_chat.py:119` | `dispatch_agent_run(thread_id, ...)` | `web_input.receive(req_dict, ...) → web_input.dispatch(msg)` |
+
+### 21.5 不变的部分
+
+- 各输入源的前处理逻辑（L0 匹配、reference 提取等）仍在各自的入口文件中
+- `dispatch_agent_run()` 本身不变
+- `ChannelRegistry` / `VoiceChannel` / `WebChannel` / `MobileChannel` 接口不变（仅物理位置移到 `output/` 下）
+- `voice_ws.py` 的连接管理、config sync、TTS endpoint 不变
+
+### 21.6 变更清单
+
+| 文件 | 改动 |
+|------|------|
+| `channel/base.py` | 新增 `IncomingMessage` + `InputChannel` 抽象类 |
+| `channel/__init__.py` | 新增导出 `IncomingMessage`、`InputChannel`、`voice_input`、`mobile_input`、`web_input` |
+| `channel/input/__init__.py` | **新建** |
+| `channel/input/base.py` | **新建**（重导出，防循环引用） |
+| `channel/input/voice_input.py` | **新建**：`VoiceInputChannel` |
+| `channel/input/mobile_input.py` | **新建**：`MobileInputChannel` |
+| `channel/input/web_input.py` | **新建**：`WebInputChannel` |
+| `channel/output/` | 三个文件从 `channel/` 移入，import 改为 `..base` |
+| `channel/registry.py` | import 指向 `output/` |
+| `voice_ws.py` | 改用 `voice_input.receive().dispatch()` |
+| `subscribers.py` | 改用 `mobile_input.receive().dispatch()` |
+| `_chat.py` × 2 | 改用 `web_input.receive().dispatch()` |
+| 两个测试文件 | import 指向 `output/` |
+
+## 22. 风险与依赖 — ✅ 已完成
 
 - **AEC 必须在 Tauri Rust 原生层完成**：Python 后端没有扬声器播放的参考信号，无法做回声消除。如果 Rust 层不做 AEC，麦克风会把扬声器播放的 TTS 录进去，导致 VAD 误判为用户说话。这是全双工的硬性前提。
 - **LLM 流式延迟**：本地闪电模型（Qwen3-4B via LM Studio）首 token 200-400ms；Gateway deepseek-chat 首 token ~2s。后续 token 50-100ms/token。

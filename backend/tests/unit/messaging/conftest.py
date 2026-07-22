@@ -15,6 +15,6 @@ def _fix_web_channel():
     """
     broker = AsyncMock()
     broker.publish = AsyncMock()
-    with patch("app.core.channel.web_channel.get_message_broker", return_value=broker):
+    with patch("app.core.channel.output.web_channel.get_message_broker", return_value=broker):
         yield
 

@@ -85,9 +85,9 @@ channel_registry = ChannelRegistry()
 
 def register_default_channels() -> None:
     """Register the built-in channels (SSE + Mobile + Voice). Called at app startup."""
-    from .mobile_channel import MobileChannel
-    from .voice_channel import VoiceChannel
-    from .web_channel import WebChannel
+    from .output.mobile_channel import MobileChannel
+    from .output.voice_channel import VoiceChannel
+    from .output.web_channel import WebChannel
 
     if not channel_registry.has("sse"):
         channel_registry.register(WebChannel())

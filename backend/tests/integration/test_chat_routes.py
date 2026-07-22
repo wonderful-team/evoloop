@@ -40,7 +40,7 @@ def mock_dispatch_result():
 def mock_dispatch():
     """Patch dispatch_agent_run."""
     with patch(
-        "app.api.routes.agent.dispatch_agent_run",
+        "app.core.engine.dispatch.dispatch_agent_run",
         new_callable=AsyncMock,
     ) as m:
         yield m

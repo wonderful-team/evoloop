@@ -237,7 +237,7 @@ class TestAgentRoutesIssues:
             error=None,
         )
         with patch("app.api.routes.agent.EventAdapter.adapt", return_value=[AIMessage(content="AI reply")]), \
-             patch("app.api.routes.agent.dispatch_agent_run", return_value=mock_dispatch_result):
+             patch("app.core.engine.dispatch.dispatch_agent_run", return_value=mock_dispatch_result):
             req = WebhookRequest(
                 source="test",
                 event_type="test_event",

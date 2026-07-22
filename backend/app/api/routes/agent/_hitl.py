@@ -56,7 +56,7 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
         from app.core.engine.message.converter import EvoMessageConverter
         serialized_inputs = inputs.copy() if inputs else {}
         if "messages" in serialized_inputs:
-            serialized_inputs["messages"] = EvoMessageConverter.from_langchain(serialized_inputs["messages"])
+            serialized_inputs["messages"] = EvoMessageConverter.repair(serialized_inputs["messages"])
 
         from app.infrastructure.queue.factory import get_scheduler
         get_scheduler().send_task(

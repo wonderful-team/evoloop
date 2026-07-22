@@ -17,8 +17,8 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import selectinload
 
 from app.constants import DEFAULT_PROJECT_ID
-from app.core.context import thread_context_store
 from app.core.engine.background_agent import run_agent_background
+from app.core.channel.input.mobile_input import mobile_input
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.engine.event.handlers import A2ACommandHandler, MemoryCommandHandler
 from app.core.engine.event.schemas import (
@@ -368,63 +368,29 @@ class EngineCommandSubscriber:
     async def _handle_chat_message(self, command: RemoteCommand) -> None:
         #         Mobile sends chat content inside the command.relay body's `content` field,
         #  @schemas/types/command.relay.json: content = { text: "..." }
-        #  We read directly from that payload.
+        #  We extract the payload here (transport-specific), then pass to mobile_input.
         payload = command.get_payload()
-
-        if isinstance(payload, str):
-            message = payload
-        else:
-            message = payload.get("text") or ""
-
-        # Mobile 通过 payload.references 发送的消息引用
-        references = payload.get("references") or []
-        if not message and not references:
-            logger.debug(
-                "[EngineCommand] Remote command has no message or references, skipping"
-            )
-            return
 
         thread_id = command.get("thread_id")
         if not thread_id:
             logger.error("[EngineCommand] Remote command missing thread_id, rejecting")
             raise ValueError("thread_id is required in remote command")
 
-        logger.info(
-            f"[EngineCommand] Executing remote command on thread {thread_id}: "
-            f"Length={len(message) if message else 0}, References={len(references)}"
-        )
-
-        # Resolve Project ID
-        pid_from_payload = command.get("project_id")
-        pid_from_context = thread_context_store.get_active_project("remote-default")
-        if pid_from_payload is not None:
-            project_id = pid_from_payload
-        elif pid_from_context is not None:
-            project_id = pid_from_context
-        else:
-            project_id = DEFAULT_PROJECT_ID
-
-        # Unified dispatch preparation (DB persistence, EvoCloud sync, model fallback)
         member_id = await identity_service.get_member_id() or 0
 
-        message_id = command.get("message_id")
-
-        result = await dispatch_agent_run(
-            thread_id=thread_id,
-            message_content=message or "",
-            project_id=project_id,
-            references=references,
-            command_id=command.get("command_id"),
-            model=None,
+        msg = await mobile_input.receive(
+            payload if isinstance(payload, dict) else {"text": str(payload)},
             member_id=member_id,
-            source="mobile",
-            message_id=message_id,
+            thread_id=thread_id,
+            command_id=command.get("command_id"),
+            message_id=command.get("message_id"),
         )
+        if msg is None:
+            return
+        result = await mobile_input.dispatch(msg)
 
         if result.status == "failed":
-            logger.error(
-                f"[EngineCommand] Dispatch failed for remote command: {result.error}"
-            )
+            logger.error(f"[EngineCommand] Dispatch failed: {result.error}")
             raise RuntimeError(f"Agent dispatch failed: {result.error}")
 
         # Start agent in background

@@ -171,12 +171,17 @@ class ProjectDomainSubscriber:
         Handle project switch from WebSocket.
 
         Updates thread_context_store working directory and active project.
+        Also updates SharedState so voice routes pick up the new project_id.
         Other modules (indexing, UI) subscribe to the same ProjectSwitchedEvent
         directly — no need to re-publish a duplicate event.
         """
         project_id = event.project_id
         project_name = event.project_name
         path = event.path
+
+        # Update SharedState so voice.route picks up the new project_id
+        from app.core.shared_state import shared_state
+        await shared_state.set("project_id", str(project_id))
 
         if path:
             if not os.path.isdir(path):

@@ -147,6 +147,7 @@ When editing or creating files, follow this protocol (The Golden Workflow) for m
 You are a highly specialized specialist. To succeed, follow this cycle:
 1. **Understand**: Read the Mission Ticket and identify required technical outcomes.
 2. **Check for Learned Skills**: **RECOMMENDED** — Call `list_skills` to browse SOPs, then `read_skill_sop(id)` for your **Mission Goal**. Also check `list_macros` — a matching macro executes deterministically via `run_macro(macro_id, params)` and is preferred over manual steps.
+   - **Before calling `run_macro`**, call `list_macros(macro_id=<id>)` to check its `parameters` field. If any required parameters are missing (e.g. `username`, `query`), gather them from the user or context first, then pass them all at once via `run_macro(macro_id, params={...})`.
    - If no match after 1 attempt, **PROCEED IMMEDIATELY** to Step 3.
 3. **Consult Knowledge**: Review any matched SOPs below.
 4. **Observe & Act**: Use tools via the formal function calling system.

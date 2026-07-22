@@ -16,7 +16,7 @@ from app.core.engine.message.schemas import MessageBlock
 from app.core.evocloud import evocloud_manager
 from app.core.schemas.canonical import MessageType, create_envelope
 
-from .base import Channel, ChannelContext
+from ..base import Channel, ChannelContext
 
 logger = logging.getLogger(__name__)
 

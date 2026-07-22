@@ -33,9 +33,10 @@ async def list_macros(
     - `query`: A short action description for substring search.
     - `limit`/`offset`: Pagination.
 
-    If a matching macro is found, prefer calling `run_macro(macro_id, params)`
-    over manual tool steps. Macros are NOT SOPs: call `run_macro(macro_id,
-    params)` to execute them as a whole. Do NOT read them step-by-step.
+    **Important**: Check the `[params:]` field in results. If the macro lists
+    required parameters, gather them all first before calling `run_macro`.
+    Pass ALL parameters at once via `run_macro(macro_id, params={...})`.
+    Never call `run_macro` without required params — it will fail.
     """
     meta = RunnableConfigMetadata.from_config(config or {})
     project_id = meta.project_id
@@ -64,7 +65,9 @@ async def list_macros(
         params_hint = f" [params: {', '.join(req)}]" if req else ""
         lines.append(f'#{m.id} — "{m.name}" — {m.description}{params_hint}')
     lines.append(
-        "Hint: run_macro(macro_id, params) executes the whole script; "
-        "ask_human first if required params are missing."
+        "Hint: Check the [params:] field above. If the macro needs parameters, "
+        "gather them all first (from user or context), then call "
+        "run_macro(macro_id, params={name1: val1, name2: val2}) with ALL params at once. "
+        "Do NOT call run_macro without required params."
     )
     return ControllerResponse.success("\n".join(lines))

@@ -4,6 +4,7 @@ import logging
 import time
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -22,13 +23,12 @@ from app.core.config import settings
 from app.core.context import thread_context_store
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.engine.background_agent import run_agent_background
-from app.core.engine.dispatch import dispatch_agent_run
+from app.core.channel.input.web_input import web_input
 from app.core.engine.graph_runner import resume_graph_background
 from app.core.engine.message.native_classes import HumanMessage, ToolMessage
 from app.core.monitoring.activity import activity_monitor
 from app.infrastructure.database import session_scope
 from app.models import Message
-from app.models.learning import LearnedSkill
 from app.utils.id import gen_uuid
 
 router = APIRouter()
@@ -69,9 +69,7 @@ async def chat_endpoint(
     async with lock:
         await _check_thread_not_running(req.thread_id)
 
-        await activity_monitor._state_service.start_run(
-            req.thread_id, req.message or ""
-        )
+        await activity_monitor._state_service.start_run(req.thread_id, req.message or "")
 
         ctx = EvoContext(
             request_id=f"req-{req.thread_id}-{int(time.time())}",
@@ -83,50 +81,16 @@ async def chat_endpoint(
         )
         ContextManager.set(ctx)
 
-        references = req.references or []
-        if req.skill_ids:
-            try:
-                async with session_scope() as session:
-                    stmt = select(LearnedSkill).where(
-                        LearnedSkill.id.in_(req.skill_ids)
-                    )
-                    res = await session.execute(stmt)
-                    skills = res.scalars().all()
-                    for skill in skills:
-                        references.append(
-                            {
-                                "id": str(skill.id),
-                                "type": "skill",
-                                "target_id": str(skill.id),
-                                "target_name": skill.name,
-                                "metadata": {
-                                    "skill_id": skill.id,
-                                    "skill_name": skill.name,
-                                    "description": skill.description,
-                                },
-                                "meta_data": {
-                                    "skill_id": skill.id,
-                                    "skill_name": skill.name,
-                                    "description": skill.description,
-                                },
-                            }
-                        )
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
-                logger.warning(f"Failed to fetch skills {req.skill_ids}: {e}")
-
         logger.debug(f"[ChatEndpoint] Run initialized for thread {req.thread_id}")
 
-        result = await dispatch_agent_run(
-            thread_id=req.thread_id,
-            message_content=req.message,
-            project_id=req.project_id,
-            references=references,
-            command_id=req.command_id,
-            checkpoint_id=req.checkpoint_id,
-            model=req.model,
+        msg = await web_input.receive(
+            req.__dict__ if hasattr(req, '__dict__') else dict(req),
             context=ctx,
             member_id=_current_user.id if _current_user else 0,
         )
+        if msg is None:
+            return JSONResponse({"error": "invalid request"}, status_code=400)
+        result = await web_input.dispatch(msg)
         if result.status == "failed":
             raise HTTPException(status_code=500, detail=result.error)
 
@@ -280,20 +244,24 @@ async def retry_chat(
     )
     ContextManager.set(ctx)
 
-    result = await dispatch_agent_run(
-        thread_id=req.thread_id,
-        message_content=retry_message_content,
-        project_id=req.project_id,
-        references=references,
-        command_id=req.command_id,
-        checkpoint_id=checkpoint_id,
-        model=req.model,
-        is_retry=True,
-        skip_message_persistence=True,
+    msg = await web_input.receive(
+        {
+            "thread_id": req.thread_id,
+            "message": retry_message_content,
+            "project_id": req.project_id,
+            "references": references,
+            "command_id": req.command_id,
+            "checkpoint_id": checkpoint_id,
+            "model": req.model,
+        },
         context=ctx,
         member_id=_current_user.id if _current_user else 0,
-        metadata={"goal_prefix": "Retry: "},
+        is_retry=True,
+        skip_message_persistence=True,
     )
+    if msg is None:
+        raise HTTPException(status_code=400, detail="invalid retry request")
+    result = await web_input.dispatch(msg)
     if result.status == "failed":
         raise HTTPException(status_code=500, detail=result.error)
 
@@ -387,7 +355,7 @@ async def resume_chat(
         from app.core.engine.message.converter import EvoMessageConverter
         serialized_inputs = inputs.copy() if inputs else {}
         if "messages" in serialized_inputs:
-            serialized_inputs["messages"] = EvoMessageConverter.from_langchain(serialized_inputs["messages"])
+            serialized_inputs["messages"] = EvoMessageConverter.repair(serialized_inputs["messages"])
 
         from app.infrastructure.queue.factory import get_scheduler
         get_scheduler().send_task(

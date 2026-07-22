@@ -77,7 +77,7 @@ async def run_standalone_test(mock_cloud, mock_db):
     trans_callback.llm_task_id = "task-1"
     
     # Mock MessageBroker for streaming
-    with patch("app.core.channel.web_channel.get_message_broker") as mock_broker:
+    with patch("app.core.channel.output.web_channel.get_message_broker") as mock_broker:
         broker = MagicMock()
         broker.publish = AsyncMock()
         mock_broker.return_value = broker

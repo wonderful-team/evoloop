@@ -49,7 +49,7 @@ SKIP_TOP_DIRS = {
 }
 
 CATEGORY_PATH_KEYWORDS: dict[str, list[str]] = {
-    "controller": ["controller", "controllers", "handler", "handlers", "action", "actions", "resource", "resources", "endpoint", "endpoints"],
+    "controller": ["controller", "controllers", "endpoint", "endpoints"],
     "model": ["model", "models", "entity", "entities", "bean", "beans", "domain", "po", "dto", "vo", "bo"],
     "service": ["service", "services", "business", "usecase", "use_case", "use-case", "application", "applications"],
     "repository": ["repository", "repositories", "dao", "mapper", "mappers", "data_access"],
@@ -65,7 +65,7 @@ CATEGORY_PATH_KEYWORDS: dict[str, list[str]] = {
 }
 
 CATEGORY_FILE_SUFFIXES: dict[str, list[str]] = {
-    "controller": ["controller", "controllers", "handler", "handlers", "action", "actions", "resource"],
+    "controller": ["controller", "controllers"],
     "model": ["model", "models", "entity", "entities", "bean", "beans"],
     "service": ["service", "services", "usecase", "use_case", "usecase"],
     "repository": ["repository", "repositories", "dao", "mapper", "mappers"],
@@ -111,7 +111,16 @@ SKIP_APPMAP_DETAIL_CATEGORIES = {
 }
 
 APPMAP_ACTION_CATEGORIES = {
-    "controller", "route", "entry_point",
+    "controller",
+}
+
+# File extensions to exclude from controller classification
+_FRONTEND_EXTS = {".vue", ".js", ".ts", ".jsx", ".tsx"}
+
+_NON_CONTROLLER_STEMS = {
+    "application", "app", "main", "bootstrap",
+    "base", "abstract", "common",
+    "util", "utils", "helper", "helpers",
 }
 
 _GENERIC_ENTITY_NAMES = {

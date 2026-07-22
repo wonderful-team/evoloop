@@ -222,8 +222,8 @@ class TestWebChannel:
         """MessageBlock is serialized via BlockMapper.to_sse and published to MessageBroker."""
         ch = WebChannel()
         with (
-            patch("app.core.channel.web_channel.BlockMapper") as mock_mapper,
-            patch("app.core.channel.web_channel.get_message_broker") as mock_get_broker,
+            patch("app.core.channel.output.web_channel.BlockMapper") as mock_mapper,
+            patch("app.core.channel.output.web_channel.get_message_broker") as mock_get_broker,
         ):
             mock_event = MagicMock()
             mock_event.model_dump_json.return_value = '{"type":"block_event"}'
@@ -244,7 +244,7 @@ class TestWebChannel:
     async def test_sse_serializes_stream_event(self, real_stream_event):
         """BaseStreamEvent is serialized via to_json()."""
         ch = WebChannel()
-        with patch("app.core.channel.web_channel.get_message_broker") as mock_get_broker:
+        with patch("app.core.channel.output.web_channel.get_message_broker") as mock_get_broker:
             mock_broker = AsyncMock()
             mock_get_broker.return_value = mock_broker
 
@@ -276,9 +276,9 @@ class TestMobileChannelHueyFallback:
 
         ch = MobileChannel()
         with (
-            patch("app.core.channel.mobile_channel.evocloud_manager") as mock_mgr,
-            patch("app.core.channel.mobile_channel.BlockMapper") as mock_mapper,
-            patch("app.core.channel.mobile_channel.settings") as mock_settings,
+            patch("app.core.channel.output.mobile_channel.evocloud_manager") as mock_mgr,
+            patch("app.core.channel.output.mobile_channel.BlockMapper") as mock_mapper,
+            patch("app.core.channel.output.mobile_channel.settings") as mock_settings,
         ):
             mock_settings.MOBILE_SYNC_ENABLED = True
             mock_mgr.api = AsyncMock()
@@ -303,9 +303,9 @@ class TestMobileChannelHueyFallback:
 
         ch = MobileChannel()
         with (
-            patch("app.core.channel.mobile_channel.evocloud_manager") as mock_mgr,
-            patch("app.core.channel.mobile_channel.BlockMapper") as mock_mapper,
-            patch("app.core.channel.mobile_channel.settings") as mock_settings,
+            patch("app.core.channel.output.mobile_channel.evocloud_manager") as mock_mgr,
+            patch("app.core.channel.output.mobile_channel.BlockMapper") as mock_mapper,
+            patch("app.core.channel.output.mobile_channel.settings") as mock_settings,
         ):
             mock_settings.MOBILE_SYNC_ENABLED = True
             mock_mgr.api = AsyncMock()
@@ -330,9 +330,9 @@ class TestMobileChannelHueyFallback:
 
         ch = MobileChannel()
         with (
-            patch("app.core.channel.mobile_channel.evocloud_manager") as mock_mgr,
-            patch("app.core.channel.mobile_channel.BlockMapper") as mock_mapper,
-            patch("app.core.channel.mobile_channel.settings") as mock_settings,
+            patch("app.core.channel.output.mobile_channel.evocloud_manager") as mock_mgr,
+            patch("app.core.channel.output.mobile_channel.BlockMapper") as mock_mapper,
+            patch("app.core.channel.output.mobile_channel.settings") as mock_settings,
         ):
             mock_settings.MOBILE_SYNC_ENABLED = True
             mock_mgr.api = AsyncMock()
@@ -357,9 +357,9 @@ class TestMobileChannelHueyFallback:
 
         ch = MobileChannel()
         with (
-            patch("app.core.channel.mobile_channel.settings") as mock_settings,
-            patch("app.core.channel.mobile_channel.evocloud_manager") as mock_mgr,
-            patch("app.core.channel.mobile_channel.BlockMapper") as mock_mapper,
+            patch("app.core.channel.output.mobile_channel.settings") as mock_settings,
+            patch("app.core.channel.output.mobile_channel.evocloud_manager") as mock_mgr,
+            patch("app.core.channel.output.mobile_channel.BlockMapper") as mock_mapper,
         ):
             mock_settings.MOBILE_SYNC_ENABLED = False
 
@@ -383,9 +383,9 @@ class TestMobileChannelHueyFallback:
 
         ch = MobileChannel()
         with (
-            patch("app.core.channel.mobile_channel.settings") as mock_settings,
-            patch("app.core.channel.mobile_channel.evocloud_manager") as mock_mgr,
-            patch("app.core.channel.mobile_channel.BlockMapper") as mock_mapper,
+            patch("app.core.channel.output.mobile_channel.settings") as mock_settings,
+            patch("app.core.channel.output.mobile_channel.evocloud_manager") as mock_mgr,
+            patch("app.core.channel.output.mobile_channel.BlockMapper") as mock_mapper,
         ):
             mock_settings.MOBILE_SYNC_ENABLED = True
 

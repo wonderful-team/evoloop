@@ -28,7 +28,7 @@ async def test_scenario_1_session_lifecycle():
     
     # Manually inject mock transport to avoid real Redis
     from unittest.mock import patch
-    with patch("app.core.channel.web_channel.get_message_broker", return_value=mock_transport):
+    with patch("app.core.channel.output.web_channel.get_message_broker", return_value=mock_transport):
         # Create Event
         event = SessionCompletedEvent(
             data=SessionCompletedData(
@@ -60,7 +60,7 @@ async def test_scenario_2_background_tasks():
     bridge = UniversalBridgeSubscriber()
     
     from unittest.mock import patch
-    with patch("app.core.channel.web_channel.get_message_broker", return_value=mock_transport):
+    with patch("app.core.channel.output.web_channel.get_message_broker", return_value=mock_transport):
         # Test Task Update
         task_event = BackgroundTaskEvent(
             thread_id="thread_task",
@@ -96,7 +96,7 @@ async def test_scenario_3_hitl_interaction():
     bridge = UniversalBridgeSubscriber()
     
     from unittest.mock import patch
-    with patch("app.core.channel.web_channel.get_message_broker", return_value=mock_transport):
+    with patch("app.core.channel.output.web_channel.get_message_broker", return_value=mock_transport):
         event = HumanRequestEvent(
             thread_id="thread_hitl",
             action="create",
@@ -119,7 +119,7 @@ async def test_scenario_4_error_handling():
     bridge = UniversalBridgeSubscriber()
     
     from unittest.mock import patch
-    with patch("app.core.channel.web_channel.get_message_broker", return_value=mock_transport):
+    with patch("app.core.channel.output.web_channel.get_message_broker", return_value=mock_transport):
         event = QuotaExhaustedEvent(
             thread_id="thread_error",
             title="No Money",

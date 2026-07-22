@@ -268,8 +268,8 @@ def basic_navigate(entity_map: dict, action: dict) -> MacroCandidate | None:
         entity_map, action,
         name=f"打开{entity_cn}" if entity_cn != entity_map['entity'] else f"打开{entity_cn}页面",
         steps=steps,
-        trigger_patterns=[f"打开{{{{entity_cn}}}}列表",
-                          f"查看{{{{entity_cn}}}}"],
+        trigger_patterns=[f"打开{entity_cn}列表",
+                          f"查看{entity_cn}"],
         parameters=[], requires_confirmation=False,
         description=f"导航到{entity_cn}页面",
     )

@@ -143,7 +143,7 @@ def main() -> None:
     # ── B: substitution with NLU veto ────────────────────────
     print("\n" + "=" * 60)
     print("B. 指代替换：regex-only vs regex+NLU否决")
-    import re as _re
+
     changed_by_veto = 0
     for text, truth in SUBST:
         out_regex = resolve_anaphora(text, FRAME)

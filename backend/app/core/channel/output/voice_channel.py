@@ -25,7 +25,7 @@ from typing import Any
 from app.core.engine.message.schemas import MessageBlock
 from app.core.routing import executor as voice_executor
 
-from .base import Channel, ChannelContext
+from ..base import Channel, ChannelContext
 
 logger = logging.getLogger(__name__)
 

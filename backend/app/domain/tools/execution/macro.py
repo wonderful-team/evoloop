@@ -131,6 +131,18 @@ async def _run_macro_row(macro_id, macro_name, params, thread_id, macro_service)
         except Exception:
             pass
 
+    # Check required params from macro definition against provided params
+    macro_params = macro.parameters or []
+    missing = [
+        p.get("name") for p in macro_params
+        if p.get("required", True) and p.get("name") not in execution_params
+    ]
+    if missing:
+        return ControllerResponse.error(
+            f"宏 '{macro.name}' 缺少必要参数: {', '.join(missing)}。"
+            f"请通过 run_macro(macro_id={macro.id}, params={{{{{{k}}: 值}}}}) 传入。"
+        )
+
     result = await macro_service.run(
         thread_id=thread_id,
         script_input=steps,

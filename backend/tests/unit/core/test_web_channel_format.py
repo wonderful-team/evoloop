@@ -5,7 +5,7 @@ per-thread SSE consumer needs thread_id in the payload to attribute steps to
 the right run.
 """
 
-from app.core.channel.web_channel import format_event_for_frontend
+from app.core.channel.output.web_channel import format_event_for_frontend
 from app.core.monitoring.event import SystemLogEvent
 
 

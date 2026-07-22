@@ -19,7 +19,6 @@ from typing import Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
-from app.constants import DEFAULT_PROJECT_ID
 from app.core.context import ContextManager, EvoContext
 from app.core.routing.connection import manager
 from app.core.routing.deps import enforce_loopback_ws
@@ -84,133 +83,108 @@ async def _handle_partial(body: dict[str, Any]) -> None:
         logger.debug("[voice] preheat failed: %s", exc)
 
 
+_voice_input_bound = False
+
+
+async def _ensure_voice_input() -> None:
+    global _voice_input_bound
+    if _voice_input_bound:
+        return
+    from app.core.channel.input.voice_input import voice_input
+    from app.core.routing import executor as voice_executor
+    from app.core.engine.worker_registry import worker_registry
+    from app.core.voice.state_machine import VoiceSessionState, voice_state_machine
+    from app.core.schemas.canonical import MessageType
+
+    voice_input.bind(
+        manager=manager,
+        executor=voice_executor,
+        state_machine=voice_state_machine,
+        state_enum=VoiceSessionState,
+        worker_registry=worker_registry,
+        envelope_fn=_envelope,
+        message_type=MessageType,
+    )
+    _voice_input_bound = True
+
+
 async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
     from app.core.routing import executor
+    from app.core.channel.input.voice_input import voice_input
 
-    text = str(body.get("text", "")).strip()
+    await _ensure_voice_input()
+
     thread_id = str(body.get("thread_id", "")).strip()
-    message_id = body.get("message_id")
-    if not text or not thread_id:
+    if not thread_id:
         return
 
-    project_id = int(body.get("project_id", DEFAULT_PROJECT_ID))
-
+    message_id = body.get("message_id")
     t_total_start = time.time()
 
-    # Lock phase: L0 check + dispatch (fast, no Worker execution)
+    # Lock phase: input processing (L0 check + dispatch is fast)
     lock = await executor.get_thread_lock(thread_id)
     async with lock:
-        # Check if a Worker is currently running
         from app.core.engine.worker_registry import worker_registry
-        running_worker = await worker_registry.get_worker(thread_id)
 
+        # Barge-in: if state can't accept route & no worker running
         if not await voice_state_machine.can_accept_route(thread_id):
+            running_worker = await worker_registry.get_worker(thread_id)
             if not running_worker:
-                # No worker running, just barge-in the TTS
                 await voice_state_machine.force_set(thread_id, VoiceSessionState.INTERRUPTED)
                 logger.info("[voice] barge_in for thread %s", thread_id)
-            # If a worker is running, don't cancel — Supervisor will decide
-            # query vs new command in the agent context
 
-        ctx = EvoContext(thread_id=thread_id, request_id=message_id or gen_uuid())
+        from app.core.shared_state import shared_state
+        project_id = int(body.get("project_id", 0)) or int(await shared_state.get("project_id", "0"))
+        ctx = EvoContext(thread_id=thread_id, project_id=project_id, request_id=message_id or gen_uuid())
         token = ContextManager.set(ctx)
         try:
             await manager.bind_thread(thread_id, conn_id)
             await voice_state_machine.set(thread_id, VoiceSessionState.PROCESSING)
 
+            # Idempotency
             if message_id and await is_duplicate(str(message_id)):
-                logger.info("[voice] duplicate route ignored: %s", message_id)
                 terminal = await manager.get_terminal_result(str(message_id))
                 if terminal is not None:
-                    await manager.push(
-                        thread_id, _envelope(MessageType.VOICE_ROUTE_RESULT, terminal)
-                    )
+                    await manager.push(thread_id, _envelope(MessageType.VOICE_ROUTE_RESULT, terminal))
                 else:
-                    await manager.push(
-                        thread_id,
-                        _envelope(
-                            MessageType.VOICE_ROUTE_RESULT,
-                            {
-                                "thread_id": thread_id,
-                                "status": "duplicate_no_cache",
-                                "target": {"type": "noop"},
-                                "params": {},
-                                "candidates": [],
-                            },
-                        ),
-                    )
+                    await manager.push(thread_id, _envelope(MessageType.VOICE_ROUTE_RESULT, {
+                        "thread_id": thread_id, "status": "duplicate_no_cache",
+                        "target": {"type": "noop"}, "params": {}, "candidates": [],
+                    }))
                 return
 
-            # Fast path: pre-check L0 before expensive LLM routing
-            from app.core.routing.router import _get_local_matcher
-            matcher = await _get_local_matcher()
-            l0_match = matcher.match(text)
-            l0_hit = l0_match is not None
-            if not l0_hit:
-                # L0 miss → dispatch to agent
-                logger.info("[voice-perf] %s L0 miss → agent fast path (saved ~1-2s)", thread_id)
-                from app.core.engine.dispatch import dispatch_agent_run
-                from app.core.engine.background_agent import run_agent_background
+            # Let VoiceInputChannel decide: L0 match → local push, L0 miss → IncomingMessage
+            msg = await voice_input.receive(body)
+            if msg is None:
+                # L0 hit or invalid — handled internally (push + state transition)
+                return
 
-                # If a worker is running, inject its info into metadata
-                meta = {"source": "voice", "voice_thread_id": thread_id}
-                old_worker_task = None
-                if running_worker and running_worker.status == "running":
-                    meta["has_running_worker"] = "true"
-                    meta["running_worker_desc"] = running_worker.description
-                    old_worker_task = running_worker.task
+            # L0 miss → dispatch to agent
+            logger.info("[voice-perf] %s L0 miss → agent dispatch", thread_id)
+            # State set to SPEAKING inside voice_input.receive()
 
-                await voice_state_machine.set(thread_id, VoiceSessionState.SPEAKING)
-                await executor._mark_voice(thread_id, "agent")
-                result = await dispatch_agent_run(
-                    thread_id=thread_id, message_content=text,
-                    project_id=project_id,
-                    metadata=meta,
-                )
-                if result.status == "failed":
-                    await executor.consume_voice(thread_id)
-                    await executor.push_voice_result(thread_id, "failed",
-                        getattr(result, "error", "") or "dispatch failed")
-                else:
-                    task = asyncio.create_task(
-                        run_agent_background(thread_id, result.inputs)
-                    )
-                    await worker_registry.register_worker(thread_id, task,
-                        description=running_worker.description if running_worker else "")
-                    # Release lock before awaiting the long-running task
-                # Lock released here via end of `async with lock`
-            else:
-                # L0 hit: push local result directly
-                action, args = l0_match
-                routed_body = {
-                    "thread_id": thread_id, "status": "routed",
-                    "target": {"type": "local", "action": action},
-                    "params": args or {}, "candidates": [],
-                }
-                await manager.push(thread_id, _envelope(MessageType.VOICE_ROUTE_RESULT, routed_body))
-                await voice_state_machine.set(thread_id, VoiceSessionState.IDLE)
+            result = await voice_input.dispatch(msg)
+            post = await voice_input.post_dispatch(msg, result)
+            if post is None:
+                # dispatch failed — handled internally
+                return
+            task = post["task"]
         finally:
             ContextManager.reset(token)
     # Lock released — await Worker outside lock
-    if not l0_hit and result and result.status != "failed":
-        try:
-            await task
-        except asyncio.CancelledError:
-            logger.info("[voice] agent task cancelled for thread %s", thread_id)
-            await executor.consume_voice(thread_id)
-            await executor.push_voice_result(thread_id, "cancelled", "")
-        else:
-            # Check if the new task cancelled the old worker or kept it running
-            if old_worker_task is not None and not old_worker_task.done():
-                # The old worker is still running — Supervisor decided QUERY
-                # Re-register it so subsequent requests can see it
-                await worker_registry.register_worker(
-                    thread_id,
-                    old_worker_task,
-                    description=running_worker.description if running_worker else ""
-                )
+    if msg is not None:
+        from app.core.engine.worker_registry import worker_registry
+        running = await worker_registry.get_worker(thread_id)
+        desc = running.description if running else ""
+        post = post or {}
+        await voice_input.await_and_finalize(
+            thread_id,
+            post.get("task"),
+            post.get("old_worker_task"),
+            worker_desc=desc,
+        )
         total_ms = (time.time() - t_total_start) * 1000
-        logger.info("[voice-perf] %s agent fast path total=%.0fms", thread_id, total_ms)
+        logger.info("[voice-perf] %s agent complete total=%.0fms", thread_id, total_ms)
 
 
 async def _handle_dictation_finalize(body: dict[str, Any], conn_id: str) -> None:
@@ -390,18 +364,6 @@ async def _on_state_changed_event(event: Any) -> None:
 
 
 system_bus.subscribe(SystemEventType.STATE_CHANGED, _on_state_changed_event)
-
-
-class StateUpdateRequest(BaseModel):
-    key: str
-    value: str
-
-
-@router.post("/shared/state")
-async def update_shared_state(req: StateUpdateRequest) -> dict:
-    from app.core.shared_state import shared_state
-    old, new = await shared_state.set(req.key, req.value)
-    return {"ok": True, "key": req.key, "old": old, "new": new}
 
 
 class TTSRequest(BaseModel):

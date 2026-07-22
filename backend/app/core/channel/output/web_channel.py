@@ -14,7 +14,7 @@ from app.core.engine.message.mapper import BlockMapper
 from app.core.engine.message.schemas import MessageBlock
 from app.models.schemas.events import BaseStreamEvent
 
-from .base import Channel, ChannelContext
+from ..base import Channel, ChannelContext
 
 logger = logging.getLogger(__name__)
 

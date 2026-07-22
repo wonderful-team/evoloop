@@ -19,9 +19,7 @@ logger = logging.getLogger(__name__)
 MAX_GOAL_LENGTH = 500
 
 
-async def run_agent_background(
-    thread_id: str, inputs: BackgroundAgentInputs | dict[str, Any]
-):
+async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | dict[str, Any]):
     """Background task executing nodes via the native agent loop."""
     if isinstance(inputs, dict):
         inputs = BackgroundAgentInputs(**inputs)
@@ -200,9 +198,7 @@ async def run_agent_background(
 
                 from app.core.engine.loop import run_node_loop
 
-                await run_node_loop(
-                    agent_state, config, thread_id, log_prefix="BackgroundAgent"
-                )
+                await run_node_loop(agent_state, config, thread_id, log_prefix="BackgroundAgent")
 
                 await ContextManager.save(thread_id)
 
@@ -212,16 +208,17 @@ async def run_agent_background(
                 raise
             except (ValueError, OSError, RuntimeError, TypeError, KeyError, InferenceError) as e:
                 handler = db_callback._handler if db_callback else None
-                terminal = await handle_task_exception(thread_id, project_id, e, handler=handler)
-                if not terminal:
-                    from app.core.engine.event.publishers import publish_agent_run_completed
-                    await publish_agent_run_completed(
-                        thread_id=thread_id,
-                        project_id=project_id,
-                        status="failed",
-                        source=inputs.metadata.get("source", ""),
-                        payload={"summary": str(e)[:300]},
-                    )
+                await handle_task_exception(thread_id, project_id, e, handler=handler)
+                # Always publish AgentRunCompletedEvent regardless of terminal flag,
+                # so VoiceChannel can push voice.route_result {failed} to the HUD.
+                from app.core.engine.event.publishers import publish_agent_run_completed
+                await publish_agent_run_completed(
+                    thread_id=thread_id,
+                    project_id=project_id,
+                    status="failed",
+                    source=inputs.metadata.get("source", ""),
+                    payload={"summary": str(e)[:300]},
+                )
                 return
     except AgentHumanInterruptException:
         return

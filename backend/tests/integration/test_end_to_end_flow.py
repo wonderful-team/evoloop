@@ -58,7 +58,7 @@ async def test_http_chat_full_flow(fake_session):
 
     session, scope = fake_session
 
-    with patch("app.api.routes.agent.dispatch_agent_run", wraps=None) as mock_dispatch, \
+    with patch("app.core.engine.dispatch.dispatch_agent_run", wraps=None) as mock_dispatch, \
          patch("app.api.routes.agent.run_agent_background") as mock_bg, \
          patch("app.api.routes.agent.session_scope", scope), \
          patch("app.core.monitoring.activity.activity_monitor.start_run", new_callable=AsyncMock), \
@@ -112,7 +112,7 @@ async def test_websocket_chat_full_flow(fake_session):
 
     session, scope = fake_session
 
-    with patch("app.core.engine.event.subscribers.dispatch_agent_run", wraps=None) as mock_dispatch, \
+    with patch("app.core.engine.dispatch.dispatch_agent_run", wraps=None) as mock_dispatch, \
          patch("app.core.engine.event.subscribers.run_agent_background") as mock_bg, \
          patch("app.core.engine.dispatch.session_scope", scope), \
          patch("app.core.monitoring.activity.activity_monitor.start_run", new_callable=AsyncMock), \
@@ -178,7 +178,7 @@ async def test_retry_flow_preserves_original_message(fake_session):
     exec_result.scalar_one_or_none.return_value = orig_msg
     session.execute.return_value = exec_result
 
-    with patch("app.api.routes.agent.dispatch_agent_run", new_callable=AsyncMock) as mock_dispatch, \
+    with patch("app.core.engine.dispatch.dispatch_agent_run", new_callable=AsyncMock) as mock_dispatch, \
          patch("app.api.routes.agent.run_agent_background") as mock_bg, \
          patch("app.api.routes.agent.session_scope", scope), \
          patch("app.core.engine.rewind.RewindOrchestrator.perform_rewind", new_callable=AsyncMock) as mock_rewind:

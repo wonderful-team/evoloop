@@ -13,6 +13,7 @@ import logging
 import os
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import select
 
 from app.api.deps import TokenDep
@@ -266,3 +267,24 @@ async def delete_project(project_id: int, _token: TokenDep):
 async def run_indexing_endpoint(req: IndexingRequest):
     indexing_manager.dispatch_full_index(req.project_id)
     return IndexingRunResponse(status="queued", project_id=req.project_id)
+
+
+class SwitchProjectRequest(BaseModel):
+    project_id: int
+    project_name: str = ""
+
+
+@router.post("/switch")
+async def switch_project(req: SwitchProjectRequest) -> dict:
+    from app.core.project.event.publishers import publish_project_switched
+    from app.core.project.utils import get_project_path
+
+    resolved_path = await get_project_path(req.project_id) if req.project_id else None
+    path = str(resolved_path) if resolved_path else ""
+
+    await publish_project_switched(
+        project_id=req.project_id,
+        project_name=req.project_name or (path.rsplit("/", 1)[-1] if path else ""),
+        path=path,
+    )
+    return {"ok": True, "project_id": req.project_id, "path": path}

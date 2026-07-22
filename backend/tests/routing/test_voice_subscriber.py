@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.core.channel import ChannelContext
-from app.core.channel.voice_channel import VoiceChannel
+from app.core.channel.output.voice_channel import VoiceChannel
 from app.core.engine.event.schemas import AgentRunCompletedEvent
 from app.core.events.schemas.lifecycle import (
     SessionCompletedData,
@@ -23,7 +23,7 @@ from app.core.routing import executor
 
 def _session_completed(tid, summary, source="voice"):
     return SessionCompletedEvent(
-        data=SessionCompletedData(thread_id=tid, summary=summary, source=source)
+        data=SessionCompletedData(thread_id=tid, summary=summary, tts_summary=summary, source=source)
     )
 
 
@@ -187,7 +187,7 @@ async def test_token_streaming_and_non_duplicate_done(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_token_streaming_through_publisher_voice_channel(monkeypatch):
-    """Full chain: MessagePublisher -> channel_registry -> VoiceChannel -> push_voice_tts_boundary."""
+    """TokenEvent → MessagePublisher → SSE only (no VoiceChannel)."""
     tokens_pushed = []
     boundaries_pushed = []
 
@@ -208,8 +208,9 @@ async def test_token_streaming_through_publisher_voice_channel(monkeypatch):
         await pub.publish(TokenEvent(thread_id="v_pub", content="今天天气"))
         await pub.publish(TokenEvent(thread_id="v_pub", content="真不错。"))
 
-        assert boundaries_pushed == [("v_pub", "今天天气真不错。")]
-        assert len(tokens_pushed) == 2
+        # TokenEvent is BaseStreamEvent → SSE only, no VoiceChannel
+        assert boundaries_pushed == [], "TokenEvent should NOT reach VoiceChannel"
+        assert tokens_pushed == [], "TokenEvent should NOT push voice tokens"
     finally:
         executor._voice_registry.pop("v_pub", None)
 

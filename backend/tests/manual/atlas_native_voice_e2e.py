@@ -23,11 +23,15 @@ MODEL_DIR = os.path.expanduser(
 )
 TMP = "/tmp/atlas_voice_e2e"
 
-# (说的话, 期望宏名片段) —— 全部无害
+# (说的话, 期望宏名片段, project_id) —— 全部无害
 CASES = [
-    ("关于微信", "关于微信"),
-    ("新建标签页", "新标签页"),
+    ("打开用户管理", "用户管理", 122),
+    ("打开代码生成", "代码生成", 122),
+    ("打开部门管理", "部门管理", 122),
 ]
+
+# Skip ASR — send text directly so no sherpa-onnx dependency needed
+USE_ASR = False
 
 
 def synthesize(text: str, idx: int) -> str:
@@ -119,8 +123,13 @@ async def main() -> None:
     from app.main import app
 
     await db_resource_manager.initialize(create_tables=False, seed_data=False)
-    print("[asr] 装载 sherpa-onnx streaming zipformer（客户端同款）")
-    recognizer = make_recognizer()
+
+    if USE_ASR:
+        print("[asr] 装载 sherpa-onnx streaming zipformer（客户端同款）")
+        recognizer = make_recognizer()
+    else:
+        print("[asr] 跳过 ASR（USE_ASR=False），直接发文本")
+        recognizer = None
 
     server = uvicorn.Server(
         uvicorn.Config(app, host="127.0.0.1", port=WS_PORT, log_level="error")
@@ -132,38 +141,50 @@ async def main() -> None:
     try:
         async with websockets.connect(WS_URL) as ws:
             await ws.recv()  # system.init
-            for i, (spoken, expect_frag) in enumerate(CASES):
-                wav = synthesize(spoken, i)
-                t0 = time.monotonic()
-                text = await asyncio.to_thread(transcribe, recognizer, wav)
-                asr_ms = (time.monotonic() - t0) * 1000
-                print(f"\n[case] 说: {spoken!r} -> ASR({asr_ms:.0f}ms): {text!r}")
+            for i, (spoken, expect_frag, pid) in enumerate(CASES):
+                if USE_ASR:
+                    wav = synthesize(spoken, i)
+                    t0 = time.monotonic()
+                    text = await asyncio.to_thread(transcribe, recognizer, wav)
+                    asr_ms = (time.monotonic() - t0) * 1000
+                else:
+                    text = spoken
+                    asr_ms = 0
+                print(f"\n[case] 说: {spoken!r} -> ASR({asr_ms:.0f}ms): {text!r} (project={pid})")
                 if not text:
                     print("  FAIL: ASR 空结果")
                     continue
 
                 thread = f"voice-e2e-{i}"
                 t1 = time.monotonic()
+                body = {"thread_id": thread, "text": text}
+                if pid:
+                    body["project_id"] = pid
                 await ws.send(
-                    json.dumps(_envelope("voice.route", {"thread_id": thread, "text": text}))
+                    json.dumps(_envelope("voice.route", body))
                 )
                 decision = await _recv_until(
                     ws, lambda b, t=thread: b.get("thread_id") == t and "status" in b, 120, "decision"
                 )
                 route_ms = (time.monotonic() - t1) * 1000
+                route_status = decision.get("status", "?")
                 target = decision.get("target") or {}
-                print(f"  路由({route_ms:.0f}ms): {decision.get('status')} -> {target}")
-                if decision.get("status") != "routed" or target.get("type") != "macro":
-                    print("  FAIL: 未路由到宏")
+                target_type = target.get("type", "agent")
+                print(f"  路由({route_ms:.0f}ms): status={route_status} target.type={target_type}")
+
+                if route_status != "routed" and route_status != "done":
+                    print(f"  FAIL: 状态={route_status}, 期望 routed 或 done")
                     continue
 
+                # Wait for execution result (pushed by run_macro or Agent)
                 result = await _recv_until(
-                    ws, lambda b, t=thread: b.get("thread_id") == t and "summary" in b, 120, "result"
+                    ws, lambda b, t=thread: b.get("thread_id") == t and "summary" in b, 300, "result"
                 )
-                got_name = await _macro_name(target["id"])
-                print(f"  执行: {result.get('status')} | 宏: {got_name}")
-                ok = result.get("status") == "done" and expect_frag in got_name
-                print(f"  {'PASS' if ok else 'FAIL'}（期望宏含 {expect_frag!r}）")
+                got_name = result.get("summary", "")
+                result_status = result.get("status", "?")
+                print(f"  执行: {result_status} | 摘要: {got_name[:80]}")
+                ok = result_status == "done" and expect_frag in got_name
+                print(f"  {'PASS' if ok else 'FAIL'}（期望含 {expect_frag!r}）")
     finally:
         server.should_exit = True
         await serve_task

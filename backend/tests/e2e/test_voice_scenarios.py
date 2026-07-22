@@ -28,6 +28,7 @@ async def test_scenario(scenario_id: int, name: str, text: str, expect: str) -> 
     """
     global passed, failed
     thread_id = f"e2e-s{scenario_id}-{uuid.uuid4().hex[:8]}"
+    elapsed = 0.0
 
     try:
         async with connect(BACKEND_URL, open_timeout=5) as ws:
@@ -55,7 +56,6 @@ async def test_scenario(scenario_id: int, name: str, text: str, expect: str) -> 
             target_types = []
             has_summary = False
             has_token = False
-            elapsed = 0.0
 
             t0 = asyncio.get_event_loop().time()
             while True:

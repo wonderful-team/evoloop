@@ -274,7 +274,7 @@ async def build_entities_from_index(
     project_id: int, groups: dict,
 ) -> dict:
     """Build AppMap entities dict from Tree-sitter parsed code chunks."""
-    from app.core.atlas.source.skeleton.generator import APPMAP_ACTION_CATEGORIES
+    from app.core.atlas.source.skeleton.generator import APPMAP_ACTION_CATEGORIES, _FRONTEND_EXTS, _NON_CONTROLLER_STEMS
 
     all_ids = set()
     for cf_list in groups.values():
@@ -303,9 +303,12 @@ async def build_entities_from_index(
 
     entities = {}
     for entity_name, classified_files in groups.items():
+        # Filter: only actual controllers, skip frontend files and non-controller stems
         controller_files = [
             cf for cf in classified_files
             if cf.category in APPMAP_ACTION_CATEGORIES
+            and not any(cf.source_file.path.endswith(ext) for ext in _FRONTEND_EXTS)
+            and not entity_name in _NON_CONTROLLER_STEMS
         ]
         if not controller_files:
             continue
