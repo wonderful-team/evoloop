@@ -5,16 +5,19 @@ import {
   CardHeader,
   CardTitle,
 } from "@evoloop/shared/components/ui/card"
+import { Input } from "@evoloop/shared/components/ui/input"
 import { Textarea } from "@evoloop/shared/components/ui/textarea"
 import { createFileRoute, useParams } from "@tanstack/react-router"
 import {
   AlertCircle,
   Edit,
   FileText,
+  Globe,
   Loader2,
   RefreshCw,
   Rocket,
   Save,
+  Tag,
   X,
 } from "lucide-react"
 import { useEffect, useState } from "react"
@@ -31,6 +34,8 @@ export const Route = createFileRoute("/_layout/projects/$projectId/profile")({
 interface ProfileData {
   content: string | null
   exists: boolean
+  name: string | null
+  url: string | null
 }
 
 function ProfilePage() {
@@ -41,6 +46,8 @@ function ProfilePage() {
   const [discoverOpen, setDiscoverOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editContent, setEditContent] = useState("")
+  const [editName, setEditName] = useState("")
+  const [editUrl, setEditUrl] = useState("")
   const [isSaving, setIsSaving] = useState(false)
 
   const fetchProfile = async () => {
@@ -53,10 +60,12 @@ function ProfilePage() {
       setProfile({
         content: data.content ?? null,
         exists: data.exists ?? false,
+        name: data.name ?? null,
+        url: data.url ?? null,
       })
     } catch (err) {
       console.error("Failed to fetch profile", err)
-      setProfile({ content: null, exists: false })
+      setProfile({ content: null, exists: false, name: null, url: null })
     } finally {
       setLoading(false)
     }
@@ -68,11 +77,17 @@ function ProfilePage() {
     try {
       const data = await ProjectProfilesService.projectsUpdateProfile({
         projectId: Number(projectId),
-        requestBody: { content: editContent },
+        requestBody: {
+          content: editContent,
+          name: editName || undefined,
+          url: editUrl || undefined,
+        },
       })
       setProfile({
         content: data.content ?? null,
         exists: true,
+        name: data.name ?? null,
+        url: data.url ?? null,
       })
       setIsEditing(false)
       toast.success(t("common.saveSuccess"))
@@ -86,6 +101,8 @@ function ProfilePage() {
 
   const startEditing = () => {
     setEditContent(profile?.content || "")
+    setEditName(profile?.name || "")
+    setEditUrl(profile?.url || "")
     setIsEditing(true)
   }
 
@@ -154,14 +171,64 @@ function ProfilePage() {
       </div>
 
       {/* Content */}
-      {hasProfile ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              {t("projects.profile.documentTitle")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+      {hasProfile || isEditing ? (
+        <>
+          {/* Project name & URL (shown in edit mode and view mode when available) */}
+          {isEditing ? (
+            <Card>
+              <CardContent className="pt-6 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Tag className="h-4 w-4 text-muted-foreground" />
+                  <label className="text-sm font-medium w-20">{t("projects.profile.projectName")}</label>
+                  <Input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="my-project"
+                    className="flex-1"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-muted-foreground" />
+                  <label className="text-sm font-medium w-20">{t("projects.profile.deployUrl")}</label>
+                  <Input
+                    value={editUrl}
+                    onChange={(e) => setEditUrl(e.target.value)}
+                    placeholder="http://localhost:8080"
+                    className="flex-1 font-mono text-sm"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            (profile?.name || profile?.url) && (
+              <Card>
+                <CardContent className="pt-6 space-y-2">
+                  {profile?.name && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Tag className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">{t("projects.profile.projectName")}:</span>
+                      <span>{profile.name}</span>
+                    </div>
+                  )}
+                  {profile?.url && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Globe className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">{t("projects.profile.deployUrl")}:</span>
+                      <code className="text-xs">{profile.url}</code>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {t("projects.profile.documentTitle")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
             {isEditing ? (
               <Textarea
                 className="min-h-[500px] font-mono text-sm"
@@ -176,6 +243,7 @@ function ProfilePage() {
             )}
           </CardContent>
         </Card>
+        </>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
           <AlertCircle className="h-12 w-12 mb-4 opacity-20" />

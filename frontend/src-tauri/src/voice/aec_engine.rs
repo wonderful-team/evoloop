@@ -52,7 +52,10 @@ impl AecMicCapture {
             // Try VoiceProcessingIO. If it fails, log but don't disable permanently,
         // so subsequent starts can retry. Fall back to MicCapture regardless.
             if self.mac.is_none() {
-                self.mac = MacAecCapture::new().ok();
+                match MacAecCapture::new() {
+                    Ok(m) => self.mac = Some(m),
+                    Err(e) => warn!("[aec] MacAecCapture::new() failed: {}", e),
+                }
             }
             if let Some(mac) = self.mac.as_mut() {
                 match mac.start(audio_queue.clone(), callback.clone()) {
@@ -65,6 +68,9 @@ impl AecMicCapture {
                     Err(e) => {
                         warn!("[aec] VoiceProcessingIO failed to start ({}), falling back to MicCapture", e);
                         mac.stop();
+                        // Discard the broken AudioUnit so next start() creates a fresh one.
+                        // After Bluetooth reconnect the old instance is in a bad state.
+                        self.mac = None;
                     }
                 }
             }
@@ -81,10 +87,18 @@ impl AecMicCapture {
     pub fn stop(&mut self) {
         self.running.store(false, Ordering::SeqCst);
         #[cfg(target_os = "macos")]
-        if let Some(mac) = self.mac.as_mut() {
-            mac.stop();
+        {
+            if let Some(mac) = self.mac.as_mut() {
+                mac.stop();
+            }
+            // Drop the AudioUnit entirely so CoreAudio restores its audio route.
+            // The next start() will create a fresh one.
+            self.mac = None;
         }
-        self.fallback.stop();
+        // Replace with a fresh MicCapture so cpal fully releases the old audio unit.
+        // Dropping MicCapture drops the Stream, which tells CoreAudio to release the mic.
+        let old = std::mem::replace(&mut self.fallback, MicCapture::new());
+        drop(old); // drops MicCapture → drops Stream → CoreAudio releases mic
     }
 
     pub fn is_running(&self) -> bool {

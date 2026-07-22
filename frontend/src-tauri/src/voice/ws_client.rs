@@ -137,20 +137,28 @@ impl VoiceWsClient {
         })).await
     }
 
-    pub async fn send_route(&self, thread_id: &str, text: &str, message_id: &str) -> Result<(), String> {
-        self.send("voice.route", serde_json::json!({
+    pub async fn send_route(&self, thread_id: &str, text: &str, message_id: &str, project_id: Option<&str>) -> Result<(), String> {
+        let mut body = serde_json::json!({
             "thread_id": thread_id,
             "text": text,
             "message_id": message_id,
-        })).await
+        });
+        if let Some(pid) = project_id {
+            body["project_id"] = serde_json::json!(pid);
+        }
+        self.send("voice.route", body).await
     }
 
-    pub async fn send_dictation_finalize(&self, thread_id: &str, raw_text: &str, target_locale: &str) -> Result<(), String> {
-        self.send("voice.dictation.finalize", serde_json::json!({
+    pub async fn send_dictation_finalize(&self, thread_id: &str, raw_text: &str, target_locale: &str, project_id: Option<&str>) -> Result<(), String> {
+        let mut body = serde_json::json!({
             "thread_id": thread_id,
             "raw_text": raw_text,
             "target_locale": target_locale,
-        })).await
+        });
+        if let Some(pid) = project_id {
+            body["project_id"] = serde_json::json!(pid);
+        }
+        self.send("voice.dictation.finalize", body).await
     }
 
     pub async fn send_voice_start(&self, thread_id: &str) -> Result<(), String> {

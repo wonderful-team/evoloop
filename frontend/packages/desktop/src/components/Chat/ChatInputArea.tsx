@@ -184,18 +184,9 @@ export const ChatInputArea = memo(
       const { autoSpeak, toggleAutoSpeak } = useAutoSpeak()
       const voiceState = useVoiceStore((s) => s.voiceState)
 
-      // Refs for global shortcut F10/F12 cycle state machine
-      const voiceModeRef = useRef(voiceMode)
-      useEffect(() => {
-        voiceModeRef.current = voiceMode
-      }, [voiceMode])
-
       // Wake word settings
       const { wakeWord, wakeWordEnabled } = useWakeWordSettings()
       const [showWakeWordIndicator, setShowWakeWordIndicator] = useState(false)
-
-      // Tauri voice shortcut settings
-      const { shortcutEnabled } = useTauriVoiceShortcutSettings()
 
       const handleSend = () => {
         if ((!inputValue.trim() && pickedFiles.length === 0) || isSending)
@@ -506,40 +497,6 @@ export const ChatInputArea = memo(
 
 
 
-
-      // Dictation result: auto-insert into textarea, keep listening
-      const dictationResult = useVoiceStore((s) => s.dictationResult)
-      const setDictationResult = useVoiceStore((s) => s.setDictationResult)
-      useEffect(() => {
-        if (dictationResult) {
-          setInputValue((prev) =>
-            prev ? `${prev}\n${dictationResult}` : dictationResult,
-          )
-
-          if (isTauri()) {
-            import("@tauri-apps/api/event").then(({ emit }) => {
-              emit("hud-update", {
-                mode: "dictation",
-                state: "idle",
-                text: "已粘贴",
-              }).catch(console.error)
-              
-              // Return to listening after 1.5 seconds
-              setTimeout(() => {
-                if (voiceModeRef.current === "dictation") {
-                  emit("hud-update", {
-                    mode: "dictation",
-                    state: "listening",
-                    text: "",
-                  }).catch(console.error)
-                }
-              }, 1500)
-            }).catch(console.error)
-          }
-
-          setDictationResult("")
-        }
-      }, [dictationResult, setDictationResult])
 
       useImperativeHandle(ref, () => ({
         addReference: (item: ReferenceItem, insertText = false) => {

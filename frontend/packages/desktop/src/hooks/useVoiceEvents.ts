@@ -210,7 +210,7 @@ export function useVoiceEvents() {
     unlisteners.push(
       await safeListen<{ polished_text: string; changes?: any[] }>(
         "voice:dictation_polished",
-        (event) => {
+        async (event) => {
           const clarify = event.payload.changes?.[0]?.clarify
           if (clarify) {
             // CLARIFY: don't paste, speak clarification instead
@@ -218,7 +218,23 @@ export function useVoiceEvents() {
               speak(clarify)
             })
           } else {
-            setDictationResult(event.payload.polished_text)
+            // Rust side already pastes via dictation_paste() to the active window.
+            // Update HUD to show "已粘贴" then return to listening after 1.5s.
+            const { emit } = await import("@tauri-apps/api/event")
+            await emit("hud-update", {
+              mode: "dictation",
+              state: "idle" as const,
+              text: "已粘贴",
+            })
+            setTimeout(() => {
+              if (voiceModeRef.current === "dictation") {
+                emit("hud-update", {
+                  mode: "dictation",
+                  state: "listening" as const,
+                  text: "",
+                }).catch(console.error)
+              }
+            }, 1500)
           }
         },
       ),
@@ -244,6 +260,28 @@ export function useVoiceEvents() {
       }),
     )
 
+    // Shared state snapshot: project_id, thread_id, TTS config etc.
+    unlisteners.push(
+      await safeListen<Record<string, string>>("system:state_snapshot", (event) => {
+        const state = event.payload || {}
+        console.log("[shared-state] Snapshot received:", Object.keys(state).length, "keys")
+        // Write TTS config keys from state snapshot too (backward compat)
+        if (state.TTS_ENGINE) {
+          localStorage.setItem("evoloop_tts_engine", state.TTS_ENGINE)
+          safeInvoke("set_tts_engine", { engine: state.TTS_ENGINE }).catch(console.error)
+        }
+        if (state.TTS_VOICE) {
+          localStorage.setItem("evoloop_tts_voice", state.TTS_VOICE)
+          safeInvoke("set_tts_voice", { voice: state.TTS_VOICE }).catch(console.error)
+        }
+        if (state.TTS_SPEED) {
+          localStorage.setItem("evoloop_tts_speed", state.TTS_SPEED)
+          safeInvoke("set_tts_speed", { speed: parseFloat(state.TTS_SPEED) || 1.0 }).catch(console.error)
+        }
+        if (state.QWEN_TTS_API_KEY) localStorage.setItem("evoloop_qwen_tts_key", state.QWEN_TTS_API_KEY)
+      }),
+    )
+
     unlisteners.push(
       await safeListen<{ key: string; old_value: string; new_value: string }>(
         "system:config_changed",
@@ -262,12 +300,6 @@ export function useVoiceEvents() {
           }
         },
       ),
-    )
-
-    unlisteners.push(
-      await safeListen<{ message: string }>("voice:log", (event) => {
-        toast.info(event.payload.message, { duration: 3000 })
-      }),
     )
 
     unlistenersRef.current = unlisteners

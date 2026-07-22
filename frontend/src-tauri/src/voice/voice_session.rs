@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -80,6 +81,7 @@ pub struct VoiceSession {
     event_bus: Arc<Mutex<Option<Arc<dyn VoiceEventBus>>>>,
     model_search_paths: Vec<PathBuf>,
     llm_polish_enabled: Arc<AtomicBool>,
+    shared_state: Arc<RwLock<HashMap<String, String>>>,
 }
 
 impl VoiceSession {
@@ -109,6 +111,7 @@ impl VoiceSession {
                 std::env::var("EVOLOOP_DICTATION_LLM_POLISH").as_deref() == Ok("true")
                     || std::env::var("DICTATION_LLM_POLISH").as_deref() == Ok("true")
             )),
+            shared_state: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -166,12 +169,14 @@ impl VoiceSession {
         let session_state = self.state_machine.clone();
         let session_tts = self.tts.clone();
         let session_lang = self.lang.clone();
+        let session_shared_state = self.shared_state.clone();
         let _session_thread_id = self.thread_id.clone();
 
         let handler = Arc::new(move |envelope: VoiceEnvelope| {
             let session_state = session_state.clone();
             let session_tts = session_tts.clone();
             let session_lang = session_lang.clone();
+            let session_shared_state = session_shared_state.clone();
             let _session_thread_id = _session_thread_id.clone();
             let event_bus = event_bus.clone();
 
@@ -234,6 +239,28 @@ impl VoiceSession {
                         if let Some(configs) = body.get("configs").and_then(|v| v.as_object()) {
                             info!("[voice-session] received {} synced config keys from backend", configs.len());
                             event_bus.emit("system:config_snapshot", serde_json::to_value(configs).unwrap_or_default());
+                        }
+                        // Store and forward shared state snapshot
+                        if let Some(state) = body.get("state").and_then(|v| v.as_object()) {
+                            let mut cache = session_shared_state.write().await;
+                            for (k, v) in state {
+                                if let Some(val) = v.as_str() {
+                                    cache.insert(k.clone(), val.to_string());
+                                }
+                            }
+                            info!("[voice-session] received {} shared state keys", cache.len());
+                            // Forward to React
+                            event_bus.emit("system:state_snapshot", serde_json::to_value(state).unwrap_or_default());
+                        }
+                    }
+
+                    "system.state_changed" => {
+                        if let (Some(key), Some(value)) = (
+                            body.get("key").and_then(|v| v.as_str()),
+                            body.get("value").and_then(|v| v.as_str()),
+                        ) {
+                            session_shared_state.write().await.insert(key.to_string(), value.to_string());
+                            info!("[voice-session] state changed: {} -> {}", key, value);
                         }
                     }
 
@@ -345,10 +372,7 @@ impl VoiceSession {
         ws_client.send_voice_start(&thread_id).await.ok();
         self.emit_log(&format!("voice session started, mode={}", mode));
 
-        self.state_machine.set(VoiceState::Listening).await;
-        self.emit_event("voice:state", serde_json::json!({"state": "listening"}));
-
-        // Start microphone capture
+        // Start microphone capture (must succeed before we emit listening)
         let audio_queue = self.audio_queue.clone();
         let sm = self.state_machine.clone();
         let tts = self.tts.clone();
@@ -374,6 +398,7 @@ impl VoiceSession {
         let lang_clone = self.lang.clone();
         let offline_asr_clone = self.offline_asr.clone();
         let llm_polish_clone = self.llm_polish_enabled.clone();
+        let shared_state_clone = self.shared_state.clone();
         let rt_handle = tokio::runtime::Handle::current();
 
         mic.start(audio_queue, move |samples: &[f32]| {
@@ -420,6 +445,7 @@ impl VoiceSession {
                     let offline = offline_asr_clone.clone();
                     let audio_segments = segments.clone();
                     let llm_flag = llm_polish_clone.clone();
+                    let shared_state = shared_state_clone.clone();
                     rt.spawn(async move {
                         // Run Qwen3 offline ASR on the VAD segment audio
                         let recognized = if let Some(ref engine) = *offline.read().await {
@@ -457,20 +483,27 @@ impl VoiceSession {
                                 dictation_paste(&recognized);
                             } else if llm_flag.load(std::sync::atomic::Ordering::Relaxed) {
                                 let target_locale = lang_for_task.read().await.clone();
-                                ws.send_dictation_finalize(&tid, &recognized, &target_locale).await.ok();
+                                let pid = shared_state.read().await.get("project_id").cloned();
+                                ws.send_dictation_finalize(&tid, &recognized, &target_locale, pid.as_deref()).await.ok();
                             } else {
                                 bus.emit("voice:log", serde_json::json!({"message": format!("LLM 润色已关闭，直接粘贴: {}", recognized)}));
                                 dictation_paste(&recognized);
                             }
                         } else {
                             let msg_id = Uuid::new_v4().to_string();
-                            ws.send_route(&tid, &recognized, &msg_id).await.ok();
+                            let pid = shared_state.read().await.get("project_id").cloned();
+                            ws.send_route(&tid, &recognized, &msg_id, pid.as_deref()).await.ok();
                             let _ = sm.set(VoiceState::Processing).await;
                             bus.emit("voice:state", serde_json::json!({"state": "processing"}));
                         }
                     });
                 }
             }).map_err(|e| e)?;
+
+        info!("[voice-session] microphone capture started");
+
+        self.state_machine.set(VoiceState::Listening).await;
+        self.emit_event("voice:state", serde_json::json!({"state": "listening"}));
 
         info!("[voice-session] started for thread {}", thread_id);
         Ok(())
@@ -503,6 +536,9 @@ impl VoiceSession {
         }
 
         self.mic.write().await.stop();
+        // Let CoreAudio settle after VoiceProcessingIO shutdown,
+        // so the next mic.start() doesn't hit a stale audio route.
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
         self.tts.stop();
         self.tts.resume();
         self.state_machine.force_set(VoiceState::Idle).await;
@@ -659,8 +695,15 @@ pub(crate) async fn handle_route_result(
         if status == "failed" {
             session_tts.queue_sentence("抱歉，处理出错了".to_string());
             session_tts.speak_next(&lang);
+        } else if status == "done" {
+            if let Some(text) = body.get("summary").and_then(|v| v.as_str()) {
+                let s = text.trim();
+                if !s.is_empty() {
+                    session_tts.queue_sentence(s.to_string());
+                    session_tts.speak_next(&lang);
+                }
+            }
         }
-        // "done" TTS is handled by voice.tts_boundary, not here.
         // Return to listening — session is still active, mic is still capturing.
         session_state.force_set(VoiceState::Listening).await;
         event_bus.emit("voice:state", serde_json::json!({"state": "listening"}));
@@ -752,7 +795,7 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn test_done_does_not_speak() {
+        async fn test_done_speaks_summary() {
             let tts = TtsEngine::new_with_queue(Arc::new(Mutex::new(VecDeque::new()))).unwrap();
             let sm = VoiceStateMachine::new();
             let lang = RwLock::new("zh-CN".to_string());
@@ -761,8 +804,7 @@ mod tests {
             let bus = noop_bus();
             handle_route_result(&body, &tts, &sm, &lang, &bus).await;
 
-            // TTS for "done" is handled by voice.tts_boundary, not route_result
-            assert!(!tts.is_speaking());
+            assert!(tts.is_speaking(), "done should speak summary");
         }
 
         #[tokio::test]

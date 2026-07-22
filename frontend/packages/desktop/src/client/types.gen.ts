@@ -136,26 +136,6 @@ export type Body_account_login_access_token = {
     client_secret?: (string | null);
 };
 
-export type Body_audio_text_to_speech_stream = {
-    text: string;
-    voice_id?: string;
-    speed?: number;
-    format?: string;
-};
-
-export type Body_audio_transcribe_audio = {
-    file: (Blob | File);
-    language?: string;
-    model?: string;
-    prompt?: (string | null);
-    provider?: (string | null);
-};
-
-export type Body_audio_transcribe_stream = {
-    file: (Blob | File);
-    language?: string;
-};
-
 export type Body_files_upload_file = {
     file: (Blob | File);
     thread_id?: (string | null);
@@ -436,6 +416,30 @@ export type DeviceResolutionResponse = {
     [key: string]: unknown | boolean | string | number;
 };
 
+export type DictationRequest = {
+    raw_text: string;
+    target_locale?: string;
+};
+
+export type DictationResponse = {
+    polished_text: string;
+    raw_text: string;
+    changes?: Array<unknown>;
+};
+
+export type DiscoveredModelResponse = {
+    id: string;
+    name: string;
+    source: string;
+    model_name: string;
+    base_url?: (string | null);
+    capabilities?: Array<(string)>;
+    status?: string;
+    context_window?: (number | null);
+    error?: (string | null);
+    [key: string]: unknown | string;
+};
+
 export type DiscoverRequest = {
     record_secrets?: boolean;
     [key: string]: unknown | boolean;
@@ -481,6 +485,10 @@ export type DownloadFileRequest = {
     [key: string]: unknown | string;
 };
 
+export type DownloadRequest = {
+    model_id: string;
+};
+
 export type EmbeddingApplyResponse = {
     success?: boolean;
     message?: string;
@@ -515,6 +523,69 @@ export type EmbeddingTestResponse = {
     success?: boolean;
     message?: string;
     dimensions?: (number | null);
+    [key: string]: unknown | boolean | string;
+};
+
+export type EmbeddingTierConfigRequest = {
+    /**
+     * Comma-separated tier priority
+     */
+    tiers?: string;
+    /**
+     * Tier 1: GGUF file path
+     */
+    gguf_model?: (string | null);
+    /**
+     * Tier 2: Local HTTP URL
+     */
+    local_url?: (string | null);
+    /**
+     * Tier 2: API key
+     */
+    local_api_key?: (string | null);
+    /**
+     * Tier 2: model name
+     */
+    local_model?: (string | null);
+    /**
+     * Tier 3: provider type (openai/ollama/lm-studio)
+     */
+    provider?: (string | null);
+    /**
+     * Tier 3: API base URL
+     */
+    base_url?: (string | null);
+    /**
+     * Tier 3: model name
+     */
+    model?: (string | null);
+    /**
+     * Tier 3: API key
+     */
+    api_key?: (string | null);
+    /**
+     * Tier 3: embedding dimensions
+     */
+    dimensions?: (number | null);
+    [key: string]: unknown | string;
+};
+
+export type EmbeddingTierStatusResponse = {
+    success?: boolean;
+    message?: string;
+    active_tier?: (string | null);
+    gguf_available?: boolean;
+    local_available?: boolean;
+    remote_available?: boolean;
+    tiers?: string;
+    [key: string]: unknown | boolean | string;
+};
+
+export type EmbeddingTierTestResponse = {
+    success?: boolean;
+    message?: string;
+    dimensions?: (number | null);
+    error?: (string | null);
     [key: string]: unknown | boolean | string;
 };
 
@@ -768,6 +839,57 @@ export type IndexingRunResponse = {
     [key: string]: unknown | boolean | string | number;
 };
 
+export type LightningApplyResponse = {
+    success?: boolean;
+    message?: string;
+    status?: string;
+    [key: string]: unknown | boolean | string;
+};
+
+export type LightningConfigRequest = {
+    /**
+     * Lightning mode: none, llama.cpp, lm-studio, ollama
+     */
+    mode?: string;
+    /**
+     * LLM model name or GGUF path
+     */
+    llm_model?: (string | null);
+    /**
+     * Base URL for lm-studio/ollama
+     */
+    base_url?: (string | null);
+    /**
+     * API key for local endpoint
+     */
+    api_key?: (string | null);
+    /**
+     * Max context tokens
+     */
+    context_window?: (number | null);
+    [key: string]: unknown | string;
+};
+
+export type LightningStatusResponse = {
+    success?: boolean;
+    message?: string;
+    mode?: string;
+    llm_available?: boolean;
+    llama_cpp_available?: boolean;
+    llm_model?: string;
+    base_url?: string;
+    context_window?: number;
+    [key: string]: unknown | boolean | string | number;
+};
+
+export type LightningTestResponse = {
+    success?: boolean;
+    message?: string;
+    llm_ok?: boolean;
+    llm_reply?: (string | null);
+    [key: string]: unknown | boolean | string;
+};
+
 export type LLMApplyResponse = {
     success?: boolean;
     message?: string;
@@ -827,89 +949,6 @@ export type LLMTestResponse = {
     message?: string;
     reply?: (string | null);
     [key: string]: unknown | boolean | string;
-};
-
-export type LightningConfigRequest = {
-    mode: string;
-    llm_model?: (string | null);
-    embed_model?: (string | null);
-    base_url?: (string | null);
-    api_key?: (string | null);
-    context_window?: (number | null);
-};
-
-export type LightningStatusResponse = {
-    success?: boolean;
-    message?: string;
-    mode: string;
-    llm_available: boolean;
-    embedder_available: boolean;
-    llama_cpp_available: boolean;
-    llm_model: string;
-    embed_model: string;
-    base_url: string;
-    context_window: number;
-};
-
-export type LightningTestResponse = {
-    success?: boolean;
-    message?: string;
-    llm_ok: boolean;
-    embed_ok: boolean;
-    llm_reply?: (string | null);
-};
-
-export type LightningApplyResponse = {
-    success?: boolean;
-    message?: string;
-    status: string;
-};
-
-export type EmbeddingTierConfigRequest = {
-    tiers: string;
-    gguf_model?: (string | null);
-    local_url?: (string | null);
-    local_api_key?: (string | null);
-    local_model?: (string | null);
-    provider?: (string | null);
-    base_url?: (string | null);
-    model?: (string | null);
-    api_key?: (string | null);
-    dimensions?: (number | null);
-};
-
-export type EmbeddingTierStatusResponse = {
-    success?: boolean;
-    message?: string;
-    active_tier?: (string | null);
-    gguf_available: boolean;
-    local_available: boolean;
-    remote_available: boolean;
-    tiers: string;
-};
-
-export type EmbeddingTierTestResponse = {
-    success?: boolean;
-    message?: string;
-    dimensions?: (number | null);
-    error?: (string | null);
-};
-
-export type DiscoveredModelDTO = {
-    id: string;
-    name: string;
-    source: string;
-    model_name: string;
-    base_url?: (string | null);
-    capabilities?: Array<string>;
-    status?: string;
-    context_window?: (number | null);
-};
-
-export type ModelDiscoveryResponse = {
-    success?: boolean;
-    message?: string;
-    models: Array<DiscoveredModelDTO>;
 };
 
 /**
@@ -1174,6 +1213,13 @@ export type MobileLoginRequest = {
     [key: string]: unknown | string;
 };
 
+export type ModelDiscoveryResponse = {
+    success?: boolean;
+    message?: string;
+    models?: Array<DiscoveredModelResponse>;
+    [key: string]: unknown | boolean | string | DiscoveredModelResponse;
+};
+
 export type ModelsListResponse = {
     success?: boolean;
     message?: string;
@@ -1309,6 +1355,8 @@ export type ProfileContentResponse = {
     message?: string;
     content?: (string | null);
     exists?: boolean;
+    url?: (string | null);
+    name?: (string | null);
     [key: string]: unknown | boolean | string;
 };
 
@@ -1593,18 +1641,6 @@ export type StopRecordingResponse = {
 };
 
 /**
- * STT 提供商列表响应
- */
-export type STTProvidersResponse = {
-    success?: boolean;
-    message?: string;
-    providers: Array<{
-        [key: string]: unknown;
-    }>;
-    [key: string]: unknown | boolean | string;
-};
-
-/**
  * Subtask creation request.
  */
 export type SubtaskCreate = {
@@ -1613,6 +1649,11 @@ export type SubtaskCreate = {
     priority?: string;
     estimated_hours?: number;
     [key: string]: unknown | string | number;
+};
+
+export type SwitchProjectRequest = {
+    project_id: number;
+    project_name?: string;
 };
 
 /**
@@ -1922,24 +1963,16 @@ export type ToolInfo = {
     [key: string]: unknown | string;
 };
 
-/**
- * 语音识别响应
- */
-export type TranscriptionResponse = {
-    success?: boolean;
-    message?: string;
+export type TTSRequest = {
     text: string;
-    duration: number;
-    language: string;
-    confidence?: (number | null);
-    [key: string]: unknown | boolean | string | number;
+    engine?: string;
+    voice?: string;
 };
 
-/**
- * 语音合成请求
- */
 export type UpdateProfileRequest = {
     content: string;
+    name?: (string | null);
+    url?: (string | null);
     [key: string]: unknown | string;
 };
 
@@ -2101,7 +2134,7 @@ export type VectorSearchResult = {
 };
 
 /**
- * TTS 声音列表响应
+ * External webhook payload. Extra fields are allowed per source/event_type.
  */
 export type WebhookPayload = {
     [key: string]: unknown;
@@ -2286,20 +2319,6 @@ export type AtlasListAppMapsData = {
 
 export type AtlasListAppMapsResponse = (unknown);
 
-export type AudioListSttProvidersResponse = (STTProvidersResponse);
-
-export type AudioTranscribeAudioData = {
-    formData: Body_audio_transcribe_audio;
-};
-
-export type AudioTranscribeAudioResponse = (TranscriptionResponse);
-
-export type AudioTranscribeStreamData = {
-    formData: Body_audio_transcribe_stream;
-};
-
-export type AudioTranscribeStreamResponse = (unknown);
-
 export type AuthGetCaptchaConfigResponse = (EvoCloudProxyResponse);
 
 export type AuthGetCaptchaData = {
@@ -2351,6 +2370,19 @@ export type AuthResetPasswordData = {
 };
 
 export type AuthResetPasswordResponse = (EvoCloudProxyResponse);
+
+export type CodeModulesListModulesData = {
+    projectId: number;
+};
+
+export type CodeModulesListModulesResponse = (unknown);
+
+export type CodeModulesGetModuleOfData = {
+    entity: string;
+    projectId: number;
+};
+
+export type CodeModulesGetModuleOfResponse = (unknown);
 
 export type ConversationsListConversationsData = {
     page?: number;
@@ -2822,7 +2854,9 @@ export type MacrosCreateMacroResponse = (MacroDTO);
 
 export type MacrosListMacrosData = {
     appMapId?: (number | null);
+    limit?: number;
     projectId?: (number | null);
+    skip?: number;
     status?: (string | null);
 };
 
@@ -3011,6 +3045,24 @@ export type MemoryDeduplicateCheckpointsData = {
 
 export type MemoryDeduplicateCheckpointsResponse = (unknown);
 
+export type ModelsGetModelStatusData = {
+    modelId?: (string | null);
+};
+
+export type ModelsGetModelStatusResponse = (unknown);
+
+export type ModelsStartDownloadData = {
+    requestBody: DownloadRequest;
+};
+
+export type ModelsStartDownloadResponse = (unknown);
+
+export type ModelsDownloadProgressData = {
+    modelId: string;
+};
+
+export type ModelsDownloadProgressResponse = (unknown);
+
 export type PlanningGetPlanData = {
     threadId: string;
 };
@@ -3113,6 +3165,14 @@ export type ProjectsRunIndexingEndpointData = {
 };
 
 export type ProjectsRunIndexingEndpointResponse = (IndexingRunResponse);
+
+export type ProjectsSwitchProjectData = {
+    requestBody: SwitchProjectRequest;
+};
+
+export type ProjectsSwitchProjectResponse = ({
+    [key: string]: unknown;
+});
 
 export type ResourcesListResourcesData = {
     projectId: number;
@@ -3279,7 +3339,37 @@ export type SystemUpdateSystemConfigData = {
 
 export type SystemUpdateSystemConfigResponse = (SystemConfig);
 
+export type SystemGetLightningStatusResponse = (LightningStatusResponse);
+
+export type SystemApplyLightningConfigData = {
+    requestBody: LightningConfigRequest;
+};
+
+export type SystemApplyLightningConfigResponse = (LightningApplyResponse);
+
+export type SystemTestLightningConnectionData = {
+    requestBody: LightningConfigRequest;
+};
+
+export type SystemTestLightningConnectionResponse = (LightningTestResponse);
+
+export type SystemDiscoverModelsResponse = (ModelDiscoveryResponse);
+
 export type SystemHealthCheckResponse = (HealthCheckResponse);
+
+export type SystemGetEmbeddingTierStatusResponse = (EmbeddingTierStatusResponse);
+
+export type SystemApplyEmbeddingTierConfigData = {
+    requestBody: EmbeddingTierConfigRequest;
+};
+
+export type SystemApplyEmbeddingTierConfigResponse = (EmbeddingApplyResponse);
+
+export type SystemTestEmbeddingTierConnectionData = {
+    requestBody: EmbeddingTierConfigRequest;
+};
+
+export type SystemTestEmbeddingTierConnectionResponse = (EmbeddingTierTestResponse);
 
 export type SystemTestEmbeddingConnectionData = {
     requestBody: EmbeddingConfigRequest;
@@ -3314,36 +3404,6 @@ export type SystemGetLlmModelsData = {
 export type SystemGetLlmModelsResponse = (ModelsListResponse);
 
 export type SystemGetEmbeddingModelsResponse = (ModelsListResponse);
-
-export type SystemDiscoverModelsResponse = (ModelDiscoveryResponse);
-
-export type SystemGetEmbeddingTierStatusResponse = (EmbeddingTierStatusResponse);
-
-export type SystemApplyEmbeddingTierConfigData = {
-    requestBody: EmbeddingTierConfigRequest;
-};
-
-export type SystemApplyEmbeddingTierConfigResponse = (EmbeddingApplyResponse);
-
-export type SystemTestEmbeddingTierConnectionData = {
-    requestBody: EmbeddingTierConfigRequest;
-};
-
-export type SystemTestEmbeddingTierConnectionResponse = (EmbeddingTierTestResponse);
-
-export type SystemGetLightningStatusResponse = (LightningStatusResponse);
-
-export type SystemApplyLightningConfigData = {
-    requestBody: LightningConfigRequest;
-};
-
-export type SystemApplyLightningConfigResponse = (LightningApplyResponse);
-
-export type SystemTestLightningConnectionData = {
-    requestBody: LightningConfigRequest;
-};
-
-export type SystemTestLightningConnectionResponse = (LightningTestResponse);
 
 export type TasksGetProjectTasksData = {
     page?: number;
@@ -3463,6 +3523,18 @@ export type VaultDeleteCredentialData = {
 export type VaultDeleteCredentialResponse = ({
     [key: string]: unknown;
 });
+
+export type VoiceDictationPolishData = {
+    requestBody: DictationRequest;
+};
+
+export type VoiceDictationPolishResponse = (DictationResponse);
+
+export type VoiceGenerateTtsData = {
+    requestBody: TTSRequest;
+};
+
+export type VoiceGenerateTtsResponse = (unknown);
 
 export type WikiGetWikiPagesData = {
     projectId: number;
