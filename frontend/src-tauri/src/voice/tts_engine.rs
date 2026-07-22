@@ -47,6 +47,7 @@ pub struct TtsEngine {
     engine: Arc<Mutex<TtsEngineKind>>,
     voice_name: Arc<Mutex<String>>,
     speed: Arc<Mutex<f32>>,
+    afplay_child: Arc<Mutex<Option<std::process::Child>>>,
 }
 
 impl TtsEngine {
@@ -61,6 +62,7 @@ impl TtsEngine {
             engine: Arc::new(Mutex::new(TtsEngineKind::System)),
             voice_name: Arc::new(Mutex::new("zh-CN-XiaoxiaoNeural".to_string())),
             speed: Arc::new(Mutex::new(1.0)),
+            afplay_child: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -104,17 +106,29 @@ impl TtsEngine {
         let text = text.to_string();
         let lang_str = lang.to_string();
         let engine_clone = self.clone();
+        let play_child = self.afplay_child.clone();
         std::thread::spawn(move || {
             let voice = if lang_str.starts_with("zh") { "Ting-Ting" } else { "Samantha" };
             let rate = (speed * 200.0) as i32;
-            let status = std::process::Command::new("say")
+            match std::process::Command::new("say")
                 .arg("-v").arg(voice)
                 .arg("-r").arg(rate.to_string())
                 .arg(&text)
-                .status();
-            if let Ok(status) = status {
-                if !status.success() {
-                    warn!("[tts] say command failed for: {}", text);
+                .spawn()
+            {
+                Ok(mut child) => {
+                    if let Ok(mut guard) = play_child.lock() {
+                        *guard = Some(child);
+                    }
+                    if let Ok(mut guard) = play_child.lock() {
+                        if let Some(ref mut c) = *guard {
+                            let _ = c.wait();
+                        }
+                        *guard = None;
+                    }
+                }
+                Err(e) => {
+                    warn!("[tts] say command failed: {}", e);
                 }
             }
             speaking.store(false, Ordering::SeqCst);
@@ -131,11 +145,47 @@ impl TtsEngine {
         let voice_name = self.get_voice();
         let final_voice = if voice_name.is_empty() { "zh-CN-XiaoxiaoNeural".to_string() } else { voice_name };
         let engine_clone = self.clone();
+        let afplay_child = self.afplay_child.clone();
         tokio::spawn(async move {
-            let res = speak_edge_tts(&text, &final_voice, true).await;
-            if let Err(e) = res {
-                warn!("[tts] Edge-TTS failed: {}", e);
+            let audio_bytes = match speak_edge_tts(&text, &final_voice, true).await {
+                Ok(b) => b,
+                Err(e) => {
+                    warn!("[tts] Edge-TTS failed: {}", e);
+                    speaking.store(false, Ordering::SeqCst);
+                    return;
+                }
+            };
+
+            let path = std::env::temp_dir().join(format!("evoloop_edge_{}.mp3", uuid::Uuid::new_v4()));
+            if let Err(e) = tokio::fs::write(&path, &audio_bytes).await {
+                warn!("[tts] Edge-TTS write failed: {}", e);
+                speaking.store(false, Ordering::SeqCst);
+                return;
             }
+
+            match std::process::Command::new("afplay")
+                .arg(&path)
+                .spawn()
+            {
+                Ok(mut child) => {
+                    // Store handle so stop() can kill it
+                    if let Ok(mut guard) = afplay_child.lock() {
+                        *guard = Some(child);
+                    }
+                    // Wait for playback to finish (or be killed by stop())
+                    if let Ok(mut guard) = afplay_child.lock() {
+                        if let Some(ref mut c) = *guard {
+                            let _ = c.wait();
+                        }
+                        *guard = None;
+                    }
+                }
+                Err(e) => {
+                    warn!("[tts] afplay spawn failed: {}", e);
+                }
+            }
+            let _ = std::fs::remove_file(&path);
+
             speaking.store(false, Ordering::SeqCst);
             engine_clone.speak_next(&lang_str);
         });
@@ -149,11 +199,24 @@ impl TtsEngine {
         let lang_str = _lang.to_string();
         let voice_name = self.get_voice();
         let engine_clone = self.clone();
+        let afplay_child = self.afplay_child.clone();
         tokio::spawn(async move {
-            let res = speak_qwen_tts(&text, &voice_name).await;
-            if let Err(e) = res {
-                warn!("[tts] Qwen-TTS failed: {}", e);
+            let audio_bytes = match fetch_qwen_tts(&text, &voice_name).await {
+                Ok(b) => b,
+                Err(e) => {
+                    warn!("[tts] Qwen-TTS failed: {}", e);
+                    speaking.store(false, Ordering::SeqCst);
+                    return;
+                }
+            };
+            let path = std::env::temp_dir().join(format!("evoloop_qwen_{}.wav", uuid::Uuid::new_v4()));
+            if let Err(e) = tokio::fs::write(&path, &audio_bytes).await {
+                warn!("[tts] Qwen-TTS write failed: {}", e);
+                speaking.store(false, Ordering::SeqCst);
+                return;
             }
+            let _ = play_audio(&path, &afplay_child);
+            let _ = std::fs::remove_file(&path);
             speaking.store(false, Ordering::SeqCst);
             engine_clone.speak_next(&lang_str);
         });
@@ -166,11 +229,24 @@ impl TtsEngine {
         let text = text.to_string();
         let lang_str = _lang.to_string();
         let engine_clone = self.clone();
+        let afplay_child = self.afplay_child.clone();
         tokio::spawn(async move {
-            let res = speak_cosyvoice_tts(&text).await;
-            if let Err(e) = res {
-                warn!("[tts] CosyVoice failed: {}", e);
+            let audio_bytes = match fetch_backend_tts(&text, "cosyvoice").await {
+                Ok(b) => b,
+                Err(e) => {
+                    warn!("[tts] CosyVoice failed: {}", e);
+                    speaking.store(false, Ordering::SeqCst);
+                    return;
+                }
+            };
+            let path = std::env::temp_dir().join(format!("evoloop_cosyvoice_{}.wav", uuid::Uuid::new_v4()));
+            if let Err(e) = tokio::fs::write(&path, &audio_bytes).await {
+                warn!("[tts] CosyVoice write failed: {}", e);
+                speaking.store(false, Ordering::SeqCst);
+                return;
             }
+            let _ = play_audio(&path, &afplay_child);
+            let _ = std::fs::remove_file(&path);
             speaking.store(false, Ordering::SeqCst);
             engine_clone.speak_next(&lang_str);
         });
@@ -184,11 +260,24 @@ impl TtsEngine {
         let lang_str = _lang.to_string();
         let engine_clone = self.clone();
         let voice = self.get_voice();
+        let afplay_child = self.afplay_child.clone();
         tokio::spawn(async move {
-            let res = speak_kokoro_tts(&text, &voice).await;
-            if let Err(e) = res {
-                warn!("[tts] Kokoro failed: {}", e);
+            let audio_bytes = match fetch_backend_tts(&text, "kokoro").await {
+                Ok(b) => b,
+                Err(e) => {
+                    warn!("[tts] Kokoro failed: {}", e);
+                    speaking.store(false, Ordering::SeqCst);
+                    return;
+                }
+            };
+            let path = std::env::temp_dir().join(format!("evoloop_kokoro_{}.wav", uuid::Uuid::new_v4()));
+            if let Err(e) = tokio::fs::write(&path, &audio_bytes).await {
+                warn!("[tts] Kokoro write failed: {}", e);
+                speaking.store(false, Ordering::SeqCst);
+                return;
             }
+            let _ = play_audio(&path, &afplay_child);
+            let _ = std::fs::remove_file(&path);
             speaking.store(false, Ordering::SeqCst);
             engine_clone.speak_next(&lang_str);
         });
@@ -241,6 +330,14 @@ impl TtsEngine {
         if let Ok(mut q) = self.audio_queue.lock() {
             q.clear();
         }
+        // Kill any running playback process (afplay / say) so audio stops immediately
+        if let Ok(mut child) = self.afplay_child.lock() {
+            if let Some(ref mut c) = *child {
+                let _ = c.kill();
+                let _ = c.wait();
+            }
+            *child = None;
+        }
         info!("[tts] stopped (barge-in)");
     }
 
@@ -269,7 +366,31 @@ impl TtsEngine {
     }
 }
 
-pub async fn speak_edge_tts(text: &str, voice_name: &str, _is_zh: bool) -> Result<(), String> {
+/// Play audio file via afplay, storing the child handle so stop() can kill it.
+fn play_audio(path: &std::path::Path, afplay_child: &Arc<Mutex<Option<std::process::Child>>>) -> Result<(), String> {
+    match std::process::Command::new("afplay")
+        .arg(path)
+        .spawn()
+    {
+        Ok(mut child) => {
+            if let Ok(mut guard) = afplay_child.lock() {
+                *guard = Some(child);
+            }
+            if let Ok(mut guard) = afplay_child.lock() {
+                if let Some(ref mut c) = *guard {
+                    let _ = c.wait();
+                }
+                *guard = None;
+            }
+            Ok(())
+        }
+        Err(e) => {
+            Err(format!("afplay spawn failed: {}", e))
+        }
+    }
+}
+
+pub async fn speak_edge_tts(text: &str, voice_name: &str, _is_zh: bool) -> Result<Vec<u8>, String> {
     use msedge_tts::tts::{client::tokio_runtime::connect_async, SpeechConfig};
 
     let config = SpeechConfig {
@@ -294,38 +415,11 @@ pub async fn speak_edge_tts(text: &str, voice_name: &str, _is_zh: bool) -> Resul
             err
         })?;
 
-    info!("[tts] edge-tts received {} bytes audio", audio.audio_bytes.len());
-    let path = std::env::temp_dir().join(format!("evoloop_edge_{}.mp3", uuid::Uuid::new_v4()));
-    std::fs::write(&path, &audio.audio_bytes)
-        .map_err(|e| {
-            let err = format!("Edge-TTS failed to write temp file: {}", e);
-            warn!("[tts] {}", err);
-            err
-        })?;
-
-    let status = std::process::Command::new("afplay")
-        .arg(&path)
-        .status()
-        .map_err(|e| {
-            let err = format!("afplay failed: {}", e);
-            warn!("[tts] {}", err);
-            let _ = std::fs::remove_file(&path);
-            err
-        })?;
-
-    let _ = std::fs::remove_file(&path);
-
-    if !status.success() && status.code() != None {
-        return Err(format!("afplay exited with status: {:?}", status.code()));
-    }
-
-    Ok(())
+    Ok(audio.audio_bytes)
 }
 
 
-pub async fn speak_qwen_tts(text: &str, voice: &str) -> Result<(), String> {
-    // Qwen-TTS via DashScope API (Alibaba Cloud)
-    // Requires API key from env: EVOLOOP_QWEN_TTS_KEY or config
+pub async fn fetch_qwen_tts(text: &str, voice: &str) -> Result<Vec<u8>, String> {
     let api_key = std::env::var("EVOLOOP_QWEN_TTS_KEY").unwrap_or_default();
     if api_key.is_empty() {
         let err = "Qwen-TTS: EVOLOOP_QWEN_TTS_KEY not set".to_string();
@@ -343,9 +437,7 @@ pub async fn speak_qwen_tts(text: &str, voice: &str) -> Result<(), String> {
             "voice": final_voice,
             "language_type": "Chinese"
         },
-        "parameters": {
-            "format": "wav"
-        }
+        "parameters": { "format": "wav" }
     });
 
     let resp = client
@@ -354,23 +446,12 @@ pub async fn speak_qwen_tts(text: &str, voice: &str) -> Result<(), String> {
         .json(&body)
         .send()
         .await
-        .map_err(|e| {
-            let mut err_msg = format!("Qwen-TTS request failed: {}", e);
-            let mut current = std::error::Error::source(&e);
-            while let Some(cause) = current {
-                err_msg = format!("{}: {}", err_msg, cause);
-                current = std::error::Error::source(cause);
-            }
-            warn!("[tts] {}", err_msg);
-            err_msg
-        })?;
+        .map_err(|e| format!("Qwen-TTS request failed: {}", e))?;
 
     if !resp.status().is_success() {
         let status = resp.status();
         let err_body = resp.text().await.unwrap_or_default();
-        let err = format!("Qwen-TTS API error status {}: {}", status, err_body);
-        warn!("[tts] {}", err);
-        return Err(err);
+        return Err(format!("Qwen-TTS API error status {}: {}", status, err_body));
     }
 
     let json_resp: serde_json::Value = resp.json().await
@@ -379,11 +460,7 @@ pub async fn speak_qwen_tts(text: &str, voice: &str) -> Result<(), String> {
     let audio_url = json_resp
         .pointer("/output/audio/url")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| {
-            let err = format!("Qwen-TTS API response missing audio URL: {:?}", json_resp);
-            warn!("[tts] {}", err);
-            err
-        })?;
+        .ok_or_else(|| format!("Qwen-TTS API response missing audio URL: {:?}", json_resp))?;
 
     info!("[tts] Qwen-TTS audio URL: {}", audio_url);
 
@@ -401,141 +478,93 @@ pub async fn speak_qwen_tts(text: &str, voice: &str) -> Result<(), String> {
 
     if bytes.len() < 100 {
         let text_preview = String::from_utf8_lossy(&bytes);
-        return Err(format!("Downloaded audio is too small: {} bytes. Content: {}", bytes.len(), text_preview));
+        return Err(format!("Downloaded audio is too small: {} bytes", bytes.len()));
     }
 
     if bytes[0] == b'<' || bytes[0] == b'{' {
         let text_preview = String::from_utf8_lossy(&bytes[..bytes.len().min(500)]);
-        return Err(format!("Downloaded data is not audio (JSON/XML). Content: {}", text_preview));
+        return Err(format!("Downloaded data is not audio: {}", text_preview));
     }
 
+    Ok(bytes.to_vec())
+}
+
+pub async fn speak_qwen_tts(text: &str, voice: &str) -> Result<(), String> {
+    let bytes = fetch_qwen_tts(text, voice).await?;
     let path = std::env::temp_dir().join(format!("evoloop_qwen_{}.wav", uuid::Uuid::new_v4()));
     std::fs::write(&path, &bytes)
-        .map_err(|e| {
-            let err = format!("Qwen-TTS write failed: {}", e);
-            warn!("[tts] {}", err);
-            err
-        })?;
-
-    let status = std::process::Command::new("afplay")
-        .arg(&path)
-        .status()
-        .map_err(|e| {
-            let err = format!("afplay failed: {}", e);
-            warn!("[tts] {}", err);
-            let _ = std::fs::remove_file(&path);
-            err
-        })?;
-
+        .map_err(|e| format!("Qwen-TTS write failed: {}", e))?;
+    let afplay_child: Arc<Mutex<Option<std::process::Child>>> = Arc::new(Mutex::new(None));
+    let _ = play_audio(&path, &afplay_child);
     let _ = std::fs::remove_file(&path);
-
-    if !status.success() && status.code() != None {
-        return Err(format!("afplay exited with error: {:?}", status.code()));
-    }
-
     Ok(())
 }
 
-async fn speak_cosyvoice_tts(text: &str) -> Result<(), String> {
+async fn fetch_backend_tts(text: &str, engine: &str) -> Result<Vec<u8>, String> {
     let backend_port = crate::sidecar::BACKEND_PORT;
     let url = format!("http://127.0.0.1:{}/api/v1/voice/tts", backend_port);
 
     let client = reqwest::Client::new();
     let resp = client
         .post(&url)
-        .json(&serde_json::json!({
-            "text": text,
-            "engine": "cosyvoice",
-            "voice": "中文女",
-        }))
+        .json(&serde_json::json!({"text": text, "engine": engine}))
         .send()
         .await
-        .map_err(|e| format!("CosyVoice request failed: {}", e))?;
+        .map_err(|e| format!("{}/TTS request failed: {}", engine, e))?;
 
     if !resp.status().is_success() {
-        let status = resp.status();
-        let err_body = resp.text().await.unwrap_or_default();
-        return Err(format!("CosyVoice API error status {}: {}", status, err_body));
+        return Err(format!("{}/TTS API error: {}", engine, resp.status()));
     }
 
     let bytes = resp.bytes().await
-        .map_err(|e| format!("CosyVoice read response failed: {}", e))?;
+        .map_err(|e| format!("{}/TTS read failed: {}", engine, e))?;
 
-    if bytes.len() < 100 {
-        return Err(format!("CosyVoice audio too small: {} bytes", bytes.len()));
+    if bytes.is_empty() {
+        return Err(format!("{}/TTS returned empty audio", engine));
     }
 
+    Ok(bytes.to_vec())
+}
+
+async fn speak_cosyvoice_tts(text: &str) -> Result<(), String> {
+    let bytes = fetch_backend_tts(text, "cosyvoice").await?;
     let path = std::env::temp_dir().join(format!("evoloop_cosyvoice_{}.wav", uuid::Uuid::new_v4()));
-    std::fs::write(&path, &bytes)
-        .map_err(|e| format!("CosyVoice write failed: {}", e))?;
-
-    let status = std::process::Command::new("afplay")
-        .arg(&path)
-        .status()
-        .map_err(|e| {
-            let _ = std::fs::remove_file(&path);
-            format!("afplay failed: {}", e)
-        })?;
-
+    std::fs::write(&path, &bytes).map_err(|e| format!("CosyVoice write failed: {}", e))?;
+    let afplay_child: Arc<Mutex<Option<std::process::Child>>> = Arc::new(Mutex::new(None));
+    let _ = play_audio(&path, &afplay_child);
     let _ = std::fs::remove_file(&path);
-
-    if !status.success() && status.code() != None {
-        return Err(format!("afplay exited with error: {:?}", status.code()));
-    }
-
     Ok(())
 }
 
 async fn speak_kokoro_tts(text: &str, voice: &str) -> Result<(), String> {
+    let final_voice = if voice.is_empty() { "zf_xiaobei" } else { voice };
+    let bytes = fetch_backend_tts_with_voice(text, "kokoro", &final_voice).await?;
+    let path = std::env::temp_dir().join(format!("evoloop_kokoro_{}.wav", uuid::Uuid::new_v4()));
+    std::fs::write(&path, &bytes).map_err(|e| format!("Kokoro write failed: {}", e))?;
+    let afplay_child: Arc<Mutex<Option<std::process::Child>>> = Arc::new(Mutex::new(None));
+    let _ = play_audio(&path, &afplay_child);
+    let _ = std::fs::remove_file(&path);
+    Ok(())
+}
+
+async fn fetch_backend_tts_with_voice(text: &str, engine: &str, voice: &str) -> Result<Vec<u8>, String> {
     let backend_port = crate::sidecar::BACKEND_PORT;
     let url = format!("http://127.0.0.1:{}/api/v1/voice/tts", backend_port);
-
-    let final_voice = if voice.is_empty() { "zf_xiaobei" } else { voice };
-
     let client = reqwest::Client::new();
     let resp = client
         .post(&url)
-        .json(&serde_json::json!({
-            "text": text,
-            "engine": "kokoro",
-            "voice": final_voice,
-        }))
+        .json(&serde_json::json!({"text": text, "engine": engine, "voice": voice}))
         .send()
         .await
-        .map_err(|e| format!("Kokoro request failed: {}", e))?;
-
+        .map_err(|e| format!("{}/TTS request failed: {}", engine, e))?;
     if !resp.status().is_success() {
-        let status = resp.status();
-        let err_body = resp.text().await.unwrap_or_default();
-        return Err(format!("Kokoro API error status {}: {}", status, err_body));
+        return Err(format!("{}/TTS API error: {}", engine, resp.status()));
     }
-
-    let bytes = resp.bytes().await
-        .map_err(|e| format!("Kokoro read response failed: {}", e))?;
-
-    if bytes.len() < 100 {
-        return Err(format!("Kokoro audio too small: {} bytes", bytes.len()));
+    let bytes = resp.bytes().await.map_err(|e| format!("{}/TTS read failed: {}", engine, e))?;
+    if bytes.is_empty() {
+        return Err(format!("{}/TTS returned empty audio", engine));
     }
-
-    let path = std::env::temp_dir().join(format!("evoloop_kokoro_{}.wav", uuid::Uuid::new_v4()));
-    std::fs::write(&path, &bytes)
-        .map_err(|e| format!("Kokoro write failed: {}", e))?;
-
-    let status = std::process::Command::new("afplay")
-        .arg(&path)
-        .status()
-        .map_err(|e| {
-            let _ = std::fs::remove_file(&path);
-            format!("afplay failed: {}", e)
-        })?;
-
-    let _ = std::fs::remove_file(&path);
-
-    if !status.success() && status.code() != None {
-        return Err(format!("afplay exited with error: {:?}", status.code()));
-    }
-
-    Ok(())
+    Ok(bytes.to_vec())
 }
 
 #[cfg(test)]

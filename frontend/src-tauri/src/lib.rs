@@ -657,7 +657,16 @@ async fn speak_direct(text: &str, engine: &str, voice: &str) -> Result<(), Strin
     match engine {
         "edge-tts" => {
             let voice_name = if voice.is_empty() { "zh-CN-XiaoxiaoNeural" } else { voice };
-            crate::voice::tts_engine::speak_edge_tts(text, voice_name, true).await
+            let bytes = crate::voice::tts_engine::speak_edge_tts(text, voice_name, true).await?;
+            let path = std::env::temp_dir().join(format!("evoloop_edge_{}.mp3", uuid::Uuid::new_v4()));
+            tokio::fs::write(&path, &bytes).await.map_err(|e| format!("write failed: {}", e))?;
+            let status = std::process::Command::new("afplay").arg(&path).status()
+                .map_err(|e| format!("afplay failed: {}", e))?;
+            let _ = std::fs::remove_file(&path);
+            if !status.success() {
+                return Err(format!("afplay exited with: {:?}", status.code()));
+            }
+            Ok(())
         }
         "qwen-tts" => {
             let voice_name = if voice.is_empty() { "Cherry" } else { voice };
