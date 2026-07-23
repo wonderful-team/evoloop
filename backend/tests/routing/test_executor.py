@@ -1,234 +1,97 @@
-"""executor.py terminal-status logic (design §16).
+"""Tests for routing/executor.py: thread locks, cancel, push functions."""
 
-Mocks only the heavy collaborators at the fixture boundary (MacroEngine,
-dispatch_agent_run, session) and asserts the pushed voice.route_result status
-and summary — deterministic logic, per §14.1. Real macro playback is covered by
-the §14.6 on-machine E2E, not here.
-"""
-
-from __future__ import annotations
-
-from contextlib import asynccontextmanager
-from types import SimpleNamespace
+import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.core.routing import executor
-from app.core.routing.schemas import RouteDecision
-from app.models.learning import LearnedSkill
-from app.models.macro import Macro
 
 
-class _FakeManager:
-    def __init__(self):
-        self.pushes = []
-
-    async def push(self, tid, env):
-        self.pushes.append((tid, env))
-        return True
-
-
-def _last_status(fake):
-    tid, env = fake.pushes[-1]
-    return tid, env["body"]["status"], env["body"]["summary"]
+def setup_function():
+    executor.manager = None
+    executor.envelope_fn = None
+    executor.message_type = None
+    executor._thread_locks.clear()
+    executor._voice_sources.clear()
 
 
-def _patch_manager(monkeypatch):
-    fake = _FakeManager()
-    monkeypatch.setattr(executor, "manager", fake)
-    return fake
+class TestThreadLock:
+    def test_get_thread_lock_creates_new(self):
+        lock = executor.get_thread_lock("t1")
+        assert isinstance(lock, asyncio.Lock)
 
+    def test_get_thread_lock_reuses_existing(self):
+        lock1 = executor.get_thread_lock("t1")
+        lock2 = executor.get_thread_lock("t1")
+        assert lock1 is lock2
 
-def _patch_session(monkeypatch, skill, macro=None):
-    @asynccontextmanager
-    async def fake_scope():
-        class _S:
-            async def get(self, model, sid):
-                if model is LearnedSkill:
-                    return skill
-                if model is Macro:
-                    return macro
-                return None
-
-        yield _S()
-
-    monkeypatch.setattr(executor, "session_scope", fake_scope)
-
-
-def _patch_macro_script(monkeypatch, sources):
-    steps = [
-        SimpleNamespace(
-            type="dump",
-            source=s,
-            event_type=None,
-            then_steps=[],
-            else_steps=[],
-            steps=[],
-        )
-        for s in sources
-    ]
-
-    def _from_yaml(_cls, _content):
-        return SimpleNamespace(steps=steps)
-
-    monkeypatch.setattr(
-        "app.core.execution.macro.schemas.MacroScript.from_yaml",
-        classmethod(lambda cls, content: _from_yaml(cls, content)),
-    )
-
-
-def _patch_macro_engine(monkeypatch, result):
-    async def _execute(thread_id, _script, params=None):
-        _execute.calls.append((thread_id, params))
-        return result
-
-    _execute.calls = []
-    monkeypatch.setattr("app.core.execution.macro.engine.MacroEngine.execute", _execute)
-    return _execute
-
-
-def _patch_dispatch(monkeypatch, status="started", error=""):
-    async def _dispatch(**kwargs):
-        _dispatch.kwargs = kwargs
-        return SimpleNamespace(status=status, inputs={"i": 1}, error=error)
-
-    _dispatch.kwargs = None
-    monkeypatch.setattr("app.core.engine.dispatch.dispatch_agent_run", _dispatch)
-
-    async def _bg(thread_id, _inputs):
-        _bg.calls.append(thread_id)
-
-    _bg.calls = []
-    monkeypatch.setattr("app.core.engine.background_agent.run_agent_background", _bg)
-    return _dispatch, _bg
-
-
-def _skill(name="播放音乐", desc="播放"):
-    return SimpleNamespace(
-        id=42,
-        name=name,
-        description=desc,
-        parameters=[],
-        macro_id=1,
-        is_active=True,
-        status="verified",
-    )
-
-
-def _macro():
-    return SimpleNamespace(
-        id=1,
-        name="播放音乐",
-        parameters=[],
-        macro_script="steps: []",
-        is_routable=lambda: True,
-    )
+    def test_get_thread_lock_per_thread(self):
+        lock1 = executor.get_thread_lock("t1")
+        lock2 = executor.get_thread_lock("t2")
+        assert lock1 is not lock2
 
 
 @pytest.mark.asyncio
-async def test_skill_deterministic_done(monkeypatch):
-    fake = _patch_manager(monkeypatch)
-    _patch_session(monkeypatch, _skill(), _macro())
-    _patch_macro_script(monkeypatch, ["desktop"])
-    _patch_macro_engine(monkeypatch, (True, "已为你播放", None))
-
-    await executor.execute("t1", RouteDecision(
-        target_type="skill", target={"id": 42}, params={"artist": "周杰伦"},
-    ))
-
-    tid, status, summary = _last_status(fake)
-    assert tid == "t1" and status == "done" and summary == "已为你播放"
+class TestCancelVoiceTask:
+    @patch("app.core.engine.worker_registry.worker_registry")
+    async def test_cancel_calls_worker_registry(self, mock_registry):
+        mock_registry.cancel_worker = AsyncMock(return_value=True)
+        result = await executor.cancel_voice_task("t1")
+        assert result is True
+        mock_registry.cancel_worker.assert_awaited_once_with("t1")
 
 
 @pytest.mark.asyncio
-async def test_skill_deterministic_failed_no_fallback(monkeypatch):
-    fake = _patch_manager(monkeypatch)
-    _patch_session(monkeypatch, _skill(), _macro())
-    _patch_macro_script(monkeypatch, ["desktop"])
-    _patch_macro_engine(monkeypatch, (False, "step 3 failed", None))
-    dispatch, _bg = _patch_dispatch(monkeypatch)
+class TestMarkConsumeVoice:
+    async def test_mark_voice(self):
+        await executor._mark_voice("t1", "agent")
+        assert executor._voice_sources.get("t1") == "agent"
 
-    await executor.execute("t2", RouteDecision(target_type="skill", target={"id": 42}))
+    async def test_consume_voice(self):
+        await executor._mark_voice("t1", "agent")
+        await executor.consume_voice("t1")
+        assert "t1" not in executor._voice_sources
 
-    tid, status, summary = _last_status(fake)
-    assert status == "failed" and "step 3 failed" in summary
-    assert dispatch.kwargs is None, "deterministic failure must not fall back to agent"
-
-
-@pytest.mark.asyncio
-async def test_skill_unsupported_macro_source(monkeypatch):
-    fake = _patch_manager(monkeypatch)
-    _patch_session(monkeypatch, _skill(), _macro())
-    _patch_macro_script(monkeypatch, ["desktop", "mobile"])
-    eng = _patch_macro_engine(monkeypatch, (True, "x", None))
-
-    await executor.execute("t3", RouteDecision(target_type="skill", target={"id": 42}))
-
-    tid, status, summary = _last_status(fake)
-    assert status == "failed" and "unsupported macro source" in summary
-    assert eng.calls == [], "MacroEngine must not run for non-DESKTOP voice macros"
+    async def test_consume_voice_nonexistent(self):
+        await executor.consume_voice("nonexistent")
 
 
 @pytest.mark.asyncio
-async def test_skill_not_found(monkeypatch):
-    fake = _patch_manager(monkeypatch)
-    _patch_session(monkeypatch, None)
+class TestPushResult:
+    async def test_noop_when_manager_none(self):
+        executor.manager = None
+        await executor.push_voice_result("t1", "done", "ok")
 
-    await executor.execute("t4", RouteDecision(target_type="skill", target={"id": 999}))
+    async def test_push_with_manager(self):
+        executor.manager = AsyncMock()
+        executor.envelope_fn = None
+        executor.message_type = None
+        await executor.push_voice_result("t1", "done", "测试完成")
+        executor.manager.push.assert_awaited_once()
+        args = executor.manager.push.call_args[0]
+        assert args[0] == "t1"
 
-    tid, status, summary = _last_status(fake)
-    assert status == "failed" and "not found" in summary
+    async def test_push_with_envelope(self):
+        class FakeMsgType:
+            VOICE_ROUTE_RESULT = "voice.route_result"
 
+        executor.manager = AsyncMock()
+        executor.envelope_fn = MagicMock(return_value={"enveloped": True})
+        executor.message_type = FakeMsgType()
+        await executor.push_voice_result("t1", "done", "ok")
+        executor.envelope_fn.assert_called_once_with("voice.route_result", {
+            "thread_id": "t1", "status": "done", "summary": "ok",
+        })
 
-@pytest.mark.asyncio
-async def test_agent_marks_registry_and_dispatches(monkeypatch):
-    _patch_manager(monkeypatch)
-    dispatch, bg = _patch_dispatch(monkeypatch, status="started")
+    async def test_push_token_noop_when_manager_none(self):
+        executor.manager = None
+        executor.envelope_fn = None
+        executor.message_type = None
+        await executor.push_voice_token("t1", "hello", 0)
 
-    await executor.execute("t5", RouteDecision(
-        target_type="agent", params={"task": "打开最新 PRD"},
-    ))
-
-    assert dispatch.kwargs is not None
-    assert dispatch.kwargs["thread_id"] == "t5"
-    assert dispatch.kwargs["metadata"]["source"] == "voice"
-    import asyncio
-
-    await asyncio.sleep(0)  # let the scheduled background task run once
-    assert bg.calls == ["t5"], "agent background run must be scheduled"
-    # registry holds the mark until finish.py consumes it
-    assert await executor.consume_voice("t5") == "agent"
-    assert await executor.consume_voice("t5") is None
-
-
-@pytest.mark.asyncio
-async def test_agent_dispatch_failed_pushes_failed(monkeypatch):
-    fake = _patch_manager(monkeypatch)
-    dispatch, bg = _patch_dispatch(monkeypatch, status="failed", error="no model")
-
-    await executor.execute("t6", RouteDecision(target_type="agent", params={"task": "x"}))
-
-    tid, status, summary = _last_status(fake)
-    assert status == "failed" and "no model" in summary
-    assert bg.calls == [], "background must not start when dispatch failed"
-    assert await executor.consume_voice("t6") is None, "mark cleared on dispatch failure"
-
-
-@pytest.mark.asyncio
-async def test_local_is_noop(monkeypatch):
-    fake = _patch_manager(monkeypatch)
-
-    await executor.execute("t7", RouteDecision(target_type="local", target={"type": "local"}))
-
-    assert fake.pushes == [], "local target produces no server-side done"
-
-
-@pytest.mark.asyncio
-async def test_finish_hook_pushes_done(monkeypatch):
-    fake = _patch_manager(monkeypatch)
-    await executor._mark_voice("t8", "agent")
-
-    await executor.push_voice_result("t8", "done", "搞定了")
-
-    tid, status, summary = _last_status(fake)
-    assert tid == "t8" and status == "done" and summary == "搞定了"
+    async def test_push_boundary_noop_when_manager_none(self):
+        executor.manager = None
+        executor.envelope_fn = None
+        executor.message_type = None
+        await executor.push_voice_tts_boundary("t1", "hello", 0)

@@ -125,35 +125,45 @@ async def main():
     print()
 
     scenarios = [
-        # (id, name, text, expect)
-        # 1-2: L0 fast path (local actions)
+        # ── L0 fast path (local actions) ──
         (1,  "L0 mute",          "静音",          "local"),
-        (2,  "L0 screenshot",    "截图",          "local"),
-        # 3: Greeting
-        (3,  "Greeting",         "你好",          "done"),
-        # 4: Knowledge Q&A
-        (4,  "Simple QA",        "1+1等于几",     "done"),
-        (4,  "Simple QA 2",      "2+2等于多少",    "done"),
-        # 5: Simple task (needs tool call - weather)
-        (5,  "Simple task",      "今天天气怎么样", "done"),
-        # 6: Complex task (would go to Worker - but we just verify routing starts)
-        (6,  "Complex task",     "帮我写一个Python脚本读取CSV文件", "done"),
-        # 7-8: Multi-turn (same thread_id)
-        # Tested separately below
-        # 9: Async task notification (Supervisor should respond immediately)
-        (9,  "Async notify",     "分析一下当前项目", "done"),
-        # 10: Status query
-        (10, "Status query",     "完成了吗",       "done"),
-        # 11: Barge-in / correction
-        (11, "Correction",       "不，换一个方案", "done"),
-        # 12: Mixed command (LLM self-dispatches)
-        (12, "Mixed cmd",        "打开浏览器然后搜索天气", "done"),
-        # 13: Fuzzy input
-        (13, "Fuzzy input",      "那个…呃…帮我查一下", "done"),
-        # 14: Exit / cancel
-        (14, "Exit",             "再见",           "local"),
-        (14, "Exit 2",           "拜拜",           "local"),
-        (14, "Exit 3",           "结束",           "local"),
+        (2,  "L0 unmute",        "取消静音",      "local"),
+        (3,  "L0 screenshot",    "截图",          "local"),
+        (4,  "L0 lock screen",   "锁屏",          "local"),
+        (5,  "L0 volume up",     "音量调大一点",  "local"),
+        (6,  "L0 volume max",    "音量最大",      "local"),
+        (7,  "L0 volume half",   "音量一半",      "local"),
+        (8,  "L0 pause",         "暂停",          "local"),
+        (9,  "L0 resume",        "继续",          "local"),
+        (10, "L0 next track",    "下一首",        "local"),
+        (11, "L0 prev track",    "上一首",        "local"),
+        (12, "L0 press enter",   "按一下回车",    "local"),
+        (13, "L0 press esc",     "按Esc",         "local"),
+        # open/focus/quit_app skipped — requires local app DB (Atlas sync)
+        (14, "L0 rename",        "你以后叫小智",  "local"),
+        (15, "L0 clarify",       "再说一遍",      "local"),
+        (16, "L0 end",           "再见",          "local"),
+        (17, "L0 end 2",         "拜拜",          "local"),
+        (18, "L0 end 3",         "结束",          "local"),
+        # ── Greeting ──
+        (19, "Greeting",         "你好",          "done"),
+        # ── Knowledge Q&A ──
+        (20, "Simple QA",        "1+1等于几",     "done"),
+        (20, "Simple QA 2",      "2+2等于多少",    "done"),
+        # ── Simple task ──
+        (21, "Simple task",      "今天天气怎么样", "done"),
+        # ── Complex task ──
+        (22, "Complex task",     "帮我写一个Python脚本读取CSV文件", "done"),
+        # ── Async task ──
+        (23, "Async notify",     "分析一下当前项目", "done"),
+        # ── Status query ──
+        (24, "Status query",     "完成了吗",       "done"),
+        # ── Correction ──
+        (25, "Correction",       "不，换一个方案", "done"),
+        # ── Mixed command ──
+        (26, "Mixed cmd",        "打开浏览器然后搜索天气", "done"),
+        # ── Fuzzy input ──
+        (30, "Fuzzy input",      "那个…呃…帮我查一下", "done"),
     ]
 
     for sid, name, text, expect in scenarios:
