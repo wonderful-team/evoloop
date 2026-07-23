@@ -57,20 +57,10 @@ _LOCAL_DESC: dict[str, str] = {
     "paste": "粘贴文本到当前焦点",
     "speak": "语音播报",
     "clarify": "请求用户再说一遍",
-    "play_pause": "播放或暂停当前播放器",
-    "next_track": "下一首",
-    "prev_track": "上一首",
-    "set_volume": "设置音量",
-    "mute": "静音",
-    "unmute": "取消静音",
-    "focus_app": "切换到指定应用",
-    "quit_app": "退出指定应用",
-    "press_key": "按下按键或快捷键",
-    "screenshot": "截取屏幕",
-    "lock_screen": "锁定屏幕",
     "rename": "给语音助理改名",
     "end": "结束对话",
-    "open_app": "打开指定应用",
+    "ack": "确认",
+    "cancel": "取消",
 }
 
 

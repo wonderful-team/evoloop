@@ -80,6 +80,30 @@ async def lifespan(app: FastAPI):
     except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
         logger.warning(f"[Startup] Voice Init Spec dispatch failed (non-critical): {e}")
 
+    # Preheat L0 local matcher: build + enrich + compile regex so the first
+    # voice.route does not pay the cold-start penalty (~1s).
+    try:
+        from app.core.routing.router import rebuild_local_matcher
+        await rebuild_local_matcher()
+        logger.info("[Startup] L0 local matcher preheated")
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
+        logger.warning(f"[Startup] L0 local matcher preheat failed (non-critical): {e}")
+
+    # Wire voice executor globals at startup so VoiceChannel (Agent TTS
+    # streaming) can push to WS regardless of which code path triggered the
+    # Agent — not just the first voice.route.
+    try:
+        from app.core.routing import executor as voice_executor
+        from app.core.routing.connection import manager as _ws_manager
+        from app.core.schemas.canonical import MessageType as _MsgType
+        from app.api.routes.voice_ws import _envelope as _ws_envelope
+        voice_executor.manager = _ws_manager
+        voice_executor.envelope_fn = _ws_envelope
+        voice_executor.message_type = _MsgType
+        logger.info("[Startup] Voice executor globals wired")
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError, ImportError) as e:
+        logger.warning(f"[Startup] Voice executor wiring failed (non-critical): {e}")
+
     # Migrate legacy deterministic LearnedSkill rows -> macros table (idempotent).
     # Runs after DB init so the macros table exists. Non-fatal: migration errors
     # are logged but do not prevent the server from starting.

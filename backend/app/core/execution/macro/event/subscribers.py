@@ -118,3 +118,23 @@ class MacroSelfHealingAdvisor:
                 error_message=event.error_message
             )
         )
+
+
+@event_register()
+class MacroL0MatcherSubscriber:
+    """Rebuild L0 local matcher when macros are created/updated/deleted/obsoleted."""
+
+    @event_subscribe(SystemEventType.MACRO_CREATED)
+    @event_subscribe(SystemEventType.MACRO_UPDATED)
+    @event_subscribe(SystemEventType.MACRO_DELETED)
+    @event_subscribe(SystemEventType.MACRO_OBSOLETED)
+    async def on_macro_lifecycle(self, event) -> None:
+        """Rebuild the L0 local matcher so trigger patterns take effect immediately."""
+        from app.core.execution.macro.runner import invalidate_macro_cache
+        from app.core.routing.router import rebuild_local_matcher
+
+        macro_id = getattr(getattr(event, "data", None), "macro_id", None)
+        invalidate_macro_cache(macro_id)
+        await rebuild_local_matcher()
+        logger.info("[L0Matcher] rebuilt after macro lifecycle event: %s (macro_id=%s)",
+                    getattr(event, "event_type", "unknown"), macro_id)

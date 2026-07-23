@@ -49,6 +49,8 @@ class MacroEngine(
         params: dict[str, Any] | None = None,
         extracted_data: dict[str, Any] | None = None,
         disable_ocr: bool = True,
+        skip_activity_log: bool = False,
+        skip_recording: bool = False,
     ) -> tuple[bool, str, dict[str, Any] | None]:
         return await cls.execute_steps(
             thread_id=thread_id,
@@ -57,6 +59,8 @@ class MacroEngine(
             extracted_data=extracted_data,
             disable_ocr=disable_ocr,
             active_bundle_id=params.get("package_name") or params.get("bundle_id") if params else None,
+            skip_activity_log=skip_activity_log,
+            skip_recording=skip_recording,
         )
 
     @classmethod
@@ -68,6 +72,8 @@ class MacroEngine(
         extracted_data: dict[str, Any] | None = None,
         disable_ocr: bool = True,
         active_bundle_id: str | None = None,
+        skip_activity_log: bool = False,
+        skip_recording: bool = False,
     ) -> tuple[bool, str, dict[str, Any] | None]:
         if extracted_data is None:
             extracted_data = {}
@@ -88,7 +94,9 @@ class MacroEngine(
             token = ContextManager.set(ctx)
         try:
             return await cls._execute_steps_inner(
-                thread_id, steps, params, extracted_data, disable_ocr, active_bundle_id
+                thread_id, steps, params, extracted_data, disable_ocr, active_bundle_id,
+                skip_activity_log=skip_activity_log,
+                skip_recording=skip_recording,
             )
         finally:
             if token:
@@ -103,6 +111,8 @@ class MacroEngine(
         extracted_data: dict[str, Any],
         disable_ocr: bool,
         active_bundle_id: str | None,
+        skip_activity_log: bool = False,
+        skip_recording: bool = False,
     ) -> tuple[bool, str, dict[str, Any] | None]:
 
         for step in steps:
@@ -129,7 +139,8 @@ class MacroEngine(
             elif step.type == MacroStepType.EXTRACT:
                 desc += f"(key='{step.key}')"
 
-            await activity_monitor.log_event("macro_thought", {"text": desc}, thread_id)
+            if not skip_activity_log:
+                await activity_monitor.log_event("macro_thought", {"text": desc}, thread_id)
             logger.info(f"[{thread_id}] {desc}")
 
             if step.type in (
@@ -228,7 +239,7 @@ class MacroEngine(
                             expected_pkg=active_bundle_id,
                         )
                     elif source == MacroSource.DESKTOP:
-                        await cls._execute_desktop_step(event_type, target_selector, payload)
+                        await cls._execute_desktop_step(event_type, target_selector, payload, skip_recording=skip_recording)
                     else:
                         logger.warning(f"Unknown macro source: {source}")
                 except _STEP_EXCEPTIONS as e:

@@ -1,167 +1,87 @@
-"""Voice task registry, streaming, and result pushback for voice channel.
+"""Voice executor — pushes TTS tokens and results to the voice WebSocket.
 
-All functions here serve the real-time voice dialogue path:
-voice task registration/cancellation, token streaming, and result delivery.
+Used by VoiceChannel (agent TTS streaming) to push tokens and boundaries
+back through the voice WS for real-time playback. Also provides per-thread
+locking and task cancellation for voice route handling.
 """
-
-from __future__ import annotations
 
 import asyncio
 import logging
-from contextvars import ContextVar
 from typing import Any
-
-from app.core.routing.connection import manager
-from app.core.schemas.canonical import MessageType, create_envelope
 
 logger = logging.getLogger(__name__)
 
-# thread_id -> "skill" | "agent". Authoritative voice-source marker consumed by
-# VoiceChannel to push the terminal result. In-memory only: a restart
-# mid-run loses it, but the WS is gone too, so the client's 60s timeout covers
-# it (§9.2).
-_voice_registry: dict[str, str] = {}
-_voice_lock = asyncio.Lock()
+# Manager set at application startup by voice_ws.py
+manager: Any = None
+envelope_fn: Any = None
+message_type: Any = None
 
-# message_id carrier for terminal-result caching of duplicate route requests.
-_current_message_id: ContextVar[str | None] = ContextVar(
-    "_current_message_id", default=None
-)
-
-
-async def _mark_voice(thread_id: str, kind: str) -> None:
-    async with _voice_lock:
-        _voice_registry[thread_id] = kind
-
-
-async def consume_voice(thread_id: str) -> str | None:
-    """Pop and return the voice-source kind for `thread_id` (finish.py hook)."""
-    async with _voice_lock:
-        return _voice_registry.pop(thread_id, None)
-
-
-async def push_voice_result(thread_id: str, status: str, summary: str) -> None:
-    body = {
-        "thread_id": thread_id,
-        "status": status,
-        "summary": summary,
-    }
-    await manager.push(thread_id, create_envelope(
-        MessageType.VOICE_ROUTE_RESULT, body
-    ).model_dump())
-    message_id = _current_message_id.get()
-    if message_id:
-        await manager.record_terminal_result(message_id, body)
-
-
-# ---------------------------------------------------------------------------
-# VoiceTaskRegistry — register / cancel active voice tasks per thread
-# ---------------------------------------------------------------------------
-
-# Per-thread locks to prevent overlapping route execution (barge-in safety).
+# Per-thread async locks for route serialization
 _thread_locks: dict[str, asyncio.Lock] = {}
-_thread_locks_lock = asyncio.Lock()
+
+# Per-thread voice source tracking
+_voice_sources: dict[str, str] = {}
 
 
 async def get_thread_lock(thread_id: str) -> asyncio.Lock:
-    async with _thread_locks_lock:
-        if thread_id not in _thread_locks:
-            _thread_locks[thread_id] = asyncio.Lock()
-        return _thread_locks[thread_id]
-
-
-async def register_voice_task(thread_id: str, task: asyncio.Task[Any]) -> None:
-    from app.core.engine.worker_registry import worker_registry
-    await worker_registry.register_worker(thread_id, task)
+    """Get or create a per-thread async lock for route serialization."""
+    if thread_id not in _thread_locks:
+        _thread_locks[thread_id] = asyncio.Lock()
+    return _thread_locks[thread_id]
 
 
 async def cancel_voice_task(thread_id: str) -> bool:
+    """Cancel the current voice task for a thread via worker_registry.
+
+    Returns True if a task was found and cancelled, False otherwise.
+    """
     from app.core.engine.worker_registry import worker_registry
+
     return await worker_registry.cancel_worker(thread_id)
 
 
-# ---------------------------------------------------------------------------
-# Streaming LLM output — token-by-token push via voice.token / voice.tts_boundary
-# ---------------------------------------------------------------------------
-
-_SENTENCE_BOUNDARIES = "。！？.!?\n…"
+async def _mark_voice(thread_id: str, source: str) -> None:
+    """Mark a thread as being handled by voice from the given source."""
+    _voice_sources[thread_id] = source
 
 
-_EOS_TOKENS = ("</s>", "<|im_end|>", "<|endoftext|>")
+async def consume_voice(thread_id: str) -> None:
+    """Consume/clear the voice state for a thread (post-cleanup)."""
+    _voice_sources.pop(thread_id, None)
 
-async def push_voice_token(thread_id: str, token: str, index: int) -> None:
-    for eos in _EOS_TOKENS:
-        token = token.replace(eos, "")
-    if not token:
+
+async def push_voice_result(thread_id: str, status: str, summary: str) -> None:
+    """Push a voice route result (done/failed/routed) to the voice WS."""
+    if manager is None:
+        logger.warning("[voice-exec] manager not set, cannot push result")
         return
-    await manager.push(thread_id, create_envelope(
-        MessageType.VOICE_TOKEN,
-        {"thread_id": thread_id, "token": token, "index": index},
-    ).model_dump())
+    body = {"thread_id": thread_id, "status": status, "summary": summary}
+    if envelope_fn and message_type:
+        env = envelope_fn(message_type.VOICE_ROUTE_RESULT, body)
+        await manager.push(thread_id, env)
+    else:
+        await manager.push(thread_id, body)
 
 
-async def push_voice_tts_boundary(thread_id: str, sentence: str, index: int) -> None:
-    await manager.push(thread_id, create_envelope(
-        MessageType.VOICE_TTS_BOUNDARY,
-        {"thread_id": thread_id, "sentence": sentence, "index": index},
-    ).model_dump())
+async def push_voice_token(thread_id: str, token: str, _index: int) -> None:
+    """Push a streaming TTS token for real-time playback."""
+    if manager is None:
+        return
+    body = {"thread_id": thread_id, "token": token}
+    if envelope_fn and message_type:
+        env = envelope_fn(message_type.VOICE_TOKEN, body)
+        await manager.push(thread_id, env)
+    else:
+        await manager.push(thread_id, body)
 
 
-async def stream_llm_response(
-    thread_id: str,
-    messages: list[dict],
-    model_name: str,
-    *,
-    temperature: float = 0.7,
-    max_tokens: int = 1024,
-    base_url: str | None = None,
-    api_key: str | None = None,
-) -> str:
-    """Stream LLM output token-by-token, pushing voice.token and voice.tts_boundary.
-
-    Returns the full accumulated text.
-    Cancels gracefully if the task is cancelled (barge-in).
-    """
-    from app.infrastructure.llm.factory import LLMConfig, LLMFactory
-
-    config = LLMConfig(
-        model_name=model_name,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        streaming=True,
-        base_url=base_url,
-        api_key=api_key,
-    )
-    llm = await LLMFactory.create_llm(config)
-
-    token_index = 0
-    sentence_buf = ""
-    full_text = ""
-
-    try:
-        async for chunk in llm.astream(messages, config={"callbacks": []}):
-            token = getattr(chunk, "content", "") or ""
-            if not token:
-                continue
-            full_text += token
-            sentence_buf += token
-            await push_voice_token(thread_id, token, token_index)
-            token_index += 1
-
-            if any(ch in _SENTENCE_BOUNDARIES for ch in token):
-                stripped = sentence_buf.strip()
-                if stripped:
-                    await push_voice_tts_boundary(thread_id, stripped, token_index)
-                sentence_buf = ""
-
-        if sentence_buf.strip():
-            await push_voice_tts_boundary(thread_id, sentence_buf.strip(), token_index)
-
-    except asyncio.CancelledError:
-        logger.info("[voice-executor] LLM stream cancelled for thread %s", thread_id)
-        raise
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as exc:
-        logger.error("[voice-executor] LLM stream failed: %s", exc)
-        raise
-
-    return full_text
+async def push_voice_tts_boundary(thread_id: str, text: str, _index: int) -> None:
+    """Push a TTS boundary (sentence boundary for streaming TTS)."""
+    if manager is None:
+        return
+    body = {"thread_id": thread_id, "text": text}
+    if envelope_fn and message_type:
+        env = envelope_fn(message_type.VOICE_TTS_BOUNDARY, body)
+        await manager.push(thread_id, env)
+    else:
+        await manager.push(thread_id, body)

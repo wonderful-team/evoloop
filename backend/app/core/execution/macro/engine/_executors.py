@@ -80,7 +80,7 @@ class ExecutorMixin:
             await BrowserController.execute(action="run_js", script=payload.get("script") or payload.get("expression"), continue_on_error=continue_on_error)
 
     @classmethod
-    async def _execute_desktop_step(cls, event_type, selector, payload):
+    async def _execute_desktop_step(cls, event_type, selector, payload, skip_recording=False):
         from app.core.environment.controllers import DesktopController
 
         event_type = event_type.lower() if event_type else event_type
@@ -92,15 +92,15 @@ class ExecutorMixin:
                 raise ValueError(res)
 
         if event_type in ("click", "tap", "double_click"):
-            handle_res(await DesktopController.execute(action=tool_action, element_name=selector, x=payload.get("x"), y=payload.get("y")))
+            handle_res(await DesktopController.execute(action=tool_action, element_name=selector, x=payload.get("x"), y=payload.get("y"), skip_recording=skip_recording))
         elif event_type in ("input", "type_text"):
-            handle_res(await DesktopController.execute(action="type_text", text=payload.get("text") or payload.get("value", ""), force_keystroke=payload.get("force_keystroke", False)))
+            handle_res(await DesktopController.execute(action="type_text", text=payload.get("text") or payload.get("value", ""), force_keystroke=payload.get("force_keystroke", False), skip_recording=skip_recording))
         elif event_type == "key_press":
-            handle_res(await DesktopController.execute(action=tool_action, key=payload.get("key")))
+            handle_res(await DesktopController.execute(action=tool_action, key=payload.get("key"), skip_recording=skip_recording))
         elif event_type == "scroll":
-            handle_res(await DesktopController.execute(action=tool_action, direction=payload.get("direction", "down"), amount=payload.get("amount", 300)))
+            handle_res(await DesktopController.execute(action=tool_action, direction=payload.get("direction", "down"), amount=payload.get("amount", 300), skip_recording=skip_recording))
         elif event_type == "drag_drop":
-            handle_res(await DesktopController.execute(action=tool_action, x=payload.get("x"), y=payload.get("y"), x2=payload.get("x2"), y2=payload.get("y2"), source_element=payload.get("source_element") or selector, target_element=payload.get("target_element")))
+            handle_res(await DesktopController.execute(action=tool_action, x=payload.get("x"), y=payload.get("y"), x2=payload.get("x2"), y2=payload.get("y2"), source_element=payload.get("source_element") or selector, target_element=payload.get("target_element"), skip_recording=skip_recording))
         elif event_type == "open_app":
             bundle_id = payload.get("bundle_id")
             if bundle_id and payload.get("focus") is False:
@@ -111,7 +111,7 @@ class ExecutorMixin:
                 if pid is None:
                     raise ValueError(f"Error: open_app failed for {bundle_id}")
             else:
-                handle_res(await DesktopController.execute(action=tool_action, app_name=payload.get("app_name") or payload.get("text")))
+                handle_res(await DesktopController.execute(action=tool_action, app_name=payload.get("app_name") or payload.get("text"), skip_recording=skip_recording))
         elif event_type == "ax_press":
             from app.core.atlas.ax_actions import (
                 activate_at_path,
@@ -166,15 +166,15 @@ class ExecutorMixin:
             if not ok:
                 raise ValueError(f"Error: ax_set_value rejected for {payload.get('label') or payload.get('ax_path')}")
         elif event_type == "applescript":
-            handle_res(await DesktopController.execute(action=tool_action, script=payload.get("script")))
+            handle_res(await DesktopController.execute(action=tool_action, script=payload.get("script"), skip_recording=skip_recording))
         elif event_type == "screenshot":
-            handle_res(await DesktopController.execute(action=tool_action, region=payload.get("region")))
+            handle_res(await DesktopController.execute(action=tool_action, region=payload.get("region"), skip_recording=skip_recording))
         elif event_type == "get_active_app":
-            handle_res(await DesktopController.execute(action=tool_action))
+            handle_res(await DesktopController.execute(action=tool_action, skip_recording=skip_recording))
         elif event_type == "get_info":
-            handle_res(await DesktopController.execute(action=tool_action, app_name=payload.get("app_name")))
+            handle_res(await DesktopController.execute(action=tool_action, app_name=payload.get("app_name"), skip_recording=skip_recording))
         elif event_type == "dump_ui":
-            handle_res(await DesktopController.execute(action=tool_action))
+            handle_res(await DesktopController.execute(action=tool_action, skip_recording=skip_recording))
 
     @classmethod
     async def _execute_mobile_step(cls, event_type, selector, payload, disable_ocr=True, expected_pkg=None):

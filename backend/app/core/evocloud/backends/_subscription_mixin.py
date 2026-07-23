@@ -39,7 +39,7 @@ class SubscriptionMixin:
         )
 
     async def create_subscription_order(
-        self, level_id: int, auto_renew: bool = False, token: str | None = None
+        self, level_id: int, auto_renew: bool = False, pay_type: str = "wechatpay", token: str | None = None
     ) -> dict:
         return await self.request(
             "POST", "/subscription/api/subscription/createOrder",
@@ -47,6 +47,7 @@ class SubscriptionMixin:
                 "level_id": level_id,
                 "auto_renew": 1 if auto_renew else 0,
                 "app_type": "pc",
+                "pay_type": pay_type,
             },
             token=token,
         )

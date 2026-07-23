@@ -7,6 +7,7 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 class CreateOrderRequest(DynamicBaseModel):
     level_id: int
     auto_renew: bool = False
+    pay_type: str = "wechatpay"
 
 class BenefitsUpdateWebhook(DynamicBaseModel):
     member_id: int

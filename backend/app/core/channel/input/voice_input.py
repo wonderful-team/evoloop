@@ -2,7 +2,7 @@
 VoiceInputChannel — receives voice.route messages from the local voice WS.
 
 Owns the full voice route lifecycle:
-1. L0 matching
+1. L0 matching (builtin + Macro)
 2. IncomingMessage construction (for agent dispatch)
 3. L0 local result push (when matched)
 4. Dispatch result handling (worker registration, error/cancelled push)
@@ -18,6 +18,8 @@ from app.core.channel.base import IncomingMessage, InputChannel
 from app.constants import DEFAULT_PROJECT_ID
 
 logger = logging.getLogger(__name__)
+
+_MACRO_TIMEOUT = 3.0
 
 
 class VoiceInputChannel(InputChannel):
@@ -68,15 +70,18 @@ class VoiceInputChannel(InputChannel):
         message_id = raw.get("message_id")
 
         # L0 matching
-        from app.core.routing.router import _get_local_matcher
+        from app.core.routing.router import get_local_matcher
 
-        matcher = await _get_local_matcher()
+        matcher = await get_local_matcher()
         l0_match = matcher.match(text)
 
         if l0_match is not None:
-            # L0 hit — handle locally, no agent dispatch
             action, args = l0_match
-            await self._push_local_result(thread_id, action, args)
+            if action.startswith("macro:"):
+                macro_id = int(action.split(":", 1)[1])
+                await self._dispatch_macro(thread_id, macro_id, args, project_id)
+            else:
+                await self._handle_builtin(thread_id, action, args)
             return None
 
         # L0 miss — build IncomingMessage for agent
@@ -146,6 +151,91 @@ class VoiceInputChannel(InputChannel):
         """Clean up when the agent task is cancelled."""
         await self._executor.consume_voice(thread_id)
         await self._executor.push_voice_result(thread_id, "cancelled", "")
+
+    # ── L0 Macro dispatch ─────────────────────────────────────
+
+    async def _dispatch_macro(self, thread_id: str, macro_id: int, args: dict, project_id: int) -> None:
+        """加载 Macro → preflight → run_deterministic → 推 done/failed/cancelled。
+
+        超时保护：5 秒上限，防止 osascript 阻塞。
+        Barge-in：包装为 task 注册到 worker_registry，可被 cancel。
+        """
+        from app.core.execution.macro.runner import (
+            VOICE_POLICY, MacroGateError, load_macro, preflight, run_deterministic,
+        )
+
+        if self._state_machine is not None:
+            await self._state_machine.set(thread_id, self._state_enum.SPEAKING)
+
+        macro = await load_macro(macro_id)
+        if macro is None:
+            await self._push_macro_result(thread_id, "failed", "未找到该宏")
+            return
+        try:
+            script = preflight(macro, args)
+        except MacroGateError as e:
+            await self._push_macro_result(thread_id, "failed", e.message)
+            return
+
+        async def _run():
+            return await run_deterministic(
+                macro, thread_id=thread_id, params=args, project_id=project_id,
+                script=script, policy=VOICE_POLICY,
+                skip_activity_log=True,
+                skip_recording=True,
+            )
+
+        task = asyncio.create_task(_run())
+        if self._worker_registry is not None:
+            await self._worker_registry.register_worker(thread_id, task, description=f"macro:{macro_id}")
+
+        try:
+            outcome = await asyncio.wait_for(task, timeout=_MACRO_TIMEOUT)
+        except asyncio.TimeoutError:
+            await self._push_macro_result(thread_id, "failed", "执行超时")
+            return
+        except asyncio.CancelledError:
+            await self._push_macro_result(thread_id, "cancelled", "已取消")
+            raise
+
+        status = "done" if outcome.ok else "failed"
+        summary = outcome.message or ("完成" if outcome.ok else "执行失败")
+        await self._push_macro_result(thread_id, status, summary)
+
+    async def _push_macro_result(self, thread_id: str, status: str, summary: str) -> None:
+        """推 voice.route_result，复用 Rust 现有的 done/failed/cancelled 处理分支。"""
+        body = {"thread_id": thread_id, "status": status, "summary": summary}
+        await self._manager.push(
+            thread_id, self._envelope(self._message_type.VOICE_ROUTE_RESULT, body)
+        )
+        await self._state_machine.set(thread_id, self._state_enum.IDLE)
+
+    # ── L0 builtin commands ────────────────────────────────────
+
+    async def _handle_builtin(self, thread_id: str, action: str, args: dict) -> None:
+        """处理 Evoloop 内置命令。"""
+        if action == "ack":
+            logger.info("[voice-input] ack for thread %s (no-op)", thread_id)
+            await self._push_local_result(thread_id, action, args)
+        elif action == "cancel":
+            if self._worker_registry is not None:
+                cancelled = await self._worker_registry.cancel_worker(thread_id)
+                if cancelled:
+                    await self._push_macro_result(thread_id, "cancelled", "已取消")
+                    logger.info("[voice-input] cancel: worker cancelled for thread %s", thread_id)
+                    return
+            await self._push_macro_result(thread_id, "done", "没有正在执行的任务")
+            logger.info("[voice-input] cancel: no running worker for thread %s", thread_id)
+        elif action == "rename":
+            name = args.get("name", "")
+            if name:
+                from app.core.shared_state import shared_state
+                await shared_state.set("agent_name", name)
+                logger.info("[voice-input] rename to %s for thread %s", name, thread_id)
+            await self._push_local_result(thread_id, action, args)
+        else:
+            # end / clarify
+            await self._push_local_result(thread_id, action, args)
 
     async def _push_local_result(self, thread_id: str, action: str, args: Any) -> None:
         """Push an L0 local result back to the voice WS."""

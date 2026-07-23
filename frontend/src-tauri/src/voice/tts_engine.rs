@@ -1,10 +1,35 @@
 use std::collections::VecDeque;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::hash::{Hash, Hasher};
 use log::{info, warn};
 
 use crate::voice::audio_utils::resample_rubato;
+
+fn _tts_cache_dir() -> PathBuf {
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let dir = PathBuf::from(home).join(".evoloop").join("tts_cache");
+    let _ = std::fs::create_dir_all(&dir);
+    dir
+}
+
+fn _tts_cache_key(text: &str, engine: &str, voice: &str, speed: f32) -> String {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    text.hash(&mut hasher);
+    engine.hash(&mut hasher);
+    voice.hash(&mut hasher);
+    speed.to_bits().hash(&mut hasher);
+    format!("{:x}", hasher.finish())
+}
+
+fn _tts_cache_ext(engine: TtsEngineKind) -> &'static str {
+    match engine {
+        TtsEngineKind::EdgeTts => "mp3",
+        _ => "wav",
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TtsEngineKind {
@@ -146,6 +171,11 @@ impl TtsEngine {
         let final_voice = if voice_name.is_empty() { "zh-CN-XiaoxiaoNeural".to_string() } else { voice_name };
         let engine_clone = self.clone();
         let afplay_child = self.afplay_child.clone();
+
+        // Compute cache path for write-back
+        let cache_key = _tts_cache_key(&text, "edge-tts", &final_voice, engine_clone.get_speed());
+        let cache_path = _tts_cache_dir().join(format!("{}.mp3", &cache_key));
+
         tokio::spawn(async move {
             let audio_bytes = match speak_edge_tts(&text, &final_voice, true).await {
                 Ok(b) => b,
@@ -156,23 +186,25 @@ impl TtsEngine {
                 }
             };
 
-            let path = std::env::temp_dir().join(format!("evoloop_edge_{}.mp3", uuid::Uuid::new_v4()));
-            if let Err(e) = tokio::fs::write(&path, &audio_bytes).await {
-                warn!("[tts] Edge-TTS write failed: {}", e);
+            // Write to temp file then rename to cache for atomicity
+            let tmp = std::env::temp_dir().join(format!("evoloop_edge_{}.mp3", uuid::Uuid::new_v4()));
+            if let Err(e) = tokio::fs::write(&tmp, &audio_bytes).await {
+                warn!("[tts] Edge-TTS tmp write failed: {}", e);
                 speaking.store(false, Ordering::SeqCst);
                 return;
             }
+            // Cache: rename tmp → cache_path (best-effort)
+            let _ = std::fs::rename(&tmp, &cache_path);
 
+            // Play from cached path, keep the file for future cache hits
             match std::process::Command::new("afplay")
-                .arg(&path)
+                .arg(&cache_path)
                 .spawn()
             {
                 Ok(mut child) => {
-                    // Store handle so stop() can kill it
                     if let Ok(mut guard) = afplay_child.lock() {
                         *guard = Some(child);
                     }
-                    // Wait for playback to finish (or be killed by stop())
                     if let Ok(mut guard) = afplay_child.lock() {
                         if let Some(ref mut c) = *guard {
                             let _ = c.wait();
@@ -184,7 +216,6 @@ impl TtsEngine {
                     warn!("[tts] afplay spawn failed: {}", e);
                 }
             }
-            let _ = std::fs::remove_file(&path);
 
             speaking.store(false, Ordering::SeqCst);
             engine_clone.speak_next(&lang_str);
@@ -200,6 +231,10 @@ impl TtsEngine {
         let voice_name = self.get_voice();
         let engine_clone = self.clone();
         let afplay_child = self.afplay_child.clone();
+
+        let cache_key = _tts_cache_key(&text, "qwen-tts", &voice_name, engine_clone.get_speed());
+        let cache_path = _tts_cache_dir().join(format!("{}.wav", &cache_key));
+
         tokio::spawn(async move {
             let audio_bytes = match fetch_qwen_tts(&text, &voice_name).await {
                 Ok(b) => b,
@@ -209,14 +244,14 @@ impl TtsEngine {
                     return;
                 }
             };
-            let path = std::env::temp_dir().join(format!("evoloop_qwen_{}.wav", uuid::Uuid::new_v4()));
-            if let Err(e) = tokio::fs::write(&path, &audio_bytes).await {
-                warn!("[tts] Qwen-TTS write failed: {}", e);
+            let tmp = std::env::temp_dir().join(format!("evoloop_qwen_{}.wav", uuid::Uuid::new_v4()));
+            if let Err(e) = tokio::fs::write(&tmp, &audio_bytes).await {
+                warn!("[tts] Qwen-TTS tmp write failed: {}", e);
                 speaking.store(false, Ordering::SeqCst);
                 return;
             }
-            let _ = play_audio(&path, &afplay_child);
-            let _ = std::fs::remove_file(&path);
+            let _ = std::fs::rename(&tmp, &cache_path);
+            let _ = play_audio(&cache_path, &afplay_child);
             speaking.store(false, Ordering::SeqCst);
             engine_clone.speak_next(&lang_str);
         });
@@ -230,6 +265,10 @@ impl TtsEngine {
         let lang_str = _lang.to_string();
         let engine_clone = self.clone();
         let afplay_child = self.afplay_child.clone();
+
+        let cache_key = _tts_cache_key(&text, "cosyvoice", &engine_clone.get_voice(), engine_clone.get_speed());
+        let cache_path = _tts_cache_dir().join(format!("{}.wav", &cache_key));
+
         tokio::spawn(async move {
             let audio_bytes = match fetch_backend_tts(&text, "cosyvoice").await {
                 Ok(b) => b,
@@ -239,14 +278,14 @@ impl TtsEngine {
                     return;
                 }
             };
-            let path = std::env::temp_dir().join(format!("evoloop_cosyvoice_{}.wav", uuid::Uuid::new_v4()));
-            if let Err(e) = tokio::fs::write(&path, &audio_bytes).await {
-                warn!("[tts] CosyVoice write failed: {}", e);
+            let tmp = std::env::temp_dir().join(format!("evoloop_cosyvoice_{}.wav", uuid::Uuid::new_v4()));
+            if let Err(e) = tokio::fs::write(&tmp, &audio_bytes).await {
+                warn!("[tts] CosyVoice tmp write failed: {}", e);
                 speaking.store(false, Ordering::SeqCst);
                 return;
             }
-            let _ = play_audio(&path, &afplay_child);
-            let _ = std::fs::remove_file(&path);
+            let _ = std::fs::rename(&tmp, &cache_path);
+            let _ = play_audio(&cache_path, &afplay_child);
             speaking.store(false, Ordering::SeqCst);
             engine_clone.speak_next(&lang_str);
         });
@@ -261,6 +300,10 @@ impl TtsEngine {
         let engine_clone = self.clone();
         let voice = self.get_voice();
         let afplay_child = self.afplay_child.clone();
+
+        let cache_key = _tts_cache_key(&text, "kokoro", &voice, engine_clone.get_speed());
+        let cache_path = _tts_cache_dir().join(format!("{}.wav", &cache_key));
+
         tokio::spawn(async move {
             let audio_bytes = match fetch_backend_tts(&text, "kokoro").await {
                 Ok(b) => b,
@@ -270,14 +313,14 @@ impl TtsEngine {
                     return;
                 }
             };
-            let path = std::env::temp_dir().join(format!("evoloop_kokoro_{}.wav", uuid::Uuid::new_v4()));
-            if let Err(e) = tokio::fs::write(&path, &audio_bytes).await {
-                warn!("[tts] Kokoro write failed: {}", e);
+            let tmp = std::env::temp_dir().join(format!("evoloop_kokoro_{}.wav", uuid::Uuid::new_v4()));
+            if let Err(e) = tokio::fs::write(&tmp, &audio_bytes).await {
+                warn!("[tts] Kokoro tmp write failed: {}", e);
                 speaking.store(false, Ordering::SeqCst);
                 return;
             }
-            let _ = play_audio(&path, &afplay_child);
-            let _ = std::fs::remove_file(&path);
+            let _ = std::fs::rename(&tmp, &cache_path);
+            let _ = play_audio(&cache_path, &afplay_child);
             speaking.store(false, Ordering::SeqCst);
             engine_clone.speak_next(&lang_str);
         });
@@ -287,6 +330,28 @@ impl TtsEngine {
     pub fn speak(&self, text: &str, lang: &str) {
         if text.is_empty() { return; }
         let engine = self.engine.lock().map(|e| *e).unwrap_or(TtsEngineKind::System);
+        let voice = self.get_voice();
+        let speed = self.get_speed();
+
+        // Check audio cache first
+        let cache_key = _tts_cache_key(text, engine.as_str(), &voice, speed);
+        let cache_path = _tts_cache_dir().join(format!("{}.{}", cache_key, _tts_cache_ext(engine)));
+        if cache_path.exists() {
+            info!("[tts] cache hit: {} (key={})", &text[..text.len().min(50)], cache_key);
+            self.speaking.store(true, Ordering::SeqCst);
+            let speaking = self.speaking.clone();
+            let path = cache_path;
+            let lang_str = lang.to_string();
+            let engine_clone = self.clone();
+            let afplay_child = self.afplay_child.clone();
+            std::thread::spawn(move || {
+                let _ = play_audio(&path, &afplay_child);
+                speaking.store(false, Ordering::SeqCst);
+                engine_clone.speak_next(&lang_str);
+            });
+            return;
+        }
+
         match engine {
             TtsEngineKind::System => self.speak_system(text, lang),
             TtsEngineKind::EdgeTts => self.speak_edge(text, lang),

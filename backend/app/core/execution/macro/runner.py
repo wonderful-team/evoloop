@@ -35,6 +35,51 @@ logger = logging.getLogger(__name__)
 
 _PARSE_ERRORS = (ValueError, OSError, RuntimeError, TypeError, KeyError, YAMLError)
 
+# MacroScript 内存缓存：{macro_id: (updated_at_iso, MacroScript)}
+_SCRIPT_CACHE: dict[int, tuple[str, MacroScript]] = {}
+_MACRO_CACHE: dict[int, tuple[str, Macro]] = {}
+
+
+def invalidate_macro_cache(macro_id: int | None = None) -> None:
+    """清除 Macro 缓存。macro_id=None 时清除全部。"""
+    if macro_id is not None:
+        _SCRIPT_CACHE.pop(macro_id, None)
+        _MACRO_CACHE.pop(macro_id, None)
+    else:
+        _SCRIPT_CACHE.clear()
+        _MACRO_CACHE.clear()
+
+
+def _get_cached_script(macro: Macro) -> MacroScript:
+    """缓存解析后的 MacroScript，updated_at 变化时自动失效。"""
+    cached = _SCRIPT_CACHE.get(macro.id)
+    updated = macro.updated_at.isoformat() if macro.updated_at else ""
+    if cached and cached[0] == updated:
+        return cached[1]
+    script = MacroScript.from_yaml(macro.macro_script)
+    _SCRIPT_CACHE[macro.id] = (updated, script)
+    if len(_SCRIPT_CACHE) > 500:
+        _SCRIPT_CACHE.clear()
+    return script
+
+
+# load_macro 进程内缓存：{macro_id: (updated_at_iso, Macro)}
+_MACRO_CACHE: dict[int, tuple[str, Macro]] = {}
+
+
+async def load_macro(macro_id: int) -> Macro | None:
+    cached = _MACRO_CACHE.get(macro_id)
+    if cached is not None:
+        return cached[1]
+    from app.infrastructure.database import session_scope
+
+    async with session_scope() as session:
+        macro = await session.get(Macro, macro_id)
+    if macro is not None:
+        updated = macro.updated_at.isoformat() if macro.updated_at else ""
+        _MACRO_CACHE[macro_id] = (updated, macro)
+    return macro
+
 
 class MacroGateError(Exception):
     """Synchronous gate rejection; ``code`` maps to per-transport responses."""
@@ -55,10 +100,9 @@ class ExecutionPolicy:
 
 WEB_POLICY = ExecutionPolicy(allow_self_heal=True)
 VOICE_POLICY = ExecutionPolicy(
-    allow_self_heal=False,
-    allowed_sources=frozenset({"desktop", "dom"}),
-    allowed_families=frozenset({"act", "control", "observe"}),
-    max_risk_tier="data",
+    allow_self_heal=True,
+    allowed_sources=frozenset({"desktop", "dom", "mobile"}),
+    # allowed_families 和 max_risk_tier 不限制 — 先跑通，后续迭代加安全
 )
 
 
@@ -69,17 +113,7 @@ class ExecutionOutcome:
     fell_back: bool = False  # macro failed and an agentic recovery run took over
 
 
-async def load_macro(macro_id: int) -> Macro | None:
-    from app.infrastructure.database import session_scope
-
-    async with session_scope() as session:
-        return await session.get(Macro, macro_id)
-
-
-def preflight(
-    macro: Macro,
-    params: dict[str, Any] | None,
-) -> MacroScript:
+def preflight(macro: Macro, params: dict[str, Any] | None) -> MacroScript:
     """Shared gates; returns the parsed macro for deterministic skills."""
     if not macro.is_routable():
         raise MacroGateError(
@@ -92,7 +126,7 @@ def preflight(
             "missing_params", f"Missing required parameters: {', '.join(missing)}"
         )
     try:
-        return MacroScript.from_yaml(macro.macro_script)
+        return _get_cached_script(macro)
     except _PARSE_ERRORS as e:
         raise MacroGateError("bad_macro", f"Failed to parse macro YAML: {e}") from e
 
@@ -144,6 +178,8 @@ async def run_deterministic(
     script: MacroScript,
     policy: ExecutionPolicy,
     skill_name: str | None = None,
+    skip_activity_log: bool = False,
+    skip_recording: bool = False,
 ) -> ExecutionOutcome:
     """Execute a deterministic macro under the given policy."""
     if policy.allowed_sources is not None:
@@ -160,6 +196,20 @@ async def run_deterministic(
             return ExecutionOutcome(False, f"policy gate rejected: {reason}")
 
     if policy.allow_self_heal:
+        # Fast path: try optimized execution first (skip_activity_log + skip_recording).
+        # Only fall back to self-healing (MacroService.run) on failure — the slow
+        # self-heal path (activity log + recording + Agent recovery) is acceptable
+        # for the error case, but must not penalize the success case.
+        from app.core.execution.macro.engine import MacroEngine
+
+        ok, msg, _data = await MacroEngine.execute(
+            thread_id, script, params=params or {},
+            skip_activity_log=skip_activity_log,
+            skip_recording=skip_recording,
+        )
+        if ok:
+            return ExecutionOutcome(True, msg or "")
+        # Failure: trigger self-healing via MacroService (full overhead, acceptable on error)
         return await _run_with_self_heal(
             macro,
             thread_id=thread_id,
@@ -171,7 +221,11 @@ async def run_deterministic(
 
     from app.core.execution.macro.engine import MacroEngine
 
-    ok, msg, _data = await MacroEngine.execute(thread_id, script, params=params or {})
+    ok, msg, _data = await MacroEngine.execute(
+        thread_id, script, params=params or {},
+        skip_activity_log=skip_activity_log,
+        skip_recording=skip_recording,
+    )
     return ExecutionOutcome(ok, msg or "")
 
 

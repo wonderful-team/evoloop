@@ -183,6 +183,10 @@ class ProjectDomainSubscriber:
         from app.core.shared_state import shared_state
         await shared_state.set("project_id", str(project_id))
 
+        # Rebuild L0 local matcher so preset + current project macros are available
+        from app.core.routing.router import rebuild_local_matcher
+        await rebuild_local_matcher()
+
         if path:
             if not os.path.isdir(path):
                 logger.warning(f"[ProjectHandlers] Project switch received but path does not exist: {path}. Ignoring.")

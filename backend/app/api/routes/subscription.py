@@ -42,7 +42,7 @@ async def get_subscription_detail(_token: TokenDep):
 @router.post("/subscription/order")
 async def create_subscription_order(req: CreateOrderRequest, _token: TokenDep):
     """创建订阅订单"""
-    return await evocloud_manager.api.create_subscription_order(req.level_id, req.auto_renew, token=_token)
+    return await evocloud_manager.api.create_subscription_order(req.level_id, req.auto_renew, req.pay_type, token=_token)
 
 @router.post("/subscription/cancel")
 async def cancel_subscription(cancel_type: str = "expire", reason: str = "", _token: TokenDep = None):

@@ -81,19 +81,22 @@ class DesktopController(
         role_filter: str | None = None,
         name_filter: str | None = None,
         max_depth: int | None = None,
+        skip_recording: bool = False,
     ) -> str:
         try:
             element_name = resolve_element_alias(target, element_name)
 
             recorder = None
-            session_id = ContextManager.get_var("thread_id")
-            if session_id:
-                recorder = get_recorder(session_id)
+            if not skip_recording:
+                session_id = ContextManager.get_var("thread_id")
+                if session_id:
+                    recorder = get_recorder(session_id)
 
             recording_ctx = RecordingContext(
                 platform="macos",
                 recorder=recorder,
                 screenshot_actions=("click", "double_click", "type_text", "key_press", "open_app", "drag_drop")
+                if not skip_recording else (),
             )
 
             _cached_app_info = None

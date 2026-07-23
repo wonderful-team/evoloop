@@ -13,90 +13,24 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from app.core.environment.capabilities.registry import ActionRegistry
 from app.core.routing.local_matcher import sorted_templates
 from app.core.routing.schemas import VoiceInitSpec
 
 logger = logging.getLogger(__name__)
 
-# Voice-local actions not covered by ActionRegistry (media / self / local system).
+# Voice-local actions not covered by ActionRegistry (Evoloop self commands).
 _VOICE_LOCAL_ACTIONS: list[dict[str, Any]] = [
     {"id": "paste", "params": {}},
     {"id": "speak", "params": {}},
     {"id": "clarify", "params": {}},
-    {"id": "play_pause", "params": {}},
-    {"id": "next_track", "params": {}},
-    {"id": "prev_track", "params": {}},
-    {"id": "set_volume", "params": {"delta": "str"}},
-    {"id": "mute", "params": {}},
-    {"id": "unmute", "params": {}},
-    {"id": "focus_app", "params": {"app": "str"}},
-    {"id": "quit_app", "params": {"app": "str"}, "destructive": True},
-    {"id": "press_key", "params": {"key": "str"}},
-    {"id": "screenshot", "params": {}},
-    {"id": "lock_screen", "params": {}, "destructive": True},
     {"id": "rename", "params": {"name": "str"}},
     {"id": "end", "params": {}},
+    {"id": "ack", "params": {}},
+    {"id": "cancel", "params": {}},
 ]
 
-# Static deterministic templates (the 50 from design §6.2.2), shipped as data.
+# Static deterministic templates for Evoloop self commands.
 _TEMPLATES: list[dict[str, Any]] = [
-    # media
-    {
-        "action": "play_pause",
-        "patterns": ["暂停", "停一下", "别放了", "先停"],
-        "slots": {},
-        "args": {"state": "pause"},
-    },
-    {
-        "action": "play_pause",
-        "patterns": ["继续", "继续播放", "接着放"],
-        "slots": {},
-        "args": {"state": "resume"},
-    },
-    {
-        "action": "next_track",
-        "patterns": ["下一首", "下一曲", "切歌", "换一首"],
-        "slots": {},
-    },
-    {"action": "prev_track", "patterns": ["上一首", "上一曲", "回上一首"], "slots": {}},
-    {
-        "action": "set_volume",
-        "patterns": [
-            "音量{delta}",
-            "声音{delta}",
-            "把音量调{delta}",
-            "把声音调{delta}",
-        ],
-        "slots": {"delta": "str"},
-    },
-    {"action": "mute", "patterns": ["静音", "别出声"], "slots": {}},
-    {"action": "unmute", "patterns": ["取消静音", "恢复声音"], "slots": {}},
-    # app
-    {
-        "action": "open_app",
-        "patterns": ["打开{app}", "启动{app}", "开一下{app}"],
-        "slots": {"app": "str"},
-    },
-    {
-        "action": "focus_app",
-        "patterns": ["切换到{app}", "切到{app}", "回到{app}"],
-        "slots": {"app": "str"},
-    },
-    {
-        "action": "quit_app",
-        "patterns": ["退出{app}", "关闭{app}", "关掉{app}"],
-        "slots": {"app": "str"},
-    },
-    # system
-    {
-        "action": "press_key",
-        "patterns": ["按一下{key}", "按{key}", "按下{key}"],
-        "slots": {"key": "str"},
-    },
-    {"action": "screenshot", "patterns": ["截图", "截屏", "屏幕截图", "截个图"], "slots": {}},
-    {"action": "lock_screen", "patterns": ["锁屏", "锁定屏幕", "锁电脑"], "slots": {}},
-    # self
     {"action": "clarify", "patterns": ["再说一遍", "没听清", "重说"], "slots": {}},
     {
         "action": "rename",
@@ -104,39 +38,9 @@ _TEMPLATES: list[dict[str, Any]] = [
         "slots": {"name": "str"},
     },
     {"action": "end", "patterns": ["再见", "拜拜", "结束", "退出对话"], "slots": {}},
+    {"action": "ack", "patterns": ["对对对", "没错", "就这个", "可以", "对的", "是的"], "slots": {}},
+    {"action": "cancel", "patterns": ["算了", "不用了", "不要", "取消"], "slots": {}},
 ]
-
-_KEY_DICT: dict[str, str] = {
-    "回车": "Return",
-    "空格": "Space",
-    "Esc": "Escape",
-    "Tab": "Tab",
-    "删除": "Delete",
-    "上": "Up",
-    "下": "Down",
-    "左": "Left",
-    "右": "Right",
-    "Command+C": "cmd+c",
-    "Command+V": "cmd+v",
-    "Command+T": "cmd+t",
-    "Command+N": "cmd+n",
-    "Command+W": "cmd+w",
-    "Command+Q": "cmd+q",
-}
-
-_DELTA_DICT: dict[str, str] = {
-    "大一点": "+10",
-    "大点": "+10",
-    "响一点": "+10",
-    "调高": "+10",
-    "小一点": "-10",
-    "小点": "-10",
-    "调低": "-10",
-    "最大": "100",
-    "一半": "50",
-    "最小": "0",
-    "静音": "0",
-}
 
 _ALIASES: dict[str, str] = {"音乐": "Apple Music", "浏览器": "Safari"}
 
@@ -189,14 +93,8 @@ def _probe_apps() -> tuple[list[dict[str, Any]], list[str]]:
 
 
 def _registry_actions() -> list[dict[str, Any]]:
-    actions: list[dict[str, Any]] = []
-    try:
-        for a in ActionRegistry.list_actions("desktop"):
-            if a.id in ("open_app",):
-                actions.append({"id": a.id, "params": a.params or {}})
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
-        logger.debug("[init_spec] ActionRegistry probe failed: %s", exc)
-    return actions
+    """Legacy registry probe — all previously registered actions are now preset Macros."""
+    return []
 
 
 async def _atlas_app_aliases() -> list[tuple[str, str, str]]:
@@ -279,10 +177,69 @@ async def enrich_spec_with_atlas_aliases(spec: VoiceInitSpec) -> VoiceInitSpec:
     return spec
 
 
+async def enrich_spec_with_macro_triggers(spec: VoiceInitSpec) -> VoiceInitSpec:
+    """从 DB 加载 routable Macro 的 trigger_patterns，注入为 L0 templates。
+
+    作用域：全局（project_id IS NULL）+ 当前项目（shared_state.project_id）。
+    冲突去重：preset 优先于用户，同 pattern 只保留第一条。
+    """
+    from app.core.shared_state import shared_state
+    from app.infrastructure.database import session_scope
+    from app.models.macro import Macro
+    from sqlmodel import select, case
+
+    current_project_id = int(await shared_state.get("project_id", "0"))
+
+    try:
+        async with session_scope() as session:
+            stmt = select(Macro).where(
+                Macro.is_active.is_(True),
+                Macro.status == "verified",
+                (Macro.project_id.is_(None)) | (Macro.project_id == current_project_id),
+            ).order_by(
+                case((Macro.namespace == "preset", 0), else_=1),
+                Macro.created_at.asc(),
+            )
+            macros = (await session.execute(stmt)).scalars().all()
+    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
+        logger.debug("[init_spec] macro trigger load skipped: %s", exc)
+        return spec
+
+    seen_patterns: set[str] = set()
+    added = 0
+    for macro in macros:
+        triggers = macro.trigger_patterns or []
+        deduped: list[str] = []
+        for trigger in triggers:
+            pattern = trigger.replace("{{", "{").replace("}}", "}")
+            if pattern in seen_patterns:
+                logger.warning(
+                    "[init_spec] trigger '%s' skipped (macro %d, already bound)",
+                    pattern, macro.id,
+                )
+                continue
+            seen_patterns.add(pattern)
+            deduped.append(pattern)
+        if not deduped:
+            continue
+        slot_names = [p.get("name") for p in (macro.parameters or []) if p.get("name")]
+        slots = {name: "str" for name in slot_names}
+        spec.templates.append({
+            "action": f"macro:{macro.id}",
+            "patterns": deduped,
+            "slots": slots,
+            "args": {},
+        })
+        added += 1
+    logger.info("[init_spec] enriched %d macro templates (%d macros scanned, %d patterns deduped)",
+                added, len(macros), len(seen_patterns))
+    return spec
+
+
 def build_init_spec() -> VoiceInitSpec:
     """Synchronous build (called by the Huey task / on-demand)."""
     apps, rank = _probe_apps()
-    actions = list(_VOICE_LOCAL_ACTIONS) + _registry_actions()
+    actions = list(_VOICE_LOCAL_ACTIONS)
 
     # Inject well-known spoken aliases when the canonical app is installed but
     # the Chinese spoken name is not already an installed display name. This
@@ -295,8 +252,6 @@ def build_init_spec() -> VoiceInitSpec:
 
     slot_dictionaries: dict[str, Any] = {
         "app": apps,
-        "key": dict(_KEY_DICT),
-        "delta": dict(_DELTA_DICT),
     }
 
     capabilities: dict[str, Any] = {

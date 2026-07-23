@@ -42,14 +42,20 @@ def _envelope(mtype: MessageType | str, body: dict[str, Any]) -> dict[str, Any]:
 
 
 async def _handle_barge_in(thread_id: str) -> None:
-    """Handle barge-in: cancel current task, update state machine."""
+    """Handle barge-in: cancel current task, update state machine.
+
+    Does NOT acquire the route lock — barge-in is an interrupt signal, not a
+    new route. ``cancel_voice_task`` → ``task.cancel()`` propagates
+    ``CancelledError`` into ``_dispatch_macro`` / ``await_and_finalize``,
+    which push ``cancelled`` to the WS. The state machine's ``force_set``
+    overrides whatever the in-flight route set (PROCESSING/SPEAKING →
+    INTERRUPTED), which is the correct semantics.
+    """
     from app.core.routing import executor
 
-    lock = await executor.get_thread_lock(thread_id)
-    async with lock:
-        cancelled = await executor.cancel_voice_task(thread_id)
-        await voice_state_machine.force_set(thread_id, VoiceSessionState.INTERRUPTED)
-        logger.info("[voice] barge_in for thread %s, cancelled=%s", thread_id, cancelled)
+    cancelled = await executor.cancel_voice_task(thread_id)
+    await voice_state_machine.force_set(thread_id, VoiceSessionState.INTERRUPTED)
+    logger.info("[voice] barge_in for thread %s, cancelled=%s", thread_id, cancelled)
 
 
 # Throttle: only preheat when partial text has grown by ≥2 chars, max once per 500ms
@@ -105,6 +111,9 @@ async def _ensure_voice_input() -> None:
         envelope_fn=_envelope,
         message_type=MessageType,
     )
+    # executor globals (manager/envelope_fn/message_type) are wired at app
+    # startup in main.py, not here — so VoiceChannel works even if the Agent
+    # is triggered by a non-route code path.
     _voice_input_bound = True
 
 
@@ -433,7 +442,24 @@ async def voice_ws(websocket: WebSocket) -> None:
                 )
             elif mtype in (MessageType.VOICE_ROUTE, "voice.route"):
                 body.setdefault("message_id", data.get("message_id"))
-                asyncio.create_task(_handle_route(body, conn_id))
+                _route_task = asyncio.create_task(_handle_route(body, conn_id))
+
+                def _on_route_done(t: asyncio.Task) -> None:
+                    if t.cancelled():
+                        return
+                    exc = t.exception()
+                    if exc is not None:
+                        logger.error("[voice] route task failed: %s", exc, exc_info=exc)
+                        tid = str(body.get("thread_id", ""))
+                        if tid:
+                            asyncio.create_task(manager.push(
+                                tid, _envelope(MessageType.VOICE_ROUTE_RESULT, {
+                                    "thread_id": tid, "status": "failed",
+                                    "summary": "处理出错",
+                                })
+                            ))
+
+                _route_task.add_done_callback(_on_route_done)
             elif mtype in (MessageType.VOICE_CANCEL, "voice.cancel"):
                 thread_id = str(body.get("thread_id", "")).strip()
                 if thread_id:
