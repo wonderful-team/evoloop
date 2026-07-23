@@ -1,6 +1,7 @@
 import { Alert, AlertDescription } from "@evoloop/shared/components/ui/alert"
+import { Badge } from "@evoloop/shared/components/ui/badge"
 import { createFileRoute } from "@tanstack/react-router"
-import { Info, Loader2 } from "lucide-react"
+import { CreditCard, Info, Loader2, Smartphone } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { PaymentDialog } from "@/components/Subscription/PaymentDialog"
@@ -27,36 +28,41 @@ function SubscriptionDashboard() {
 
   const [showPayment, setShowPayment] = useState(false)
   const [isRenewalMode, setIsRenewalMode] = useState(false)
+  const [selectedPayType, setSelectedPayType] = useState("wechatpay")
+  const [selectedLevelId, setSelectedLevelId] = useState<number | null>(null)
+
+  const payTypes = [
+    { key: "wechatpay", label: t("subscription.payment.wechatPay"), icon: Smartphone },
+    { key: "stripe", label: t("subscription.payment.cardPay"), icon: CreditCard },
+  ]
 
   const handleSelectPlan = async (levelId: number) => {
     const isRenewing = levelId === detail?.level_id
     setIsRenewalMode(isRenewing)
-    try {
-      await createOrderMutation.mutateAsync(levelId)
-      // 下单成功后才打开支付弹窗（免费等级等非法目标会被后端拒绝）
-      setShowPayment(true)
-    } catch (e) {
-      console.error("Order creation failed", e)
-      setShowPayment(false)
+    setSelectedLevelId(levelId)
+    setShowPayment(true)
+  }
+
+  // When dialog opens, create the order with the selected payment type
+  const handleDialogOpenChange = (open: boolean) => {
+    setShowPayment(open)
+    if (open && selectedLevelId) {
+      createOrderMutation.mutate({ levelId: selectedLevelId, payType: selectedPayType })
     }
   }
 
-  const handleRefreshOrder = async () => {
-    const levelId = createOrderMutation.variables as any
-    if (levelId) {
-      try {
-        await createOrderMutation.mutateAsync(levelId)
-      } catch (e) {
-        console.error("Order refresh failed", e)
-      }
+  const handleRefreshOrder = () => {
+    if (selectedLevelId) {
+      createOrderMutation.mutate({ levelId: selectedLevelId, payType: selectedPayType })
     }
   }
 
   const handlePaymentSuccess = () => {
-    // Refresh data after successful payment
     refetchDetail()
     refetchQuota()
   }
+
+  const orderData = (createOrderMutation.data as any)?.data
 
   if (isLoading) {
     return (
@@ -68,33 +74,20 @@ function SubscriptionDashboard() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      {/* 1. Subscription Overview & Quota (Combined) */}
+      {/* 1. Subscription Overview & Quota */}
       <div className="space-y-6">
         <div className="flex items-baseline gap-3">
-          <h2 className="text-xl font-semibold tracking-tight">
-            {t("subscription.title")}
-          </h2>
-          <p className="text-muted-foreground text-sm">
-            {t("subscription.subtitle")}
-          </p>
+          <h2 className="text-xl font-semibold tracking-tight">{t("subscription.title")}</h2>
+          <p className="text-muted-foreground text-sm">{t("subscription.subtitle")}</p>
         </div>
 
         <div className="flex flex-col gap-4">
           <SubscriptionStatus
             detail={detail}
             quota={quota}
-            onRenew={() => {
-              if (detail?.level_id) {
-                handleSelectPlan(detail.level_id)
-              }
-            }}
-            onUpgrade={() => {
-              document
-                .getElementById("plans-section")
-                ?.scrollIntoView({ behavior: "smooth" })
-            }}
+            onRenew={() => { if (detail?.level_id) handleSelectPlan(detail.level_id) }}
+            onUpgrade={() => { document.getElementById("plans-section")?.scrollIntoView({ behavior: "smooth" }) }}
           />
-
           <Alert className="bg-muted/50 border-border py-2.5">
             <Info className="h-4 w-4 text-muted-foreground shrink-0" />
             <AlertDescription className="text-xs text-muted-foreground leading-normal">
@@ -104,36 +97,52 @@ function SubscriptionDashboard() {
         </div>
       </div>
 
-      {/* 2. Pricing & Upgrade Section */}
+      {/* 2. Payment Method Selection */}
+      <div className="flex items-center gap-3">
+        <span className="text-sm font-medium text-muted-foreground">{t("subscription.payment.method")}</span>
+        <div className="flex gap-2">
+          {payTypes.map((pt) => {
+            const Icon = pt.icon
+            const active = selectedPayType === pt.key
+            return (
+              <Badge
+                key={pt.key}
+                variant={active ? "default" : "secondary"}
+                className="cursor-pointer gap-1.5 px-3 py-1.5 text-xs"
+                onClick={() => setSelectedPayType(pt.key)}
+              >
+                <Icon className="h-3 w-3" />
+                {t(`subscription.payment.${pt.key}`) || pt.label}
+              </Badge>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* 3. Pricing & Upgrade Section */}
       <div id="plans-section" className="space-y-6 pt-8 border-t border-border">
         <div className="flex items-baseline gap-3">
-          <h2 className="text-xl font-semibold tracking-tight">
-            {t("subscription.plans.title")}
-          </h2>
-          <p className="text-muted-foreground text-sm">
-            {t("subscription.plans.desc")}
-          </p>
+          <h2 className="text-xl font-semibold tracking-tight">{t("subscription.plans.title")}</h2>
+          <p className="text-muted-foreground text-sm">{t("subscription.plans.desc")}</p>
         </div>
 
         <PlanComparison
           plans={plans}
           currentLevelId={detail?.level_id}
-          currentPlanPrice={parseFloat(
-            plans.find((p: any) => p.level_id === detail?.level_id)?.price ||
-              "0",
-          )}
+          currentPlanPrice={parseFloat(plans.find((p: any) => p.level_id === detail?.level_id)?.price || "0")}
           onSelect={handleSelectPlan}
           isLoading={createOrderMutation.isPending}
         />
       </div>
 
-      {/* Payment Dialog Component */}
+      {/* Payment Dialog */}
       <PaymentDialog
         open={showPayment}
-        onOpenChange={setShowPayment}
-        orderData={(createOrderMutation.data as any)?.data}
+        onOpenChange={handleDialogOpenChange}
+        orderData={orderData}
         isRenewalMode={isRenewalMode}
         isPending={createOrderMutation.isPending}
+        payType={selectedPayType}
         checkOrderStatus={checkOrderStatus}
         onSuccess={handlePaymentSuccess}
         onRefresh={handleRefreshOrder}

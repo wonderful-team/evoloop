@@ -76,7 +76,7 @@ export function ProjectSidebar({
     },
     {
       id: "macros",
-      label: "宏管理",
+      label: "指令管理",
       icon: Zap,
       path: `/projects/${projectId}/macros`,
     },

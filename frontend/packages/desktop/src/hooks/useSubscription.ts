@@ -51,11 +51,14 @@ export const useSubscription = () => {
     queryClient.invalidateQueries({ queryKey: ["subscription"] })
   })
 
-  // Mutation: Create Order
+  // Mutation: Create Order (支持指定支付方式)
   const createOrderMutation = useMutation({
-    mutationFn: (levelId: number) =>
+    mutationFn: ({ levelId, payType }: { levelId: number; payType?: string }) =>
       SubscriptionService.createSubscriptionOrder({
-        requestBody: { level_id: levelId },
+        requestBody: {
+          level_id: levelId,
+          pay_type: payType || "wechatpay",
+        },
       }),
     onError: handleError.bind(showErrorToast),
   })

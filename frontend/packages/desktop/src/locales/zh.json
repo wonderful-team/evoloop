@@ -544,7 +544,7 @@
       "nav": {
         "projects": "项目管理",
         "projectsDesc": "管理所有开发项目与工作流",
-        "skills": "技能中心",
+        "skills": "学习中心",
         "skillsDesc": "训练智能体并升级核心能力",
         "todos": "待办事项",
         "todosDesc": "追踪任务进展与自动化记录"
@@ -680,7 +680,7 @@
   },
   "generation": {
     "title": "生成产物",
-    "description": "生成项目百科、宏和项目描述等产物。根据项目规模，将消耗 AI Token。",
+    "description": "生成项目百科、指令和项目描述等产物。根据项目规模，将消耗 AI Token。",
     "generate": "开始生成",
     "dispatched": "生成任务已分发",
     "dispatchFailed": "分发生成任务失败",
@@ -690,7 +690,7 @@
     "retryFailed": "重试失败",
     "artifacts": {
       "wiki": "Wiki 文档",
-      "macros": "宏",
+      "macros": "指令",
       "overview": "项目描述"
     },
     "running": "生成中...",
@@ -712,8 +712,8 @@
         "overviewDesc": "项目简介、技术栈、功能描述",
         "wiki": "Wiki 文档",
         "wikiDesc": "项目架构文档、模块说明",
-        "appmap": "SOP 自动化宏",
-        "appmapDesc": "界面操作流程、自动化脚本"
+        "appmap": "SOP 自动化指令",
+        "appmapDesc": "界面操作流程、自动化脚本（关联 Macro 数据）"
       },
       "recordSecrets": "记录密钥",
       "recordSecretsWarning": "注意",
@@ -823,7 +823,7 @@
     "annotations": "标注数据",
     "appRecording": "仅录制应用窗口 (DOM)",
     "centerSubtitle": "通过录制您的操作，让 Agent 学习新的技能和工作流。",
-    "centerTitle": "Agent 技能中心",
+    "centerTitle": "学习中心",
     "checkingVideo": "检查中...",
     "cleanupFailed": "清理录制数据失败",
     "cleanupSuccess": "录制数据已清理",
@@ -850,7 +850,7 @@
       "descHelp": "详细描述技能的功能，有助于 AI 理解和优化。",
       "description": "设计机器人运行此技能时需要向您询问的问题。输入项将自动转换为参数。",
       "expertGuidePlaceholder": "为智能体编写 Markdown 指令... 例如：\n1. 访问 github.com\n2. 点击 'New Repository' 按钮",
-      "invalidMacroYaml": "宏脚本必须是有效的 YAML",
+      "invalidMacroYaml": "指令脚本必须是有效的 YAML",
       "nameHelp": "技能的唯一显示名称。",
       "nameRequired": "技能名称为必填项",
       "noActiveStep": "没有活动步骤",
@@ -993,7 +993,7 @@
     "synthesizingProgress": "正在分析录制内容...",
     "tabs": {
       "library": "技能库",
-      "macros": "宏库",
+      "macros": "指令库",
       "mcpServers": "外部工具",
       "recording": "移动录制"
     },
@@ -1024,33 +1024,33 @@
     "noRecordingAvailable": "没有可用录制",
     "runNeedsConfirm": "请先确认该技能再执行",
     "macroRun": {
-      "title": "宏执行进度",
+      "title": "指令执行进度",
       "openChatFirst": "请先打开一个会话以查看执行进度"
     },
     "selfHeal": {
       "toggle": "自愈",
-      "toggleHint": "开启后，宏执行失败会回落给 Agent 尝试恢复。此开关仅影响调试运行。"
+      "toggleHint": "开启后，指令执行失败会回落给 Agent 尝试恢复。此开关仅影响调试运行。"
     },
     "macros": {
-      "searchPlaceholder": "搜索宏（名称/描述/实体）",
-      "total": "个宏",
-      "empty": "暂无宏 — 先运行 AppMap 源码勘测生成",
+      "searchPlaceholder": "搜索指令（名称/描述/实体）",
+       "total": "个指令",
+       "empty": "暂无指令 — 先运行 AppMap 源码勘测生成",
       "confirm": "确认",
       "confirmSelected": "批量确认 ({{count}})",
-      "confirmed": "已确认 {{count}} 个宏",
-      "deleted": "宏已删除",
-      "pendingCount": "{{count}} 待审核",
+       "confirmed": "已确认 {{count}} 个指令",
+       "deleted": "指令已删除",
+       "pendingCount": "{{count}} 待审核",
       "selectPending": "全选待审核",
       "regenerate": "重新生成",
-      "regenStarted": "宏重新生成已提交，稍后自动刷新",
+       "regenStarted": "指令重新生成已提交，稍后自动刷新",
       "requiresConfirm": "执行前需要人工确认",
       "runNeedsConfirm": "确认并激活后才能运行",
-      "runTitle": "运行宏：{{name}}",
-      "runSuccess": "宏执行成功",
-      "runFailed": "宏执行失败",
-      "noParams": "该宏无需参数",
+       "runTitle": "运行指令：{{name}}",
+       "runSuccess": "指令执行成功",
+       "runFailed": "指令执行失败",
+      "noParams": "该指令无需参数",
       "noEntity": "未关联实体",
-      "editTitle": "编辑宏：{{name}}",
+       "editTitle": "编辑指令：{{name}}",
       "editDesc": "修改名称、描述、语音触发词，以及 YAML 步骤脚本。risk_tier 由系统自动分析，不可手动更改。",
       "triggerPatterns": "语音触发词",
       "triggerPatternsHint": "每行一条，支持自然语言变体",
@@ -1078,7 +1078,7 @@
     "delete": "删除",
     "description": "描述",
     "duplicate": "复制",
-    "editMacroJson": "编辑宏 JSON",
+     "editMacroJson": "编辑指令 JSON",
     "elseBranch": "不满足执行步骤 (Else Steps)",
     "eventType": "事件类型",
     "eventTypes": {
@@ -1136,7 +1136,7 @@
     "maxIterations": "最大循环次数",
     "newStep": "新步骤",
     "noDescription": "无描述",
-    "noMacroSteps": "暂无宏步骤",
+     "noMacroSteps": "暂无指令步骤",
     "payload": "载荷 (JSON)",
     "placeholders": {
       "cssSelector": "例如：.product-price 或 #submit-btn",
@@ -1458,7 +1458,7 @@
       "vault": "密码箱",
       "wiki": "百科",
       "generation": "生成产物",
-      "macros": "宏"
+      "macros": "指令"
     },
     "tasks": {
       "assignee": "负责人",

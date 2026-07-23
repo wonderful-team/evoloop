@@ -1,3 +1,6 @@
+// 指令(Macro)列表视图 — 前端显示为"指令"，后端概念为 Macro
+// 当前仅展示系统内置指令，隐藏新建/编辑/删除/批量操作等编辑能力
+
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
@@ -140,14 +143,14 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
     mutationFn: (projId: number | null) =>
       MacrosService.createMacro({
         requestBody: {
-          name: t("learning.macros.newMacroName", { defaultValue: "未命名自动化宏" }),
-          description: t("learning.macros.newMacroDesc", { defaultValue: "手动创建的自动化脚本步骤。" }),
+          name: t("learning.macros.newMacroName"),
+          description: t("learning.macros.newMacroDesc"),
           project_id: projId,
           macro_script: "steps: []",
         },
       }),
     onSuccess: (newMacro) => {
-      toast.success(t("learning.macros.createSuccess", { defaultValue: "宏创建成功！" }))
+      toast.success(t("learning.macros.createSuccess"))
       invalidate()
       navigate({
         to: "/learning/macros/$macroId/edit",
@@ -163,7 +166,7 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
       return ids
     },
     onSuccess: (_, ids) => {
-      toast.success(t("learning.macros.bulkDeleteSuccess", { defaultValue: "成功删除选中的 {{count}} 个宏", count: ids.length }))
+      toast.success(t("learning.macros.bulkDeleteSuccess", { count: ids.length }))
       setSelected(new Set())
       invalidate()
     },
@@ -308,7 +311,7 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
           : "bg-muted/50 text-muted-foreground border-border"
       }`}
     >
-      {t(`learning.statusBadge.${status}`, { defaultValue: status })}
+      {t(`learning.statusBadge.${status}`)}
     </Badge>
   )
 
@@ -327,31 +330,26 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
         </div>
         <div className="flex gap-2 items-center">
           {selected.size > 0 && (
-            <Button
-              variant="destructive"
-              size="sm"
-              className="h-9 text-sm gap-1.5 animate-in fade-in zoom-in-95 duration-200"
-              disabled={bulkDeleteMutation.isPending}
-              onClick={() => {
-                if (
-                  window.confirm(
-                    t("learning.macros.bulkDeleteConfirm", {
-                      defaultValue: "确定要删除选中的 {{count}} 个宏吗？",
-                      count: selected.size,
-                    })
-                  )
-                ) {
-                  bulkDeleteMutation.mutate([...selected])
-                }
-              }}
-            >
-              <Trash2 className="h-4 w-4" />
-              {t("learning.macros.deleteSelected", {
-                defaultValue: "删除选中 ({{count}})",
-                count: selected.size,
-              })}
-            </Button>
+            <>
+              {/* 批量删除 — 暂时关闭，后续恢复可取消注释下方代码
+              <Button
+                variant="destructive"
+                size="sm"
+                className="h-9 text-sm gap-1.5 animate-in fade-in zoom-in-95 duration-200"
+                disabled={bulkDeleteMutation.isPending}
+                onClick={() => {
+                  if (window.confirm(t("learning.macros.bulkDeleteConfirm", {count: selected.size}))) {
+                    bulkDeleteMutation.mutate([...selected])
+                  }
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+                {t("learning.macros.deleteSelected", {count: selected.size})
+              </Button>
+              */}
+            </>
           )}
+          {/* 批量确认 — 暂时关闭，后续恢复可取消注释下方代码
           <Button
             variant="default"
             size="sm"
@@ -366,6 +364,8 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
               count: pendingSelected.length,
             })}
           </Button>
+          */}
+          {/* 新建指令按钮 — 暂时关闭，后续恢复可取消注释下方代码
           <Button
             variant="outline"
             size="sm"
@@ -374,8 +374,9 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
             onClick={() => createMutation.mutate(projectId || null)}
           >
             <Plus className="h-4 w-4" />
-            {t("learning.macros.createMacro", { defaultValue: "新建宏" })}
+            {t("learning.macros.createMacro")}
           </Button>
+          */}
           <Badge variant="outline" className="px-3 py-1 font-bold h-9 flex items-center justify-center">
             第 {page} 页 (本页 {macros?.length || 0} 条)
           </Badge>
@@ -406,7 +407,7 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
       {/* Grouped list */}
       <ScrollArea className="flex-1">
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-1">
+          <div className="grid grid-cols-1 gap-4 p-1">
             {[1, 2, 3].map((i) => (
               <Card
                 key={i}
@@ -480,140 +481,97 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
                       </span>
                     )}
                     {appMapId != null && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-[11px] gap-1"
-                        disabled={regenMutation.isPending}
-                        onClick={() => regenMutation.mutate(appMapId)}
-                      >
-                        <RefreshCw className="h-3 w-3" />
-                        {t("learning.macros.regenerate")}
-                      </Button>
+                      <>
+                        {/* 重新生成指令 — 暂时关闭，后续恢复可取消注释下方代码
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-[11px] gap-1"
+                          disabled={regenMutation.isPending}
+                          onClick={() => regenMutation.mutate(appMapId)}
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          {t("learning.macros.regenerate")}
+                        </Button>
+                        */}
+                      </>
                     )}
                   </div>
 
                   {!isCollapsed && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 gap-1">
                       {items.map((m) => (
-                        <Card
+                        <div
                           key={m.id}
-                          className="group hover:border-primary/30 transition-all border border-border shadow-sm rounded-xl overflow-hidden flex flex-col"
+                          className="group flex items-center gap-2 px-3 py-2 rounded-lg border border-border hover:border-primary/30 hover:bg-muted/20 transition-all"
                         >
-                          <CardHeader className="p-4 pb-2">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-start gap-2 min-w-0">
-                                <Checkbox
-                                  className="mt-1"
-                                  checked={selected.has(m.id)}
-                                  onCheckedChange={() => toggleSelect(m.id)}
-                                />
-                                <div className="min-w-0">
-                                  <CardTitle className="text-sm font-semibold leading-tight line-clamp-1 tracking-tight">
-                                    {m.name}
-                                  </CardTitle>
-                                  <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                                    {statusBadge(m.status)}
-                                    <Badge
-                                      variant="outline"
-                                      className="text-[10px] px-1.5 py-0"
-                                    >
-                                      {m.risk_tier}
-                                    </Badge>
-                                    {projectId == null && (
-                                      <Badge
-                                        variant="outline"
-                                        className="text-[10px] px-1.5 py-0 bg-blue-500/5 text-blue-600 border-blue-500/10 dark:bg-blue-500/10 dark:text-blue-400"
-                                      >
-                                        {getProjectName(m.project_id)}
-                                      </Badge>
-                                    )}
-                                    {m.requires_confirmation && (
-                                      <span
-                                        title={t(
-                                          "learning.macros.requiresConfirm",
-                                        )}
-                                      >
-                                        <ShieldAlert className="h-3.5 w-3.5 text-amber-500" />
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
+                          <Checkbox
+                            checked={selected.has(m.id)}
+                            onCheckedChange={() => toggleSelect(m.id)}
+                            className="shrink-0"
+                          />
+                          <div className="flex-1 min-w-0 space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium truncate">
+                                {m.name}
+                              </span>
+                              {statusBadge(m.status)}
+                              {m.risk_tier && (
+                                <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded shrink-0">
+                                  {m.risk_tier}
+                                </span>
+                              )}
+                              {projectId == null && (
+                                <span className="text-[10px] text-blue-600 bg-blue-500/10 px-1.5 py-0.5 rounded shrink-0">
+                                  {getProjectName(m.project_id)}
+                                </span>
+                              )}
+                              {m.requires_confirmation && (
+                                <ShieldAlert className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                              )}
+                              <span className="text-[11px] text-muted-foreground truncate flex-1 min-w-0 hidden sm:inline">
+                                {m.description}
+                              </span>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  className="h-6 text-xs px-2"
+                                  disabled={!(m.is_active && m.status === "verified")}
+                                  title={m.is_active && m.status === "verified" ? undefined : t("learning.macros.runNeedsConfirm")}
+                                  onClick={() => openRun(m)}
+                                >
+                                  <Play className="h-2.5 w-2.5 fill-current mr-1" />
+                                  {t("common.run")}
+                                </Button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-6 w-6">
+                                      <MoreVertical className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => openDetail(m)}>
+                                      <Eye className="mr-2 h-4 w-4" />
+                                      {t("learning.viewDetails")}
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </div>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 shrink-0"
-                                  >
-                                    <MoreVertical className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem
-                                    onClick={() => openEdit(m)}
-                                  >
-                                    <Edit className="mr-2 h-4 w-4" />
-                                    {t("common.edit")}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => openDetail(m)}
-                                  >
-                                    <Eye className="mr-2 h-4 w-4" />
-                                    {t("learning.viewDetails")}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    className="text-destructive"
-                                    onClick={() => deleteMutation.mutate(m.id)}
-                                  >
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    {t("common.delete")}
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
                             </div>
-                          </CardHeader>
-                          <CardContent className="p-4 pt-1 flex-1">
-                            <p className="text-[12px] text-muted-foreground/90 line-clamp-2 leading-relaxed h-8">
-                              {m.description}
-                            </p>
-                            <div className="mt-2 bg-muted/20 p-2 rounded-lg border border-dashed text-[10px] font-mono text-muted-foreground/70 truncate">
-                              {(m.trigger_patterns?.[0] as string) || "—"}
-                            </div>
-                          </CardContent>
-                          <CardFooter className="p-4 pt-0 flex justify-end items-center gap-2">
-                            {m.status === "pending_review" && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 gap-1 text-xs"
-                                onClick={() => confirmMutation.mutate([m.id])}
-                              >
-                                <CheckCheck className="h-3 w-3" />
-                                {t("learning.macros.confirm")}
-                              </Button>
+                            {(Array.isArray(m.trigger_patterns) ? m.trigger_patterns : []).filter(Boolean).length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {(Array.isArray(m.trigger_patterns) ? m.trigger_patterns : [])
+                                  .filter(Boolean)
+                                  .map((p: string, i: number) => (
+                                    <span key={i} className="text-[10px] bg-primary/5 text-primary px-1.5 py-0.5 rounded border border-primary/10 font-mono">
+                                      {p}
+                                    </span>
+                                  ))}
+                              </div>
                             )}
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              className="h-8 gap-1.5 text-xs font-medium px-3"
-                              disabled={
-                                !(m.is_active && m.status === "verified")
-                              }
-                              title={
-                                m.is_active && m.status === "verified"
-                                  ? undefined
-                                  : t("learning.macros.runNeedsConfirm")
-                              }
-                              onClick={() => openRun(m)}
-                            >
-                              <Play className="h-3 w-3 fill-current" />
-                              {t("common.run")}
-                            </Button>
-                          </CardFooter>
-                        </Card>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   )}

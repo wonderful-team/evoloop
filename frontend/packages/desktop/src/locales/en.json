@@ -544,7 +544,7 @@
       "nav": {
         "projects": "Project Management",
         "projectsDesc": "Manage all development projects",
-        "skills": "Skill Center",
+        "skills": "Learning Center",
         "skillsDesc": "Train and upgrade agent skills",
         "todos": "To-do Items",
         "todosDesc": "Track progress and automations"
@@ -680,7 +680,7 @@
   },
   "generation": {
     "title": "Project Portrait",
-    "description": "Generate project artifacts such as wiki documentation, macros, and project overview. This will consume AI tokens based on project size.",
+    "description": "Generate project artifacts such as wiki documentation, instructions, and project overview. This will consume AI tokens based on project size.",
     "generate": "Generate Selected",
     "dispatched": "Generation tasks dispatched",
     "dispatchFailed": "Failed to dispatch generation tasks",
@@ -690,7 +690,7 @@
     "retryFailed": "Failed to retry generation",
     "artifacts": {
       "wiki": "Wiki Documentation",
-      "macros": "Macros",
+      "macros": "Instructions",
       "overview": "Project Overview"
     },
     "running": "Generating...",
@@ -712,7 +712,7 @@
         "overviewDesc": "Description, tech stack, core features",
         "wiki": "Wiki Documentation",
         "wikiDesc": "Architecture docs, module guides",
-        "appmap": "SOP Automation Macros",
+        "appmap": "SOP Automation Instructions",
         "appmapDesc": "UI workflows, automation scripts"
       },
       "recordSecrets": "Record Secrets",
@@ -850,7 +850,7 @@
       "descHelp": "Detailed description of what the skill does. Helps AI understand and optimize.",
       "description": "Design the questions the agent should ask you when running this skill. Inputs will be automatically mapped to steps.",
       "expertGuidePlaceholder": "Write markdown instructions for the agent... e.g. \\n1. Go to github.com\\n2. Click the 'New Repository' button",
-      "invalidMacroYaml": "Macro script must be valid YAML",
+      "invalidMacroYaml": "Instruction script must be valid YAML",
       "nameHelp": "Unique display name for this skill.",
       "nameRequired": "Name is required",
       "noActiveStep": "No active step",
@@ -911,8 +911,8 @@
       "success": "Skills imported successfully!",
       "title": "Import External Skills"
     },
-    "macroScript": "Macro Script",
-    "macroSequence": "Macro Sequence (Visual Editor)",
+     "macroScript": "Instruction Script",
+     "macroSequence": "Instruction Sequence (Visual Editor)",
     "mirror": {
       "active": "Mirror Active",
       "connecting": "Connecting...",
@@ -993,7 +993,7 @@
     "synthesizingProgress": "Analyzing recording content...",
     "tabs": {
       "library": "Skill Library",
-      "macros": "Macros",
+      "macros": "Instructions",
       "mcpServers": "External Tools",
       "recording": "Active Recording"
     },
@@ -1024,33 +1024,33 @@
     "noRecordingAvailable": "No recording available",
     "runNeedsConfirm": "Confirm this skill before running it",
     "macroRun": {
-      "title": "Macro execution",
+      "title": "Instruction execution",
       "openChatFirst": "Open a chat first to see execution progress"
     },
     "selfHeal": {
       "toggle": "Self-heal",
-      "toggleHint": "When enabled, a failed macro run falls back to the agent to recover. This toggle affects debug runs only."
+      "toggleHint": "When enabled, a failed instruction falls back to the agent to recover. This toggle affects debug runs only."
     },
     "macros": {
-      "searchPlaceholder": "Search macros (name/description/entity)",
-      "total": "macros",
-      "empty": "No macros yet — run an AppMap source survey first",
+      "searchPlaceholder": "Search instructions (name/description/entity)",
+      "total": "instructions",
+      "empty": "No instructions yet — run an AppMap source survey first",
       "confirm": "Confirm",
       "confirmSelected": "Confirm selected ({{count}})",
-      "confirmed": "Confirmed {{count}} macro(s)",
-      "deleted": "Macro deleted",
+      "confirmed": "Confirmed {{count}} instruction(s)",
+      "deleted": "Instruction deleted",
       "pendingCount": "{{count}} pending",
       "selectPending": "Select pending",
       "regenerate": "Regenerate",
-      "regenStarted": "Macro regeneration submitted; refreshing shortly",
+      "regenStarted": "Instruction regeneration submitted; refreshing shortly",
       "requiresConfirm": "Requires human confirmation before execution",
       "runNeedsConfirm": "Confirm and activate before running",
-      "runTitle": "Run macro: {{name}}",
-      "runSuccess": "Macro executed successfully",
-      "runFailed": "Macro execution failed",
-      "noParams": "This macro takes no parameters",
+      "runTitle": "Run instruction: {{name}}",
+      "runSuccess": "Instruction executed successfully",
+      "runFailed": "Instruction execution failed",
+      "noParams": "This instruction takes no parameters",
       "noEntity": "No entity",
-      "editTitle": "Edit Macro: {{name}}",
+      "editTitle": "Edit Instruction: {{name}}",
       "editDesc": "Modify name, description, voice trigger patterns, and the YAML step script. Risk tier is assessed automatically and cannot be changed manually.",
       "triggerPatterns": "Voice Trigger Patterns",
       "triggerPatternsHint": "One pattern per line, natural language variants supported",
@@ -1078,7 +1078,7 @@
     "delete": "Delete",
     "description": "Description",
     "duplicate": "Duplicate",
-    "editMacroJson": "Edit Macro JSON",
+    "editMacroJson": "Edit Instruction JSON",
     "elseBranch": "Else Steps",
     "eventType": "Event Type",
     "eventTypes": {
@@ -1136,7 +1136,7 @@
     "maxIterations": "Max Iterations",
     "newStep": "New step",
     "noDescription": "No description",
-    "noMacroSteps": "No macro steps yet",
+    "noMacroSteps": "No instruction steps yet",
     "payload": "Payload (JSON)",
     "placeholders": {
       "cssSelector": "e.g., .product-price or #submit-btn",
@@ -1458,7 +1458,7 @@
       "vault": "Vault",
       "wiki": "Wiki",
       "generation": "Project Portrait",
-      "macros": "Macros"
+      "macros": "Instructions"
     },
     "tasks": {
       "assignee": "Assignee",

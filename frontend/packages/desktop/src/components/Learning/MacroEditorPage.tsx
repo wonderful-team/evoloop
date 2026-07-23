@@ -306,7 +306,7 @@ export function MacroEditorPage({
               </span>
               {!globalSelfHealSupported && (
                 <span className="text-[10px] text-red-500 font-bold bg-red-500/10 px-1 rounded border border-red-500/20">
-                  {t("learning.selfHeal.globallyDisabled", { defaultValue: "已全局禁用" })}
+                  {t("learning.selfHeal.globallyDisabled")}
                 </span>
               )}
             </label>
@@ -319,7 +319,7 @@ export function MacroEditorPage({
                 <TooltipContent side="bottom" className="max-w-[260px] text-xs">
                   {globalSelfHealSupported
                     ? t("learning.selfHeal.toggleHint")
-                    : t("learning.selfHeal.globallyDisabledHint", { defaultValue: "宏自愈功能已被系统全局关闭，无法在此宏运行中开启自愈。" })}
+                    : t("learning.selfHeal.globallyDisabledHint")}
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

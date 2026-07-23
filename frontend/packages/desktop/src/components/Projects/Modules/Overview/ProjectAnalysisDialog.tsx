@@ -1,3 +1,6 @@
+// 项目分析弹窗 — 包含指令(Macro)生成入口
+// 概念说明：前端显示"指令"，后端概念为 Macro/appmap
+
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Checkbox } from "@evoloop/shared/components/ui/checkbox"
 import {

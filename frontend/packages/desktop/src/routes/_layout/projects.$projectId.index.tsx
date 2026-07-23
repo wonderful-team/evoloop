@@ -331,7 +331,7 @@ function ProjectProfile() {
                   key={g.item}
                   variant={g.status === "completed" ? "secondary" : g.status === "running" ? "default" : "destructive"}
                 >
-                  {t(`generation.artifacts.${g.item}`, { defaultValue: g.item })}
+                  {t(`generation.artifacts.${g.item}`)}
                 </Badge>
               ))}
             </div>

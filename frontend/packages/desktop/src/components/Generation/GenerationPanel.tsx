@@ -201,13 +201,10 @@ export function GenerationPanel() {
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">
-          {t("generation.title", { defaultValue: "项目 AI 产物与知识库" })}
+          {t("generation.title")}
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
-          {t("generation.subtitle", {
-            defaultValue:
-              "AI 自动基于代码库构建的结构化知识产物（包含 Wiki 架构文档、SOP 流程宏与全局概览）",
-          })}
+          {t("generation.subtitle")}
         </p>
       </div>
 

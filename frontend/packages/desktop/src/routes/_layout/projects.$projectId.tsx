@@ -94,7 +94,7 @@ function ProjectLayout() {
     },
     {
       id: "macros",
-      label: t("projects.tabs.macros", { defaultValue: "宏" }),
+      label: t("projects.tabs.macros"),
       icon: Zap,
       path: "/macros",
     },

@@ -1,3 +1,6 @@
+// 指令(Macro)列表 — 前端显示为"指令"，后端概念为 Macro
+// 当前仅展示系统内置指令，隐藏新建/编辑/删除等编辑能力
+
 import { createFileRoute, redirect } from "@tanstack/react-router"
 import { MacroLibraryView } from "@/components/Learning/MacroLibraryView"
 import { isLoggedIn } from "@/hooks/useAuth"
