@@ -22,6 +22,12 @@ _thread_locks: dict[str, asyncio.Lock] = {}
 # Per-thread voice source tracking
 _voice_sources: dict[str, str] = {}
 
+# Voice thread registry: set of thread_ids currently in voice mode.
+# MessagePublisher checks this to decide whether to route messages to
+# the voice channel (WS). Thread_ids are added by _mark_voice and
+# removed by consume_voice.
+_voice_registry: set[str] = set()
+
 
 async def get_thread_lock(thread_id: str) -> asyncio.Lock:
     """Get or create a per-thread async lock for route serialization."""
@@ -43,11 +49,13 @@ async def cancel_voice_task(thread_id: str) -> bool:
 async def _mark_voice(thread_id: str, source: str) -> None:
     """Mark a thread as being handled by voice from the given source."""
     _voice_sources[thread_id] = source
+    _voice_registry.add(thread_id)
 
 
 async def consume_voice(thread_id: str) -> None:
     """Consume/clear the voice state for a thread (post-cleanup)."""
     _voice_sources.pop(thread_id, None)
+    _voice_registry.discard(thread_id)
 
 
 async def push_voice_result(thread_id: str, status: str, summary: str) -> None:
