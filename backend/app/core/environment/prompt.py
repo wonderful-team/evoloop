@@ -91,6 +91,7 @@ def _get_active_background_tasks() -> list[dict]:
 def _get_listening_local_ports() -> list[dict]:
     try:
         import warnings
+        from collections import defaultdict
 
         import psutil
         ports = []
@@ -113,9 +114,32 @@ def _get_listening_local_ports() -> list[dict]:
             port = p["port"]
             if port not in seen_ports or (p["pid"] and not seen_ports[port]["pid"]):
                 seen_ports[port] = p
-        return sorted(list(seen_ports.values()), key=lambda x: x["port"])
+        # Aggregate by process name
+        by_process = defaultdict(list)
+        for p in seen_ports.values():
+            by_process[p["process"]].append(p["port"])
+        return sorted(
+            [{"name": name, "ports": sorted(ports), "port_count": len(ports)}
+             for name, ports in by_process.items()],
+            key=lambda x: x["name"]
+        )
     except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError):
         return []
+
+
+def _parse_docker_host_ports(docker_containers: list[dict]) -> set[int]:
+    """Extract host-side ports from Docker container port mappings."""
+    import re
+    host_ports = set()
+    for c in docker_containers:
+        ports_str = c.get("ports", "")
+        if not ports_str:
+            continue
+        for mapping in ports_str.split(","):
+            m = re.search(r':(\d+)->', mapping.strip())
+            if m:
+                host_ports.add(int(m.group(1)))
+    return host_ports
 
 
 def build_environment_summaries(relevance: str = "auto") -> dict:
@@ -145,14 +169,15 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
                 "model": state.host.model,
                 "cpu": state.host.cpu,
                 "os_version": state.host.os_version,
-                "top_apps": []
+                "top_apps": [],
+                "running_apps": [],
+                "app_count": 0
             }
             if relevance in ["macos", "both", "auto"]:
+                if state.host.app_usage_stats:
+                    host_info["running_apps"] = [s.app_name for s in state.host.app_usage_stats if s.is_running][:5]
                 if state.host.installed_apps:
-                    if state.host.app_usage_stats:
-                        host_info["top_apps"] = [s.app_name for s in state.host.app_usage_stats]
-                    else:
-                        host_info["top_apps"] = sorted(state.host.installed_apps)
+                    host_info["app_count"] = len(state.host.installed_apps)
             # Linux specific details
             if state.host.os_name == "Linux":
                 host_info["distro"] = state.host.distro
@@ -187,10 +212,24 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
                 "internet_connected": state.network.internet_connected
             }
 
-        # 4. Background Services and Listening Ports
+        # 4. Background Services, Listening Ports, and Docker
         data["running_services"] = _get_active_background_tasks()
-        data["active_ports"] = _get_listening_local_ports()
         data["docker_containers"] = state.docker_containers
+        data["active_ports"] = _get_listening_local_ports()
+        # Filter Docker container host ports from local service list
+        docker_host_ports = _parse_docker_host_ports(state.docker_containers)
+        if docker_host_ports:
+            filtered = []
+            for svc in data["active_ports"]:
+                non_docker_ports = [p for p in svc["ports"] if p not in docker_host_ports]
+                if non_docker_ports:
+                    filtered.append({"name": svc["name"], "ports": non_docker_ports, "port_count": len(non_docker_ports)})
+            data["active_ports"] = filtered
+        # Build compact service labels for template
+        data["service_labels"] = [
+            f"{svc['name']} ({svc['port_count']})" if svc["port_count"] > 1 else svc["name"]
+            for svc in data["active_ports"]
+        ]
 
         return data
 

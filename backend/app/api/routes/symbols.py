@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
-from app.api.schemas.symbols import SymbolResponse
+from app.api.schemas.symbols import SymbolResponse, SymbolRelationResponse
 from app.models import CodeEntity, Repository
 
 router = APIRouter()
@@ -15,7 +15,7 @@ async def search_symbols(
     q: str = Query(..., min_length=2, description="Search query for symbol name"),
     type: str | None = Query(None, description="Filter by entity type (class, function)"),
     limit: int = 20,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
     """
     Search for code symbols (classes, functions) within a project.
@@ -24,7 +24,7 @@ async def search_symbols(
     # Note: In new model project_id is just an integer in Repository table.
 
     stmt = select(Repository.id).where(Repository.project_id == project_id)
-    result = await db.execute(stmt)
+    result = db.execute(stmt)
     repo_ids = result.scalars().all()
 
     if not repo_ids:
@@ -47,7 +47,7 @@ async def search_symbols(
 
     query = query.limit(limit)
 
-    result = await db.execute(query)
+    result = db.execute(query)
     entities = result.scalars().all()
 
     # 3. Format Response
@@ -64,6 +64,62 @@ async def search_symbols(
             # Let's fix query options.
             start_line=ent.start_line,
             end_line=ent.end_line
+        ))
+
+    return response
+
+
+@router.get("/projects/{project_id}/relations", response_model=list[SymbolRelationResponse])
+async def get_project_relations(
+    project_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    Get all dependency relationships (CodeRelations) within a project.
+    """
+    from sqlalchemy.orm import selectinload
+    from app.models import CodeRelation, SourceFile
+
+    # 1. Find Repositories for Project
+    stmt = select(Repository.id).where(Repository.project_id == project_id)
+    result = db.execute(stmt)
+    repo_ids = result.scalars().all()
+
+    if not repo_ids:
+        return []
+
+    # 2. Query relations with eager loaded entities and source files
+    query = select(CodeRelation)\
+        .join(CodeEntity, CodeRelation.source_entity_id == CodeEntity.id)\
+        .join(SourceFile, CodeEntity.file_id == SourceFile.id)\
+        .where(SourceFile.repository_id.in_(repo_ids))\
+        .options(
+            selectinload(CodeRelation.source_entity).selectinload(CodeEntity.file),
+            selectinload(CodeRelation.target_entity).selectinload(CodeEntity.file)
+        )
+
+    result = db.execute(query)
+    relations = result.scalars().all()
+
+    # 3. Format Response
+    response = []
+    for rel in relations:
+        source = rel.source_entity
+        target = rel.target_entity
+
+        # Determine source and target paths
+        source_path = source.file.path if (source and source.file) else ""
+        target_path = target.file.path if (target and target.file) else None
+
+        response.append(SymbolRelationResponse(
+            id=rel.id,
+            source_id=rel.source_entity_id,
+            target_id=rel.target_entity_id,
+            source_name=source.name if source else "",
+            target_name=target.name if target else rel.target_name,
+            relation_type=rel.relation_type,
+            source_file_path=source_path,
+            target_file_path=target_path
         ))
 
     return response

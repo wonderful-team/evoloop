@@ -16,3 +16,14 @@ class SymbolResponse(BaseAPIResponse):
 class SymbolWikiResponse(BaseAPIResponse):
     """Response for symbol wiki generation."""
     content: str
+
+class SymbolRelationResponse(BaseAPIResponse):
+    """Dependency relationship between code entities/files."""
+    id: int
+    source_id: int
+    target_id: int | None = None
+    source_name: str
+    target_name: str | None = None
+    relation_type: str
+    source_file_path: str
+    target_file_path: str | None = None

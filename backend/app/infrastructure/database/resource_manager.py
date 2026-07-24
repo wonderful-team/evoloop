@@ -53,7 +53,6 @@ class DatabaseResourceManager:
             cls._instance._vector_stores: dict[int, Any] = {}
             cls._instance._initialized_loops: set[int] = set()
             cls._instance._tables_ensured = False
-            cls._instance._seeded = False
             cls._instance._task_queue_path = None
         return cls._instance
 
@@ -83,8 +82,14 @@ class DatabaseResourceManager:
         """Return the vector store for the current event loop."""
         return self._vector_stores.get(self._current_loop_id())
 
-    async def initialize(self, create_tables: bool = True, seed_data: bool = True):
-        """Initialize all database resources (SQL, Vector)."""
+    async def initialize(self, create_tables: bool = True, seed_data: bool = False):
+        """Initialize all database resources (SQL, Vector).
+
+        Args:
+            create_tables: Whether to create tables if they don't exist.
+            seed_data: Deprecated. Seeding is no longer automatic;
+                       run ``scripts/seed_system_config.py`` instead.
+        """
         loop_id = self._current_loop_id()
         if loop_id == -1:
             raise RuntimeError(
@@ -104,6 +109,11 @@ class DatabaseResourceManager:
             sync_db_uri = (
                 str(db_uri).replace("+aiosqlite", "").replace("+asyncpg", "")
             )  # Strip async drivers for sync engine
+
+            # Ensure SQLite parent directory exists (SQLite cannot create intermediate dirs)
+            if "sqlite" in sync_db_uri:
+                db_file_path = sync_db_uri.replace("sqlite:///", "", 1)
+                Path(db_file_path).parent.mkdir(parents=True, exist_ok=True)
 
             if settings.EMBEDDED_MODE:
                 engine = create_async_engine(
@@ -162,11 +172,6 @@ class DatabaseResourceManager:
 
             self._vector_stores[loop_id] = get_vector_store()
 
-            # 4. Seed Initial Data (once globally)
-            if seed_data and not self._seeded:
-                await self._seed_initial_data()
-                self._seeded = True
-
             self._initialized_loops.add(loop_id)
 
     async def _ensure_tables_exist(self, engine):
@@ -188,18 +193,6 @@ class DatabaseResourceManager:
             await conn.run_sync(SQLModel.metadata.create_all)
 
         logger.info("[ResourceManager] Tables and extensions verified")
-
-    async def _seed_initial_data(self):
-        """Trigger data seeding (initial_data.init)."""
-        try:
-            from app.initial_data import init as seed_init
-
-            # Seed init usually uses the sync engine via app.core.db
-            # (which we are about to replace with a proxy to our sync_engine)
-            await asyncio.to_thread(seed_init)
-            logger.info("[ResourceManager] Initial data seeding complete")
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-            logger.warning(f"[ResourceManager] Seeding failed (non-critical): {e}")
 
     async def shutdown(self):
         """Close all connections and pools."""
@@ -227,7 +220,6 @@ class DatabaseResourceManager:
 
         self._initialized_loops.clear()
         self._tables_ensured = False
-        self._seeded = False
 
     async def close(self):
         """Close all database resources."""
@@ -248,7 +240,6 @@ class DatabaseResourceManager:
             self._vector_stores.clear()
             self._initialized_loops.clear()
             self._tables_ensured = False
-            self._seeded = False
             logger.info("🔌 Database resources closed and reset.")
 
     async def reset(self):

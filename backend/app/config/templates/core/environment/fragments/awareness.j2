@@ -17,9 +17,6 @@
   - **GPU Hardware**: {{ environment.host.gpus | join(', ') }}
   {%- endif %}
 {%- endif %}
-{%- if not is_subtask and environment.host.top_apps %}
-  Installed {{ environment.host.os_name }} Apps (Top): {{ environment.host.top_apps[:15] | join(', ') }}
-{%- endif %}
 {%- if not is_subtask and environment.host.os_name == 'macOS' %}
   Use `list_app_atlas()` to see apps with structural UI maps.
 {%- endif %}
@@ -105,20 +102,21 @@
 {% endfor -%}
 {%- endif %}
 
-{% if environment.active_ports -%}
+{% if environment.service_labels or environment.docker_containers or (environment.host and environment.host.running_apps) -%}
 
-### Active Local Services (Listening Ports)
-{% for p in environment.active_ports -%}
-- **Port {{ p.port }}**: `{{ p.process }}` (PID: {{ p.pid or 'Unknown' }})
-{% endfor -%}
+### Active Services
+{%- if environment.service_labels %}
+  Services: {{ environment.service_labels | join(', ') }}
 {%- endif %}
-
-{% if environment.docker_containers -%}
-
-### Active Docker Containers
-{% for c in environment.docker_containers -%}
-- **Name**: `{{ c.name }}` | **Image**: `{{ c.image }}` | **Status**: `{{ c.status }}` | **Ports**: `{{ c.ports }}`
-{% endfor -%}
+{%- if environment.docker_containers %}
+  Docker: {{ environment.docker_containers | map(attribute='name') | join(', ') }}
+{%- endif %}
+{%- if environment.host and environment.host.running_apps %}
+  Running: {{ environment.host.running_apps | join(', ') }}
+{%- endif %}
+{%- if environment.host and environment.host.app_count %}
+  ({{ environment.host.app_count }} apps installed)
+{%- endif %}
 {%- endif %}
 
 {% if mcp_inventory -%}

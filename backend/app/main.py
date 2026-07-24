@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI):
     startup_time = time.time()
     logger.info("Initializing EvoLoop resources...")
 
-    await db_resource_manager.initialize(create_tables=True, seed_data=True)
+    await db_resource_manager.initialize(create_tables=True)
 
     # Channel Registry - register built-in transports (SSE + Mobile)
     try:

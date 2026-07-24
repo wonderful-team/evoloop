@@ -18,7 +18,7 @@ verified/candidate directly.
 This module also owns the idempotent startup data repairs for the learning
 schema (legacy status pairs, double-encoded trace state snapshots, and the
 one-time drop of the removed smart-synthesis table), wired from
-``app.initial_data``.
+``scripts.seed_system_config``.
 """
 
 from __future__ import annotations
@@ -191,7 +191,7 @@ def migrate_legacy_status_rows() -> dict[str, int]:
       {verified}; "active" was never written by any code path, so this only
       repairs hand-edited rows and preserves their routability.
 
-    Runs at every startup (wired from app.initial_data); returns affected
+    Runs at every startup (wired from scripts.seed_system_config); returns affected
     row counts for logging. Safe to run repeatedly.
     """
     from sqlalchemy import update
