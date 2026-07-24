@@ -217,6 +217,10 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
   const handleVoicePressIn = useCallback(() => {
     if (isAgentSpeaking && onInterrupt) {
       onInterrupt();
+      // 用户打断了 TTS，说明想立即说话，直接启动录音
+      // 此时 state 可能是 'listening'（auto-start），不走下方的 !isListening 守卫
+      onPressIn?.();
+      return;
     }
     if (!isListening && onPressIn) {
       onPressIn();

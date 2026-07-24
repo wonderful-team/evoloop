@@ -50,6 +50,7 @@ export function useStreamingTTS(options: UseStreamingTTSOptions = {}) {
   const abortControllerRef = useRef<AbortController | null>(null);
   const queueRef = useRef<Array<{ text: string; options: TTSOptions }>>([]);
   const isProcessingRef = useRef(false);
+  const externallyStoppedRef = useRef(false);
 
   // 持久化音色选择
   useEffect(() => {
@@ -79,6 +80,7 @@ export function useStreamingTTS(options: UseStreamingTTSOptions = {}) {
   }, []);
 
   const stop = useCallback(() => {
+    externallyStoppedRef.current = true;
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
     voiceEngine.stopAudio().catch(() => {});
@@ -250,6 +252,12 @@ export function useStreamingTTS(options: UseStreamingTTSOptions = {}) {
       console.error('[useStreamingTTS] synthesize error:', e);
     } finally {
       isProcessingRef.current = false;
+      // 被外部 stop()（如 AutoSpeakHandler.speak）中止时，不清空队列的 onComplete
+      // 由 speak() 自己负责在播放完毕后 fire，避免误触发 auto-start
+      if (externallyStoppedRef.current) {
+        externallyStoppedRef.current = false;
+        return;
+      }
       if (queueRef.current.length === 0) {
         onComplete?.();
       } else {

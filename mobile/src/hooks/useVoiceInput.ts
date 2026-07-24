@@ -44,6 +44,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
   const isRunningRef = useRef(false);
   const pendingFinalRef = useRef(false);
   const isContinuousRef = useRef(false);
+  const supportsVadRef = useRef(false);
   const pendingPeriodRef = useRef(false);
   const vadConfirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const speechConfirmedRef = useRef(false);
@@ -105,6 +106,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
   callbacksRef.current = {
     onVadStart: () => {
       if (!isRunningRef.current) return;
+      supportsVadRef.current = true;
       // 噪音抑制：VAD 激活后等 150ms 确认真是人声再改变状态
       if (!speechConfirmedRef.current) {
         if (vadConfirmTimerRef.current) return;
@@ -136,13 +138,16 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
       onVadEndPrewarm?.();
     },
     onPartial: (text) => {
-      // 语音未确认前不展示转写文字（过滤噪音导致的伪识别）
-      if (!speechConfirmedRef.current && !pendingFinalRef.current) return;
+      // 无 VAD 平台（如 HarmonyOS）不过滤 partial 结果
+      if (supportsVadRef.current) {
+        // 语音未确认前不展示转写文字（过滤噪音导致的伪识别）
+        if (!speechConfirmedRef.current && !pendingFinalRef.current) return;
+      }
       setPartialText(text);
     },
     onFinal: (text) => {
-      // 未经过 onVadEnd 的 final 结果（噪音瞬态残留）直接丢弃
-      if (!pendingFinalRef.current) {
+      // 有 VAD 的平台：只接受 onVadEnd 之后的 final 结果（过滤噪音瞬态残留）
+      if (supportsVadRef.current && !pendingFinalRef.current) {
         return;
       }
 
@@ -152,7 +157,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
         onLocalIntent?.(intent);
         clearFinalText();
         sessionTextRef.current = '';
-        pendingFinalRef.current = false;
+        if (supportsVadRef.current) pendingFinalRef.current = false;
         return;
       }
 
@@ -164,7 +169,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
       pendingPeriodRef.current = false;
       sessionTextRef.current += prefix + text;
       appendFinalText(text);
-      pendingFinalRef.current = false;
+      if (supportsVadRef.current) pendingFinalRef.current = false;
     },
     onVolume: (value) => {
       setVolume(value);
@@ -192,10 +197,8 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
       clearTimeout(vadConfirmTimerRef.current);
       vadConfirmTimerRef.current = null;
     }
-    speechConfirmedRef.current = false;
     isRunningRef.current = true;
     sessionTextRef.current = '';
-    pendingPeriodRef.current = false;
     clearFinalText();
     setPartialText('');
     setError(null);
@@ -210,6 +213,11 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
         console.log('[useVoiceInput] start cancelled by stop');
         return;
       }
+
+      // 默认放行 partial/final 结果（支持无 VAD 的平台，如 HarmonyOS）
+      // 有 VAD 的平台会通过 onVadStart/onVadEnd 细化状态
+      speechConfirmedRef.current = true;
+      pendingFinalRef.current = true;
 
       console.log('[useVoiceInput] session started');
       setState('listening');

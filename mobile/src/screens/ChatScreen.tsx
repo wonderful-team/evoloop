@@ -33,7 +33,6 @@ import { useDeviceControl } from '@/hooks/useDeviceControl';
 import { useCommands } from '@/hooks/useCommands';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useStreamingTTS, detectEmotionAndSpeed } from '@/hooks/useStreamingTTS';
-import { useVoiceInput } from '@/hooks/useVoiceInput';
 import type { LocalIntent } from '@/services/voice/localNLU';
 import { extractSegments } from '@/services/voice/streamingSegmenter';
 import { useSystemIntent } from '@/hooks/useSystemIntent';
@@ -111,8 +110,8 @@ export default function ChatScreen() {
 
   // 连续对话与打断设置
   const [continuousListening, setContinuousListening] = useState(true);
-  const startVoiceInputRef = useRef<(() => Promise<void>) | null>(null);
   const handleBeforeStartRecordingRef = useRef<(() => Promise<boolean>) | null>(null);
+  const voiceInputRef = useRef<VoiceInputWithEngineHandle>(null);
 
   useEffect(() => {
     const loadVoiceSettings = async () => {
@@ -135,12 +134,10 @@ export default function ChatScreen() {
       console.log('[ChatScreen] TTS complete callback');
       if (continuousListening && autoSpeak) {
         console.log('[ChatScreen] Continuous listening is enabled, auto-starting voice input...');
-        handleBeforeStartRecordingRef.current?.().then((allowed) => {
-          if (allowed) {
-            startVoiceInputRef.current?.().catch((err) => {
-              console.error('[ChatScreen] Auto start voice input failed:', err);
-            });
-          }
+        // 使用 VoiceInputWithEngine handle 启动，避免双实例竞态
+        // onBeforeStartRecording 检查已由 handle 内部处理
+        voiceInputRef.current?.startVoiceInput?.().catch((err) => {
+          console.error('[ChatScreen] Auto start voice input failed:', err);
         });
       }
     }
@@ -227,55 +224,33 @@ export default function ChatScreen() {
 
 
   // 新语音输入 Hook
-  const { start: startVoiceInput } = useVoiceInput({
-    onFinalResult: (text) => handleSendMessage(text),
-    onError: (error) => {
-      const errorMsg = error?.message || '';
-      if (errorMsg.includes('登录') || errorMsg.includes('authorization') || errorMsg.includes('401')) {
-        showSnackbar(t('chat.voiceLoginRequired'));
-        router.push('Auth');
-      } else {
-        showSnackbar(t('chat.voiceRecognitionError') + errorMsg);
-      }
-    },
-    onInterrupt: () => {
-      stopTTS();
-      const currentId = useConversationStore.getState().currentConversationId;
-      if (currentId) {
-        stopAgent(currentId, activeDeviceKey).catch(() => {});
-      }
-    },
-    // 本地意图拦截：识别到控制指令时直接执行 UI 动作，不发给云端 LLM
-    onLocalIntent: (intent) => {
-      if (intent.action === 'OPEN' && intent.object === 'HISTORY') {
-        setShowHistoryDrawer(true);
-      } else if (intent.action === 'CLOSE' && intent.object === 'HISTORY') {
-        setShowHistoryDrawer(false);
-      } else if (intent.action === 'MUTE') {
-        setSetting('autoSpeak', false);
-        showSnackbar(t('chat.tts.muted'));
-      } else if (intent.action === 'UNMUTE') {
-        setSetting('autoSpeak', true);
-        showSnackbar(t('chat.tts.unmuted'));
-      } else if (intent.action === 'RESET') {
-        createConversation();
-      }
-    },
-    // VAD 停止说话时，提前预热云端 TTS TCP 连接（省去 TLS 握手延迟 ~200ms）
-    onVadEndPrewarm: prewarmTTS,
-    // 传入当前 UI 状态，用于指代消解（如"把它关了"→历史已打开时消解为 HISTORY）
-    uiState: { isHistoryOpen: showHistoryDrawer },
-  });
-
-  useEffect(() => {
-    startVoiceInputRef.current = startVoiceInput;
-  }, [startVoiceInput]);
+  // 语音输入由 VoiceInputWithEngine 内部管理，此处不再保留独立 useVoiceInput 实例。
+  // 之前双实例（ChatScreen + VoiceInputWithEngine）同时写同一个 Zustand store，
+  // 导致 auto-start 与用户按键状态竞争，按钮闪回"松开发送"。
+  // onLocalIntent、onVadEndPrewarm、uiState 已通过 VoiceInputWithEngine prop 传入。
 
   // Snackbar 工具函数（提前定义，供下方回调使用）
   const showSnackbar = useCallback((message: string) => {
     setSnackbarMessage(message);
     setSnackbarVisible(true);
   }, []);
+
+  // 本地意图拦截：识别到控制指令时直接执行 UI 动作，不发给云端 LLM
+  const handleLocalIntent = useCallback((intent: LocalIntent) => {
+    if (intent.action === 'OPEN' && intent.object === 'HISTORY') {
+      setShowHistoryDrawer(true);
+    } else if (intent.action === 'CLOSE' && intent.object === 'HISTORY') {
+      setShowHistoryDrawer(false);
+    } else if (intent.action === 'MUTE') {
+      setSetting('autoSpeak', false);
+      showSnackbar(t('chat.tts.muted'));
+    } else if (intent.action === 'UNMUTE') {
+      setSetting('autoSpeak', true);
+      showSnackbar(t('chat.tts.unmuted'));
+    } else if (intent.action === 'RESET') {
+      createConversation();
+    }
+  }, [setShowHistoryDrawer, setSetting, showSnackbar, t, createConversation]);
 
 
   // ========== 设备控制（HTTP 版本） ==========
@@ -845,10 +820,9 @@ export default function ChatScreen() {
     }
   }, [currentConversationId, currentProject, activeDeviceKey, addToMemory]);
 
-  // 引用消息
-  const voiceInputRef = useRef<VoiceInputWithEngineHandle>(null);
-
   // 引用消息：长按消息后，将消息添加到 VoiceInput 的引用列表
+  // voiceInputRef 已在组件顶部与 handleBeforeStartRecordingRef 一同声明（:115）
+  // 以支持 auto-start 调用，避免双实例竞争
   const handleQuote = useCallback((message: ChatMessage) => {
     if (!message || !message.id) {return;}
     voiceInputRef.current?.addReference({
@@ -1121,6 +1095,9 @@ export default function ChatScreen() {
           isSpeaking={isTTSSpeaking}
           projectId={currentProject?.id}
           conversationId={currentConversationId || undefined}
+          onLocalIntent={handleLocalIntent}
+          onVadEndPrewarm={prewarmTTS}
+          uiState={{ isHistoryOpen: showHistoryDrawer }}
         />
 
         {/* ===== TTS 自动朗读（副作用组件，自行订阅 messages） ===== */}

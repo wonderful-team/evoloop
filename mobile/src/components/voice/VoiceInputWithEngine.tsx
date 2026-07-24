@@ -3,7 +3,7 @@
 
 import React, { forwardRef, useImperativeHandle, useRef, useCallback, useMemo, useEffect } from 'react';
 import { VoiceInput, VoiceInputHandle, InputMode } from './VoiceInput';
-import { useVoiceInput } from '@/hooks/useVoiceInput';
+import { useVoiceInput, type UseVoiceInputOptions } from '@/hooks/useVoiceInput';
 import { useVoiceSessionStore } from '@/stores/voiceSessionStore';
 import { MessageReference } from '@/types/conversation';
 
@@ -13,6 +13,8 @@ export interface VoiceInputWithEngineHandle extends VoiceInputHandle {
   setText: (text: string) => void;
   isRecording: boolean;
 }
+
+import type { LocalIntent } from '@/services/voice/localNLU';
 
 interface VoiceInputWithEngineProps {
   onSendText: (text: string, options?: { references?: MessageReference[] }) => void;
@@ -28,6 +30,11 @@ interface VoiceInputWithEngineProps {
   onFinalResult: (text: string) => void;
   onError?: (error: Error) => void;
   onRecordingEnd?: () => void;
+  // 以下 props 从 ChatScreen 的独立 useVoiceInput 实例迁移过来，
+  // 避免双实例竞争导致按钮状态异常
+  onLocalIntent?: (intent: LocalIntent) => void;
+  onVadEndPrewarm?: () => void;
+  uiState?: { isHistoryOpen: boolean };
 }
 
 export const VoiceInputWithEngine = forwardRef<VoiceInputWithEngineHandle, VoiceInputWithEngineProps>((props, ref) => {
@@ -45,6 +52,9 @@ export const VoiceInputWithEngine = forwardRef<VoiceInputWithEngineHandle, Voice
     onFinalResult,
     onError,
     onRecordingEnd,
+    onLocalIntent,
+    onVadEndPrewarm,
+    uiState,
   } = props;
 
   const voiceInputRef = useRef<VoiceInputHandle>(null);
@@ -55,6 +65,9 @@ export const VoiceInputWithEngine = forwardRef<VoiceInputWithEngineHandle, Voice
     onFinalResult,
     onError,
     onInterrupt,
+    onLocalIntent,
+    onVadEndPrewarm,
+    uiState,
   });
 
   const sessionState = useVoiceSessionStore((s) => s.state);
