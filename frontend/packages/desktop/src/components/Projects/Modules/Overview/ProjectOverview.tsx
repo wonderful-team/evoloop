@@ -256,10 +256,16 @@ export const ProjectOverview: React.FC = () => {
                   params={{ projectId: projectId! } as any}
                 >
                   <Badge
-                    variant={g.status === "completed" ? "secondary" : g.status === "running" ? "default" : "destructive"}
+                    variant={
+                      g.status === "completed"
+                        ? "secondary"
+                        : g.status === "running"
+                          ? "default"
+                          : "destructive"
+                    }
                     className="cursor-pointer"
                   >
-                    {t(`generation.artifacts.${g.item}`, { defaultValue: g.item })}
+                    {t(`generation.artifacts.${g.item}`, {defaultValue: g.item})}
                   </Badge>
                 </Link>
               ))}

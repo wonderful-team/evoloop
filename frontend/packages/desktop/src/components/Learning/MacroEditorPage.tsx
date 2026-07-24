@@ -4,13 +4,13 @@
  * Now manages the self-healing switch and fallback recovery skill selection.
  */
 
+import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Input } from "@evoloop/shared/components/ui/input"
 import { Label } from "@evoloop/shared/components/ui/label"
-import { Textarea } from "@evoloop/shared/components/ui/textarea"
 import { Separator } from "@evoloop/shared/components/ui/separator"
-import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Switch } from "@evoloop/shared/components/ui/switch"
+import { Textarea } from "@evoloop/shared/components/ui/textarea"
 import {
   Tooltip,
   TooltipContent,
@@ -33,8 +33,8 @@ import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { MacrosService, SystemService } from "@/client/sdk.gen"
-import { useChatStore } from "@/stores/chatStore"
 import type { MacroDetailDTO } from "@/client/types.gen"
+import { useChatStore } from "@/stores/chatStore"
 import type { MacroStep } from "./SmartReplay"
 import { MacroEditor, MacroYamlEditor } from "./SmartReplay"
 
@@ -60,7 +60,12 @@ function yamlToSteps(yaml: string): MacroStep[] {
 }
 
 function stepsToYaml(steps: MacroStep[]): string {
-  return yamlDump(steps, { indent: 2, lineWidth: -1, noRefs: true, sortKeys: false })
+  return yamlDump(steps, {
+    indent: 2,
+    lineWidth: -1,
+    noRefs: true,
+    sortKeys: false,
+  })
 }
 
 export function MacroEditorPage({
@@ -292,9 +297,7 @@ export function MacroEditorPage({
 
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <label
-              className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none"
-            >
+            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
               <Switch
                 checked={selfHealEnabled}
                 onCheckedChange={setSelfHealEnabled}
@@ -432,8 +435,8 @@ export function MacroEditorPage({
               <Zap className="h-4 w-4" />
               <span>
                 {editorMode === "visual"
-                  ? t("learning.macroSequence") + " (Visual)"
-                  : t("learning.macroSequence") + " (YAML)"}
+                  ? `${t("learning.macroSequence")} (Visual)`
+                  : `${t("learning.macroSequence")} (YAML)`}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -478,10 +481,7 @@ export function MacroEditorPage({
                 }}
               />
             ) : (
-              <MacroYamlEditor
-                steps={steps}
-                onChange={setSteps}
-              />
+              <MacroYamlEditor steps={steps} onChange={setSteps} />
             )}
           </div>
         </div>

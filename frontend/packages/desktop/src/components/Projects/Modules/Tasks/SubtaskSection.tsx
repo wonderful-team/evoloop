@@ -36,7 +36,7 @@ export function SubtaskSection({ projectId, taskId }: SubtaskSectionProps) {
     queryFn: async () => {
       const res: any = await SubtasksService.getTaskTree({
         projectId,
-        taskId,
+        taskId: String(taskId),
         maxDepth: 10,
       })
       return res as TaskTreeNode

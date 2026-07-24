@@ -92,10 +92,14 @@ export function AppSidebar() {
           <Logo variant="responsive" />
         </div>
       </SidebarHeader>
-      <SidebarContent style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
+      <SidebarContent
+        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+      >
         <Main items={items} />
       </SidebarContent>
-      <SidebarFooter style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
+      <SidebarFooter
+        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+      >
         <SidebarAppearance />
         {isDev && (
           <SidebarMenu>

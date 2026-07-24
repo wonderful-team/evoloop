@@ -34,7 +34,6 @@ import {
   forwardRef,
   memo,
   useCallback,
-  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -44,16 +43,12 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { FilesService } from "@/client/sdk.gen"
 import { SkillLibraryDialog } from "@/components/Learning/SkillLibraryDialog"
-import {
-  useTauriVoiceShortcut,
-  useTauriVoiceShortcutSettings,
-} from "@/hooks/useTauriVoiceShortcut"
-import { useVoiceStore } from "@/stores/voiceStore"
 import { useAutoSpeak } from "@/hooks/useTTS"
 import { useWakeWord, useWakeWordSettings } from "@/hooks/useWakeWord"
-import { isTauri, safeInvoke, safeListen } from "@/lib/tauri"
+import { isTauri } from "@/lib/tauri"
 import type { ActiveTaskInfo } from "@/stores/chat/types"
 import { useChatStore } from "@/stores/chatStore"
+import { useVoiceStore } from "@/stores/voiceStore"
 import { FilePreview, type PickedFile } from "./FilePreview"
 import { ModelSelector } from "./ModelSelector"
 import { RecordingButton } from "./RecordingButton"
@@ -494,10 +489,6 @@ export const ChatInputArea = memo(
         onWake: handleWakeWordDetected,
       })
 
-
-
-
-
       useImperativeHandle(ref, () => ({
         addReference: (item: ReferenceItem, insertText = false) => {
           handleSelectReference(item, insertText)
@@ -760,8 +751,10 @@ export const ChatInputArea = memo(
                           disabled={isSending}
                           className={cn(
                             "h-8 w-8",
-                            voiceMode === "dictation" && "text-blue-500 bg-blue-500/10",
-                            voiceMode === "dialogue" && "text-emerald-500 bg-emerald-500/10",
+                            voiceMode === "dictation" &&
+                              "text-blue-500 bg-blue-500/10",
+                            voiceMode === "dialogue" &&
+                              "text-emerald-500 bg-emerald-500/10",
                             voiceState !== "idle" && "animate-pulse",
                           )}
                         >
@@ -774,7 +767,11 @@ export const ChatInputArea = memo(
                             <TooltipTrigger asChild>
                               <DropdownMenuItem
                                 onClick={() => setVoiceMode("dictation")}
-                                className={voiceMode === "dictation" ? "text-blue-500" : ""}
+                                className={
+                                  voiceMode === "dictation"
+                                    ? "text-blue-500"
+                                    : ""
+                                }
                               >
                                 <FileText className="h-4 w-4" />
                               </DropdownMenuItem>
@@ -789,7 +786,11 @@ export const ChatInputArea = memo(
                             <TooltipTrigger asChild>
                               <DropdownMenuItem
                                 onClick={() => setVoiceMode("dialogue")}
-                                className={voiceMode === "dialogue" ? "text-emerald-500" : ""}
+                                className={
+                                  voiceMode === "dialogue"
+                                    ? "text-emerald-500"
+                                    : ""
+                                }
                               >
                                 <MessageCircle className="h-4 w-4" />
                               </DropdownMenuItem>
@@ -805,7 +806,9 @@ export const ChatInputArea = memo(
                             <TooltipProvider delayDuration={100}>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <DropdownMenuItem onClick={() => setVoiceMode("off")}>
+                                  <DropdownMenuItem
+                                    onClick={() => setVoiceMode("off")}
+                                  >
                                     <X className="h-4 w-4" />
                                   </DropdownMenuItem>
                                 </TooltipTrigger>

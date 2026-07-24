@@ -4,11 +4,11 @@
  */
 
 export type ProjectDomainMode =
-  | "software"  // 软件工程
-  | "research"  // 学术科研 / 法律合规
-  | "design"    // 产品设计 / 创意 UI
-  | "business"  // 商业运营 / 营销策划
-  | "general"   // 通用工作区
+  | "software" // 软件工程
+  | "research" // 学术科研 / 法律合规
+  | "design" // 产品设计 / 创意 UI
+  | "business" // 商业运营 / 营销策划
+  | "general" // 通用工作区
 
 export interface DomainMeta {
   mode: ProjectDomainMode

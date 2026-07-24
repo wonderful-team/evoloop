@@ -80,19 +80,24 @@ export const PaymentDialog = ({
         const elements = stripe.elements({ clientSecret })
         elementsInstanceRef.current = elements
 
-        const cardElement = elements.create("payment" as any, {
-          style: {
-            base: {
-              fontSize: "16px",
-              color: "#fff",
-              "::placeholder": { color: "#888" },
+        const cardElement = elements.create(
+          "payment" as any,
+          {
+            style: {
+              base: {
+                fontSize: "16px",
+                color: "#fff",
+                "::placeholder": { color: "#888" },
+              },
             },
-          },
-        } as any)
-        if (stripeElementsRef.current) cardElement.mount(stripeElementsRef.current)
+          } as any,
+        )
+        if (stripeElementsRef.current)
+          cardElement.mount(stripeElementsRef.current)
         cardElementRef.current = cardElement
       } catch (e: any) {
-        if (!cancelled) setStripeError(e.message || "Stripe initialization failed")
+        if (!cancelled)
+          setStripeError(e.message || "Stripe initialization failed")
       }
     }
 
@@ -101,7 +106,9 @@ export const PaymentDialog = ({
     return () => {
       cancelled = true
       if (cardElementRef.current) {
-        try { cardElementRef.current.destroy() } catch {}
+        try {
+          cardElementRef.current.destroy()
+        } catch {}
         cardElementRef.current = null
       }
       stripeInstanceRef.current = null
@@ -117,13 +124,16 @@ export const PaymentDialog = ({
       setQrCountdown((prev) => {
         if (prev <= 1) {
           setIsQrExpired(true)
-          if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
+          if (countdownTimerRef.current)
+            clearInterval(countdownTimerRef.current)
           return 0
         }
         return prev - 1
       })
     }, 1000)
-    return () => { if (countdownTimerRef.current) clearInterval(countdownTimerRef.current) }
+    return () => {
+      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
+    }
   }, [open, orderData, paymentSuccess, isQrExpired, isStripe])
 
   // Polling logic (non-Stripe)
@@ -141,8 +151,18 @@ export const PaymentDialog = ({
         setTimeout(() => onSuccess(), 1000)
       }
     }, 3000)
-    return () => { if (pollTimerRef.current) clearInterval(pollTimerRef.current) }
-  }, [open, orderData, paymentSuccess, isQrExpired, checkOrderStatus, onSuccess, isStripe])
+    return () => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current)
+    }
+  }, [
+    open,
+    orderData,
+    paymentSuccess,
+    isQrExpired,
+    checkOrderStatus,
+    onSuccess,
+    isStripe,
+  ])
 
   const handleStripePay = async () => {
     if (!stripeInstanceRef.current || !cardElementRef.current) return
@@ -206,17 +226,28 @@ export const PaymentDialog = ({
               <CheckCircle2 className="h-12 w-12 text-primary" />
             </div>
             <div className="text-center space-y-2">
-              <h3 className="text-lg font-bold">{t("subscription.payment.successTitle")}</h3>
-              <p className="text-sm text-muted-foreground">{t("subscription.payment.successDesc")}</p>
+              <h3 className="text-lg font-bold">
+                {t("subscription.payment.successTitle")}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {t("subscription.payment.successDesc")}
+              </p>
             </div>
-            {isUpgrade && upgradeInfo && parseFloat(upgradeInfo.refund_amount) > 0 && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center w-full">
-                <p className="text-sm text-green-700">
-                  {t("subscription.payment.refunded", { amount: upgradeInfo.refund_amount })}
-                </p>
-              </div>
-            )}
-            <Button onClick={handleClose} className="w-full bg-primary hover:bg-primary/90 font-bold h-11">
+            {isUpgrade &&
+              upgradeInfo &&
+              parseFloat(upgradeInfo.refund_amount) > 0 && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center w-full">
+                  <p className="text-sm text-green-700">
+                    {t("subscription.payment.refunded", {
+                      amount: upgradeInfo.refund_amount,
+                    })}
+                  </p>
+                </div>
+              )}
+            <Button
+              onClick={handleClose}
+              className="w-full bg-primary hover:bg-primary/90 font-bold h-11"
+            >
               {t("common.ok")}
             </Button>
           </div>
@@ -225,8 +256,12 @@ export const PaymentDialog = ({
             <div className="px-6 pt-6 pb-4">
               <h3 className="text-lg font-semibold">
                 {isRenewalMode
-                  ? t("subscription.payment.renewTitle", { name: orderData?.order?.level_name || "" })
-                  : t("subscription.payment.subscribeTitle", { name: orderData?.order?.level_name || "" })}
+                  ? t("subscription.payment.renewTitle", {
+                      name: orderData?.order?.level_name || "",
+                    })
+                  : t("subscription.payment.subscribeTitle", {
+                      name: orderData?.order?.level_name || "",
+                    })}
               </h3>
             </div>
 
@@ -238,7 +273,9 @@ export const PaymentDialog = ({
                     className="p-4 bg-black/5 rounded-xl border border-border min-h-[120px]"
                   />
                   {stripeError && (
-                    <p className="text-xs text-destructive font-medium text-center">{stripeError}</p>
+                    <p className="text-xs text-destructive font-medium text-center">
+                      {stripeError}
+                    </p>
                   )}
                   <Button
                     onClick={handleStripePay}
@@ -246,7 +283,10 @@ export const PaymentDialog = ({
                     className="w-full font-bold h-11"
                   >
                     {stripeProcessing ? (
-                      <><Loader2 className="h-4 w-4 animate-spin mr-2" />{t("subscription.payment.processing")}</>
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        {t("subscription.payment.processing")}
+                      </>
                     ) : (
                       t("subscription.payment.payNow")
                     )}
@@ -258,13 +298,26 @@ export const PaymentDialog = ({
                 </div>
               ) : orderData?.qrcode ? (
                 <>
-                  <div className={`p-3 bg-white rounded-xl shadow-sm ring-1 ring-border/20 relative ${isQrExpired ? "opacity-50" : ""}`}>
-                    <img src={orderData.qrcode} alt={t("subscription.payment.qrAlt")} className="h-40 w-40" />
+                  <div
+                    className={`p-3 bg-white rounded-xl shadow-sm ring-1 ring-border/20 relative ${isQrExpired ? "opacity-50" : ""}`}
+                  >
+                    <img
+                      src={orderData.qrcode}
+                      alt={t("subscription.payment.qrAlt")}
+                      className="h-40 w-40"
+                    />
                     {isQrExpired && (
                       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center gap-2">
                         <Timer className="h-8 w-8 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">{t("subscription.payment.qrExpired")}</span>
-                        <Button size="sm" variant="outline" onClick={onRefresh} disabled={isPending}>
+                        <span className="text-xs text-muted-foreground">
+                          {t("subscription.payment.qrExpired")}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={onRefresh}
+                          disabled={isPending}
+                        >
                           <RefreshCw className="h-3 w-3 mr-1" />
                           {t("subscription.payment.refresh")}
                         </Button>
@@ -272,8 +325,12 @@ export const PaymentDialog = ({
                     )}
                   </div>
                   {!isQrExpired && (
-                    <p className={`text-[11px] ${qrCountdown <= 60 ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-                      {qrCountdown > 0 ? formatCountdown(qrCountdown) : t("subscription.payment.qrInvalid")}
+                    <p
+                      className={`text-[11px] ${qrCountdown <= 60 ? "text-destructive font-medium" : "text-muted-foreground"}`}
+                    >
+                      {qrCountdown > 0
+                        ? formatCountdown(qrCountdown)
+                        : t("subscription.payment.qrInvalid")}
                     </p>
                   )}
                 </>
@@ -287,32 +344,82 @@ export const PaymentDialog = ({
             {/* Price & Info Summary */}
             <div className="px-6 pb-6 space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-border">
-                <span className="text-sm font-medium">{isStripe ? t("subscription.payment.cardPay") : t("subscription.payment.wechatPay")}</span>
+                <span className="text-sm font-medium">
+                  {isStripe
+                    ? t("subscription.payment.cardPay")
+                    : t("subscription.payment.wechatPay")}
+                </span>
                 <span className="text-xl font-bold">
                   {t("common.currencySymbol")}
-                  {isUpgrade && upgradeInfo ? upgradeInfo.net_amount || "0.00" : orderData?.order?.order_money || "0.00"}
+                  {isUpgrade && upgradeInfo
+                    ? upgradeInfo.net_amount || "0.00"
+                    : orderData?.order?.order_money || "0.00"}
                 </span>
               </div>
               <ul className="space-y-2 text-xs text-muted-foreground">
                 {isUpgrade && upgradeInfo ? (
                   <>
-                    <li className="flex gap-2"><span className="text-primary">{t("common.bullet")}</span><span>{t("subscription.payment.upgradeDiff", { newPrice: upgradeInfo.pay_amount, refund: upgradeInfo.refund_amount })}</span></li>
-                    <li className="flex gap-2"><span className="text-primary">{t("common.bullet")}</span><span>{t("subscription.payment.refundToBalance", { amount: upgradeInfo.refund_amount })}</span></li>
-                    <li className="flex gap-2"><span className="text-primary">{t("common.bullet")}</span><span>{t("subscription.payment.upgradeNote")}</span></li>
+                    <li className="flex gap-2">
+                      <span className="text-primary">{t("common.bullet")}</span>
+                      <span>
+                        {t("subscription.payment.upgradeDiff", {
+                          newPrice: upgradeInfo.pay_amount,
+                          refund: upgradeInfo.refund_amount,
+                        })}
+                      </span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="text-primary">{t("common.bullet")}</span>
+                      <span>
+                        {t("subscription.payment.refundToBalance", {
+                          amount: upgradeInfo.refund_amount,
+                        })}
+                      </span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="text-primary">{t("common.bullet")}</span>
+                      <span>{t("subscription.payment.upgradeNote")}</span>
+                    </li>
                   </>
                 ) : isRenewalMode ? (
                   <>
-                    <li className="flex gap-2"><span className="text-primary">{t("common.bullet")}</span><span>{t("subscription.payment.renewPrice", { price: orderData?.order?.order_money || "0" })}</span></li>
-                    <li className="flex gap-2"><span className="text-primary">{t("common.bullet")}</span><span>{t("subscription.payment.renewNote1")}</span></li>
-                    <li className="flex gap-2"><span className="text-primary">{t("common.bullet")}</span><span>{t("subscription.payment.renewNote2")}</span></li>
+                    <li className="flex gap-2">
+                      <span className="text-primary">{t("common.bullet")}</span>
+                      <span>
+                        {t("subscription.payment.renewPrice", {
+                          price: orderData?.order?.order_money || "0",
+                        })}
+                      </span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="text-primary">{t("common.bullet")}</span>
+                      <span>{t("subscription.payment.renewNote1")}</span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="text-primary">{t("common.bullet")}</span>
+                      <span>{t("subscription.payment.renewNote2")}</span>
+                    </li>
                   </>
                 ) : (
                   <>
-                    <li className="flex gap-2"><span className="text-primary">{t("common.bullet")}</span><span>{t("subscription.payment.subscribePrice", { price: orderData?.order?.order_money || "0" })}</span></li>
-                    <li className="flex gap-2"><span className="text-primary">{t("common.bullet")}</span><span>{t("subscription.payment.validityNote")}</span></li>
+                    <li className="flex gap-2">
+                      <span className="text-primary">{t("common.bullet")}</span>
+                      <span>
+                        {t("subscription.payment.subscribePrice", {
+                          price: orderData?.order?.order_money || "0",
+                        })}
+                      </span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="text-primary">{t("common.bullet")}</span>
+                      <span>{t("subscription.payment.validityNote")}</span>
+                    </li>
                   </>
                 )}
-                <li className="flex gap-2"><span className="text-primary">{t("common.bullet")}</span><span>{t("subscription.payment.noRefund")}</span></li>
+                <li className="flex gap-2">
+                  <span className="text-primary">{t("common.bullet")}</span>
+                  <span>{t("subscription.payment.noRefund")}</span>
+                </li>
               </ul>
             </div>
           </div>

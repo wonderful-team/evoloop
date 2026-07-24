@@ -32,8 +32,16 @@ function SubscriptionDashboard() {
   const [selectedLevelId, setSelectedLevelId] = useState<number | null>(null)
 
   const payTypes = [
-    { key: "wechatpay", label: t("subscription.payment.wechatPay"), icon: Smartphone },
-    { key: "stripe", label: t("subscription.payment.cardPay"), icon: CreditCard },
+    {
+      key: "wechatpay",
+      label: t("subscription.payment.wechatPay"),
+      icon: Smartphone,
+    },
+    {
+      key: "stripe",
+      label: t("subscription.payment.cardPay"),
+      icon: CreditCard,
+    },
   ]
 
   const handleSelectPlan = async (levelId: number) => {
@@ -47,13 +55,19 @@ function SubscriptionDashboard() {
   const handleDialogOpenChange = (open: boolean) => {
     setShowPayment(open)
     if (open && selectedLevelId) {
-      createOrderMutation.mutate({ levelId: selectedLevelId, payType: selectedPayType })
+      createOrderMutation.mutate({
+        levelId: selectedLevelId,
+        payType: selectedPayType,
+      })
     }
   }
 
   const handleRefreshOrder = () => {
     if (selectedLevelId) {
-      createOrderMutation.mutate({ levelId: selectedLevelId, payType: selectedPayType })
+      createOrderMutation.mutate({
+        levelId: selectedLevelId,
+        payType: selectedPayType,
+      })
     }
   }
 
@@ -77,16 +91,26 @@ function SubscriptionDashboard() {
       {/* 1. Subscription Overview & Quota */}
       <div className="space-y-6">
         <div className="flex items-baseline gap-3">
-          <h2 className="text-xl font-semibold tracking-tight">{t("subscription.title")}</h2>
-          <p className="text-muted-foreground text-sm">{t("subscription.subtitle")}</p>
+          <h2 className="text-xl font-semibold tracking-tight">
+            {t("subscription.title")}
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            {t("subscription.subtitle")}
+          </p>
         </div>
 
         <div className="flex flex-col gap-4">
           <SubscriptionStatus
             detail={detail}
             quota={quota}
-            onRenew={() => { if (detail?.level_id) handleSelectPlan(detail.level_id) }}
-            onUpgrade={() => { document.getElementById("plans-section")?.scrollIntoView({ behavior: "smooth" }) }}
+            onRenew={() => {
+              if (detail?.level_id) handleSelectPlan(detail.level_id)
+            }}
+            onUpgrade={() => {
+              document
+                .getElementById("plans-section")
+                ?.scrollIntoView({ behavior: "smooth" })
+            }}
           />
           <Alert className="bg-muted/50 border-border py-2.5">
             <Info className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -99,7 +123,9 @@ function SubscriptionDashboard() {
 
       {/* 2. Payment Method Selection */}
       <div className="flex items-center gap-3">
-        <span className="text-sm font-medium text-muted-foreground">{t("subscription.payment.method")}</span>
+        <span className="text-sm font-medium text-muted-foreground">
+          {t("subscription.payment.method")}
+        </span>
         <div className="flex gap-2">
           {payTypes.map((pt) => {
             const Icon = pt.icon
@@ -122,14 +148,21 @@ function SubscriptionDashboard() {
       {/* 3. Pricing & Upgrade Section */}
       <div id="plans-section" className="space-y-6 pt-8 border-t border-border">
         <div className="flex items-baseline gap-3">
-          <h2 className="text-xl font-semibold tracking-tight">{t("subscription.plans.title")}</h2>
-          <p className="text-muted-foreground text-sm">{t("subscription.plans.desc")}</p>
+          <h2 className="text-xl font-semibold tracking-tight">
+            {t("subscription.plans.title")}
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            {t("subscription.plans.desc")}
+          </p>
         </div>
 
         <PlanComparison
           plans={plans}
           currentLevelId={detail?.level_id}
-          currentPlanPrice={parseFloat(plans.find((p: any) => p.level_id === detail?.level_id)?.price || "0")}
+          currentPlanPrice={parseFloat(
+            plans.find((p: any) => p.level_id === detail?.level_id)?.price ||
+              "0",
+          )}
           onSelect={handleSelectPlan}
           isLoading={createOrderMutation.isPending}
         />

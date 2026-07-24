@@ -15,11 +15,12 @@ import {
   Loader2,
   RefreshCw,
 } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { WikiService } from "@/client"
+import { ProjectsService, WikiService } from "@/client"
 import { MarkdownRenderer } from "@/components/Common/MarkdownRenderer"
+import { useSystemEvent } from "@/hooks/useSystemEvent"
 
 export const Route = createFileRoute("/_layout/projects/$projectId/wiki")({
   component: WikiPage,
@@ -136,12 +137,39 @@ function WikiPage() {
   const { projectId } = Route.useParams()
   const queryClient = useQueryClient()
   const [selectedPage, setSelectedPage] = useState<WikiPageItem | null>(null)
+  const [wikiStatus, setWikiStatus] = useState<string | null>(null)
+
+  const numProjectId = Number(projectId)
+
+  useEffect(() => {
+    const fetchWikiStatus = async () => {
+      try {
+        const res = await ProjectsService.listGenerationStatusEndpoint({
+          projectId: numProjectId,
+        })
+        const wikiItem = res.items.find((i: any) => i.item === "wiki")
+        if (wikiItem) setWikiStatus(wikiItem.status)
+      } catch (err) {
+        console.error("Failed to fetch initial wiki status", err)
+      }
+    }
+    fetchWikiStatus()
+  }, [numProjectId])
+
+  useSystemEvent("generation.status", (event) => {
+    if (event.data?.project_id === numProjectId && event.data?.item === "wiki") {
+      setWikiStatus(event.data.status)
+      if (event.data.status === "completed") {
+        queryClient.invalidateQueries({ queryKey: ["wiki"] })
+      }
+    }
+  })
 
   const { data: pages, isLoading } = useQuery({
     queryKey: ["wiki", projectId],
     queryFn: async () => {
       const res = await WikiService.getWikiPages({
-        projectId: Number(projectId),
+        projectId: numProjectId,
       })
       return res as WikiPageItem[]
     },
@@ -154,9 +182,10 @@ function WikiPage() {
 
   const generateMutation = useMutation({
     mutationFn: async () => {
+      setWikiStatus("running")
       return WikiService.generateWiki({
         requestBody: {
-          project_id: Number(projectId),
+          project_id: numProjectId,
           topic: t("wiki.topic.full_documentation"),
           force_regenerate: true,
         },
@@ -167,6 +196,7 @@ function WikiPage() {
       queryClient.invalidateQueries({ queryKey: ["wiki"] })
     },
     onError: (error: any) => {
+      setWikiStatus("failed")
       const isBenefitError =
         error?.status === 403 ||
         error?.body?.detail?.code === "BENEFIT_REQUIRED" ||
@@ -232,14 +262,16 @@ function WikiPage() {
               <Button
                 size="sm"
                 onClick={handleGenerate}
-                disabled={generateMutation.isPending}
+                disabled={generateMutation.isPending || wikiStatus === "running"}
               >
-                {generateMutation.isPending ? (
+                {generateMutation.isPending || wikiStatus === "running" ? (
                   <Loader2 className="h-3 w-3 animate-spin mr-2" />
                 ) : (
                   <BookOpen className="h-3 w-3 mr-2" />
                 )}
-                {t("wiki.generate")}
+                {generateMutation.isPending || wikiStatus === "running"
+                  ? "Wiki 正在生成中..."
+                  : t("wiki.generate")}
               </Button>
             </div>
           )}
@@ -252,13 +284,16 @@ function WikiPage() {
               size="sm"
               className="w-full"
               onClick={handleGenerate}
-              disabled={generateMutation.isPending}
+              disabled={generateMutation.isPending || wikiStatus === "running"}
             >
-              {generateMutation.isPending ? (
+              {generateMutation.isPending || wikiStatus === "running" ? (
                 <Loader2 className="h-3 w-3 animate-spin mr-2" />
               ) : (
-                t("wiki.regenerate")
+                <RefreshCw className="h-3 w-3 mr-2" />
               )}
+              {generateMutation.isPending || wikiStatus === "running"
+                ? "正在重新生成中..."
+                : t("wiki.regenerate")}
             </Button>
           </div>
         )}
@@ -268,6 +303,12 @@ function WikiPage() {
 
       <ResizablePanel defaultSize={80}>
         <div className="h-full flex flex-col bg-background min-w-0">
+          {wikiStatus === "running" && (
+            <div className="bg-blue-500/10 text-blue-600 dark:text-blue-400 px-6 py-2 border-b border-blue-500/20 text-xs flex items-center gap-2 shrink-0">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <span>AI 正在后台全力生成/更新百科文档中，您可以继续阅读或查阅现有章节。完成后本页将自动刷新。</span>
+            </div>
+          )}
           {selectedPage ? (
             <>
               <div className="h-10 border-b px-6 flex items-center bg-white/50 shrink-0">

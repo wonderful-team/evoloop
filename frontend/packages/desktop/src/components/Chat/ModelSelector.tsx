@@ -17,8 +17,8 @@ import { cn } from "@evoloop/shared/lib/utils"
 import { Brain, Cpu, Eye, Globe, Loader2, Server } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { isLoggedIn } from "@/hooks/useAuth"
 import { SystemService } from "@/client"
+import { isLoggedIn } from "@/hooks/useAuth"
 import { type LLMModel, llmPlatformService } from "@/services/llmPlatform"
 
 interface ModelSelectorProps {

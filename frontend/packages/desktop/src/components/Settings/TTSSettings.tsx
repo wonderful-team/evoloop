@@ -8,14 +8,14 @@ import {
   SelectValue,
 } from "@evoloop/shared/components/ui/select"
 import { Switch } from "@evoloop/shared/components/ui/switch"
-import { Play, Volume2, Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff, Play, Volume2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { type TTSVoice, useAutoSpeak, useTTS } from "@/hooks/useTTS"
-import { SettingsCard } from "./SettingsCard"
-import { isTauri, safeInvoke } from "@/lib/tauri"
-import { useSettings } from "./SettingsContext"
 import { useModelManager } from "@/hooks/useModelManager"
+import { type TTSVoice, useAutoSpeak, useTTS } from "@/hooks/useTTS"
+import { isTauri, safeInvoke } from "@/lib/tauri"
+import { SettingsCard } from "./SettingsCard"
+import { useSettings } from "./SettingsContext"
 
 const TTS_ENGINES = [
   { id: "system", name: "System (say)", model: null },
@@ -115,7 +115,15 @@ export function TTSSettings() {
       tempTtsEngine !== initialState.ttsEngine ||
       tempQwenTtsApiKey !== initialState.qwenTtsApiKey
     setComponentDirty("tts", dirty)
-  }, [tempAutoSpeak, tempCurrentVoice, tempSpeed, tempTtsEngine, tempQwenTtsApiKey, initialState, setComponentDirty])
+  }, [
+    tempAutoSpeak,
+    tempCurrentVoice,
+    tempSpeed,
+    tempTtsEngine,
+    tempQwenTtsApiKey,
+    initialState,
+    setComponentDirty,
+  ])
 
   const handleSpeedChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTempSpeed(parseFloat(e.target.value))
@@ -124,8 +132,12 @@ export function TTSSettings() {
   const handlePreview = async (voice: TTSVoice) => {
     setIsPlaying(voice.id)
     try {
-      const isChinese = voice.id.includes("zh") || voice.name.toLowerCase().includes("ting") ||
-        voice.id.startsWith("zf_") || voice.id === "中文女" || voice.id === "中文男"
+      const isChinese =
+        voice.id.includes("zh") ||
+        voice.name.toLowerCase().includes("ting") ||
+        voice.id.startsWith("zf_") ||
+        voice.id === "中文女" ||
+        voice.id === "中文男"
       const previewText = isChinese
         ? "您好，我是一个智能语音助手。我可以帮你回答问题、朗读文字、处理文档，还能用多种语言和声音与你交流。"
         : "Hello, I am an intelligent voice assistant. I can answer questions, read text aloud, process documents, and communicate with you in multiple languages and voices."
@@ -147,10 +159,18 @@ export function TTSSettings() {
       try {
         const { SystemService } = await import("@/client")
         await Promise.all([
-          SystemService.updateSystemConfig({ requestBody: { key: "TTS_ENGINE", value: tempTtsEngine } }),
-          SystemService.updateSystemConfig({ requestBody: { key: "TTS_VOICE", value: tempCurrentVoice } }),
-          SystemService.updateSystemConfig({ requestBody: { key: "TTS_SPEED", value: String(tempSpeed) } }),
-          SystemService.updateSystemConfig({ requestBody: { key: "QWEN_TTS_API_KEY", value: tempQwenTtsApiKey } }),
+          SystemService.updateSystemConfig({
+            requestBody: { key: "TTS_ENGINE", value: tempTtsEngine },
+          }),
+          SystemService.updateSystemConfig({
+            requestBody: { key: "TTS_VOICE", value: tempCurrentVoice },
+          }),
+          SystemService.updateSystemConfig({
+            requestBody: { key: "TTS_SPEED", value: String(tempSpeed) },
+          }),
+          SystemService.updateSystemConfig({
+            requestBody: { key: "QWEN_TTS_API_KEY", value: tempQwenTtsApiKey },
+          }),
         ])
       } catch (err) {
         console.error("Failed to sync TTS config to backend DB:", err)
@@ -161,10 +181,16 @@ export function TTSSettings() {
         originalToggleAutoSpeak()
       }
       if (isTauri()) {
-        safeInvoke("set_tts_engine", { engine: tempTtsEngine }).catch(console.error)
-        safeInvoke("set_tts_voice", { voice: tempCurrentVoice }).catch(console.error)
+        safeInvoke("set_tts_engine", { engine: tempTtsEngine }).catch(
+          console.error,
+        )
+        safeInvoke("set_tts_voice", { voice: tempCurrentVoice }).catch(
+          console.error,
+        )
         safeInvoke("set_tts_speed", { speed: tempSpeed }).catch(console.error)
-        safeInvoke("set_qwen_api_key", { key: tempQwenTtsApiKey }).catch(console.error)
+        safeInvoke("set_qwen_api_key", { key: tempQwenTtsApiKey }).catch(
+          console.error,
+        )
       }
     })
     registerResetHandler("tts", () => {
@@ -194,14 +220,14 @@ export function TTSSettings() {
   const currentVoiceObj = voices.find((v) => v.id === tempCurrentVoice)
 
   return (
-      <SettingsCard
-        icon={Volume2}
-        title={t("settings.tts.title")}
-      >
+    <SettingsCard icon={Volume2} title={t("settings.tts.title")}>
       <div className="space-y-4">
         {/* Auto-speak toggle */}
         <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium cursor-pointer" htmlFor="auto-speak">
+          <Label
+            className="text-sm font-medium cursor-pointer"
+            htmlFor="auto-speak"
+          >
             {t("settings.tts.autoSpeak")}
           </Label>
           <Switch
@@ -214,26 +240,38 @@ export function TTSSettings() {
         {/* TTS Engine selection (first - determines available voices and behavior) */}
         <div className="space-y-2">
           <Label className="text-sm font-medium">TTS Engine</Label>
-          <Select value={tempTtsEngine} onValueChange={(v) => { setTempTtsEngine(v); fetchVoices(v) }}>
+          <Select
+            value={tempTtsEngine}
+            onValueChange={(v) => {
+              setTempTtsEngine(v)
+              fetchVoices(v)
+            }}
+          >
             <SelectTrigger className="h-10">
               <SelectValue placeholder="TTS Engine" />
             </SelectTrigger>
             <SelectContent>
               {visibleEngines.map((engine) => {
                 const needsModel = engine.model != null
-                const modelAvail = engine.model ? modelAvailable[engine.model] : true
+                const modelAvail = engine.model
+                  ? modelAvailable[engine.model]
+                  : true
                 const disabled = needsModel && modelAvail === false
                 return (
                   <SelectItem
                     key={engine.id}
                     value={engine.id}
                     disabled={disabled}
-                    className={disabled ? "text-muted-foreground cursor-not-allowed" : ""}
+                    className={
+                      disabled ? "text-muted-foreground cursor-not-allowed" : ""
+                    }
                   >
                     <span className="flex items-center gap-2">
                       <span>{engine.name}</span>
                       {disabled && (
-                        <span className="text-xs text-muted-foreground">({t("settings.voice.modelNotAvailable")})</span>
+                        <span className="text-xs text-muted-foreground">
+                          ({t("settings.voice.modelNotAvailable")})
+                        </span>
                       )}
                     </span>
                   </SelectItem>
@@ -246,7 +284,10 @@ export function TTSSettings() {
         {/* Qwen API Key Configuration */}
         {tempTtsEngine === "qwen-tts" && (
           <div className="space-y-2 p-4 bg-muted/10 border border-border/50 rounded-xl animate-in fade-in duration-200">
-            <Label htmlFor="qwen-api-key" className="text-sm font-medium flex items-center justify-between">
+            <Label
+              htmlFor="qwen-api-key"
+              className="text-sm font-medium flex items-center justify-between"
+            >
               <span>阿里云百炼 API Key</span>
             </Label>
             <div className="relative flex items-center">
@@ -275,9 +316,14 @@ export function TTSSettings() {
 
         {/* Voice selection dropdown & Preview button on the same row */}
         <div className="space-y-2">
-          <Label className="text-sm font-medium">{t("settings.tts.voice")}</Label>
+          <Label className="text-sm font-medium">
+            {t("settings.tts.voice")}
+          </Label>
           <div className="flex items-center gap-2">
-            <Select value={tempCurrentVoice} onValueChange={setTempCurrentVoice}>
+            <Select
+              value={tempCurrentVoice}
+              onValueChange={setTempCurrentVoice}
+            >
               <SelectTrigger className="h-10 flex-1">
                 <SelectValue placeholder={t("settings.tts.voice")} />
               </SelectTrigger>
@@ -286,7 +332,9 @@ export function TTSSettings() {
                   <SelectItem key={voice.id} value={voice.id}>
                     <span className="flex items-center gap-2">
                       <span>{voice.name}</span>
-                      <span className="text-xs text-muted-foreground">({voice.gender})</span>
+                      <span className="text-xs text-muted-foreground">
+                        ({voice.gender})
+                      </span>
                     </span>
                   </SelectItem>
                 ))}
@@ -314,9 +362,13 @@ export function TTSSettings() {
 
         {/* Speed slider */}
         <div className="space-y-2">
-          <Label className="text-sm font-medium">{t("settings.tts.speechRate")}</Label>
+          <Label className="text-sm font-medium">
+            {t("settings.tts.speechRate")}
+          </Label>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground w-6 text-right">0.5</span>
+            <span className="text-xs text-muted-foreground w-6 text-right">
+              0.5
+            </span>
             <input
               type="range"
               min="0.5"

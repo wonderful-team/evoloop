@@ -95,13 +95,15 @@ export function CognitionBar() {
                     isCompleted
                       ? "text-foreground font-medium"
                       : isCurrent
-                      ? "text-blue-500 font-medium"
-                      : "text-muted-foreground/60"
+                        ? "text-blue-500 font-medium"
+                        : "text-muted-foreground/60"
                   }
                 >
                   {p.label}
                 </span>
-                {p.num < 4 && <span className="text-muted-foreground/30 ml-1">→</span>}
+                {p.num < 4 && (
+                  <span className="text-muted-foreground/30 ml-1">→</span>
+                )}
               </div>
             )
           })}
@@ -112,7 +114,10 @@ export function CognitionBar() {
       <div className="flex items-center gap-3" style={noDragStyle}>
         <div className="flex items-center gap-1 text-muted-foreground">
           <Zap className="h-3 w-3 text-amber-500" />
-          <span>符号索引覆盖率: <strong className="text-foreground">{coverage}%</strong></span>
+          <span>
+            符号索引覆盖率:{" "}
+            <strong className="text-foreground">{coverage}%</strong>
+          </span>
         </div>
 
         <Button
@@ -122,7 +127,7 @@ export function CognitionBar() {
           onClick={handleTriggerIncrementalScan}
           disabled={isTriggering}
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${isTriggering ? "animate-spin" : ""}`} />
+          <RefreshCw className={`h-3.5 w-3.5 ${isTriggering ? "animate-spin" : ""}`}/>
           <span>增量刷新</span>
         </Button>
       </div>

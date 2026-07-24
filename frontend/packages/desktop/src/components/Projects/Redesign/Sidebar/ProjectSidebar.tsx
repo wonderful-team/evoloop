@@ -1,17 +1,3 @@
-import { Link, useNavigate, useParams } from "@tanstack/react-router"
-import {
-  BookOpen,
-  ChevronDown,
-  ChevronLeft,
-  FileText,
-  FolderTree,
-  KeyRound,
-  PanelLeft,
-  PanelLeftClose,
-  Zap,
-} from "lucide-react"
-import { useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +12,20 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@evoloop/shared/components/ui/tooltip"
+import { Link, useNavigate, useParams } from "@tanstack/react-router"
+import {
+  BookOpen,
+  ChevronDown,
+  ChevronLeft,
+  FileText,
+  FolderTree,
+  KeyRound,
+  PanelLeft,
+  PanelLeftClose,
+  Zap,
+} from "lucide-react"
+import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 
 interface ProjectSidebarProps {
   currentProject: any
@@ -208,8 +208,8 @@ export function ProjectSidebar({
                   indexingStatus === "indexing"
                     ? "bg-blue-500 animate-pulse"
                     : indexingStatus === "failed"
-                    ? "bg-red-500"
-                    : "bg-emerald-500"
+                      ? "bg-red-500"
+                      : "bg-emerald-500"
                 }`}
               />
             </div>

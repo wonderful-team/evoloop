@@ -134,13 +134,15 @@ export function EmbeddingSettings() {
           tiers,
           gguf_model: form.mode === "gguf" ? form.ggufModel || null : null,
           local_url: form.mode === "local" ? form.localUrl || null : null,
-          local_api_key: form.mode === "local" ? form.localApiKey || null : null,
+          local_api_key:
+            form.mode === "local" ? form.localApiKey || null : null,
           local_model: form.mode === "local" ? form.localModel || null : null,
           provider: form.mode === "remote" ? form.provider || null : null,
           base_url: form.mode === "remote" ? form.baseUrl || null : null,
           model: form.mode === "remote" ? form.model || null : null,
           api_key: form.mode === "remote" ? form.apiKey || null : null,
-          dimensions: form.mode === "remote" ? Number(form.dimensions) || null : null,
+          dimensions:
+            form.mode === "remote" ? Number(form.dimensions) || null : null,
         },
       })
     })
@@ -150,7 +152,13 @@ export function EmbeddingSettings() {
     return () => {
       unregisterSaveHandler("embedding")
     }
-  }, [form, initial, registerSaveHandler, unregisterSaveHandler, registerResetHandler])
+  }, [
+    form,
+    initial,
+    registerSaveHandler,
+    unregisterSaveHandler,
+    registerResetHandler,
+  ])
 
   const handleTest = async () => {
     setTesting(true)
@@ -162,26 +170,32 @@ export function EmbeddingSettings() {
           tiers,
           gguf_model: form.mode === "gguf" ? form.ggufModel || null : null,
           local_url: form.mode === "local" ? form.localUrl || null : null,
-          local_api_key: form.mode === "local" ? form.localApiKey || null : null,
+          local_api_key:
+            form.mode === "local" ? form.localApiKey || null : null,
           local_model: form.mode === "local" ? form.localModel || null : null,
           provider: form.mode === "remote" ? form.provider || null : null,
           base_url: form.mode === "remote" ? form.baseUrl || null : null,
           model: form.mode === "remote" ? form.model || null : null,
           api_key: form.mode === "remote" ? form.apiKey || null : null,
-          dimensions: form.mode === "remote" ? Number(form.dimensions) || null : null,
+          dimensions:
+            form.mode === "remote" ? Number(form.dimensions) || null : null,
         },
       })
       const ok = res.success ?? false
       setTestResult({
         success: ok,
         msg: ok
-          ? t("settings.embedding.connectedWithDim", { dim: res.dimensions || "?" })
-          : (res.error || t("settings.embedding.connection_failed")),
+          ? t("settings.embedding.connectedWithDim", {
+              dim: res.dimensions || "?",
+            })
+          : res.error || t("settings.embedding.connection_failed"),
       })
     } catch (e: any) {
       setTestResult({
         success: false,
-        msg: t("settings.embedding.connection_error", { message: e.message || "" }),
+        msg: t("settings.embedding.connection_error", {
+          message: e.message || "",
+        }),
       })
     } finally {
       setTesting(false)
@@ -198,7 +212,9 @@ export function EmbeddingSettings() {
       <div className="space-y-6">
         {/* Mode Selector */}
         <div className="space-y-3">
-          <Label className="text-sm font-medium">{t("settings.embedding.mode")}</Label>
+          <Label className="text-sm font-medium">
+            {t("settings.embedding.mode")}
+          </Label>
           <Select value={form.mode} onValueChange={(v) => update("mode", v)}>
             <SelectTrigger className="h-10">
               <SelectValue />
@@ -207,10 +223,16 @@ export function EmbeddingSettings() {
               {MODE_OPTIONS.map((m) => (
                 <SelectItem key={m} value={m}>
                   <span className="flex items-center gap-2">
-                    {m === "none" && <ZapOff className="h-4 w-4 text-muted-foreground" />}
+                    {m === "none" && (
+                      <ZapOff className="h-4 w-4 text-muted-foreground" />
+                    )}
                     {m === "gguf" && <Cpu className="h-4 w-4 text-amber-500" />}
-                    {m === "local" && <Server className="h-4 w-4 text-blue-500" />}
-                    {m === "remote" && <Globe className="h-4 w-4 text-green-500" />}
+                    {m === "local" && (
+                      <Server className="h-4 w-4 text-blue-500" />
+                    )}
+                    {m === "remote" && (
+                      <Globe className="h-4 w-4 text-green-500" />
+                    )}
                     {m === "none" && "Disabled"}
                     {m === "gguf" && "GGUF (llama.cpp)"}
                     {m === "local" && "Local HTTP (LM Studio / Ollama)"}
@@ -221,7 +243,9 @@ export function EmbeddingSettings() {
             </SelectContent>
           </Select>
           {isNone && (
-            <p className="text-xs text-muted-foreground mt-1">{t("settings.embedding.none_hint")}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {t("settings.embedding.none_hint")}
+            </p>
           )}
           {activeTier && !isNone && (
             <p className="text-xs text-muted-foreground mt-1">
@@ -232,7 +256,9 @@ export function EmbeddingSettings() {
 
         {isGguf && (
           <div className="space-y-3">
-            <Label className="text-sm font-medium">{t("settings.embedding.ggufModel")}</Label>
+            <Label className="text-sm font-medium">
+              {t("settings.embedding.ggufModel")}
+            </Label>
             <Input
               placeholder="/path/to/bge-base-zh-v1.5-q4_k_m.gguf"
               value={form.ggufModel}
@@ -240,7 +266,9 @@ export function EmbeddingSettings() {
               className="h-10 transition-colors focus:border-primary"
             />
             <p className="text-xs text-muted-foreground">
-              {t("settings.embedding.gguf_hint", { cmd: "uv run python scripts/download_models.py bge-base-zh-v1.5" })}
+              {t("settings.embedding.gguf_hint", {
+                cmd: "uv run python scripts/download_models.py bge-base-zh-v1.5",
+              })}
             </p>
           </div>
         )}
@@ -249,7 +277,9 @@ export function EmbeddingSettings() {
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-3">
-                <Label className="text-sm font-medium">{t("settings.embedding.localUrl")}</Label>
+                <Label className="text-sm font-medium">
+                  {t("settings.embedding.localUrl")}
+                </Label>
                 <Input
                   placeholder="http://localhost:1234/v1"
                   value={form.localUrl}
@@ -258,7 +288,9 @@ export function EmbeddingSettings() {
                 />
               </div>
               <div className="space-y-3">
-                <Label className="text-sm font-medium">{t("settings.embedding.localApiKey")}</Label>
+                <Label className="text-sm font-medium">
+                  {t("settings.embedding.localApiKey")}
+                </Label>
                 <Input
                   placeholder="lm-studio"
                   value={form.localApiKey}
@@ -268,7 +300,9 @@ export function EmbeddingSettings() {
               </div>
             </div>
             <div className="space-y-3">
-              <Label className="text-sm font-medium">{t("settings.embedding.localModel")}</Label>
+              <Label className="text-sm font-medium">
+                {t("settings.embedding.localModel")}
+              </Label>
               <Input
                 placeholder="text-embedding-nomic-embed-text-v1.5"
                 value={form.localModel}
@@ -283,7 +317,9 @@ export function EmbeddingSettings() {
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-3">
-                <Label className="text-sm font-medium">{t("settings.embedding.provider")}</Label>
+                <Label className="text-sm font-medium">
+                  {t("settings.embedding.provider")}
+                </Label>
                 <Input
                   placeholder="openai"
                   value={form.provider}
@@ -292,7 +328,9 @@ export function EmbeddingSettings() {
                 />
               </div>
               <div className="space-y-3">
-                <Label className="text-sm font-medium">{t("settings.embedding.baseUrl")}</Label>
+                <Label className="text-sm font-medium">
+                  {t("settings.embedding.baseUrl")}
+                </Label>
                 <Input
                   placeholder="https://api.openai.com/v1"
                   value={form.baseUrl}
@@ -303,7 +341,9 @@ export function EmbeddingSettings() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-3">
-                <Label className="text-sm font-medium">{t("settings.embedding.model")}</Label>
+                <Label className="text-sm font-medium">
+                  {t("settings.embedding.model")}
+                </Label>
                 <Input
                   placeholder="text-embedding-3-small"
                   value={form.model}
@@ -312,7 +352,9 @@ export function EmbeddingSettings() {
                 />
               </div>
               <div className="space-y-3">
-                <Label className="text-sm font-medium">{t("settings.embedding.dimensions")}</Label>
+                <Label className="text-sm font-medium">
+                  {t("settings.embedding.dimensions")}
+                </Label>
                 <Input
                   placeholder="1536"
                   value={form.dimensions}
@@ -322,7 +364,9 @@ export function EmbeddingSettings() {
               </div>
             </div>
             <div className="space-y-3">
-              <Label className="text-sm font-medium">{t("settings.embedding.apiKey")}</Label>
+              <Label className="text-sm font-medium">
+                {t("settings.embedding.apiKey")}
+              </Label>
               <Input
                 placeholder="sk-..."
                 value={form.apiKey}

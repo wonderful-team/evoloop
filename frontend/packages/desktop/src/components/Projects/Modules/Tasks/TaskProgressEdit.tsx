@@ -36,7 +36,7 @@ export function TaskProgressEdit({
 
       const res: any = await SubtasksService.updateTaskProgress({
         projectId,
-        taskId,
+        taskId: String(taskId),
         requestBody: {
           progress: newProgress,
           status,

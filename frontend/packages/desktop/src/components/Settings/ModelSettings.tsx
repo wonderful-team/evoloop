@@ -27,10 +27,10 @@ import {
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { SystemService } from "@/client"
-import { SettingsCard } from "./SettingsCard"
 import { EmbeddingSettings } from "./EmbeddingSettings"
 import { LightningSettings } from "./LightningSettings"
 import { LLMSettings } from "./LLMSettings"
+import { SettingsCard } from "./SettingsCard"
 
 interface ModelOption {
   id: string
@@ -63,7 +63,9 @@ export function ModelSettings() {
   const [selectedId, setSelectedId] = useState("")
   const [loading, setLoading] = useState(true)
   const [testing, setTesting] = useState(false)
-  const [status, setStatus] = useState<"idle" | "testing" | "ok" | "error">("idle")
+  const [status, setStatus] = useState<"idle" | "testing" | "ok" | "error">(
+    "idle",
+  )
 
   useEffect(() => {
     loadModels()
@@ -114,7 +116,9 @@ export function ModelSettings() {
 
       // Also add from existing custom config
       if (cfg.CUSTOM_LLM_MODEL && cfg.LLM_BASE_URL) {
-        const exists = list.some((m) => m.source === "custom" && m.model_name === cfg.CUSTOM_LLM_MODEL)
+        const exists = list.some(
+          (m) => m.source === "custom" && m.model_name === cfg.CUSTOM_LLM_MODEL,
+        )
         if (!exists) {
           list.push({
             id: `custom:${cfg.CUSTOM_LLM_MODEL}`,
@@ -176,7 +180,9 @@ export function ModelSettings() {
     }
   }
 
-  const sourceIcon = selectedModel ? SOURCE_ICONS[selectedModel.source] || Brain : Brain
+  const sourceIcon = selectedModel
+    ? SOURCE_ICONS[selectedModel.source] || Brain
+    : Brain
   const IconComponent = sourceIcon
 
   return (
@@ -197,9 +203,19 @@ export function ModelSettings() {
           ) : (
             <>
               <div className="space-y-3">
-                <Select value={selectedId} onValueChange={(id) => { setSelectedId(id); saveModel(id); }}>
+                <Select
+                  value={selectedId}
+                  onValueChange={(id) => {
+                    setSelectedId(id)
+                    saveModel(id)
+                  }}
+                >
                   <SelectTrigger className="h-12 text-base">
-                    <SelectValue placeholder={t("settings.models.default_view.select_placeholder")} />
+                    <SelectValue
+                      placeholder={t(
+                        "settings.models.default_view.select_placeholder",
+                      )}
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {models.map((m) => {
@@ -219,7 +235,10 @@ export function ModelSettings() {
                           <span className="flex items-center gap-2">
                             <SrcIcon className={`h-4 w-4 ${color}`} />
                             <span>{m.name}</span>
-                            <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0">
+                            <Badge
+                              variant="outline"
+                              className="ml-auto text-[10px] px-1.5 py-0"
+                            >
                               {SOURCE_LABELS[m.source] || m.source}
                             </Badge>
                           </span>
@@ -237,17 +256,30 @@ export function ModelSettings() {
                       <IconComponent className="h-4 w-4 text-muted-foreground" />
                       <span className="font-medium">{selectedModel.name}</span>
                       <Badge variant="secondary" className="text-[10px]">
-                        {SOURCE_LABELS[selectedModel.source] || selectedModel.source}
+                        {SOURCE_LABELS[selectedModel.source] ||
+                          selectedModel.source}
                       </Badge>
                     </div>
                     <Badge
-                      variant={status === "ok" ? "secondary" : status === "error" ? "destructive" : "outline"}
+                      variant={
+                        status === "ok"
+                          ? "secondary"
+                          : status === "error"
+                            ? "destructive"
+                            : "outline"
+                      }
                       className="gap-1"
                     >
-                      {status === "testing" && <Loader2 className="h-3 w-3 animate-spin" />}
-                      {status === "ok" && <CheckCircle2 className="h-3 w-3 text-green-500" />}
+                      {status === "testing" && (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      )}
+                      {status === "ok" && (
+                        <CheckCircle2 className="h-3 w-3 text-green-500" />
+                      )}
                       {status === "error" && <XCircle className="h-3 w-3" />}
-                      {status === "idle" && <ChevronRight className="h-3 w-3" />}
+                      {status === "idle" && (
+                        <ChevronRight className="h-3 w-3" />
+                      )}
                       {status === "testing"
                         ? t("common.testing")
                         : status === "ok"
@@ -258,7 +290,9 @@ export function ModelSettings() {
                     </Badge>
                   </div>
                   {selectedModel.base_url && (
-                    <p className="text-xs text-muted-foreground truncate">{selectedModel.base_url}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {selectedModel.base_url}
+                    </p>
                   )}
                   <Button
                     variant="outline"
@@ -276,7 +310,9 @@ export function ModelSettings() {
               )}
 
               {models.length === 0 && (
-                <p className="text-sm text-muted-foreground">{t("settings.models.default_view.no_models")}</p>
+                <p className="text-sm text-muted-foreground">
+                  {t("settings.models.default_view.no_models")}
+                </p>
               )}
             </>
           )}

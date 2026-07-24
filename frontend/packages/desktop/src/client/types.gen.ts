@@ -344,7 +344,8 @@ export type CreateFileRequest = {
 export type CreateOrderRequest = {
     level_id: number;
     auto_renew?: boolean;
-    [key: string]: unknown | number | boolean;
+    pay_type?: string;
+    [key: string]: unknown | number | boolean | string;
 };
 
 export type CreateProjectRequest = {
@@ -1654,6 +1655,23 @@ export type SubtaskCreate = {
 export type SwitchProjectRequest = {
     project_id: number;
     project_name?: string;
+};
+
+/**
+ * Dependency relationship between code entities/files.
+ */
+export type SymbolRelationResponse = {
+    success?: boolean;
+    message?: string;
+    id: number;
+    source_id: number;
+    target_id?: (number | null);
+    source_name: string;
+    target_name?: (string | null);
+    relation_type: string;
+    source_file_path: string;
+    target_file_path?: (string | null);
+    [key: string]: unknown | boolean | string | number;
 };
 
 /**
@@ -3328,6 +3346,12 @@ export type SymbolsSearchSymbolsData = {
 };
 
 export type SymbolsSearchSymbolsResponse = (Array<SymbolResponse>);
+
+export type SymbolsGetProjectRelationsData = {
+    projectId: number;
+};
+
+export type SymbolsGetProjectRelationsResponse = (Array<SymbolRelationResponse>);
 
 export type SystemGetSystemStatusResponse = (SystemStatusResponse);
 

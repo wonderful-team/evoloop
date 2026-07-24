@@ -1,4 +1,32 @@
 {
+  "globalToast": {
+    "indexingStatus": {
+      "loading": "项目正在构建索引与静态分析...",
+      "success": "项目静态分析与索引构建已完成！",
+      "error": "项目索引分析失败，请检查服务日志。"
+    },
+    "generationStatus": {
+      "loading": "正在生成 AI 产物: {{label}}...",
+      "success": "{{label}} 智能生成完毕！",
+      "failed": "{{label}} 智能生成失败。",
+      "labels": {
+        "wiki": "业务 Wiki",
+        "appmap": "API 依赖拓扑",
+        "profile": "项目画像"
+      }
+    }
+  },
+  "voiceHud": {
+    "desktopOnly": "仅限桌面端",
+    "dictationListening": "听写模式 · 聆听中",
+    "polishing": "正在润色...",
+    "pasted": "已粘贴",
+    "dictation": "听写模式",
+    "dialogueListening": "对话模式 · 聆听中",
+    "thinking": "正在思考...",
+    "speaking": "正在说话...",
+    "dialogue": "对话模式"
+  },
   "about": {
     "legal": {
       "openSource": "Open Source",
@@ -691,7 +719,9 @@
     "artifacts": {
       "wiki": "Wiki 文档",
       "macros": "指令",
-      "overview": "项目描述"
+      "overview": "项目描述",
+      "summary": "项目画像",
+      "appmap": "SOP 自动化指令"
     },
     "running": "生成中...",
     "generatedAt": "生成于 {{time}}",
@@ -798,6 +828,24 @@
     "uploadFile": "上传文件",
     "createFolderError": "创建文件夹失败",
     "previewTitle": "文件预览",
+    "relation": {
+      "globalTitle": "CodeRelation 全局依赖拓扑网络",
+      "legendTitle": "图例说明",
+      "legendFolder": "目录/根节点",
+      "legendFile": "代码文件",
+      "legendClass": "类定义",
+      "legendFunction": "函数/方法",
+      "interactionHint": "拖拽节点可改变网络力学布局，双击或单击画布空白处重置选中状态",
+      "degree": "连通数",
+      "scale": "大小",
+      "tabPreview": "预览源码",
+      "tabTopology": "连通性拓扑",
+      "backToGlobal": "返回全局",
+      "rootDirectory": "代码仓根目录",
+      "selectedFile": "选中的文件",
+      "importedFile": "引用的文件/模块",
+      "internalSymbol": "内部定义的"
+    },
     "loadingEditor": "正在加载编辑器...",
     "noFile": "未选择文件",
     "failedToLoadFile": "文件加载失败",
@@ -1386,7 +1434,7 @@
       "discoveryFailed": "发现失败",
       "editPlaceholder": "输入 Markdown 格式的项目简介...",
       "infoTitle": "项目信息",
-      "projectName": "名称",
+      "projectName": "项目名称",
       "projectPath": "路径",
       "deployUrl": "URL",
       "notFound": "未找到配置",

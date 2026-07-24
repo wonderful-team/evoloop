@@ -1,7 +1,12 @@
 import { create } from "zustand"
 
 export type VoiceMode = "off" | "dictation" | "dialogue"
-export type VoiceState = "idle" | "listening" | "processing" | "speaking" | "interrupted"
+export type VoiceState =
+  | "idle"
+  | "listening"
+  | "processing"
+  | "speaking"
+  | "interrupted"
 
 export interface VoiceStoreState {
   voiceMode: VoiceMode
@@ -55,8 +60,7 @@ export const useVoiceStore = create<VoiceStoreState>((set) => ({
   setPartialText: (partialText) => set({ partialText }),
   setRouteResult: (routeResult) => set({ routeResult }),
   setTtsSentence: (ttsSentence) => set({ ttsSentence }),
-  appendToken: (token) =>
-    set((s) => ({ tokenBuffer: s.tokenBuffer + token })),
+  appendToken: (token) => set((s) => ({ tokenBuffer: s.tokenBuffer + token })),
   clearTokenBuffer: () => set({ tokenBuffer: "" }),
   setDictationResult: (dictationResult) => set({ dictationResult }),
   setIsDictating: (isDictating) => set({ isDictating }),

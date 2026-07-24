@@ -47,15 +47,21 @@ export function useVoiceEvents() {
 
     const setupTrayListeners = async () => {
       try {
-        unlistenDictation = await safeListen("tray-voice-dictation-toggle", () => {
-          const current = voiceModeRef.current
-          setVoiceMode(current === "dictation" ? "off" : "dictation")
-        })
+        unlistenDictation = await safeListen(
+          "tray-voice-dictation-toggle",
+          () => {
+            const current = voiceModeRef.current
+            setVoiceMode(current === "dictation" ? "off" : "dictation")
+          },
+        )
 
-        unlistenDialogue = await safeListen("tray-voice-dialogue-toggle", () => {
-          const current = voiceModeRef.current
-          setVoiceMode(current === "dialogue" ? "off" : "dialogue")
-        })
+        unlistenDialogue = await safeListen(
+          "tray-voice-dialogue-toggle",
+          () => {
+            const current = voiceModeRef.current
+            setVoiceMode(current === "dialogue" ? "off" : "dialogue")
+          },
+        )
       } catch (e) {
         console.error("[voice-events] Tray voice listeners error:", e)
       }
@@ -163,7 +169,14 @@ export function useVoiceEvents() {
     }
 
     updateHud().catch(console.error)
-  }, [voiceMode, voiceState, partialText, ttsSentence, showHudWindow, hideHudWindow])
+  }, [
+    voiceMode,
+    voiceState,
+    partialText,
+    ttsSentence,
+    showHudWindow,
+    hideHudWindow,
+  ])
 
   const initListeners = useCallback(async () => {
     if (!isTauri() || listenersInitialized) return
@@ -174,7 +187,10 @@ export function useVoiceEvents() {
     unlisteners.push(
       await safeListen<{ state: VoiceState }>("voice:state", (event) => {
         setVoiceState(event.payload.state)
-        if (event.payload.state === "speaking" || event.payload.state === "idle") {
+        if (
+          event.payload.state === "speaking" ||
+          event.payload.state === "idle"
+        ) {
           clearTokenBuffer()
         }
       }),
@@ -224,7 +240,7 @@ export function useVoiceEvents() {
             await emit("hud-update", {
               mode: "dictation",
               state: "idle" as const,
-              text: "已粘贴",
+              text: "pasted",
             })
             setTimeout(() => {
               if (voiceModeRef.current === "dictation") {
@@ -241,45 +257,76 @@ export function useVoiceEvents() {
     )
 
     unlisteners.push(
-      await safeListen<Record<string, string>>("system:config_snapshot", (event) => {
-        const configs = event.payload || {}
-        console.log("[system-sync] Config snapshot received from backend:", Object.keys(configs).length, "keys")
-        if (configs.TTS_ENGINE) {
-          localStorage.setItem("evoloop_tts_engine", configs.TTS_ENGINE)
-          safeInvoke("set_tts_engine", { engine: configs.TTS_ENGINE }).catch(console.error)
-        }
-        if (configs.TTS_VOICE) {
-          localStorage.setItem("evoloop_tts_voice", configs.TTS_VOICE)
-          safeInvoke("set_tts_voice", { voice: configs.TTS_VOICE }).catch(console.error)
-        }
-        if (configs.TTS_SPEED) {
-          localStorage.setItem("evoloop_tts_speed", configs.TTS_SPEED)
-          safeInvoke("set_tts_speed", { speed: parseFloat(configs.TTS_SPEED) || 1.0 }).catch(console.error)
-        }
-        if (configs.QWEN_TTS_API_KEY) localStorage.setItem("evoloop_qwen_tts_key", configs.QWEN_TTS_API_KEY)
-      }),
+      await safeListen<Record<string, string>>(
+        "system:config_snapshot",
+        (event) => {
+          const configs = event.payload || {}
+          console.log(
+            "[system-sync] Config snapshot received from backend:",
+            Object.keys(configs).length,
+            "keys",
+          )
+          if (configs.TTS_ENGINE) {
+            localStorage.setItem("evoloop_tts_engine", configs.TTS_ENGINE)
+            safeInvoke("set_tts_engine", { engine: configs.TTS_ENGINE }).catch(
+              console.error,
+            )
+          }
+          if (configs.TTS_VOICE) {
+            localStorage.setItem("evoloop_tts_voice", configs.TTS_VOICE)
+            safeInvoke("set_tts_voice", { voice: configs.TTS_VOICE }).catch(
+              console.error,
+            )
+          }
+          if (configs.TTS_SPEED) {
+            localStorage.setItem("evoloop_tts_speed", configs.TTS_SPEED)
+            safeInvoke("set_tts_speed", {
+              speed: parseFloat(configs.TTS_SPEED) || 1.0,
+            }).catch(console.error)
+          }
+          if (configs.QWEN_TTS_API_KEY)
+            localStorage.setItem(
+              "evoloop_qwen_tts_key",
+              configs.QWEN_TTS_API_KEY,
+            )
+        },
+      ),
     )
 
     // Shared state snapshot: project_id, thread_id, TTS config etc.
     unlisteners.push(
-      await safeListen<Record<string, string>>("system:state_snapshot", (event) => {
-        const state = event.payload || {}
-        console.log("[shared-state] Snapshot received:", Object.keys(state).length, "keys")
-        // Write TTS config keys from state snapshot too (backward compat)
-        if (state.TTS_ENGINE) {
-          localStorage.setItem("evoloop_tts_engine", state.TTS_ENGINE)
-          safeInvoke("set_tts_engine", { engine: state.TTS_ENGINE }).catch(console.error)
-        }
-        if (state.TTS_VOICE) {
-          localStorage.setItem("evoloop_tts_voice", state.TTS_VOICE)
-          safeInvoke("set_tts_voice", { voice: state.TTS_VOICE }).catch(console.error)
-        }
-        if (state.TTS_SPEED) {
-          localStorage.setItem("evoloop_tts_speed", state.TTS_SPEED)
-          safeInvoke("set_tts_speed", { speed: parseFloat(state.TTS_SPEED) || 1.0 }).catch(console.error)
-        }
-        if (state.QWEN_TTS_API_KEY) localStorage.setItem("evoloop_qwen_tts_key", state.QWEN_TTS_API_KEY)
-      }),
+      await safeListen<Record<string, string>>(
+        "system:state_snapshot",
+        (event) => {
+          const state = event.payload || {}
+          console.log(
+            "[shared-state] Snapshot received:",
+            Object.keys(state).length,
+            "keys",
+          )
+          // Write TTS config keys from state snapshot too (backward compat)
+          if (state.TTS_ENGINE) {
+            localStorage.setItem("evoloop_tts_engine", state.TTS_ENGINE)
+            safeInvoke("set_tts_engine", { engine: state.TTS_ENGINE }).catch(
+              console.error,
+            )
+          }
+          if (state.TTS_VOICE) {
+            localStorage.setItem("evoloop_tts_voice", state.TTS_VOICE)
+            safeInvoke("set_tts_voice", { voice: state.TTS_VOICE }).catch(
+              console.error,
+            )
+          }
+          if (state.TTS_SPEED) {
+            localStorage.setItem("evoloop_tts_speed", state.TTS_SPEED)
+            safeInvoke("set_tts_speed", {
+              speed: parseFloat(state.TTS_SPEED) || 1.0,
+            }).catch(console.error)
+          }
+          if (state.QWEN_TTS_API_KEY)
+            localStorage.setItem("evoloop_qwen_tts_key", state.QWEN_TTS_API_KEY)
+        },
+      ),
     )
 
     unlisteners.push(
@@ -287,23 +334,42 @@ export function useVoiceEvents() {
         "system:config_changed",
         (event) => {
           const { key, new_value } = event.payload || {}
-          console.log("[system-sync] Real-time config change pushed:", key, "->", new_value)
+          console.log(
+            "[system-sync] Real-time config change pushed:",
+            key,
+            "->",
+            new_value,
+          )
           if (key === "TTS_ENGINE") {
             localStorage.setItem("evoloop_tts_engine", new_value)
-            safeInvoke("set_tts_engine", { engine: new_value }).catch(console.error)
+            safeInvoke("set_tts_engine", { engine: new_value }).catch(
+              console.error,
+            )
           } else if (key === "TTS_VOICE") {
             localStorage.setItem("evoloop_tts_voice", new_value)
-            safeInvoke("set_tts_voice", { voice: new_value }).catch(console.error)
+            safeInvoke("set_tts_voice", { voice: new_value }).catch(
+              console.error,
+            )
           } else if (key === "TTS_SPEED") {
             localStorage.setItem("evoloop_tts_speed", new_value)
-            safeInvoke("set_tts_speed", { speed: parseFloat(new_value) || 1.0 }).catch(console.error)
+            safeInvoke("set_tts_speed", {
+              speed: parseFloat(new_value) || 1.0,
+            }).catch(console.error)
           }
         },
       ),
     )
 
     unlistenersRef.current = unlisteners
-  }, [setVoiceState, setPartialText, setRouteResult, setTtsSentence, appendToken, clearTokenBuffer, setDictationResult])
+  }, [
+    setVoiceState,
+    setPartialText,
+    setRouteResult,
+    setTtsSentence,
+    appendToken,
+    clearTokenBuffer,
+    setDictationResult,
+  ])
 
   // Sync tray icon with voice state
   useEffect(() => {
@@ -315,20 +381,23 @@ export function useVoiceEvents() {
     }).catch(() => {})
   }, [voiceState])
 
-  const startVoiceSession = useCallback(async (threadId: string, lang = "zh-CN") => {
-    try {
-      await safeInvoke<void>("start_voice_session", {
-        threadId,
-        lang,
-        mode: "dialogue",
-        ttsEngine: localStorage.getItem("evoloop_tts_engine") || "edge-tts",
-        ttsVoice: localStorage.getItem("evoloop_tts_voice") || undefined,
-      })
-    } catch (e) {
-      console.error("[voice-events] start session failed:", e)
-      throw e
-    }
-  }, [])
+  const startVoiceSession = useCallback(
+    async (threadId: string, lang = "zh-CN") => {
+      try {
+        await safeInvoke<void>("start_voice_session", {
+          threadId,
+          lang,
+          mode: "dialogue",
+          ttsEngine: localStorage.getItem("evoloop_tts_engine") || "edge-tts",
+          ttsVoice: localStorage.getItem("evoloop_tts_voice") || undefined,
+        })
+      } catch (e) {
+        console.error("[voice-events] start session failed:", e)
+        throw e
+      }
+    },
+    [],
+  )
 
   const stopVoiceSession = useCallback(async () => {
     try {

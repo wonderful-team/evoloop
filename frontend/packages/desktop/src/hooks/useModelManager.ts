@@ -33,61 +33,67 @@ export function useModelManager() {
     fetchStatus()
   }, [fetchStatus])
 
-  const startDownload = useCallback(async (modelId: string) => {
-    // Immediately set downloading state for responsive UI
-    setModels((prev) =>
-      prev.map((m) => (m.id === modelId ? { ...m, status: "downloading", progress: 0 } : m)),
-    )
-    try {
-      const res = await fetch(`${backendUrl}/api/v1/models/download`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model_id: modelId }),
-      })
-      if (!res.ok) {
-        const err = await res.json()
-        setModels((prev) =>
-          prev.map((m) => (m.id === modelId ? { ...m, status: "failed" } : m)),
-        )
-        throw new Error(err.error || "Download failed")
-      }
-
-      // Subscribe to SSE progress
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close()
-      }
-      const es = new EventSource(
-        `${backendUrl}/api/v1/models/download/progress?model_id=${modelId}`,
+  const startDownload = useCallback(
+    async (modelId: string) => {
+      // Immediately set downloading state for responsive UI
+      setModels((prev) =>
+        prev.map((m) =>
+          m.id === modelId ? { ...m, status: "downloading", progress: 0 } : m,
+        ),
       )
-      eventSourceRef.current = es
-
-      es.onmessage = (event) => {
-        const data = JSON.parse(event.data)
-        setModels((prev) =>
-          prev.map((m) =>
-            m.id === modelId
-              ? {
-                  ...m,
-                  status: data.status,
-                  progress: data.progress,
-                  downloaded: data.status === "completed",
-                  available:
-                    data.status === "completed" || m.id === "kokoro",
-                }
-              : m,
-          ),
-        )
-        if (data.status === "completed" || data.status === "failed") {
-          es.close()
-          eventSourceRef.current = null
-          // Refresh full status after completion
-          setTimeout(() => fetchStatus(), 1000)
+      try {
+        const res = await fetch(`${backendUrl}/api/v1/models/download`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model_id: modelId }),
+        })
+        if (!res.ok) {
+          const err = await res.json()
+          setModels((prev) =>
+            prev.map((m) =>
+              m.id === modelId ? { ...m, status: "failed" } : m,
+            ),
+          )
+          throw new Error(err.error || "Download failed")
         }
+
+        // Subscribe to SSE progress
+        if (eventSourceRef.current) {
+          eventSourceRef.current.close()
+        }
+        const es = new EventSource(
+          `${backendUrl}/api/v1/models/download/progress?model_id=${modelId}`,
+        )
+        eventSourceRef.current = es
+
+        es.onmessage = (event) => {
+          const data = JSON.parse(event.data)
+          setModels((prev) =>
+            prev.map((m) =>
+              m.id === modelId
+                ? {
+                    ...m,
+                    status: data.status,
+                    progress: data.progress,
+                    downloaded: data.status === "completed",
+                    available: data.status === "completed" || m.id === "kokoro",
+                  }
+                : m,
+            ),
+          )
+          if (data.status === "completed" || data.status === "failed") {
+            es.close()
+            eventSourceRef.current = null
+            // Refresh full status after completion
+            setTimeout(() => fetchStatus(), 1000)
+          }
+        }
+      } catch (err: any) {
+        console.error("[ModelManager] Download error:", err)
       }
-    } catch (err: any) {
-      console.error("[ModelManager] Download error:", err)
-    }
-  }, [fetchStatus])
+    },
+    [fetchStatus],
+  )
 
   // Cleanup
   useEffect(() => {

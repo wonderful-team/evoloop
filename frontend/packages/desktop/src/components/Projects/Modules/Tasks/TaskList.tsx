@@ -96,11 +96,7 @@ export const TaskList: React.FC = () => {
       </div>
 
       <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-        <DataTable
-          columns={columns}
-          data={tasks}
-          onRowClick={handleRowClick}
-        />
+        <DataTable columns={columns} data={tasks} onRowClick={handleRowClick} />
       </div>
 
       <TaskDetail

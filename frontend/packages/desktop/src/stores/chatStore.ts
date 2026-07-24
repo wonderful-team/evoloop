@@ -681,7 +681,7 @@ export const useChatStore = create<ChatState>((set, get) => {
 
     _appendMessage: (raw) => {
       // SSE "message" events wrap MessageBlock in {type, action, data: MessageBlock}
-      const payload = raw && raw.data ? raw.data : raw
+      const payload = raw?.data ? raw.data : raw
       const { threadId, messages } = get()
       set((state) => {
         useAgentStore.setState({ streamingThinking: "" })

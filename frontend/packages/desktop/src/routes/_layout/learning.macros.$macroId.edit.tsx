@@ -3,7 +3,6 @@
 
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router"
 import { MacroEditorPage } from "@/components/Learning/MacroEditorPage"
-import { isLoggedIn } from "@/hooks/useAuth"
 
 export const Route = createFileRoute("/_layout/learning/macros/$macroId/edit")({
   // 编辑功能暂时关闭，重定向到学习中心
@@ -19,7 +18,7 @@ export const Route = createFileRoute("/_layout/learning/macros/$macroId/edit")({
   // },
 })
 
-function MacroEditorRoute() {
+function _MacroEditorRoute() {
   const { macroId } = Route.useParams()
   const navigate = useNavigate()
 

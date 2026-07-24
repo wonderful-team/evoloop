@@ -60,6 +60,7 @@ interface SpotlightTourProviderProps {
   storageKey?: string
   onComplete?: () => void
   onSkip?: () => void
+  preventAutoStart?: boolean
 }
 
 const STORAGE_KEY_DEFAULT = "evoloop_desktop_tour_seen"
@@ -70,19 +71,22 @@ export function SpotlightTourProvider({
   storageKey = STORAGE_KEY_DEFAULT,
   onComplete,
   onSkip,
+  preventAutoStart = false,
 }: SpotlightTourProviderProps) {
   const [isActive, setIsActive] = useState(false)
   const [currentStep, setCurrentStep] = useState(0)
 
   // Check if tour was already seen
   useEffect(() => {
+    if (preventAutoStart) return
+
     const seen = localStorage.getItem(storageKey)
     if (!seen) {
       // Delay tour start to let elements render
       const timer = setTimeout(() => setIsActive(true), 800)
       return () => clearTimeout(timer)
     }
-  }, [storageKey])
+  }, [storageKey, preventAutoStart])
 
   const startTour = useCallback(() => {
     setCurrentStep(0)

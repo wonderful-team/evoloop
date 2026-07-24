@@ -1416,6 +1416,11 @@ export const CreateOrderRequestSchema = {
             type: 'boolean',
             title: 'Auto Renew',
             default: false
+        },
+        pay_type: {
+            type: 'string',
+            title: 'Pay Type',
+            default: 'wechatpay'
         }
     },
     additionalProperties: true,
@@ -6584,6 +6589,79 @@ export const SwitchProjectRequestSchema = {
     type: 'object',
     required: ['project_id'],
     title: 'SwitchProjectRequest'
+} as const;
+
+export const SymbolRelationResponseSchema = {
+    properties: {
+        success: {
+            type: 'boolean',
+            title: 'Success',
+            default: true
+        },
+        message: {
+            type: 'string',
+            title: 'Message',
+            default: ''
+        },
+        id: {
+            type: 'integer',
+            title: 'Id'
+        },
+        source_id: {
+            type: 'integer',
+            title: 'Source Id'
+        },
+        target_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Target Id'
+        },
+        source_name: {
+            type: 'string',
+            title: 'Source Name'
+        },
+        target_name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Target Name'
+        },
+        relation_type: {
+            type: 'string',
+            title: 'Relation Type'
+        },
+        source_file_path: {
+            type: 'string',
+            title: 'Source File Path'
+        },
+        target_file_path: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Target File Path'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['id', 'source_id', 'source_name', 'relation_type', 'source_file_path'],
+    title: 'SymbolRelationResponse',
+    description: 'Dependency relationship between code entities/files.'
 } as const;
 
 export const SymbolResponseSchema = {

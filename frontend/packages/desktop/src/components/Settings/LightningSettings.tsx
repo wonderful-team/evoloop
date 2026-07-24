@@ -118,7 +118,13 @@ export function LightningSettings() {
     return () => {
       unregisterSaveHandler("lightning")
     }
-  }, [form, initial, registerSaveHandler, unregisterSaveHandler, registerResetHandler])
+  }, [
+    form,
+    initial,
+    registerSaveHandler,
+    unregisterSaveHandler,
+    registerResetHandler,
+  ])
 
   const handleTest = async () => {
     setTesting(true)
@@ -137,12 +143,14 @@ export function LightningSettings() {
         success: res.llm_ok,
         msg: res.llm_ok
           ? t("settings.lightning.connected")
-          : (res.llm_reply || t("settings.lightning.connection_failed")),
+          : res.llm_reply || t("settings.lightning.connection_failed"),
       })
     } catch (e: any) {
       setTestResult({
         success: false,
-        msg: t("settings.lightning.connection_error", { message: e.message || "" }),
+        msg: t("settings.lightning.connection_error", {
+          message: e.message || "",
+        }),
       })
     } finally {
       setTesting(false)
@@ -163,7 +171,9 @@ export function LightningSettings() {
       <div className="space-y-6">
         {/* Mode Selector */}
         <div className="space-y-3">
-          <Label className="text-sm font-medium">{t("settings.lightning.mode")}</Label>
+          <Label className="text-sm font-medium">
+            {t("settings.lightning.mode")}
+          </Label>
           <Select value={form.mode} onValueChange={(v) => update("mode", v)}>
             <SelectTrigger className="h-10">
               <SelectValue />
@@ -172,10 +182,18 @@ export function LightningSettings() {
               {MODE_OPTIONS.map((m) => (
                 <SelectItem key={m} value={m}>
                   <span className="flex items-center gap-2">
-                    {m === "none" && <ZapOff className="h-4 w-4 text-muted-foreground" />}
-                    {m === "llama.cpp" && <Cpu className="h-4 w-4 text-amber-500" />}
-                    {m === "lm-studio" && <Server className="h-4 w-4 text-blue-500" />}
-                    {m === "ollama" && <Globe className="h-4 w-4 text-green-500" />}
+                    {m === "none" && (
+                      <ZapOff className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    {m === "llama.cpp" && (
+                      <Cpu className="h-4 w-4 text-amber-500" />
+                    )}
+                    {m === "lm-studio" && (
+                      <Server className="h-4 w-4 text-blue-500" />
+                    )}
+                    {m === "ollama" && (
+                      <Globe className="h-4 w-4 text-green-500" />
+                    )}
                     {m}
                   </span>
                 </SelectItem>
@@ -183,14 +201,18 @@ export function LightningSettings() {
             </SelectContent>
           </Select>
           {isNone && (
-            <p className="text-xs text-muted-foreground mt-1">{t("settings.lightning.none_hint")}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {t("settings.lightning.none_hint")}
+            </p>
           )}
         </div>
 
         {showGGUF && (
           <>
             <div className="space-y-3">
-              <Label className="text-sm font-medium">{t("settings.lightning.llmModel")}</Label>
+              <Label className="text-sm font-medium">
+                {t("settings.lightning.llmModel")}
+              </Label>
               <Input
                 placeholder={t("settings.lightning.llmModelPlaceholder")}
                 value={form.llmModel}
@@ -198,11 +220,15 @@ export function LightningSettings() {
                 className="h-10 transition-colors focus:border-primary"
               />
               <p className="text-xs text-muted-foreground">
-                {t("settings.lightning.gguf_hint", { cmd: "uv run python scripts/download_models.py qwen3-4b-instruct-2507" })}
+                {t("settings.lightning.gguf_hint", {
+                  cmd: "uv run python scripts/download_models.py qwen3-4b-instruct-2507",
+                })}
               </p>
             </div>
             <div className="space-y-3">
-              <Label className="text-sm font-medium">{t("settings.lightning.contextWindow")}</Label>
+              <Label className="text-sm font-medium">
+                {t("settings.lightning.contextWindow")}
+              </Label>
               <Input
                 type="number"
                 value={form.contextWindow}
@@ -216,16 +242,24 @@ export function LightningSettings() {
         {showHttp && (
           <>
             <div className="space-y-3">
-              <Label className="text-sm font-medium">{t("settings.lightning.baseUrl")}</Label>
+              <Label className="text-sm font-medium">
+                {t("settings.lightning.baseUrl")}
+              </Label>
               <Input
-                placeholder={form.mode === "ollama" ? "http://localhost:11434/v1" : "http://localhost:1234/v1"}
+                placeholder={
+                  form.mode === "ollama"
+                    ? "http://localhost:11434/v1"
+                    : "http://localhost:1234/v1"
+                }
                 value={form.baseUrl}
                 onChange={(e) => update("baseUrl", e.target.value)}
                 className="h-10 transition-colors focus:border-primary"
               />
             </div>
             <div className="space-y-3">
-              <Label className="text-sm font-medium">{t("settings.lightning.apiKey")}</Label>
+              <Label className="text-sm font-medium">
+                {t("settings.lightning.apiKey")}
+              </Label>
               <Input
                 placeholder={form.mode === "ollama" ? "" : "lm-studio"}
                 value={form.apiKey}
@@ -234,7 +268,9 @@ export function LightningSettings() {
               />
             </div>
             <div className="space-y-3">
-              <Label className="text-sm font-medium">{t("settings.lightning.llmModel")}</Label>
+              <Label className="text-sm font-medium">
+                {t("settings.lightning.llmModel")}
+              </Label>
               <Input
                 placeholder={t("settings.lightning.llmModelPlaceholder")}
                 value={form.llmModel}

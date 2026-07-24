@@ -8,7 +8,7 @@ import {
   MessageSquare,
   Settings,
 } from "lucide-react"
-import React from "react"
+import type React from "react"
 import { useTranslation } from "react-i18next"
 import { useProjectStore } from "@/stores/projectStore"
 
@@ -26,15 +26,17 @@ export function AppTitleBar() {
   const getPageInfo = () => {
     if (projectId) {
       return {
-        title: currentProject?.name ? `项目 / ${currentProject.name}` : `项目详情 #${projectId}`,
+        title: currentProject?.name
+          ? `项目 / ${currentProject.name}`
+          : `项目详情 #${projectId}`,
         icon: FolderOpen,
       }
     }
-    if (pathname.startsWith("/chat")) return { title: t("sidebar.chat", "聊天智能助手"), icon: MessageSquare }
-    if (pathname === "/projects") return { title: t("sidebar.projects", "项目列表中心"), icon: FolderOpen }
-    if (pathname.startsWith("/todos")) return { title: t("sidebar.todos", "待办与任务列表"), icon: ListTodo }
-    if (pathname.startsWith("/learning")) return { title: t("sidebar.learning", "学习与 Skill 中心"), icon: GraduationCap }
-    if (pathname.startsWith("/settings")) return { title: t("sidebar.settings", "系统设置"), icon: Settings }
+    if (pathname.startsWith("/chat")) return { title: t("sidebar.chat"), icon: MessageSquare }
+    if (pathname === "/projects") return { title: t("sidebar.projects"), icon: FolderOpen }
+    if (pathname.startsWith("/todos")) return { title: t("sidebar.todos"), icon: ListTodo }
+    if (pathname.startsWith("/learning")) return { title: t("sidebar.learning"), icon: GraduationCap}
+    if (pathname.startsWith("/settings")) return { title: t("sidebar.settings"), icon: Settings }
     return { title: "Evoloop Desktop", icon: Brain }
   }
 

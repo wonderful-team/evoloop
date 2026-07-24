@@ -1,4 +1,32 @@
 {
+  "globalToast": {
+    "indexingStatus": {
+      "loading": "Indexing and static analysis in progress...",
+      "success": "Static analysis and indexing completed!",
+      "error": "Failed to index project, please check service logs."
+    },
+    "generationStatus": {
+      "loading": "Generating AI artifact: {{label}}...",
+      "success": "AI generation for {{label}} completed!",
+      "failed": "Failed to generate AI artifact: {{label}}.",
+      "labels": {
+        "wiki": "Business Wiki",
+        "appmap": "API Dependency Map",
+        "profile": "Project Profile"
+      }
+    }
+  },
+  "voiceHud": {
+    "desktopOnly": "Desktop Only",
+    "dictationListening": "Dictation · Listening",
+    "polishing": "Polishing...",
+    "pasted": "Pasted",
+    "dictation": "Dictation Mode",
+    "dialogueListening": "Dialogue · Listening",
+    "thinking": "Thinking...",
+    "speaking": "Speaking...",
+    "dialogue": "Dialogue Mode"
+  },
   "about": {
     "legal": {
       "openSource": "Open Source",
@@ -691,7 +719,9 @@
     "artifacts": {
       "wiki": "Wiki Documentation",
       "macros": "Instructions",
-      "overview": "Project Overview"
+      "overview": "Project Overview",
+      "summary": "Project Profile",
+      "appmap": "SOP Automation Instructions"
     },
     "running": "Generating...",
     "generatedAt": "Generated {{time}}",
@@ -798,6 +828,24 @@
     "uploadFile": "Upload File",
     "createFolderError": "Failed to create folder",
     "previewTitle": "File Preview",
+    "relation": {
+      "globalTitle": "CodeRelation Global Dependency Network",
+      "legendTitle": "Legend",
+      "legendFolder": "Folder/Root",
+      "legendFile": "File",
+      "legendClass": "Class",
+      "legendFunction": "Function/Method",
+      "interactionHint": "Drag nodes to adjust layout. Double-click or click empty space to reset selection.",
+      "degree": "Degree",
+      "scale": "Scale",
+      "tabPreview": "Preview Source",
+      "tabTopology": "Topology Map",
+      "backToGlobal": "Back to Global",
+      "rootDirectory": "Root directory of the codebase",
+      "selectedFile": "Selected File",
+      "importedFile": "Imported file/module",
+      "internalSymbol": "Internal defined"
+    },
     "loadingEditor": "Loading editor...",
     "noFile": "No file",
     "failedToLoadFile": "Failed to load file",
@@ -1386,7 +1434,7 @@
       "discoveryFailed": "Discovery failed",
       "editPlaceholder": "Enter project profile in Markdown...",
       "infoTitle": "Project Info",
-      "projectName": "Name",
+      "projectName": "Project Name",
       "projectPath": "Path",
       "deployUrl": "URL",
       "notFound": "No profile found",

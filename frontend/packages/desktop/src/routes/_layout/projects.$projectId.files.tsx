@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next"
 import { FilesService } from "@/client"
 import { FilePreview } from "@/components/Files/FilePreview"
 import { FileTree } from "@/components/Files/FileTree"
+import { CodeRelationGraph } from "@/components/Files/CodeRelationGraph"
 
 export const Route = createFileRoute("/_layout/projects/$projectId/files")({
   component: FilesPage,
@@ -24,7 +25,13 @@ function FilesPage() {
     path: string
     name: string
   } | null>(null)
+  const [activeTab, setActiveTab] = useState<"code" | "topology">("code")
   const { t } = useTranslation()
+
+  const handleSelectFile = (file: { path: string; name: string } | null) => {
+    setSelectedFile(file)
+    setActiveTab("code")
+  }
 
   const [searchQuery, setSearchQuery] = useState("")
   const [isSearching, setIsSearching] = useState(false)
@@ -93,7 +100,7 @@ function FilesPage() {
               <FileTree
                 projectId={Number(projectId)}
                 onSelectFile={(node) =>
-                  setSelectedFile({ path: node.path, name: node.name })
+                  handleSelectFile({ path: node.path, name: node.name })
                 }
               />
             </div>
@@ -112,7 +119,7 @@ function FilesPage() {
                       key={i}
                       className="p-2 rounded border border-transparent hover:border-border hover:bg-muted/50 cursor-pointer text-xs group transition-all"
                       onClick={() =>
-                        setSelectedFile({
+                        handleSelectFile({
                           path: result.file,
                           name: result.file.split("/").pop() || "",
                         })
@@ -146,13 +153,75 @@ function FilesPage() {
       <ResizableHandle withHandle />
 
       <ResizablePanel defaultSize={80}>
-        <div className="h-full flex flex-col bg-background min-w-0">
+        <div className="h-full flex flex-col bg-background min-w-0 overflow-hidden">
           {selectedFile ? (
-            <FilePreview projectId={Number(projectId)} file={selectedFile} />
+            <>
+              {/* Header Tab Switcher */}
+              <div className="h-10 px-4 border-b border-border flex items-center justify-between bg-zinc-900/40 shrink-0 select-none">
+                <div className="flex items-center gap-2 text-xs font-medium truncate">
+                  <FileCode className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                  <span className="truncate text-zinc-300 font-mono">
+                    {selectedFile.path}
+                  </span>
+                </div>
+                <div className="flex bg-zinc-900/60 p-0.5 rounded border border-zinc-850 shrink-0">
+                  <button
+                    onClick={() => setActiveTab("code")}
+                    type="button"
+                    className={`px-2.5 py-0.5 text-xs rounded transition-all ${
+                      activeTab === "code"
+                        ? "bg-zinc-850 text-zinc-100 font-semibold shadow-xs"
+                        : "text-zinc-400 hover:text-zinc-200"
+                    }`}
+                  >
+                    {t("files.relation.tabPreview")}
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("topology")}
+                    type="button"
+                    className={`px-2.5 py-0.5 text-xs rounded transition-all ${
+                      activeTab === "topology"
+                        ? "bg-zinc-850 text-zinc-100 font-semibold shadow-xs"
+                        : "text-zinc-400 hover:text-zinc-200"
+                    }`}
+                  >
+                    {t("files.relation.tabTopology")}
+                  </button>
+                  <button
+                    onClick={() => handleSelectFile(null)}
+                    type="button"
+                    className="ml-2 pl-2 border-l border-zinc-800 text-zinc-500 hover:text-zinc-300 text-xs px-1"
+                    title="Close"
+                  >
+                    {t("files.relation.backToGlobal")}
+                  </button>
+                </div>
+              </div>
+
+              {/* Main Content Area */}
+              <div className="flex-1 overflow-hidden relative">
+                {activeTab === "code" ? (
+                  <FilePreview projectId={Number(projectId)} file={selectedFile} />
+                ) : (
+                  <CodeRelationGraph
+                    projectId={Number(projectId)}
+                    mode="local"
+                    filePath={selectedFile.path}
+                  />
+                )}
+              </div>
+            </>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground/50 bg-muted/5">
-              <FileCode className="h-16 w-16 mb-4 opacity-10" />
-              <p>{t("files.selectFileToView")}</p>
+            // Default global network graph
+            <div className="flex-1 flex flex-col overflow-hidden relative">
+              <div className="h-10 px-4 border-b border-border flex items-center justify-between bg-zinc-900/20 shrink-0 select-none">
+                <span className="text-xs font-semibold text-zinc-400">
+                  {t("files.relation.globalTitle")}
+                </span>
+              </div>
+              <div className="flex-1 relative">
+                <CodeRelationGraph projectId={Number(projectId)} mode="global" />
+              </div>
             </div>
           )}
         </div>

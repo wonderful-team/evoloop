@@ -21,10 +21,7 @@ interface UseWakeWordReturn {
 export function useWakeWord(
   options: UseWakeWordOptions = {},
 ): UseWakeWordReturn {
-  const {
-    wakeWord = "你好 Evo",
-    onWake,
-  } = options
+  const { wakeWord = "你好 Evo", onWake } = options
 
   const [isListening, setIsListening] = useState(false)
   const [isWakeWordDetected, setIsWakeWordDetected] = useState(false)

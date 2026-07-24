@@ -5,9 +5,16 @@
 
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Separator } from "@evoloop/shared/components/ui/separator"
-import { Switch } from "@evoloop/shared/components/ui/switch"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { ArrowLeft, Loader2, Play, Save, Settings2, Sparkles, Trash2 } from "lucide-react"
+import {
+  ArrowLeft,
+  Loader2,
+  Play,
+  Save,
+  Settings2,
+  Sparkles,
+  Trash2,
+} from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"

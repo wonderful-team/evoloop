@@ -1,9 +1,15 @@
 import { Button } from "@evoloop/shared/components/ui/button"
-import { Download, CheckCircle2, AlertCircle, Loader2, HardDrive } from "lucide-react"
+import {
+  AlertCircle,
+  CheckCircle2,
+  Download,
+  HardDrive,
+  Loader2,
+} from "lucide-react"
 import { useEffect } from "react"
 import { useTranslation } from "react-i18next"
-import { isTauri, safeInvoke } from "@/lib/tauri"
 import { type ModelStatus, useModelManager } from "@/hooks/useModelManager"
+import { isTauri, safeInvoke } from "@/lib/tauri"
 import { SettingsCard } from "./SettingsCard"
 
 export function ModelManager() {
@@ -13,7 +19,8 @@ export function ModelManager() {
   // Sync tray menu state when model availability changes
   useEffect(() => {
     if (!isTauri() || loading) return
-    const qwenReady = models.find((m) => m.id === "qwen3_asr")?.available ?? false
+    const qwenReady =
+      models.find((m) => m.id === "qwen3_asr")?.available ?? false
     safeInvoke("sync_tray_voice_state", {
       mode: "off",
       voiceState: "idle",
@@ -23,7 +30,10 @@ export function ModelManager() {
 
   if (loading) {
     return (
-      <SettingsCard icon={HardDrive} title={t("settings.voice.models") || "语音模型"}>
+      <SettingsCard
+        icon={HardDrive}
+        title={t("settings.voice.models") || "语音模型"}
+      >
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
           {t("common.loading") || "加载中..."}
@@ -39,7 +49,10 @@ export function ModelManager() {
   if (ttsModels.length === 0) return null
 
   return (
-    <SettingsCard icon={HardDrive} title={t("settings.voice.models") || "语音模型"}>
+    <SettingsCard
+      icon={HardDrive}
+      title={t("settings.voice.models") || "语音模型"}
+    >
       <div className="space-y-3">
         {ttsModels.map((model) => (
           <ModelItem

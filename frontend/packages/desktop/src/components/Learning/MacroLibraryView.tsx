@@ -5,10 +5,6 @@ import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
   Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
 } from "@evoloop/shared/components/ui/card"
 import { Checkbox } from "@evoloop/shared/components/ui/checkbox"
 import {
@@ -23,31 +19,21 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@evoloop/shared/components/ui/dropdown-menu"
 import { Input } from "@evoloop/shared/components/ui/input"
 import { Label } from "@evoloop/shared/components/ui/label"
 import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
-import { Separator } from "@evoloop/shared/components/ui/separator"
-import { Textarea } from "@evoloop/shared/components/ui/textarea"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import {
-  CheckCheck,
   ChevronDown,
   ChevronRight,
-  Edit,
   Eye,
-  Loader2,
   MoreVertical,
   Play,
-  Plus,
-  RefreshCw,
-  Save,
   Search,
   ShieldAlert,
-  Trash2,
   Zap,
 } from "lucide-react"
 import { useMemo, useState } from "react"
@@ -55,8 +41,8 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { AtlasService, MacrosService } from "@/client/sdk.gen"
 import type { MacroDetailDTO, MacroDTO } from "@/client/types.gen"
-import { useProjectStore } from "@/stores/projectStore"
 import { useChatStore } from "@/stores/chatStore"
+import { useProjectStore } from "@/stores/projectStore"
 
 interface MacroParam {
   name: string
@@ -108,7 +94,7 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["macros"] })
 
-  const confirmMutation = useMutation({
+  const _confirmMutation = useMutation({
     mutationFn: (ids: number[]) =>
       MacrosService.confirmBulk({ requestBody: { macro_ids: ids } }),
     onSuccess: (_r, ids) => {
@@ -119,7 +105,7 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
     onError: (e: any) => toast.error(e.message),
   })
 
-  const deleteMutation = useMutation({
+  const _deleteMutation = useMutation({
     mutationFn: (id: number) => MacrosService.deleteMacro({ macroId: id }),
     onSuccess: () => {
       toast.success(t("learning.macros.deleted"))
@@ -128,9 +114,7 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
     onError: (e: any) => toast.error(e.message),
   })
 
-
-
-  const regenMutation = useMutation({
+  const _regenMutation = useMutation({
     mutationFn: (appMapId: number) => AtlasService.generateMacros({ appMapId }),
     onSuccess: () => {
       toast.success(t("learning.macros.regenStarted"))
@@ -139,7 +123,7 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
     onError: (e: any) => toast.error(e.message),
   })
 
-  const createMutation = useMutation({
+  const _createMutation = useMutation({
     mutationFn: (projId: number | null) =>
       MacrosService.createMacro({
         requestBody: {
@@ -160,7 +144,7 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
     onError: (e: any) => toast.error(e.message),
   })
 
-  const bulkDeleteMutation = useMutation({
+  const _bulkDeleteMutation = useMutation({
     mutationFn: async (ids: number[]) => {
       await Promise.all(ids.map((id) => MacrosService.deleteMacro({ macroId: id })))
       return ids
@@ -229,7 +213,7 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
     return [...byEntity.entries()].sort((a, b) => a[0].localeCompare(b[0]))
   }, [filtered, t])
 
-  const pendingSelected = useMemo(
+  const _pendingSelected = useMemo(
     () =>
       (macros || []).filter(
         (m) => selected.has(m.id) && m.status === "pending_review",
@@ -276,7 +260,7 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
     setDetailOpen(true)
   }
 
-  const openEdit = (m: MacroDTO) => {
+  const _openEdit = (m: MacroDTO) => {
     navigate({
       to: "/learning/macros/$macroId/edit",
       params: { macroId: m.id.toString() },
@@ -329,26 +313,7 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
           />
         </div>
         <div className="flex gap-2 items-center">
-          {selected.size > 0 && (
-            <>
-              {/* 批量删除 — 暂时关闭，后续恢复可取消注释下方代码
-              <Button
-                variant="destructive"
-                size="sm"
-                className="h-9 text-sm gap-1.5 animate-in fade-in zoom-in-95 duration-200"
-                disabled={bulkDeleteMutation.isPending}
-                onClick={() => {
-                  if (window.confirm(t("learning.macros.bulkDeleteConfirm", {count: selected.size}))) {
-                    bulkDeleteMutation.mutate([...selected])
-                  }
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-                {t("learning.macros.deleteSelected", {count: selected.size})
-              </Button>
-              */}
-            </>
-          )}
+          {selected.size > 0 && <></>}
           {/* 批量确认 — 暂时关闭，后续恢复可取消注释下方代码
           <Button
             variant="default"
@@ -480,22 +445,7 @@ export function MacroLibraryView({ projectId }: MacroLibraryViewProps) {
                         </Label>
                       </span>
                     )}
-                    {appMapId != null && (
-                      <>
-                        {/* 重新生成指令 — 暂时关闭，后续恢复可取消注释下方代码
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-[11px] gap-1"
-                          disabled={regenMutation.isPending}
-                          onClick={() => regenMutation.mutate(appMapId)}
-                        >
-                          <RefreshCw className="h-3 w-3" />
-                          {t("learning.macros.regenerate")}
-                        </Button>
-                        */}
-                      </>
-                    )}
+                    {appMapId != null && <></>}
                   </div>
 
                   {!isCollapsed && (

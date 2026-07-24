@@ -283,7 +283,9 @@ function VaultPage() {
               <Lock className="h-5 w-5 animate-pulse" />
             </div>
             <div className="space-y-2">
-              <h4 className="font-semibold text-sm">{t("vault.guide.title")}</h4>
+              <h4 className="font-semibold text-sm">
+                {t("vault.guide.title")}
+              </h4>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 {t("vault.guide.text")}
               </p>
@@ -336,7 +338,9 @@ function VaultPage() {
                             size="sm"
                             className="h-6 w-6 p-0 opacity-40 hover:opacity-100 transition-opacity"
                             onClick={() =>
-                              copyToClipboard(`{{vault.${cred.identifier}.key}}`)
+                              copyToClipboard(
+                                `{{vault.${cred.identifier}.key}}`,
+                              )
                             }
                             title={t(
                               "vault.actions.copyPlaceholder",
@@ -537,7 +541,9 @@ function VaultPage() {
                       <div key={index} className="flex gap-2 items-start group">
                         <div className="w-1/3">
                           <Input
-                            placeholder={t("vault.dialog.fields.keyPlaceholder")}
+                            placeholder={t(
+                              "vault.dialog.fields.keyPlaceholder",
+                            )}
                             value={pair.key}
                             onChange={(e) =>
                               handlePairChange(index, "key", e.target.value)
@@ -548,7 +554,9 @@ function VaultPage() {
                         </div>
                         <div className="flex-1 relative">
                           <Input
-                            type={isPassword && !pair.show ? "password" : "text"}
+                            type={
+                              isPassword && !pair.show ? "password" : "text"
+                            }
                             placeholder={
                               isPassword
                                 ? t(

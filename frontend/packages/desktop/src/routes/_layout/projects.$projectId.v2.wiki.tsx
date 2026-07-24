@@ -23,7 +23,7 @@ import { MarkdownRenderer } from "@/components/Common/MarkdownRenderer"
 import { GenerationPanel } from "@/components/Generation/GenerationPanel"
 import { DiscoverDialog } from "@/components/Projects/Modules/Overview/DiscoverDialog"
 
-export const Route = createFileRoute("/_layout/projects/$projectId/v2/knowledge")({
+export const Route = createFileRoute("/_layout/projects/$projectId/v2/wiki")({
   component: KnowledgePage,
 })
 

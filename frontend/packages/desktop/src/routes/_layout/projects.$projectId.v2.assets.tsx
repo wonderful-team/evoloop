@@ -11,7 +11,10 @@ export const Route = createFileRoute("/_layout/projects/$projectId/v2/assets")({
 
 function AssetsPage() {
   const { projectId } = useParams({ from: "/_layout/projects/$projectId" })
-  const [selectedFile, setSelectedFile] = useState<{ path: string; name: string } | null>(null)
+  const [selectedFile, setSelectedFile] = useState<{
+    path: string
+    name: string
+  } | null>(null)
   const [activeCanvas, setActiveCanvas] = useState<"code" | "topology">("code")
 
   const numProjectId = Number(projectId)
@@ -47,7 +50,9 @@ function AssetsPage() {
           <div className="h-10 px-4 border-b border-border flex items-center justify-between bg-muted/10 shrink-0">
             <div className="flex items-center gap-2 text-xs font-medium truncate">
               <Code2 className="h-3.5 w-3.5 text-primary shrink-0" />
-              <span className="truncate">{selectedFile?.path || "选择左侧文件节点开始预览"}</span>
+              <span className="truncate">
+                {selectedFile?.path || "选择左侧文件节点开始预览"}
+              </span>
             </div>
             <div className="flex items-center gap-1 bg-muted/40 p-0.5 rounded border border-border shrink-0">
               <button
@@ -79,7 +84,9 @@ function AssetsPage() {
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground font-sans p-6">
                 <Network className="h-12 w-12 mb-3 text-primary opacity-40 animate-pulse" />
-                <h4 className="font-medium text-foreground text-sm">CodeRelation 依赖拓扑网络</h4>
+                <h4 className="font-medium text-foreground text-sm">
+                  CodeRelation 依赖拓扑网络
+                </h4>
                 <p className="text-xs text-muted-foreground max-w-sm text-center mt-1">
                   {selectedFile
                     ? `正在展示文件 ${selectedFile.name} 及其代码符号在数据库中的上下游依赖连通节点`
@@ -97,7 +104,9 @@ function AssetsPage() {
           </div>
           <div className="flex-1 p-3 text-xs space-y-4 overflow-y-auto">
             <div>
-              <p className="text-[11px] font-medium text-muted-foreground mb-1">选定文件资产</p>
+              <p className="text-[11px] font-medium text-muted-foreground mb-1">
+                选定文件资产
+              </p>
               <p className="font-mono bg-muted p-2 rounded text-[11px] break-all">
                 {selectedFile?.path || "未选择文件"}
               </p>
@@ -105,7 +114,9 @@ function AssetsPage() {
             {selectedFile && (
               <>
                 <div>
-                  <p className="text-[11px] font-medium text-muted-foreground mb-1">图连通性防幻觉状态</p>
+                  <p className="text-[11px] font-medium text-muted-foreground mb-1">
+                    图连通性防幻觉状态
+                  </p>
                   <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 p-2.5 rounded flex items-start gap-2">
                     <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5" />
                     <span className="text-[11px] leading-relaxed">
@@ -114,7 +125,9 @@ function AssetsPage() {
                   </div>
                 </div>
                 <div>
-                  <p className="text-[11px] font-medium text-muted-foreground mb-1">关联业务维度</p>
+                  <p className="text-[11px] font-medium text-muted-foreground mb-1">
+                    关联业务维度
+                  </p>
                   <div className="space-y-1">
                     <span className="inline-block text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded mr-1">
                       CodeChunk 向量块

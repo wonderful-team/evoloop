@@ -142,9 +142,13 @@ export function GenerationPanel() {
     const busy = generating === k || st === "running"
 
     const targetRoute =
-      route.includes("macros") || route.includes("tasks")
-        ? "/projects/$projectId/workflows"
-        : "/projects/$projectId/knowledge"
+      route === "/wiki"
+        ? "/projects/$projectId/wiki"
+        : route === "/macros"
+          ? "/projects/$projectId/macros"
+          : route === "/tasks"
+            ? "/projects/$projectId/tasks"
+            : "/projects/$projectId"
 
     return (
       <Card className={`transition-all hover:border-primary/40 ${busy ? "border-primary/50 shadow-sm" : ""}`}>

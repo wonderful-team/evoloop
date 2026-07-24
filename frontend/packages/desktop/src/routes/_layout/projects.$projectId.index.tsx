@@ -80,7 +80,9 @@ function ProjectProfile() {
   // Overview state
   const [stats, setStats] = useState<ProjectStats | null>(null)
   const [recentTasks, setRecentTasks] = useState<RecentTask[]>([])
-  const [generationItems, setGenerationItems] = useState<Array<{ item: string; status: string }>>([])
+  const [generationItems, setGenerationItems] = useState<
+    Array<{ item: string; status: string }>
+  >([])
 
   const fetchProfile = async () => {
     if (!projectId) return
@@ -109,26 +111,35 @@ function ProjectProfile() {
           fetchProfile(),
           ProjectModulesService.getProjectStatistics({
             projectId: parseInt(projectId, 10),
-          }).then((res: any) => {
-            if (res.code === 0) setStats(res.data)
-          }).catch(() => {}),
+          })
+            .then((res: any) => {
+              if (res.code === 0) setStats(res.data)
+            })
+            .catch(() => {}),
           TasksService.getProjectTasks({
             projectId: parseInt(projectId, 10),
             page: 1,
             pageSize: 5,
             status: 1,
-          }).then((res: any) => {
-            if (res.code === 0) setRecentTasks(res.data.list || [])
-          }).catch(() => {}),
+          })
+            .then((res: any) => {
+              if (res.code === 0) setRecentTasks(res.data.list || [])
+            })
+            .catch(() => {}),
           ProjectsService.listGenerationStatusEndpoint({
             projectId: Number(projectId),
-          }).then((res: any) => {
-            setGenerationItems(
-              (res.items ?? []).filter(
-                (g: any) => g.status === "completed" || g.status === "failed" || g.status === "running",
-              ),
-            )
-          }).catch(() => {}),
+          })
+            .then((res: any) => {
+              setGenerationItems(
+                (res.items ?? []).filter(
+                  (g: any) =>
+                    g.status === "completed" ||
+                    g.status === "failed" ||
+                    g.status === "running",
+                ),
+              )
+            })
+            .catch(() => {}),
         ])
       } catch (err) {
         console.error("Failed to load project data", err)
@@ -201,7 +212,10 @@ function ProjectProfile() {
             </p>
           </div>
           {currentProject?.indexing_status === "indexing" && (
-            <Badge variant="secondary" className="bg-blue-100 text-blue-700 gap-1">
+            <Badge
+              variant="secondary"
+              className="bg-blue-100 text-blue-700 gap-1"
+            >
               <RefreshCw className="h-3.5 w-3.5 animate-spin" />
               {t("projects.status.indexing")}
             </Badge>
@@ -225,12 +239,21 @@ function ProjectProfile() {
             </>
           ) : (
             <>
-              <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} disabled={isSaving}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditing(false)}
+                disabled={isSaving}
+              >
                 <X className="h-4 w-4 mr-1" />
                 {t("common.cancel")}
               </Button>
               <Button size="sm" onClick={handleSave} disabled={isSaving}>
-                {isSaving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+                {isSaving ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-1" />
+                )}
                 {t("common.save")}
               </Button>
             </>
@@ -242,7 +265,9 @@ function ProjectProfile() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t("projects.stats.totalTasks")}</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              {t("projects.stats.totalTasks")}
+            </CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -251,16 +276,22 @@ function ProjectProfile() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t("projects.stats.completed")}</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              {t("projects.stats.completed")}
+            </CardTitle>
             <CheckCircle2 className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.completed_tasks || 0}</div>
+            <div className="text-2xl font-bold">
+              {stats?.completed_tasks || 0}
+            </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t("projects.stats.inProgress")}</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              {t("projects.stats.inProgress")}
+            </CardTitle>
             <Clock className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
@@ -273,37 +304,63 @@ function ProjectProfile() {
       {(hasProfile || isEditing) && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm font-medium text-muted-foreground">{t("projects.profile.infoTitle")}</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              {t("projects.profile.infoTitle")}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {isEditing ? (
               <>
                 <div className="flex items-center gap-2">
                   <Tag className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <label className="text-sm font-medium w-16">{t("projects.profile.projectName")}</label>
-                  <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder={currentProject?.name || "my-project"} className="flex-1" />
+                  <label className="text-sm font-medium w-16">
+                    {t("projects.profile.projectName")}
+                  </label>
+                  <Input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder={currentProject?.name || "my-project"}
+                    className="flex-1"
+                  />
                 </div>
                 <div className="flex items-center gap-2">
                   <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <label className="text-sm font-medium w-16">{t("projects.profile.deployUrl")}</label>
-                  <Input value={editUrl} onChange={(e) => setEditUrl(e.target.value)} placeholder="http://localhost:8080" className="flex-1 font-mono text-sm" />
+                  <label className="text-sm font-medium w-16">
+                    {t("projects.profile.deployUrl")}
+                  </label>
+                  <Input
+                    value={editUrl}
+                    onChange={(e) => setEditUrl(e.target.value)}
+                    placeholder="http://localhost:8080"
+                    className="flex-1 font-mono text-sm"
+                  />
                 </div>
               </>
             ) : (
               <>
                 <div className="flex items-center gap-2 text-sm">
                   <Tag className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <span className="text-muted-foreground w-16 shrink-0">{t("projects.profile.projectName")}</span>
-                  <span className="font-medium">{profile?.name || currentProject?.name || "-"}</span>
+                  <span className="text-muted-foreground w-16 shrink-0">
+                    {t("projects.profile.projectName")}
+                  </span>
+                  <span className="font-medium">
+                    {profile?.name || currentProject?.name || "-"}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <span className="text-muted-foreground w-16 shrink-0">{t("projects.profile.projectPath")}</span>
-                  <code className="text-xs text-muted-foreground">{currentProject?.path || "-"}</code>
+                  <span className="text-muted-foreground w-16 shrink-0">
+                    {t("projects.profile.projectPath")}
+                  </span>
+                  <code className="text-xs text-muted-foreground">
+                    {currentProject?.path || "-"}
+                  </code>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <span className="text-muted-foreground w-16 shrink-0">{t("projects.profile.deployUrl")}</span>
+                  <span className="text-muted-foreground w-16 shrink-0">
+                    {t("projects.profile.deployUrl")}
+                  </span>
                   <code className="text-xs">{profile?.url || "-"}</code>
                 </div>
               </>
@@ -320,7 +377,11 @@ function ProjectProfile() {
               <Sparkles className="h-4 w-4 text-primary" />
               {t("generation.title")}
             </CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => setDiscoverOpen(true)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDiscoverOpen(true)}
+            >
               {t("common.preview")}
             </Button>
           </CardHeader>
@@ -329,7 +390,13 @@ function ProjectProfile() {
               {generationItems.map((g) => (
                 <Badge
                   key={g.item}
-                  variant={g.status === "completed" ? "secondary" : g.status === "running" ? "default" : "destructive"}
+                  variant={
+                    g.status === "completed"
+                      ? "secondary"
+                      : g.status === "running"
+                        ? "default"
+                        : "destructive"
+                  }
                 >
                   {t(`generation.artifacts.${g.item}`)}
                 </Badge>
@@ -357,7 +424,9 @@ function ProjectProfile() {
       {isEditing && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm font-medium text-muted-foreground">{t("projects.profile.documentTitle")}</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              {t("projects.profile.documentTitle")}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <Textarea
@@ -379,10 +448,17 @@ function ProjectProfile() {
           <CardContent>
             <div className="space-y-4">
               {recentTasks.map((task) => (
-                <div key={task.task_id} className="flex items-center justify-between border-b last:border-0 pb-2 last:pb-0">
+                <div
+                  key={task.task_id}
+                  className="flex items-center justify-between border-b last:border-0 pb-2 last:pb-0"
+                >
                   <div className="space-y-1">
-                    <p className="text-sm font-medium leading-none">{task.task_title}</p>
-                    <p className="text-xs text-muted-foreground">{task.update_time_format}</p>
+                    <p className="text-sm font-medium leading-none">
+                      {task.task_title}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {task.update_time_format}
+                    </p>
                   </div>
                   <Badge variant={task.status === 2 ? "default" : "secondary"}>
                     {task.status === 2
@@ -402,8 +478,12 @@ function ProjectProfile() {
       {!hasProfile && !isEditing && (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground border border-dashed rounded-xl bg-muted/5">
           <AlertCircle className="h-12 w-12 mb-4 opacity-20" />
-          <h3 className="text-lg font-medium">{t("projects.profile.notFound")}</h3>
-          <p className="text-sm max-w-md text-center mt-2">{t("projects.profile.notFoundDescription")}</p>
+          <h3 className="text-lg font-medium">
+            {t("projects.profile.notFound")}
+          </h3>
+          <p className="text-sm max-w-md text-center mt-2">
+            {t("projects.profile.notFoundDescription")}
+          </p>
           <Button className="mt-4" onClick={() => setDiscoverOpen(true)}>
             <Rocket className="h-4 w-4 mr-1" />
             {t("projects.profile.discover")}
