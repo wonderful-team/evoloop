@@ -911,8 +911,8 @@
       "success": "Skills imported successfully!",
       "title": "Import External Skills"
     },
-     "macroScript": "Instruction Script",
-     "macroSequence": "Instruction Sequence (Visual Editor)",
+    "macroScript": "Instruction Script",
+    "macroSequence": "Instruction Sequence (Visual Editor)",
     "mirror": {
       "active": "Mirror Active",
       "connecting": "Connecting...",
@@ -1379,9 +1379,9 @@
       "title": "Project Overview"
     },
     "profile": {
-      "discover": "Generate Profile",
+      "discover": "Start Analysis",
       "discoverDescription": "Analyze project structure, attempt to build environment, and generate PROJECT.md profile document.",
-      "discoverTitle": "Generate Project Profile",
+      "discoverTitle": "Project Analysis",
       "discoveryCompleted": "Discovery completed",
       "discoveryFailed": "Discovery failed",
       "editPlaceholder": "Enter project profile in Markdown...",
@@ -1390,7 +1390,7 @@
       "projectPath": "Path",
       "deployUrl": "URL",
       "notFound": "No profile found",
-      "notFoundDescription": "This project doesn't have a PROJECT.md yet. Click Discover to generate one.",
+      "notFoundDescription": "This project doesn't have a PROJECT.md yet. Click \"Start Analysis\" to generate one.",
       "phase": {
         "completed": "Completed",
         "error": "Error",
