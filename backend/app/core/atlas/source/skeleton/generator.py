@@ -21,12 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.codebase import SourceFile
 
-from .llm_classifier import classify_files_with_llm
-
 logger = logging.getLogger(__name__)
-
-USE_LLM_CLASSIFICATION = True
-MAX_UNKNOWN_FILES_FOR_LLM = 20
 
 SKIP_TOP_DIRS = {
     "vendor",
@@ -154,6 +149,27 @@ class EntityGrouper:
     No database mutations happen in this stage.
     """
 
+    def __init__(self, project_path: str | None = None):
+        self._project_path = project_path
+        self._role_classifiers: dict[str, dict] | None = None
+        self._load_role_classifiers()
+
+    def _load_role_classifiers(self):
+        """Load framework_profile.role_classifiers from project.json if available."""
+        if not self._project_path:
+            return
+        pj_path = os.path.join(self._project_path, ".evoloop", "project.json")
+        if not os.path.isfile(pj_path):
+            return
+        try:
+            with open(pj_path, encoding="utf-8") as f:
+                import json
+                data = json.load(f)
+            fp = data.get("framework_profile", {})
+            self._role_classifiers = fp.get("role_classifiers")
+        except Exception:
+            pass
+
     async def get_entity_groups(
         self, repo_id: int, session: AsyncSession
     ) -> dict[str, list[ClassifiedFile]]:
@@ -254,11 +270,22 @@ class EntityGrouper:
 
     def _classify_file(self, path: str, parent_category: str | None) -> str:
         path_lower = path.lower()
+        stem = os.path.splitext(os.path.basename(path))[0].lower()
+
+        # Role classifiers from framework_profile (if available)
+        if self._role_classifiers:
+            for role, rules in self._role_classifiers.items():
+                name_patterns = rules.get("name_patterns") or []
+                for pattern in name_patterns:
+                    if pattern.startswith("*") and stem.endswith(pattern[1:].lower()):
+                        return role
+                    if stem == pattern.lower().rstrip("*"):
+                        return role
+
         for cat, keywords in CATEGORY_PATH_KEYWORDS.items():
             for kw in keywords:
                 if f"/{kw}/" in f"/{path_lower}/":
                     return cat
-        stem = os.path.splitext(os.path.basename(path))[0].lower()
         for cat, suffixes in CATEGORY_FILE_SUFFIXES.items():
             for suffix in suffixes:
                 if stem.endswith(suffix):

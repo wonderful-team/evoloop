@@ -108,7 +108,14 @@ class ContentIndexer:
                 else:
                     texts.append(d.content[:8000])  # Safety cap
 
-            embeddings = await self.embedder.embed_documents(texts)
+            try:
+                embeddings = await self.embedder.embed_documents(texts)
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+                logger.warning(
+                    f"Embedding generation failed for {rel_path}: {e}. "
+                    "Continuing indexing without embeddings."
+                )
+                embeddings = [[] for _ in texts]
 
         return IndexedContent(
             documents=all_docs,

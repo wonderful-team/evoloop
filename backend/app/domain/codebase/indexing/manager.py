@@ -241,17 +241,6 @@ class IndexingManager:
                     return
 
                 # --- Phase 7: Auto-Hierarchy ---
-                try:
-                    from app.domain.codebase.indexing.directory_summarizer import (
-                        directory_summarizer,
-                    )
-
-                    await directory_summarizer.summarize_directory(
-                        repo_path, project_id, "", recursive=True
-                    )
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-                    logger.error(f"Directory Summarization Failed: {e}")
-
                 if await self._check_cancelled(repo_id):
                     return
 
@@ -262,21 +251,6 @@ class IndexingManager:
                     await project_summarizer.add_project(repo.name, repo_path)
                 except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
                     logger.error(f"Project Summarization Trigger Failed: {e}")
-
-                if await self._check_cancelled(repo_id):
-                    return
-
-                # --- Standards & Patterns Analysis ---
-                try:
-                    from app.domain.codebase.indexing.standards import (
-                        project_standards_analyst,
-                    )
-
-                    await project_standards_analyst.analyze_standards(
-                        project_id, repo_path
-                    )
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-                    logger.error(f"Standards Analysis Failed: {e}")
 
                 if await self._check_cancelled(repo_id):
                     return

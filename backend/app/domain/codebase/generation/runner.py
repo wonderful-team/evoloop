@@ -117,7 +117,7 @@ async def _run_appmap(project_id: int) -> None:
 
     from app.core.atlas.source.skeleton import get_entity_groups
 
-    groups = await get_entity_groups(project_id)
+    groups = await get_entity_groups(project_id, project_path=path)
     if not groups:
         logger.info("[AppMap] No entity groups found for project %s", project_id)
         return
@@ -139,34 +139,80 @@ async def _run_appmap(project_id: int) -> None:
     except Exception:
         logger.debug("[AppMap] ModuleGraph validation skipped")
 
-    # Incremental impact check — log which modules would be affected
-    # if we detected changes (full regeneration still runs for now).
+    # Incremental impact check — determine which entities need regeneration.
+    affected_entities: set[str] | None = None
     try:
         from sqlalchemy import select, func
         from app.infrastructure.database import session_scope
         from app.models.app_map import AppMap
+        from app.models.codebase import Repository, SourceFile
+
         async with session_scope() as session:
             existing = (
                 await session.execute(
                     select(func.count(AppMap.id)).where(AppMap.project_id == project_id)
                 )
             ).scalar()
+
         if existing and existing > 0:
-            logger.info(
-                "[AppMap] %d existing AppMaps found — incremental impact checking available via module_graph_service.compute_impact()",
-                existing,
-            )
-    except Exception:
-        pass
+            # Let's find changed source files parsed in the last 15 minutes as a heuristic for "just indexed"
+            # Alternatively, we can find completes.
+            async with session_scope() as session:
+                rows = await session.execute(
+                    select(SourceFile.path, Repository.id)
+                    .join(Repository, SourceFile.repository_id == Repository.id)
+                    .where(Repository.project_id == project_id)
+                    .where(SourceFile.scan_status == "completed")
+                    .order_by(SourceFile.parsed_at.desc())
+                )
+                all_completed_files = rows.all()
+
+            # Find files changed very recently (within indexing window)
+            # If no recent files are found, we fallback to all to be safe.
+            changed_entities: set[str] = set()
+            now = time.time()
+            for rel_path, repo_id in all_completed_files:
+                file_abs = os.path.join(path, rel_path)
+                try:
+                    mtime = os.path.getmtime(file_abs)
+                    # Changed in last 5 minutes
+                    if now - mtime < 300:
+                        # Extract entity from path conventions
+                        parts = rel_path.split("/")
+                        for entity_candidate in groups:
+                            if entity_candidate in parts or any(entity_candidate.lower() in p.lower() for p in parts):
+                                changed_entities.add(entity_candidate)
+                except Exception:
+                    pass
+
+            if changed_entities:
+                logger.info("[AppMap] Changed entities detected: %s", list(changed_entities))
+                affected_entities = await module_graph_service.compute_impact(project_id, changed_entities)
+                logger.info("[AppMap] Computed minimal impact set of entities to regenerate: %s", list(affected_entities))
+            else:
+                logger.info("[AppMap] No recently changed files detected. Running full batch write.")
+    except Exception as e:
+        logger.warning("[AppMap] Incremental impact check failed: %s. Falling back to full run.", e)
 
     # Deterministic path: build entities from indexed source files, then
     # write AppMaps and generate macros.  The Agent is only for verification.
     entities = await build_entities_from_index(project_id, groups)
     if entities:
-        logger.info("[AppMap] Index-based builder found %d entities", len(entities))
+        if affected_entities is not None:
+            # Filter to only affected entities
+            filtered_entities = {k: v for k, v in entities.items() if k in affected_entities}
+            if not filtered_entities:
+                logger.info("[AppMap] Incremental run: No affected entities need regeneration. Skipping batch write.")
+                return
+            logger.info("[AppMap] Incremental run: Re-generating %d / %d entities", len(filtered_entities), len(entities))
+            entities_to_write = filtered_entities
+        else:
+            entities_to_write = entities
+
+        logger.info("[AppMap] Index-based builder found %d entities", len(entities_to_write))
         logger.info("[AppMap] Writing AppMaps and generating macros...")
         result = await batch_write_appmaps(
-            project_id=project_id, entities=entities, member_id=0
+            project_id=project_id, entities=entities_to_write, member_id=0
         )
         logger.info(
             "[AppMap] Batch write: %d written, %d skipped, %d failed, %d macros",
@@ -248,9 +294,18 @@ async def _regenerate_macros(project_id: int) -> None:
         )
         app_maps = list(result.scalars().all())
 
+        from sqlalchemy import text
+        r = await session.execute(
+            text("SELECT app_map_id, COUNT(*) FROM macros WHERE project_id = :pid GROUP BY app_map_id"),
+            {"pid": project_id},
+        )
+        existing_macros = dict(r.all())
+
     for am in app_maps:
         has_cn = any(("\u4e00" <= c <= "\u9fff") for alias in (am.aliases or []) for c in alias) if am.aliases else False
         if not has_cn:
+            continue
+        if existing_macros.get(am.id, 0) > 0:
             continue
         try:
             await _raw(app_map_id=am.id, project_id=project_id, member_id=0)

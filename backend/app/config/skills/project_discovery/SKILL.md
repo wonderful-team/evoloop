@@ -52,6 +52,32 @@ Create `PROJECT.md` at the project root that documents this project for AI assis
 4. **Write PROJECT.md**:
    - Call `write_file(path="PROJECT.md", content="...")` as your **FINAL action**.
 
+5. **Framework Profile**:
+   - Based on what you've already read (Step 2), write `framework_profile` into `.evoloop/project.json`.
+   - First `read_file(".evoloop/project.json")`, then merge `framework_profile` — NEVER overwrite existing fields.
+   - Schema:
+     ```json
+     {
+       "framework_profile": {
+         "language": "java",
+         "framework": "spring-cloud",
+         "build_tool": "maven",
+         "architecture": "microservices",
+         "role_classifiers": {
+           "controller": {"annotations": ["@RestController"], "name_patterns": ["*Controller"]},
+           "service": {"annotations": ["@Service"], "name_patterns": ["*Service"]},
+           "repository": {"annotations": ["@Mapper"], "name_patterns": ["*Mapper"]}
+         },
+         "module_paths": {"auth": "ruoyi-auth", "gateway": "ruoyi-gateway"},
+         "domain_vocabulary": ["权限", "租户"],
+         "profile_version": "1.0"
+       }
+     }
+     ```
+   - Populate `role_classifiers` from annotation/name patterns you observed during survey.
+   - Populate `module_paths` from the actual module directory layout.
+   - Populate `domain_vocabulary` from business terms found in code comments, class names, and config files.
+
 ## 📝 PROJECT.md Format
 
 ```markdown

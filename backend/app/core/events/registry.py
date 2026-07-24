@@ -7,6 +7,8 @@ Module-specific event types should be defined in their respective modules.
 
 from enum import Enum
 
+from app.core.events.base import BaseEvent
+
 
 class SystemEventType(str, Enum):
     """
@@ -63,6 +65,15 @@ class SystemEventType(str, Enum):
     SYSTEM_LOG_ENTRY = "system.log_entry"
     PLAN_UPDATED = "plan.updated"
     CHANGESET_UPDATED = "changeset.updated"
+    ARTIFACT_VALIDATION = "system.artifact_validation"
+
+
+class ArtifactValidationEvent(BaseEvent):
+    """Event triggered to request verification of an artifact's physical database presence."""
+    event_type: str = SystemEventType.ARTIFACT_VALIDATION
+    project_id: int
+    item: str
+    is_valid: bool = True
 
 
 # Note: Module-specific event types are defined in their respective modules:

@@ -218,6 +218,8 @@ class AdaptiveChatOpenAI:
         if callbacks:
             await emit_llm_start(callbacks, run_id, metadata)
 
+        reasoning_degraded = False
+
         while True:
             try:
                 req_params = {
@@ -296,6 +298,13 @@ class AdaptiveChatOpenAI:
                 break
 
             except openai.APIError as e:
+                error_str = str(e).lower()
+                if "reasoning_content" in error_str and not reasoning_degraded:
+                    reasoning_degraded = True
+                    for msg in api_messages:
+                        msg.pop("reasoning_content", None)
+                    logger.warning(f"⚠️ Reasoning Content Error. Stripping and retrying.")
+                    continue
                 if state.can_retry and self._is_retryable_error(e):
                     old_state = state
                     state = state.next_state()

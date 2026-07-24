@@ -124,6 +124,9 @@ async def generate_wiki(
     message = (
         f"**Mission Goal**: Generate a comprehensive, hierarchical Wiki documentation for the project at {path}.\n"
         "You MUST:\n"
+        "0. If `.evoloop/project.json` contains a `framework_profile` field, "
+        "read it first via read_file to understand module boundaries and domain vocabulary "
+        "before querying the code index.\n"
         "1. Survey the project structure (list_dir, read README and key config files).\n"
         "2. Plan a logical tree-like structure (Overview -> Architecture, Setup, API, etc.).\n"
         "3. Generate content page by page using write_wiki_page(title, content, parent_title=...). \n"

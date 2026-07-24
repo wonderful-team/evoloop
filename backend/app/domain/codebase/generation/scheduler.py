@@ -126,12 +126,22 @@ class GenerationScheduler:
     async def list_status(self, project_id: int) -> list[dict[str, Any]]:
         store = self._load(project_id)
         records = store.get("records", {})
+        from app.core.events import system_bus
+        from app.core.events.registry import ArtifactValidationEvent
+
         result = []
         for item in sorted(GENERATION_ITEMS):
             if item in records:
-                result.append(dict(records[item]))
+                rec = dict(records[item])
             else:
-                result.append(_new_record_dict(item))
+                rec = _new_record_dict(item)
+
+            if rec["status"] == "completed":
+                event = ArtifactValidationEvent(project_id=project_id, item=item)
+                await system_bus.publish(event, sequential=True)
+                if not event.is_valid:
+                    rec["status"] = "pending"
+            result.append(rec)
         return result
 
     async def retry(self, project_id: int, item: str) -> dict[str, Any]:

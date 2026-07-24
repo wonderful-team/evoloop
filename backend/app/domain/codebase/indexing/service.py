@@ -500,11 +500,11 @@ class IndexingService:
                 try:
                     embeddings = await batched_embedder.embed_documents(window_texts)
                 except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-                    logger.error(f"Window embedding failed: {e}")
-                    persist_error_count += len(window)
-                    window.clear()
-                    window_texts.clear()
-                    return
+                    logger.warning(
+                        f"[_embed_window] Window embedding failed: {e}. "
+                        "Falling back to persisting files without embeddings."
+                    )
+                    embeddings = [[] for _ in window_texts]
 
                 offset = 0
                 for prepared, indexed, text_count in window:

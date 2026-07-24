@@ -58,16 +58,21 @@ The user's preferred language is provided in the mission context. **ALL** wiki c
 ## Execution Flow
 
 ### Phase 1: Cognitive Discovery & Planning (MANDATORY)
-1. **Discover from Index**: 
+1. **Read Framework Profile** (if available):
+   - Call `read_file(".evoloop/project.json")` and extract `framework_profile`.
+   - Use `module_paths` as authoritative module boundaries for Wiki structure planning.
+   - Use `domain_vocabulary` to guide page naming and chapter headings.
+   - If absent, proceed with standard `query_code_chunks()` discovery.
+2. **Discover from Index**: 
    - Call `query_code_chunks(project_id)` to understand the module structure and key code units.
    - Call `query_code_chunks(project_id, is_api_route=true)` to get the complete API catalog.
    - (Optional) Call `query_security_findings(project_id, severity="high")` to identify security risks worth documenting.
-2. **Estimate**: In your thinking, state exactly how many entities you found and acknowledge the scale.
-3. **Selective Deep Reading**: Only call `read_file` for files that are explicitly flagged as core modules in the directory summaries. Do not read files blindly.
-4. **Plan Generation**: Call `create_plan(title="Wiki Generation Plan", steps=[...])`.
+3. **Estimate**: In your thinking, state exactly how many entities you found and acknowledge the scale.
+4. **Selective Deep Reading**: Only read source files for modules listed in `framework_profile.module_paths`, or those identified as API entry points via `query_code_chunks(is_api_route=true)`. If `framework_profile` is unavailable, use `query_code_chunks()` results to infer module boundaries.
+5. **Plan Generation**: Call `create_plan(title="Wiki Generation Plan", steps=[...])`.
    - The steps MUST follow a **hierarchical order**: Define Parent pages before their respective Children.
    - Example: Plan "Overview" -> "Architecture" -> "Database Design".
-5. **The plan is your contract**. You will be held accountable for completing every step in order.
+6. **The plan is your contract**. You will be held accountable for completing every step in order.
 
 ### Phase 2: Content Generation & Active Memory Management
 

@@ -210,6 +210,7 @@ class BlockMapper:
             "additional_kwargs": {
                 "created_at": msg.created_at,
                 "thinking": msg.thinking,
+                "reasoning_content": msg.thinking,
                 "thread_id": msg.thread_id,
                 "run_id": msg.run_id,
                 "category": msg.category,

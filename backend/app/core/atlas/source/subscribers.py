@@ -36,3 +36,19 @@ class AppMapLifecycleSubscriber:
             data.get("app_map_id"),
             data.get("superseded_by"),
         )
+
+    @event_subscribe("system.artifact_validation")
+    async def on_artifact_validation(self, event):
+        if event.item == "appmap":
+            from sqlalchemy import select, func
+            from sqlalchemy.orm import Session
+            from app.infrastructure.database.resource_manager import db_resource_manager as rm
+            from app.models.app_map import AppMap
+            try:
+                with Session(rm.sync_engine) as session:
+                    count = session.scalar(
+                        select(func.count(AppMap.id)).where(AppMap.project_id == event.project_id)
+                    )
+                    event.is_valid = bool(count and count > 0)
+            except Exception:
+                event.is_valid = False

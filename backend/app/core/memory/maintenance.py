@@ -175,7 +175,7 @@ _MAINTENANCE_ENABLED = settings.MEMORY_MAINTENANCE_ENABLED
 
 if _MAINTENANCE_ENABLED:
     @periodic_task(cron="0 2 * * *", name="memory_maintenance")
-    def scheduled_memory_maintenance():
+    async def scheduled_memory_maintenance():
         """
         Daily maintenance check at 2:00 AM.
 
@@ -184,16 +184,13 @@ if _MAINTENANCE_ENABLED:
 
         Enable via: MEMORY_MAINTENANCE_ENABLED=True in settings.
         """
-        async def _run():
-            try:
-                scheduler = MaintenanceScheduler()
-                result = await scheduler.run()
-                return {"triggered": result is not None}
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-                logger.error(f"[Maintenance] Scheduled task failed: {e}")
-                return {"triggered": False, "error": str(e)}
-
-        return asyncio.run(_run())
+        try:
+            scheduler = MaintenanceScheduler()
+            result = await scheduler.run()
+            return {"triggered": result is not None}
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            logger.error(f"[Maintenance] Scheduled task failed: {e}")
+            return {"triggered": False, "error": str(e)}
 else:
     logger.debug("[Maintenance] Scheduled memory maintenance is DISABLED. Set MEMORY_MAINTENANCE_ENABLED=True to enable.")
 

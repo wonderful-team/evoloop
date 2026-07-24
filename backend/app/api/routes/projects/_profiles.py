@@ -159,10 +159,11 @@ async def get_profile(
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.warning("Failed to read PROJECT.md: %s", e)
 
-    # Read project.json for name/url
+    # Read project.json for name/url and framework_profile
     pj = read_project_json(path)
     name = pj.get("name")
     url = pj.get("url")
+    framework_profile = pj.get("framework_profile")
 
     # Lazy ingest: ensure PROJECT.md is in the memory system (idempotent via content_hash)
     if project_id > 0 and content:
@@ -183,6 +184,7 @@ async def get_profile(
         exists=content is not None,
         url=url,
         name=name,
+        framework_profile=framework_profile,
     )
 
 
@@ -241,10 +243,12 @@ async def update_profile(
     pj = read_project_json(path)
     name = pj.get("name")
     url = pj.get("url")
+    framework_profile = pj.get("framework_profile")
 
     return ProfileContentResponse(
         content=req.content,
         exists=True,
         url=url,
         name=name,
+        framework_profile=framework_profile,
     )

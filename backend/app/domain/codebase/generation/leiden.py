@@ -87,6 +87,8 @@ async def name_clusters_with_llm(
             with open(meta, encoding="utf-8") as f:
                 data = json.load(f)
             project_summary = data.get("description", "")
+            fp = data.get("framework_profile") or {}
+            domain_vocab = fp.get("domain_vocabulary") or []
     except Exception:
         pass
 
@@ -101,6 +103,7 @@ async def name_clusters_with_llm(
         prompt = (
             "You are a software documentation architect.\n\n"
             f"Project description: {project_summary}\n\n"
+            f"Domain vocabulary (use these terms when they match): {', '.join(domain_vocab)}\n\n"
             "Given a cluster of tightly coupled code entities from the same project,\n"
             "infer the most likely **human-readable module name** for this cluster.\n\n"
             "## Code Entities in this Cluster:\n"

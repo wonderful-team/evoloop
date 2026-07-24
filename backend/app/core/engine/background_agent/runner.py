@@ -132,7 +132,13 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                             history_dicts = []
                             for m in db_messages:
                                 if m.role in ("human", "assistant", "user", "ai"):
-                                    history_dicts.append({"role": m.role, "content": m.content or ""})
+                                    d = {"role": m.role, "content": m.content or ""}
+                                    if getattr(m, "thinking", None):
+                                        d["additional_kwargs"] = {
+                                            "thinking": m.thinking,
+                                            "reasoning_content": m.thinking,
+                                        }
+                                    history_dicts.append(d)
                             if history_dicts:
                                 history = EvoMessageConverter.repair(history_dicts)
                                 current_messages = history + current_messages

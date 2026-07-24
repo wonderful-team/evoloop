@@ -28,7 +28,7 @@ TREE_SITTER_QUERIES = {
             (method_declaration name: (identifier) @name body: (block) @body) @function
         """,
         "imports": """
-            (import_declaration name: (scoped_identifier) @module) @import
+            (import_declaration (scoped_identifier) @module) @import
         """,
     },
     "csharp": {

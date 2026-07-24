@@ -51,15 +51,29 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
     container = None
     try:
         arch_summary = "Not available yet."
-        from app.domain.codebase.indexing.directory_summarizer import (
-            DirectorySummarizer,
-        )
+        # Prefer framework_profile from project.json, fallback to DirectorySummarizer
         try:
-            summary_dir = await DirectorySummarizer.get_summary(path)
-            if summary_dir:
-                arch_summary = summary_dir
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-            logger.debug(f"[ProjectSummarizer] Failed to fetch directory summary: {e}")
+            pj_path = os.path.join(path, ".evoloop", "project.json")
+            if os.path.isfile(pj_path):
+                import json
+                with open(pj_path, encoding="utf-8") as f:
+                    pj = json.load(f)
+                fp = pj.get("framework_profile", {})
+                parts = [fp.get(k, "") for k in ("language", "framework", "architecture")]
+                arch_summary = " / ".join(p for p in parts if p)
+        except Exception:
+            pass
+
+        if arch_summary in ("", "Not available yet.", " / "):
+            try:
+                from app.domain.codebase.indexing.directory_summarizer import (
+                    DirectorySummarizer,
+                )
+                summary_dir = await DirectorySummarizer.get_summary(path)
+                if summary_dir:
+                    arch_summary = summary_dir
+            except Exception:
+                pass
 
         # Update Status
         await activity_monitor.update_agent_state(sys_tid, "Summarizing", "Project Analysis", "Reading Files & Context...")
@@ -100,7 +114,10 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
             model_name=model_name,
         )
 
-        def parse_json_markdown(text: str) -> dict:
+        def parse_json_markdown(text: str) -> dict | None:
+            if not text or not text.strip():
+                logger.warning("[ProjectSummarizer] LLM returned empty response")
+                return None
             text = text.strip()
             if text.startswith("```"):
                 first_newline = text.find("\n")
@@ -108,9 +125,16 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
                     text = text[first_newline:]
                 if text.endswith("```"):
                     text = text[:-3]
-            return json.loads(text.strip())
+            try:
+                return json.loads(text.strip())
+            except json.JSONDecodeError:
+                logger.warning("[ProjectSummarizer] LLM response is not valid JSON")
+                return None
 
         result = parse_json_markdown(response.content)
+        if result is None:
+            logger.error("[ProjectSummarizer] Failed to parse LLM response, using fallback")
+            return
 
         # 3. Save Result
         meta_dir = os.path.join(path, ".evoloop")
@@ -177,18 +201,14 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
 
 # --- Celery Task ---
 @shared_task(name="summarize_project")
-def summarize_project_task(name: str, path: str, module_graph: str = ""):
+async def summarize_project_task(name: str, path: str, module_graph: str = ""):
     """
     Celery task wrapper for project summarization.
     """
-
-    async def _run_with_flush():
-        try:
-            await _summarize_project_logic(name, path, module_graph=module_graph)
-        finally:
-            await flush_loop_bound_resources()
-
-    asyncio.run(_run_with_flush())
+    try:
+        await _summarize_project_logic(name, path, module_graph=module_graph)
+    finally:
+        await flush_loop_bound_resources()
 
 
 # --- Main Service Class ---

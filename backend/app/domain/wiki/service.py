@@ -10,6 +10,8 @@ from sqlmodel import Session, select
 
 from app.infrastructure.database.resource_manager import db_resource_manager as rm
 from app.models.wiki import WikiPage
+from app.core.events.decorators import event_register, event_subscribe
+from app.core.events.registry import SystemEventType
 
 logger = logging.getLogger(__name__)
 
@@ -113,3 +115,11 @@ class WikiService:
 
 
 wiki_service = WikiService()
+
+
+@event_register()
+class WikiEventSubscriber:
+    @event_subscribe(SystemEventType.ARTIFACT_VALIDATION)
+    async def on_artifact_validation(self, event):
+        if event.item == "wiki":
+            event.is_valid = len(wiki_service.get_pages(event.project_id)) > 0

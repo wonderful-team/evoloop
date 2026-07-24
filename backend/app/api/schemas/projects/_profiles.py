@@ -26,6 +26,7 @@ class ProfileContentResponse(BaseAPIResponse):
     exists: bool = False
     url: str | None = None
     name: str | None = None
+    framework_profile: dict | None = None
 
 
 class UpdateProfileRequest(DynamicBaseModel):

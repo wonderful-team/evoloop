@@ -86,14 +86,10 @@ async def dispatch_agent_run(
 
         active_model = SystemConfigService.get_value("LLM_MODEL")
         if active_model:
-            logger.info(
-                f"[Dispatch] No model specified, using default model: {active_model}"
-            )
+            logger.info(f"[Dispatch] No model specified, using default model: {active_model}")
         else:
-            raise ValueError(
-                "No model specified and no LLM_MODEL configured in SystemConfigService. "
-                "Please provide a model explicitly or configure LLM in system settings."
-            )
+            logger.info("[Dispatch] No model specified locally; relying on cloud gateway default model routing.")
+            active_model = ""
 
     # ------------------------------------------------------------------
     # 1. Prepare minimal Context (working_dir will be hydrated later via events)

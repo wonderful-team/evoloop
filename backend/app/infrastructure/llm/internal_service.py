@@ -82,13 +82,9 @@ class InternalLLMService:
             - 记录调用日志（仅用于调试，不存储消息）
         """
         from app.infrastructure.llm.factory import get_default_llm
+        from app.infrastructure.config.service import SystemConfigService
 
-        if not model_name:
-            raise ValueError(
-                "[InternalLLMService] No model specified. "
-                "Please pass 'model_name' argument explicitly. "
-                f"purpose={purpose}"
-            )
+        model_name = model_name or SystemConfigService.get_value("LLM_MODEL") or ""
 
         # 获取 LLM 实例
         llm = await get_default_llm(
@@ -141,13 +137,9 @@ class InternalLLMService:
         使用结构化输出模式调用 LLM
         """
         from app.infrastructure.llm.factory import get_default_llm
+        from app.infrastructure.config.service import SystemConfigService
 
-        if not model_name:
-            raise ValueError(
-                "[InternalLLMService] No model specified. "
-                "Please pass 'model_name' argument explicitly. "
-                f"purpose={purpose}"
-            )
+        model_name = model_name or SystemConfigService.get_value("LLM_MODEL") or ""
 
         llm = await get_default_llm(
             temperature=temperature,

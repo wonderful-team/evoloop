@@ -8,19 +8,22 @@ from app.infrastructure.database import session_scope
 from app.models.codebase import Repository
 
 from .generator import ClassifiedFile, EntityGrouper
-from .llm_classifier import LLMFileClassifier, classify_files_with_llm
 
 __all__ = [
     "EntityGrouper",
     "ClassifiedFile",
-    "LLMFileClassifier",
-    "classify_files_with_llm",
     "get_entity_groups",
 ]
 
 
-async def get_entity_groups(project_id: int) -> dict[str, list[ClassifiedFile]]:
-    """Return entity groups for *project_id* (resolves the active repo)."""
+async def get_entity_groups(project_id: int, project_path: str | None = None) -> dict:
+    """Return entity groups for *project_id* (resolves the active repo).
+
+    Args:
+        project_id: Target project ID.
+        project_path: Optional project root path. When provided, EntityGrouper
+                      reads framework_profile.role_classifiers for dynamic rules.
+    """
     async with session_scope() as db:
         stmt = (
             select(Repository.id)
@@ -35,4 +38,4 @@ async def get_entity_groups(project_id: int) -> dict[str, list[ClassifiedFile]]:
     if repo_id is None:
         return {}
     async with session_scope() as db:
-        return await EntityGrouper().get_entity_groups(repo_id, db)
+        return await EntityGrouper(project_path=project_path).get_entity_groups(repo_id, db)

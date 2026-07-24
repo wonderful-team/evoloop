@@ -172,8 +172,17 @@ async def intercept_decompose_task(tool_call: dict, config: dict) -> SpawnSubtas
     executor = ToolExecutor()
     result = await executor.execute(tool, args, config=config)
 
-    if isinstance(result, dict) and result.get("_spawn_plan"):
-        spawn_plan = SpawnPlan.model_validate(result["_spawn_plan"])
+    from app.core.engine.tools.orchestration.schemas import DecomposeTaskResult
+
+    spawn_plan = None
+    if isinstance(result, DecomposeTaskResult):
+        spawn_plan = result.spawn_plan
+    elif isinstance(result, dict):
+        spawn_plan_val = result.get("spawn_plan") or result.get("_spawn_plan")
+        if spawn_plan_val:
+            spawn_plan = SpawnPlan.model_validate(spawn_plan_val)
+
+    if spawn_plan:
         logger.info(f"[Signals] Intent: Spawn {len(spawn_plan.subtasks or [])} subtasks")
         await _emit_tool_event(
             "end", "decompose_task",
