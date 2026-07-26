@@ -244,10 +244,9 @@ class VoiceInputChannel(InputChannel):
             await self._maybe_push_tts(thread_id, "好的")
 
     async def _maybe_push_tts(self, thread_id: str, text: str) -> None:
-        """推 voice.tts_play 给 Rust，Seeduplex 活跃时合成 TTS。
+        """推确认语（L0 匹配后的短确认）给 Volcengine 合成 TTS。
         
-        Rust 侧的 handle_route_result 会在 Seeduplex 活跃时跳过 TTS 播放，
-        由本消息触发 Seeduplex ChatTTSText 合成语音。
+        L0 builtin/macro 执行完成后，通过此方法将确认语文本推给 Volcengine 合成语音。
         """
         from app.core.routing.executor import push_tts_text
         await push_tts_text(thread_id, text)

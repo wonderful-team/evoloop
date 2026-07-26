@@ -78,11 +78,12 @@ class TokenFilter:
         self._publish_buffer += content
         return content, None
 
-    def should_flush(self) -> bool:
-        """Check if the publish buffer should be flushed (token limit)."""
-        from app.utils.token import estimate_tokens
-        return bool(self._publish_buffer) and (
-            "\n" in self._publish_buffer or estimate_tokens(self._publish_buffer) >= 100
+    def should_flush(self, char_limit: int = 150) -> bool:
+        """Check if the publish buffer should be flushed (char limit)."""
+        from app.utils.text import should_flush_text
+        return should_flush_text(
+            self._publish_buffer,
+            min_chars=char_limit,
         )
 
     def flush(self) -> str:

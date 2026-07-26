@@ -56,4 +56,7 @@ arboard = "3.4"
 [target.'cfg(target_os = "macos")'.dependencies]
 coreaudio-rs = "0.13"
 core-graphics = "0.24"
+cocoa = "0.25"
+objc = "0.2.7"
+
 

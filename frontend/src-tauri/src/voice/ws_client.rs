@@ -14,12 +14,14 @@ pub struct VoiceEnvelope {
     pub body: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message_id: Option<String>,
+    #[serde(skip)]
+    pub raw_bytes: Option<Vec<u8>>,
 }
 
 const RECONNECT_DELAY_SECS: u64 = 3;
 
 pub struct VoiceWsClient {
-    tx: Arc<Mutex<Option<mpsc::UnboundedSender<String>>>>,
+    tx: Arc<Mutex<Option<mpsc::UnboundedSender<Message>>>>,
     handler: EnvelopeHandler,
     url: String,
     connected: Arc<RwLock<bool>>,
@@ -53,7 +55,7 @@ impl VoiceWsClient {
                     Ok((ws_stream, _)) => {
                         info!("[voice-ws] connected to {}", url);
                         let (mut ws_sender, mut ws_receiver) = ws_stream.split();
-                        let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+                        let (tx, mut rx) = mpsc::unbounded_channel::<Message>();
 
                         *tx_state.lock().await = Some(tx);
                         *connected.write().await = true;
@@ -74,7 +76,16 @@ impl VoiceWsClient {
                                                 &text[..text.len().min(200)]);
                                         }
                                     }
-                                    Ok(Message::Frame(_)) | Ok(Message::Binary(_)) => {}
+                                    Ok(Message::Binary(bin)) => {
+                                        let envelope = VoiceEnvelope {
+                                            msg_type: "voice.audio_frame".to_string(),
+                                            body: None,
+                                            message_id: None,
+                                            raw_bytes: Some(bin),
+                                        };
+                                        handler(envelope);
+                                    }
+                                    Ok(Message::Frame(_)) => {}
                                     Ok(Message::Ping(_)) | Ok(Message::Pong(_)) => {}
                                     Ok(Message::Close(_)) => {
                                         info!("[voice-ws] server closed connection");
@@ -91,8 +102,8 @@ impl VoiceWsClient {
                         });
 
                         // Send loop
-                        while let Some(text) = rx.recv().await {
-                            if ws_sender.send(Message::Text(text)).await.is_err() {
+                        while let Some(msg) = rx.recv().await {
+                            if ws_sender.send(msg).await.is_err() {
                                 error!("[voice-ws] send failed");
                                 break;
                             }
@@ -122,13 +133,29 @@ impl VoiceWsClient {
             "body": body,
         });
         let text = serde_json::to_string(&envelope).map_err(|e| e.to_string())?;
-        let tx = self.tx.lock().await;
-        if let Some(tx) = tx.as_ref() {
-            tx.send(text).map_err(|e| e.to_string())?;
-            Ok(())
-        } else {
-            Err("WebSocket not connected".to_string())
+        // Wait for connection (max ~3s = reconnect interval)
+        for _ in 0..30 {
+            let tx = self.tx.lock().await;
+            if let Some(tx) = tx.as_ref() {
+                return tx.send(Message::Text(text)).map_err(|e| e.to_string());
+            }
+            drop(tx);
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
+        Err("WebSocket not connected".to_string())
+    }
+
+    pub async fn send_binary(&self, bytes: Vec<u8>) -> Result<(), String> {
+        // Wait for connection (max ~3s)
+        for _ in 0..30 {
+            let tx = self.tx.lock().await;
+            if let Some(tx) = tx.as_ref() {
+                return tx.send(Message::Binary(bytes)).map_err(|e| e.to_string());
+            }
+            drop(tx);
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+        Err("WebSocket not connected".to_string())
     }
 
     pub async fn send_barge_in(&self, thread_id: &str) -> Result<(), String> {
@@ -161,11 +188,13 @@ impl VoiceWsClient {
         self.send("voice.dictation.finalize", body).await
     }
 
-    pub async fn send_voice_start(&self, thread_id: &str) -> Result<(), String> {
+    pub async fn send_voice_start(&self, thread_id: &str, mode: &str) -> Result<(), String> {
         self.send("voice.start", serde_json::json!({
             "thread_id": thread_id,
+            "mode": mode,
         })).await
     }
+
 
     pub async fn send_voice_stop(&self, thread_id: &str) -> Result<(), String> {
         self.send("voice.stop", serde_json::json!({
@@ -173,10 +202,10 @@ impl VoiceWsClient {
         })).await
     }
 
-
     pub async fn disconnect(&self) {
         *self.tx.lock().await = None;
         *self.connected.write().await = false;
         info!("[voice-ws] disconnected");
     }
 }
+

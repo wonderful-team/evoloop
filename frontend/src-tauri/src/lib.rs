@@ -657,67 +657,33 @@ pub fn safe_killpg(pgid: i32) {
 
 /// Direct TTS call: dispatches to the correct backend and waits for playback.
 async fn speak_direct(text: &str, engine: &str, voice: &str) -> Result<(), String> {
-    match engine {
-        "edge-tts" => {
-            let voice_name = if voice.is_empty() { "zh-CN-XiaoxiaoNeural" } else { voice };
-            let bytes = crate::voice::tts_engine::speak_edge_tts(text, voice_name, true).await?;
-            let path = std::env::temp_dir().join(format!("evoloop_edge_{}.mp3", uuid::Uuid::new_v4()));
-            tokio::fs::write(&path, &bytes).await.map_err(|e| format!("write failed: {}", e))?;
-            let status = std::process::Command::new("afplay").arg(&path).status()
-                .map_err(|e| format!("afplay failed: {}", e))?;
-            let _ = std::fs::remove_file(&path);
-            if !status.success() {
-                return Err(format!("afplay exited with: {:?}", status.code()));
-            }
-            Ok(())
-        }
-        "qwen-tts" => {
-            let voice_name = if voice.is_empty() { "Cherry" } else { voice };
-            crate::voice::tts_engine::speak_qwen_tts(text, &voice_name).await
-        }
-        "cosyvoice" => {
-            let backend_port = crate::sidecar::BACKEND_PORT;
-            let url = format!("http://127.0.0.1:{}/api/v1/voice/tts", backend_port);
-            let client = reqwest::Client::new();
-            let resp = client
-                .post(&url)
-                .json(&serde_json::json!({"text": text, "engine": engine, "voice": voice}))
-                .send()
-                .await
-                .map_err(|e| format!("{} request failed: {}", engine, e))?;
-            if !resp.status().is_success() {
-                let err_body = resp.text().await.unwrap_or_default();
-                return Err(format!("{} API error: {}", engine, err_body));
-            }
-            let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
-            let path = std::env::temp_dir().join(format!("evoloop_{}_{}.wav", engine, uuid::Uuid::new_v4()));
-            std::fs::write(&path, &bytes).map_err(|e| e.to_string())?;
-            let status = std::process::Command::new("afplay").arg(&path).status().map_err(|e| {
-                let _ = std::fs::remove_file(&path);
-                e.to_string()
-            })?;
-            let _ = std::fs::remove_file(&path);
-            if !status.success() && status.code() != None {
-                return Err(format!("{} playback failed", engine));
-            }
-            Ok(())
-        }
-        _ => {
-            use std::process::Command;
-            let is_chinese = voice.starts_with("zh") || voice == "中文女" || voice == "中文男";
-            let sys_voice = if !voice.is_empty() && !is_chinese {
-                voice
-            } else {
-                "Ting-Ting"
-            };
-            let status = Command::new("say").arg("-v").arg(sys_voice).arg(text).status().map_err(|e| e.to_string())?;
-            if !status.success() {
-                return Err("say failed".to_string());
-            }
-            Ok(())
-        }
+    let backend_port = crate::sidecar::BACKEND_PORT;
+    let url = format!("http://127.0.0.1:{}/api/v1/voice/tts", backend_port);
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(&url)
+        .json(&serde_json::json!({"text": text, "engine": engine, "voice": voice}))
+        .send()
+        .await
+        .map_err(|e| format!("TTS request failed: {}", e))?;
+    if !resp.status().is_success() {
+        let err_body = resp.text().await.unwrap_or_default();
+        return Err(format!("TTS API error: {}", err_body));
     }
+    let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
+    let path = std::env::temp_dir().join(format!("evoloop_tts_{}.wav", uuid::Uuid::new_v4()));
+    std::fs::write(&path, &bytes).map_err(|e| e.to_string())?;
+    let status = std::process::Command::new("afplay").arg(&path).status().map_err(|e| {
+        let _ = std::fs::remove_file(&path);
+        e.to_string()
+    })?;
+    let _ = std::fs::remove_file(&path);
+    if !status.success() && status.code() != None {
+        return Err("afplay failed".to_string());
+    }
+    Ok(())
 }
+
 
 #[tauri::command]
 #[cfg(desktop)]
@@ -816,14 +782,10 @@ async fn list_system_voices() -> Result<Vec<serde_json::Value>, String> {
 #[tauri::command]
 #[cfg(desktop)]
 async fn start_wake_word_listener(app: tauri::AppHandle, word: String) -> Result<(), String> {
-    use crate::voice::asr_engine::AsrEngine;
-
-    let models_dir = find_models_dir().ok_or("Voice models not found. Run deploy/download_models.sh --all")?;
-    let asr = Arc::new(AsrEngine::new(models_dir.to_str().ok_or("Invalid path")?)?);
-
     let mut detector = WAK_WORD_DETECTOR.lock().map_err(|e| format!("Lock error: {}", e))?;
-    detector.start(app, word, asr)
+    detector.start(app, word)
 }
+
 
 #[tauri::command]
 #[cfg(desktop)]

@@ -355,6 +355,36 @@ def truncate_output(text: str, max_len: int = 6000, suffix: str = "...") -> str:
 # ============================================================================
 
 
+def should_flush_text(
+    text: str,
+    min_chars: int | None = None,
+    min_tokens: int | None = None,
+    has_boundary: bool | None = None,
+) -> bool:
+    """判断累积文本是否达到发送阈值。
+
+    Args:
+        text: 累积的文本内容
+        min_chars: 最小字符数（如 VoiceChannel 30 字才发 TTS）
+        min_tokens: 最小 token 数（如 TokenFilter 100 tokens 才发）
+        has_boundary: 是否含有句子边界（换行/标点）
+
+    Returns:
+        True 表示应发送，False 表示继续累积
+    """
+    if not text:
+        return False
+    if min_chars is not None and len(text) >= min_chars:
+        return True
+    if min_tokens is not None:
+        from app.utils.token import estimate_tokens
+        if estimate_tokens(text) >= min_tokens:
+            return True
+    if has_boundary and "\n" in text:
+        return True
+    return False
+
+
 def normalize_text(text: str | None) -> str:
     """
     Normalize text for comparison: NFC unicode, lowercase, no spaces.

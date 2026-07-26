@@ -4,7 +4,7 @@ VoiceChannel — pushes agent results to the voice WebSocket for TTS playback.
 Handles three message types from the UniversalBridgeSubscriber:
 
 1. ``MessageBlock(role=ai, content=..., tool_calls=[...])`` — the Supervisor's
-   acknowledgement when it routes to a Worker (e.g. "好的，我来处理").
+   安抚话术 when it routes to a Worker (e.g. "好的，我来处理").
    Pushed as ``voice.route_result {routed, text}`` for immediate TTS.
 
 2. ``SessionCompletedEvent(source=voice)`` — terminal success. Pushed as
@@ -13,7 +13,7 @@ Handles three message types from the UniversalBridgeSubscriber:
 3. ``AgentRunCompletedEvent(source=voice, status=failed)`` — terminal failure.
    Pushed as ``voice.route_result {failed, error}``.
 
-Only the FIRST ai+tool_calls block per thread/turn is pushed (voice_ack_sent
+Only the FIRST ai+tool_calls block per thread/turn is pushed (安抚话术已发送
 tracking). Subsequent blocks (Worker messages) are ignored.
 """
 
@@ -45,8 +45,8 @@ class VoiceChannel(Channel):
     accepts_blocks = True
     accepts_stream_events = True
 
-    # Per-thread dedup for routed ack messages
-    _routed_texts: dict[str, set[str]] = {}
+    # Per-thread dedup for 安抚话术 (Supervisor first response)
+    _filler_texts: dict[str, set[str]] = {}
     _token_buffers: dict[str, str] = {}
     _streamed_texts: dict[str, str] = {}
     _SENTENCE_BOUNDARIES = "。！？.!?\n…"
@@ -56,41 +56,24 @@ class VoiceChannel(Channel):
         from app.core.engine.event.schemas import AgentRunCompletedEvent
         from app.models.schemas.events import TokenEvent
 
-        # ── LLM Token streaming ──────────────────────────────────────────
         if isinstance(payload, TokenEvent):
             tid = ctx.thread_id
             from app.core.routing.executor import _voice_registry
             if tid not in _voice_registry:
                 return
-
             token = payload.content or ""
-            if not token:
-                return
-
-            # Accumulate token
-            self._streamed_texts[tid] = self._streamed_texts.get(tid, "") + token
-            buf = self._token_buffers.get(tid, "") + token
-            self._token_buffers[tid] = buf
-
-            # Push raw voice token (optional, index=0)
-            try:
-                await voice_executor.push_voice_token(tid, token, 0)
-            except Exception as exc:
-                logger.debug("[VoiceChannel] token push failed: %s", exc)
-
-            # Check sentence boundary
-            if any(ch in self._SENTENCE_BOUNDARIES for ch in token):
-                stripped = _md_clean(buf.strip())
+            if token:
+                self._streamed_texts[tid] = self._streamed_texts.get(tid, "") + token
+                stripped = _md_clean(token.strip())
                 if stripped:
-                    logger.info("[VoiceChannel] streaming tts_boundary: %s...", stripped[:40])
+                    logger.debug("[VoiceChannel] streaming TTS batch: %s...", stripped[:40])
                     try:
                         await voice_executor.push_voice_tts_boundary(tid, stripped, 0)
                     except Exception as exc:
-                        logger.warning("[VoiceChannel] tts_boundary push failed: %s", exc)
-                self._token_buffers[tid] = ""
+                        logger.debug("[VoiceChannel] tts_boundary push failed: %s", exc)
             return
 
-        # ── Supervisor acknowledgement (role=ai + content) ─────────────
+        # ── Superviosr 安抚话术：首个回应时推送 ────────────────
         if isinstance(payload, MessageBlock):
             if payload.role == "ai" and payload.content:
                 tid = ctx.thread_id
@@ -99,15 +82,15 @@ class VoiceChannel(Channel):
                 if tid not in _voice_registry:
                     return
 
-                # Avoid double-speaking streamed ack sentences
+                # 流式已播过的跳过
                 streamed = self._streamed_texts.get(tid, "").strip()
                 summary = "" if streamed else _md_clean(payload.content)
 
-                # Dedup: skip if same text already routed for this thread
-                tid_set = self._routed_texts.setdefault(tid, set())
+                # 去重：相同安抚话术不重复推
+                tid_set = self._filler_texts.setdefault(tid, set())
                 clean_summary = summary.replace(" ", "").replace("\n", "")
                 if clean_summary and clean_summary in tid_set:
-                    logger.info("[VoiceChannel] ack dedup: already routed for %s", tid)
+                    logger.info("[VoiceChannel] 安抚话术 dedup: already routed for %s", tid)
                     return
                 if clean_summary:
                     tid_set.add(clean_summary)
@@ -115,13 +98,13 @@ class VoiceChannel(Channel):
                 try:
                     await voice_executor.push_voice_result(tid, "routed", summary)
                 except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
-                    logger.warning("[VoiceChannel] ack push failed for %s: %s", tid, exc)
+                    logger.warning("[VoiceChannel] 安抚话术 push failed for %s: %s", tid, exc)
             return
 
-        # ── Terminal success ──────────────────────────────────────────
+        # ── 最终回复 ──────────────────────────────────────────
         if isinstance(payload, SessionCompletedEvent):
-            # Clear routed dedup for this thread
-            self._routed_texts.pop(payload.thread_id, None)
+            # 清除安抚话术去重记录
+            self._filler_texts.pop(payload.thread_id, None)
             data = payload.data
             if not data or data.source != "voice":
                 return
@@ -176,7 +159,7 @@ class VoiceChannel(Channel):
             thread_id = payload.thread_id
             self._token_buffers.pop(thread_id, None)
             self._streamed_texts.pop(thread_id, None)
-            self._routed_texts.pop(thread_id, None)
+            self._filler_texts.pop(thread_id, None)
             summary = payload.payload.get("summary") or payload.payload.get("outcome") or ""
             try:
                 await voice_executor.push_voice_result(thread_id, "failed", summary)

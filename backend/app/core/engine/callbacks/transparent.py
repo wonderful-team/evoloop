@@ -22,7 +22,7 @@ from app.core.tools.registry import (
     is_state_mutating_tool,
 )
 from app.i18n.service import i18n
-from app.utils.token import estimate_tokens
+
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +37,9 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     3. Structured stream event publishing (thinking only)
     """
 
-    # Dual-limit flush: time window (s) or token count threshold
-    _FLUSH_INTERVAL = 1.0
-    _FLUSH_TOKEN_LIMIT = 100
+    # Dual-limit flush: time window (s) or char count threshold
+    _FLUSH_INTERVAL = 2.0
+    _FLUSH_CHAR_LIMIT = 150
 
     def __init__(self, thread_id: str = ""):
         super().__init__()
@@ -141,7 +141,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         def _should_flush(buffer: str) -> bool:
             return bool(buffer) and (
-                estimate_tokens(buffer) >= self._FLUSH_TOKEN_LIMIT
+                len(buffer) >= self._FLUSH_CHAR_LIMIT
                 or (now - self._flush_start_time) >= self._FLUSH_INTERVAL
             )
 
@@ -197,7 +197,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if filtered is None:
             return
 
-        # Dual-limit flush: size check via should_flush(), time check externally
+        # Dual-limit flush: size check (chars), time check externally
         if self._token_filter.should_flush() or (
             self._flush_start_time and (now - self._flush_start_time) >= self._FLUSH_INTERVAL
         ):

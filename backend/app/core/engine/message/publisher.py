@@ -55,7 +55,7 @@ class MessagePublisher:
             channels = set(channels)
 
         from app.core.routing.executor import _voice_registry
-        if self.thread_id in _voice_registry and not isinstance(payload, BaseStreamEvent):
+        if self.thread_id in _voice_registry:
             channels.add("voice")
 
         ctx = ChannelContext(
