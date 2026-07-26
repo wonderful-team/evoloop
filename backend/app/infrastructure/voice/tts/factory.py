@@ -43,9 +43,6 @@ def _create_provider(engine: str) -> BaseTTSProvider | None:
     if engine == "cosyvoice":
         from app.infrastructure.voice.tts.cosyvoice_provider import CosyVoiceTTSProvider
         return CosyVoiceTTSProvider()
-    if engine == "kokoro":
-        from app.infrastructure.voice.tts.kokoro_provider import KokoroTTSProvider
-        return KokoroTTSProvider()
     if engine in ("edge-tts", "edge"):
         from app.infrastructure.voice.tts.edge_provider import EdgeTTSProvider
         return EdgeTTSProvider()

@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/models", tags=["models"])
 
-_ALL_MODEL_IDS = ["qwen3_asr", "kokoro", "cosyvoice"]
+_ALL_MODEL_IDS = ["qwen3_asr", "cosyvoice"]
 
 
 class DownloadRequest(BaseModel):

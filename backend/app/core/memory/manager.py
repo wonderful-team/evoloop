@@ -247,7 +247,7 @@ class MemoryManager:
             limit=limit,
         )
         return [
-            Concept(name=e.title, description=e.content, related_files=e.tags)
+            Concept(name=e.title, description=e.content, related_files=e.tags, source_thread_id=e.source_thread_id)
             for e in entries
         ]
 

@@ -81,12 +81,15 @@ class VoiceConnectionManager:
             conn_id = self._thread_to_conn.get(thread_id)
             ws = self._conns.get(conn_id) if conn_id else None
         if ws is None:
-            logger.debug(
-                "[voice] push dropped (no connection for thread %s)", thread_id
+            logger.warning(
+                "[voice] push DROPPED — no connection for thread %s (conn_id=%s, known_threads=%s)",
+                thread_id, conn_id, list(self._thread_to_conn.keys())[:5],
             )
             return False
+        msg_type = envelope.get("type", "?")
         try:
             await ws.send_json(envelope)
+            logger.info("[voice] push OK — type=%s thread=%s", msg_type, thread_id)
             return True
         except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
             logger.warning("[voice] push to thread %s failed: %s", thread_id, exc)

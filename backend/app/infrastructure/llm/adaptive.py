@@ -199,6 +199,11 @@ class AdaptiveChatOpenAI:
                 if "role" not in m:
                     role_map = {"ai": "assistant", "human": "user", "system": "system", "tool": "tool"}
                     m = {**m, "role": role_map.get(m.get("type", ""), "user")}
+                # Extract reasoning_content from additional_kwargs/thinking, defaulting to '....' for assistant
+                if m.get("role") == "assistant":
+                    akw = m.get("additional_kwargs") or {}
+                    rc = akw.get("reasoning_content") or akw.get("thinking") or "...."
+                    m["reasoning_content"] = rc
                 api_messages.append(m)
             else:
                 role = "assistant" if m.type == "ai" else (m.type if m.type in ("system", "tool") else "user")
@@ -209,10 +214,8 @@ class AdaptiveChatOpenAI:
                     if m.tool_calls:
                         calls = [_to_openai_tool_call(tc) for tc in m.tool_calls]
                         msg_dict["tool_calls"] = [c for c in calls if c is not None]
-                    # DeepSeek reasoning API: must pass reasoning_content back
-                    rc = (m.additional_kwargs or {}).get("reasoning_content")
-                    if rc:
-                        msg_dict["reasoning_content"] = rc
+                    rc = (m.additional_kwargs or {}).get("reasoning_content") or (m.additional_kwargs or {}).get("thinking") or "...."
+                    msg_dict["reasoning_content"] = rc
                 api_messages.append(msg_dict)
 
         if callbacks:
@@ -238,6 +241,15 @@ class AdaptiveChatOpenAI:
 
                 if state.attempt > 0:
                     logger.info(f"🔄 Adaptive Retry {state.attempt}/{state.max_retries}: {state}")
+
+                # Debugging logging: print all roles, content snippet, and reasoning_content presence
+                logger.info(f"--- api_messages payload (attempt={state.attempt}, reasoning_degraded={reasoning_degraded}) ---")
+                for idx, msg in enumerate(api_messages):
+                    role = msg.get("role")
+                    content = msg.get("content") or ""
+                    has_rc = "reasoning_content" in msg
+                    rc_val = msg.get("reasoning_content")
+                    logger.info(f"  Msg #{idx} | Role: {role} | Content: {content[:80]}... | HasRC: {has_rc} | RC: {str(rc_val)[:40]}...")
 
                 stream = await self.client.chat.completions.create(**req_params)
 

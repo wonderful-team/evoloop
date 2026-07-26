@@ -275,11 +275,14 @@ class EntityGrouper:
         # Role classifiers from framework_profile (if available)
         if self._role_classifiers:
             for role, rules in self._role_classifiers.items():
-                name_patterns = rules.get("name_patterns") or []
+                if isinstance(rules, list):
+                    name_patterns = rules
+                else:
+                    name_patterns = rules.get("name_patterns") or []
                 for pattern in name_patterns:
-                    if pattern.startswith("*") and stem.endswith(pattern[1:].lower()):
+                    if isinstance(pattern, str) and pattern.startswith("*") and stem.endswith(pattern[1:].lower()):
                         return role
-                    if stem == pattern.lower().rstrip("*"):
+                    if isinstance(pattern, str) and stem == pattern.lower().rstrip("*"):
                         return role
 
         for cat, keywords in CATEGORY_PATH_KEYWORDS.items():

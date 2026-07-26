@@ -19,7 +19,7 @@ impl GlobalShortcutManager {
     pub fn new() -> Self {
         Self {
             is_registered: AtomicBool::new(false),
-            target_key: Arc::new(Mutex::new("Alt+F12".to_string())),
+            target_key: Arc::new(Mutex::new("Ctrl+Alt+V".to_string())),
             record_key: Arc::new(Mutex::new("CmdOrCtrl+Shift+R".to_string())),
             app_handle: Arc::new(Mutex::new(None)),
         }
@@ -44,7 +44,7 @@ impl GlobalShortcutManager {
     pub fn set_double_click_interval(&self, _ms: u64) {}
 
     pub fn start_listening(&self) {
-        if self.is_registered.load(Ordering::SeqCst) {
+        if self.is_registered.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
             return;
         }
 

@@ -32,6 +32,8 @@ def _apply_reasoning_patch() -> None:
                 body = json.loads(content)
 
                 is_kimi = "kimi" in url_str.lower() or "moonshot" in url_str.lower()
+                model_name = body.get("model", "").lower()
+                is_deepseek = "deepseek" in url_str.lower() or "thinking" in url_str.lower() or "deepseek" in model_name
 
                 if "messages" in body:
                     modified = False
@@ -39,11 +41,11 @@ def _apply_reasoning_patch() -> None:
                         role = msg.get("role")
 
                         if role == "assistant":
-                            if is_kimi:
+                            if is_kimi or is_deepseek:
                                 val = msg.get("reasoning_content")
 
                                 if not val:
-                                    val = " "
+                                    val = " " if is_kimi else "...."
 
                                 new_msg = {"role": "assistant", "reasoning_content": val}
                                 for k, v in msg.items():

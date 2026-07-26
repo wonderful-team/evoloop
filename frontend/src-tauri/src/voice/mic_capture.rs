@@ -40,10 +40,9 @@ impl MicCapture {
     }
 
     fn find_config(device: &Device) -> Result<(cpal::StreamConfig, u32), String> {
-        // First try default_input_config (simpler, less likely to trigger CoreAudio errors)
-        // Retry up to 3 times with delay to let CoreAudio settle after VoiceProcessingIO.
+        // First try default_input_config (fast path).
         let mut last_err = String::new();
-        for attempt in 1..=3 {
+        for attempt in 1..=2 {
             match device.default_input_config() {
                 Ok(default_config) => {
                     let sample_rate = default_config.sample_rate().0.max(TARGET_SAMPLE_RATE);
@@ -59,13 +58,12 @@ impl MicCapture {
                 Err(e) => {
                     last_err = format!("{}", e);
                     warn!("[mic] default_input_config failed (attempt {}): {}", attempt, last_err);
-                    std::thread::sleep(std::time::Duration::from_millis(200));
+                    std::thread::sleep(std::time::Duration::from_millis(100));
                 }
             }
         }
 
-        // Fallback: enumerate supported configs (may fail on some CoreAudio states)
-        for attempt in 1..=3 {
+        // Fallback: enumerate supported configs (single attempt)
             match device.supported_input_configs() {
                 Ok(mut configs) => {
                     if let Some(cfg) = configs
@@ -83,16 +81,10 @@ impl MicCapture {
                     return Err("No suitable input config found".to_string());
                 }
                 Err(e) => {
-                    last_err = format!("{}", e);
-                    warn!("[mic] failed to enumerate configs (attempt {}): {}", attempt, last_err);
-                    std::thread::sleep(std::time::Duration::from_millis(200));
+                    Err(format!("Failed to enumerate input configs: {}", e))
                 }
             }
-        }
-        Err(format!("Failed to get input configs after 3 retries: {}", last_err))
     }
-
-    /// Start capturing audio. The callback receives f32 samples at 16kHz mono.
     pub fn start<F>(&mut self, callback: F) -> Result<(), String>
     where
         F: FnMut(&[f32]) + Send + 'static,

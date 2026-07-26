@@ -4,6 +4,7 @@ from typing import Annotated
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager
 from app.core.engine.message.native_classes import RunnableConfig
+from app.core.engine.tasks import harvest_concepts_task
 from app.core.tools import evoloop_tool
 from app.core.tools.base import InjectedToolArg
 from app.domain.tools.schemas import ExtractedConcept
@@ -34,23 +35,18 @@ async def save_concepts(
         return "No concepts provided for harvesting."
 
     try:
-        from app.core.engine.tasks import harvest_concepts_task
+        # Normalize: LLM may pass dicts instead of ExtractedConcept objects
+        normalized = []
+        for c in concepts:
+            if isinstance(c, dict):
+                normalized.append({"name": c.get("name", ""), "description": c.get("description", "")})
+            else:
+                normalized.append({"name": c.name, "description": c.description})
 
-        # Convert to list of dicts for Celery
-        concepts_data = [
-            {"name": c.name, "description": c.description}
-            for c in concepts
-        ]
+        harvest_concepts_task.delay(concepts_data=normalized, project_id=project_id)
+        names = [c["name"] for c in normalized]
+        return f"Successfully dispatched harvesting task for {len(normalized)} concepts: {', '.join(names)}"
 
-        # Trigger background task
-        harvest_concepts_task.delay(
-            concepts_data=concepts_data,
-            project_id=project_id,
-        )
-
-        names = [c.name for c in concepts]
-        return f"Successfully dispatched harvesting task for {len(concepts)} concepts: {', '.join(names)}"
-
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
-        logger.error(f"Failed to harvest knowledge: {e}")
-        return f"Error harvesting knowledge: {str(e)}"
+    except Exception:
+        logger.exception("Failed to harvest knowledge")
+        return "Error harvesting knowledge"

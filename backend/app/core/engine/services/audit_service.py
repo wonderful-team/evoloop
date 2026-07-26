@@ -199,8 +199,26 @@ class AuditService:
         # 2. Prepare Audit Messages (Fast Synchronous Context)
         audit_messages = extraction_messages
         if has_structured_input and len(audit_messages) > 25:
-            preserved = audit_messages[:3] + audit_messages[-12:]
-            logger.info(f"[AuditService] 📉 Truncated audit context: {len(audit_messages)} → {len(preserved)} msgs (structured input available)")
+            tail_start = len(audit_messages) - 12
+            while tail_start > 3:
+                first_msg = audit_messages[tail_start]
+                if _role(first_msg) == "tool":
+                    tcid = getattr(first_msg, "tool_call_id", None)
+                    found_parent = False
+                    for p_idx in range(tail_start - 1, 2, -1):
+                        p_msg = audit_messages[p_idx]
+                        if _role(p_msg) == "assistant" and getattr(p_msg, "tool_calls", None):
+                            ids = [tc.get("id") for tc in p_msg.tool_calls if isinstance(tc, dict)]
+                            if tcid in ids:
+                                tail_start = p_idx
+                                found_parent = True
+                                break
+                    if not found_parent:
+                        tail_start += 1
+                else:
+                    break
+            preserved = audit_messages[:3] + audit_messages[tail_start:]
+            logger.info(f"[AuditService] 📉 Truncated audit context (smart slicing): {len(audit_messages)} → {len(preserved)} msgs (tail_start={tail_start})")
             audit_messages = preserved
 
         # Sanitize config: remove callbacks that leak audit to DB/SSE

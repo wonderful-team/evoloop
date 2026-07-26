@@ -40,6 +40,7 @@ class MessageType(str, Enum):
     VOICE_BARGE_IN = "voice.barge_in"
     VOICE_TOKEN = "voice.token"
     VOICE_TTS_BOUNDARY = "voice.tts_boundary"
+    VOICE_TTS_PLAY = "voice.tts_play"
     VOICE_DICTATION_FINALIZE = "voice.dictation.finalize"
     VOICE_DICTATION_POLISHED = "voice.dictation.polished"
 

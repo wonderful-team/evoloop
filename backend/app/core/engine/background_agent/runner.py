@@ -128,17 +128,27 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                         result = await db.execute(stmt)
                         db_messages = result.scalars().all()
                         if db_messages and len(db_messages) > len(current_messages):
-                            # Only include human/assistant messages (skip tool messages that need special fields)
+                            slice_idx = -len(current_messages) if len(current_messages) > 0 else None
+                            history_db_messages = db_messages[:slice_idx] if slice_idx is not None else db_messages
                             history_dicts = []
-                            for m in db_messages:
-                                if m.role in ("human", "assistant", "user", "ai"):
-                                    d = {"role": m.role, "content": m.content or ""}
+                            for m in history_db_messages:
+                                d = {"role": m.role, "content": m.content or ""}
+                                if m.role in ("human", "user"):
+                                    d["role"] = "user"
+                                elif m.role in ("ai", "assistant"):
+                                    d["role"] = "assistant"
                                     if getattr(m, "thinking", None):
                                         d["additional_kwargs"] = {
                                             "thinking": m.thinking,
                                             "reasoning_content": m.thinking,
                                         }
-                                    history_dicts.append(d)
+                                    if getattr(m, "tool_calls", None):
+                                        d["tool_calls"] = m.tool_calls
+                                elif m.role == "tool":
+                                    d["role"] = "tool"
+                                    d["tool_call_id"] = m.tool_call_id
+                                    d["name"] = m.tool_name
+                                history_dicts.append(d)
                             if history_dicts:
                                 history = EvoMessageConverter.repair(history_dicts)
                                 current_messages = history + current_messages

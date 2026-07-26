@@ -199,6 +199,7 @@ class WorkflowSynthesizer:
             ],
             purpose="skill_synthesis",
             model_name=model_name,
+            max_tokens=4000,
         )
         content = response.content
 

@@ -193,6 +193,7 @@ class VoiceInputChannel(InputChannel):
             outcome = await asyncio.wait_for(task, timeout=_MACRO_TIMEOUT)
         except asyncio.TimeoutError:
             await self._push_macro_result(thread_id, "failed", "执行超时")
+            await self._maybe_push_tts(thread_id, "执行超时")
             return
         except asyncio.CancelledError:
             await self._push_macro_result(thread_id, "cancelled", "已取消")
@@ -201,6 +202,7 @@ class VoiceInputChannel(InputChannel):
         status = "done" if outcome.ok else "failed"
         summary = outcome.message or ("完成" if outcome.ok else "执行失败")
         await self._push_macro_result(thread_id, status, summary)
+        await self._maybe_push_tts(thread_id, summary)
 
     async def _push_macro_result(self, thread_id: str, status: str, summary: str) -> None:
         """推 voice.route_result，复用 Rust 现有的 done/failed/cancelled 处理分支。"""
@@ -217,6 +219,7 @@ class VoiceInputChannel(InputChannel):
         if action == "ack":
             logger.info("[voice-input] ack for thread %s (no-op)", thread_id)
             await self._push_local_result(thread_id, action, args)
+            await self._maybe_push_tts(thread_id, "好的")
         elif action == "cancel":
             if self._worker_registry is not None:
                 cancelled = await self._worker_registry.cancel_worker(thread_id)
@@ -225,6 +228,7 @@ class VoiceInputChannel(InputChannel):
                     logger.info("[voice-input] cancel: worker cancelled for thread %s", thread_id)
                     return
             await self._push_macro_result(thread_id, "done", "没有正在执行的任务")
+            await self._maybe_push_tts(thread_id, "没有正在执行的任务")
             logger.info("[voice-input] cancel: no running worker for thread %s", thread_id)
         elif action == "rename":
             name = args.get("name", "")
@@ -233,9 +237,20 @@ class VoiceInputChannel(InputChannel):
                 await shared_state.set("agent_name", name)
                 logger.info("[voice-input] rename to %s for thread %s", name, thread_id)
             await self._push_local_result(thread_id, action, args)
+            await self._maybe_push_tts(thread_id, f"好的，以后叫我{name}" if name else "好的")
         else:
             # end / clarify
             await self._push_local_result(thread_id, action, args)
+            await self._maybe_push_tts(thread_id, "好的")
+
+    async def _maybe_push_tts(self, thread_id: str, text: str) -> None:
+        """推 voice.tts_play 给 Rust，Seeduplex 活跃时合成 TTS。
+        
+        Rust 侧的 handle_route_result 会在 Seeduplex 活跃时跳过 TTS 播放，
+        由本消息触发 Seeduplex ChatTTSText 合成语音。
+        """
+        from app.core.routing.executor import push_tts_text
+        await push_tts_text(thread_id, text)
 
     async def _push_local_result(self, thread_id: str, action: str, args: Any) -> None:
         """Push an L0 local result back to the voice WS."""

@@ -93,3 +93,18 @@ async def push_voice_tts_boundary(thread_id: str, text: str, _index: int) -> Non
         await manager.push(thread_id, env)
     else:
         await manager.push(thread_id, body)
+
+
+async def push_tts_text(thread_id: str, text: str) -> None:
+    """推文本给 Rust 侧 Seeduplex 客户端合成 TTS（voice.tts_play）。
+
+    用于 Seeduplex 模式下将 L0 执行结果或 Agent 回复文本注入模型合成语音。
+    """
+    if manager is None:
+        return
+    body = {"thread_id": thread_id, "text": text}
+    if envelope_fn and message_type:
+        env = envelope_fn(message_type.VOICE_TTS_PLAY, body)
+        await manager.push(thread_id, env)
+    else:
+        await manager.push(thread_id, body)

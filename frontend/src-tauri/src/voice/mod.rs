@@ -10,6 +10,7 @@ pub mod state_machine;
 pub mod voice_session;
 pub mod offline_asr;
 pub mod event;
+pub mod seeduplex_client;
 
 pub use ws_client::VoiceWsClient;
 pub use voice_session::VoiceSession;

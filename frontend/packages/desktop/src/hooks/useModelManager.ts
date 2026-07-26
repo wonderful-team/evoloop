@@ -76,7 +76,7 @@ export function useModelManager() {
                     status: data.status,
                     progress: data.progress,
                     downloaded: data.status === "completed",
-                    available: data.status === "completed" || m.id === "kokoro",
+                    available: data.status === "completed",
                   }
                 : m,
             ),

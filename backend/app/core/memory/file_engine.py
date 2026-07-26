@@ -96,10 +96,8 @@ class _FileEngine:
                     id_idx[entry.id] = (path, MemoryCategory(dir_path.name))
                     if entry.content_hash:
                         hash_idx[entry.content_hash] = entry.id
-                except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as exc:
-                    logger.debug(
-                        f"[FileEngine] Skipping corrupted file {path.name}: {exc}"
-                    )
+                except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
+                    logger.debug(f"[FileEngine] Skipping corrupted file {path.name}: {exc}")
                     continue
 
         def _scan():
@@ -116,9 +114,7 @@ class _FileEngine:
         loop = asyncio.get_running_loop()
         self._id_index, self._hash_index = await loop.run_in_executor(None, _scan)
         elapsed = (time.time() - start_time) * 1000
-        logger.debug(
-            f"[FileEngine] ID index built: {len(self._id_index)} entries in {elapsed:.1f}ms"
-        )
+        logger.debug(f"[FileEngine] ID index built: {len(self._id_index)} entries in {elapsed:.1f}ms")
 
     async def _rebuild_index(self) -> None:
         await self._db_clear()
@@ -127,7 +123,7 @@ class _FileEngine:
                 text = path.read_text(encoding="utf-8")
                 entry = MemoryEntry.from_frontmatter(text, str(path))
                 await self._db_upsert(entry, str(path))
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as exc:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
                 logger.warning(f"[FileEngine] Failed to index {path}: {exc}")
 
     def _determine_category(self, entry: MemoryEntry) -> MemoryCategory:
@@ -201,14 +197,10 @@ class _FileEngine:
             await self._build_memory_id_index()
             db_count = await self._db_get_count()
             if db_count == 0 and len(self._id_index) > 0:
-                logger.info(
-                    f"[FileEngine] Index empty but {len(self._id_index)} files found. Rebuilding..."
-                )
+                logger.info(f"[FileEngine] Index empty but {len(self._id_index)} files found. Rebuilding...")
                 await self._rebuild_index()
             self._initialized = True
-            logger.info(
-                f"[FileEngine] Initialized ({len(self._id_index)} entries)"
-            )
+            logger.info(f"[FileEngine] Initialized ({len(self._id_index)} entries)")
 
     async def close(self) -> None:
         self._db_initialized = False
@@ -237,9 +229,7 @@ class _FileEngine:
             if entry.content_hash in self._hash_index:
                 existing_id = self._hash_index[entry.content_hash]
                 if existing_id != entry.id:
-                    logger.info(
-                        f"[FileEngine] Duplicate hash {entry.content_hash[:8]} (ID: {existing_id}). Skipping."
-                    )
+                    logger.info(f"[FileEngine] Duplicate hash {entry.content_hash[:8]} (ID: {existing_id}). Skipping.")
                     return
 
             path, category = self._get_storage_path(entry)
@@ -250,9 +240,7 @@ class _FileEngine:
             else:
                 entry.updated_at = datetime.utcnow()
                 content = entry.to_frontmatter()
-                await asyncio.to_thread(
-                    path.write_text, content, encoding="utf-8"
-                )
+                await asyncio.to_thread(path.write_text, content, encoding="utf-8")
 
             self._id_index[entry.id] = (path, category)
             self._hash_index[entry.content_hash] = entry.id
@@ -294,9 +282,7 @@ class _FileEngine:
             logger.info(f"[FileEngine] Deleted {entry_id}")
             return True
 
-    async def find_by_hash(
-        self, content_hash: str, project_id: int | None = None
-    ) -> MemoryEntry | None:
+    async def find_by_hash(self, content_hash: str, project_id: int | None = None) -> MemoryEntry | None:
         if not self._initialized:
             await self.initialize()
         entry_id = self._hash_index.get(content_hash)
@@ -342,7 +328,7 @@ class _FileEngine:
                 ctx = ContextManager.current()
                 if ctx and ctx.member_id is not None:
                     sql_filters["member_id"] = ctx.member_id
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
                 logger.debug("Suppressed error: %s", e, exc_info=True)
 
         if query:
@@ -418,9 +404,7 @@ class _FileEngine:
             )
         return results
 
-    async def get_recent(
-        self, count: int = 5, project_id: int | None = None
-    ) -> list[MemoryEntry]:
+    async def get_recent(self, count: int = 5, project_id: int | None = None) -> list[MemoryEntry]:
         if not self._initialized:
             await self.initialize()
         filters = {"project_id": project_id} if project_id is not None else {}
@@ -432,9 +416,7 @@ class _FileEngine:
                 results.append(entry)
         return results
 
-    async def find_by_source_message_ids(
-        self, message_ids: list[str]
-    ) -> list[MemoryEntry]:
+    async def find_by_source_message_ids(self, message_ids: list[str]) -> list[MemoryEntry]:
         if not self._initialized:
             await self.initialize()
         results: list[MemoryEntry] = []
@@ -462,14 +444,14 @@ class _FileEngine:
                 backend="_FileEngine (Hybrid)",
                 entry_count=db_count,
             )
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as exc:
+        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
             return StorageHealthCheck(
-                status="unhealthy", backend="_FileEngine (Hybrid)", error=str(exc)
+                status="unhealthy",
+                backend="_FileEngine (Hybrid)",
+                error=str(exc)
             )
 
-    async def deduplicate_checkpoints(
-        self, dry_run: bool = True
-    ) -> CheckpointDedupResult:
+    async def deduplicate_checkpoints(self, dry_run: bool = True) -> CheckpointDedupResult:
         candidates = await self.list_all(type_filter=MemoryType.PROJECT)
         checkpoints = []
         for c in candidates:
@@ -519,14 +501,10 @@ class _FileEngine:
     ) -> list[MemoryEntry]:
         return []
 
-    async def link_concept_to_episode(
-        self, concept_name: str, episode_id: str
-    ) -> None:
+    async def link_concept_to_episode(self, concept_name: str, episode_id: str) -> None:
         return
 
-    async def find_episodes_by_concept(
-        self, concept_name: str, limit: int = 10
-    ) -> list[dict[str, Any]]:
+    async def find_episodes_by_concept(self, concept_name: str, limit: int = 10) -> list[dict[str, Any]]:
         return []
 
     async def get_all_concept_counts(self) -> dict[str, int]:

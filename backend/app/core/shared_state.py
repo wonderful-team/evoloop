@@ -37,6 +37,8 @@ class SharedState:
                 "TTS_VOICE": "zh-CN-XiaoxiaoNeural",
                 "TTS_SPEED": "1.0",
                 "QWEN_TTS_API_KEY": "",
+                "SEEDUPLEX_APP_ID": "",
+                "SEEDUPLEX_ACCESS_KEY": "",
             }
             cls._instance._lock = asyncio.Lock()
             cls._instance._handlers: dict[str, list[callable]] = {}

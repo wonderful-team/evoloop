@@ -111,10 +111,10 @@ export function useTauriVoiceShortcutSettings() {
   const [shortcutKey, setShortcutKeyState] = useState(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("evoloop_voice_shortcut_key")
-      if (stored && stored !== "F10") return stored
-      return "Alt+F12"
+      if (stored && stored !== "F10" && stored !== "Alt+F12" && stored !== "F8" && stored !== "Alt+V") return stored
+      return "Ctrl+Alt+V"
     }
-    return "Alt+F12"
+    return "Ctrl+Alt+V"
   })
 
   const [longPressThreshold, setLongPressThresholdState] = useState(() => {

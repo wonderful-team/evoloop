@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 _ROLE_MAP = {
     "user": "human",
     "assistant": "ai",
+    "ai": "ai",
+    "human": "human",
     "system": "system",
     "tool": "tool",
 }

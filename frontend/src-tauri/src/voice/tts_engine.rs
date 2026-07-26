@@ -37,7 +37,6 @@ pub enum TtsEngineKind {
     EdgeTts,
     QwenTts,
     CosyVoice,
-    Kokoro,
 }
 
 impl TtsEngineKind {
@@ -46,7 +45,6 @@ impl TtsEngineKind {
             "edge" | "edge-tts" | "edgetts" => TtsEngineKind::EdgeTts,
             "qwen" | "qwen-tts" | "qwents" => TtsEngineKind::QwenTts,
             "cosyvoice" | "cosy-voice" | "cosy" => TtsEngineKind::CosyVoice,
-            "kokoro" => TtsEngineKind::Kokoro,
             _ => TtsEngineKind::System,
         }
     }
@@ -57,7 +55,6 @@ impl TtsEngineKind {
             TtsEngineKind::EdgeTts => "edge-tts",
             TtsEngineKind::QwenTts => "qwen-tts",
             TtsEngineKind::CosyVoice => "cosyvoice",
-            TtsEngineKind::Kokoro => "kokoro",
         }
     }
 }
@@ -73,6 +70,7 @@ pub struct TtsEngine {
     voice_name: Arc<Mutex<String>>,
     speed: Arc<Mutex<f32>>,
     afplay_child: Arc<Mutex<Option<std::process::Child>>>,
+    current_text: Arc<Mutex<Option<String>>>,
 }
 
 impl TtsEngine {
@@ -88,6 +86,7 @@ impl TtsEngine {
             voice_name: Arc::new(Mutex::new("zh-CN-XiaoxiaoNeural".to_string())),
             speed: Arc::new(Mutex::new(1.0)),
             afplay_child: Arc::new(Mutex::new(None)),
+            current_text: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -125,7 +124,16 @@ impl TtsEngine {
     #[cfg(target_os = "macos")]
     fn speak_system(&self, text: &str, lang: &str) {
         self.speaking.store(true, Ordering::SeqCst);
-        info!("[tts] system speak: {}...", &text[..text.len().min(50)]);
+        info!("[tts] system speak: {}...", text.chars().take(50).collect::<String>());
+        if cfg!(test) {
+            // In tests, mark as not speaking after a short delay (no actual say)
+            let speaking = self.speaking.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                speaking.store(false, Ordering::SeqCst);
+            });
+            return;
+        }
         let speed = self.get_speed();
         let speaking = self.speaking.clone();
         let text = text.to_string();
@@ -163,7 +171,8 @@ impl TtsEngine {
 
     fn speak_edge(&self, text: &str, _lang: &str) {
         self.speaking.store(true, Ordering::SeqCst);
-        info!("[tts] edge-tts: {}...", &text[..text.len().min(50)]);
+        let preview: String = text.chars().take(50).collect();
+        info!("[tts] edge-tts: {}...", preview);
         let speaking = self.speaking.clone();
         let text = text.to_string();
         let lang_str = _lang.to_string();
@@ -224,7 +233,7 @@ impl TtsEngine {
 
     fn speak_qwen(&self, text: &str, _lang: &str) {
         self.speaking.store(true, Ordering::SeqCst);
-        info!("[tts] qwen-tts: {}...", &text[..text.len().min(50)]);
+        info!("[tts] qwen-tts: {}...", text.chars().take(50).collect::<String>());
         let speaking = self.speaking.clone();
         let text = text.to_string();
         let lang_str = _lang.to_string();
@@ -259,7 +268,7 @@ impl TtsEngine {
 
     fn speak_cosyvoice(&self, text: &str, _lang: &str) {
         self.speaking.store(true, Ordering::SeqCst);
-        info!("[tts] cosyvoice: {}...", &text[..text.len().min(50)]);
+        info!("[tts] cosyvoice: {}...", text.chars().take(50).collect::<String>());
         let speaking = self.speaking.clone();
         let text = text.to_string();
         let lang_str = _lang.to_string();
@@ -291,41 +300,6 @@ impl TtsEngine {
         });
     }
 
-    fn speak_kokoro(&self, text: &str, _lang: &str) {
-        self.speaking.store(true, Ordering::SeqCst);
-        info!("[tts] kokoro: {}...", &text[..text.len().min(50)]);
-        let speaking = self.speaking.clone();
-        let text = text.to_string();
-        let lang_str = _lang.to_string();
-        let engine_clone = self.clone();
-        let voice = self.get_voice();
-        let afplay_child = self.afplay_child.clone();
-
-        let cache_key = _tts_cache_key(&text, "kokoro", &voice, engine_clone.get_speed());
-        let cache_path = _tts_cache_dir().join(format!("{}.wav", &cache_key));
-
-        tokio::spawn(async move {
-            let audio_bytes = match fetch_backend_tts(&text, "kokoro").await {
-                Ok(b) => b,
-                Err(e) => {
-                    warn!("[tts] Kokoro failed: {}", e);
-                    speaking.store(false, Ordering::SeqCst);
-                    return;
-                }
-            };
-            let tmp = std::env::temp_dir().join(format!("evoloop_kokoro_{}.wav", uuid::Uuid::new_v4()));
-            if let Err(e) = tokio::fs::write(&tmp, &audio_bytes).await {
-                warn!("[tts] Kokoro tmp write failed: {}", e);
-                speaking.store(false, Ordering::SeqCst);
-                return;
-            }
-            let _ = std::fs::rename(&tmp, &cache_path);
-            let _ = play_audio(&cache_path, &afplay_child);
-            speaking.store(false, Ordering::SeqCst);
-            engine_clone.speak_next(&lang_str);
-        });
-    }
-
     #[cfg(target_os = "macos")]
     pub fn speak(&self, text: &str, lang: &str) {
         if text.is_empty() { return; }
@@ -337,7 +311,7 @@ impl TtsEngine {
         let cache_key = _tts_cache_key(text, engine.as_str(), &voice, speed);
         let cache_path = _tts_cache_dir().join(format!("{}.{}", cache_key, _tts_cache_ext(engine)));
         if cache_path.exists() {
-            info!("[tts] cache hit: {} (key={})", &text[..text.len().min(50)], cache_key);
+            info!("[tts] cache hit: {} (key={})", text.chars().take(50).collect::<String>(), cache_key);
             self.speaking.store(true, Ordering::SeqCst);
             let speaking = self.speaking.clone();
             let path = cache_path;
@@ -357,7 +331,6 @@ impl TtsEngine {
             TtsEngineKind::EdgeTts => self.speak_edge(text, lang),
             TtsEngineKind::QwenTts => self.speak_qwen(text, lang),
             TtsEngineKind::CosyVoice => self.speak_cosyvoice(text, lang),
-            TtsEngineKind::Kokoro => self.speak_kokoro(text, lang),
         }
     }
 
@@ -380,6 +353,9 @@ impl TtsEngine {
             if let Some(sentence) = q.first().cloned() {
                 q.remove(0);
                 drop(q);
+                if let Ok(mut cur) = self.current_text.lock() {
+                    *cur = Some(sentence.clone());
+                }
                 self.speak(&sentence, lang);
             }
         }
@@ -394,6 +370,9 @@ impl TtsEngine {
         }
         if let Ok(mut q) = self.audio_queue.lock() {
             q.clear();
+        }
+        if let Ok(mut cur) = self.current_text.lock() {
+            *cur = None;
         }
         // Kill any running playback process (afplay / say) so audio stops immediately
         if let Ok(mut child) = self.afplay_child.lock() {
@@ -428,6 +407,22 @@ impl TtsEngine {
         } else {
             false
         }
+    }
+
+    /// Check whether a given text is already in the sentence queue.
+    /// Used to deduplicate routed vs done events that carry the same summary.
+    pub fn has_queued_text(&self, text: &str) -> bool {
+        if let Ok(q) = self.sentence_queue.lock() {
+            if q.iter().any(|s| s.trim() == text.trim()) {
+                return true;
+            }
+        }
+        if let Ok(cur) = self.current_text.lock() {
+            if let Some(ref current) = *cur {
+                return current.trim() == text.trim();
+            }
+        }
+        false
     }
 }
 
@@ -599,37 +594,6 @@ async fn speak_cosyvoice_tts(text: &str) -> Result<(), String> {
     let _ = play_audio(&path, &afplay_child);
     let _ = std::fs::remove_file(&path);
     Ok(())
-}
-
-async fn speak_kokoro_tts(text: &str, voice: &str) -> Result<(), String> {
-    let final_voice = if voice.is_empty() { "zf_xiaobei" } else { voice };
-    let bytes = fetch_backend_tts_with_voice(text, "kokoro", &final_voice).await?;
-    let path = std::env::temp_dir().join(format!("evoloop_kokoro_{}.wav", uuid::Uuid::new_v4()));
-    std::fs::write(&path, &bytes).map_err(|e| format!("Kokoro write failed: {}", e))?;
-    let afplay_child: Arc<Mutex<Option<std::process::Child>>> = Arc::new(Mutex::new(None));
-    let _ = play_audio(&path, &afplay_child);
-    let _ = std::fs::remove_file(&path);
-    Ok(())
-}
-
-async fn fetch_backend_tts_with_voice(text: &str, engine: &str, voice: &str) -> Result<Vec<u8>, String> {
-    let backend_port = crate::sidecar::BACKEND_PORT;
-    let url = format!("http://127.0.0.1:{}/api/v1/voice/tts", backend_port);
-    let client = reqwest::Client::new();
-    let resp = client
-        .post(&url)
-        .json(&serde_json::json!({"text": text, "engine": engine, "voice": voice}))
-        .send()
-        .await
-        .map_err(|e| format!("{}/TTS request failed: {}", engine, e))?;
-    if !resp.status().is_success() {
-        return Err(format!("{}/TTS API error: {}", engine, resp.status()));
-    }
-    let bytes = resp.bytes().await.map_err(|e| format!("{}/TTS read failed: {}", engine, e))?;
-    if bytes.is_empty() {
-        return Err(format!("{}/TTS returned empty audio", engine));
-    }
-    Ok(bytes.to_vec())
 }
 
 #[cfg(test)]

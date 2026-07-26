@@ -4,6 +4,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@evoloop/shared/components/ui/collapsible"
+import { Input } from "@evoloop/shared/components/ui/input"
 import { Label } from "@evoloop/shared/components/ui/label"
 import { Switch } from "@evoloop/shared/components/ui/switch"
 import { cn } from "@evoloop/shared/lib/utils"
@@ -17,10 +18,10 @@ import {
   Loader2,
   Mic,
   MousePointerClick,
-  Power,
-  Zap,
+  Radio,
+  Volume2,
 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { useModelManager } from "@/hooks/useModelManager"
@@ -57,6 +58,11 @@ export function VoiceControlSettings() {
     useState(longPressThreshold)
   const [tempShortcutEnabled, setTempShortcutEnabled] = useState(se)
 
+  // ── Seeduplex state (declared early to avoid TDZ in useEffects below) ────
+  const [tempSeeduplexAppId, setTempSeeduplexAppId] = useState("")
+  const [tempSeeduplexAccessKey, setTempSeeduplexAccessKey] = useState("")
+  const [seeduplexConnected, setSeeduplexConnected] = useState(false)
+
   const [isSupported, setIsSupported] = useState(true)
   const [isTauri, setIsTauri] = useState(false)
   const { models, startDownload } = useModelManager()
@@ -71,12 +77,26 @@ export function VoiceControlSettings() {
 
   const fetchSTTConfig = async () => {
     try {
+      // Fetch current Seeduplex config values from backend
+      let seeduplexAppId = ""
+      let seeduplexAccessKey = ""
+      try {
+        const { SystemService } = await import("@/client")
+        const configs = await SystemService.getSystemConfig()
+        for (const c of Array.isArray(configs) ? configs : []) {
+          if (c.key === "SEEDUPLEX_APP_ID") seeduplexAppId = c.value ?? ""
+          if (c.key === "SEEDUPLEX_ACCESS_KEY") seeduplexAccessKey = c.value ?? ""
+        }
+      } catch { /* not critical */ }
+
       const state = {
         wakeWord,
         wakeWordEnabled,
         shortcutKey: sk,
         longPressThreshold,
         shortcutEnabled: se,
+        seeduplexAppId,
+        seeduplexAccessKey,
       }
 
       setTempWakeWord(wakeWord)
@@ -84,6 +104,8 @@ export function VoiceControlSettings() {
       setTempShortcutKey(sk)
       setTempLongPressThreshold(longPressThreshold)
       setTempShortcutEnabled(se)
+      setTempSeeduplexAppId(seeduplexAppId)
+      setTempSeeduplexAccessKey(seeduplexAccessKey)
 
       setInitialState(state)
     } catch (error) {
@@ -103,7 +125,9 @@ export function VoiceControlSettings() {
       tempWakeWordEnabled !== initialState.wakeWordEnabled ||
       tempShortcutKey !== initialState.shortcutKey ||
       tempLongPressThreshold !== initialState.longPressThreshold ||
-      tempShortcutEnabled !== initialState.shortcutEnabled
+      tempShortcutEnabled !== initialState.shortcutEnabled ||
+      tempSeeduplexAppId !== (initialState.seeduplexAppId ?? "") ||
+      tempSeeduplexAccessKey !== (initialState.seeduplexAccessKey ?? "")
 
     setComponentDirty("voice", isDirty)
   }, [
@@ -112,6 +136,8 @@ export function VoiceControlSettings() {
     tempShortcutKey,
     tempLongPressThreshold,
     tempShortcutEnabled,
+    tempSeeduplexAppId,
+    tempSeeduplexAccessKey,
     initialState,
     setComponentDirty,
   ])
@@ -130,7 +156,33 @@ export function VoiceControlSettings() {
 
   // Register handlers
   useEffect(() => {
-    registerSaveHandler("voice", () => Promise.resolve())
+    registerSaveHandler("voice", async () => {
+      // Save Seeduplex credentials via SystemService (same pattern as TTSSettings)
+      if (tempSeeduplexAppId || tempSeeduplexAccessKey) {
+        try {
+          const { SystemService } = await import("@/client")
+          const tasks: Promise<any>[] = []
+          if (tempSeeduplexAppId) {
+            tasks.push(
+              SystemService.updateSystemConfig({
+                requestBody: { key: "SEEDUPLEX_APP_ID", value: tempSeeduplexAppId },
+              }),
+            )
+          }
+          if (tempSeeduplexAccessKey) {
+            tasks.push(
+              SystemService.updateSystemConfig({
+                requestBody: { key: "SEEDUPLEX_ACCESS_KEY", value: tempSeeduplexAccessKey },
+              }),
+            )
+          }
+          await Promise.all(tasks)
+        } catch (err) {
+          console.error("Failed to save Seeduplex config:", err)
+          throw err
+        }
+      }
+    })
     registerResetHandler("voice", () => fetchSTTConfig())
     return () => unregisterSaveHandler("voice")
   }, [
@@ -138,11 +190,12 @@ export function VoiceControlSettings() {
     unregisterSaveHandler,
     registerResetHandler,
     tempWakeWord,
-    tempWakeWord,
     tempWakeWordEnabled,
     tempShortcutKey,
     tempLongPressThreshold,
     tempShortcutEnabled,
+    tempSeeduplexAppId,
+    tempSeeduplexAccessKey,
     initialState,
   ])
 
@@ -179,6 +232,31 @@ export function VoiceControlSettings() {
       setTauriLongPressThreshold(tempLongPressThreshold).catch(console.error)
     }
   }, [isTauri, tempShortcutKey, tempLongPressThreshold, tempShortcutEnabled])
+
+  // ── Seeduplex init ────────────────────────────────────────────
+  useEffect(() => {
+    // Listen for Seeduplex connection status from Tauri events
+    let unlisten: (() => void) | undefined
+    const setup = async () => {
+      try {
+        const { listen } = await import("@tauri-apps/api/event")
+        const unsub = await listen<{ connected: boolean }>("seeduplex:status", (e) => {
+          setSeeduplexConnected(e.payload?.connected === true)
+        })
+        unlisten = unsub
+
+        // Listen for voice errors (e.g., mic not available)
+        const unsubErr = await listen<{ message: string; code?: string }>("voice:error", (e) => {
+          toast.error(e.payload.message || "麦克风不可用")
+        })
+        // Combine cleanup functions
+        const orig = unlisten
+        unlisten = () => { orig?.(); unsubErr(); }
+      } catch { /* not in Tauri context */ }
+    }
+    setup()
+    return () => { if (unlisten) unlisten() }
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -240,6 +318,49 @@ export function VoiceControlSettings() {
                       )
                     })()}
                   </div>
+                </div>
+              </div>
+            </SettingsCard>
+
+            {/* Seeduplex Section */}
+            <SettingsCard
+              icon={Radio}
+              title="火山引擎 Seeduplex"
+              description="端到端语音大模型（替代 ASR+TTS，需 API Key）"
+            >
+              <div className="space-y-4">
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">App ID</Label>
+                  <Input
+                    value={tempSeeduplexAppId}
+                    onChange={(e) => setTempSeeduplexAppId(e.target.value)}
+                    placeholder="从火山引擎控制台获取"
+                    className="font-mono text-xs"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">Access Key</Label>
+                  <Input
+                    type="password"
+                    value={tempSeeduplexAccessKey}
+                    onChange={(e) => setTempSeeduplexAccessKey(e.target.value)}
+                    placeholder="从火山引擎控制台获取"
+                    className="font-mono text-xs"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1 text-xs",
+                      seeduplexConnected ? "text-green-600" : "text-muted-foreground",
+                    )}
+                  >
+                    <span className={cn(
+                      "h-2 w-2 rounded-full",
+                      seeduplexConnected ? "bg-green-500" : "bg-gray-300",
+                    )} />
+                    {seeduplexConnected ? "已连接" : "未连接（保存后生效）"}
+                  </span>
                 </div>
               </div>
             </SettingsCard>

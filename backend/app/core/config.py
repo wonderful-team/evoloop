@@ -468,9 +468,9 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _setup_external_env(self) -> Self:
         """Set environment variables for external libraries (ModelScope, HuggingFace)."""
-        os.environ["MODELSCOPE_CACHE"] = self.MODELS_DIR
-        # Lightning GGUF models directory
         if self.MODELS_DIR:
+            os.environ["MODELSCOPE_CACHE"] = self.MODELS_DIR
+            os.environ["HF_HOME"] = os.path.join(self.MODELS_DIR, ".cache", "huggingface")
             gguf_dir = os.path.join(self.MODELS_DIR, "gguf")
             os.makedirs(gguf_dir, exist_ok=True)
             os.environ["LIGHTNING_GGUF_DIR"] = gguf_dir

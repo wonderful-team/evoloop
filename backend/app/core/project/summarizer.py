@@ -8,6 +8,7 @@ from app.core import file as file_utils
 from app.core.evocloud import evocloud_manager
 from app.core.monitoring.activity import activity_monitor
 from app.core.project.service import project_context_manager
+from app.core.project.utils import write_project_json
 from app.infrastructure.queue.factory import get_scheduler, shared_task
 from app.utils.async_utils import flush_loop_bound_resources
 from app.utils.json import dumps
@@ -148,7 +149,7 @@ async def _summarize_project_logic(name: str, path: str, module_graph: str = "")
         from app.core.hitl.policies import DEFAULT_SENSITIVE_PATTERNS
         result.setdefault("sensitive_patterns", DEFAULT_SENSITIVE_PATTERNS)
         result.setdefault("authorized_paths", [])
-        file_utils.write_file(meta_file, dumps(result, indent=2))
+        write_project_json(path, result)
 
         logger.info(f"[ProjectSummarizer] Saved metadata for {name}: {result}")
 

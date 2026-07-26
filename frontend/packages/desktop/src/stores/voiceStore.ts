@@ -46,16 +46,27 @@ export const useVoiceStore = create<VoiceStoreState>((set) => ({
   ttsSpeaking: false,
   ttsLoading: false,
 
-  setVoiceMode: (voiceMode) => set({ voiceMode }),
+  setVoiceMode: (voiceMode) => {
+    if (voiceMode !== "off" && typeof window !== "undefined") {
+      localStorage.setItem("evoloop_preferred_voice_mode", voiceMode)
+    }
+    set({ voiceMode })
+  },
   cycleVoiceMode: () =>
-    set((s) => ({
-      voiceMode:
-        s.voiceMode === "off"
-          ? "dictation"
-          : s.voiceMode === "dictation"
-            ? "dialogue"
-            : "off",
-    })),
+    set((s) => {
+      if (s.voiceMode !== "off") {
+        return { voiceMode: "off" }
+      } else {
+        let preferred: VoiceMode = "dialogue"
+        if (typeof window !== "undefined") {
+          const stored = localStorage.getItem("evoloop_preferred_voice_mode")
+          if (stored === "dictation" || stored === "dialogue") {
+            preferred = stored
+          }
+        }
+        return { voiceMode: preferred }
+      }
+    }),
   setVoiceState: (voiceState) => set({ voiceState }),
   setPartialText: (partialText) => set({ partialText }),
   setRouteResult: (routeResult) => set({ routeResult }),

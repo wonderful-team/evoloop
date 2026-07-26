@@ -45,7 +45,8 @@ class VoiceChannel(Channel):
     accepts_blocks = True
     accepts_stream_events = True
 
-    # Per-thread token buffer for sentence-level segmenting
+    # Per-thread dedup for routed ack messages
+    _routed_texts: dict[str, set[str]] = {}
     _token_buffers: dict[str, str] = {}
     _streamed_texts: dict[str, str] = {}
     _SENTENCE_BOUNDARIES = "。！？.!?\n…"
@@ -81,6 +82,7 @@ class VoiceChannel(Channel):
             if any(ch in self._SENTENCE_BOUNDARIES for ch in token):
                 stripped = _md_clean(buf.strip())
                 if stripped:
+                    logger.info("[VoiceChannel] streaming tts_boundary: %s...", stripped[:40])
                     try:
                         await voice_executor.push_voice_tts_boundary(tid, stripped, 0)
                     except Exception as exc:
@@ -101,6 +103,15 @@ class VoiceChannel(Channel):
                 streamed = self._streamed_texts.get(tid, "").strip()
                 summary = "" if streamed else _md_clean(payload.content)
 
+                # Dedup: skip if same text already routed for this thread
+                tid_set = self._routed_texts.setdefault(tid, set())
+                clean_summary = summary.replace(" ", "").replace("\n", "")
+                if clean_summary and clean_summary in tid_set:
+                    logger.info("[VoiceChannel] ack dedup: already routed for %s", tid)
+                    return
+                if clean_summary:
+                    tid_set.add(clean_summary)
+
                 try:
                     await voice_executor.push_voice_result(tid, "routed", summary)
                 except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
@@ -109,6 +120,8 @@ class VoiceChannel(Channel):
 
         # ── Terminal success ──────────────────────────────────────────
         if isinstance(payload, SessionCompletedEvent):
+            # Clear routed dedup for this thread
+            self._routed_texts.pop(payload.thread_id, None)
             data = payload.data
             if not data or data.source != "voice":
                 return
@@ -133,13 +146,16 @@ class VoiceChannel(Channel):
             streamed_text = self._streamed_texts.pop(thread_id, "")
             clean_push = push_text.strip().replace(" ", "").replace("\n", "")
             clean_streamed = streamed_text.strip().replace(" ", "").replace("\n", "")
+            logger.info("[VoiceChannel] done: push_text=%r, streamed_text=%r", push_text[:60] if push_text else "", streamed_text[:60] if streamed_text else "")
             if clean_push and clean_push in clean_streamed:
+                logger.info("[VoiceChannel] done: push_text already streamed, clearing to avoid duplicate TTS")
                 push_text = ""
 
             final_text = _md_clean(push_text)
 
             t0 = time.time()
             started_at = data.duration_ms or 0
+            logger.info("[voice-route-result] %s status=done summary=%r", thread_id, final_text[:60] if final_text else "")
             try:
                 await voice_executor.push_voice_result(thread_id, "done", final_text)
                 elapsed = (time.time() - t0) * 1000
@@ -160,6 +176,7 @@ class VoiceChannel(Channel):
             thread_id = payload.thread_id
             self._token_buffers.pop(thread_id, None)
             self._streamed_texts.pop(thread_id, None)
+            self._routed_texts.pop(thread_id, None)
             summary = payload.payload.get("summary") or payload.payload.get("outcome") or ""
             try:
                 await voice_executor.push_voice_result(thread_id, "failed", summary)

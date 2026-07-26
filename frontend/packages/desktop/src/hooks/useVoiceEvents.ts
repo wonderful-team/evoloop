@@ -104,7 +104,12 @@ export function useVoiceEvents() {
         }).catch((e) => {
           console.error("[voice] start failed:", e)
           setVoiceMode("off")
-          toast.error(String(e))
+          const errMsg = String(e)
+          if (errMsg.includes("麦克风") || errMsg.includes("input config") || errMsg.includes("mic")) {
+            toast.error("麦克风不可用，请检查蓝牙耳机或麦克风是否已连接")
+          } else {
+            toast.error(errMsg)
+          }
         })
       }
     }
@@ -193,6 +198,13 @@ export function useVoiceEvents() {
         ) {
           clearTokenBuffer()
         }
+      }),
+    )
+
+    unlisteners.push(
+      await safeListen<{ message: string; code?: string }>("voice:error", (event) => {
+        console.error("[voice] voice:error event:", event.payload)
+        toast.error(event.payload.message)
       }),
     )
 

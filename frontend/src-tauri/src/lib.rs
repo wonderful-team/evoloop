@@ -329,9 +329,12 @@ fn spawn_voice_manager(model_search_paths: Vec<std::path::PathBuf>) -> VoiceMana
                         let res = match qwen3_dir {
                             Some(dir) => session.init_engines(
                                 &vad_model_path, vad_silence_ms,
-                                &dir.to_string_lossy(),
+                                Some(&dir.to_string_lossy()),
                             ).await,
-                            None => Err("Qwen3 ASR model not found".to_string()),
+                            None => session.init_engines(
+                                &vad_model_path, vad_silence_ms,
+                                None,
+                            ).await,
                         };
                         let _ = respond.send(res);
                     }
@@ -672,7 +675,7 @@ async fn speak_direct(text: &str, engine: &str, voice: &str) -> Result<(), Strin
             let voice_name = if voice.is_empty() { "Cherry" } else { voice };
             crate::voice::tts_engine::speak_qwen_tts(text, &voice_name).await
         }
-        "kokoro" | "cosyvoice" => {
+        "cosyvoice" => {
             let backend_port = crate::sidecar::BACKEND_PORT;
             let url = format!("http://127.0.0.1:{}/api/v1/voice/tts", backend_port);
             let client = reqwest::Client::new();
@@ -1102,9 +1105,9 @@ pub fn run() {
         {
             let quit_i = MenuItem::with_id(_app, "quit", "退出", true, Some("CmdOrCtrl+Q"))?;
             let show_i = MenuItem::with_id(_app, "show", "显示主界面", true, None::<&str>)?;
-            let record_i = MenuItem::with_id(_app, "record", "技能录制", true, Some("CmdOrCtrl+Shift+R"))?;
-            let voice_dictation_i = MenuItem::with_id(_app, "voice_dictation", "语音听写", true, Some("Alt+F12"))?;
-            let voice_dialogue_i = MenuItem::with_id(_app, "voice_dialogue", "语音对话", true, Some("Alt+F12"))?;
+            let record_i = MenuItem::with_id(_app, "record", "技能录制 (Ctrl+Shift+R)", true, None::<&str>)?;
+            let voice_dictation_i = MenuItem::with_id(_app, "voice_dictation", "语音听写 (Ctrl+Alt+V)", true, None::<&str>)?;
+            let voice_dialogue_i = MenuItem::with_id(_app, "voice_dialogue", "语音对话 (Ctrl+Alt+V)", true, None::<&str>)?;
 
             let service_state = AppServiceState {
                 children: Arc::new(Mutex::new(Vec::new())),

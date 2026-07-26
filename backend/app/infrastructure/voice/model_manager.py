@@ -3,7 +3,6 @@ Model Manager — download and track voice model availability.
 
 Models:
   - qwen3_asr:     Qwen3-ASR via sherpa-onnx (954MB)
-  - kokoro:        Kokoro-82M TTS (82MB, auto-downloads from HuggingFace)
   - cosyvoice:     CosyVoice-300M-Instruct TTS (2.1GB)
 """
 
@@ -31,18 +30,8 @@ MODEL_DEFS: dict[str, dict[str, Any]] = {
         "sub_dir": "sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25",
         "check_file": "encoder.int8.onnx",
         "source": "modelscope",
-        "source_id": "iic/CosyVoice-300M-Instruct",
+        "source_id": "jkman2023/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25",
         "url": None,
-    },
-    "kokoro": {
-        "name": "Kokoro-82M",
-        "size_gb": 0.082,
-        "size_label": "82MB",
-        "total_bytes": 82_000_000,
-        "sub_dir": "kokoro",
-        "check_file": None,
-        "source": "huggingface",
-        "source_id": "hexgrad/Kokoro-82M",
     },
     "cosyvoice": {
         "name": "CosyVoice-300M",
@@ -104,7 +93,7 @@ class ModelManager:
             "size": model_def["size_label"],
             "size_gb": model_def["size_gb"],
             "downloaded": downloaded,
-            "available": downloaded or model_id == "kokoro",
+            "available": downloaded,
             "status": progress.status,
             "progress": progress.progress if progress.status == "downloading" else None,
         }
@@ -133,7 +122,12 @@ class ModelManager:
         # For huggingface models, also check HF cache
         src = model_def.get("source_id")
         if src:
-            hf_dir = os.path.join(os.path.expanduser("~/.cache/huggingface/hub"), f"models--{src.replace('/', '--')}", "snapshots")
+            # Check unified models HF cache first, then fallback to global cache
+            hf_cache_root = os.path.join(self._get_models_dir(), ".cache", "huggingface")
+            hf_dir = os.path.join(hf_cache_root, "hub", f"models--{src.replace('/', '--')}", "snapshots")
+            if not os.path.isdir(hf_dir):
+                hf_dir = os.path.join(os.path.expanduser("~/.cache/huggingface/hub"), f"models--{src.replace('/', '--')}", "snapshots")
+                
             if os.path.isdir(hf_dir):
                 for s in os.listdir(hf_dir):
                     sp = os.path.join(hf_dir, s)
@@ -215,34 +209,19 @@ class ModelManager:
         finally:
             tracker.cancel()
 
-        if os.path.isfile(target_path):
+        if target_path and os.path.isfile(target_path):
             self._progress[model_id] = DownloadProgress(
                 model_id=model_id, progress=1.0, status="completed"
             )
         else:
             self._fail(model_id, f"Download completed but {check_file} not found")
 
-        loop = asyncio.get_running_loop()
-        tracker = asyncio.create_task(_track_progress())
-        try:
-            await loop.run_in_executor(None, _do_snapshot)
-        finally:
-            tracker.cancel()
-
-        if target_path and os.path.isfile(target_path):
-            self._progress[model_id] = DownloadProgress(
-                model_id=model_id, progress=1.0, status="completed"
-            )
-        else:
-            self._progress[model_id] = DownloadProgress(
-                model_id=model_id, progress=1.0, status="completed"
-            )
-
     async def _download_from_huggingface(self, model_id: str, model_def: dict) -> None:
         from huggingface_hub import snapshot_download as hf_sd
         src = model_def["source_id"]
         total = model_def.get("total_bytes", model_def["size_gb"] * 1_000_000_000)
-        hf_cache = os.path.join(os.path.expanduser("~/.cache/huggingface/hub"), f"models--{src.replace('/', '--')}")
+        hf_cache_root = os.path.join(self._get_models_dir(), ".cache", "huggingface")
+        hf_cache = os.path.join(hf_cache_root, "hub", f"models--{src.replace('/', '--')}")
 
         async def _track():
             while True:

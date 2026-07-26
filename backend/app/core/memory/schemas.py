@@ -51,6 +51,7 @@ class Concept(DynamicBaseModel):
     description: str = Field(description="Detailed description of what it is and how it is used")
     project_id: int | None = Field(default=DEFAULT_PROJECT_ID, description="Associated project ID (DEFAULT_PROJECT_ID/0 for global)")
     related_files: list[str] = Field(default_factory=list, description="List of file paths related to this concept")
+    source_thread_id: str | None = Field(default=None, description="Thread ID where this concept was discovered")
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 

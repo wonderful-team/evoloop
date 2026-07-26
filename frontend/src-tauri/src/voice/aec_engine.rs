@@ -23,6 +23,9 @@ pub struct AecMicCapture {
     fallback: MicCapture,
 }
 
+unsafe impl Send for AecMicCapture {}
+unsafe impl Sync for AecMicCapture {}
+
 impl AecMicCapture {
     pub fn new() -> Self {
         Self {

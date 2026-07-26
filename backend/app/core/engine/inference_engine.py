@@ -178,14 +178,17 @@ class InferenceEngine:
 
     @staticmethod
     async def _handle_ai_response(response: BaseMessage, handler) -> None:
-        if not handler or not response.content:
+        if not handler:
             return
         from app.core.engine.message.reasoning import extract_reasoning_from_message
+        thinking = extract_reasoning_from_message(response)
+        if not response.content and not response.tool_calls and not thinking:
+            return
         node_source = current_node_source.get()
         await handler.handle_ai_message(
-            content=response.content,
+            content=response.content or "",
             tool_calls=response.tool_calls,
-            thinking=extract_reasoning_from_message(response),
+            thinking=thinking,
             metadata=response.metadata,
             node_source=node_source,
         )

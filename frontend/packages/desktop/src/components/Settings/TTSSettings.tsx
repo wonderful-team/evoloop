@@ -22,7 +22,6 @@ const TTS_ENGINES = [
   { id: "edge-tts", name: "Edge TTS", model: null },
   { id: "qwen-tts", name: "Qwen TTS", model: null },
   { id: "cosyvoice", name: "CosyVoice (本地)", model: "cosyvoice" },
-  { id: "kokoro", name: "Kokoro (本地快速)", model: "kokoro" },
 ]
 
 export function TTSSettings() {
