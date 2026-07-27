@@ -18,8 +18,11 @@ import {
   Loader2,
   Mic,
   MousePointerClick,
+  Power,
   Radio,
+  Sparkles,
   Volume2,
+  Zap,
 } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -62,6 +65,7 @@ export function VoiceControlSettings() {
   const [tempSeeduplexAppId, setTempSeeduplexAppId] = useState("")
   const [tempSeeduplexAccessKey, setTempSeeduplexAccessKey] = useState("")
   const [seeduplexConnected, setSeeduplexConnected] = useState(false)
+  const [tempDictationLlmPolish, setTempDictationLlmPolish] = useState(true)
 
   const [isSupported, setIsSupported] = useState(true)
   const [isTauri, setIsTauri] = useState(false)
@@ -77,15 +81,17 @@ export function VoiceControlSettings() {
 
   const fetchSTTConfig = async () => {
     try {
-      // Fetch current Seeduplex config values from backend
+      // Fetch current Seeduplex and Dictation config values from backend
       let seeduplexAppId = ""
       let seeduplexAccessKey = ""
+      let dictationLlmPolish = "true"
       try {
         const { SystemService } = await import("@/client")
         const configs = await SystemService.getSystemConfig()
         for (const c of Array.isArray(configs) ? configs : []) {
           if (c.key === "SEEDUPLEX_APP_ID") seeduplexAppId = c.value ?? ""
           if (c.key === "SEEDUPLEX_ACCESS_KEY") seeduplexAccessKey = c.value ?? ""
+          if (c.key === "EVOLOOP_DICTATION_LLM_POLISH") dictationLlmPolish = c.value ?? "true"
         }
       } catch { /* not critical */ }
 
@@ -97,6 +103,7 @@ export function VoiceControlSettings() {
         shortcutEnabled: se,
         seeduplexAppId,
         seeduplexAccessKey,
+        dictationLlmPolish: dictationLlmPolish === "true",
       }
 
       setTempWakeWord(wakeWord)
@@ -106,6 +113,7 @@ export function VoiceControlSettings() {
       setTempShortcutEnabled(se)
       setTempSeeduplexAppId(seeduplexAppId)
       setTempSeeduplexAccessKey(seeduplexAccessKey)
+      setTempDictationLlmPolish(dictationLlmPolish === "true")
 
       setInitialState(state)
     } catch (error) {
@@ -127,7 +135,8 @@ export function VoiceControlSettings() {
       tempLongPressThreshold !== initialState.longPressThreshold ||
       tempShortcutEnabled !== initialState.shortcutEnabled ||
       tempSeeduplexAppId !== (initialState.seeduplexAppId ?? "") ||
-      tempSeeduplexAccessKey !== (initialState.seeduplexAccessKey ?? "")
+      tempSeeduplexAccessKey !== (initialState.seeduplexAccessKey ?? "") ||
+      tempDictationLlmPolish !== initialState.dictationLlmPolish
 
     setComponentDirty("voice", isDirty)
   }, [
@@ -138,6 +147,7 @@ export function VoiceControlSettings() {
     tempShortcutEnabled,
     tempSeeduplexAppId,
     tempSeeduplexAccessKey,
+    tempDictationLlmPolish,
     initialState,
     setComponentDirty,
   ])
@@ -157,30 +167,35 @@ export function VoiceControlSettings() {
   // Register handlers
   useEffect(() => {
     registerSaveHandler("voice", async () => {
-      // Save Seeduplex credentials via SystemService (same pattern as TTSSettings)
-      if (tempSeeduplexAppId || tempSeeduplexAccessKey) {
-        try {
-          const { SystemService } = await import("@/client")
-          const tasks: Promise<any>[] = []
-          if (tempSeeduplexAppId) {
-            tasks.push(
-              SystemService.updateSystemConfig({
-                requestBody: { key: "SEEDUPLEX_APP_ID", value: tempSeeduplexAppId },
-              }),
-            )
-          }
-          if (tempSeeduplexAccessKey) {
-            tasks.push(
-              SystemService.updateSystemConfig({
-                requestBody: { key: "SEEDUPLEX_ACCESS_KEY", value: tempSeeduplexAccessKey },
-              }),
-            )
-          }
-          await Promise.all(tasks)
-        } catch (err) {
-          console.error("Failed to save Seeduplex config:", err)
-          throw err
+      try {
+        const { SystemService } = await import("@/client")
+        const tasks: Promise<any>[] = []
+
+        // Always save the Dictation LLM Polish switch value
+        tasks.push(
+          SystemService.updateSystemConfig({
+            requestBody: { key: "EVOLOOP_DICTATION_LLM_POLISH", value: tempDictationLlmPolish ? "true" : "false" },
+          }),
+        )
+
+        if (tempSeeduplexAppId) {
+          tasks.push(
+            SystemService.updateSystemConfig({
+              requestBody: { key: "SEEDUPLEX_APP_ID", value: tempSeeduplexAppId },
+            }),
+          )
         }
+        if (tempSeeduplexAccessKey) {
+          tasks.push(
+            SystemService.updateSystemConfig({
+              requestBody: { key: "SEEDUPLEX_ACCESS_KEY", value: tempSeeduplexAccessKey },
+            }),
+          )
+        }
+        await Promise.all(tasks)
+      } catch (err) {
+        console.error("Failed to save voice config:", err)
+        throw err
       }
     })
     registerResetHandler("voice", () => fetchSTTConfig())
@@ -196,6 +211,7 @@ export function VoiceControlSettings() {
     tempShortcutEnabled,
     tempSeeduplexAppId,
     tempSeeduplexAccessKey,
+    tempDictationLlmPolish,
     initialState,
   ])
 
@@ -362,6 +378,34 @@ export function VoiceControlSettings() {
                     {seeduplexConnected ? "已连接" : "未连接（保存后生效）"}
                   </span>
                 </div>
+              </div>
+            </SettingsCard>
+
+            {/* Dictation Polish Section */}
+            <SettingsCard
+              icon={Sparkles}
+              title="听写大模型润色"
+              description="听写完成后通过大模型进行错别字智能纠错与语言润色"
+            >
+              <div className="flex items-center justify-between p-4 bg-muted/10 border border-border/50 rounded-md transition-colors hover:bg-muted/20">
+                <div className="flex items-center gap-4">
+                  <div className="space-y-0.5">
+                    <Label
+                      className="text-sm font-medium cursor-pointer"
+                      htmlFor="dictation-polish-toggle"
+                    >
+                      开启大模型润色
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      关闭后将直接输入原始语音转录文字
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  id="dictation-polish-toggle"
+                  checked={tempDictationLlmPolish}
+                  onCheckedChange={setTempDictationLlmPolish}
+                />
               </div>
             </SettingsCard>
 
