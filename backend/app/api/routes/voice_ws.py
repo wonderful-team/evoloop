@@ -56,6 +56,7 @@ async def _handle_barge_in(thread_id: str) -> None:
     from app.core.routing import executor
 
     cancelled = await executor.cancel_voice_task(thread_id)
+    _is_sending_chat_tts_text[thread_id] = True
     await voice_state_machine.force_set(thread_id, VoiceSessionState.INTERRUPTED)
     logger.info("[voice] barge_in for thread %s, cancelled=%s", thread_id, cancelled)
 
@@ -457,8 +458,6 @@ async def dialogue_receive_loop(websocket: WebSocket, volc_client: VolcDialogCli
     """Volcengine 接收循环 — 对话模式：ASR → Agent → TTS 音频"""
     import websockets
     _is_sending_chat_tts_text[thread_id] = False
-    from app.core.routing.executor import _tts_boundary_started
-    _tts_boundary_started.pop(thread_id, None)
     try:
         while True:
             try:
@@ -474,9 +473,9 @@ async def dialogue_receive_loop(websocket: WebSocket, volc_client: VolcDialogCli
             if mtype == "SERVER_ACK":
                 if isinstance(payload, bytes):
                     if _is_sending_chat_tts_text.get(thread_id, False):
-                        logger.debug("[voice-ws] discarded %d audio bytes for thread %s (sending chat TTS)", len(payload), thread_id)
+                        logger.debug("[voice-ws] discarded %d audio bytes (discarding auto TTS)", len(payload))
                         continue
-                    logger.debug("[voice-ws] forwarding %d audio bytes to Rust for thread %s", len(payload), thread_id)
+                    logger.info("[voice-ws] ===> forwarding %d audio bytes to Rust", len(payload))
                     try:
                         await websocket.send_bytes(payload)
                     except Exception as e:
@@ -508,6 +507,7 @@ async def dialogue_receive_loop(websocket: WebSocket, volc_client: VolcDialogCli
                 if event == 450:
                     from app.core.routing import executor
                     await executor.cancel_voice_task(thread_id)
+                    _is_sending_chat_tts_text[thread_id] = True
                     await voice_state_machine.force_set(thread_id, VoiceSessionState.INTERRUPTED)
                     try:
                         await websocket.send_json(
@@ -553,19 +553,7 @@ async def dialogue_receive_loop(websocket: WebSocket, volc_client: VolcDialogCli
                     tts_type = payload.get("tts_type", "")
                     logger.info("[voice-ws] Event 350 tts_type=%r for thread %s", tts_type, thread_id)
                     if tts_type in ("chat_tts_text", "external_rag"):
-                        was_sending = _is_sending_chat_tts_text.get(thread_id, False)
-                        _is_sending_chat_tts_text[thread_id] = False
-                        # Only barge-in on first ChatTTSText (discard auto-response).
-                        # Streaming continuations must NOT kill ffplay — that causes gaps.
-                        if was_sending:
-                            try:
-                                await websocket.send_json({
-                                    "type": "voice.barge_in",
-                                    "message_id": gen_uuid(),
-                                    "body": {"thread_id": thread_id},
-                                })
-                            except Exception:
-                                pass
+                        pass
 
                 # event 599: ASR idle timeout
                 elif event == 599 and _last_asr_text.get(thread_id):
@@ -907,8 +895,6 @@ async def voice_ws(websocket: WebSocket) -> None:
                     session_modes.pop(thread_id, None)
                     _last_asr_text.pop(thread_id, None)
                     _is_sending_chat_tts_text.pop(thread_id, None)
-                    from app.core.routing.executor import _tts_boundary_started
-                    _tts_boundary_started.pop(thread_id, None)
 
                     # Clean up Volcengine client
                     from app.core.routing.executor import active_volc_clients
@@ -948,7 +934,5 @@ async def voice_ws(websocket: WebSocket) -> None:
             session_modes.pop(tid, None)
             _last_asr_text.pop(tid, None)
             _is_sending_chat_tts_text.pop(tid, None)
-            from app.core.routing.executor import _tts_boundary_started
-            _tts_boundary_started.pop(tid, None)
         await manager.unregister(conn_id)
 

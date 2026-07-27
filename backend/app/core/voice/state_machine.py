@@ -40,6 +40,7 @@ _VALID_TRANSITIONS: dict[VoiceSessionState, set[VoiceSessionState]] = {
     VoiceSessionState.SPEAKING: {
         VoiceSessionState.IDLE,
         VoiceSessionState.INTERRUPTED,
+        VoiceSessionState.LISTENING,
     },
     VoiceSessionState.INTERRUPTED: {
         VoiceSessionState.LISTENING,

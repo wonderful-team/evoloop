@@ -16,13 +16,10 @@ Usage:
 """
 
 import logging
-from datetime import datetime
-from typing import Any
 
 from app.core.channel import ChannelContext, channel_registry
 from app.core.engine.message.schemas import MessageBlock
 from app.models.schemas.events import BaseStreamEvent
-from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +40,7 @@ class MessagePublisher:
         """
         Unified dispatch entry for outbound transport.
 
-        Payloads (MessageBlock, BaseStreamEvent) are dispatched through 
+        Payloads (MessageBlock, BaseStreamEvent) are dispatched through
         ChannelRegistry to registered output channels (WebChannel SSE, Mobile Push, etc).
         """
         if channels is None:

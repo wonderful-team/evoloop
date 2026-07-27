@@ -102,8 +102,6 @@ class VoiceInputChannel(InputChannel):
 
     async def dispatch(self, msg: IncomingMessage) -> Any:
         """Submit to agent engine, with voice-specific side effects."""
-        if self._state_machine is not None:
-            await self._state_machine.set(msg.thread_id, self._state_enum.SPEAKING)
         if self._executor is not None:
             await self._executor._mark_voice(msg.thread_id, "agent")
         return await super().dispatch(msg)

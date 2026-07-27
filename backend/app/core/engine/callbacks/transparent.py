@@ -23,7 +23,6 @@ from app.core.tools.registry import (
 )
 from app.i18n.service import i18n
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -38,8 +37,8 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     """
 
     # Dual-limit flush: time window (s) or char count threshold
-    _FLUSH_INTERVAL = 2.0
-    _FLUSH_CHAR_LIMIT = 150
+    _FLUSH_INTERVAL = 0.5
+    _FLUSH_CHAR_LIMIT = 30
 
     def __init__(self, thread_id: str = ""):
         super().__init__()
@@ -198,7 +197,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             return
 
         # Dual-limit flush: size check (chars), time check externally
-        if self._token_filter.should_flush() or (
+        if self._token_filter.should_flush(char_limit=self._FLUSH_CHAR_LIMIT) or (
             self._flush_start_time and (now - self._flush_start_time) >= self._FLUSH_INTERVAL
         ):
             batch = self._token_filter.flush()

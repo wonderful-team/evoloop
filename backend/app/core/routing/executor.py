@@ -39,6 +39,12 @@ async def get_thread_lock(thread_id: str) -> asyncio.Lock:
     return _thread_locks[thread_id]
 
 
+def clear_tts_discard_flag(thread_id: str) -> None:
+    """Allow agent TTS audio frames to reach Rust (stop discarding auto-response)."""
+    from app.api.routes.voice_ws import _is_sending_chat_tts_text
+    _is_sending_chat_tts_text[thread_id] = False
+
+
 async def cancel_voice_task(thread_id: str) -> bool:
     """Cancel the current voice task for a thread via worker_registry.
 
@@ -74,38 +80,8 @@ async def push_voice_result(thread_id: str, status: str, summary: str) -> None:
         await manager.push(thread_id, body)
 
     # Synthesize TTS for non-empty summaries in done status
-    if status == "done":
-        if _tts_boundary_started.get(thread_id):
-            client = active_volc_clients.get(thread_id)
-            if client:
-                try:
-                    await client.send_chat_tts_text(start=False, end=True, content="")
-                except Exception:
-                    pass
-        elif summary:
-            await push_tts_text(thread_id, summary)
-
-
-
-# Tracks whether push_voice_tts_boundary has been called for a thread (first=start)
-_tts_boundary_started: dict[str, bool] = {}
-
-async def push_voice_tts_boundary(thread_id: str, text: str, _index: int, start: bool | None = None, end: bool | None = None) -> None:
-    """Push a TTS boundary (sentence boundary for streaming TTS) to active Volcengine client."""
-    client = active_volc_clients.get(thread_id)
-    if client:
-        if start is None:
-            start = not _tts_boundary_started.get(thread_id, False)
-        if end is None:
-            end = False
-        logger.info("[voice-exec] Sending TTS boundary start=%s end=%s to Volcengine: %s", start, end, text)
-        try:
-            await client.send_chat_tts_text(start=start, end=end, content=text)
-            _tts_boundary_started[thread_id] = True
-        except Exception as exc:
-            logger.error("[voice-exec] Failed to send TTS boundary: %s", exc)
-    else:
-        logger.warning("[voice-exec] No active Volcengine client for thread %s", thread_id)
+    if summary and status == "done":
+        await push_tts_text(thread_id, summary)
 
 
 async def push_voice_token(thread_id: str, token: str, _index: int) -> None:
@@ -120,12 +96,15 @@ async def push_voice_token(thread_id: str, token: str, _index: int) -> None:
         await manager.push(thread_id, body)
 
 
-
 async def push_tts_text(thread_id: str, text: str) -> None:
-    """推文本给 Volcengine 对话 session 合成 TTS 音频。"""
+    """推文本给 Volcengine 对话 session 合成 TTS 音频（AB mode: 全量文本 + 空结束标记）。"""
     client = active_volc_clients.get(thread_id)
     if client:
         try:
+            logger.info(
+                "[voice-exec] push_tts_text start=True,end=False content=[%d chars] head=%r tail=%r",
+                len(text), text[:100], text[-100:] if len(text) > 100 else ""
+            )
             await client.send_chat_tts_text(start=True, end=False, content=text)
             await client.send_chat_tts_text(start=False, end=True, content="")
             logger.info("[voice-exec] push_tts_text sent %d chars to thread %s", len(text), thread_id)
