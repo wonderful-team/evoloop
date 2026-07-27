@@ -545,53 +545,6 @@ async fn get_voice_state(
     Ok(state.as_str().to_string())
 }
 
-#[tauri::command]
-#[cfg(desktop)]
-async fn start_dictation(
-    app: tauri::AppHandle,
-    raw_text: String,
-    target_locale: String,
-) -> Result<String, String> {
-    // Call Python backend's dictation endpoint (follows two-tier LLM strategy)
-    let client = reqwest::Client::new();
-    let payload = serde_json::json!({
-        "raw_text": raw_text,
-        "target_locale": target_locale,
-    });
-    let resp = client.post("http://127.0.0.1:20160/api/v1/voice/dictation")
-        .json(&payload)
-        .send()
-        .await
-        .map_err(|e| format!("Dictation request failed: {}", e))?;
-    let result: serde_json::Value = resp.json().await
-        .map_err(|e| format!("Dictation response parse failed: {}", e))?;
-
-    let polished = result.get("polished_text")
-        .and_then(|v| v.as_str())
-        .unwrap_or(&raw_text)
-        .to_string();
-
-    // Check for CLARIFY: LLM couldn't understand, don't paste
-    let is_clarify = result.get("changes")
-        .and_then(|c| c.as_array())
-        .and_then(|arr| arr.first())
-        .and_then(|c| c.get("clarify"))
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-
-    if let Some(msg) = is_clarify {
-        // Don't paste, emit clarify event (frontend will speak it)
-        let _ = app.emit("voice:dictation_polished", serde_json::json!({
-            "polished_text": &raw_text,
-            "changes": [{"clarify": msg}],
-        }));
-    } else {
-        // Normal: paste to target window
-        crate::voice::voice_session::dictation_paste(&polished);
-        let _ = app.emit("voice:dictation_polished", serde_json::json!({"polished_text": &polished}));
-    }
-    Ok(polished)
-}
 
 #[tauri::command]
 #[cfg(mobile)]
@@ -635,11 +588,6 @@ async fn get_voice_state() -> Result<String, String> {
     Ok("idle".to_string())
 }
 
-#[tauri::command]
-#[cfg(mobile)]
-async fn start_dictation(_: String, _: String) -> Result<String, String> {
-    Err("Dictation not supported on mobile".to_string())
-}
 
 // ===== Safe Process Kill Helpers =====
 
@@ -1214,7 +1162,6 @@ pub fn run() {
             switch_voice_mode,
             trigger_voice_barge_in,
             get_voice_state,
-            start_dictation,
             // Wake word commands
             start_wake_word_listener,
             stop_wake_word_listener,

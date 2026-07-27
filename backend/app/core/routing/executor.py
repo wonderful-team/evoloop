@@ -96,6 +96,18 @@ async def push_voice_token(thread_id: str, token: str, _index: int) -> None:
         await manager.push(thread_id, body)
 
 
+async def push_voice_tts_boundary(thread_id: str, sentence: str, index: int) -> None:
+    """Push a TTS sentence boundary for real-time playback."""
+    if manager is None:
+        return
+    body = {"thread_id": thread_id, "sentence": sentence, "index": index}
+    if envelope_fn and message_type:
+        env = envelope_fn(message_type.VOICE_TTS_BOUNDARY, body)
+        await manager.push(thread_id, env)
+    else:
+        await manager.push(thread_id, body)
+
+
 async def push_tts_text(thread_id: str, text: str) -> None:
     """推文本给 Volcengine 对话 session 合成 TTS 音频（AB mode: 全量文本 + 空结束标记）。"""
     client = active_volc_clients.get(thread_id)

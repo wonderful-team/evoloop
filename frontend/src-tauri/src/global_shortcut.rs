@@ -3,7 +3,7 @@ use std::sync::LazyLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::Emitter;
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 /// Global shortcut manager for voice input & skill recording.
 ///
@@ -19,8 +19,8 @@ impl GlobalShortcutManager {
     pub fn new() -> Self {
         Self {
             is_registered: AtomicBool::new(false),
-            target_key: Arc::new(Mutex::new("Ctrl+Alt+V".to_string())),
-            record_key: Arc::new(Mutex::new("CmdOrCtrl+Shift+R".to_string())),
+            target_key: Arc::new(Mutex::new("F12".to_string())),
+            record_key: Arc::new(Mutex::new("CmdOrCtrl+Shift+KeyR".to_string())),
             app_handle: Arc::new(Mutex::new(None)),
         }
     }
@@ -49,40 +49,77 @@ impl GlobalShortcutManager {
         }
 
         let handle = self.app_handle.lock().unwrap().clone();
-        let Some(app) = handle else {
+        let Some(ref app) = handle else {
             return;
         };
 
-        // 1. Voice shortcut (e.g. "Alt+F12" = Option+F12 on macOS)
+        // macOS: CGEventTap requires Accessibility permission; warn early if missing
+        #[cfg(target_os = "macos")]
+        {
+            let trusted = macos_accessibility_client::accessibility::application_is_trusted();
+            if !trusted {
+                log::warn!("[shortcut] macOS Accessibility permission not granted — global shortcuts (F12 etc.) will NOT work");
+                log::warn!("[shortcut] Go to System Settings → Privacy & Security → Accessibility → add this app");
+            }
+        }
+
+        // 1. Voice shortcut (F12) — short press: dialogue, long press: dictation
         let key = self.target_key.lock().unwrap().clone();
-        if let Ok(shortcut) = Shortcut::from_str(&key) {
-            let app_clone = app.clone();
-            if let Err(e) = app.global_shortcut().on_shortcut(shortcut, move |_app, _event, state| {
-                if state.state == ShortcutState::Pressed {
-                    let _ = app_clone.emit("voice-shortcut-press", ());
+        match Shortcut::from_str(&key) {
+            Ok(shortcut) => {
+                let key_for_log = key.clone();
+                let long_press_handled: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+                if let Err(e) = app.global_shortcut().on_shortcut(shortcut, move |app, _event, state| {
+                    match state.state {
+                        ShortcutState::Pressed => {
+                            log::debug!("[shortcut] F12 pressed");
+                            long_press_handled.store(false, Ordering::SeqCst);
+                            let app = app.clone();
+                            let h = long_press_handled.clone();
+                            tauri::async_runtime::spawn(async move {
+                                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                                if !h.load(Ordering::SeqCst) {
+                                    h.store(true, Ordering::SeqCst);
+                                    log::info!("[shortcut] F12 long press (hold) — dictation mode");
+                                    let _ = app.emit("tray-voice-dictation-toggle", ());
+                                }
+                            });
+                        }
+                        ShortcutState::Released => {
+                            log::debug!("[shortcut] F12 released");
+                            if !long_press_handled.swap(true, Ordering::SeqCst) {
+                                log::info!("[shortcut] F12 short press — dialogue mode");
+                                let _ = app.emit("tray-voice-dialogue-toggle", ());
+                            }
+                        }
+                        _ => {}
+                    }
+                }) {
+                    log::error!("[shortcut] failed to register voice handler: {:?}", e);
+                } else {
+                    log::info!("[shortcut] voice shortcut registered: {key_for_log:?}");
                 }
-            }) {
-                log::error!("[shortcut] failed to register voice handler: {:?}", e);
             }
-            if let Err(e) = app.global_shortcut().register(shortcut) {
-                log::error!("[shortcut] failed to register voice key: {:?}", e);
-            }
+            Err(e) => log::warn!("[shortcut] failed to parse voice shortcut key {key:?}: {e}"),
         }
 
         // 2. Skill recording global shortcut
         let rec_key_str = self.record_key.lock().unwrap().clone();
-        if let Ok(rec_shortcut) = Shortcut::from_str(&rec_key_str) {
-            let app_clone = app.clone();
-            if let Err(e) = app.global_shortcut().on_shortcut(rec_shortcut, move |_app, _event, state| {
-                if state.state == ShortcutState::Pressed {
-                    let _ = app_clone.emit("tray-record-toggle", ());
+        match Shortcut::from_str(&rec_key_str) {
+            Ok(rec_shortcut) => {
+                let app_clone = app.clone();
+                let rec_key_for_log = rec_key_str.clone();
+                if let Err(e) = app.global_shortcut().on_shortcut(rec_shortcut, move |_app, _event, state| {
+                    if state.state == ShortcutState::Pressed {
+                        let _ = app_clone.emit("tray-record-toggle", ());
+                    }
+                }) {
+                    log::error!("[shortcut] failed to register record handler: {:?}", e);
+                } else {
+                    log::info!("[shortcut] record shortcut registered: {rec_key_for_log:?}");
                 }
-            }) {
-                log::error!("[shortcut] failed to register record handler: {:?}", e);
             }
-            if let Err(e) = app.global_shortcut().register(rec_shortcut) {
-                log::error!("[shortcut] failed to register record key: {:?}", e);
-            }
+            Err(e) => log::warn!("[shortcut] failed to parse record shortcut key {rec_key_str:?}: {e}"),
         }
 
         self.is_registered.store(true, Ordering::SeqCst);
@@ -119,24 +156,6 @@ impl GlobalShortcutManager {
 pub enum TriggerMode {
     LongPress,
     DoubleClick,
-}
-
-fn key_to_code(key: &str) -> Option<Code> {
-    match key {
-        "F1" => Some(Code::F1),
-        "F2" => Some(Code::F2),
-        "F3" => Some(Code::F3),
-        "F4" => Some(Code::F4),
-        "F5" => Some(Code::F5),
-        "F6" => Some(Code::F6),
-        "F7" => Some(Code::F7),
-        "F8" => Some(Code::F8),
-        "F9" => Some(Code::F9),
-        "F10" => Some(Code::F10),
-        "F11" => Some(Code::F11),
-        "F12" => Some(Code::F12),
-        _ => None,
-    }
 }
 
 pub static GLOBAL_SHORTCUT_MANAGER: LazyLock<GlobalShortcutManager> = LazyLock::new(GlobalShortcutManager::new);

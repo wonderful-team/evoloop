@@ -218,19 +218,14 @@ async def _handle_dictation_finalize(body: dict[str, Any], conn_id: str) -> None
     polish_enabled = SystemConfigService.get_value("EVOLOOP_DICTATION_LLM_POLISH", "true")
     if polish_enabled == "false":
         logger.info(f"[voice-ws] Dictation LLM polish is disabled, pushing raw text directly: {raw_text}")
+        await manager.push(thread_id, _envelope("dictation.paste", {"text": raw_text}))
         await manager.push(thread_id, _envelope(
             MessageType.VOICE_DICTATION_POLISHED,
-            {"polished_text": raw_text, "raw_text": raw_text, "changes": []},
+            {"changes": []},
         ))
         return
 
-    model_name = SystemConfigService.get_value("LLM_MODEL")
-    if not model_name:
-        await manager.push(thread_id, _envelope(
-            MessageType.VOICE_DICTATION_POLISHED,
-            {"polished_text": raw_text, "changes": [], "error": "no model configured"},
-        ))
-        return
+    model_name = SystemConfigService.get_value("LLM_MODEL") or ""
 
     system_prompt = render_template("core/voice/dictation.md")
     messages = [
@@ -259,93 +254,30 @@ async def _handle_dictation_finalize(body: dict[str, Any], conn_id: str) -> None
             msg = polished[start:end] if end > start else polished[start:]
             await manager.push(thread_id, _envelope(
                 MessageType.VOICE_DICTATION_POLISHED,
-                {"polished_text": raw_text, "changes": [{"clarify": msg}], "error": "clarify"},
+                {"changes": [{"clarify": msg}], "error": "clarify"},
             ))
         else:
+            # Paste polished text
+            await manager.push(thread_id, _envelope(
+                "dictation.paste",
+                {"text": polished.strip()},
+            ))
             await manager.push(thread_id, _envelope(
                 MessageType.VOICE_DICTATION_POLISHED,
-                {"polished_text": polished.strip(), "raw_text": raw_text, "changes": []},
+                {"changes": []},
             ))
     except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as exc:
         logger.warning("[voice] dictation polish failed: %s", exc)
+        # Fallback paste raw text
+        await manager.push(thread_id, _envelope(
+            "dictation.paste",
+            {"text": raw_text},
+        ))
         await manager.push(thread_id, _envelope(
             MessageType.VOICE_DICTATION_POLISHED,
-            {"polished_text": raw_text, "changes": [], "error": str(exc)[:200]},
+            {"changes": [], "error": str(exc)[:200]},
         ))
 
-
-class DictationRequest(BaseModel):
-    raw_text: str
-    target_locale: str = "zh"
-
-
-class DictationResponse(BaseModel):
-    polished_text: str
-    raw_text: str
-    changes: list = []
-
-
-@router.post("/dictation")
-async def dictation_polish(req: DictationRequest) -> DictationResponse:
-    """HTTP endpoint for dictation text polishing.
-
-    Uses LLMFactory (two-tier: local lightning model if available, else cloud)
-    to polish ASR output, following the same strategy as Supervisor.
-    """
-    from app.infrastructure.config.service import SystemConfigService
-    from app.infrastructure.llm.factory import LLMConfig, LLMFactory
-    from app.utils.template import render_template
-
-    polish_enabled = SystemConfigService.get_value("EVOLOOP_DICTATION_LLM_POLISH", "true")
-    if polish_enabled == "false":
-        return DictationResponse(
-            polished_text=req.raw_text,
-            raw_text=req.raw_text,
-            changes=[],
-        )
-
-    model_name = SystemConfigService.get_value("LLM_MODEL")
-    if not model_name:
-        return DictationResponse(
-            polished_text=req.raw_text,
-            raw_text=req.raw_text,
-            changes=[{"error": "LLM_MODEL not configured"}],
-        )
-
-    system_prompt = render_template("core/voice/dictation.md")
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": req.raw_text},
-    ]
-
-    config = LLMConfig(model_name=model_name, temperature=0.3, max_tokens=512)
-    llm = await LLMFactory.create_llm(config)
-    result = await llm.ainvoke(messages)
-    content = ""
-    if isinstance(result, dict):
-        content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-    elif hasattr(result, "content"):
-        content = result.content
-
-    polished = content.strip() or req.raw_text
-    # Strip LLM artifacts
-    for tag in ("</s>", "<|im_end|>", "<|endoftext|>"):
-        polished = polished.replace(tag, "")
-    # Handle CLARIFY: unable to understand
-    clarify_tag = "<CLARIFY>"
-    if clarify_tag in polished:
-        start = polished.find(clarify_tag) + len(clarify_tag)
-        end = polished.find("</CLARIFY>", start)
-        msg = polished[start:end] if end > start else polished[start:]
-        return DictationResponse(
-            polished_text=req.raw_text,
-            raw_text=req.raw_text,
-            changes=[{"clarify": msg}],
-        )
-    return DictationResponse(
-        polished_text=polished.strip(),
-        raw_text=req.raw_text,
-    )
 
 
 from app.core.events import system_bus
@@ -454,16 +386,17 @@ _last_asr_text: dict[str, str] = {}
 _is_sending_chat_tts_text: dict[str, bool] = {}
 
 
-async def dialogue_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient, thread_id: str, conn_id: str):
-    """Volcengine 接收循环 — 对话模式：ASR → Agent → TTS 音频"""
+async def voice_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient, thread_id: str, conn_id: str, mode: str):
+    """Volcengine 接收循环 — ASR 事件共用，459/599 按 mode 分叉"""
     import websockets
-    _is_sending_chat_tts_text[thread_id] = False
+    if mode == "dialogue":
+        _is_sending_chat_tts_text[thread_id] = False
     try:
         while True:
             try:
                 resp = await volc_client.receive_response()
             except websockets.exceptions.ConnectionClosed:
-                logger.info(f"[voice-ws] Dialogue Volcengine connection closed for thread {thread_id}")
+                logger.info(f"[voice-ws] Volcengine connection closed for thread {thread_id} ({mode})")
                 break
 
             mtype = resp.get("message_type")
@@ -471,7 +404,9 @@ async def dialogue_receive_loop(websocket: WebSocket, volc_client: VolcDialogCli
             payload = resp.get("payload_msg")
 
             if mtype == "SERVER_ACK":
-                if isinstance(payload, bytes):
+                if mode == "dictation":
+                    pass
+                elif isinstance(payload, bytes):
                     if _is_sending_chat_tts_text.get(thread_id, False):
                         logger.debug("[voice-ws] discarded %d audio bytes (discarding auto TTS)", len(payload))
                         continue
@@ -481,7 +416,7 @@ async def dialogue_receive_loop(websocket: WebSocket, volc_client: VolcDialogCli
                     except Exception as e:
                         logger.warning(f"[voice-ws] Failed to send audio bytes to Rust: {e}")
             elif mtype == "SERVER_FULL_RESPONSE":
-                # event 451: ASR partial result
+                # --- Shared: event 451 ASR partial ---
                 if event == 451 and isinstance(payload, dict):
                     extra = payload.get("extra") or {}
                     asr_text = (extra.get("origin_text") or "").strip()
@@ -494,21 +429,23 @@ async def dialogue_receive_loop(websocket: WebSocket, volc_client: VolcDialogCli
                     if asr_text:
                         _last_asr_text[thread_id] = asr_text
                         logger.info(f"[voice-ws] ASR partial: {asr_text}")
-                        try:
-                            await websocket.send_json(
-                                _envelope("voice.partial", {"thread_id": thread_id, "text": asr_text})
-                            )
-                        except Exception:
-                            pass
-                        from app.core.routing import retriever as retriever_mod
-                        asyncio.create_task(retriever_mod.preheat(thread_id, asr_text))
+                        if mode == "dialogue":
+                            try:
+                                await websocket.send_json(
+                                    _envelope("voice.partial", {"thread_id": thread_id, "text": asr_text})
+                                )
+                            except Exception:
+                                pass
+                            from app.core.routing import retriever as retriever_mod
+                            asyncio.create_task(retriever_mod.preheat(thread_id, asr_text))
 
-                # event 450: barge-in / user starts speaking
+                # --- Shared: event 450 barge-in ---
                 if event == 450:
-                    from app.core.routing import executor
-                    await executor.cancel_voice_task(thread_id)
-                    _is_sending_chat_tts_text[thread_id] = True
-                    await voice_state_machine.force_set(thread_id, VoiceSessionState.INTERRUPTED)
+                    if mode == "dialogue":
+                        from app.core.routing import executor
+                        await executor.cancel_voice_task(thread_id)
+                        _is_sending_chat_tts_text[thread_id] = True
+                        await voice_state_machine.force_set(thread_id, VoiceSessionState.INTERRUPTED)
                     try:
                         await websocket.send_json(
                             _envelope(MessageType.VOICE_BARGE_IN, {"thread_id": thread_id})
@@ -516,25 +453,32 @@ async def dialogue_receive_loop(websocket: WebSocket, volc_client: VolcDialogCli
                     except Exception:
                         pass
 
-                # event 459: ASR done → discard auto TTS, send placeholder, run Agent
+                # --- Fork: event 459 ASR done ---
                 elif event == 459:
                     asr_text = _last_asr_text.pop(thread_id, None) or ""
                     if not asr_text and isinstance(payload, dict):
                         extra = payload.get("extra") or {}
                         asr_text = (extra.get("origin_text") or "").strip()
                     if asr_text:
-                        logger.info(f"[voice-ws] Dialogue ASR: {asr_text}")
-                        try:
-                            await websocket.send_json(
-                                _envelope("voice.partial", {"thread_id": thread_id, "text": asr_text})
-                            )
-                        except Exception:
-                            pass
-                        _is_sending_chat_tts_text[thread_id] = True
-                        asyncio.create_task(_run_agent_pipeline(websocket, thread_id, asr_text))
+                        logger.info(f"[voice-ws] ASR done: {asr_text} ({mode})")
+                        if mode == "dialogue":
+                            try:
+                                await websocket.send_json(
+                                    _envelope("voice.partial", {"thread_id": thread_id, "text": asr_text})
+                                )
+                            except Exception:
+                                pass
+                            _is_sending_chat_tts_text[thread_id] = True
+                            asyncio.create_task(_run_agent_pipeline(websocket, thread_id, asr_text))
+                        else:
+                            await manager.bind_thread(thread_id, conn_id)
+                            asyncio.create_task(_handle_dictation_finalize(
+                                {"raw_text": asr_text, "thread_id": thread_id, "target_locale": "zh"},
+                                conn_id
+                            ))
 
-                # event 359: TTS play ended
-                elif event == 359:
+                # --- Dialogue-only: event 359 TTS play ended ---
+                elif event == 359 and mode == "dialogue":
                     _is_sending_chat_tts_text[thread_id] = False
                     await voice_state_machine.set(thread_id, VoiceSessionState.LISTENING)
                     try:
@@ -544,22 +488,27 @@ async def dialogue_receive_loop(websocket: WebSocket, volc_client: VolcDialogCli
                     except Exception:
                         pass
 
-                # event 550/559: ChatTTSText acknowledgment
-                elif event in (550, 559):
+                # --- Dialogue-only: event 550/559 ChatTTSText ack ---
+                elif event in (550, 559) and mode == "dialogue":
                     logger.debug("[voice-ws] Event %s for thread %s", event, thread_id)
 
-                # event 350: injected TTS starting (ChatTTSText/ChatRAGText)
-                elif event == 350 and isinstance(payload, dict):
+                # --- Dialogue-only: event 350 injected TTS start ---
+                elif event == 350 and isinstance(payload, dict) and mode == "dialogue":
                     tts_type = payload.get("tts_type", "")
                     logger.info("[voice-ws] Event 350 tts_type=%r for thread %s", tts_type, thread_id)
-                    if tts_type in ("chat_tts_text", "external_rag"):
-                        pass
 
-                # event 599: ASR idle timeout
+                # --- Fork: event 599 ASR timeout ---
                 elif event == 599 and _last_asr_text.get(thread_id):
                     asr_text = _last_asr_text.pop(thread_id, "")
-                    logger.info(f"[voice-ws] Dialogue ASR timeout: {asr_text}")
-                    asyncio.create_task(_run_agent_pipeline(websocket, thread_id, asr_text))
+                    logger.info(f"[voice-ws] ASR timeout: {asr_text} ({mode})")
+                    if mode == "dialogue":
+                        asyncio.create_task(_run_agent_pipeline(websocket, thread_id, asr_text))
+                    else:
+                        await manager.bind_thread(thread_id, conn_id)
+                        asyncio.create_task(_handle_dictation_finalize(
+                            {"raw_text": asr_text, "thread_id": thread_id, "target_locale": "zh"},
+                            conn_id
+                        ))
 
             elif mtype == "SERVER_ERROR":
                 logger.error(f"[voice-ws] Volcengine error: {payload}")
@@ -572,113 +521,10 @@ async def dialogue_receive_loop(websocket: WebSocket, volc_client: VolcDialogCli
             else:
                 logger.debug("[voice-ws] unhandled event %s %s for thread %s", mtype, event, thread_id)
     except asyncio.CancelledError:
-        logger.debug("[voice-ws] Dialogue receive loop cancelled for thread %s", thread_id)
-        pass
+        if mode == "dialogue":
+            logger.debug("[voice-ws] Voice receive loop cancelled for thread %s", thread_id)
     except Exception as e:
-        logger.error(f"[voice-ws] Dialogue receive loop error: {e}", exc_info=e)
-
-
-async def dictation_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient, thread_id: str, conn_id: str):
-    """Volcengine 接收循环 — 听写模式：ASR → dictation.paste"""
-    import websockets
-    try:
-        while True:
-            try:
-                resp = await volc_client.receive_response()
-            except websockets.exceptions.ConnectionClosed:
-                logger.info(f"[voice-ws] Dictation Volcengine connection closed for thread {thread_id}")
-                break
-            if not resp:
-                await asyncio.sleep(0.01)
-                continue
-
-            mtype = resp.get("message_type")
-            event = resp.get("event")
-            payload = resp.get("payload_msg")
-
-            if mtype == "SERVER_ACK":
-                # Skip TTS audio — dictation only needs text
-                pass
-            elif mtype == "SERVER_FULL_RESPONSE":
-                # event 451: ASR partial result
-                if event == 451 and isinstance(payload, dict):
-                    extra = payload.get("extra") or {}
-                    asr_text = (extra.get("origin_text") or "").strip()
-                    if not asr_text:
-                        results = payload.get("results") or []
-                        if results:
-                            alts = results[0].get("alternatives") or []
-                            if alts:
-                                asr_text = (alts[0].get("text") or "").strip()
-                    if asr_text:
-                        _last_asr_text[thread_id] = asr_text
-                        logger.info(f"[voice-ws] ASR partial: {asr_text}")
-
-                # event 450: barge-in / user starts speaking
-                if event == 450:
-                    try:
-                        await websocket.send_json(
-                            _envelope(MessageType.VOICE_BARGE_IN, {"thread_id": thread_id})
-                        )
-                    except Exception:
-                        pass
-
-                # event 459: ASR done → paste
-                elif event == 459:
-                    asr_text = _last_asr_text.pop(thread_id, None) or ""
-                    if not asr_text and isinstance(payload, dict):
-                        extra = payload.get("extra") or {}
-                        asr_text = (extra.get("origin_text") or "").strip()
-                    if asr_text:
-                        logger.info(f"[voice-ws] Dictation ASR: {asr_text}")
-                        # Paste text to active application
-                        try:
-                            await websocket.send_json({
-                                "type": "dictation.paste",
-                                "body": {"text": asr_text},
-                                "message_id": gen_uuid(),
-                            })
-                        except Exception as e:
-                            logger.warning(f"[voice-ws] dictation.paste failed: {e}")
-                        # LLM polish (async, non-blocking)
-                        from app.core.routing.connection import manager
-                        await manager.bind_thread(thread_id, conn_id)
-                        asyncio.create_task(_handle_dictation_finalize(
-                            {"raw_text": asr_text, "thread_id": thread_id, "target_locale": "zh"},
-                            conn_id
-                        ))
-
-                # event 599: ASR idle timeout → paste
-                elif event == 599 and _last_asr_text.get(thread_id):
-                    asr_text = _last_asr_text.pop(thread_id, "")
-                    logger.info(f"[voice-ws] Dictation ASR timeout: {asr_text}")
-                    try:
-                        await websocket.send_json({
-                            "type": "dictation.paste",
-                            "body": {"text": asr_text},
-                            "message_id": gen_uuid(),
-                        })
-                    except Exception as e:
-                        logger.warning(f"[voice-ws] dictation.paste failed: {e}")
-                    from app.core.routing.connection import manager
-                    await manager.bind_thread(thread_id, conn_id)
-                    asyncio.create_task(_handle_dictation_finalize(
-                        {"raw_text": asr_text, "thread_id": thread_id, "target_locale": "zh"},
-                        conn_id
-                    ))
-
-            elif mtype == "SERVER_ERROR":
-                logger.error(f"[voice-ws] Volcengine error: {payload}")
-                try:
-                    await websocket.send_json(
-                        _envelope(MessageType.SYSTEM_ERROR, {"code": "volc_error", "message": str(payload)})
-                    )
-                except Exception:
-                    pass
-    except asyncio.CancelledError:
-        pass
-    except Exception as e:
-        logger.error(f"[voice-ws] Dictation receive loop error: {e}", exc_info=e)
+        logger.error(f"[voice-ws] Voice receive loop error ({mode}): {e}", exc_info=e)
 
 
 async def _run_agent_pipeline(websocket: WebSocket, thread_id: str, text: str):
@@ -842,7 +688,7 @@ async def voice_ws(websocket: WebSocket) -> None:
                     # Notify Rust client of the listening state
                     try:
                         await websocket.send_json(
-                            _envelope("voice.state", {"state": "listening", "thread_id": thread_id})
+                            _envelope("voice:state", {"state": "listening", "thread_id": thread_id})
                         )
                     except Exception:
                         pass
@@ -870,10 +716,7 @@ async def voice_ws(websocket: WebSocket) -> None:
                             active_volc_clients[thread_id] = volc_client
                             # 根据 mode 选择不同的 receive loop
                             mode = str(body.get("mode", "dialogue")).strip()
-                            if mode == "dictation":
-                                volc_receive_task = asyncio.create_task(dictation_receive_loop(websocket, volc_client, thread_id, conn_id))
-                            else:
-                                volc_receive_task = asyncio.create_task(dialogue_receive_loop(websocket, volc_client, thread_id, conn_id))
+                            volc_receive_task = asyncio.create_task(voice_receive_loop(websocket, volc_client, thread_id, conn_id, mode))
                             logger.info(f"[voice-ws] Connected VolcDialogClient for thread {thread_id} in {mode} mode")
                         except Exception as e:
                             logger.error(f"[voice-ws] VolcDialogClient connect failed: {e}", exc_info=e)

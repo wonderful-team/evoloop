@@ -213,7 +213,7 @@ async def enrich_spec_with_macro_triggers(spec: VoiceInitSpec) -> VoiceInitSpec:
         for trigger in triggers:
             pattern = trigger.replace("{{", "{").replace("}}", "}")
             if pattern in seen_patterns:
-                logger.warning(
+                logger.debug(
                     "[init_spec] trigger '%s' skipped (macro %d, already bound)",
                     pattern, macro.id,
                 )

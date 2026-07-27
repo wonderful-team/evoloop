@@ -129,8 +129,10 @@ export function useVoiceEvents() {
       const win = await WebviewWindow.getByLabel("voice-hud")
       if (win) {
         await win.show()
-        await win.setAlwaysOnTop(true)
       }
+      // Return focus to main window so that Cmd+V (dictation paste) targets the right input
+      const mainWin = await WebviewWindow.getByLabel("main")
+      await mainWin?.setFocus()
     } catch (e) {
       console.error("[voice-hud] Failed to show HUD window:", e)
     }
@@ -254,7 +256,7 @@ export function useVoiceEvents() {
     )
 
     unlisteners.push(
-      await safeListen<{ polished_text: string; changes?: any[] }>(
+      await safeListen<{ changes?: Array<{ clarify?: string }> }>(
         "voice:dictation_polished",
         async (event) => {
           const clarify = event.payload.changes?.[0]?.clarify
