@@ -44,7 +44,7 @@ def _envelope(mtype: MessageType | str, body: dict[str, Any]) -> dict[str, Any]:
 
 
 async def _handle_barge_in(thread_id: str) -> None:
-    """Handle barge-in: cancel current task, update state machine.
+    """Handle barge-in: cancel current task, stop TTS, update state machine.
 
     Does NOT acquire the route lock — barge-in is an interrupt signal, not a
     new route. ``cancel_voice_task`` → ``task.cancel()`` propagates
@@ -58,6 +58,7 @@ async def _handle_barge_in(thread_id: str) -> None:
     cancelled = await executor.cancel_voice_task(thread_id)
     _is_sending_chat_tts_text[thread_id] = True
     await voice_state_machine.force_set(thread_id, VoiceSessionState.INTERRUPTED)
+    await manager.push(thread_id, _envelope("voice.barge_in", {"thread_id": thread_id}))
     logger.info("[voice] barge_in for thread %s, cancelled=%s", thread_id, cancelled)
 
 
@@ -148,7 +149,9 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
 
         from app.core.shared_state import shared_state
         project_id = int(body.get("project_id", 0)) or int(await shared_state.get("project_id", "0"))
-        ctx = EvoContext(thread_id=thread_id, project_id=project_id, request_id=message_id or gen_uuid())
+        from app.core.identity import identity_service
+        member_id = await identity_service.get_member_id() or 0
+        ctx = EvoContext(thread_id=thread_id, project_id=project_id, member_id=member_id, request_id=message_id or gen_uuid())
         token = ContextManager.set(ctx)
         try:
             await manager.bind_thread(thread_id, conn_id)
@@ -442,16 +445,14 @@ async def voice_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient
                 # --- Shared: event 450 barge-in ---
                 if event == 450:
                     if mode == "dialogue":
-                        from app.core.routing import executor
-                        await executor.cancel_voice_task(thread_id)
-                        _is_sending_chat_tts_text[thread_id] = True
-                        await voice_state_machine.force_set(thread_id, VoiceSessionState.INTERRUPTED)
-                    try:
-                        await websocket.send_json(
-                            _envelope(MessageType.VOICE_BARGE_IN, {"thread_id": thread_id})
-                        )
-                    except Exception:
-                        pass
+                        await _handle_barge_in(thread_id)
+                    else:
+                        try:
+                            await websocket.send_json(
+                                _envelope(MessageType.VOICE_BARGE_IN, {"thread_id": thread_id})
+                            )
+                        except Exception:
+                            pass
 
                 # --- Fork: event 459 ASR done ---
                 elif event == 459:

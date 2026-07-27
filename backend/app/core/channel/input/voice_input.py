@@ -68,6 +68,10 @@ class VoiceInputChannel(InputChannel):
 
         project_id = int(raw.get("project_id", DEFAULT_PROJECT_ID))
         message_id = raw.get("message_id")
+        member_id = int(raw.get("member_id", 0))
+        if not member_id:
+            from app.core.identity import identity_service
+            member_id = await identity_service.get_member_id() or 0
 
         # L0 matching
         from app.core.routing.router import get_local_matcher
@@ -96,6 +100,7 @@ class VoiceInputChannel(InputChannel):
             thread_id=thread_id,
             text=text,
             project_id=project_id,
+            member_id=member_id,
             metadata=meta,
             message_id=message_id,
         )
@@ -149,6 +154,8 @@ class VoiceInputChannel(InputChannel):
         """Clean up when the agent task is cancelled."""
         await self._executor.consume_voice(thread_id)
         await self._executor.push_voice_result(thread_id, "cancelled", "")
+        if self._state_machine is not None:
+            await self._state_machine.set(thread_id, self._state_enum.LISTENING)
 
     # ── L0 Macro dispatch ─────────────────────────────────────
 
