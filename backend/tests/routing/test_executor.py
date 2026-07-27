@@ -17,18 +17,21 @@ def setup_function():
 
 
 class TestThreadLock:
-    def test_get_thread_lock_creates_new(self):
-        lock = executor.get_thread_lock("t1")
+    @pytest.mark.asyncio
+    async def test_get_thread_lock_creates_new(self):
+        lock = await executor.get_thread_lock("t1")
         assert isinstance(lock, asyncio.Lock)
 
-    def test_get_thread_lock_reuses_existing(self):
-        lock1 = executor.get_thread_lock("t1")
-        lock2 = executor.get_thread_lock("t1")
+    @pytest.mark.asyncio
+    async def test_get_thread_lock_reuses_existing(self):
+        lock1 = await executor.get_thread_lock("t1")
+        lock2 = await executor.get_thread_lock("t1")
         assert lock1 is lock2
 
-    def test_get_thread_lock_per_thread(self):
-        lock1 = executor.get_thread_lock("t1")
-        lock2 = executor.get_thread_lock("t2")
+    @pytest.mark.asyncio
+    async def test_get_thread_lock_per_thread(self):
+        lock1 = await executor.get_thread_lock("t1")
+        lock2 = await executor.get_thread_lock("t2")
         assert lock1 is not lock2
 
 
