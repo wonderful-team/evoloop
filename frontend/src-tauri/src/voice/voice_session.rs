@@ -135,52 +135,62 @@ impl VoiceSession {
         let ffplay_child = self.ffplay_child.clone();
 
         let handler = Arc::new(move |envelope: VoiceEnvelope| {
+            let msg_type = envelope.msg_type.clone();
+            let body = envelope.body.clone().unwrap_or(serde_json::Value::Null);
             let session_audio_queue = session_audio_queue.clone();
             let session_shared_state = session_shared_state.clone();
             let event_bus = event_bus.clone();
             let ffplay_stdin = ffplay_stdin.clone();
             let ffplay_child = ffplay_child.clone();
 
-            tokio::spawn(async move {
-                let msg_type = envelope.msg_type.as_str();
-                let body = envelope.body.unwrap_or(serde_json::Value::Null);
-
-                match msg_type {
-                    "voice.audio_frame" => {
-                        if let Some(bytes) = envelope.raw_bytes {
-                            let mut stdin_guard = ffplay_stdin.lock().unwrap();
-                            if stdin_guard.is_none() {
-                                // First chunk — spawn ffplay
-                                let child = Command::new("ffplay")
-                                    .args(["-f", "f32le", "-ar", "24000", "-nodisp", "-"])
-                                    .stdin(Stdio::piped())
-                                    .stderr(Stdio::null())
-                                    .spawn();
-                                match child {
-                                    Ok(mut c) => {
-                                        let stdin = c.stdin.take()
-                                            .expect("failed to capture ffplay stdin");
-                                        *stdin_guard = Some(stdin);
-                                        *ffplay_child.lock().unwrap() = Some(c);
-                                    }
-                                    Err(e) => {
-                                        warn!("[voice-session] ffplay spawn failed: {}", e);
-                                        drop(stdin_guard);
-                                        return;
-                                    }
+            if msg_type == "voice.audio_frame" {
+                tokio::task::spawn_blocking(move || {
+                    use std::io::Write as IoWrite;
+                    if let Some(bytes) = envelope.raw_bytes {
+                        let mut stdin_guard = ffplay_stdin.lock().unwrap();
+                        if stdin_guard.is_none() {
+                            info!("[tts-play] spawning ffplay (first audio frame, {}b)", bytes.len());
+                            let child = Command::new("ffplay")
+                                .args(["-f", "f32le", "-ar", "24000", "-nodisp", "-autoexit", "-"])
+                                .stdin(Stdio::piped())
+                                .stderr(Stdio::null())
+                                .spawn();
+                            match child {
+                                Ok(mut c) => {
+                                    let stdin = c.stdin.take()
+                                        .expect("failed to capture ffplay stdin");
+                                    *stdin_guard = Some(stdin);
+                                    *ffplay_child.lock().unwrap() = Some(c);
+                                    info!("[tts-play] ffplay spawned OK");
                                 }
-                            }
-                            // Write PCM bytes to ffplay stdin
-                            if let Some(stdin) = stdin_guard.as_mut() {
-                                if let Err(e) = stdin.write_all(&bytes) {
-                                    warn!("[voice-session] ffplay write failed: {}", e);
-                                    *stdin_guard = None;
-                                    *ffplay_child.lock().unwrap() = None;
+                                Err(e) => {
+                                    warn!("[tts-play] ffplay spawn failed: {}", e);
+                                    drop(stdin_guard);
+                                    return;
                                 }
                             }
                         }
+                        if let Some(stdin) = stdin_guard.as_mut() {
+                            if let Err(e) = stdin.write_all(&bytes) {
+                                warn!("[tts-play] ffplay write failed ({}b): {} — resetting", bytes.len(), e);
+                                *stdin_guard = None;
+                                *ffplay_child.lock().unwrap() = None;
+                            }
+                        }
+                        let dump_path = std::env::temp_dir().join("tts_debug_raw.pcm");
+                        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&dump_path) {
+                            let _ = f.write_all(&bytes);
+                        }
                     }
+                });
+                return;
+            }
+
+            tokio::spawn(async move {
+                let mt = msg_type.as_str();
+                match mt {
                     "voice.barge_in" | "voice.cancel" => {
+                        info!("[tts-play] barge_in/cancel — killing ffplay");
                         session_audio_queue.lock().unwrap().clear();
                         // Kill ffplay and close stdin
                         if let Ok(mut stdin_guard) = ffplay_stdin.lock() {
@@ -237,6 +247,7 @@ impl VoiceSession {
                         event_bus.emit("system:config_changed", body.clone());
                     }
                     _ => {
+                        info!("[tts-play] received msg_type={} (non-audio event)", msg_type);
                         let event_name = msg_type.replace(".", ":");
                         event_bus.emit(&event_name, body);
                     }
