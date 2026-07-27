@@ -150,23 +150,31 @@ export function useVoiceEvents() {
     }
   }, [])
 
-  // Sync voice HUD state globally across all pages
+  // Show/Hide HUD window when voiceMode toggles (not on every state update)
+  const prevShowRef = useRef(voiceMode !== "off")
+  useEffect(() => {
+    if (!isTauri()) return
+
+    const isActive = voiceMode !== "off"
+    if (isActive === prevShowRef.current) return
+    prevShowRef.current = isActive
+
+    if (isActive) {
+      showHudWindow()
+    } else {
+      hideHudWindow()
+    }
+  }, [voiceMode, showHudWindow, hideHudWindow])
+
+  // Sync voice HUD content (state/text) without showing/hiding the window
   const partialText = useVoiceStore((s) => s.partialText)
   const ttsSentence = useVoiceStore((s) => s.ttsSentence)
 
   useEffect(() => {
-    if (!isTauri()) return
+    if (!isTauri() || voiceMode === "off") return
 
     const updateHud = async () => {
       const { emit } = await import("@tauri-apps/api/event")
-
-      if (voiceMode === "off") {
-        await emit("hud-update", { mode: "off", state: "idle", text: "" })
-        await hideHudWindow()
-        return
-      }
-
-      await showHudWindow()
 
       let displayText = ""
       if (voiceMode === "dictation") {
@@ -188,8 +196,6 @@ export function useVoiceEvents() {
     voiceState,
     partialText,
     ttsSentence,
-    showHudWindow,
-    hideHudWindow,
   ])
 
   const initListeners = useCallback(async () => {
