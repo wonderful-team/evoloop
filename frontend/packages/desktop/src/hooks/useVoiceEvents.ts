@@ -12,6 +12,7 @@ let listenersInitialized = false
 
 export function useVoiceEvents() {
   const unlistenersRef = useRef<Array<() => void>>([])
+  const voiceModeSyncedRef = useRef(false)
 
   const setVoiceState = useVoiceStore((s) => s.setVoiceState)
   const setPartialText = useVoiceStore((s) => s.setPartialText)
@@ -82,6 +83,12 @@ export function useVoiceEvents() {
     prevVoiceModeRef.current = voiceMode
 
     if (prev === voiceMode) return
+
+    // voice-mode-sync from Rust F12 handler — session already managed
+    if (voiceModeSyncedRef.current) {
+      voiceModeSyncedRef.current = false
+      return
+    }
 
     if (prev !== "off" && voiceMode !== "off") {
       // Switching between modes — no stop/start, just tell Rust to swap mode
@@ -188,6 +195,17 @@ export function useVoiceEvents() {
     listenersInitialized = true
 
     const unlisteners: Array<() => void> = []
+
+    // Sync voiceMode from Rust (F12 shortcut handled entirely in Rust)
+    unlisteners.push(
+      await safeListen<string>("voice-mode-sync", (event) => {
+        const mode = event.payload
+        if (mode === "off" || mode === "dictation" || mode === "dialogue") {
+          voiceModeSyncedRef.current = true
+          setVoiceMode(mode)
+        }
+      }),
+    )
 
     unlisteners.push(
       await safeListen<{ state: VoiceState }>("voice:state", (event) => {

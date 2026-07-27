@@ -1068,8 +1068,8 @@ pub fn run() {
             let quit_i = MenuItem::with_id(_app, "quit", "退出", true, Some("CmdOrCtrl+Q"))?;
             let show_i = MenuItem::with_id(_app, "show", "显示主界面", true, None::<&str>)?;
             let record_i = MenuItem::with_id(_app, "record", "技能录制 (Ctrl+Shift+R)", true, None::<&str>)?;
-            let voice_dictation_i = MenuItem::with_id(_app, "voice_dictation", "语音听写 (Ctrl+Alt+V)", true, None::<&str>)?;
-            let voice_dialogue_i = MenuItem::with_id(_app, "voice_dialogue", "语音对话 (Ctrl+Alt+V)", true, None::<&str>)?;
+            let voice_dictation_i = MenuItem::with_id(_app, "voice_dictation", "语音听写", true, Some("F12"))?;
+            let voice_dialogue_i = MenuItem::with_id(_app, "voice_dialogue", "语音对话", true, Some("F12"))?;
 
             let service_state = AppServiceState {
                 children: Arc::new(Mutex::new(Vec::new())),
@@ -1262,7 +1262,7 @@ pub fn run() {
                     let _ = rec_child.wait();
                 }
             }
-            
+
             // Force kill any remaining evoloop-backend processes
             #[cfg(unix)]
             {

@@ -35,6 +35,7 @@ export function useTauriVoiceShortcut(
       if (!isTauri()) return
       try {
         unlistenRef.current = await safeListen("voice-shortcut-press", () => {
+          console.log("[voice-shortcut] F12 pressed, calling onPress")
           onPress?.()
         })
       } catch (e) {
@@ -111,10 +112,10 @@ export function useTauriVoiceShortcutSettings() {
   const [shortcutKey, setShortcutKeyState] = useState(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("evoloop_voice_shortcut_key")
-      if (stored && stored !== "F10" && stored !== "Alt+F12" && stored !== "F8" && stored !== "Alt+V") return stored
-      return "Ctrl+Alt+V"
+      if (stored && stored !== "Ctrl+Alt+V") return stored
+      return "F12"
     }
-    return "Ctrl+Alt+V"
+    return "F12"
   })
 
   const [longPressThreshold, setLongPressThresholdState] = useState(() => {
