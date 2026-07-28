@@ -7004,7 +7004,7 @@ export const TTSRequestSchema = {
         engine: {
             type: 'string',
             title: 'Engine',
-            default: 'cosyvoice'
+            default: 'volcengine'
         },
         voice: {
             type: 'string',

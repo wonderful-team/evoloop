@@ -18,10 +18,8 @@ import { SettingsCard } from "./SettingsCard"
 import { useSettings } from "./SettingsContext"
 
 const TTS_ENGINES = [
-  { id: "system", name: "System (say)", model: null },
   { id: "edge-tts", name: "Edge TTS", model: null },
   { id: "qwen-tts", name: "Qwen TTS", model: null },
-  { id: "cosyvoice", name: "CosyVoice (本地)", model: "cosyvoice" },
 ]
 
 export function TTSSettings() {

@@ -24,7 +24,7 @@ pub fn dictation_paste(text: &str) {
         let _: () = msg_send![pasteboard, clearContents];
         let str_obj = NSString::alloc(nil).init_str(text);
         let type_string = NSString::alloc(nil).init_str("public.utf8-plain-text");
-        
+
         // Declare types on pasteboard
         let types_array: *mut objc::runtime::Object = msg_send![objc::class!(NSArray), arrayWithObject:type_string];
         let _: () = msg_send![pasteboard, declareTypes:types_array owner:nil];
@@ -275,12 +275,12 @@ impl VoiceSession {
                 read_lock.as_ref().cloned().ok_or("WS not connected")?
             }
         };
-        
+
         *self.thread_id.write().await = thread_id.clone();
         *self.lang.write().await = lang.clone();
         *self.mode.write().await = mode.clone();
         self.running.store(true, Ordering::SeqCst);
-        
+
         // Notify Python backend to start session
         if let Err(e) = ws_client.send_voice_start(&thread_id, &mode).await {
             warn!("[voice-session] failed to notify backend: {}", e);
@@ -298,7 +298,7 @@ impl VoiceSession {
             if !running.load(Ordering::SeqCst) {
                 return;
             }
-            
+
             let sample_count = samples.len();
             if sample_count == 0 {
                 return;
@@ -373,7 +373,7 @@ impl VoiceSession {
     }
 
     pub fn get_tts_engine(&self) -> crate::voice::tts_engine::TtsEngineKind {
-        crate::voice::tts_engine::TtsEngineKind::CosyVoice
+        crate::voice::tts_engine::TtsEngineKind::EdgeTts
     }
 
     pub fn get_tts_voice(&self) -> String {

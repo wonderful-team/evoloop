@@ -3,7 +3,6 @@ Model Manager — download and track voice model availability.
 
 Models:
   - qwen3_asr:     Qwen3-ASR via sherpa-onnx (954MB)
-  - cosyvoice:     CosyVoice-300M-Instruct TTS (2.1GB)
 """
 
 import asyncio
@@ -31,17 +30,6 @@ MODEL_DEFS: dict[str, dict[str, Any]] = {
         "check_file": "encoder.int8.onnx",
         "source": "modelscope",
         "source_id": "jkman2023/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25",
-        "url": None,
-    },
-    "cosyvoice": {
-        "name": "CosyVoice-300M",
-        "size_gb": 2.1,
-        "size_label": "2.1GB",
-        "total_bytes": 2_100_000_000,
-        "sub_dir": "cosyvoice-300m-instruct",
-        "check_file": "llm.pt",
-        "source": "modelscope",
-        "source_id": "iic/CosyVoice-300M-Instruct",
         "url": None,
     },
 }
@@ -182,7 +170,6 @@ class ModelManager:
             shutil.rmtree(target_dir)
 
         # Estimate total download size for progress tracking
-        # CosyVoice-300M is ~5.4GB but compressed; Qwen3-ASR is ~954MB
         total_bytes: float = model_def.get("total_bytes", model_def["size_gb"] * 1_000_000_000)
 
         async def _track_progress():

@@ -66,21 +66,6 @@ export function useTTS(): UseTTSReturn {
   const [error, setError] = useState<string | null>(null)
   const speakLockRef = useRef(false)
 
-  const systemVoices: TTSVoice[] = [
-    {
-      id: "Ting-Ting",
-      name: "Ting-Ting",
-      gender: "female",
-      description: "macOS 中文语音",
-    },
-    {
-      id: "Samantha",
-      name: "Samantha",
-      gender: "female",
-      description: "macOS English",
-    },
-  ]
-
   const edgeTtsVoices: TTSVoice[] = [
     {
       id: "zh-CN-XiaoxiaoNeural",
@@ -154,26 +139,9 @@ export function useTTS(): UseTTSReturn {
     },
   ]
 
-  const cosyVoiceVoices: TTSVoice[] = [
-    {
-      id: "中文女",
-      name: "中文女",
-      gender: "female",
-      description: "CosyVoice 默认中文女声",
-    },
-    {
-      id: "中文男",
-      name: "中文男",
-      gender: "male",
-      description: "CosyVoice 默认中文男声",
-    },
-  ]
-
   const engineVoices: Record<string, TTSVoice[]> = {
-    system: systemVoices,
     "edge-tts": edgeTtsVoices,
     "qwen-tts": qwenVoices,
-    cosyvoice: cosyVoiceVoices,
   }
 
   const [voices, setVoices] = useState<TTSVoice[]>(edgeTtsVoices)

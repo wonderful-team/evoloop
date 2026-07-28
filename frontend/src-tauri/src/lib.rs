@@ -669,46 +669,11 @@ async fn set_qwen_api_key(_key: String) -> Result<(), String> {
 #[cfg(desktop)]
 async fn stop_speaking() -> Result<(), String> {
     use std::process::Command;
-    Command::new("pkill")
-        .arg("-x")
-        .arg("say")
-        .output()
-        .ok();
-    Command::new("pkill")
-        .arg("-x")
-        .arg("afplay")
-        .output()
-        .ok();
+    Command::new("pkill").arg("-x").arg("ffplay").output().ok();
     Ok(())
 }
 
-#[tauri::command]
-#[cfg(desktop)]
-async fn list_system_voices() -> Result<Vec<serde_json::Value>, String> {
-    use std::process::Command;
-    let output = Command::new("say")
-        .arg("-v")
-        .arg("?")
-        .output()
-        .map_err(|e| format!("Failed to list voices: {}", e))?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut voices = Vec::new();
-    for line in stdout.lines() {
-        let parts: Vec<&str> = line.splitn(2, "  ").collect();
-        if parts.len() >= 1 {
-            let name = parts[0].trim();
-            if !name.is_empty() {
-                voices.push(serde_json::json!({
-                    "id": name,
-                    "name": name,
-                    "gender": "unknown",
-                    "description": parts.get(1).unwrap_or(&"").trim(),
-                }));
-            }
-        }
-    }
-    Ok(voices)
-}
+
 
 #[tauri::command]
 #[cfg(mobile)]
@@ -1137,7 +1102,6 @@ pub fn run() {
     // TTS commands
     speak,
     stop_speaking,
-    list_system_voices,
     set_tts_engine,
     get_tts_engine,
     set_tts_voice,
