@@ -14,8 +14,19 @@ import asyncio
 import logging
 from typing import Any
 
-from app.core.channel.base import IncomingMessage, InputChannel
+import yaml
+
 from app.constants import DEFAULT_PROJECT_ID
+from app.core.channel.base import IncomingMessage, InputChannel
+from app.core.identity import identity_service
+from app.core.routing.executor import push_tts_text
+from app.core.routing.init_spec import _TEMPLATES
+from app.core.routing.intent_classifier import predict as classifier_predict
+from app.core.routing.router import get_local_matcher
+from app.core.shared_state import shared_state
+from app.infrastructure.database import session_scope
+from app.models.macro import Macro
+from sqlmodel import select
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +65,66 @@ class VoiceInputChannel(InputChannel):
         self._envelope = envelope_fn
         self._message_type = message_type
 
+    # ── Compound command decompose ────────────────────────────
+    _CONJUNCTIONS_PATH = None  # override for custom path
+
+    @classmethod
+    def _get_conjunctions(cls) -> tuple[str, ...]:
+        """Read conjunctions from data/conjunctions.txt.
+
+        Falls back to built-in list if file is unavailable.
+        File format: one conjunction per line, # comments and blank lines ignored.
+        """
+        path = cls._CONJUNCTIONS_PATH
+        if path is None:
+            from pathlib import Path
+            path = Path(__file__).resolve().parent.parent.parent.parent.parent / "data" / "conjunctions.txt"
+
+        try:
+            with open(path, encoding="utf-8") as f:
+                result = []
+                for line in f:
+                    stripped = line.strip()
+                    if stripped and not stripped.startswith("#"):
+                        result.append(stripped)
+            if result:
+                return tuple(result)
+        except (FileNotFoundError, OSError, PermissionError):
+            pass
+
+        return ("然后", "并且", "而且", "同时", "接着", "再然后")
+
+    @staticmethod
+    def _decompose(text: str) -> list[str]:
+        """Split compound command at conjunctions. Returns [text] if no conjunction found."""
+        import re
+        conjunctions = VoiceInputChannel._get_conjunctions()
+        pattern = "|".join(re.escape(c) for c in conjunctions)
+        parts = re.split(pattern, text)
+        parts = [p.strip() for p in parts if p.strip()]
+        return parts if len(parts) > 1 else [text]
+
+    async def _process_single(
+        self, text: str, thread_id: str, project_id: int
+    ) -> bool:
+        """Run L0 on a single sub-command. Returns True if handled locally, False if it needs Agent."""
+        intent_name, margin = classifier_predict(text)
+        l0_match = None
+        if intent_name and margin >= 0.08:
+            l0_match = await self._resolve_intent(intent_name, text, thread_id, project_id)
+        if l0_match is None:
+            matcher = await get_local_matcher()
+            l0_match = matcher.match(text)
+        if l0_match is not None:
+            action, args = l0_match
+            if action.startswith("macro:"):
+                macro_id = int(action.split(":", 1)[1])
+                await self._dispatch_macro(thread_id, macro_id, args, project_id)
+            else:
+                await self._handle_builtin(thread_id, action, args)
+            return True
+        return False
+
     async def receive(self, raw: dict[str, Any], **kwargs: Any) -> IncomingMessage | None:
         """Process an inbound voice.route message.
 
@@ -70,23 +141,24 @@ class VoiceInputChannel(InputChannel):
         message_id = raw.get("message_id")
         member_id = int(raw.get("member_id", 0))
         if not member_id:
-            from app.core.identity import identity_service
             member_id = await identity_service.get_member_id() or 0
+        # Try compound command decomposition first
+        sub_commands = self._decompose(text)
+        if len(sub_commands) > 1:
+            all_handled = True
+            for sub in sub_commands:
+                if not await self._process_single(sub, thread_id, project_id):
+                    all_handled = False
+                    break
+            if all_handled:
+                return None
+            # Fall through to Agent with original text if any sub-command missed
 
-        # L0 matching
-        from app.core.routing.router import get_local_matcher
-
-        matcher = await get_local_matcher()
-        l0_match = matcher.match(text)
-
-        if l0_match is not None:
-            action, args = l0_match
-            if action.startswith("macro:"):
-                macro_id = int(action.split(":", 1)[1])
-                await self._dispatch_macro(thread_id, macro_id, args, project_id)
-            else:
-                await self._handle_builtin(thread_id, action, args)
-            return None
+        # Single command path (or compound fallback to Agent)
+        if len(sub_commands) == 1:
+            handled = await self._process_single(text, thread_id, project_id)
+            if handled:
+                return None
 
         # L0 miss — build IncomingMessage for agent
         running_worker = await self._worker_registry.get_worker(thread_id) if self._worker_registry else None
@@ -126,7 +198,7 @@ class VoiceInputChannel(InputChannel):
             )
             return None
 
-        from app.core.engine.background_agent import run_agent_background
+        from app.core.engine.background_agent import run_agent_background  # noqa: TID252
 
         running_worker = await self._worker_registry.get_worker(thread_id) if self._worker_registry else None
         desc = running_worker.description if running_worker else ""
@@ -157,7 +229,64 @@ class VoiceInputChannel(InputChannel):
         if self._state_machine is not None:
             await self._state_machine.set(thread_id, self._state_enum.LISTENING)
 
-    # ── L0 Macro dispatch ─────────────────────────────────────
+    # ── L0 Macro dispatch ──────────────────────────────────────
+
+    async def _resolve_intent(self, intent_name: str, text: str, thread_id: str, project_id: int) -> tuple[str, dict] | None:
+        """Resolve BERT intent_name to an L0 action. Returns (action, args) or None."""
+        import re
+
+        # Intent-specific guards to reject false positives
+        if intent_name == "报时" and not re.search(r"几[号点时]|星期|时间|日期|报时", text):
+            return None
+        if intent_name in ("打开应用", "切换到应用", "退出应用") and not re.search(
+            r"(打开|启动|开一下|切换到|去|退出|关闭|关掉)\w", text
+        ):
+            return None
+
+        # Device name redirect: text contains WiFi/蓝牙 → map to correct intent
+        _device_intents = {
+            "WiFi": ["打开_WiFi", "关闭_WiFi", "打开 WiFi", "关闭 WiFi"],
+            "蓝牙": ["打开蓝牙", "关闭蓝牙"],
+            "蓝牙设备": ["连接蓝牙设备", "断开蓝牙设备"],
+        }
+        for keyword, targets in _device_intents.items():
+            if keyword in text and intent_name in ("打开应用", "打开_WiFi", "打开信息",
+                                                    "退出应用", "关闭_WiFi",
+                                                    "切换到应用"):
+                candidates = targets
+                break
+        else:
+            # Normalize: YAML keys may have underscores where DB names have spaces
+            candidates = [intent_name, intent_name.replace("_", " ")]
+
+        async with session_scope() as session:
+            for name in candidates:
+                stmt = select(Macro).where(Macro.name == name, Macro.status == "verified")
+                result = await session.execute(stmt)
+                macro = result.scalar_one_or_none()
+                if macro:
+                    return f"macro:{macro.id}", self._extract_slots(intent_name, text)
+
+        # 2. Try builtin — lookup from init_spec._TEMPLATES
+        for tmpl in _TEMPLATES:
+            if intent_name == tmpl["action"]:
+                return tmpl["action"], {"name": text} if tmpl["action"] == "rename" else {}
+        # Also try matching by Chinese name (from training data labels)
+        _BUILTIN_ALIASES = {"取消": "cancel", "结束": "end", "重说": "clarify", "改名": "rename"}
+        if intent_name in _BUILTIN_ALIASES:
+            action = _BUILTIN_ALIASES[intent_name]
+            return action, {"name": text} if action == "rename" else {}
+
+        return None
+
+    def _extract_slots(self, intent_name: str, text: str) -> dict:
+        """Simple slot extraction from raw text."""
+        # For slotted macros, extract the parameter from the command suffix
+        prefixes = ["打开", "启动", "关闭", "退出", "切换到", "去", "搜索", "搜一下"]
+        for p in prefixes:
+            if text.startswith(p):
+                return {"_value": text[len(p):].strip(), "_text": text}
+        return {}
 
     async def _dispatch_macro(self, thread_id: str, macro_id: int, args: dict, project_id: int) -> None:
         """加载 Macro → preflight → run_deterministic → 推 done/failed/cancelled。
@@ -238,7 +367,6 @@ class VoiceInputChannel(InputChannel):
         elif action == "rename":
             name = args.get("name", "")
             if name:
-                from app.core.shared_state import shared_state
                 await shared_state.set("agent_name", name)
                 logger.info("[voice-input] rename to %s for thread %s", name, thread_id)
             await self._push_local_result(thread_id, action, args)
@@ -250,10 +378,9 @@ class VoiceInputChannel(InputChannel):
 
     async def _maybe_push_tts(self, thread_id: str, text: str) -> None:
         """推确认语（L0 匹配后的短确认）给 Volcengine 合成 TTS。
-        
+
         L0 builtin/macro 执行完成后，通过此方法将确认语文本推给 Volcengine 合成语音。
         """
-        from app.core.routing.executor import push_tts_text
         await push_tts_text(thread_id, text)
 
     async def _push_local_result(self, thread_id: str, action: str, args: Any) -> None:
