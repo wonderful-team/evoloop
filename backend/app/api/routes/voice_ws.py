@@ -17,6 +17,7 @@ import time
 import json
 from typing import Any
 
+import websockets
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
@@ -48,7 +49,7 @@ async def _handle_barge_in(thread_id: str) -> None:
 
     Does NOT acquire the route lock — barge-in is an interrupt signal, not a
     new route. ``cancel_voice_task`` → ``task.cancel()`` propagates
-    ``CancelledError`` into ``_dispatch_macro`` / ``await_and_finalize``,
+    ``CancelledError`` into ``dispatch_macro`` / ``await_and_finalize``,
     which push ``cancelled`` to the WS. The state machine's ``force_set``
     overrides whatever the in-flight route set (PROCESSING/SPEAKING →
     INTERRUPTED), which is the correct semantics.
@@ -391,7 +392,6 @@ _is_sending_chat_tts_text: dict[str, bool] = {}
 
 async def voice_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient, thread_id: str, conn_id: str, mode: str):
     """Volcengine 接收循环 — ASR 事件共用，459/599 按 mode 分叉"""
-    import websockets
     if mode == "dialogue":
         _is_sending_chat_tts_text[thread_id] = False
     try:
@@ -400,6 +400,7 @@ async def voice_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient
                 resp = await volc_client.receive_response()
             except websockets.exceptions.ConnectionClosed:
                 logger.info(f"[voice-ws] Volcengine connection closed for thread {thread_id} ({mode})")
+                await volc_client.close()
                 break
 
             mtype = resp.get("message_type")
@@ -431,7 +432,6 @@ async def voice_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient
                                 asr_text = (alts[0].get("text") or "").strip()
                     if asr_text:
                         _last_asr_text[thread_id] = asr_text
-                        logger.info(f"[voice-ws] ASR partial: {asr_text}")
                         if mode == "dialogue":
                             try:
                                 await websocket.send_json(

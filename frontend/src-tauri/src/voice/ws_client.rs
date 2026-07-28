@@ -19,12 +19,15 @@ pub struct VoiceEnvelope {
 }
 
 const RECONNECT_DELAY_SECS: u64 = 3;
+const PING_INTERVAL_SECS: u64 = 20;
+const PING_TIMEOUT_SECS: u64 = 45;
 
 pub struct VoiceWsClient {
     tx: Arc<Mutex<Option<mpsc::UnboundedSender<Message>>>>,
     handler: EnvelopeHandler,
     url: String,
     connected: Arc<RwLock<bool>>,
+    ping_failures: Arc<Mutex<u32>>,
 }
 
 impl VoiceWsClient {
@@ -34,6 +37,7 @@ impl VoiceWsClient {
             handler,
             url,
             connected: Arc::new(RwLock::new(false)),
+            ping_failures: Arc::new(Mutex::new(0)),
         }
     }
 
@@ -42,12 +46,12 @@ impl VoiceWsClient {
     }
 
     /// Connect and auto-reconnect on disconnect.
-    /// The returned task runs forever (or until the client is dropped).
     pub async fn connect(&self) -> Result<(), String> {
         let url = self.url.clone();
         let handler = self.handler.clone();
         let tx_state = self.tx.clone();
-        let connected = self.connected.clone();
+        let connected_state = self.connected.clone();
+        let ping_failures = self.ping_failures.clone();
 
         tokio::spawn(async move {
             loop {
@@ -58,17 +62,21 @@ impl VoiceWsClient {
                         let (tx, mut rx) = mpsc::unbounded_channel::<Message>();
 
                         *tx_state.lock().await = Some(tx);
-                        *connected.write().await = true;
+                        *connected_state.write().await = true;
+                        *ping_failures.lock().await = 0;
 
                         let handler = handler.clone();
-                        let connected_clone = connected.clone();
-                        let tx_state_clone = tx_state.clone();
+                        let connected_inner = connected_state.clone();
+                        let tx_state_inner = tx_state.clone();
+                        let last_recv = Arc::new(Mutex::new(tokio::time::Instant::now()));
 
-                        // Receive loop
+                        // Receive loop (no ping, just update last_recv timestamp) (no ping, just update last_recv timestamp)
+                        let last_recv_recv = last_recv.clone();
                         let recv = tokio::spawn(async move {
                             while let Some(msg_result) = ws_receiver.next().await {
                                 match msg_result {
                                     Ok(Message::Text(text)) => {
+                                        *last_recv_recv.lock().await = tokio::time::Instant::now();
                                         if let Ok(envelope) = serde_json::from_str::<VoiceEnvelope>(&text) {
                                             handler(envelope);
                                         } else {
@@ -77,6 +85,7 @@ impl VoiceWsClient {
                                         }
                                     }
                                     Ok(Message::Binary(bin)) => {
+                                        *last_recv_recv.lock().await = tokio::time::Instant::now();
                                         let envelope = VoiceEnvelope {
                                             msg_type: "voice.audio_frame".to_string(),
                                             body: None,
@@ -86,7 +95,9 @@ impl VoiceWsClient {
                                         handler(envelope);
                                     }
                                     Ok(Message::Frame(_)) => {}
-                                    Ok(Message::Ping(_)) | Ok(Message::Pong(_)) => {}
+                                    Ok(Message::Ping(_)) | Ok(Message::Pong(_)) => {
+                                        *last_recv_recv.lock().await = tokio::time::Instant::now();
+                                    }
                                     Ok(Message::Close(_)) => {
                                         info!("[voice-ws] server closed connection");
                                         break;
@@ -97,20 +108,55 @@ impl VoiceWsClient {
                                     }
                                 }
                             }
-                            *connected_clone.write().await = false;
-                            *tx_state_clone.lock().await = None;
+                            *connected_inner.write().await = false;
+                            *tx_state_inner.lock().await = None;
                         });
 
-                        // Send loop
-                        while let Some(msg) = rx.recv().await {
-                            if ws_sender.send(msg).await.is_err() {
-                                error!("[voice-ws] send failed");
-                                break;
+                        // Send loop with keepalive ping + timeout detection
+                        let mut last_ping = tokio::time::Instant::now();
+                        loop {
+                            tokio::select! {
+                                msg = rx.recv() => {
+                                    match msg {
+                                        Some(m) => {
+                                            if ws_sender.send(m).await.is_err() {
+                                                error!("[voice-ws] send failed");
+                                                break;
+                                            }
+                                        }
+                                        None => break,
+                                    }
+                                }
+                                _ = tokio::time::sleep_until(
+                                    (last_ping + std::time::Duration::from_secs(PING_INTERVAL_SECS)).into()
+                                ) => {
+                                    // JSON ping keepalive
+                                    let ping = serde_json::json!({
+                                        "version": "2.0",
+                                        "type": "ping",
+                                        "message_id": uuid::Uuid::new_v4().to_string(),
+                                        "body": {},
+                                    });
+                                    if let Ok(ping_text) = serde_json::to_string(&ping) {
+                                        if ws_sender.send(Message::Text(ping_text)).await.is_err() {
+                                            warn!("[voice-ws] ping send failed");
+                                            break;
+                                        }
+                                    }
+                                    last_ping = tokio::time::Instant::now();
+
+                                    // Timeout detection
+                                    let elapsed = last_recv.lock().await.elapsed();
+                                    if elapsed > std::time::Duration::from_secs(PING_TIMEOUT_SECS) {
+                                        warn!("[voice-ws] no message for {:?}, reconnecting", elapsed);
+                                        break;
+                                    }
+                                }
                             }
                         }
 
                         recv.abort();
-                        *connected.write().await = false;
+                        *connected_state.write().await = false;
                         *tx_state.lock().await = None;
                     }
                     Err(e) => {

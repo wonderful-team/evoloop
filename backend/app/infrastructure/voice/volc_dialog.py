@@ -37,7 +37,7 @@ class VolcDialogClient:
         self.ws = await websockets.connect(
             self.base_url,
             additional_headers=headers,
-            ping_interval=None,
+            ping_interval=5,
             ssl=ssl_ctx,
         )
         self.logid = ""
