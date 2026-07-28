@@ -246,6 +246,20 @@ impl VoiceSession {
                         }
                         event_bus.emit("system:config_changed", body.clone());
                     }
+                    "voice:state" => {
+                        info!("[tts-play] received msg_type=voice:state (non-audio event)");
+                        let is_listening = body.get("state").and_then(|v| v.as_str()) == Some("listening");
+                        let event_name = msg_type.replace(".", ":");
+                        event_bus.emit(&event_name, body);
+                        if is_listening {
+                            if let Ok(mut stdin_guard) = ffplay_stdin.lock() {
+                                if stdin_guard.is_some() {
+                                    info!("[tts-play] state=listening — closing ffplay stdin");
+                                    drop(stdin_guard.take());
+                                }
+                            }
+                        }
+                    }
                     _ => {
                         info!("[tts-play] received msg_type={} (non-audio event)", msg_type);
                         let event_name = msg_type.replace(".", ":");
@@ -283,7 +297,10 @@ impl VoiceSession {
 
         // Notify Python backend to start session
         if let Err(e) = ws_client.send_voice_start(&thread_id, &mode).await {
-            warn!("[voice-session] failed to notify backend: {}", e);
+            warn!("[voice-session] failed to notify backend (connection dead), resetting: {}", e);
+            drop(ws_client);
+            *self.ws_client.write().await = None;
+            return Err(format!("backend not reachable: {}", e));
         }
         self.emit_log(&format!("voice session started, mode={}", mode));
 

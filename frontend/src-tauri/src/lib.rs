@@ -604,7 +604,29 @@ pub fn safe_killpg(pgid: i32) {
 // ===== TTS Commands =====
 
 /// Direct TTS call: dispatches to the correct backend and waits for playback.
+use std::collections::HashMap;
+
+static TTS_CACHE: LazyLock<Mutex<HashMap<String, Vec<u8>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+
 async fn speak_direct(text: &str, engine: &str, voice: &str) -> Result<(), String> {
+    // 1. Check cache
+    {
+        let cache = TTS_CACHE.lock().unwrap();
+        if let Some(cached) = cache.get(text) {
+            let mut child = std::process::Command::new("ffplay")
+                .args(["-f", "f32le", "-ar", "24000", "-nodisp", "-autoexit", "-"])
+                .stdin(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+                .map_err(|e| format!("ffplay spawn failed: {}", e))?;
+            use std::io::Write;
+            child.stdin.take().unwrap().write_all(cached).map_err(|e| e.to_string())?;
+            child.wait().map_err(|e| e.to_string())?;
+            return Ok(());
+        }
+    }
+
+    // 2. Fetch TTS
     let backend_port = crate::sidecar::BACKEND_PORT;
     let url = format!("http://127.0.0.1:{}/api/v1/voice/tts", backend_port);
     let client = reqwest::Client::new();
@@ -619,16 +641,23 @@ async fn speak_direct(text: &str, engine: &str, voice: &str) -> Result<(), Strin
         return Err(format!("TTS API error: {}", err_body));
     }
     let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
-    let path = std::env::temp_dir().join(format!("evoloop_tts_{}.wav", uuid::Uuid::new_v4()));
-    std::fs::write(&path, &bytes).map_err(|e| e.to_string())?;
-    let status = std::process::Command::new("afplay").arg(&path).status().map_err(|e| {
-        let _ = std::fs::remove_file(&path);
-        e.to_string()
-    })?;
-    let _ = std::fs::remove_file(&path);
-    if !status.success() && status.code() != None {
-        return Err("afplay failed".to_string());
+
+    // 3. Cache the PCM bytes
+    {
+        let mut cache = TTS_CACHE.lock().unwrap();
+        cache.insert(text.to_string(), bytes.to_vec());
     }
+
+    // 4. Stream to ffplay (no temp file)
+    let mut child = std::process::Command::new("ffplay")
+        .args(["-f", "f32le", "-ar", "24000", "-nodisp", "-autoexit", "-"])
+        .stdin(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|e| format!("ffplay spawn failed: {}", e))?;
+    use std::io::Write;
+    child.stdin.take().unwrap().write_all(&bytes).map_err(|e| e.to_string())?;
+    child.wait().map_err(|e| e.to_string())?;
     Ok(())
 }
 

@@ -79,6 +79,7 @@ class MacroActionType(str, Enum):
     APPLESCRIPT = "applescript"
     GET_ACTIVE_APP = "get_active_app"
     GET_INFO = "get_info"
+    NOOP = "noop"
 
     # Atlas-Native AX primitives (macOS, focus-free)
     AX_PRESS = "ax_press"

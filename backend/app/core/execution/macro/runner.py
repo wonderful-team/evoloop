@@ -113,6 +113,23 @@ class ExecutionOutcome:
     fell_back: bool = False  # macro failed and an agentic recovery run took over
 
 
+def is_navigation_macro(macro: Macro) -> str | None:
+    """Check if macro is a frontend navigation. Returns route path or None."""
+    import yaml
+    try:
+        parsed = yaml.safe_load(macro.macro_script)
+        if not isinstance(parsed, list):
+            return None
+        for step in parsed:
+            if isinstance(step, dict) and step.get("event_type") == "frontend_navigate":
+                payload = step.get("payload", {})
+                if isinstance(payload, dict):
+                    return payload.get("route")
+    except Exception:
+        pass
+    return None
+
+
 def preflight(macro: Macro, params: dict[str, Any] | None) -> MacroScript:
     """Shared gates; returns the parsed macro for deterministic skills."""
     if not macro.is_routable():

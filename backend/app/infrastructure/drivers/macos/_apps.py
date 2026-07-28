@@ -25,8 +25,27 @@ def _window_bounds_str(window: Any) -> str:
 
 class AppMixin:
     @classmethod
+    def _resolve_app_path(cls, app_name: str) -> str | None:
+        """用 mdfind 按显示名查找 app 路径，支持中文名。"""
+        for query in [
+            f"kMDItemDisplayName == '{app_name}'",
+            f"kMDItemDisplayName == '*{app_name}*'",
+        ]:
+            result = subprocess.run(
+                ["mdfind", query], capture_output=True, text=True, timeout=5,
+            )
+            paths = [p.strip() for p in result.stdout.splitlines() if p.strip().endswith(".app")]
+            if paths:
+                return paths[0]
+        return None
+
+    @classmethod
     def open_app(cls, app_name):
-        subprocess.run(["open", "-a", app_name], capture_output=True, check=True)
+        path = cls._resolve_app_path(app_name)
+        if path:
+            subprocess.run(["open", path], capture_output=True, check=True)
+        else:
+            subprocess.run(["open", "-a", app_name], capture_output=True, check=True)
 
         start = time.time()
         while time.time() - start < 5:

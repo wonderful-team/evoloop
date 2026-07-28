@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react"
 import { toast } from "sonner"
+import { useNavigate } from "@tanstack/react-router"
 import { isTauri, safeInvoke, safeListen } from "@/lib/tauri"
 import type { VoiceState } from "@/stores/voiceStore"
 import { useVoiceStore } from "@/stores/voiceStore"
@@ -13,6 +14,7 @@ let listenersInitialized = false
 export function useVoiceEvents() {
   const unlistenersRef = useRef<Array<() => void>>([])
   const voiceModeSyncedRef = useRef(false)
+  const navigate = useNavigate()
 
   const setVoiceState = useVoiceStore((s) => s.setVoiceState)
   const setPartialText = useVoiceStore((s) => s.setPartialText)
@@ -261,16 +263,80 @@ export function useVoiceEvents() {
       }),
     )
 
+    // Frontend navigation from voice commands — also show & focus main window
+    unlisteners.push(
+      await safeListen<{ route: string; feedback?: string }>(
+        "voice:navigate",
+        async (event) => {
+          const route = event.payload.route
+          const feedback = event.payload.feedback
+          if (route) {
+            try {
+              const { WebviewWindow } = await import(
+                "@tauri-apps/api/webviewWindow"
+              )
+              const mainWin = await WebviewWindow.getByLabel("main")
+              if (mainWin) {
+                await mainWin.show()
+                await mainWin.setFocus()
+              }
+            } catch (e) {
+              console.error("[voice-navigate] Failed to show main window:", e)
+            }
+            if (route === "__HIDE_WINDOW__") {
+              try {
+                const { WebviewWindow } = await import(
+                  "@tauri-apps/api/webviewWindow"
+                )
+                const mainWin = await WebviewWindow.getByLabel("main")
+                if (mainWin) {
+                  await mainWin.hide()
+                }
+              } catch (e) {
+                console.error(
+                  "[voice-navigate] Failed to hide main window:",
+                  e,
+                )
+              }
+              // Show HUD feedback briefly before hiding
+              const { emit } = await import("@tauri-apps/api/event")
+              await emit("hud-update", {
+                mode: "dialogue",
+                state: "idle",
+                text: feedback || "",
+              })
+              return
+            }
+            navigate({ to: route })
+            // Show HUD feedback
+            if (feedback) {
+              const { emit } = await import("@tauri-apps/api/event")
+              await emit("hud-update", {
+                mode: "dialogue",
+                state: "idle",
+                text: feedback,
+              })
+              // Reset to listening after 2s
+              setTimeout(() => {
+                emit("hud-update", {
+                  mode: "dialogue",
+                  state: "listening",
+                  text: "",
+                }).catch(console.error)
+              }, 2000)
+            }
+          }
+        },
+      ),
+    )
+
     unlisteners.push(
       await safeListen<{ changes?: Array<{ clarify?: string }> }>(
         "voice:dictation_polished",
         async (event) => {
           const clarify = event.payload.changes?.[0]?.clarify
           if (clarify) {
-            // CLARIFY: don't paste, speak clarification instead
-            import("@/hooks/useTTS").then(({ speak }) => {
-              speak(clarify)
-            })
+            safeInvoke("speak", { text: clarify }).catch(console.error)
           } else {
             // Rust side already pastes via dictation_paste() to the active window.
             // Update HUD to show "已粘贴" then return to listening after 1.5s.

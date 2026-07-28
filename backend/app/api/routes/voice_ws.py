@@ -173,7 +173,9 @@ async def _handle_route(body: dict[str, Any], conn_id: str) -> None:
             # Let VoiceInputChannel decide: L0 match → local push, L0 miss → IncomingMessage
             msg = await voice_input.receive(body)
             if msg is None:
-                # L0 hit or invalid — handled internally (push + state transition)
+                # L0 hit or invalid — handled internally
+                # 恢复音频转发：L0 完成后允许 Volcengine 的 TTS 音频通过
+                _is_sending_chat_tts_text.pop(thread_id, None)
                 return
 
             # L0 miss → dispatch to agent
@@ -411,7 +413,8 @@ async def voice_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient
                 if mode == "dictation":
                     pass
                 elif isinstance(payload, bytes):
-                    if _is_sending_chat_tts_text.get(thread_id, False):
+                    flag = _is_sending_chat_tts_text.get(thread_id, False)
+                    if flag:
                         logger.debug("[voice-ws] discarded %d audio bytes (discarding auto TTS)", len(payload))
                         continue
                     logger.info("[voice-ws] ===> forwarding %d audio bytes to Rust", len(payload))
@@ -497,6 +500,8 @@ async def voice_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient
                 elif event == 350 and isinstance(payload, dict) and mode == "dialogue":
                     tts_type = payload.get("tts_type", "")
                     logger.info("[voice-ws] Event 350 tts_type=%r for thread %s", tts_type, thread_id)
+                    if tts_type in ("chat_tts_text", "external_rag"):
+                        _is_sending_chat_tts_text[thread_id] = False
 
                 # --- Fork: event 599 ASR timeout ---
                 elif event == 599 and _last_asr_text.get(thread_id):

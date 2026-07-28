@@ -144,6 +144,12 @@ function VoiceHUD() {
       icon = <Volume2 className="w-4 h-4 text-emerald-400 animate-bounce" />
       bgGradient = "from-emerald-950/90 to-zinc-950/95"
       borderGlow = "border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.2)]"
+    } else if (state === "idle" && text) {
+      // Feedback confirmation (e.g. "已回到主界面")
+      label = text
+      icon = <Check className="w-4 h-4 text-emerald-400" />
+      bgGradient = "from-emerald-950/90 to-zinc-950/95"
+      borderGlow = "border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.2)]"
     } else {
       label = t("voiceHud.dialogue")
       icon = <MessageSquare className="w-4 h-4 text-purple-400" />

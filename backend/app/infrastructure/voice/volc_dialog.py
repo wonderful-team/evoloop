@@ -70,7 +70,7 @@ class VolcDialogClient:
                 "dialog_id": "",
                 "extra": {
                     "strict_audit": False,
-                    "recv_timeout": 10,
+                    "recv_timeout": 60,
                     "input_mod": "audio",
                 }
             },
@@ -174,3 +174,8 @@ class VolcDialogClient:
             except Exception:
                 pass
             self.ws = None
+
+    async def reconnect(self) -> None:
+        """Reconnect to Volcengine (for session timeout recovery)."""
+        await self.close()
+        await self.connect()

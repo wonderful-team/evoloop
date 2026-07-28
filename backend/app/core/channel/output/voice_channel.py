@@ -65,21 +65,31 @@ class VoiceChannel(Channel):
     _tts_accumulator: dict[str, str] = {}
     _tts_started: dict[str, bool] = {}
 
-    async def _push_tts_chunk(self, thread_id: str, text: str, end: bool) -> None:
-        """Push a text chunk to Volcengine ChatTTSText with correct start/end."""
+    async def push_tts_chunk(self, thread_id: str, text: str, end: bool, *, force_start: bool = False) -> None:
+        """Push a text chunk to Volcengine ChatTTSText with correct start/end.
+
+        Args:
+            force_start: If True, treat this as the start of a new TTS segment
+                         (used by confirmation TTS from L0 macros).
+        """
         from app.core.routing.executor import active_volc_clients
         client = active_volc_clients.get(thread_id)
         if not client:
             logger.debug("[VoiceChannel][tts-chunk] no volc client for %s", thread_id)
             return
 
-        started = self._tts_started.get(thread_id, False)
-        start = not started
-        self._tts_started[thread_id] = True
+        if force_start:
+            start = True
+            self._tts_started[thread_id] = True
+        else:
+            started = self._tts_started.get(thread_id, False)
+            start = not started
+            self._tts_started[thread_id] = True
 
         if start:
-            await voice_state_machine.set(thread_id, VoiceSessionState.SPEAKING)
-            voice_executor.clear_tts_discard_flag(thread_id)
+            if not force_start:
+                await voice_state_machine.set(thread_id, VoiceSessionState.SPEAKING)
+            # flag 在 voice_receive_loop 的 Event 350 中清，这里不清
 
         logger.info(
             "[VoiceChannel][tts-chunk] %s start=%s end=%s [%d chars] content=%r",
@@ -119,7 +129,7 @@ class VoiceChannel(Channel):
                 remaining = parts[-1]
                 clean = _md_clean(complete).strip()
                 if clean:
-                    await self._push_tts_chunk(tid, clean, end=False)
+                    await self.push_tts_chunk(tid, clean, end=False)
                 buf = remaining
 
             self._tts_accumulator[tid] = buf
@@ -166,7 +176,7 @@ class VoiceChannel(Channel):
             if rem:
                 clean = _md_clean(rem)
                 if clean:
-                    await self._push_tts_chunk(thread_id, clean, end=True)
+                    await self.push_tts_chunk(thread_id, clean, end=True)
             else:
                 # If accumulator is empty but streaming started, send empty end marker
                 if self._tts_started.get(thread_id, False):
