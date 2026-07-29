@@ -103,6 +103,8 @@ export function useVoiceEvents() {
         safeInvoke("stop_voice_session").catch(console.error)
       }
       if (voiceMode !== "off") {
+        // Wake word detector must be stopped before voice session (mic conflict)
+        safeInvoke("stop_wake_word_listener").catch(() => {})
         const threadId = crypto.randomUUID()
         safeInvoke("start_voice_session", {
           threadId,
@@ -114,7 +116,7 @@ export function useVoiceEvents() {
           console.error("[voice] start failed:", e)
           setVoiceMode("off")
           const errMsg = String(e)
-          if (errMsg.includes("麦克风") || errMsg.includes("input config") || errMsg.includes("mic")) {
+          if (errMsg.includes("麦克风") || errMsg.includes("input device") || errMsg.includes("input config") || errMsg.includes("mic")) {
             toast.error("麦克风不可用，请检查蓝牙耳机或麦克风是否已连接")
           } else {
             toast.error(errMsg)
@@ -393,6 +395,11 @@ export function useVoiceEvents() {
               "evoloop_qwen_tts_key",
               configs.QWEN_TTS_API_KEY,
             )
+          if (configs.EVOCLOUD_DEVICE_NAME)
+            localStorage.setItem(
+              "evoloop_device_name",
+              configs.EVOCLOUD_DEVICE_NAME,
+            )
         },
       ),
     )
@@ -459,6 +466,8 @@ export function useVoiceEvents() {
             safeInvoke("set_tts_speed", {
               speed: parseFloat(new_value) || 1.0,
             }).catch(console.error)
+          } else if (key === "EVOCLOUD_DEVICE_NAME") {
+            localStorage.setItem("evoloop_device_name", new_value)
           }
         },
       ),

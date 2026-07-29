@@ -7,8 +7,6 @@ use log::{error, info, warn};
 
 const TARGET_SAMPLE_RATE: u32 = 16000;
 
-/// Create and immediately drop a VoiceProcessingIO AudioUnit to force
-/// CoreAudio to clean up any stale audio input instances left by cpal.
 #[cfg(target_os = "macos")]
 fn drop_device_audio_unit() {
     use coreaudio::audio_unit::{AudioUnit, IOType};
@@ -23,6 +21,7 @@ pub struct MicCapture {
     device: Option<Device>,
     stream: Option<Stream>,
     running: Arc<AtomicBool>,
+    stream_live: Arc<AtomicBool>,
 }
 
 impl MicCapture {
@@ -36,6 +35,7 @@ impl MicCapture {
             device,
             stream: None,
             running: Arc::new(AtomicBool::new(false)),
+            stream_live: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -109,6 +109,8 @@ impl MicCapture {
 
         let running = self.running.clone();
         let callback = Arc::new(std::sync::Mutex::new(callback));
+        let stream_live = self.stream_live.clone();
+        stream_live.store(true, Ordering::SeqCst);
 
         let stream = device
             .build_input_stream(
@@ -118,7 +120,6 @@ impl MicCapture {
                         return;
                     }
 
-                    // Downmix to mono if needed
                     let mono: Vec<f32> = if channels > 1 {
                         data.chunks(channels as usize)
                             .map(|chunk| chunk.iter().sum::<f32>() / channels as f32)
@@ -127,7 +128,6 @@ impl MicCapture {
                         data.to_vec()
                     };
 
-                    // Resample if needed (rubato Sinc band-limited)
                     let resampled = if sample_rate != TARGET_SAMPLE_RATE {
                         resample_rubato(&mono, sample_rate, TARGET_SAMPLE_RATE)
                     } else {
@@ -138,7 +138,13 @@ impl MicCapture {
                         cb(&resampled);
                     }
                 },
-                |err| error!("[mic] stream error: {}", err),
+                {
+                    let sl = stream_live.clone();
+                    move |err| {
+                        error!("[mic] stream error: {}", err);
+                        sl.store(false, Ordering::SeqCst);
+                    }
+                },
                 None,
             )
             .map_err(|e| format!("Failed to build input stream: {}", e))?;
@@ -175,26 +181,12 @@ impl MicCapture {
         info!("[mic] capture stopped");
     }
 
-/// Create and immediately drop a VoiceProcessingIO AudioUnit to force
-/// CoreAudio to clean up any stale audio input instances left by cpal.
-#[cfg(target_os = "macos")]
-fn drop_device_audio_unit() {
-    use coreaudio::audio_unit::{AudioUnit, IOType};
-    if let Ok(unit) = AudioUnit::new(IOType::VoiceProcessingIO) {
-        // Creating the AudioUnit triggers CoreAudio's component manager to
-        // notice stale instances.  Dropping it calls AudioComponentInstanceDispose.
-        drop(unit);
-    } else {
-        // VoiceProcessingIO may not be available (BT headset).
-        // Try a generic HalOutput instead.
-        if let Ok(unit) = AudioUnit::new(IOType::HalOutput) {
-            drop(unit);
-        }
-    }
-}
-
     pub fn is_running(&self) -> bool {
         self.running.load(Ordering::SeqCst)
+    }
+
+    pub fn is_live(&self) -> bool {
+        self.stream_live.load(Ordering::SeqCst)
     }
 }
 

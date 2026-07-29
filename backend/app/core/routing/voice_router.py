@@ -207,11 +207,23 @@ async def resolve_intent(
     # Try builtin from init_spec templates
     for tmpl in _TEMPLATES:
         if intent_name == tmpl["action"]:
+            patterns = tmpl.get("patterns", [])
+            if patterns and not any(
+                re.search(re.escape(p).replace(r"\{name\}", r"(.+)"), text)
+                for p in patterns
+            ):
+                continue  # BERT 预测了该意图但文本不匹配 pattern，跳过
             return tmpl["action"], {"name": text} if tmpl["action"] == "rename" else {}
     _BUILTIN_ALIASES = {"取消": "cancel", "结束": "end", "重说": "clarify", "改名": "rename"}
     if intent_name in _BUILTIN_ALIASES:
         action = _BUILTIN_ALIASES[intent_name]
-        return action, {"name": text} if action == "rename" else {}
+        if action == "rename":
+            _rename_patterns = [p.replace("{name}", ".+") for p in [t["patterns"] for t in _TEMPLATES if t["action"] == "rename"][0]]
+            if any(re.search(p, text) for p in _rename_patterns):
+                return action, {"name": text}
+            # 不匹配 rename pattern → 不拦截，交给后续逻辑
+        else:
+            return action, {}
 
     return None
 

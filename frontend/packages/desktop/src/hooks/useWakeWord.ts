@@ -5,7 +5,7 @@ import { isTauri } from "@/lib/tauri"
 
 interface UseWakeWordOptions {
   wakeWord?: string
-  onWake?: () => void
+  onWake?: (word: string) => void
   enabled?: boolean
 }
 
@@ -21,30 +21,27 @@ interface UseWakeWordReturn {
 export function useWakeWord(
   options: UseWakeWordOptions = {},
 ): UseWakeWordReturn {
-  const { wakeWord = "你好 Evo", onWake } = options
+  const { wakeWord = "木头人", onWake, enabled } = options
 
   const [isListening, setIsListening] = useState(false)
   const [isWakeWordDetected, setIsWakeWordDetected] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [transcript, setTranscript] = useState("")
   const unlistenRef = useRef<(() => void) | null>(null)
+  const errorUnlistenRef = useRef<(() => void) | null>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Listen for wake-word-detected Tauri event
   useEffect(() => {
-    if (!isTauri()) {
-      setError("Wake word requires the desktop app")
-      return
-    }
+    if (!isTauri()) return
 
     const setup = async () => {
-      const unlisten = await listen<{ word: string; transcript: string }>(
+      const unlisten = await listen<{ word: string; reply?: string }>(
         "wake-word-detected",
         (event) => {
-          setTranscript(event.payload.transcript)
+          const word = event.payload.word || wakeWord
+          setTranscript(word)
           setIsWakeWordDetected(true)
-          onWake?.()
-
+          onWake?.(word)
           if (timeoutRef.current) clearTimeout(timeoutRef.current)
           timeoutRef.current = setTimeout(() => {
             setIsWakeWordDetected(false)
@@ -53,19 +50,49 @@ export function useWakeWord(
         },
       )
       unlistenRef.current = unlisten
+
+      const unlistenError = await listen<{ code: string; message: string }>(
+        "wake:error",
+        (event) => {
+          setError(event.payload.message)
+          setIsListening(false)
+        },
+      )
+      errorUnlistenRef.current = unlistenError
     }
     setup()
 
     return () => {
       unlistenRef.current?.()
+      errorUnlistenRef.current?.()
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
     }
-  }, [onWake])
+  }, [onWake, wakeWord])
+
+  // Start detector on mount if enabled in localStorage
+  useEffect(() => {
+    if (!isTauri()) return
+    let cancelled = false
+    ;(async () => {
+      const isEnabled = localStorage.getItem("evoloop_wake_word_enabled") === "true"
+      if (!isEnabled) return
+      const word = localStorage.getItem("evoloop_wake_word") || localStorage.getItem("evoloop_device_name") || "木头人"
+      try {
+        const voice = localStorage.getItem("evoloop_tts_voice") || undefined
+        await invoke("start_wake_word_listener", { word, voice })
+        if (!cancelled) { setIsListening(true); setError(null) }
+      } catch (e: any) {
+        if (!cancelled) { setError(e.message || String(e)); setIsListening(false) }
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   const startListening = useCallback(async () => {
     if (!isTauri()) return
     try {
-      await invoke("start_wake_word_listener", { word: wakeWord })
+      const voice = localStorage.getItem("evoloop_tts_voice") || undefined
+      await invoke("start_wake_word_listener", { word: wakeWord, voice })
       setIsListening(true)
       setError(null)
     } catch (e: any) {
@@ -79,7 +106,7 @@ export function useWakeWord(
     try {
       await invoke("stop_wake_word_listener")
     } catch {
-      // ignore
+
     }
     setIsListening(false)
     setIsWakeWordDetected(false)
@@ -99,12 +126,19 @@ export function useWakeWord(
 export function useWakeWordSettings() {
   const [wakeWord, setWakeWord] = useState(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("evoloop_wake_word") || "你好 Evo"
+      const saved = localStorage.getItem("evoloop_wake_word")
+      if (saved) return saved
+      return localStorage.getItem("evoloop_device_name") || "木头人"
     }
-    return "你好 Evo"
+    return "木头人"
   })
 
-  const [wakeWordEnabled, setWakeWordEnabled] = useState(false)
+  const [wakeWordEnabled, setWakeWordEnabled] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("evoloop_wake_word_enabled") === "true"
+    }
+    return false
+  })
 
   const updateWakeWord = useCallback((newWord: string) => {
     setWakeWord(newWord)

@@ -1,8 +1,8 @@
 use std::collections::{VecDeque, HashMap};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
-use std::time::Instant;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 use log::{info, warn, error};
 use std::path::PathBuf;
@@ -74,6 +74,7 @@ pub struct VoiceSession {
     // TTS playback state — ffplay streaming
     ffplay_stdin: Arc<Mutex<Option<ChildStdin>>>,
     ffplay_child: Arc<Mutex<Option<Child>>>,
+    last_activity: Arc<AtomicU64>,
 }
 
 impl VoiceSession {
@@ -92,6 +93,7 @@ impl VoiceSession {
             tts_speed: Arc::new(RwLock::new(1.0)),
             ffplay_stdin: Arc::new(Mutex::new(None)),
             ffplay_child: Arc::new(Mutex::new(None)),
+            last_activity: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -310,6 +312,31 @@ impl VoiceSession {
         let ws = ws_client.clone();
         let rt_handle = tokio::runtime::Handle::current();
 
+        // 10min inactivity timeout (dialogue only)
+        if mode == "dialogue" {
+            let running = self.running.clone();
+            let ws = ws_client.clone();
+            let tid = thread_id.clone();
+            let activity = self.last_activity.clone();
+            let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+            activity.store(now, Ordering::SeqCst);
+            tokio::spawn(async move {
+                loop {
+                    tokio::time::sleep(Duration::from_secs(30)).await;
+                    if !running.load(Ordering::SeqCst) { break; }
+                    let last = activity.load(Ordering::SeqCst);
+                    if last == 0 { continue; }
+                    let elapsed = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() - last;
+                    if elapsed > 600 {
+                        info!("[voice-session] 10min inactivity timeout for {}", tid);
+                        let _ = ws.send("voice.cancel",
+                            serde_json::json!({"thread_id": tid})).await;
+                        break;
+                    }
+                }
+            });
+        }
+
         let mut mic = self.mic.write().await;
         mic.start(audio_queue, move |samples: &[f32]| {
             if !running.load(Ordering::SeqCst) {
@@ -349,6 +376,7 @@ impl VoiceSession {
         if let Some(ws) = self.ws_client.read().await.as_ref() {
             let _ = ws.send_voice_stop(&tid).await;
         }
+        self.emit_event("voice:state", serde_json::json!({"state": "idle", "thread_id": tid}));
         self.emit_log("voice session stopped");
     }
 
@@ -358,6 +386,8 @@ impl VoiceSession {
         if let Some(ws) = self.ws_client.read().await.as_ref() {
             let _ = ws.send_barge_in(&tid).await;
         }
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        self.last_activity.store(now, Ordering::SeqCst);
     }
 
     pub async fn get_state(&self) -> VoiceState {

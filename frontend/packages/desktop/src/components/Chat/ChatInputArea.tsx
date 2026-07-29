@@ -34,6 +34,7 @@ import {
   forwardRef,
   memo,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -45,7 +46,7 @@ import { FilesService } from "@/client/sdk.gen"
 import { SkillLibraryDialog } from "@/components/Learning/SkillLibraryDialog"
 import { useAutoSpeak } from "@/hooks/useTTS"
 import { useWakeWord, useWakeWordSettings } from "@/hooks/useWakeWord"
-import { isTauri } from "@/lib/tauri"
+import { isTauri, safeInvoke } from "@/lib/tauri"
 import type { ActiveTaskInfo } from "@/stores/chat/types"
 import { useChatStore } from "@/stores/chatStore"
 import { useVoiceStore } from "@/stores/voiceStore"
@@ -471,23 +472,28 @@ export const ChatInputArea = memo(
         setShowPicker(false)
       }
 
-      // Wake word detection — auto-starts dictation session
+      // Wake word detected — stop listener, let useVoiceEvents start session
       const handleWakeWordDetected = useCallback(() => {
         setShowWakeWordIndicator(true)
         setTimeout(() => setShowWakeWordIndicator(false), 3000)
-        toast.success(t("chat.voice.wakeWordDetected"))
-
-        // Auto-start dictation mode
-        if (voiceMode === "off" && isTauri()) {
-          setVoiceMode("dictation")
-        }
-      }, [t, voiceMode])
+        if (!isTauri()) return
+        safeInvoke("stop_wake_word_listener").catch(() => {})
+        setVoiceMode("dialogue")
+      }, [])
 
       useWakeWord({
         wakeWord,
-        enabled: wakeWordEnabled && voiceMode !== "off",
+        enabled: wakeWordEnabled,
         onWake: handleWakeWordDetected,
       })
+
+      // Restart wake word detector when any dialogue ends (wake word or F12)
+      useEffect(() => {
+        if (voiceState === "idle" && wakeWordEnabled && isTauri()) {
+          const voice = localStorage.getItem("evoloop_tts_voice") || undefined
+          safeInvoke("start_wake_word_listener", { word: wakeWord, voice }).catch(() => {})
+        }
+      }, [voiceState, wakeWordEnabled, wakeWord])
 
       useImperativeHandle(ref, () => ({
         addReference: (item: ReferenceItem, insertText = false) => {

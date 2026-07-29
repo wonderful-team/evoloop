@@ -605,31 +605,44 @@ pub fn safe_killpg(pgid: i32) {
 
 /// Direct TTS call: dispatches to the correct backend and waits for playback.
 use std::collections::HashMap;
+use std::time::Duration;
+use tokio::io::AsyncWriteExt;
 
 static TTS_CACHE: LazyLock<Mutex<HashMap<String, Vec<u8>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
-async fn speak_direct(text: &str, engine: &str, voice: &str) -> Result<(), String> {
+fn spawn_ffplay() -> Result<(tokio::process::Child, tokio::process::ChildStdin), String> {
+    let mut child = tokio::process::Command::new("ffplay")
+        .args(["-f", "f32le", "-ar", "24000", "-nodisp", "-autoexit", "-"])
+        .stdin(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|e| format!("ffplay spawn failed: {}", e))?;
+    let stdin = child.stdin.take().ok_or("ffplay stdin not available")?;
+    Ok((child, stdin))
+}
+
+pub(crate) async fn speak_direct(text: &str, engine: &str, voice: &str) -> Result<(), String> {
     // 1. Check cache
-    {
+    let pcm = {
         let cache = TTS_CACHE.lock().unwrap();
-        if let Some(cached) = cache.get(text) {
-            let mut child = std::process::Command::new("ffplay")
-                .args(["-f", "f32le", "-ar", "24000", "-nodisp", "-autoexit", "-"])
-                .stdin(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::null())
-                .spawn()
-                .map_err(|e| format!("ffplay spawn failed: {}", e))?;
-            use std::io::Write;
-            child.stdin.take().unwrap().write_all(cached).map_err(|e| e.to_string())?;
-            child.wait().map_err(|e| e.to_string())?;
-            return Ok(());
-        }
+        cache.get(text).cloned()
+    };
+    if let Some(bytes) = pcm {
+        let (mut child, mut stdin) = spawn_ffplay()?;
+        stdin.write_all(&bytes).await.map_err(|e| e.to_string())?;
+        drop(stdin);
+        child.wait().await.map_err(|e| e.to_string())?;
+        return Ok(());
     }
 
-    // 2. Fetch TTS
+    // 2. Fetch TTS from backend
     let backend_port = crate::sidecar::BACKEND_PORT;
     let url = format!("http://127.0.0.1:{}/api/v1/voice/tts", backend_port);
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .map_err(|e| e.to_string())?;
     let resp = client
         .post(&url)
         .json(&serde_json::json!({"text": text, "engine": engine, "voice": voice}))
@@ -640,24 +653,19 @@ async fn speak_direct(text: &str, engine: &str, voice: &str) -> Result<(), Strin
         let err_body = resp.text().await.unwrap_or_default();
         return Err(format!("TTS API error: {}", err_body));
     }
-    let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
+    let bytes = resp.bytes().await.map_err(|e| e.to_string())?.to_vec();
 
-    // 3. Cache the PCM bytes
+    // 3. Cache
     {
         let mut cache = TTS_CACHE.lock().unwrap();
-        cache.insert(text.to_string(), bytes.to_vec());
+        cache.insert(text.to_string(), bytes.clone());
     }
 
-    // 4. Stream to ffplay (no temp file)
-    let mut child = std::process::Command::new("ffplay")
-        .args(["-f", "f32le", "-ar", "24000", "-nodisp", "-autoexit", "-"])
-        .stdin(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .map_err(|e| format!("ffplay spawn failed: {}", e))?;
-    use std::io::Write;
-    child.stdin.take().unwrap().write_all(&bytes).map_err(|e| e.to_string())?;
-    child.wait().map_err(|e| e.to_string())?;
+    // 4. Play
+    let (mut child, mut stdin) = spawn_ffplay()?;
+    stdin.write_all(&bytes).await.map_err(|e| e.to_string())?;
+    drop(stdin);
+    child.wait().await.map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -723,11 +731,15 @@ async fn list_system_voices() -> Result<Vec<serde_json::Value>, String> {
 
 #[tauri::command]
 #[cfg(desktop)]
-async fn start_wake_word_listener(app: tauri::AppHandle, word: String) -> Result<(), String> {
+async fn start_wake_word_listener(
+    app: tauri::AppHandle,
+    word: String,
+    voice: Option<String>,
+) -> Result<(), String> {
     let mut detector = WAK_WORD_DETECTOR.lock().map_err(|e| format!("Lock error: {}", e))?;
-    detector.start(app, word)
+    let voice = voice.unwrap_or_default();
+    detector.start(app, word, voice)
 }
-
 
 #[tauri::command]
 #[cfg(desktop)]
@@ -738,14 +750,29 @@ async fn stop_wake_word_listener() -> Result<(), String> {
 }
 
 #[tauri::command]
+#[cfg(desktop)]
+async fn set_wake_word(word: String) -> Result<(), String> {
+    if let Ok(detector) = WAK_WORD_DETECTOR.lock() {
+        detector.set_wake_word(word);
+    }
+    Ok(())
+}
+
+#[tauri::command]
 #[cfg(mobile)]
-async fn start_wake_word_listener(_app: tauri::AppHandle, _word: String) -> Result<(), String> {
+async fn start_wake_word_listener(_app: tauri::AppHandle, _word: String, _voice: Option<String>) -> Result<(), String> {
     Err("Wake word not supported on mobile".to_string())
 }
 
 #[tauri::command]
 #[cfg(mobile)]
 async fn stop_wake_word_listener() -> Result<(), String> {
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn set_wake_word(_word: String) -> Result<(), String> {
     Ok(())
 }
 
@@ -1158,6 +1185,7 @@ pub fn run() {
             // Wake word commands
             start_wake_word_listener,
             stop_wake_word_listener,
+            set_wake_word,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

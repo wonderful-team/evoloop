@@ -192,6 +192,27 @@ export function VoiceControlSettings() {
             }),
           )
         }
+
+        // Persist wake word settings (localStorage + Rust)
+        if (tempWakeWordEnabled !== wakeWordEnabled) {
+          toggleWakeWord()
+        }
+        if (tempWakeWord !== wakeWord) {
+          updateWakeWord(tempWakeWord)
+        }
+        // Directly start/stop the Rust detector
+        if (tempWakeWordEnabled) {
+          const voice = localStorage.getItem("evoloop_tts_voice") || undefined
+          const { invoke } = await import("@tauri-apps/api/core")
+          invoke("start_wake_word_listener", {
+            word: tempWakeWord,
+            voice,
+          }).catch((e: any) => console.error("[wake] start failed:", e))
+        } else if (wakeWordEnabled) {
+          const { invoke } = await import("@tauri-apps/api/core")
+          invoke("stop_wake_word_listener").catch(() => {})
+        }
+
         await Promise.all(tasks)
       } catch (err) {
         console.error("Failed to save voice config:", err)
@@ -384,8 +405,8 @@ export function VoiceControlSettings() {
             {/* Dictation Polish Section */}
             <SettingsCard
               icon={Sparkles}
-              title="听写大模型润色"
-              description="听写完成后通过大模型进行错别字智能纠错与语言润色"
+              title="听写润色"
+              description="听写完成后，进行错别字智能纠错与语言润色"
             >
               <div className="flex items-center justify-between p-4 bg-muted/10 border border-border/50 rounded-md transition-colors hover:bg-muted/20">
                 <div className="flex items-center gap-4">
@@ -394,7 +415,7 @@ export function VoiceControlSettings() {
                       className="text-sm font-medium cursor-pointer"
                       htmlFor="dictation-polish-toggle"
                     >
-                      开启大模型润色
+                      开启听写润色
                     </Label>
                     <p className="text-xs text-muted-foreground">
                       关闭后将直接输入原始语音转录文字
@@ -410,122 +431,120 @@ export function VoiceControlSettings() {
             </SettingsCard>
 
             {/* Wake Word Section */}
-            {false && (
-              <SettingsCard
-                icon={Mic}
-                title={t("settings.voice.wakeWordTitle")}
-                description={t("settings.voice.wakeWordDesc")}
-              >
-                <div className="space-y-4">
-                  {!isSupported && (
-                    <div className="flex items-start gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-sm text-amber-700 dark:text-amber-300">
-                      <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-amber-500" />
-                      <p>{t("settings.voice.notSupported")}</p>
-                    </div>
-                  )}
+            <SettingsCard
+              icon={Mic}
+              title={t("settings.voice.wakeWordTitle")}
+              description={t("settings.voice.wakeWordDesc")}
+            >
+              <div className="space-y-4">
+                {!isSupported && (
+                  <div className="flex items-start gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-sm text-amber-700 dark:text-amber-300">
+                    <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-amber-500" />
+                    <p>{t("settings.voice.notSupported")}</p>
+                  </div>
+                )}
 
-                  <div className="flex items-center justify-between p-4 bg-muted/10 border border-border/50 rounded-md transition-colors hover:bg-muted/20">
-                    <div className="flex items-center gap-4">
-                      <div
-                        className={cn(
-                          "rounded-md p-2 transition-colors",
-                          wakeWordEnabled && isSupported
-                            ? "bg-primary/5 text-primary"
-                            : "bg-muted text-muted-foreground",
-                        )}
-                      >
-                        <Power className="h-4 w-4" />
-                      </div>
-                      <div className="space-y-0.5">
-                        <Label
-                          className="text-sm font-medium cursor-pointer"
-                          htmlFor="wake-word-toggle"
-                        >
-                          {t("settings.voice.enableWakeWord")}
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          {t("settings.voice.enableWakeWordDesc")}
-                        </p>
-                      </div>
+                <div className="flex items-center justify-between p-4 bg-muted/10 border border-border/50 rounded-md transition-colors hover:bg-muted/20">
+                  <div className="flex items-center gap-4">
+                    <div
+                      className={cn(
+                        "rounded-md p-2 transition-colors",
+                        wakeWordEnabled && isSupported
+                          ? "bg-primary/5 text-primary"
+                          : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      <Power className="h-4 w-4" />
                     </div>
-                    <Switch
-                      id="wake-word-toggle"
-                      checked={tempWakeWordEnabled}
-                      onCheckedChange={setTempWakeWordEnabled}
+                    <div className="space-y-0.5">
+                      <Label
+                        className="text-sm font-medium cursor-pointer"
+                        htmlFor="wake-word-toggle"
+                      >
+                        {t("settings.voice.enableWakeWord")}
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        {t("settings.voice.enableWakeWordDesc")}
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    id="wake-word-toggle"
+                    checked={tempWakeWordEnabled}
+                    onCheckedChange={setTempWakeWordEnabled}
+                    disabled={!isSupported}
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">
+                    {t("settings.voice.wakeWordLabel")}
+                  </Label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={tempWakeWord}
+                      onChange={(e) => setTempWakeWord(e.target.value)}
                       disabled={!isSupported}
+                      className="flex-1 px-3 py-2 bg-background border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all focus:border-primary"
+                      placeholder={t("settings.voice.wakeWordPlaceholder")}
                     />
                   </div>
+                  <p className="text-xs text-muted-foreground italic">
+                    {t("settings.voice.wakeWordHint")}
+                  </p>
+                </div>
 
-                  <div className="space-y-3">
-                    <Label className="text-sm font-medium">
-                      {t("settings.voice.wakeWordLabel")}
+                {isSupported && (
+                  <div className="space-y-4 p-5 border border-border/50 bg-muted/5 rounded-md">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      {t("settings.voice.testWakeWord")}
                     </Label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={tempWakeWord}
-                        onChange={(e) => setTempWakeWord(e.target.value)}
-                        disabled={!isSupported}
-                        className="flex-1 px-3 py-2 bg-background border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all focus:border-primary"
-                        placeholder={t("settings.voice.wakeWordPlaceholder")}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground italic">
-                      {t("settings.voice.wakeWordHint")}
-                    </p>
-                  </div>
-
-                  {isSupported && (
-                    <div className="space-y-4 p-5 border border-border/50 bg-muted/5 rounded-md">
-                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        {t("settings.voice.testWakeWord")}
-                      </Label>
-                      <div className="flex items-center gap-6">
-                        <Button
-                          onClick={
-                            isWakeWordListening
-                              ? stopWakeWordListening
-                              : startWakeWordListening
-                          }
-                          variant={
-                            isWakeWordListening ? "destructive" : "outline"
-                          }
-                          className="w-40"
-                        >
-                          {isWakeWordListening
-                            ? t("settings.voice.stopListening")
-                            : t("settings.voice.startListening")}
-                        </Button>
-                        <div className="flex-1">
-                          {isWakeWordListening && (
-                            <div className="flex items-center gap-3 text-sm animate-pulse">
-                              <span className="relative flex h-3 w-3">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
-                              </span>
-                              <span className="text-red-500 font-medium">
-                                {t("settings.voice.listening")}
-                              </span>
-                            </div>
-                          )}
-                          {isWakeWordDetected && (
-                            <div className="text-green-600 font-bold flex items-center gap-2 animate-in zoom-in-95">
-                              <Zap className="h-4 w-4 fill-green-600" />
-                              {t("settings.voice.wakeWordDetected")}
-                            </div>
-                          )}
-                          {transcript && !isWakeWordDetected && (
-                            <div className="text-sm text-muted-foreground italic">
-                              {t("settings.voice.heard")}: "{transcript}"
-                            </div>
-                          )}
-                        </div>
+                    <div className="flex items-center gap-6">
+                      <Button
+                        onClick={
+                          isWakeWordListening
+                            ? stopWakeWordListening
+                            : startWakeWordListening
+                        }
+                        variant={
+                          isWakeWordListening ? "destructive" : "outline"
+                        }
+                        className="w-40"
+                      >
+                        {isWakeWordListening
+                          ? t("settings.voice.stopListening")
+                          : t("settings.voice.startListening")}
+                      </Button>
+                      <div className="flex-1">
+                        {isWakeWordListening && (
+                          <div className="flex items-center gap-3 text-sm animate-pulse">
+                            <span className="relative flex h-3 w-3">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
+                            </span>
+                            <span className="text-red-500 font-medium">
+                              {t("settings.voice.listening")}
+                            </span>
+                          </div>
+                        )}
+                        {isWakeWordDetected && (
+                          <div className="text-green-600 font-bold flex items-center gap-2 animate-in zoom-in-95">
+                            <Zap className="h-4 w-4 fill-green-600" />
+                            {t("settings.voice.wakeWordDetected")}
+                          </div>
+                        )}
+                        {transcript && !isWakeWordDetected && (
+                          <div className="text-sm text-muted-foreground italic">
+                            {t("settings.voice.heard")}: "{transcript}"
+                          </div>
+                        )}
                       </div>
                     </div>
-                  )}
-                </div>
-              </SettingsCard>
-            )}
+                  </div>
+                )}
+              </div>
+            </SettingsCard>
 
             {/* Shortcut Section */}
             {false && (
