@@ -159,7 +159,7 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
           thinkingOpen ? "shrink-0 max-h-[50%]" : "flex-1 min-h-0",
         )}
       >
-        <div className="flex flex-col w-full pb-2">
+        <div className="flex flex-col w-full">
           {/* === BLOCK 0: GOAL === */}
           {sessionGoal && (
             <Collapsible
@@ -422,7 +422,7 @@ const ThinkingBlock = memo(
         open={thinkingOpen}
         onOpenChange={setThinkingOpen}
         className={cn(
-          "flex flex-col min-w-0 w-full overflow-hidden border-t border-border transition-all duration-300",
+          "flex flex-col min-w-0 w-full overflow-hidden border-border transition-all duration-300",
           thinkingOpen ? "flex-1 min-h-0" : "shrink-0",
         )}
       >
