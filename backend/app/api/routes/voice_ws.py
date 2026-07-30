@@ -318,7 +318,10 @@ async def generate_volc_tts(text: str, voice: str) -> bytes:
         raise ValueError("火山引擎未配置 AppID/AccessKey")
 
     client = VolcDialogClient(app_id, access_key, session_id=gen_uuid())
-    await client.connect()
+    try:
+        await asyncio.wait_for(client.connect(), timeout=15)
+    except asyncio.TimeoutError as exc:
+        raise TimeoutError("Volcengine WebSocket 连接超时") from exc
 
     # Configure custom speaker if provided
     if voice:
@@ -330,7 +333,10 @@ async def generate_volc_tts(text: str, voice: str) -> bytes:
     audio_data = bytearray()
     try:
         while True:
-            resp = await client.receive_response()
+            try:
+                resp = await asyncio.wait_for(client.receive_response(), timeout=30)
+            except asyncio.TimeoutError as exc:
+                raise TimeoutError("等待 Volcengine TTS 音频超时") from exc
             mtype = resp.get("message_type")
             event = resp.get("event")
             payload = resp.get("payload_msg")
@@ -349,9 +355,14 @@ async def generate_volc_tts(text: str, voice: str) -> bytes:
 async def generate_tts(req: TTSRequest) -> Any:
     from fastapi.responses import Response
     from fastapi import HTTPException
+    t0 = time.time()
     try:
         audio_bytes = await generate_volc_tts(req.text, req.voice)
+        logger.info("[voice-ws] /tts generated %d bytes in %.1fs", len(audio_bytes), time.time() - t0)
         return Response(content=audio_bytes, media_type="audio/pcm")
+    except TimeoutError as exc:
+        logger.error("[voice-ws] /tts timed out after %.1fs: %s", time.time() - t0, exc)
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
     except Exception as e:
         logger.error(f"[voice-ws] generate_tts failed: {e}", exc_info=e)
         raise HTTPException(status_code=500, detail=str(e))
