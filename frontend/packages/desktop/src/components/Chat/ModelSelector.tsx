@@ -17,7 +17,6 @@ import { cn } from "@evoloop/shared/lib/utils"
 import { Brain, Cpu, Eye, Globe, Loader2, Server } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { SystemService } from "@/client"
 import { isLoggedIn } from "@/hooks/useAuth"
 import { type LLMModel, llmPlatformService } from "@/services/llmPlatform"
 
@@ -47,30 +46,7 @@ export function ModelSelector({
   const loadModels = async () => {
     setIsLoading(true)
     try {
-      const [fetchedModels, discovery] = await Promise.all([
-        llmPlatformService.fetchModels(),
-        SystemService.discoverModels().catch(() => ({ models: [] })),
-      ])
-
-      // Convert discovered models to LLMModel format
-      const discoveredModels: LLMModel[] = ((discovery as any)?.models || []).map((m: any) => ({
-        id: m.id,
-        name: m.name,
-        model: m.model_name,
-        type: "platform" as const, // discovered models filtered by provider below
-        provider: m.source,
-        description: m.base_url || "",
-        available: m.status === "available",
-        context_window: m.context_window || undefined,
-      }))
-
-      // Merge and deduplicate by id
-      const all = [...fetchedModels]
-      for (const dm of discoveredModels) {
-        if (!all.some((e) => e.id === dm.id)) {
-          all.push(dm)
-        }
-      }
+      const all = await llmPlatformService.fetchModels()
       setModels(all)
     } catch (error) {
       console.error("[ModelSelector] Failed to load models:", error)

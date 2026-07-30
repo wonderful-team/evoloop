@@ -45,6 +45,7 @@ class LLMPlatformService {
 
   /**
    * 获取可用模型列表
+   * 整合平台模型 + 自定义模型 + 本地发现模型（LM Studio/Ollama/GGUF）
    * 后端返回所有模型 (platform + custom)，前端按需过滤显示
    */
   async fetchModels(): Promise<LLMModel[]> {
@@ -62,11 +63,39 @@ class LLMPlatformService {
     // 创建新的请求
     this.fetchPromise = (async () => {
       try {
-        const response = await SystemService.getLlmModels()
+        const [response, discovery] = await Promise.all([
+          SystemService.getLlmModels(),
+          SystemService.discoverModels().catch(() => ({ models: [] })),
+        ])
         const data = response as any
 
         if (data?.models) {
           this.models = data.models as LLMModel[]
+
+          // 合并本地发现模型（LM Studio/Ollama/GGUF），按 id 去重
+          const discovered = ((discovery as any)?.models || []) as Array<{
+            id: string
+            name: string
+            model_name: string
+            source: string
+            status: string
+            context_window?: number
+          }>
+          for (const dm of discovered) {
+            if (!this.models.some((e) => e.id === dm.id)) {
+              this.models.push({
+                id: dm.id,
+                name: dm.name,
+                model: dm.model_name,
+                type: "platform",
+                provider: dm.source,
+                description: "",
+                available: dm.status === "available",
+                context_window: dm.context_window,
+              })
+            }
+          }
+
           this.lastFetchTime = now
 
           // 如果当前选择的模型不在列表中，清除选择

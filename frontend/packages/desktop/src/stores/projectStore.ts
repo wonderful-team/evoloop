@@ -145,6 +145,10 @@ interface ProjectState {
   currentProject: Project | null
   isLoading: boolean
   isGlobalMode: boolean
+  projectSwitcherOpen: boolean
+
+  openProjectSwitcher: () => void
+  closeProjectSwitcher: () => void
 
   fetchProjects: (
     filterType?: "switchable" | "cloud_only" | "disconnected",
@@ -160,6 +164,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   currentProject: null,
   isLoading: false,
   isGlobalMode: false,
+  projectSwitcherOpen: false,
+
+  openProjectSwitcher: () => set({ projectSwitcherOpen: true }),
+  closeProjectSwitcher: () => set({ projectSwitcherOpen: false }),
 
   fetchProjects: async (
     filterType?: "switchable" | "cloud_only" | "disconnected",

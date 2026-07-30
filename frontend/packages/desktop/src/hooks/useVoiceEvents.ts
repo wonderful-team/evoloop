@@ -97,6 +97,7 @@ export function useVoiceEvents() {
       safeInvoke("switch_voice_mode", { mode: voiceMode }).catch((e) => {
         console.error("[voice] switch_mode failed:", e)
         setVoiceMode("off")
+        toast.error("语音模式切换失败")
       })
     } else {
       if (prev !== "off") {
@@ -285,7 +286,14 @@ export function useVoiceEvents() {
             } catch (e) {
               console.error("[voice-navigate] Failed to show main window:", e)
             }
-            if (route === "__HIDE_WINDOW__") {
+              if (route === "__SWITCH_PROJECT__") {
+                const { useProjectStore } = await import(
+                  "../stores/projectStore"
+                )
+                useProjectStore.getState().openProjectSwitcher()
+                return
+              }
+              if (route === "__HIDE_WINDOW__") {
               try {
                 const { WebviewWindow } = await import(
                   "@tauri-apps/api/webviewWindow"
@@ -310,6 +318,19 @@ export function useVoiceEvents() {
               return
             }
             navigate({ to: route })
+            // 技能录制：导航到学习中心后切换录制状态
+            if (route.includes("tab=macros")) {
+              const { useRecordingStore } = await import(
+                "../stores/recordingStore"
+              )
+              const state = useRecordingStore.getState()
+              if (state.isRecording || state.isPreparing) {
+                state.setPostRecordingAction("synthesize")
+                state.stopRecording()
+              } else {
+                state.initiateRecording("global")
+              }
+            }
             // Show HUD feedback
             if (feedback) {
               const { emit } = await import("@tauri-apps/api/event")

@@ -487,14 +487,6 @@ export const ChatInputArea = memo(
         onWake: handleWakeWordDetected,
       })
 
-      // Restart wake word detector when any dialogue ends (wake word or F12)
-      useEffect(() => {
-        if (voiceState === "idle" && wakeWordEnabled && isTauri()) {
-          const voice = localStorage.getItem("evoloop_tts_voice") || undefined
-          safeInvoke("start_wake_word_listener", { word: wakeWord, voice }).catch(() => {})
-        }
-      }, [voiceState, wakeWordEnabled, wakeWord])
-
       useImperativeHandle(ref, () => ({
         addReference: (item: ReferenceItem, insertText = false) => {
           handleSelectReference(item, insertText)

@@ -10,6 +10,7 @@ import { ProjectSwitcher } from "@/components/Sidebar/ProjectSwitcher"
 import { SidebarChatList, type Thread } from "./sidebar/SidebarChatList"
 export type { Thread }
 
+import { useProjectStore } from "@/stores/projectStore"
 import { useChangesetStore } from "@/stores/changesetStore"
 import { SidebarFilesTab } from "./sidebar/SidebarFilesTab"
 
@@ -66,7 +67,12 @@ export const ChatSidebar = memo(
         data-tour="chat-sidebar"
       >
         <div className="p-2 border-b border-border bg-background shrink-0 w-full min-w-0 overflow-hidden">
-          <ProjectSwitcher />
+          <ProjectSwitcher
+            open={useProjectStore((s) => s.projectSwitcherOpen || undefined)}
+            onOpenChange={(v) => {
+              if (!v) useProjectStore.getState().closeProjectSwitcher()
+            }}
+          />
         </div>
 
         <Tabs
