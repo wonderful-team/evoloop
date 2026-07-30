@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Macro Sedimentation — Full Lifecycle Manual Test with Real LLM.
+"""Macro Creation — Full Lifecycle Manual Test with Real LLM.
 
-Runs the complete macro sedimentation flywheel with a real Agent engine,
+Runs the complete macro creation flywheel with a real Agent engine,
 real local database, and real LLM via the EvoLoop platform.  The agent is
 asked to perform a harmless desktop AppleScript action so that the trace
-contains a replayable step and the session can sediment into a macro.
+contains a replayable step and the session can create a macro.
 
 Usage:
     .venv/bin/python tests/manual/test_macro_sedimentation_lifecycle.py
@@ -36,7 +36,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)],
 )
-logger = logging.getLogger("macro_sedimentation_lifecycle")
+logger = logging.getLogger("macro_creation_lifecycle")
 
 TEST_TIMEOUT = 300
 
@@ -194,18 +194,18 @@ async def _verify_results(thread_id: str) -> tuple[Macro, AgentActivity]:
     logger.info(
         "[Test] AgentActivity: final_outcome=%s eligible=%s summary=%s",
         activity.final_outcome,
-        activity.sedimentation_eligible,
+        activity.macro_creation_eligible,
         activity.summary,
     )
 
     if activity.final_outcome.upper() != "COMPLETED":
         raise AssertionError(
             f"Expected COMPLETED, got {activity.final_outcome}. "
-            f"Sedimentation eligible={activity.sedimentation_eligible}."
+            f"Creation eligible={activity.macro_creation_eligible}."
         )
-    if not activity.sedimentation_eligible:
+    if not activity.macro_creation_eligible:
         raise AssertionError(
-            "Activity is not sedimentation-eligible. No replayable trace events found."
+            "Activity is not macro-creation-eligible. No replayable trace events found."
         )
 
     if macro is None:
@@ -229,18 +229,18 @@ async def _verify_results(thread_id: str) -> tuple[Macro, AgentActivity]:
 
 async def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Macro Sedimentation Full Lifecycle Manual Test with Real LLM"
+        description="Macro Creation Full Lifecycle Manual Test with Real LLM"
     )
     parser.add_argument(
         "--timeout", type=int, default=TEST_TIMEOUT, help="Agent timeout in seconds"
     )
     args = parser.parse_args()
 
-    thread_id = f"macro-sedimentation-real-llm-{int(time.time())}"
+    thread_id = f"macro-creation-real-llm-{int(time.time())}"
     project_id = 1
 
     logger.info("=" * 60)
-    logger.info("Macro Sedimentation — Full Lifecycle Manual Test (Real LLM)")
+    logger.info("Macro Creation — Full Lifecycle Manual Test (Real LLM)")
     logger.info("=" * 60)
     logger.info("Thread ID: %s", thread_id)
     logger.info("Project ID: %d", project_id)
@@ -260,7 +260,7 @@ async def main() -> None:
 
         logger.info("")
         logger.info("=" * 60)
-        logger.info("✅ MACRO SEDIMENTATION LIFECYCLE TEST PASSED")
+        logger.info("✅ MACRO CREATION LIFECYCLE TEST PASSED")
         logger.info("=" * 60)
         logger.info("Thread ID: %s", thread_id)
 

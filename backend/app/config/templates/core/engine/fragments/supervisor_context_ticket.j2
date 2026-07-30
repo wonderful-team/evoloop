@@ -20,10 +20,7 @@
 
 {%- if active_macros %}
 ## Available Macros (Deterministic Scripts)
-Reusable verified macros for this project. Prefer `run_macro(macro_id, params)` over manual tool sequences when one matches the user's intent. Before calling `run_macro`, check the macro's required parameters via `list_macros(macro_id=<id>)` and provide them all at once.
-{%- for m in active_macros %}
-- {{ m.name }} (ID: {{ m.id }}){%- if m.entity %} [{{ m.entity }}]{% endif %}: {{ m.description }}
-{%- endfor %}
+There are {{ active_macros|length }} active verified macros for this project. Use `list_macros(query="...")` to find relevant macros by task description. Prefer `run_macro(macro_id, params)` over manual tool sequences when one matches the user's intent. Before calling `run_macro`, check the macro's required parameters via `list_macros(macro_id=<id>)` and provide them all at once.
 {%- endif %}
 
 {% if session_goal %}

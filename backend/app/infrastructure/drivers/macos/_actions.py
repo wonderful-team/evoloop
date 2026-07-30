@@ -19,15 +19,17 @@ class ActionsMixin:
             if not all([CGEventCreateMouseEvent, CGEventPost, CGPointMake]):
                 raise ImportError("Quartz symbols not found")
 
-            kCGEventLeftMouseDown = 5
-            kCGEventLeftMouseUp = 6
             kCGHIDEventTap = 0
 
             point = CGPointMake(x, y)
-            event_down = CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, point, 0)
+            # 先移动鼠标到目标位置（Electron 需要物理光标在按钮上）
+            move_event = CGEventCreateMouseEvent(None, Quartz.kCGEventMouseMoved, point, 0)
+            CGEventPost(kCGHIDEventTap, move_event)
+            time.sleep(0.05)
+            event_down = CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, point, 0)
             CGEventPost(kCGHIDEventTap, event_down)
             time.sleep(0.05)
-            event_up = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, point, 0)
+            event_up = CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, point, 0)
             CGEventPost(kCGHIDEventTap, event_up)
 
             logger.info(f"Clicked at ({x}, {y}) via CGEvent")
@@ -66,28 +68,30 @@ class ActionsMixin:
             if not all([CGEventCreateMouseEvent, CGEventPost, CGEventSetIntegerValueField, CGPointMake]):
                 raise ImportError("Quartz symbols not found")
 
-            kCGEventLeftMouseDown = 5
-            kCGEventLeftMouseUp = 6
             kCGHIDEventTap = 0
             kCGMouseEventClickState = 1
 
             point = CGPointMake(x, y)
 
-            event_down1 = CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, point, 0)
+            # 先移动鼠标
+            move_event = CGEventCreateMouseEvent(None, Quartz.kCGEventMouseMoved, point, 0)
+            CGEventPost(kCGHIDEventTap, move_event)
+            time.sleep(0.05)
+            event_down1 = CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, point, 0)
             CGEventSetIntegerValueField(event_down1, kCGMouseEventClickState, 1)
             CGEventPost(kCGHIDEventTap, event_down1)
 
-            event_up1 = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, point, 0)
+            event_up1 = CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, point, 0)
             CGEventSetIntegerValueField(event_up1, kCGMouseEventClickState, 1)
             CGEventPost(kCGHIDEventTap, event_up1)
 
             time.sleep(0.05)
 
-            event_down2 = CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, point, 0)
+            event_down2 = CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, point, 0)
             CGEventSetIntegerValueField(event_down2, kCGMouseEventClickState, 2)
             CGEventPost(kCGHIDEventTap, event_down2)
 
-            event_up2 = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, point, 0)
+            event_up2 = CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, point, 0)
             CGEventSetIntegerValueField(event_up2, kCGMouseEventClickState, 2)
             CGEventPost(kCGHIDEventTap, event_up2)
 

@@ -96,32 +96,55 @@ class DesktopElementMixin:
 
     @classmethod
     async def _try_ocr(cls, name: str) -> ElementResolutionResult | None:
+        from difflib import SequenceMatcher
+
         temp_img = None
         try:
-            app_info = await asyncio.to_thread(macos_driver.get_current_app)
-            bounds_str = app_info.get("bounds")
+            bounds_str = None
             win_x, win_y = 0, 0
+            # 重试最多 8 次，应对应用刚启动窗口未就绪
+            for _ in range(8):
+                app_info = await asyncio.to_thread(macos_driver.get_current_app)
+                bounds_str = app_info.get("bounds")
+                if bounds_str:
+                    parts = bounds_str.split(",")
+                    if len(parts) == 4:
+                        try:
+                            _wx, _wy, _ww, _wh = map(int, parts)
+                            if _wx >= 0 and _wy >= 0 and _ww > 100 and _wh > 100:
+                                win_x, win_y = _wx, _wy
+                                break
+                        except (ValueError, TypeError):
+                            pass
+                await asyncio.sleep(1)
+                bounds_str = None
+            if bounds_str is None:
+                return None
+            temp_img = await asyncio.to_thread(macos_driver.screenshot, region=bounds_str)
 
-            if bounds_str:
-                try:
-                    win_x, win_y, _, _ = map(int, bounds_str.split(","))
-                    temp_img = await asyncio.to_thread(macos_driver.screenshot, region=bounds_str)
-                except ValueError:
-                    temp_img = await asyncio.to_thread(macos_driver.screenshot)
-            else:
-                temp_img = await asyncio.to_thread(macos_driver.screenshot)
+            result = await vision_engine.process(VisionTask.OCR, temp_img)
 
-            result = await asyncio.wait_for(
-                vision_engine.process(VisionTask.OCR, temp_img),
-                timeout=5.0
-            )
-
-            target_name = normalize_text(name)
             if result.success:
+                best = None
+                best_r = 0.0
                 for el in result.elements:
-                    if target_name in normalize_text(el.text):
-                        logger.info(f"[Desktop] OCR resolved '{name}' \u2192 ({win_x + el.x}, {win_y + el.y})")
+                    clean = el.text.strip().rstrip('～~!@#$%^&*()_+-=[]{}|;:,.<>?/')
+                    if clean == name:
+                        logger.info(f"[Desktop] OCR exact resolved '{name}' at ({win_x + el.x}, {win_y + el.y})")
                         return ElementResolutionResult(type="coords", x=win_x + el.x, y=win_y + el.y)
+                for el in result.elements:
+                    clean = el.text.strip().rstrip('～~!@#$%^&*()_+-=[]{}|;:,.<>?/')
+                    if name in clean:
+                        logger.info(f"[Desktop] OCR resolved '{name}' at ({win_x + el.x}, {win_y + el.y})")
+                        return ElementResolutionResult(type="coords", x=win_x + el.x, y=win_y + el.y)
+                    ratio = SequenceMatcher(None, name, clean).ratio()
+                    if ratio > best_r:
+                        best_r = ratio
+                        best = (el, ratio)
+                if best and best_r >= 0.6:
+                    el, ratio = best
+                    logger.info(f"[Desktop] OCR fuzzy resolved '{name}' -> '{el.text}' at ({win_x + el.x}, {win_y + el.y}) ratio={ratio:.2f}")
+                    return ElementResolutionResult(type="coords", x=win_x + el.x, y=win_y + el.y)
             return None
         except asyncio.TimeoutError:
             logger.debug(f"[Desktop] OCR timeout for '{name}'")

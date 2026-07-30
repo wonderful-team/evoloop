@@ -288,10 +288,6 @@ class ActivityMonitor:
                 SystemStatusEvent(thread_id=thread_id, status="interrupted")
             )
 
-            logger.info(
-                f"[ActivityMonitor] Requested '{request_type}' interaction for thread {thread_id}"
-            )
-
     async def set_active_memory(self, thread_id: str, memory_id: str, memory_name: str):
         """Track which memory is currently being accessed by the Agent."""
         key = f"activity:{thread_id}"
@@ -349,9 +345,7 @@ class ActivityMonitor:
             )
         )
 
-    async def log_event(
-        self, event_type: str, data: dict[str, Any], thread_id: str = "system"
-    ):
+    async def log_event(self, event_type: str, data: dict[str, Any], thread_id: str = "system"):
         """Generic event logger for system and session events."""
         timestamp = time.time()
         payload = SystemLogPayload(type=event_type, data=data, timestamp=timestamp)
@@ -368,10 +362,6 @@ class ActivityMonitor:
             await system_bus.publish(
                 SystemLogEvent(thread_id=thread_id, log_type=event_type, log_data=data)
             )
-
-        logger.info(
-            f"[ActivityMonitor] Event logged: {event_type} (Thread: {thread_id})"
-        )
 
     async def add_artifact(
         self,

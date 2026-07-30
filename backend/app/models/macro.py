@@ -3,7 +3,7 @@
 Macros are whole-replay scripts executed by MacroService.run(); the LLM never
 reads their content. Two provenance kinds coexist:
   - app_map_id set:    produced by the template factory from an AppMap
-  - app_map_id NULL:   sedimented by the flywheel (never obsoleted by re-survey)
+  - app_map_id NULL:   created by the flywheel (never obsoleted by re-survey)
 """
 
 from __future__ import annotations

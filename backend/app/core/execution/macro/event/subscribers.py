@@ -18,21 +18,18 @@ logger = logging.getLogger(__name__)
 
 
 @event_register()
-class MacroSedimentationSubscriber:
+class MacroCreatorSubscriber:
     """Create a pending_review macro from a completed, eligible trace."""
 
     @event_subscribe(SystemEventType.SESSION_COMPLETED)
     async def on_session_completed(self, event: SessionCompletedEvent) -> None:
-        if not getattr(event.data, "sedimentation_eligible", False):
+        if not getattr(event.data, "macro_creation_eligible", False):
             return
 
         thread_id = event.data.thread_id
         member_id = getattr(event.data, "member_id", None) or 0
-        from app.core.execution.macro.sedimentation_service import (
-            MacroSedimentationService,
-        )
-
-        await MacroSedimentationService.sediment(thread_id, member_id=member_id)
+        from app.core.execution.macro.macro_creator_service import MacroCreatorService
+        await MacroCreatorService.create_macro_from_trace(thread_id, member_id=member_id)
 
 
 @event_register()

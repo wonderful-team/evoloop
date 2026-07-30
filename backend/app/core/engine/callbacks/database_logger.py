@@ -123,14 +123,6 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         if not message:
             return
 
-        # 保留 _last_ai_message_id 追踪，供 on_tool_start 的 parent_id 使用
-        # 实际值由 on_llm_start 预分配，与引擎层 handle_ai_message 结果一致
-        logger.debug(
-            f"[DatabaseCallback] AI message tracked: "
-            f"content_len={len(str(message.content))}, "
-            f"tool_calls={bool(message.tool_calls)}"
-        )
-
     async def on_tool_end(
         self,
         output: str,

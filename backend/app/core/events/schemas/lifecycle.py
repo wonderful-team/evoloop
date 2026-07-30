@@ -24,7 +24,7 @@ class SessionCompletedData(BaseModel):
     summary: str | None = None
     tts_summary: str = ""
     outcome: str | None = None
-    sedimentation_eligible: bool = False
+    macro_creation_eligible: bool = False
     audit_tier: str | None = None
     duration_ms: float = 0.0
     turn_summary_message_id: str | None = None

@@ -215,7 +215,7 @@ class AgentActivity(Base):
     human_request_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     final_outcome: Mapped[str] = mapped_column(Text, default="")
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
-    sedimentation_eligible: Mapped[bool] = mapped_column(default=False)
+    macro_creation_eligible: Mapped[bool] = mapped_column(default=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )

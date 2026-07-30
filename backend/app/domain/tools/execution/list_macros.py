@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(summary_template="evoloop.tool_summary.list_macros")
 async def list_macros(
+    macro_id: int | None = None,
     namespace: str | None = None,
     entity: str | None = None,
     query: str | None = None,
@@ -28,6 +29,7 @@ async def list_macros(
     'login to github', 'submit expense report'). The tool searches macro
     names, descriptions, and trigger patterns.
 
+    - `macro_id`: Look up a specific macro by ID to see its details and parameters.
     - `namespace`: Optional macro namespace (e.g. 'web/github', 'desktop/macos').
     - `entity`: Optional entity filter (e.g. 'github', 'chrome').
     - `query`: A short action description for substring search.
@@ -41,20 +43,27 @@ async def list_macros(
     meta = RunnableConfigMetadata.from_config(config or {})
     project_id = meta.project_id
 
-    macros = await lifecycle.list_macros(
-        project_id=project_id,
-        status="verified",
-        namespace=namespace,
-        entity=entity,
-        query=query,
-        limit=limit,
-        offset=offset,
-    )
+    # Specific macro lookup by ID
+    if macro_id is not None:
+        macro = await lifecycle.load_macro(macro_id)
+        if macro is None or not macro.is_active or macro.status != "verified":
+            return ControllerResponse.success(f"Macro #{macro_id} not found or inactive.")
+        macros = [macro]
+    else:
+        macros = await lifecycle.list_macros(
+            project_id=project_id,
+            status="verified",
+            namespace=namespace,
+            entity=entity,
+            query=query,
+            limit=limit,
+            offset=offset,
+        )
 
-    # Context isolation: when no project is active, only global macros (project_id
-    # is NULL) are visible to the Agent.  Project-scoped macros are never shown.
-    if project_id is None:
-        macros = [m for m in macros if m.project_id is None]
+        # Context isolation: when no project is active, only global macros
+        # (project_id is NULL or 0) are visible to the Agent.
+        if project_id is None or project_id == 0:
+            macros = [m for m in macros if m.project_id is None or m.project_id == 0]
 
     if not macros:
         return ControllerResponse.success("No verified macros found.")

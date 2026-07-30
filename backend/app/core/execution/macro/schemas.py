@@ -93,6 +93,9 @@ class MacroActionType(str, Enum):
     DETECT_PAGINATION = "detect_pagination"
     SCROLL_TO_BOTTOM = "scroll_to_bottom"
 
+    # CGEvent click (bypasses AX/OCR, uses Quartz directly)
+    CGCLICK = "cgclick"
+
 
 # ---- P0: Action Family & Risk Model (§7.2, §10.1) ----
 

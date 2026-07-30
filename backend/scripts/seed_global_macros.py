@@ -1290,6 +1290,86 @@ MACROS = [
             'tell application "System Events" to key code 124'
         ),
     },
+
+    # ═══════════════════════════════════════════════════════════════════
+    # 🎯 腾讯会议 (4)
+    # ═══════════════════════════════════════════════════════════════════
+    {
+        "name": "打开腾讯会议",
+        "description": "打开腾讯会议应用",
+        "trigger_patterns": [
+            "打开腾讯会议", "打开腾讯", "启动腾讯会议",
+            "开一下腾讯会议",
+        ],
+        "macro_script": yaml_open_app("TencentMeeting"),
+    },
+    {
+        "name": "快速会议",
+        "description": "在腾讯会议中发起快速会议，并将会议邀请链接复制到剪贴板",
+        "trigger_patterns": [
+            "快速会议", "发起会议", "开始会议",
+            "创建会议", "开启会议",
+        ],
+        "macro_script": yaml_applescript(
+            'tell application "TencentMeeting" to activate\n'
+            'delay 2\n'
+            'tell application "System Events"\n'
+            '  tell process "TencentMeeting"\n'
+            '    -- 点击快速会议按钮\n'
+            '    set winSize to size of window 1\n'
+            '    set winPos to position of window 1\n'
+            '    set cx to (item 1 of winPos) + ((item 1 of winSize) / 2)\n'
+            '    set cy to (item 2 of winPos) + ((item 2 of winSize) * 0.55)\n'
+            '  end tell\n'
+            'end tell\n'
+            'delay 1\n'
+            'tell application "System Events" to click at {cx, cy}\n'
+            'delay 5\n'
+            '-- 等待会议窗口出现，复制邀请信息\n'
+            'tell application "System Events"\n'
+            '  tell process "TencentMeeting"\n'
+            '    try\n'
+            '      -- Cmd+Shift+C 通常复制邀请链接\n'
+            '      keystroke "c" using {command down, shift down}\n'
+            '      delay 1\n'
+            '    end try\n'
+            '  end tell\n'
+            'end tell\n'
+            'set meetingInfo to (the clipboard as text)'
+        ),
+    },
+    {
+        "name": "发送微信消息",
+        "description": "向微信指定联系人发送剪贴板中的消息内容",
+        "trigger_patterns": [
+            "发送微信", "发送给微信", "微信发送",
+            "发到微信", "发送给微信联系人",
+        ],
+        "parameters": [{"name": "contact", "type": "str"}],
+        "macro_script": yaml_applescript(
+            'on sendToWeChat(contactName, msgText)\n'
+            '  tell application "WeChat" to activate\n'
+            '  delay 2\n'
+            '  tell application "System Events"\n'
+            '    tell process "WeChat"\n'
+            '      -- 搜索联系人\n'
+            '      keystroke "f" using command down\n'
+            '      delay 1\n'
+            '      keystroke contactName\n'
+            '      delay 1\n'
+            '      keystroke return\n'
+            '      delay 1\n'
+            '      -- 粘贴消息\n'
+            '      set the clipboard to msgText\n'
+            '      keystroke "v" using command down\n'
+            '      delay 0.5\n'
+            '      keystroke return\n'
+            '    end tell\n'
+            '  end tell\n'
+            'end sendToWeChat\n'
+            'sendToWeChat("{{ contact }}", (the clipboard as text))'
+        ),
+    },
 ]
 
 TOTAL = len(MACROS)
@@ -1321,7 +1401,7 @@ async def seed():
                 macro_script=data["macro_script"],
                 risk_tier="ui",
                 requires_confirmation=False,
-                allow_self_healing=False,
+                allow_self_healing=True,
                 status="verified",
                 is_active=True,
                 namespace="preset",

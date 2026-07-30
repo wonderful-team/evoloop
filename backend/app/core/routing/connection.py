@@ -38,17 +38,11 @@ class VoiceConnectionManager:
             self._conns[conn_id] = ws
 
     async def unregister(self, conn_id: str) -> None:
-        from app.core.routing import session_frame
-
         async with self._lock:
             self._conns.pop(conn_id, None)
             stale = [tid for tid, cid in self._thread_to_conn.items() if cid == conn_id]
             for tid in stale:
                 self._thread_to_conn.pop(tid, None)
-        # Conversation over -> session frames die with it (multi-turn is
-        # only supported inside a continuous conversation).
-        for tid in stale:
-            session_frame.clear_frame(tid)
 
     async def bind_thread(self, thread_id: str, conn_id: str) -> None:
         async with self._lock:

@@ -1,4 +1,4 @@
-"""End-to-end flywheel sedimentation test.
+"""End-to-end flywheel creation test.
 
 This test runs the real agent execution loop (app.core.engine.loop.run_node_loop)
 with a real SQLite database, then verifies that a completed session with
@@ -45,7 +45,7 @@ async def _seed_activity_and_trace(thread_id: str) -> None:
                 thread_id=thread_id,
                 status="idle",
                 final_outcome="INCOMPLETE",
-                sedimentation_eligible=False,
+                macro_creation_eligible=False,
             )
         )
 
@@ -174,5 +174,5 @@ async def test_flywheel_creates_pending_macro_after_completed_session(
         activity = await db.get(AgentActivity, thread_id)
     assert activity is not None
     assert activity.final_outcome == "COMPLETED"
-    assert activity.sedimentation_eligible is True
+    assert activity.macro_creation_eligible is True
     assert activity.summary == "Session completed successfully"

@@ -63,37 +63,7 @@ async def _handle_barge_in(thread_id: str) -> None:
     logger.info("[voice] barge_in for thread %s, cancelled=%s", thread_id, cancelled)
 
 
-# Throttle: only preheat when partial text has grown by ≥2 chars, max once per 500ms
-_partial_last_text: dict[str, str] = {}
-_partial_last_time: dict[str, float] = {}
 _thread_modes: dict[str, str] = {}
-
-
-async def _handle_partial(body: dict[str, Any]) -> None:
-    """Handle voice.partial: preheat retrieval with partial transcript."""
-    from app.core.routing import retriever as retriever_mod
-
-    text = str(body.get("text", "")).strip()
-    thread_id = str(body.get("thread_id", "")).strip()
-    if not text or not thread_id:
-        return
-
-    # Throttle: only preheat on significant progress
-    last_text = _partial_last_text.get(thread_id, "")
-    last_time = _partial_last_time.get(thread_id, 0.0)
-    now = time.time()
-    if len(text) - len(last_text) < 2 and now - last_time < 0.5:
-        _partial_last_text[thread_id] = text
-        _partial_last_time[thread_id] = now
-        return
-
-    _partial_last_text[thread_id] = text
-    _partial_last_time[thread_id] = now
-    try:
-        await retriever_mod.preheat(thread_id, text)
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
-        logger.debug("[voice] preheat failed: %s", exc)
-
 
 _voice_input_bound = False
 
@@ -349,7 +319,7 @@ async def generate_volc_tts(text: str, voice: str) -> bytes:
 
     client = VolcDialogClient(app_id, access_key, session_id=gen_uuid())
     await client.connect()
-    
+
     # Configure custom speaker if provided
     if voice:
         # We can dynamically set the speaker if Volcengine StartSession payload was custom.
@@ -364,14 +334,14 @@ async def generate_volc_tts(text: str, voice: str) -> bytes:
             mtype = resp.get("message_type")
             event = resp.get("event")
             payload = resp.get("payload_msg")
-            
+
             if mtype == "SERVER_ACK" and isinstance(payload, bytes):
                 audio_data.extend(payload)
             elif mtype == "SERVER_FULL_RESPONSE" and event == 359:
                 break
     finally:
         await client.close()
-        
+
     return bytes(audio_data)
 
 
@@ -390,9 +360,10 @@ async def generate_tts(req: TTSRequest) -> Any:
 session_modes: dict[str, str] = {}
 _last_asr_text: dict[str, str] = {}
 _is_sending_chat_tts_text: dict[str, bool] = {}
+_volc_gen: dict[str, int] = {}  # generation counter for voice_receive_loop staleness
 
 
-async def voice_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient, thread_id: str, conn_id: str, mode: str):
+async def voice_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient, thread_id: str, conn_id: str, mode: str, gen: int = 0):
     """Volcengine 接收循环 — ASR 事件共用，459/599 按 mode 分叉"""
     if mode == "dialogue":
         _is_sending_chat_tts_text[thread_id] = False
@@ -415,9 +386,8 @@ async def voice_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient
                 elif isinstance(payload, bytes):
                     flag = _is_sending_chat_tts_text.get(thread_id, False)
                     if flag:
-                        logger.debug("[voice-ws] discarded %d audio bytes (discarding auto TTS)", len(payload))
                         continue
-                    logger.info("[voice-ws] ===> forwarding %d audio bytes to Rust", len(payload))
+
                     try:
                         await websocket.send_bytes(payload)
                     except Exception as e:
@@ -442,8 +412,6 @@ async def voice_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient
                                 )
                             except Exception:
                                 pass
-                            from app.core.routing import retriever as retriever_mod
-                            asyncio.create_task(retriever_mod.preheat(thread_id, asr_text))
 
                 # --- Shared: event 450 barge-in ---
                 if event == 450:
@@ -527,10 +495,23 @@ async def voice_receive_loop(websocket: WebSocket, volc_client: VolcDialogClient
             else:
                 logger.debug("[voice-ws] unhandled event %s %s for thread %s", mtype, event, thread_id)
     except asyncio.CancelledError:
-        if mode == "dialogue":
-            logger.debug("[voice-ws] Voice receive loop cancelled for thread %s", thread_id)
+        logger.debug("[voice-ws] Voice receive loop cancelled for thread %s", thread_id)
+        # Normal cancellation (voice.stop / mode switch) — WS stays open
     except Exception as e:
         logger.error(f"[voice-ws] Voice receive loop error ({mode}): {e}", exc_info=e)
+        # Do NOT call websocket.close() here — the websocket object is shared
+        # with the main event loop and closing it would terminate the connection
+        # for all tasks, causing "Cannot call 'receive' once a disconnect..."
+        # The Rust side will detect the Volcengine error via missing responses.
+    finally:
+        # Only clean up per-thread state if this is still the current
+        # generation.  Otherwise a stale task (from a previous voice.start)
+        # would destroy state for the active session.
+        if _volc_gen.get(thread_id, 0) == gen:
+            await voice_state_machine.clear(thread_id)
+            _volc_gen.pop(thread_id, None)
+            _last_asr_text.pop(thread_id, None)
+            _is_sending_chat_tts_text.pop(thread_id, None)
 
 
 async def _run_agent_pipeline(websocket: WebSocket, thread_id: str, text: str):
@@ -589,7 +570,7 @@ async def voice_ws(websocket: WebSocket) -> None:
 
     conn_id = gen_uuid()
     await manager.register(conn_id, websocket)
-    
+
     configs = {cfg.key: cfg.value for cfg in SystemConfigService.get_all()}
     from app.core.shared_state import shared_state
     state = await shared_state.get_all()
@@ -611,7 +592,13 @@ async def voice_ws(websocket: WebSocket) -> None:
         while True:
             # Receive raw message frame (supports both text/JSON and binary bytes)
             raw_msg = await websocket.receive()
-            
+
+            # Handle WebSocket disconnect message (Starlette may return this
+            # as a dict instead of raising WebSocketDisconnect in some edge cases)
+            if raw_msg.get("type") == "websocket.disconnect":
+                logger.info("[voice-ws] received disconnect message, code=%s", raw_msg.get("code"))
+                break
+
             # 1. Binary audio frame from Rust (microphone PCM)
             if "bytes" in raw_msg:
                 pcm_bytes = raw_msg["bytes"]
@@ -680,8 +667,6 @@ async def voice_ws(websocket: WebSocket) -> None:
                 thread_id = str(body.get("thread_id", "")).strip()
                 if thread_id:
                     asyncio.create_task(_handle_barge_in(thread_id))
-            elif mtype in (MessageType.VOICE_PARTIAL, "voice.partial"):
-                asyncio.create_task(_handle_partial(body))
             elif mtype in ("voice.start",):
                 thread_id = str(body.get("thread_id", "")).strip()
                 if thread_id:
@@ -690,7 +675,7 @@ async def voice_ws(websocket: WebSocket) -> None:
                         await _handle_barge_in(thread_id)
                     await voice_state_machine.set(thread_id, VoiceSessionState.LISTENING)
                     active_threads.add(thread_id)
-                    
+
                     # Notify Rust client of the listening state
                     try:
                         await websocket.send_json(
@@ -708,21 +693,28 @@ async def voice_ws(websocket: WebSocket) -> None:
                     app_id = SystemConfigService.get_value("SEEDUPLEX_APP_ID")
                     access_key = SystemConfigService.get_value("SEEDUPLEX_ACCESS_KEY")
                     if app_id and access_key:
-                        if volc_client:
-                            await volc_client.close()
-                            volc_client = None
+                        # Cancel the old receive task BEFORE closing the client,
+                        # so the task gets CancelledError (clean exit) rather than
+                        # waking up to find self.ws is None (RuntimeError → websocket.close).
                         if volc_receive_task:
                             volc_receive_task.cancel()
                             volc_receive_task = None
+                        if volc_client:
+                            await volc_client.close()
+                            volc_client = None
 
                         from app.core.routing.executor import active_volc_clients
+                        # Bump generation so any stale voice_receive_loop's
+                        # finally won't touch the state machine.
+                        gen = _volc_gen.get(thread_id, 0) + 1
+                        _volc_gen[thread_id] = gen
                         volc_client = VolcDialogClient(app_id, access_key, session_id=thread_id)
                         try:
                             await volc_client.connect()
                             active_volc_clients[thread_id] = volc_client
                             # 根据 mode 选择不同的 receive loop
                             mode = str(body.get("mode", "dialogue")).strip()
-                            volc_receive_task = asyncio.create_task(voice_receive_loop(websocket, volc_client, thread_id, conn_id, mode))
+                            volc_receive_task = asyncio.create_task(voice_receive_loop(websocket, volc_client, thread_id, conn_id, mode, gen=gen))
                             logger.info(f"[voice-ws] Connected VolcDialogClient for thread {thread_id} in {mode} mode")
                         except Exception as e:
                             logger.error(f"[voice-ws] VolcDialogClient connect failed: {e}", exc_info=e)
@@ -744,6 +736,7 @@ async def voice_ws(websocket: WebSocket) -> None:
                     session_modes.pop(thread_id, None)
                     _last_asr_text.pop(thread_id, None)
                     _is_sending_chat_tts_text.pop(thread_id, None)
+                    _volc_gen.pop(thread_id, None)
 
                     # Clean up Volcengine client
                     from app.core.routing.executor import active_volc_clients
@@ -783,5 +776,6 @@ async def voice_ws(websocket: WebSocket) -> None:
             session_modes.pop(tid, None)
             _last_asr_text.pop(tid, None)
             _is_sending_chat_tts_text.pop(tid, None)
+            _volc_gen.pop(tid, None)
         await manager.unregister(conn_id)
 

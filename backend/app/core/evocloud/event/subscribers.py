@@ -56,20 +56,20 @@ class EvoCloudLifecycleSubscriber:
         Initialize EvoCloud services when application starts.
         If a persisted token exists (e.g. service restart), auto-start services.
         """
-        logger.info("[EvoCloud] Application started, initializing...")
+        logger.debug("[EvoCloud] Application started, initializing...")
         try:
             if evocloud_manager.api and await evocloud_manager.api.get_token():
-                logger.info("[EvoCloud] Found persisted token, starting services...")
+                logger.debug("[EvoCloud] Found persisted token, starting services...")
                 await self._start_services()
             else:
-                logger.info("[EvoCloud] No token found, skipping auto-start. Will start on USER_LOGGED_IN.")
+                logger.debug("[EvoCloud] No token found, skipping auto-start. Will start on USER_LOGGED_IN.")
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[EvoCloud] Failed to start services: {e}")
 
     @event_subscribe(SystemEventType.USER_LOGGED_IN)
     async def on_user_logged_in(self, event):
         """Start EvoCloud services when user logs in."""
-        logger.info("[EvoCloud] User logged in, starting services...")
+        logger.debug("[EvoCloud] User logged in, starting services...")
         try:
             await self._start_services()
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
@@ -78,10 +78,10 @@ class EvoCloudLifecycleSubscriber:
     @event_subscribe(SystemEventType.USER_LOGGED_OUT)
     async def on_user_logged_out(self, event):
         """Stop EvoCloud services when user logs out."""
-        logger.info("[EvoCloud] User logged out, stopping services...")
+        logger.debug("[EvoCloud] User logged out, stopping services...")
         try:
             await evocloud_manager.stop()
-            logger.info("[EvoCloud] Services stopped successfully")
+            logger.debug("[EvoCloud] Services stopped successfully")
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[EvoCloud] Error during logout shutdown: {e}")
 
@@ -90,10 +90,10 @@ class EvoCloudLifecycleSubscriber:
         """
         Clean up EvoCloud resources when application stops.
         """
-        logger.info("[EvoCloud] Application stopping, cleaning up...")
+        logger.debug("[EvoCloud] Application stopping, cleaning up...")
         try:
             await evocloud_manager.stop()
-            logger.info("[EvoCloud] Services stopped successfully")
+            logger.debug("[EvoCloud] Services stopped successfully")
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[EvoCloud] Error during shutdown: {e}")
 
@@ -128,10 +128,6 @@ class EvoCloudSyncSubscriber:
 
         # 1. 触发增量数据库同步（同步到 MC）
         await sync_manager._schedule_incremental_sync()
-        logger.info(
-            f"[EvoCloudSync] Incremental sync triggered by run completion "
-            f"for thread {getattr(event, 'thread_id', 'unknown')}"
-        )
 
         # 2. 通过 HTTP relay 通知 Gateway/Mobile 任务已完成（规范 agent.status 格式）
         from app.core.channel import channel_registry
@@ -147,10 +143,6 @@ class EvoCloudSyncSubscriber:
                 },
                 target_device_key=device_key,
                 member_id=0,
-            )
-            logger.debug(
-                "[EvoCloudSync] agent.status relayed via HTTP for thread "
-                f"{getattr(event, 'thread_id', '')}"
             )
 
 

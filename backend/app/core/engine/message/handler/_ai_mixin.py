@@ -37,10 +37,6 @@ class AiMessageMixin:
             metadata=metadata,
         )
 
-        logger.info(
-            f"[MessageHandler] AI message classified as: {category.value}, persist={persist_data.should_persist}"
-        )
-
         _is_finish_message = node_source == "finish"
         _is_supervisor_message = node_source == "supervisor"
 
@@ -58,6 +54,8 @@ class AiMessageMixin:
 
         effective_parent_id = parent_id or await self._repository.get_last_message_id()
 
+        is_visible = category.is_visible_to_user and not _is_finish_message
+
         if persist_data.should_persist:
             from app.core.engine.message.extractor import attachment_extractor
 
@@ -72,7 +70,7 @@ class AiMessageMixin:
                 thinking=persist_data.thinking,
                 tool_calls=persist_data.tool_calls,
                 category=category.value,
-                is_visible=category.is_visible_to_user and not _is_finish_message,
+                is_visible=is_visible,
                 content_type="text",
                 metadata=metadata,
                 node_source=node_source,
@@ -85,8 +83,7 @@ class AiMessageMixin:
 
             if (
                 msg_id
-                and category.is_visible_to_user
-                and not _is_finish_message
+                and is_visible
                 and category != MessageCategory.INTERNAL_REASONING
             ):
                 await self._dispatch_block(
@@ -100,6 +97,7 @@ class AiMessageMixin:
                     channels={"mobile", "voice"} if _is_supervisor_message else {"mobile"},
                     parent_id=effective_parent_id,
                     message_id=msg_id,
+                    is_visible=is_visible,
                 )
 
         if stream_data.should_stream and not _is_finish_message:
@@ -116,6 +114,7 @@ class AiMessageMixin:
                 channels={"sse", "voice"} if _is_supervisor_message else {"sse"},
                 parent_id=effective_parent_id,
                 message_id=msg_id,
+                is_visible=is_visible,
             )
 
         self.last_persisted_message_id = msg_id

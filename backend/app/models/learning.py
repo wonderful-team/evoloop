@@ -124,7 +124,7 @@ class LearnedSkill(Base):
 
     # Usage Statistics — FROZEN (2026-07): never written anywhere; kept in API
     # responses as 0 for SDK compatibility. Do not wire writers until M1+
-    # proves the sedimentation value hypothesis.
+    # proves the creation value hypothesis.
     success_count: Mapped[int] = mapped_column(Integer, default=0)
     failure_count: Mapped[int] = mapped_column(Integer, default=0)
 

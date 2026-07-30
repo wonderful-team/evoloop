@@ -42,19 +42,20 @@ class FinishPromptBuilder(BasePromptBuilder):
         """Builds the STATIC Reviewer system prompt."""
         try:
             from app.core.context.manager import ContextManager
-            
+
             ctx = ContextManager.current()
             mode = self.get_sandbox_mode()
             project_profile = self.read_project_profile(ctx.working_directory, "[FinishPrompt]")
-            
+
             sys_info = {
                 "project_concepts": ctx.metadata.get("project_concepts", ""),
                 "project_profile": project_profile,
                 "cwd": self.get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", "")),
             }
-            
+
             is_voice = ctx.metadata.get("source") == "voice"
-            
+            has_skill_used = self._has_skill_used()
+
             template_vars = {
                 "user_lang": self.get_user_lang(),
                 "project_id": self.project_id,
@@ -63,6 +64,7 @@ class FinishPromptBuilder(BasePromptBuilder):
                 "sys_info": sys_info,
                 "sandbox_mode": mode,
                 "is_voice": is_voice,
+                "has_skill_used": has_skill_used,
             }
 
             return render_template("core/engine/finish.prompt.j2", **template_vars)
@@ -72,6 +74,19 @@ class FinishPromptBuilder(BasePromptBuilder):
                 "You are the Session Reviewer. Please review the session and provide "
                 "a concise summary of what was accomplished."
             )
+
+    def _has_skill_used(self) -> bool:
+        """Return True if the session involved a LearnedSkill execution."""
+        if self.metadata and self.metadata.get("original_skill_id"):
+            return True
+        if self.action_context and "run_skill" in self.action_context:
+            return True
+        for result in (self.subtask_results or []):
+            if isinstance(result, dict) and result.get("skill_id"):
+                return True
+            if isinstance(result, str) and "skill" in result.lower():
+                return True
+        return False
 
     def build_audit_ticket(self) -> str:
         """Builds the DYNAMIC audit ticket to be injected as a HumanMessage."""

@@ -79,7 +79,7 @@ The Supervisor strongly recommends you to examine the following {{ focus_paths |
 - `{{ path }}`
 {% endfor %}
 
-> **ACTION REQUIRED**: Use your file reading tools (e.g. `view_file`, `grep_search`) to retrieve the latest contents of these files immediately. DO NOT guess their contents.
+> **ACTION REQUIRED**: Use your file reading tools (e.g. `read_file`, `grep_search`) to retrieve the latest contents of these files immediately. DO NOT guess their contents.
 {%- endif %}
 
 {%- if knowledge_blocks %}
@@ -106,6 +106,10 @@ WARNING: No Standard Operating Procedure (SOP) is available for this mission.
 {%- endif %}
 
 {%- include 'core/engine/fragments/macro_block.j2' %}
+
+{%- if active_macros %}
+> **Worker Macro Rule**: You are already executing a specific mission assigned by the Supervisor. Only use a macro if it is a small, well-defined sub-step of your task. Do NOT run a macro that replaces the entire mission — that routing decision was the Supervisor's job.
+{%- endif %}
 
 {%- if previous_output %}
 ## Previous Step Output

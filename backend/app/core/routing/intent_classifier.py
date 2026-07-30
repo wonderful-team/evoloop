@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from transformers import BertTokenizer
+from tokenizers import Tokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,9 @@ def _load() -> bool:
                 id2name = mapping.get("id2name", {})
         else:
             id2name = {}
-        tokenizer = BertTokenizer.from_pretrained(str(_MODEL_DIR))
+        tokenizer = Tokenizer.from_file(str(_MODEL_DIR / "tokenizer.json"))
+        tokenizer.enable_truncation(max_length=32)
+        tokenizer.enable_padding(length=32)
         _session, _tokenizer, _id2name = session, tokenizer, id2name
         logger.info(
             "Intent classifier loaded from %s (%d labels, margin_threshold=%.2f)",
@@ -83,16 +85,12 @@ def predict(text: str) -> tuple[str | None, float]:
                 if not _load():
                     return None, 0.0
 
-    tokens = _tokenizer(
-        text,
-        padding="max_length",
-        truncation=True,
-        max_length=32,
-        return_tensors="np",
-    )
+    encoding = _tokenizer.encode(text)
+    input_ids = np.array([encoding.ids], dtype=np.int64)
+    attention_mask = np.array([encoding.attention_mask], dtype=np.int64)
     ort_inputs = {
-        _session.get_inputs()[0].name: tokens["input_ids"],
-        _session.get_inputs()[1].name: tokens["attention_mask"],
+        _session.get_inputs()[0].name: input_ids,
+        _session.get_inputs()[1].name: attention_mask,
     }
     logits = _session.run(None, ort_inputs)[0]
 
@@ -117,3 +115,15 @@ def reload():
         _tokenizer = None
         _id2name = {}
         _load()
+
+
+def initialize() -> bool:
+    """服务启动时主动加载模型，避免首次语音请求时冷加载。"""
+    with _lock:
+        if _session is not None and _tokenizer is not None:
+            return True
+        return _load()
+
+
+# 启动时立即加载（保持低延迟首响应）
+initialize()

@@ -104,7 +104,7 @@ class Settings(BaseSettings):
     AUTO_MEMORY_EXTRACTION_INTERVAL: int = 1  # Extract every N turns (1 = every turn, 2 = every other turn, etc.)
 
     # Macro Sedimentation Settings
-    AUTO_MACRO_SEDIMENTATION_ENABLED: bool = True  # Enable automatic macro sedimentation after successful sessions
+    AUTO_MACRO_CREATION_ENABLED: bool = True  # Enable automatic macro creation after successful sessions
 
     BACKEND_CORS_ORIGINS: Annotated[list[AnyUrl] | str, BeforeValidator(parse_cors)] = []
 

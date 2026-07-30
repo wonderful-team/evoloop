@@ -82,9 +82,11 @@ async def emit_llm_end(
 ) -> None:
     for cb in callbacks:
         try:
-            result = SimpleNamespace(
-                generations=[[SimpleNamespace(message=final_message)]]
+            msg = SimpleNamespace(
+                message=final_message,
+                text=getattr(final_message, "content", ""),
             )
+            result = SimpleNamespace(generations=[[msg]])
             await cb.on_llm_end(response=result, run_id=run_id)
         except _CALLBACK_EXCEPTIONS as e:
             logger.debug(f"[CallbackBridge] on_llm_end failed: {e}")

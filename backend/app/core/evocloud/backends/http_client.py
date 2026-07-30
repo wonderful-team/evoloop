@@ -113,31 +113,21 @@ class EvoCloudHTTPClient(
         async with self._refresh_lock:
             current_token = await self.get_token()
             if failed_token and current_token != failed_token:
-                logger.info(
-                    "[EvoCloud] Access token was already refreshed by another coroutine"
-                )
+                logger.debug("[EvoCloud] Access token was already refreshed by another coroutine")
                 return current_token
 
             lock = cache.lock("evoloop:token_refresh", timeout=10)
             acquired = await lock.acquire(blocking=False)
             if not acquired:
-                logger.info(
-                    "[EvoCloud] Another process is refreshing token, waiting..."
-                )
+                logger.debug("[EvoCloud] Another process is refreshing token, waiting...")
                 await asyncio.sleep(0.5)
                 return await self.get_token()
 
             try:
                 current_token = await self.get_token()
                 if failed_token and current_token != failed_token:
-                    logger.info(
-                        "[EvoCloud] Access token was already refreshed by another process"
-                    )
+                    logger.debug("[EvoCloud] Access token was already refreshed by another process")
                     return current_token
-
-                logger.info(
-                    "[EvoCloud] Attempting to refresh access token using Refresh Token..."
-                )
 
                 res = await self.request(
                     "POST",
@@ -152,12 +142,10 @@ class EvoCloudHTTPClient(
                     new_refresh_token = data.get("refresh_token")
                     if new_token:
                         await self.set_token(new_token, new_refresh_token)
-                        logger.info("[EvoCloud] Successfully refreshed access token")
+                        logger.debug("[EvoCloud] Successfully refreshed access token")
                         return new_token
 
-                logger.error(
-                    f"[EvoCloud] Token refresh failed: {res.get('message', 'Unknown error')}"
-                )
+                logger.error(f"[EvoCloud] Token refresh failed: {res.get('message', 'Unknown error')}")
                 return None
             finally:
                 await lock.release()
@@ -202,15 +190,11 @@ class EvoCloudHTTPClient(
         body_str = dumps(data) if data else ""
 
         req_headers = headers or {}
-        req_headers.update(
-            {"Content-Type": "application/json", "X-Timestamp": str(timestamp)}
-        )
+        req_headers.update({"Content-Type": "application/json", "X-Timestamp": str(timestamp)})
 
         if self.config.api_key and self.config.api_secret:
             req_headers["X-API-Key"] = self.config.api_key
-            req_headers["X-Signature"] = self._generate_signature(
-                method, endpoint, body_str, timestamp
-            )
+            req_headers["X-Signature"] = self._generate_signature(method, endpoint, body_str, timestamp)
 
         request_params = params.copy() if params is not None else {}
 
@@ -220,12 +204,10 @@ class EvoCloudHTTPClient(
         log_params = {
             k: ("***" if k == "token" and v else v) for k, v in request_params.items()
         }
-        logger.info(f"[EvoCloud] {method} {endpoint} token={active_token[:8] if active_token else 'none'} params={log_params}")
+        logger.debug(f"[EvoCloud] {method} {endpoint} token={active_token[:8] if active_token else 'none'} params={log_params}")
 
         try:
-            resp = await client.request(
-                method, url, params=request_params, json=data, headers=req_headers
-            )
+            resp = await client.request(method, url, params=request_params, json=data, headers=req_headers)
             raw_text = resp.text
             resp_json = (resp.json() if resp.status_code == 200 else None) or {}
             is_token_expired = (
@@ -242,12 +224,8 @@ class EvoCloudHTTPClient(
             if is_token_expired and _retry_count < 1:
                 stored_token = await self.get_token()
                 if token is None or token == "" or token == stored_token:
-                    logger.warning(
-                        f"[EvoCloud] Token expired during request to {endpoint} (code: {resp_json.get('code')}), attempting refresh..."
-                    )
-                    new_token = await self.refresh_access_token(
-                        failed_token=active_token
-                    )
+                    logger.warning(f"[EvoCloud] Token expired during request to {endpoint} (code: {resp_json.get('code')}), attempting refresh...")
+                    new_token = await self.refresh_access_token(failed_token=active_token)
                     if new_token:
                         return await self.request(
                             method=method,
@@ -259,9 +237,7 @@ class EvoCloudHTTPClient(
                             _retry_count=_retry_count + 1,
                         )
                     else:
-                        logger.error(
-                            f"[EvoCloud] Token refresh failed for {endpoint}, returning original error"
-                        )
+                        logger.error(f"[EvoCloud] Token refresh failed for {endpoint}, returning original error")
 
             if resp.status_code >= 400:
                 logger.error(f"[EvoCloud] {method} {endpoint} → {resp.status_code}: {resp.text[:200]}")
@@ -275,13 +251,9 @@ class EvoCloudHTTPClient(
                 return {"code": -1, "message": f"Invalid JSON: {resp.text[:100]}"}
 
         except httpx.RequestError as e:
-            logger.error(
-                f"Request connection error to {url}: {type(e).__name__}: {e} (repr: {repr(e)}, cause: {repr(e.__cause__)})"
-            )
+            logger.error(f"Request connection error to {url}: {type(e).__name__}: {e} (repr: {repr(e)}, cause: {repr(e.__cause__)})")
             if _retry_count < 1:
-                logger.info(
-                    f"[EvoCloud] Recreating HTTP client and retrying {endpoint}..."
-                )
+                logger.debug(f"[EvoCloud] Recreating HTTP client and retrying {endpoint}...")
                 await self.close()
                 return await self.request(
                     method=method,

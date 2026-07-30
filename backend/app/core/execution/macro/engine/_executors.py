@@ -88,11 +88,16 @@ class ExecutorMixin:
         tool_action = ActionRegistry.get_tool_action(event_type, "desktop")
 
         def handle_res(res):
-            if res and "Error:" in str(res):
+            if res and ("Error:" in str(res) or "❌" in str(res)):
                 raise ValueError(res)
 
         if event_type in ("click", "tap", "double_click"):
-            handle_res(await DesktopController.execute(action=tool_action, element_name=selector, x=payload.get("x"), y=payload.get("y"), skip_recording=skip_recording))
+            optional = payload.get("optional", False)
+            res = await DesktopController.execute(action=tool_action, element_name=selector, x=payload.get("x"), y=payload.get("y"), skip_recording=skip_recording)
+            if optional and res and ("❌" in str(res) or "Could not resolve" in str(res)):
+                logger.warning(f"[macro-engine] Optional click '{selector}' failed, continuing")
+            else:
+                handle_res(res)
         elif event_type in ("input", "type_text"):
             handle_res(await DesktopController.execute(action="type_text", text=payload.get("text") or payload.get("value", ""), force_keystroke=payload.get("force_keystroke", False), skip_recording=skip_recording))
         elif event_type == "key_press":
@@ -165,6 +170,26 @@ class ExecutorMixin:
                 ok = await asyncio.to_thread(set_value_at_path, pid, payload["ax_path"], text)
             if not ok:
                 raise ValueError(f"Error: ax_set_value rejected for {payload.get('label') or payload.get('ax_path')}")
+        elif event_type == "wait":
+            duration = payload.get("seconds") or (payload.get("duration", 1000) / 1000.0)
+            await asyncio.sleep(float(duration))
+        elif event_type == "cgclick":
+            from app.infrastructure.drivers.macos import macos_driver
+            win_ox = payload.get("win_offset_x")
+            win_oy = payload.get("win_offset_y")
+            if win_ox is not None and win_oy is not None:
+                app_info = await asyncio.to_thread(macos_driver.get_current_app)
+                bounds_str = app_info.get("bounds")
+                if bounds_str:
+                    wx, wy, _, _ = map(int, bounds_str.split(","))
+                    x = wx + int(win_ox)
+                    y = wy + int(win_oy)
+                else:
+                    x, y = int(win_ox), int(win_oy)
+            else:
+                x = int(payload.get("x", 0))
+                y = int(payload.get("y", 0))
+            await asyncio.to_thread(macos_driver.click, x, y)
         elif event_type == "applescript":
             handle_res(await DesktopController.execute(action=tool_action, script=payload.get("script"), skip_recording=skip_recording))
         elif event_type == "screenshot":
@@ -185,7 +210,7 @@ class ExecutorMixin:
 
         def handle_res(res):
             if res and isinstance(res, str):
-                if "Error:" in res or "Execution failed:" in res or res.startswith("ERR_"):
+                if "Error:" in res or "Execution failed:" in res or res.startswith("ERR_") or "❌" in res:
                     raise ValueError(res)
 
         def _get_coords(p, key):

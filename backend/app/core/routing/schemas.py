@@ -7,19 +7,6 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
-class RouteCandidate(BaseModel):
-    """A single candidate entry retrieved from the route index."""
-
-    id: str
-    type: str  # local | skill | macro | agent
-    name: str
-    description: str = ""
-    params_schema: dict[str, Any] = Field(default_factory=dict)
-    execution_mode: str | None = None  # deterministic | agentic (skill only)
-    target: str = ""  # local action id / skill id / agent endpoint
-    score: float = 0.0
-
-
 class RouteRequest(BaseModel):
     """Inbound route request (body of a `voice.route` envelope)."""
 
@@ -36,7 +23,6 @@ class RouteDecision(BaseModel):
     target_type: str = "agent"  # local | skill | macro | agent
     target: dict[str, Any] = Field(default_factory=dict)
     params: dict[str, Any] = Field(default_factory=dict)
-    candidates: list[RouteCandidate] = Field(default_factory=list)
     raw: str | None = None  # raw model output for debugging
 
 

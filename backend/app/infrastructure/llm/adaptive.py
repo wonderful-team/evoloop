@@ -243,7 +243,6 @@ class AdaptiveChatOpenAI:
                     logger.info(f"🔄 Adaptive Retry {state.attempt}/{state.max_retries}: {state}")
 
                 # Debugging logging: print all roles, content snippet, and reasoning_content presence
-                logger.info(f"--- api_messages payload (attempt={state.attempt}, reasoning_degraded={reasoning_degraded}) ---")
                 for idx, msg in enumerate(api_messages):
                     role = msg.get("role")
                     content = msg.get("content") or ""

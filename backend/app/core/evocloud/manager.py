@@ -90,7 +90,7 @@ class EvoCloudManager:
     async def start(self) -> None:
         """Start background services (Link) for the current loop."""
         if not settings.MOBILE_SYNC_ENABLED:
-            logger.info("[EvoCloud] MOBILE_SYNC_ENABLED=false — skipping WebSocket link and conversation sync")
+            logger.debug("[EvoCloud] MOBILE_SYNC_ENABLED=false — skipping WebSocket link and conversation sync")
             return
 
         link = self.link
@@ -124,7 +124,7 @@ class EvoCloudManager:
                 api_client=self.api,
                 device_key=device_key,
             )
-            logger.info("[EvoCloud] Conversation sync started via bridge")
+            logger.debug("[EvoCloud] Conversation sync started via bridge")
         except (ConnectionError, TimeoutError, OSError) as e:
             logger.error(f"[EvoCloud] Failed to start conversation sync: {e}")
 
@@ -135,7 +135,7 @@ class EvoCloudManager:
                 stop_conversation_sync,
             )
             await stop_conversation_sync()
-            logger.info("[EvoCloud] Conversation sync stopped via bridge")
+            logger.debug("[EvoCloud] Conversation sync stopped via bridge")
         except (ConnectionError, TimeoutError, OSError) as e:
             logger.error(f"[EvoCloud] Error stopping conversation sync: {e}")
 

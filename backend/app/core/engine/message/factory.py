@@ -174,6 +174,7 @@ class MessageBlockFactory:
         executor_device_key: str | None = None,
         executor_device_name: str | None = None,
         source: str | None = None,
+        is_visible: bool = True,
     ) -> MessageBlock:
         """
         Creates a MessageBlock directly from streaming event parameters.
@@ -251,7 +252,7 @@ class MessageBlockFactory:
             tool_calls=validated_tool_calls,
             references=ref_blocks,
             status=cast(Any, status),
-            is_visible=True,
+            is_visible=is_visible,
             sequence_number=sequence_number,
             created_at=datetime.now(timezone.utc).isoformat(),
             parent_id=parent_id,

@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     summary_template="evoloop.tool_summary.analyze_image",
-    affected_path_keys=["image_source"]
+    affected_path_keys=["image_source"],
+    is_multimodal=True
 )
 async def analyze_image(
     image_source: str,

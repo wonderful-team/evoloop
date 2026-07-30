@@ -1,7 +1,7 @@
-"""Macro sedimentation service — flywheel macro creation from completed traces.
+"""Macro creator service — create Macro records from completed agent traces.
 
 This module owns the automatic creation of ``Macro`` records when a session is
-marked as sedimentation-eligible by ``FinishNode``. It is intentionally separate
+marked as creation-eligible by ``FinishNode``. It is intentionally separate
 from skill synthesis: only the macro is persisted; any companion skill is the
 responsibility of explicit synthesis flows.
 """
@@ -57,7 +57,7 @@ _EXCLUDED_EVENT_TYPES = frozenset({
 })
 
 
-class MacroSedimentationService:
+class MacroCreatorService:
     """Service for determining eligibility and creating macros from traces."""
 
     @staticmethod
@@ -76,12 +76,12 @@ class MacroSedimentationService:
                 stmt = select(TraceEvent).where(TraceEvent.thread_id == thread_id)
                 result = await session.execute(stmt)
                 for event in result.scalars().all():
-                    if MacroSedimentationService._is_replayable(event, existing_message_ids):
+                    if MacroCreatorService._is_replayable(event, existing_message_ids):
                         return True
                 return False
         except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.warning(
-                "[MacroSedimentation] Failed to check eligibility for %s: %s",
+                "[MacroCreator] Failed to check eligibility for %s: %s",
                 thread_id,
                 e,
             )
@@ -120,14 +120,28 @@ class MacroSedimentationService:
         return False
 
     @staticmethod
-    async def sediment(thread_id: str, member_id: int = 0) -> Macro | None:
+    async def create_macro_from_trace(
+        thread_id: str,
+        member_id: int = 0,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        trigger_patterns: list[str] | None = None,
+    ) -> Macro | None:
         """Create a pending_review macro from a completed, eligible trace.
 
         Returns the created macro or None if the feature is disabled, the thread
         is not eligible, or the trace does not produce any deterministic steps.
+
+        Args:
+            thread_id: The thread ID to create the macro from.
+            member_id: The member ID (default 0).
+            name: Optional override for macro name. If None, auto-generated.
+            description: Optional override for macro description.
+            trigger_patterns: Optional override for trigger patterns.
         """
-        if not settings.AUTO_MACRO_SEDIMENTATION_ENABLED:
-            logger.debug("[MacroSedimentation] Disabled for %s", thread_id)
+        if not settings.AUTO_MACRO_CREATION_ENABLED:
+            logger.debug("[MacroCreator] Disabled for %s", thread_id)
             return None
 
         try:
@@ -137,11 +151,11 @@ class MacroSedimentationService:
                     return None
                 if activity.final_outcome.upper() != "COMPLETED":
                     return None
-                if not activity.sedimentation_eligible:
+                if not activity.macro_creation_eligible:
                     return None
         except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.warning(
-                "[MacroSedimentation] Failed to read AgentActivity for %s: %s",
+                "[MacroCreator] Failed to read AgentActivity for %s: %s",
                 thread_id,
                 e,
             )
@@ -156,13 +170,13 @@ class MacroSedimentationService:
 
             sequence = await TraceParser(thread_id).parse()
             if not sequence.steps:
-                logger.info("[MacroSedimentation] No trace steps for %s; skipping", thread_id)
+                logger.info("[MacroCreator] No trace steps for %s; skipping", thread_id)
                 return None
 
             compiled = MacroScriptCompiler().compile(sequence)
             if not compiled.steps:
                 logger.info(
-                    "[MacroSedimentation] Trace for %s produced no deterministic steps; skipping",
+                    "[MacroCreator] Trace for %s produced no deterministic steps; skipping",
                     thread_id,
                 )
                 return None
@@ -176,6 +190,14 @@ class MacroSedimentationService:
             macro_metadata = synthesis_result.macro
             if macro_metadata is None:
                 raise ValueError("Macro synthesis did not produce macro metadata")
+
+            # Apply user-provided overrides
+            if name is not None:
+                macro_metadata.name = name
+            if description is not None:
+                macro_metadata.description = description
+            if trigger_patterns is not None:
+                macro_metadata.trigger_patterns = trigger_patterns
 
             async with session_scope() as db:
                 macro = await create_macro_from_synthesis(
@@ -192,7 +214,7 @@ class MacroSedimentationService:
                 )
         except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.error(
-                "[MacroSedimentation] Failed to sediment macro for %s: %s",
+                "[MacroCreator] Failed to create macro for %s: %s",
                 thread_id,
                 e,
             )
@@ -204,7 +226,7 @@ class MacroSedimentationService:
             await publish_macro_mutated(macro.id, action="create")
         except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.warning(
-                "[MacroSedimentation] Failed to publish macro mutated for %s: %s",
+                "[MacroCreator] Failed to publish macro mutated for %s: %s",
                 thread_id,
                 e,
             )

@@ -79,9 +79,6 @@ class ToolMessageMixin:
                 message_id=message_id,
             )
 
-        logger.info(
-            f"[MessageHandler] Tool start tracked: {tool_name} (seq={seq}, hidden={is_hidden})"
-        )
         return MessageHandlerResult(
             category=category.value,
             persisted=category.should_persist_to_db,

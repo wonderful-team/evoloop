@@ -43,6 +43,15 @@ class ToolManager:
 
         combined_map = {t.name: t for t in tools if t.name}
 
+        # 2. Filter out multimodal tools if no vision model is configured
+        from app.infrastructure.config.service import SystemConfigService
+        vision_configured = SystemConfigService.get_value("VISION_MODEL") is not None
+        if not vision_configured:
+            multimodal_tools = [t.name for t in combined_map.values() if t.metadata.get("is_multimodal")]
+            if multimodal_tools:
+                logger.info(f"[ToolManager] VISION_MODEL not configured, filtering out multimodal tools: {multimodal_tools}")
+                combined_map = {k: v for k, v in combined_map.items() if not v.metadata.get("is_multimodal")}
+
         # 2. Handle Progressive Disclosure (Skill-Tool Handshake & Dynamic Requests)
         # Only inject external tools if explicitly requested by the state.
         if state:
@@ -96,7 +105,8 @@ class ToolManager:
             # Only apply this to specialists (workers), NEVER to the supervisor itself.
             if dynamic_tools and node_name != "supervisor":
                 # If Supervisor provided a strict tool allowlist, we prune any tool not in the list.
-                allowed = set(dynamic_tools)
+                # Always auto-inject macro tools so the Worker can discover deterministic macros.
+                allowed = set(dynamic_tools) | {"list_macros", "run_macro"}
                 combined_map = {k: v for k, v in combined_map.items() if k in allowed}
 
                 # 4. Prevent tool-choice ambiguity: when write_wiki_page is explicitly

@@ -39,13 +39,38 @@ from ..base import Channel, ChannelContext
 
 logger = logging.getLogger(__name__)
 
-# Markdown symbols that TTS cannot render — strip before push
-_MD_CLEAN_RE = re.compile(r'(\*\*|__|`|#{1,6}\s*|>\s*|-{2,}|[-*]\s)')
+# Markdown cleanup for TTS — remove formatting that would be read verbatim.
+# This is NOT truncation; it only strips markdown syntax and normalizes whitespace.
 
 
 def _md_clean(text: str) -> str:
     """Strip markdown formatting that would be spoken verbatim in TTS."""
-    return _MD_CLEAN_RE.sub('', text)
+    if not text:
+        return text
+
+    # 1. Images: keep alt text if present, otherwise remove.
+    text = re.sub(r"!\[([^\]]*)\]\([^)]*\)", r"\1", text)
+    # 2. Links: keep link text only.
+    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)
+    # 3. Bold, italic, strikethrough, inline code markers.
+    text = re.sub(r"\*\*|\*|__|_|~~|`", "", text)
+    # 4. Heading markers.
+    text = re.sub(r"#{1,6}\s*", "", text)
+    # 5. Blockquote markers.
+    text = re.sub(r">\s*", "", text)
+    # 6. Numbered list markers.
+    text = re.sub(r"\d+\.\s+", "", text)
+    # 7. Bullet list markers.
+    text = re.sub(r"[-*+]\s+", "", text)
+    # 8. Table pipes.
+    text = re.sub(r"\|", "", text)
+    # 9. Horizontal rules.
+    text = re.sub(r"^\s*[-*_]{2,}\s*$", "", text, flags=re.MULTILINE)
+    # 10. Normalize excessive whitespace.
+    text = re.sub(r"\n{2,}", "\n", text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+
+    return text.strip()
 
 
 class VoiceChannel(Channel):
@@ -137,6 +162,9 @@ class VoiceChannel(Channel):
 
         # ── Superviosr 安抚话术：首个回应时推送 ────────────────
         if isinstance(payload, MessageBlock):
+            if not payload.is_visible:
+                logger.debug("[VoiceChannel] skip hidden MessageBlock for %s", ctx.thread_id)
+                return
             if payload.role == "ai" and payload.content:
                 tid = ctx.thread_id
                 from app.core.routing.executor import _voice_registry

@@ -1,9 +1,6 @@
 {%- if active_macros %}
 ## Attached Macros (Deterministic Scripts)
-Verified macros available for this project. If the mission matches one, call `run_macro(macro_id, params)` instead of manual tool sequences.
-{% for m in active_macros -%}
-- {{ m.name }} (ID: {{ m.id }}){%- if m.entity %} [{{ m.entity }}]{% endif %}: {{ m.description }}
-{% endfor -%}
+There are {{ active_macros|length }} active verified macros available. Use `list_macros(query="...")` to find relevant macros when needed. When a macro matches your task, call `run_macro(macro_id=..., params={...})` directly instead of manually replicating the steps.
 {%- endif %}
 
 {%- if operation_map %}

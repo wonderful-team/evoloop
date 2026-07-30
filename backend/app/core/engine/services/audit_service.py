@@ -221,7 +221,8 @@ class AuditService:
             logger.info(f"[AuditService] 📉 Truncated audit context (smart slicing): {len(audit_messages)} → {len(preserved)} msgs (tail_start={tail_start})")
             audit_messages = preserved
 
-        # Sanitize config: remove callbacks that leak audit to DB/SSE
+        # Sanitize config: remove callbacks that leak audit to DB/SSE, and prevent
+        # the audit engine from persisting its internal quality-gate messages as chat messages.
         clean_config = dict(config or {})
         if "callbacks" in clean_config:
             callbacks = clean_config["callbacks"]
@@ -230,6 +231,9 @@ class AuditService:
                     cb for cb in callbacks
                     if cb.__class__.__name__ not in ("DatabaseCallbackHandler", "TransparentCallbackHandler")
                 ]
+        clean_metadata = dict(clean_config.get("metadata", {}) or {})
+        clean_metadata["skip_message_persistence"] = True
+        clean_config["metadata"] = clean_metadata
 
         execution_state = state.model_copy(update={"messages": audit_messages})
 

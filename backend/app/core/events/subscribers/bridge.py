@@ -50,6 +50,5 @@ class UniversalBridgeSubscriber:
             for ch in selected:
                 await ch.send(event, ctx)
 
-            logger.debug(f"[UniversalBridge] Bridged {event_type} to ChannelRegistry (sse, voice)")
         except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.warning(f"[UniversalBridge] Failed to bridge event {event_type}: {e}")

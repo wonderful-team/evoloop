@@ -136,9 +136,19 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
             results=True,
             # Result expiration (7 days)
             store_none=False,
+            # Busy timeout 30s to avoid "database is locked" with multi-process workers
+            timeout=30,
+            # Allow connections from multiple threads within the same process
+            check_same_thread=False,
         )
+
+        # Critical: SqliteStorage defaults to 'begin exclusive', which causes
+        # "database is locked" errors when multiple processes/threads contend.
+        # In WAL mode, 'begin immediate' only blocks other writers (not readers),
+        # dramatically reducing lock contention in multi-process deployments.
+        self._huey.storage.begin_sql = 'begin immediate'
         
-        logger.info(f"[Huey] Initialized with SQLite at {db_path} via ResourceManager")
+        logger.info(f"[Huey] Initialized with SQLite at {db_path} via ResourceManager (begin=immediate, timeout=30s)")
 
     def task(
         self,

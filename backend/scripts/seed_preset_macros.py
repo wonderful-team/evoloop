@@ -185,7 +185,7 @@ async def seed():
                 macro_script=data["macro_script"],
                 risk_tier="ui",
                 requires_confirmation=False,
-                allow_self_healing=False,
+                allow_self_healing=True,
                 status="verified",
                 is_active=True,
                 namespace="preset",

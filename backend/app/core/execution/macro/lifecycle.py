@@ -90,7 +90,7 @@ async def create_macro_from_synthesis(
     project_id: int | None = None,
     member_id: int = 0,
 ) -> Macro:
-    """Persist a flywheel-sedimented macro (pending_review, is_active=False).
+    """Persist a flywheel-created macro (pending_review, is_active=False).
 
     Flywheel macros pair with a learned skill via ``fallback_skill_id`` (the
     心法 SOP used for self-healing) and always have ``app_map_id=None`` so
@@ -161,7 +161,12 @@ async def list_macros(
     async with session_scope() as db:
         stmt = select(Macro)
         if project_id is not None:
-            stmt = stmt.where(Macro.project_id == project_id)
+            if project_id == 0:
+                stmt = stmt.where(
+                    or_(Macro.project_id == 0, Macro.project_id.is_(None))
+                )
+            else:
+                stmt = stmt.where(Macro.project_id == project_id)
         if app_map_id is not None:
             stmt = stmt.where(Macro.app_map_id == app_map_id)
         if status is not None:
@@ -171,20 +176,52 @@ async def list_macros(
         if entity is not None:
             stmt = stmt.where(Macro.entity == entity)
         if query:
-            q = f"%{query}%"
-            stmt = stmt.where(
-                or_(
-                    Macro.name.ilike(q),
-                    Macro.description.ilike(q),
-                    func.coalesce(Macro.trigger_patterns, literal("[]")).cast(Text).ilike(q),
-                )
-            )
-        if limit is not None:
-            stmt = stmt.limit(limit)
-        if offset is not None:
-            stmt = stmt.offset(offset)
-        result = await db.execute(stmt)
-        return list(result.scalars().all())
+            keywords = [k for k in query.split() if k]
+            if keywords:
+                keyword_conditions = []
+                for kw in keywords:
+                    q = f"%{kw}%"
+                    keyword_conditions.append(
+                        or_(
+                            Macro.name.ilike(q),
+                            Macro.description.ilike(q),
+                            func.coalesce(Macro.trigger_patterns, literal("[]")).cast(Text).ilike(q),
+                        )
+                    )
+                stmt = stmt.where(or_(*keyword_conditions))
+        if query and len(keywords) > 1:
+            # Multi-keyword search: rank results by the number of matched keywords
+            # and apply limit/offset in Python so the most relevant macros appear first.
+            result = await db.execute(stmt.limit(1000))
+            macros = list(result.scalars().all())
+
+            def _score(macro):
+                name = (macro.name or "").lower()
+                description = (macro.description or "").lower()
+                triggers = " ".join(macro.trigger_patterns or []).lower()
+                score = 0
+                for i, kw in enumerate(keywords):
+                    kw_lower = kw.lower()
+                    is_first = i == 0
+                    if kw_lower in name:
+                        score += 6 if is_first else 4
+                    elif kw_lower in description:
+                        score += 3 if is_first else 2
+                    elif kw_lower in triggers:
+                        score += 2 if is_first else 1
+                return score
+
+            macros.sort(key=lambda m: (-_score(m), m.id))
+            start = offset or 0
+            end = (start + limit) if limit is not None else None
+            return macros[start:end]
+        else:
+            if limit is not None:
+                stmt = stmt.limit(limit)
+            if offset is not None:
+                stmt = stmt.offset(offset)
+            result = await db.execute(stmt)
+            return list(result.scalars().all())
 
 
 async def list_active_macro_index(project_id: int | None = None) -> list[dict]:

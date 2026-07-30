@@ -38,6 +38,7 @@ class DispatchMixin:
         references: list | None = None,
         message_id: str | None = None,
         action: str = "create",
+        is_visible: bool = True,
     ) -> None:
         if sequence_number == 0:
             self._stream_seq += 1
@@ -72,6 +73,7 @@ class DispatchMixin:
             message_id=message_id,
             executor_device_key=dev_key,
             executor_device_name=dev_name,
+            is_visible=is_visible,
         )
 
         if not self._publisher:

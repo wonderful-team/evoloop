@@ -80,8 +80,6 @@ class MessageRepository:
             if not effective_parent_id:
                 effective_parent_id = await self.get_last_message_id()
 
-            logger.info(f"[MessageRepository] Persisting {role} message (seq={seq}, cat={category}, parent={effective_parent_id})")
-
             async with session_scope() as session:
                 log = Message(
                     id=message_id or gen_uuid(),
@@ -154,9 +152,7 @@ class MessageRepository:
 
         effective_parent_id = parent_id
         if not effective_parent_id:
-                effective_parent_id = await self.get_last_message_id(session=session)
-
-        logger.info(f"[MessageRepository] Persisting {role} message (seq={seq}, cat={category}, parent={effective_parent_id})")
+            effective_parent_id = await self.get_last_message_id(session=session)
 
         log = Message(
             id=message_id or gen_uuid(),

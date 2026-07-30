@@ -20,7 +20,6 @@ SPEC_CACHE_KEY = "voice:init_spec:current"
 
 async def _rebuild() -> str:
     from app.core.routing.init_spec import build_init_spec, enrich_spec_with_atlas_aliases
-    from app.core.routing.sync import rebuild_route_index
     from app.infrastructure.cache import cache
 
     spec = await asyncio.to_thread(build_init_spec)
@@ -29,12 +28,6 @@ async def _rebuild() -> str:
         await cache.set(SPEC_CACHE_KEY, spec.model_dump_json())
     except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
         logger.warning("[voice] cache write failed: %s", exc)
-
-    # Populate the route index (local actions + skills + agent) in the same pass.
-    try:
-        await rebuild_route_index()
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError) as exc:
-        logger.warning("[voice] route_index rebuild failed (non-critical): %s", exc)
 
     logger.info(
         "[voice] VoiceInitSpec rebuilt: version=%s actions=%d",

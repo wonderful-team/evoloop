@@ -26,7 +26,6 @@ from sqlmodel import select
 
 logger = logging.getLogger(__name__)
 
-
 # ── 直接路由表 ──────────────────────────────────────────────
 
 DIRECT_ROUTES: dict[str, str] = {
@@ -78,7 +77,35 @@ DIRECT_ROUTES: dict[str, str] = {
     "技能录制": "/learning?tab=macros",
     "开始技能录制": "/learning?tab=macros",
     "结束技能录制": "/learning?tab=macros",
+    "停止技能录制": "/learning?tab=macros",
+    "停止录制": "/learning?tab=macros",
+    "指令库": "/learning?tab=macros",
+    "打开指令库": "/learning?tab=macros",
+    "切到指令库": "/learning?tab=macros",
+    "查看指令": "/learning?tab=macros",
+    "查看宏": "/learning?tab=macros",
     "手机录屏": "/learning?tab=android",
+    "切换项目": "__SWITCH_PROJECT__",
+    "注册": "/signup",
+    "创建账号": "/signup",
+    "去注册": "/signup",
+    "马上注册": "/signup",
+    "项目概览": "/projects/current",
+    "项目文件": "/projects/current/files",
+    "查看文件": "/projects/current/files",
+    "代码文件": "/projects/current/files",
+    "项目任务": "/projects/current/tasks",
+    "查看任务": "/projects/current/tasks",
+    "工作任务": "/projects/current/tasks",
+    "项目百科": "/projects/current/wiki",
+    "项目文档": "/projects/current/wiki",
+    "查看文档": "/projects/current/wiki",
+    "知识库": "/projects/current/wiki",
+    "凭据库": "/projects/current/vault",
+    "密钥管理": "/projects/current/vault",
+    "项目配置": "/projects/current/v2/profile",
+    "项目简介": "/projects/current/v2/profile",
+    "项目资产": "/projects/current/v2/assets",
 }
 
 ROUTE_ALIASES: dict[str, tuple[str, str]] = {
@@ -130,7 +157,7 @@ async def resolve_context() -> dict[str, Any]:
 
 def extract_slots(intent_name: str, text: str) -> dict:
     """Simple slot extraction from raw text."""
-    prefixes = ["打开", "启动", "关闭", "退出", "切换到", "去", "搜索", "搜一下"]
+    prefixes = ["帮我打开", "打开", "启动", "关闭", "退出", "切换到", "去", "搜索", "搜一下"]
     for p in prefixes:
         if text.startswith(p):
             return {"_value": text[len(p):].strip(), "_text": text}
@@ -158,6 +185,11 @@ async def resolve_intent(
             target = mapping["__phone__"]
         if target:
             intent_name = target
+
+    # BERT 识别为复杂查询 → 直接走 Agent
+    if intent_name == "复杂查询":
+        logger.info("[voice-router] BERT classified %r as complex_query, routing to Agent", text)
+        return None
 
     # Intent-specific guards to reject false positives
     if intent_name == "报时" and not re.search(r"几[号点时]|星期|时间|日期|报时", text):
@@ -190,18 +222,45 @@ async def resolve_intent(
             result = await session.execute(stmt)
             macro = result.scalar_one_or_none()
             if macro:
-                args = extract_slots(intent_name, text)
-                # 映射 _value 到宏的参数名
-                if "_value" in args and macro.parameters:
+                # BERT 预测验证：文本必须匹配宏的 trigger_patterns，否则拒绝（→Agent）
+                patterns = macro.trigger_patterns
+                if isinstance(patterns, str):
                     import json
                     try:
-                        params_list = json.loads(macro.parameters) if isinstance(macro.parameters, str) else macro.parameters
-                        if isinstance(params_list, list) and params_list:
-                            param_name = params_list[0].get("name")
-                            if param_name:
-                                args[param_name] = args.pop("_value")
-                    except (json.JSONDecodeError, TypeError, IndexError):
-                        pass
+                        patterns = json.loads(patterns)
+                    except (json.JSONDecodeError, TypeError):
+                        patterns = []
+                if patterns:
+                    slot_name = None
+                    if macro.parameters:
+                        import json
+                        try:
+                            plist = json.loads(macro.parameters) if isinstance(macro.parameters, str) else macro.parameters
+                            if isinstance(plist, list) and plist:
+                                slot_name = plist[0].get("name")
+                        except (json.JSONDecodeError, TypeError, IndexError):
+                            pass
+                    # 将 {slot} 替换为正则 (.+) 进行匹配
+                    slot_re = re.escape(f"{{{slot_name}}}") if slot_name else r"\{.+?\}"
+                    matched = False
+                    for p in patterns:
+                        regex_str = re.escape(p).replace(slot_re, r"(.+)")
+                        m = re.fullmatch(regex_str, text, re.IGNORECASE)
+                        if m:
+                            matched = True
+                            # 用正则捕获组提取槽位值（比前缀剥离更准）
+                            slot_val = m.group(1) if slot_name else ""
+                            break
+                    if not matched:
+                        logger.info("[voice-router] BERT predicted %r but text %r doesn't match macro %d patterns, rejecting", intent_name, text, macro.id)
+                        continue
+                else:
+                    slot_val = ""
+                args = {}
+                if slot_val:
+                    args[slot_name] = slot_val
+                elif "_value" in extract_slots(intent_name, text):
+                    args[slot_name] = extract_slots(intent_name, text)["_value"]
                 return f"macro:{macro.id}", args
 
     # Try builtin from init_spec templates

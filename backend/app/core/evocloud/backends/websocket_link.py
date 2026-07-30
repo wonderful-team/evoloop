@@ -364,7 +364,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                 async with websockets.connect(ws_url, ssl=ssl_context) as ws:
                     self.ws = ws
                     self._rate_limit_backoff_until = 0.0  # reset on new connection
-                    logger.info("[EvoCloud] WS Connected. Sending handshake...")
+                    logger.debug("[EvoCloud] WS Connected. Sending handshake...")
                     self._handshake_completed = False
 
                     # New Go Gateway Handshake — 规范 Envelope 格式
@@ -477,7 +477,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
             return False
 
         if code == "invalid_token":
-            logger.info("[EvoCloud] WS received invalid_token, triggering immediate token refresh...")
+            logger.debug("[EvoCloud] WS received invalid_token, triggering immediate token refresh...")
             current_token = await self.api.get_token()
             new_token = await self.api.refresh_access_token(failed_token=current_token)
             if not new_token:

@@ -1,11 +1,11 @@
-"""Tests for MacroSedimentationService."""
+"""Tests for MacroCreatorService."""
 
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core.execution.macro.sedimentation_service import MacroSedimentationService
+from app.core.execution.macro.macro_creator_service import MacroCreatorService
 from app.infrastructure.database import session_scope
 from app.models import AgentActivity, Message, TraceEvent
 
@@ -16,7 +16,7 @@ async def _insert_activity(thread_id: str, outcome: str, eligible: bool) -> None
             AgentActivity(
                 thread_id=thread_id,
                 final_outcome=outcome,
-                sedimentation_eligible=eligible,
+                macro_creation_eligible=eligible,
             )
         )
 
@@ -58,7 +58,7 @@ async def _insert_event(
 async def test_is_eligible_true_for_replayable_event(_real_db: Any) -> None:
     await _insert_event("t1", 1, "click", payload={"selector": "#btn"})
 
-    result = await MacroSedimentationService.is_eligible("t1")
+    result = await MacroCreatorService.is_eligible("t1")
     assert result is True
 
 
@@ -67,7 +67,7 @@ async def test_is_eligible_false_for_noise_only(_real_db: Any) -> None:
     await _insert_event("t1", 1, "llm_output", payload={"content": "hi"})
     await _insert_event("t1", 2, "think", payload={"text": "..."})
 
-    result = await MacroSedimentationService.is_eligible("t1")
+    result = await MacroCreatorService.is_eligible("t1")
     assert result is False
 
 
@@ -78,35 +78,35 @@ async def test_is_eligible_false_for_deleted_message_event(_real_db: Any) -> Non
         "t1", 1, "click", payload={"selector": "#btn"}, message_id="deleted-msg"
     )
 
-    result = await MacroSedimentationService.is_eligible("t1")
+    result = await MacroCreatorService.is_eligible("t1")
     assert result is False
 
 
 @pytest.mark.asyncio
-async def test_sediment_disabled_by_config(_real_db: Any) -> None:
+async def test_create_macro_disabled_by_config(_real_db: Any) -> None:
     await _insert_activity("t1", "COMPLETED", True)
     await _insert_event("t1", 1, "click", payload={"selector": "#btn"})
 
     with patch(
-        "app.core.execution.macro.sedimentation_service.settings.AUTO_MACRO_SEDIMENTATION_ENABLED",
+        "app.core.execution.macro.macro_creator_service.settings.AUTO_MACRO_CREATION_ENABLED",
         False,
     ):
-        result = await MacroSedimentationService.sediment("t1")
+        result = await MacroCreatorService.create_macro_from_trace("t1")
 
     assert result is None
 
 
 @pytest.mark.asyncio
-async def test_sediment_skips_when_not_eligible(_real_db: Any) -> None:
+async def test_create_macro_skips_when_not_eligible(_real_db: Any) -> None:
     await _insert_activity("t1", "INCOMPLETE", True)
     await _insert_event("t1", 1, "click", payload={"selector": "#btn"})
 
-    result = await MacroSedimentationService.sediment("t1")
+    result = await MacroCreatorService.create_macro_from_trace("t1")
     assert result is None
 
 
 @pytest.mark.asyncio
-async def test_sediment_creates_pending_macro(_real_db: Any) -> None:
+async def test_create_macro_creates_pending_macro(_real_db: Any) -> None:
     await _insert_activity("t1", "COMPLETED", True)
     await _insert_event("t1", 1, "click", payload={"selector": "#btn"})
 
@@ -140,7 +140,7 @@ async def test_sediment_creates_pending_macro(_real_db: Any) -> None:
             new_callable=AsyncMock,
         ) as mock_pub,
     ):
-        macro = await MacroSedimentationService.sediment("t1", member_id=7)
+        macro = await MacroCreatorService.create_macro_from_trace("t1", member_id=7)
 
     assert macro is not None
     assert macro.name == "open_wechat"
@@ -152,7 +152,7 @@ async def test_sediment_creates_pending_macro(_real_db: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_sediment_skips_when_compiled_steps_empty(_real_db: Any) -> None:
+async def test_create_macro_skips_when_compiled_steps_empty(_real_db: Any) -> None:
     await _insert_activity("t1", "COMPLETED", True)
     await _insert_event("t1", 1, "click", payload={"selector": "#btn"})
 
@@ -182,6 +182,6 @@ async def test_sediment_skips_when_compiled_steps_empty(_real_db: Any) -> None:
             fake_compiler,
         ),
     ):
-        macro = await MacroSedimentationService.sediment("t1")
+        macro = await MacroCreatorService.create_macro_from_trace("t1")
 
     assert macro is None

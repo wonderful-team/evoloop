@@ -45,22 +45,3 @@ async def route_init(version: str = Query(""), platform: str = Query("macos")):
     if version and version == current:
         return {"version": current, "unchanged": True}
     return {**spec, "unchanged": False}
-
-
-@router.get("/index", dependencies=[Depends(require_loopback)])
-async def route_index():
-    """Diagnostic dump of the route index (no vectors)."""
-    from app.core.routing.retriever import get_index
-
-    idx = get_index()
-    version = ""
-    try:
-        from app.infrastructure.cache import cache
-
-        raw = await cache.get(SPEC_CACHE_KEY)
-        if raw:
-            spec = json.loads(raw) if isinstance(raw, str) else raw
-            version = spec.get("version", "")
-    except (ValueError, OSError, RuntimeError, TypeError, KeyError):
-        pass
-    return {"version": version, "count": idx.count(), "entries": idx.list_entries()}

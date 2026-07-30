@@ -119,12 +119,5 @@ async def native_atlas_maintenance(apps: list[tuple[str, str]] | None = None) ->
             logger.error(f"[atlas-maintenance] {bundle_id} failed: {e}")
             results.append({"bundle_id": bundle_id, "action": "error", "error": str(e)})
 
-    if any(r.get("action") == "regenerated" for r in results):
-        from app.core.routing.sync import rebuild_route_index
-
-        try:
-            await rebuild_route_index()
-        except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
-            logger.warning(f"[atlas-maintenance] route_index rebuild failed: {e}")
     logger.info(f"[atlas-maintenance] done: {results}")
     return results

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Macro Sedimentation — Web Workflow (10+ steps) Manual Test with Real LLM.
+"""Macro Creation — Web Workflow (10+ steps) Manual Test with Real LLM.
 
-Runs the complete macro sedimentation flywheel with a real Agent engine and
+Runs the complete macro creation flywheel with a real Agent engine and
 real LLM.  The agent is asked to interact with a locally served web form using
 browser_control.  The resulting macro should contain at least 10 deterministic
 web automation steps.
@@ -42,7 +42,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)],
 )
-logger = logging.getLogger("macro_sedimentation_web_workflow")
+logger = logging.getLogger("macro_creation_web_workflow")
 
 TEST_TIMEOUT = 300
 MIN_STEPS = 10
@@ -279,18 +279,18 @@ async def _verify_results(thread_id: str) -> tuple[Macro, AgentActivity]:
     logger.info(
         "[Test] AgentActivity: final_outcome=%s eligible=%s summary=%s",
         activity.final_outcome,
-        activity.sedimentation_eligible,
+        activity.macro_creation_eligible,
         activity.summary,
     )
 
     if activity.final_outcome.upper() != "COMPLETED":
         raise AssertionError(
             f"Expected COMPLETED, got {activity.final_outcome}. "
-            f"Sedimentation eligible={activity.sedimentation_eligible}."
+            f"Creation eligible={activity.macro_creation_eligible}."
         )
-    if not activity.sedimentation_eligible:
+    if not activity.macro_creation_eligible:
         raise AssertionError(
-            "Activity is not sedimentation-eligible. No replayable trace events found."
+            "Activity is not macro-creation-eligible. No replayable trace events found."
         )
 
     if macro is None:
@@ -364,7 +364,7 @@ async def main() -> None:
     global MIN_STEPS
 
     parser = argparse.ArgumentParser(
-        description="Macro Sedimentation Web Workflow Manual Test with Real LLM"
+        description="Macro Creation Web Workflow Manual Test with Real LLM"
     )
     parser.add_argument(
         "--timeout", type=int, default=TEST_TIMEOUT, help="Agent timeout in seconds"
@@ -375,11 +375,11 @@ async def main() -> None:
     args = parser.parse_args()
     MIN_STEPS = args.min_steps
 
-    thread_id = f"macro-sedimentation-web-workflow-{int(time.time())}"
+    thread_id = f"macro-creation-web-workflow-{int(time.time())}"
     project_id = 1
 
     logger.info("=" * 60)
-    logger.info("Macro Sedimentation — Web Workflow Manual Test (Real LLM)")
+    logger.info("Macro Creation — Web Workflow Manual Test (Real LLM)")
     logger.info("=" * 60)
     logger.info("Thread ID: %s", thread_id)
     logger.info("Project ID: %d", project_id)
@@ -412,7 +412,7 @@ async def main() -> None:
 
         logger.info("")
         logger.info("=" * 60)
-        logger.info("✅ MACRO SEDIMENTATION WEB WORKFLOW TEST PASSED")
+        logger.info("✅ MACRO CREATION WEB WORKFLOW TEST PASSED")
         logger.info("=" * 60)
         logger.info("Thread ID: %s", thread_id)
 

@@ -177,7 +177,7 @@ class InferenceEngine:
         return f"model={llm.model or '?'}"
 
     @staticmethod
-    async def _handle_ai_response(response: BaseMessage, handler) -> None:
+    async def _handle_ai_response(response: BaseMessage, handler, config_metadata: dict | None = None) -> None:
         if not handler:
             return
         from app.core.engine.message.reasoning import extract_reasoning_from_message
@@ -185,11 +185,12 @@ class InferenceEngine:
         if not response.content and not response.tool_calls and not thinking:
             return
         node_source = current_node_source.get()
+        metadata = {**(config_metadata or {}), **(response.metadata or {})}
         await handler.handle_ai_message(
             content=response.content or "",
             tool_calls=response.tool_calls,
             thinking=thinking,
-            metadata=response.metadata,
+            metadata=metadata,
             node_source=node_source,
         )
 
@@ -246,7 +247,7 @@ class InferenceEngine:
 
         handler = config.get("configurable", {}).get("message_handler")
         if handler:
-            await self._handle_ai_response(response, handler)
+            await self._handle_ai_response(response, handler, config_metadata=config.get("metadata"))
         if handler and handler.last_persisted_message_id:
             response.id = handler.last_persisted_message_id
             response.additional_kwargs["sequence_number"] = handler.last_persisted_sequence
@@ -295,20 +296,13 @@ class InferenceEngine:
 
         tool_results: list[BaseMessage] = []
         if remaining_tool_calls and tool_executor is not None:
-            logger.info(f"[{name}] 🛠   Executing {len(remaining_tool_calls)} tool calls")
-            res, batch_signal = await tool_executor.execute_batch(
-                remaining_tool_calls, local_tool_history
-            )
+            res, batch_signal = await tool_executor.execute_batch(remaining_tool_calls, local_tool_history)
             tool_results = res
 
             if batch_signal and pending_signal is None:
-                logger.info(f"[{name}] Post-execution signal detected: {type(batch_signal).__name__}")
                 pending_signal = batch_signal
 
             logger.info(f"[{name}] tool_results returned: {len(tool_results)} items")
-        else:
-            if remaining_tool_calls:
-                logger.warning(f"[{name}] tool_executor is None! Cannot execute tool calls.")
 
         return tool_results, pending_signal, queued_signals
 

@@ -99,10 +99,10 @@ class FinishNode(BaseNode):
 
     async def _has_replayable_steps(self, thread_id: str) -> bool:
         """Return True if the thread contains at least one deterministic replayable step."""
-        from app.core.execution.macro.sedimentation_service import MacroSedimentationService
+        from app.core.execution.macro.macro_creator_service import MacroCreatorService
 
         try:
-            return await MacroSedimentationService.is_eligible(thread_id)
+            return await MacroCreatorService.is_eligible(thread_id)
         except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.warning("[Finish] Failed to check replayable steps for %s: %s", thread_id, e)
             return False
@@ -112,18 +112,18 @@ class FinishNode(BaseNode):
         thread_id: str,
         summary: str | None,
         final_outcome: str,
-        sedimentation_eligible: bool,
+        macro_creation_eligible: bool,
     ) -> None:
-        """Persist the audit summary and sedimentation eligibility to AgentActivity."""
+        """Persist the audit summary and macro creation eligibility to AgentActivity."""
         try:
             async with session_scope() as session:
                 activity = await session.get(AgentActivity, thread_id)
                 if activity is None:
-                    logger.debug(f"[Finish] No AgentActivity record for {thread_id}; skipping sedimentation flag.")
+                    logger.debug(f"[Finish] No AgentActivity record for {thread_id}; skipping macro creation flag.")
                     return
                 activity.summary = summary
                 activity.final_outcome = final_outcome
-                activity.sedimentation_eligible = sedimentation_eligible
+                activity.macro_creation_eligible = macro_creation_eligible
         except (ValueError, OSError, RuntimeError, TypeError, KeyError) as e:
             logger.warning(f"[Finish] Failed to update AgentActivity for {thread_id}: {e}")
 
@@ -191,7 +191,7 @@ class FinishNode(BaseNode):
 
         summary = audit_result.summary
         final_outcome = audit_result.meta.get("outcome", "")
-        sedimentation_eligible = (
+        macro_creation_eligible = (
             final_outcome.upper() == "COMPLETED"
             and await self._has_replayable_steps(effective_thread_id)
         )
@@ -199,7 +199,7 @@ class FinishNode(BaseNode):
             thread_id=effective_thread_id,
             summary=summary,
             final_outcome=final_outcome,
-            sedimentation_eligible=sedimentation_eligible,
+            macro_creation_eligible=macro_creation_eligible,
         )
 
         if final_outcome.upper() == "INCOMPLETE":
@@ -264,19 +264,32 @@ class FinishNode(BaseNode):
             "metadata": metadata_clean,
         }
 
-        # Clean session audit messages from message history
+        # Clean session audit/finish messages from message history (they are internal quality gates)
         messages_to_return = []
-        tts_summary = ""
         for msg in messages:
             role = msg.type
             content = msg.content or ""
-            if not (role == "assistant" and content and "<evoloop_session_audit>" in str(content) and "<evoloop_final_report>" in str(content)):
+            is_internal_finish = (
+                role == "assistant"
+                and content
+                and (
+                    "<evoloop_session_audit>" in str(content)
+                    or "<evoloop_final_report>" in str(content)
+                    or "<evoloop_tts_summary>" in str(content)
+                )
+            )
+            if not is_internal_finish:
                 messages_to_return.append(msg)
-            # Extract tts_summary from voice responses
+
+        # Extract tts_summary from the audit LLM response (not from original state messages)
+        tts_summary = ""
+        for msg in (audit_result.messages or []):
+            content = msg.content or ""
             if "<evoloop_tts_summary>" in str(content):
                 m = re.search(r'<evoloop_tts_summary>(.*?)</evoloop_tts_summary>', str(content), re.DOTALL)
                 if m:
                     tts_summary = m.group(1).strip()
+                    break
 
         # Convert native dict messages back to native list of dicts for event schema if needed,
         # but since SessionCompletedData expects standard messages list, we can just pass dict list.
@@ -290,7 +303,7 @@ class FinishNode(BaseNode):
             summary=summary,
             tts_summary=tts_summary,
             outcome=final_outcome,
-            sedimentation_eligible=sedimentation_eligible,
+            macro_creation_eligible=macro_creation_eligible,
             audit_tier="unified",
             duration_ms=total_duration,
             turn_summary_message_id=None,

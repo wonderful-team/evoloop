@@ -82,7 +82,6 @@ class AgentToolExecutor:
         ctx = ContextManager.current()
         if run_id and ctx.run_id != run_id:
             ctx.run_id = run_id
-            logger.debug(f"[{self.name}] Injected run_id={run_id} into context")
 
         tool = self.tool_map.get(tool_name)
         if not tool:

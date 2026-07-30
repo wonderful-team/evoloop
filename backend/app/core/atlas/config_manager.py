@@ -199,6 +199,8 @@ class AtlasConfigManager:
             "微信": "com.tencent.xinWeChat",
             "Safari": "com.apple.Safari",
             "Chrome": "com.google.Chrome",
+            "TencentMeeting": "com.tencent.meeting",
+            "腾讯会议": "com.tencent.meeting",
         }
 
         try:

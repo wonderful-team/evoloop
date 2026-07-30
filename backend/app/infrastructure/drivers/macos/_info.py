@@ -24,14 +24,11 @@ class InfoMixin:
             return cls._cached_scale_factor
 
         try:
-            log_w, _ = cls.get_screen_size()
-
-            screenshot_path = cls.screenshot()
-            from PIL import Image
-            with Image.open(screenshot_path) as img:
-                pixel_w, _ = img.size
-
-            scale = round(pixel_w / log_w, 1) if log_w > 0 else 1.0
+            import Quartz
+            display_id = Quartz.CGMainDisplayID()
+            # backingScaleFactor: 2.0 on Retina, 1.0 on non-Retina
+            scale = Quartz.CGDisplayBackingScaleFactor(display_id)
+            scale = round(scale, 1) if scale > 0 else 1.0
             cls._cached_scale_factor = scale
             logger.info(f"[MacOSDriver] UI scale factor detected and cached: {scale}x")
             return scale

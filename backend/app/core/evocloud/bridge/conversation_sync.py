@@ -85,7 +85,11 @@ class ConversationSyncManager:
             logger.error(f"[ConversationSync] Sync loop error: {e}", exc_info=True)
 
     async def _schedule_full_sync(self):
-        """调度全量同步任务（通过 Huey）"""
+        """调度全量同步任务（通过 Huey）
+
+        注意：数据在 Huey Worker 内部查询，不在调度时序列化。
+        避免任务参数膨胀导致 SQLite 队列膨胀。
+        """
         if not self.device_key:
             logger.debug("[ConversationSync] Skip full sync: no device_key")
             return
@@ -98,38 +102,12 @@ class ConversationSyncManager:
         try:
             from app.core.evocloud.bridge.sync_tasks import full_sync_task
 
-            async with session_scope() as db:
-                # 获取未同步的会话
-                conversations_result = await db.execute(
-                    select(ConversationModel).where(ConversationModel.sync_status != 'synced')
-                )
-                conversations = conversations_result.scalars().all()
+            result = full_sync_task.delay(self.device_key)
 
-                # 获取未同步的消息
-                messages_result = await db.execute(
-                    select(MessageModel).where(MessageModel.sync_status != 'synced')
-                )
-                messages = messages_result.scalars().all()
-
-                # 转换数据格式
-                conv_data = [self._format_conversation(c).model_dump() for c in conversations]
-                msg_data = [
-                    sm.model_dump()
-                    for m in messages
-                    if (sm := self._format_message(m)) is not None
-                ]
-
-                # 提交到 Huey
-                result = full_sync_task.delay(self.device_key, {
-                    "conversations": conv_data,
-                    "messages": msg_data,
-                })
-
-                logger.info(
-                    f"[ConversationSync] Full sync scheduled: "
-                    f"{len(conv_data)} conversations, {len(msg_data)} messages "
-                    f"task_id={result.id}"
-                )
+            logger.info(
+                f"[ConversationSync] Full sync scheduled: "
+                f"task_id={result.id}"
+            )
 
         except (ValueError, OSError, RuntimeError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"[ConversationSync] Failed to schedule full sync: {e}", exc_info=True)
